@@ -28,6 +28,10 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 - AC7: Diagnose and repair `application_review_progress_push_contract`, all three `application_review_tour_composition` scales, `application_active_changed_scaling` and `application_review_tour_cold_import_public_path`, retaining exact durable receipt identities, tour receipt isolation, automatic-Seen policy, bounded changed-set work and meaningful counterexamples without weaker thresholds or semantic assertions.
 - AC8: All three `application_source_find` scales pass their existing supported900-pixel-window, every-drawer-open floating-widget fit and query-width assertions, with exact geometry/focus/interaction and native appearance retained; counterexamples detect the demonstrated layout cause.
 
+- AC9: Repair the enumerated final Windows title/browser/window local-cycle republication contract failures, preserving exact same-PR local-cycle identity and browser-action refusal, new-PR replacement, Home rules and all platform scale/width assertions; pass meaningful focused counterexamples and native courses once the PC slot is released.
+
+- AC10: Diagnose and repair the three explicitly enumerated final Windows review-submission composition courses, retaining exact current-head line and inline-draft admission, pending-selection and summary stale-view refusal, publication counts, recovery and authority assertions; pass unchanged native courses at all three scales after PC slot release. Mac d52 passes do not establish a Windows fix.
+
 ## Explicit scope amendment
 
 The coordinator explicitly added the sixth criterion after the final Windows gate timed out at
@@ -59,3 +63,18 @@ unsupported-platform waiver, signing, authentication or publication is authorize
 
 The [checkpoint](../_checkpoints/BPR-1527/CURRENT.md) records the diagnosis,
 runtime binding and native continuation frontier.
+
+The separately tracked local-cycle/browser unit currently enumerates: `qt_workbench_title_row_scale_100`, `qt_workbench_title_row_scale_125`, `qt_workbench_title_row_scale_200`, `qt_workbench_open_on_github_scale_100`, `qt_workbench_open_on_github_scale_125`, `qt_workbench_open_on_github_scale_200`, `qt_workbench_window_scale_100`, `qt_workbench_window_scale_125`, `qt_workbench_window_scale_200`. All report the same local-cycle republication assertion. No unobserved selector is inferred.
+
+The scoped [source self-review](../_checkpoints/BPR-1527/SELF_REVIEW.md) records the pinned range, exact origin/lifecycle guards and source-backed oracle reconciliation. Focused evidence is recorded in the checkpoint; all pending native/static/release obligations remain explicit.
+
+Coordinator read-only review found and reproduced a retroactive receipt-origin defect in intermediate0f6d. The [review disposition](../_checkpoints/BPR-1527/review-origin-correction.json) records the26.06s reverse-control failure and corrected6747ca029 source with both held orderings and20normal public courses passing; fresh strict checks of all eight selected TUs, format 22 and architecture pass; native acceptance remains pending.
+
+The coordinator explicitly added a separate submission contract unit after final
+Windows tests #621/#622 failed in 42.47s/42.83s and then confirmed #623 with the
+same current-head pending-draft selection assertion. Exact selectors are
+`application_review_submission_composition_public_path`,
+`application_review_submission_composition_scale_125` and
+`application_review_submission_composition_scale_200`. Prior nine criteria and
+eight exits remain. Mac d52 passed these courses; no Windows fix is inferred from
+the reply repair, because this failure occurs before Comment or draft creation.

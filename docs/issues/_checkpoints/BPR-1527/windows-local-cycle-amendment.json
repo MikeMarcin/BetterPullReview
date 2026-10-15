@@ -1,0 +1,21 @@
+{
+  "schema": "bpr.authorized-plan-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "source": "Explicit coordinator Windows incremental actual-failure messages 2026-10-15; final200% actual27.73s confirmed separately",
+  "prior_criteria_count": 8,
+  "prior_exit_count": 7,
+  "selectors": [
+    "qt_workbench_title_row_scale_100",
+    "qt_workbench_title_row_scale_125",
+    "qt_workbench_title_row_scale_200",
+    "qt_workbench_open_on_github_scale_100",
+    "qt_workbench_open_on_github_scale_125",
+    "qt_workbench_open_on_github_scale_200",
+    "qt_workbench_window_scale_100",
+    "qt_workbench_window_scale_125",
+    "qt_workbench_window_scale_200"
+  ],
+  "failure": "same-PR publication retains the local cycle and never offers its browser button",
+  "source_revision": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "pc_slot": "Still coordinator-owned; no Windows/WSL commands"
+}

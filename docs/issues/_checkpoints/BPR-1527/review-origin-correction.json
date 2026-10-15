@@ -23,7 +23,7 @@
     "log": "/tmp/bpr1527-admission-origin-r13.log",
     "result": "5/5normal courses pass26.77s; ordinaryledger8.99s, tour3scales5.01/3.89/4.22s, extendedcold4.63s includes both held storage ordering directions and exact durable receipts"
   },
-  "integration": "Corrected source public acceptance passes; current strict4-TU recheck active /tmp/bpr1527-corrected-strict-tidy-r14.log. No main integration/sourcefreeze; nativePC remains coordinator-owned.",
+  "integration": "Current6747ca029 passes20normal public courses180.33s; fresh strict8selected TUs, full format22 and architecture pass. No main integration/sourcefreeze; nativePC remains coordinator-owned.",
   "source_digests": {
     "full_application": "0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b",
     "production_app_manifest": "275ebd5fb8bf6f33d4bf02a505953c0350eaea9b1be0b43c400fd6eb1411dd4c",
@@ -119,5 +119,20 @@
         "seconds": 11.97
       }
     ]
+  },
+  "current_static": {
+    "result": "pass",
+    "strict_tidy_translation_units": 8,
+    "format_files": 1542,
+    "architecture_seconds": 15.15,
+    "logs": [
+      "/tmp/bpr1527-corrected-strict-tidy-r14.log",
+      "/tmp/bpr1527-corrected-consumer-tidy-r14.log",
+      "/tmp/bpr1527-corrected-format-r14.log",
+      "/tmp/bpr1527-corrected-architecture-r14.log"
+    ],
+    "native_acceptance": "pending",
+    "changed_translation_units": 7,
+    "additional_consumer": "src/adapters/qt/src/workbench_window.cpp is restored baseline but was freshly checked as an extra Qt consumer."
   }
 }

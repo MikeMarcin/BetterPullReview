@@ -1,0 +1,35 @@
+{
+  "schema": "bpr.authorized-plan-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "authority": "Explicit coordinator messages adding final Windows #621/#622 and confirmed #623 on 2026-10-15",
+  "prior_criteria_count": 9,
+  "prior_exit_count": 8,
+  "criteria_count": 10,
+  "exit_count": 9,
+  "selectors": [
+    "application_review_submission_composition_public_path",
+    "application_review_submission_composition_scale_125",
+    "application_review_submission_composition_scale_200"
+  ],
+  "failure": "review-submission-composition:fail select a current-head line for the pending draft",
+  "source_revision": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "observed_seconds": {
+    "621": 42.47,
+    "622": 42.83
+  },
+  "original_mac": "Same three courses passed original full d52 gate; not proof of Windows compatibility or repair",
+  "pc_slot": "Coordinator-owned final gate active at 635/705; no implementer PC commands",
+  "source_diagnosis": {
+    "test": "tests/end_to_end/review_submission_composition_public_path.cpp:641",
+    "sequence": "After exact own-feedback refresh/submission courses, choose Review, select Files model row zero, observe FileSelections increase, then select right line 29. Failure precedes Comment, begin_review_reply or any pending inline draft.",
+    "selection_implementation": "diff_workbench::select_line returns false for missing CurrentResult/SemanticIndex, unresolved right line in the current alignment, or synchronously changed selection. FileSelections counts dispatched intent, not adopted source completion.",
+    "status": "Cause unresolved; native bounded facts must distinguish exact file/context/material/line readiness from selection replacement. No speculative test/oracle/product repair."
+  },
+  "mechanical_limit": "Shared check-amendment is for unchanged selector scope. This is explicitly authorized requirement addition, recorded without claiming the helper proves semantic acceptance.",
+  "mac_current_control": {
+    "source_revision": "6747ca029b48c231539cb36360bcfc3e26173609",
+    "log": "/tmp/bpr1527-submission-mac-control-r15.log",
+    "result": "3/3 unchanged normal Mac scales pass19.32s",
+    "native_windows_acceptance": "pending; cause unresolved"
+  }
+}

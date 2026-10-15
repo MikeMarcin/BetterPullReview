@@ -30,58 +30,70 @@
     "plan_id": "bpr-1527-final-native-release-contracts",
     "plan_path": "docs/rfcs/plans/bpr-1527-final-native-release-contracts/milestone-plan.json",
     "milestone_id": "final-composition-contracts",
-    "definition_fingerprint": "sha256:6dc2aca12d7a476a9285a82b2f40ff55ece104cd36087a4ac091fdfc6f7e1c51",
+    "definition_fingerprint": "sha256:6e0c863cecfa713c586769a7c10081742652641dfc669d48b4df6571b1cb3c97",
     "obligations": [
       {
         "id": "BPR-1527:AC1",
         "source": "BPR-1527",
         "selector": "AC1",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC2",
         "source": "BPR-1527",
         "selector": "AC2",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC3",
         "source": "BPR-1527",
         "selector": "AC3",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC4",
         "source": "BPR-1527",
         "selector": "AC4",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC5",
         "source": "BPR-1527",
         "selector": "AC5",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC6",
         "source": "BPR-1527",
         "selector": "AC6",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC7",
         "source": "BPR-1527",
         "selector": "AC7",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       },
       {
         "id": "BPR-1527:AC8",
         "source": "BPR-1527",
         "selector": "AC8",
-        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
+      },
+      {
+        "id": "BPR-1527:AC9",
+        "source": "BPR-1527",
+        "selector": "AC9",
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
+      },
+      {
+        "id": "BPR-1527:AC10",
+        "source": "BPR-1527",
+        "selector": "AC10",
+        "source_fingerprint": "sha256:c602bb2b844f2e6681325ebd2ddfa200f4d5e6796bf51c4b0575cd489c01c359"
       }
     ],
-    "obligation_fingerprint": "sha256:9a951bd08d0c4e44d0d4ebcc6d843108412b7c8c84dfc662850b7e9deddf4277",
+    "obligation_fingerprint": "sha256:61674806a67701875a69070087aa0caac26198212621484e795ba3a2893b94a6",
     "exit_criteria": [
       {
         "id": "final-composition-contracts:exit:1",
@@ -110,6 +122,14 @@
       {
         "id": "final-composition-contracts:exit:7",
         "text": "Diagnose and repair all nine additionally enumerated final Mac courses: review-progress push, three review-tour composition scales, active-changed scaling, tour cold import and three source-find scales; preserve exact receipt isolation, adopted automatic-Seen behavior and supported floating-search geometry without waivers."
+      },
+      {
+        "id": "final-composition-contracts:exit:8",
+        "text": "Restore the nine explicitly enumerated final Windows title-row/browser/window courses: same-PR publication retains the local cycle without its browser button, with all scale/width and new-PR/Home assertions unchanged; native PC acceptance waits for slot release."
+      },
+      {
+        "id": "final-composition-contracts:exit:9",
+        "text": "Explain and repair application_review_submission_composition_public_path and its scale_125/scale_200 courses on native Windows; preserve exact current-head pending-draft selection and every submission, stale-selection, summary, recovery and authority assertion with unchanged budgets."
       }
     ],
     "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -128,8 +148,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/v021-windows-gate-fixes",
-    "source_revision": "681b41b9c7b72e9c29fa5e19124440a5590e1ea1",
+    "source_revision": "6747ca029b48c231539cb36360bcfc3e26173609",
     "workflow_branch": "codex/v021-windows-gate-fixes",
-    "workflow_revision": "681b41b9c7b72e9c29fa5e19124440a5590e1ea1"
+    "workflow_revision": "6747ca029b48c231539cb36360bcfc3e26173609"
   }
 }

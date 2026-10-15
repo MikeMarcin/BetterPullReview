@@ -1,0 +1,379 @@
+{
+  "schema": "bpr.focused-repair-evidence.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "milestone": "final-composition-contracts",
+  "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "tested_candidate": {
+    "source_revision": "6747ca029b48c231539cb36360bcfc3e26173609",
+    "working_changes": false,
+    "sha256": {
+      "src/app/src/github_application.cpp": "0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b",
+      "src/adapters/qt/src/diff_workbench.cpp": "d8b4192a5a127fb236be66647b2fa761a13cd1de05f97e8985fc38d3ba3a22c7",
+      "src/adapters/qt/src/workbench_window.cpp": "8d8015651424ac0431d8df80c8b529b8d90375f85a8d1340271cf77e3b49eb82",
+      "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp": "a323d15b6a56fd9e2c8014d8ccc4530c9fb52664d03d55d73f3976dcb8810f82",
+      "tests/adapters_qt/workbench_window_tests.cpp": "a41134b9698d9285fd68ac997ca33bf02c174cf81e97969892fbfafbe04ce67c",
+      "tests/end_to_end/agent_invocation_composition_public_path.cpp": "abdc83b68241af744e04602d4602080c9e8e46b4d7db50a586c57ffb012b7c98",
+      "tests/end_to_end/application_scaling_tests.cpp": "3a46fbaffe1fa243926a41e9ca27cb706a192acd70efec38503b5d1cad2dfeb4",
+      "tests/end_to_end/review_tour_composition_public_path.cpp": "48adb260941452c6102945f07dc7bf926cefcfb405a372d736e5d98309459946",
+      "tests/end_to_end/source_find_public_path_tests.cpp": "768f0e8d57742547f9f9d34d2515be0b242f62129ae94961349472853c44f68f",
+      "tests/end_to_end/application_review_progress_push_contract.cmake": "7620ef533a6f0fb801d8de96f6a557b57f9e1f2f25debcd12ffae82f9de84b3e",
+      "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "581833b387bbe7bb793c96f8694c1f0813c3be69c86a7d807232a43d1b07f219"
+    },
+    "acceptance": "corrected_mac_public_and_static_pass_native_pending",
+    "binding_note": "Compiled the same source bytes before intentional 6747ca029 commit; current 20 normal courses and both held directions pass. Fresh current-source strict checks cover all 8 selected TUs (7 changed plus baseline Qt window consumer). No package or release identity claim. Qt production header/window returned exact d52 baseline."
+  },
+  "context": {
+    "platform": "macOS26.6.2",
+    "architecture": "arm64",
+    "qt": "6.11.2",
+    "qpa": "offscreen",
+    "resource_context": "Owned worktree; serialized native courses; no independent build/suite/performance overlap; Windows/WSL untouched while coordinator full gate runs"
+  },
+  "positive_evidence": [
+    {
+      "log": "/tmp/bpr1527-mac-reply-oracle-r1.log",
+      "result": "4/4 pass43.35s staged candidate"
+    },
+    {
+      "log": "/tmp/bpr1527-mac-functional-r3.log",
+      "result": "6/6 pass77.53s staged candidate"
+    },
+    {
+      "log": "/tmp/bpr1527-mac-tour-r4.log",
+      "result": "4/4 pass15.62s staged candidate"
+    },
+    {
+      "log": "/tmp/bpr1527-mac-boundaries-r6.log",
+      "result": "4/4 pass17.84s; includes held ledger completion cold5.80s and unchanged title-row3scales"
+    },
+    {
+      "log": "/tmp/bpr1527-mac-integration-r9.log",
+      "result": "20/20 exact-current-candidate normal courses pass175.52sec; all14 repaired Mac courses and6 affected siblings",
+      "courses": [
+        {
+          "name": "qt_workbench_conversation_reveal",
+          "seconds": 2.4
+        },
+        {
+          "name": "qt_workbench_window_scale_100",
+          "seconds": 25.93
+        },
+        {
+          "name": "qt_scoped_prose_editor",
+          "seconds": 0.49
+        },
+        {
+          "name": "application_agent_finding_workshop_press_contract",
+          "seconds": 3.62
+        },
+        {
+          "name": "application_agent_invocation_composition_contract",
+          "seconds": 13.22
+        },
+        {
+          "name": "application_uiforetw_selected_diff_contract",
+          "seconds": 18.33
+        },
+        {
+          "name": "application_review_ledger_composition_contract",
+          "seconds": 7.82
+        },
+        {
+          "name": "application_review_round_trip_composition_contract",
+          "seconds": 2.51
+        },
+        {
+          "name": "application_threaded_reply_contract",
+          "seconds": 4.44
+        },
+        {
+          "name": "application_label_authoring_contract",
+          "seconds": 4.52
+        },
+        {
+          "name": "application_reply_draft_contract",
+          "seconds": 13.88
+        },
+        {
+          "name": "application_review_progress_push_contract",
+          "seconds": 4.71
+        },
+        {
+          "name": "application_review_tour_composition_public_path",
+          "seconds": 5.93
+        },
+        {
+          "name": "application_review_tour_composition_scale_125",
+          "seconds": 3.77
+        },
+        {
+          "name": "application_review_tour_composition_scale_200",
+          "seconds": 4.07
+        },
+        {
+          "name": "application_active_changed_scaling",
+          "seconds": 19.61
+        },
+        {
+          "name": "application_review_tour_cold_import_public_path",
+          "seconds": 3.55
+        },
+        {
+          "name": "application_source_find",
+          "seconds": 13.36
+        },
+        {
+          "name": "application_source_find_scale_1_25",
+          "seconds": 11.41
+        },
+        {
+          "name": "application_source_find_scale_2_0",
+          "seconds": 11.91
+        }
+      ],
+      "source_sha256": {
+        "src/app/src/github_application.cpp": "8123abed3e79f20745cbbcbd8275b4fdd568ddafad404f7b5d1ee77cc65fccae",
+        "src/adapters/qt/src/diff_workbench.cpp": "d8b4192a5a127fb236be66647b2fa761a13cd1de05f97e8985fc38d3ba3a22c7",
+        "src/adapters/qt/src/workbench_window.cpp": "7142249027922eb3d179a683275fc4c10eb7aeaf38c0c529bed3b8b7db588dd1",
+        "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp": "a2ac693c70ee221fe2ca2897355f80ac4d09ccdd833e41746173e11f4e44b545",
+        "tests/adapters_qt/workbench_window_tests.cpp": "c3b3cdfe0cbd803c06bcd5a4f82d7e99d65b0b14778a4dfaf01a136481d2c4b5",
+        "tests/end_to_end/agent_invocation_composition_public_path.cpp": "abdc83b68241af744e04602d4602080c9e8e46b4d7db50a586c57ffb012b7c98",
+        "tests/end_to_end/application_scaling_tests.cpp": "3a46fbaffe1fa243926a41e9ca27cb706a192acd70efec38503b5d1cad2dfeb4",
+        "tests/end_to_end/review_tour_composition_public_path.cpp": "c633972ca14b55c78519875608bf6be1615a8f51bf3f007f59a769308af9828f",
+        "tests/end_to_end/source_find_public_path_tests.cpp": "768f0e8d57742547f9f9d34d2515be0b242f62129ae94961349472853c44f68f",
+        "tests/end_to_end/application_review_progress_push_contract.cmake": "7620ef533a6f0fb801d8de96f6a557b57f9e1f2f25debcd12ffae82f9de84b3e",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "70b4b87fdf0ac107a60558f8c8364640ce818c904eb8be1db746c9cf0725db6f"
+      }
+    },
+    {
+      "log": "/tmp/bpr1527-mac-qt-recheck-r10.log",
+      "result": "2/2 corrected Qt test courses pass29.93s after isolated lint-only changes; conversationreveal2.86s, fullwindow10027.03s",
+      "source_sha256": {
+        "tests/adapters_qt/workbench_window_tests.cpp": "d10bce66d1877e1b2cb868ffd0f3bf80d00519c110fa010f6a011fc6eaeb81c4"
+      }
+    },
+    {
+      "log": "/tmp/bpr1527-admission-origin-r13.log",
+      "result": "5/5corrected tour/ordinary-ledger courses pass26.77s; both held orderings and original absolutezero preserved"
+    },
+    {
+      "log": "/tmp/bpr1527-corrected-integration-r14.log",
+      "result": "20/20normal current-source courses pass180.33s",
+      "source_sha256": {
+        "src/app/src/github_application.cpp": "0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b",
+        "src/adapters/qt/src/diff_workbench.cpp": "d8b4192a5a127fb236be66647b2fa761a13cd1de05f97e8985fc38d3ba3a22c7",
+        "src/adapters/qt/src/workbench_window.cpp": "8d8015651424ac0431d8df80c8b529b8d90375f85a8d1340271cf77e3b49eb82",
+        "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp": "a323d15b6a56fd9e2c8014d8ccc4530c9fb52664d03d55d73f3976dcb8810f82",
+        "tests/adapters_qt/workbench_window_tests.cpp": "a41134b9698d9285fd68ac997ca33bf02c174cf81e97969892fbfafbe04ce67c",
+        "tests/end_to_end/agent_invocation_composition_public_path.cpp": "abdc83b68241af744e04602d4602080c9e8e46b4d7db50a586c57ffb012b7c98",
+        "tests/end_to_end/application_scaling_tests.cpp": "3a46fbaffe1fa243926a41e9ca27cb706a192acd70efec38503b5d1cad2dfeb4",
+        "tests/end_to_end/review_tour_composition_public_path.cpp": "48adb260941452c6102945f07dc7bf926cefcfb405a372d736e5d98309459946",
+        "tests/end_to_end/source_find_public_path_tests.cpp": "768f0e8d57742547f9f9d34d2515be0b242f62129ae94961349472853c44f68f",
+        "tests/end_to_end/application_review_progress_push_contract.cmake": "7620ef533a6f0fb801d8de96f6a557b57f9e1f2f25debcd12ffae82f9de84b3e",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "581833b387bbe7bb793c96f8694c1f0813c3be69c86a7d807232a43d1b07f219"
+      },
+      "courses": [
+        {
+          "name": "qt_workbench_conversation_reveal",
+          "seconds": 2.94
+        },
+        {
+          "name": "qt_workbench_window_scale_100",
+          "seconds": 26.56
+        },
+        {
+          "name": "qt_scoped_prose_editor",
+          "seconds": 0.54
+        },
+        {
+          "name": "application_agent_finding_workshop_press_contract",
+          "seconds": 3.57
+        },
+        {
+          "name": "application_agent_invocation_composition_contract",
+          "seconds": 14.52
+        },
+        {
+          "name": "application_uiforetw_selected_diff_contract",
+          "seconds": 18.17
+        },
+        {
+          "name": "application_review_ledger_composition_contract",
+          "seconds": 8.29
+        },
+        {
+          "name": "application_review_round_trip_composition_contract",
+          "seconds": 2.56
+        },
+        {
+          "name": "application_threaded_reply_contract",
+          "seconds": 4.53
+        },
+        {
+          "name": "application_label_authoring_contract",
+          "seconds": 4.64
+        },
+        {
+          "name": "application_reply_draft_contract",
+          "seconds": 14.64
+        },
+        {
+          "name": "application_review_progress_push_contract",
+          "seconds": 4.96
+        },
+        {
+          "name": "application_review_tour_composition_public_path",
+          "seconds": 3.94
+        },
+        {
+          "name": "application_review_tour_composition_scale_125",
+          "seconds": 3.88
+        },
+        {
+          "name": "application_review_tour_composition_scale_200",
+          "seconds": 4.17
+        },
+        {
+          "name": "application_active_changed_scaling",
+          "seconds": 19.95
+        },
+        {
+          "name": "application_review_tour_cold_import_public_path",
+          "seconds": 5.23
+        },
+        {
+          "name": "application_source_find",
+          "seconds": 13.7
+        },
+        {
+          "name": "application_source_find_scale_1_25",
+          "seconds": 11.52
+        },
+        {
+          "name": "application_source_find_scale_2_0",
+          "seconds": 11.97
+        }
+      ]
+    },
+    {
+      "log": "/tmp/bpr1527-submission-mac-control-r15.log",
+      "source_revision": "6747ca029b48c231539cb36360bcfc3e26173609",
+      "command": "ctest --test-dir build/dev --output-on-failure -j1 -R '^application_review_submission_composition_(public_path|scale_125|scale_200)$'",
+      "result": "3/3 unchanged normal Mac submission courses pass19.32s, scales100/125/200=7.83/5.59/5.88s",
+      "limit": "Mac control only; new native Windows failure cause and repair unresolved. No current-head line, publication, refusal or budget assertion changed."
+    }
+  ],
+  "negative_controls": [
+    {
+      "log": "/tmp/bpr1527-negative-r7.log",
+      "result": "4/4 expected failures; omitted Accept3.63s; old placeholder40.61s; disabled tour guard4.42s; old Find geometry11.77s"
+    },
+    {
+      "log": "/tmp/bpr1527-negative-r8.log",
+      "result": "misplaced Accept expected exact-order failure3.71s"
+    }
+  ],
+  "control_restoration": "Both changed production files restored byte-for-byte to SHA256-backed private snapshots before final rebuild. No injected control remains.",
+  "static": {
+    "format22": {
+      "result": "pass",
+      "exit_code": 0,
+      "files": 1542,
+      "version": "22.1.8",
+      "log": "/tmp/bpr1527-corrected-format-r14.log"
+    },
+    "strict_tidy22": {
+      "result": "pass",
+      "exit_codes": [
+        0,
+        0
+      ],
+      "translation_units": 8,
+      "logs": [
+        "/tmp/bpr1527-corrected-strict-tidy-r14.log",
+        "/tmp/bpr1527-corrected-consumer-tidy-r14.log"
+      ],
+      "context": "Two disjoint 4-TU commands after GUI acceptance; stable current source; no added suppression or setting change.",
+      "changed_translation_units": 7,
+      "additional_consumer": "src/adapters/qt/src/workbench_window.cpp"
+    },
+    "architecture": {
+      "result": "pass",
+      "exit_code": 0,
+      "seconds": 15.15,
+      "log": "/tmp/bpr1527-corrected-architecture-r14.log"
+    },
+    "documentation": {
+      "result": "pass",
+      "exit_codes": [
+        0,
+        0
+      ],
+      "verifier_units": 67,
+      "logs": [
+        "/tmp/bpr1527-documentation-r15.log",
+        "/tmp/bpr1527-documentation-tests-r15.log",
+        "/tmp/bpr1527-documentation-final-r15.log"
+      ],
+      "final_upkeep_gate": "DOCUMENTATION_OK, exit0, after current receipt and explicit 10-criterion/9-exit binding upkeep."
+    }
+  },
+  "build": {
+    "log": "/tmp/bpr1527-mac-final-candidate-build-r9b.log",
+    "result": "pass all selected app/public/Qt targets",
+    "corrected_command_attempts": [
+      "r5 requested nonexistent test_workbench_window; corrected r5b passed",
+      "r9 requested nonexistent long scoped-prose target; corrected r9b test_scoped_prose_editor passed"
+    ]
+  },
+  "source_review": "SELF_REVIEW.md; sole implementer self-review, not independent acceptance",
+  "pending": [
+    "Windows nine local-cycle title/browser/window courses after native lease release",
+    "Windows complete-workbench 200% bounded source-backed stability repair; unchanged 120s",
+    "New Windows submission contract unit: exact public_path, scale_125 and scale_200; current-head pending draft selection failure before Comment; native cause/repair unresolved",
+    "Already-scoped native Windows agent and affected application courses",
+    "Affected Ubuntu 26.04 WSL compile and public-path acceptance, serialized after Windows",
+    "Canonical accepted finish after required native work; BPR-1527 remains In Progress",
+    "Root complete common-source native release gates/packages, optimized Release cache-bytes supplement, corresponding source/SPDX/notices and release approval"
+  ],
+  "render_review": "Current source-find-renders/03-narrow-900.png full public composition inspected: all existing controls fit; offscreen layout evidence only, no owner desktop capture or system appearance qualification.",
+  "review_finding": {
+    "reviewer": "coordinator read-only review of0f6d",
+    "issue": "open_preparation overwrites an already-admitted ordinary request origin before delayed receipt completion",
+    "reproduction": "/tmp/bpr1527-reverse-control-r11.log; required held ordinary->preparation positive course fails26.06s on0f6d",
+    "intermediate": "Removing retroactive event alone exposes unconditional modality-reset losing admitted tour origin; r12 cold original zero-receipt assertion fails3.64s",
+    "correction": "Remove unnecessary Qt event and preserve retained admitted origin across modality entry. Origin assigned only by begin(request); ordinary Files gestures clear before their new request.",
+    "integration": "0f6d must not integrate as accepted source; no main changes made",
+    "resolution": "Corrected in 6747ca029: absolute zero plus BOTH held orderings and 20 normal courses pass; fresh strict 8 TUs, format and architecture pass. Native PC acceptance remains pending."
+  },
+  "root_native_observations": [
+    "Final Windows d52 agent invocation composition #554 fails21.04s at566/705, same already-scoped AC3. Root reported actual; raw latest Windows suite still coordinator-owned. Total11Windowsactualfailures currently reported; no new criterion.",
+    "Coordinator final Windows count22 at635/705; submission #621/#622 fail42.47/42.83s and confirmed #623 same current-head pending draft line assertion. Explicit AC10/exit9 addition; prior obligations preserved."
+  ],
+  "superseded_candidates": [
+    {
+      "parent_checkpoint": "5c84d105ecb0ea7ebc17fa66cdec8daa3308580a",
+      "working_changes": false,
+      "sha256": {
+        "src/app/src/github_application.cpp": "8123abed3e79f20745cbbcbd8275b4fdd568ddafad404f7b5d1ee77cc65fccae",
+        "src/adapters/qt/src/diff_workbench.cpp": "d8b4192a5a127fb236be66647b2fa761a13cd1de05f97e8985fc38d3ba3a22c7",
+        "src/adapters/qt/src/workbench_window.cpp": "7142249027922eb3d179a683275fc4c10eb7aeaf38c0c529bed3b8b7db588dd1",
+        "src/adapters/qt/include/bpr/qt/review_tour_editor.hpp": "a2ac693c70ee221fe2ca2897355f80ac4d09ccdd833e41746173e11f4e44b545",
+        "tests/adapters_qt/workbench_window_tests.cpp": "d10bce66d1877e1b2cb868ffd0f3bf80d00519c110fa010f6a011fc6eaeb81c4",
+        "tests/end_to_end/agent_invocation_composition_public_path.cpp": "abdc83b68241af744e04602d4602080c9e8e46b4d7db50a586c57ffb012b7c98",
+        "tests/end_to_end/application_scaling_tests.cpp": "3a46fbaffe1fa243926a41e9ca27cb706a192acd70efec38503b5d1cad2dfeb4",
+        "tests/end_to_end/review_tour_composition_public_path.cpp": "c633972ca14b55c78519875608bf6be1615a8f51bf3f007f59a769308af9828f",
+        "tests/end_to_end/source_find_public_path_tests.cpp": "768f0e8d57742547f9f9d34d2515be0b242f62129ae94961349472853c44f68f",
+        "tests/end_to_end/application_review_progress_push_contract.cmake": "7620ef533a6f0fb801d8de96f6a557b57f9e1f2f25debcd12ffae82f9de84b3e",
+        "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "70b4b87fdf0ac107a60558f8c8364640ce818c904eb8be1db746c9cf0725db6f"
+      },
+      "source_revision": "0f6d288b1db229f4137f6a285a8a571660662905",
+      "binding_note": "Source/tests match this committed candidate; r9 integration and r10 isolated Qt lint-only recheck are separately hash-bound. Later documentation commits do not change these inputs.",
+      "acceptance": "superseded_by_material_review_finding"
+    }
+  ],
+  "private_current_evidence": {
+    "directory": ".mask/sessions/BPR-1527/evidence/corrected-r14",
+    "manifest": "preserved-logs.json"
+  }
+}

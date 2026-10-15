@@ -12,11 +12,14 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "Mac owned-worktree engineering slot released; failed Mac producer read-only; Windows/WSL full final suite still coordinator-owned. No concurrent PC work.",
-  "acceptance": "Pending; read-only source hypotheses are not native acceptance. Completed1525/1526 unchanged. No threshold/assertion relaxation or owner waiver.",
+  "command_state": "All owned source/build/GUI/static/documentation commands complete. No handed-off command, review server, protected attended candidate or repository writer. Final documentation upkeep passes DOCUMENTATION_OK. Root Windows/WSL full gate remains active; no implementer PC command.",
+  "acceptance": "Current source 6747ca029 corrects coordinator review finding: old reverse control failed 26.06s; corrected 20 normal courses pass 180.33s, including both held orderings. Fresh strict tidy passes all 8 selected TUs, format 1542 files and architecture pass. Windows 9 local-cycle courses, 200% source-backed performance repair, affected Windows/Ubuntu acceptance remain pending. BPR-1527 In Progress; no integration or release freeze. Unchanged Mac submission 3 scales pass19.32s; new AC10/exit9 native Windows cause/repair remains unresolved.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
-    "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained."
+    "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
+    "Explicit coordinator additions enumerate nine actual Windows title-row/browser/window failures, each100/125/200, with unchanged same-PR/Home/new-PR requirements.",
+    "Coordinator explicitly adds Windows review-submission composition 100/125/200 actual failures as AC10 / exit9; preserve prior nine criteria/eight exits and all budgets/assertions."
   ],
-  "plan_definition_fingerprint": "sha256:6dc2aca12d7a476a9285a82b2f40ff55ece104cd36087a4ac091fdfc6f7e1c51"
+  "plan_definition_fingerprint": "sha256:6e0c863cecfa713c586769a7c10081742652641dfc669d48b4df6571b1cb3c97",
+  "source_candidate": "6747ca029b48c231539cb36360bcfc3e26173609"
 }

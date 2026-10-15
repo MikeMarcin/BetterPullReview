@@ -68,11 +68,11 @@ existing lowerCamelCase standard. The command snapshots remain value copies,
 expressed by explicit typed construction: acknowledgement and event dispatch
 can append to/reallocate the source vector, so a borrowed reference is unsafe.
 No diagnostic suppression, assertion or callback sequencing was introduced.
-The seven other changed translation units passed unchanged strict analysis;
-the corrected Qt test is analyzed/rebuilt and receives its affected public run.
+The corrected Qt test was rebuilt and its affected public courses pass. Fresh
+strict analysis then passes all eight selected translation units on current source.
 
 Corrected current-source integration passes20/20normal courses180.33s, including
 the new reverse control and previous forward control. The production mutation
-branch remains unchanged. A fresh strict check covers the corrected app and tour/
-Qt test consumers; previous unchanged-TU evidence remains separately bound.
-NativePCacceptance and complete final release reruns still remain pending.
+branch remains unchanged. Fresh strict checks pass all eight selected translation units; full format 22
+and architecture checks also pass. Native Windows/Ubuntu acceptance and complete
+final common-source release reruns remain pending.

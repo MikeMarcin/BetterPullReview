@@ -1,138 +1,172 @@
-# BPR-1527 current frontier
+# BPR-1527 current checkpoint
 
-Assignment: `bpr-1527-final-native-release-contracts` /
-`final-composition-contracts`, mandate
-`authorized-release-continuation-final-gates-r3`.
-Sole engineering owner: `/root/bpr1525_implementer`, native
-rfc-implementer / gpt-6.1-sol / xhigh. No differing effective route was exposed.
-No subagents. The selected coordinator-implementer recipe and shared engineering
-contract apply. BPR-1525 and BPR-1526 remain Done and unchanged.
+Mandate `authorized-release-continuation-final-gates-r3`; plan
+`bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
+Sole engineering owner `/root/bpr1525_implementer`, native rfc-implementer /
+gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
+BPR-1527 remains In Progress. BPR-1525/1526 remain Done and unchanged.
 
-## Source and command ownership
+## Exact source and ownership
 
-The worktree fast-forwarded cleanly from `e84bd7317a07d6534479460dbc34b24b76ba4634`
-to allocation `26fa0b98fde716b7aefffb92da0bae7676ab3c8e`. The only intervening
-tree changes were the coordinator's BPR-1527 reservation and issue counter.
-The final-gate source is `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`;
-its production and test tree is identical to the adopted predecessor.
-The assigned branch remains `codex/v021-windows-gate-fixes`.
+Current source candidate: `6747ca029b48c231539cb36360bcfc3e26173609` on
+`codex/v021-windows-gate-fixes`, owned worktree
+`/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
+The following upkeep commit changes documentation only. Initial allocation
+`26fa0b98f` had identical production/tests to failed final-gate source
+`d52f5bb1221e26dc00dbc9269c3ad0408b64548a`. Claim `7cb6796af` and initial
+binding `739b620e3` remain this same-owner continuation, with explicit amendments.
+No main integration or release-source freeze is claimed.
 
-Mac final gate is complete:719passed14failed1skipped, exit8,3331.99s. Root
-verified wrapper28919/bash28920/suite31251/ctest31259 absent and released
-this owned-worktree Mac engineering slot exclusively. The failed producer stays
-read-only. Windows/WSL remain root-owned while their final suite continues.
-No PC build/test/performance starts before explicit release. No review server
-or attended candidate is open.
+All owned source/build/GUI/static/documentation commands are complete; no task
+command is handed off. Final documentation upkeep passes DOCUMENTATION_OK. Windows/WSL remain
+coordinator-owned during the final full Windows gate. This implementer has run
+no PC command or workload during that lease. Failed producers stay untouched,
+including `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`; the separate
+Windows `C:/code/git/BetterPullReview` station never belongs to this task.
+No review server, protected attended candidate, auth, signing or publication
+is open. Retain this sole source owner for the pending native continuation.
 
-## Original failures and read-only diagnosis
+## Scope and original evidence
 
-Mac log: `/tmp/bpr-release-021-macos-final.log`; producer:
-`/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`.
+Ten criteria and nine exits retain the original five Mac failures, Windows
+whole-workbench 200% timeout, nine later Mac courses and nine actual Windows
+local-cycle title/browser/window courses, plus three Windows submission courses.
+Explicit scope amendments are recorded
+in `scale200-amendment.json`, `mac-final-amendment.json` and
+`windows-local-cycle-amendment.json` and `windows-submission-amendment.json`.
+No threshold, input, semantic assertion,
+native requirement or release obligation was waived. The helper rejected treating
+new selectors as same-scope refinement; coordinator scope-addition authority is
+recorded honestly. Renewed structural binding does not establish acceptance.
 
-- Agent invocation composition, test566, 47.04s: positive-seed reaches typed-success
-  with core/workspace/process/cleanup all zero. The agent panel still shows the
-  deliberately tested mutable-input refusal. The later Private history callback
-  passes empty note selection and no draft, so this old status alone does not
-  establish a second mutable dispatch. Trace the private panel's status, workflow
-  completion and launch admission before selecting a repair.
-- UIforETW selected diff, test583, 2.40s: light capture reports
-  `review_bar_exact_order=false`. Product BPR-1507 adds the Accept file action
-  at index10 (`c9b8386ba0`); the probe still requires15 actions and private
-  progress at10. Preserve the shipped control and strengthen the exact oracle
-  to all16 actions, including its exact default action. Native confirmation and
-  missing/misplaced-control counterexamples remain pending.
-- Threaded reply, test592, 40.57s: phase5 has a draft at the exact right-side
-  surface line41, but `ReplyToThread` is absent and evidence00000.
-- Label authoring, test593, 40.55s: reaches phase19 with reply absent and inline
-  reply editor present after completing the root-comment publication courses.
-- Reply draft, test597, 40.57s: refresh course reaches phase2 with reply absent
-  and inline editor present, evidence0000000.
+Original full Mac result: 734 accounted, 719 pass / 14 fail / 1 skip, exit 8,
+3331.99s. All fourteen diagnostics were read before edits. Original log and receipt
+are `/tmp/bpr-release-021-macos-final.log` and its receipt; immutable private copies
+are under `.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
+Windows currently has twenty-two actual failures reported by root: the 200%
+timeout, nine shared local-cycle assertions, already-scoped agent / capture /
+reply / progress / tour failures, and three newly added submission failures.
+Agent invocation 21.04s corroborates AC3. Submission 100%/125% fail 42.47s/42.83s;
+200% fails the same assertion (duration not yet supplied). Root still collects
+the full result (635 / 705 at last report). Original UTF16 and derived UTF8 snapshots are private under
+`evidence/windows-d52-partial/`. Prior focused 200% pass 119.08s is retained but
+does not establish stability.
 
-The three reply failures share the public card action and `begin_review_reply`.
-The existing-draft path retargets an edit even when its identity is an ephemeral
-placeholder. Dispatch routes such an edit into `materialize_draft`, which
-explicitly requires `!ChangeReplyTarget`. The no-draft path instead selects an
-actual reply through the existing typed `select_reply` operation. Proposed
-repair: use that operation for an exact current placeholder too, retaining all
-thread/anchor/navigation/scope guards. Runtime branch proof and negative controls
-remain pending. Blame places lazy materialization in BPR-1520 `7bf1baeeb5`
-and the retarget path in `f55e39e726`; both precede release8f0d and BPR-1525/26.
-This is provenance evidence, not an executed historical reproduction.
+## Demonstrated causes and repairs
 
-## Remaining work
+- Reply: an unused lazy placeholder sent ChangeReplyTarget into materialization,
+  which correctly refuses it. Route the exact unused placeholder with no private
+  save pending through existing typed select_reply, retaining current thread,
+  anchor, scope, navigation and written-draft guards. Source provenance
+  `7bf1baeeb5` / `f55e39e726` predates BPR-1525/1526; no historical run is claimed.
+- Toolbar capture: BPR-1507 shipped Accept at index 10; the old probe expected
+  fifteen actions. Assert all sixteen ordered controls and the exact Accept
+  default action. No product toolbar or geometry/pixel/height check was removed.
+- Agent: a migrated legacy canary row satisfied rowCount 1 before create ack.
+  Bounded trace proved subject absent / invalid_binding, so refusal was correct.
+  Wait for the exact immutable reviewer body and actor before selecting. All
+  confidentiality, refusal, invocation and cleanup checks remain. Temporary
+  production tracing was restored byte-for-byte; bounded failure facts remain.
+- Find: at 900px with all drawers open, surface 242 and panel 227 conflicted with
+  the existing minimum 230. Outer margins now yield before shrinking the panel.
+  All original scales and query/focus/geometry checks pass with native controls.
+- Progress/scaling: adopted BPR-1506 makes ordinary Files opens Seen. The push
+  oracle retains exact flags/material and expects Seen after its explicit open.
+  Scaling establishes Unread through real Read / Mark unread before resetting
+  the original one-write / one-row Seen measurement. Budgets remain unchanged.
+- Tour: RFC-BPR-0039/0040 forbid viewed receipts from stop visits. Origin is bound
+  to the admitted source request in begin(request), before effects are posted,
+  and checked at receipt completion. Ordinary Files gestures clear origin before
+  their own new request; modality entry retains already-admitted origin. There
+  is no blanket visible-Tour exemption. Ordinary authoring opens assert Seen;
+  tour navigation adds no command and preserves every Read/Accept/Exclude field.
+  Absolute cold import remains zero receipts. Both real held-storage orderings
+  pass: tour then ordinary creates only new ordinary Seen; ordinary then Prepare
+  Tour preserves its already-admitted Seen.
+- Windows local-cycle: the original assertion is unchanged. Bounded failure facts
+  distinguish identity, tooltip, browser and Home clauses. Cause and repair await
+  the PC lease. Mac title-row scales and full-window pass do not prove Windows.
+- Windows submission: the failure is before Comment or inline-draft creation:
+  Files row zero increments FileSelections, then right line 29 cannot be selected.
+  That counter proves dispatch rather than adopted material readiness. The
+  selector can fail without current result/index, without that line in the exact
+  alignment, or after reentrant selection replacement. Native context/material
+  facts remain needed; the reply repair is not assumed to fix this earlier path.
+- Windows 200%: no new performance repair or improvement is claimed. Old keyboard,
+  gutter and divider profiles are locators. Preserve the accepted bounded gutter
+  cache; collect current native costs before another source-backed improvement.
 
-The plan/card commit is `871530c57`, canonical claim is `7cb6796af` and initial
-milestone binding is `739b620e3`. The initial binding held five criteria and
-five exits. The coordinator then explicitly added Windows whole-workbench200
-timeout120.03s as AC6 and exit6, retaining the original five verbatim and the
-unchanged120s deadline. The refinement helper refused a changed selector list;
-the separately authorized requirements addition and renewed binding are recorded
-in `scale200-amendment.json`. Acceptance is pending; helper validity is not
-acceptance.
+## Coordinator review finding and disposition
 
-Prepared source changes, uncompiled and unverified:
+`0f6d288b1db229f4137f6a285a8a571660662905` passed the previous focused suite but
+coordinator read-only review found that preparation retroactively changed an
+already-admitted ordinary request to tour origin. A new reverse held-storage
+control actually failed on that source in 26.06s. Removing the Qt event alone
+then exposed the modality reset erasing admitted tour origin (original cold-zero
+assertion failed in 3.64s). These are retained findings, not accepted source.
 
-- `src/app/src/github_application.cpp`: route an unused exact current line
-  placeholder with no save pending through the existing typed `select_reply`
-  operation; preserve written/current draft, stale scope and navigation guards.
-  The complete capture oracle now checks16 ordered actions and verifies the
-  Accept button's exact action binding. No product toolbar change.
-- `tests/end_to_end/agent_invocation_composition_public_path.cpp`: the existing
-  typed-success failure records the Private history status, enabled/source
-  count and launch start-intent count, using the bounded identifier recorder.
-  No success assertion or budget changes. Agent cause remains unresolved.
+Current `6747ca029` removes that unnecessary Qt preparation event and retains
+origin across modality entry. Qt production window/header are exact d52 baseline;
+only admitted begin(request) assigns TourSourceRequest. Both held directions and
+the original absolute-zero contract now pass. Exact guards and source review are
+in [SELF_REVIEW.md](SELF_REVIEW.md) and
+[review-origin-correction.json](review-origin-correction.json).
 
-The required frontend-design skill was read at
+## Verification
+
+[mac-candidate-verification.json](mac-candidate-verification.json) binds exact
+source hashes, commands and limitations. macOS 26.6.2 arm64, Qt 6.11.2 offscreen;
+GUI/timing courses ran serially without independent build, suite or performance
+work. Evidence logs are preserved privately under
+`.mask/sessions/BPR-1527/evidence/corrected-r14/` with SHA256 manifest.
+
+- Corrected current-source combined 20 / 20 normal courses pass in 180.33s:
+  all fourteen Mac failures plus conversation reveal, full Qt window, scoped
+  prose, workshop press, ordinary ledger and publication round-trip. Log
+  `/tmp/bpr1527-corrected-integration-r14.log`. Earlier corrected five-course
+  pass 26.77s includes the two held orderings and cold-zero controls.
+- Fresh strict clang-tidy 22 passes all eight selected translation units in two
+  disjoint four-unit commands; no source changed between checks. Logs
+  `/tmp/bpr1527-corrected-strict-tidy-r14.log` and
+  `/tmp/bpr1527-corrected-consumer-tidy-r14.log`. No new NOLINT or setting change.
+- Full clang-format 22.1.8 passes all 1542 files. Architecture passes 15.15s.
+  Logs `/tmp/bpr1527-corrected-format-r14.log` and
+  `/tmp/bpr1527-corrected-architecture-r14.log`.
+- Documentation passes (DOCUMENTATION_OK) and all 67 verifier units pass on the
+  current upkeep. Exact results and logs are recorded in the candidate evidence. Full app/manifest pins are reviewed and resealed; production
+  mutation branch remains
+  `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
+- Five deliberately broken public controls fail: omitted Accept 3.63s, old reply
+  placeholder 40.61s, disabled tour guard 4.42s, old Find placement 11.77s and
+  misplaced Accept 3.71s. Exact candidate bytes were restored and SHA256 checked.
+  Logs `/tmp/bpr1527-negative-r7.log` and `-r8.log`; no injected control remains.
+- Unchanged Mac submission control passes all three newly added scales in
+  19.32s (7.83 / 5.59 / 5.88s). This confirms current Mac behavior only; Windows
+  cause and native acceptance remain open. Log
+  `/tmp/bpr1527-submission-mac-control-r15.log`.
+- Current 900px public full-window Find render was inspected; controls fit.
+  Offscreen layout evidence does not claim native system appearance acceptance.
+
+Frontend-design was read before Qt work at the installed official skill path
 `/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
-Read-only inspection of the original light full-window PNG shows the shipped
-Accept control between change arrows and private progress, consistent with
-the source-backed exact-oracle correction. No new visual design is proposed.
-Private copies of the still-running gate snapshot and original light capture
-are under `.mask/sessions/BPR-1527/evidence/original-d52/`, with a receipt that
-expressly disclaims a complete-suite result. Only `git diff --check` has run
-on the prepared source; no compilation, format/tidy or native test is claimed.
+Existing appearance is preserved; no new human look-and-judge decision is parked.
 
-Complete agent admission diagnosis once a native slot is explicitly released,
-and verify/correct the two prepared repairs. The [native continuation](NATIVE_NEXT.md)
-names the first focused commands and remaining negative/static obligations.
-Windows amendment frontier: normal final d52 test359 timed out120.03s, after
-346/705 courses, with Qt serial and no competing root/WSL workload. Earlier
-architecture591.63s and age180.26s had finished. The125% course was still active
-when root amended scope, so it must not be preempted. The prior focused200%
-119.08s pass remains valid for its exact context but does not establish full-gate
-stability. Inspect existing traces/source for a bounded performance repair;
-measure only after native release and preserve every input/assertion/deadline.
-The old trace remains a locator, not current duration evidence: r28 keyboard
-glyph drawing19.48s, gutter6.31s; r26 complete200% keyboard44.36s,
-divider22.25s, gutter20.75s. The accepted r32 gutter cache followed those traces.
-A second retained code-text cache was already rejected for limited benefit;
-do not repeat it without new evidence. No new performance edit is prepared.
+## Remaining work and next action
 
-Focused acceptance does not replace root's final full native gates, packages,
-corresponding-source/SPDX/notices or release approval. The implementer retains
-source ownership; root and native station must not edit this branch.
-The current source preparation is checkpointed as an explicitly unverified WIP.
-This implementer's commands are quiescent; resume this same owner when the first
-native slot is released. This return is not milestone completion or a source
-freeze. Six criteria and six exits remain pending actual acceptance.
+Once root releases the PC, follow [NATIVE_NEXT.md](NATIVE_NEXT.md): preserve failed
+producer history and artifacts, adopt the exact candidate on an owned repair
+branch, run unchanged title-row 100% for native clause facts, repair the actual
+shared cause and pass all nine named courses. Trace current whole-workbench
+costs before a bounded source improvement; restore and rebuild normal binaries,
+then pass the complete 200% course within unchanged 120s and affected scales under
+prescribed exclusivity. Recheck the already-scoped native Windows agent course
+and affected application contracts, plus all three newly added submission courses
+with exact current-head selection and submission/refusal assertions unchanged. Serialize Ubuntu 26.04 WSL compile and public
+paths afterward. Any later source change receives focused affected Mac acceptance.
 
-## Full Mac gate amendment and active continuation
-
-The full result adds nine named failures, recorded by `mac-final-amendment.json`;
-all fourteen diagnostics were read before further edits. Current binding holds
-eight criteria and seven exits, preserving the prior six criteria/exits.
-Complete immutable original evidence is copied privately to
-`.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
-
-New exact frontiers: review-progress push expects renderer unread but gets seen;
-the three tour composition scales and cold import find durable viewed receipts
-where they require none; active-changed scaling fails Seen-enabled after select;
-all three source-find scales fail the supported900-pixel-window/all-drawers-open
-floating-widget fit. Read normative automatic-Seen/tour isolation contracts and
-classify shared causes before repairs. The Debug cache-bytes skip still owes
-root an optimized Release supplement.
-
-Next: rebuild the prepared app and agent diagnostic in this worktree, run the
-shortest agent course, then validate prepared reply/oracle repairs and diagnose
-the newly enumerated families. This is active same-owner continuation; the
-previous quiescent return above is historical. No acceptance/final freeze claimed.
+BPR-1527 canonical finish and main integration await actual native acceptance.
+Root owns complete final common-source native release gates and packages, the
+optimized Release cache-bytes supplement, corresponding-source/SPDX/notices and
+release approval. Focused passes are not source freeze or release acceptance.
+No required human decision is pending. This checkpoint preserves source ownership
+and permits the same implementer to resume when the native resource is released.
