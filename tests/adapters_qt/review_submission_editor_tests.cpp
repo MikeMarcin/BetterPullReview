@@ -179,7 +179,12 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	for (auto* button : editor.findChildren<QToolButton*>()) {
 		if (button->isVisible()) {
-			expect(editor.rect().contains(button->geometry().translated(button->parentWidget()->mapTo(&editor, QPoint{ }))) && button->focusPolicy() == Qt::StrongFocus,
+			const auto fits = editor.rect().contains(button->geometry().translated(button->parentWidget()->mapTo(&editor, QPoint{ })));
+			if (!fits || button->focusPolicy() != Qt::StrongFocus) {
+				std::cerr << "EDITOR_BUTTON name=" << button->objectName().toStdString() << " fits=" << fits
+						  << " focus=" << static_cast<int>(button->focusPolicy()) << '\n';
+			}
+			expect(fits && button->focusPolicy() == Qt::StrongFocus,
 				   "every shown button fits the narrow editor and takes focus");
 		}
 	}

@@ -1763,17 +1763,18 @@ namespace {
 					   ->isVisible(),
 				   "every modality segment stays visible at the width floor");
 		}
-		// [[BPR-1129]]. The positions are the review bar's and stay at the
-		// floor, keeping their numbers where they drop their words. No pull
+		// [[BPR-1129]], [[BPR-1255]]. The positions stay on the review bar;
+		// the documented last yield keeps just their group names. No pull
 		// request is open here, so the name has nothing to say and takes no
 		// width; with one open it stays at every width
 		// (test_strip_identity_stays_at_every_width).
+		const auto positionText = window.file_position_label()->text();
 		expect(!window.identity_label()->isVisible()
 				   && window.file_position_label()->isVisible()
-				   && window.file_position_label()->text().startsWith(QStringLiteral("File"))
-				   && window.file_position_label()->text().contains(QStringLiteral("40"))
-				   && window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40"),
-			   "the file position stays on the review bar at the width floor, its words in its tooltip");
+				   && (positionText == QStringLiteral("File 3 of 40") || positionText == QStringLiteral("File 3/40") || positionText == QStringLiteral("File"))
+				   && window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40")
+				   && window.file_position_label()->accessibleDescription() == QStringLiteral("File 3 of 40"),
+			   "the file position keeps a documented responsive form and its full accessible position at the width floor");
 		window.hide();
 	}
 

@@ -490,6 +490,7 @@ namespace bpr::qt {
 		savedComments->setObjectName(QStringLiteral("wholeReviewSavedComments"));
 		savedComments->setText(tr("Saved comments…"));
 		savedComments->setAutoRaise(true);
+		savedComments->setFocusPolicy(Qt::StrongFocus);
 		savedComments->setToolTip(tr("Inspect comments saved under this pull request, including earlier revisions."));
 		layout->addWidget(savedComments, 0, Qt::AlignLeft);
 		connect(savedComments, &QToolButton::clicked, this, [this] { if (SavedCommentsReveal) { SavedCommentsReveal(); } });
