@@ -1,3 +1,7 @@
+# BPR-1517/1518 integration reseal: ordinary file navigation retains the
+# exact accepted order through source failure, while entry navigation still
+# restores reading. Cursor-relative change navigation uses the accepted semantic
+# index and current source line. No new provider, grant or mutation authority.
 # BPR-1515 integration reseal over95041e84d: only test-build fixture key
 # delivery replaces the existing Accept gesture; repeated Accept proves no
 # revoke and the explicit button still exercises the inverse. No production
@@ -1486,7 +1490,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d707261f3bee5ac91dd64f6edb2501534ff86eeb1cdddb1f7c240e88d8b716ba"
+		"d95461249330250feb791c56d6bf5cde3adc21fbb4f6beed0189023ee14ac78f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1702,7 +1706,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8f601b3f1c5608b46e8bbf57cf6d394bcab51fd8ca56712e7b55e02492ba3d45"
+        "1a9c40f1ee45cd2ed72c2d87acd61eb7e3b9c542b08f0bec26177cd05116ac95"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
