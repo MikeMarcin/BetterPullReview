@@ -6,16 +6,27 @@ Read [CURRENT.md](CURRENT.md) before dispatch. Current source candidate is
 changes documentation only. Intermediate `0f6d288b1` was falsified and superseded.
 BPR-1525/1526 remain Done; all BPR-1527 criteria/exits remain bound.
 
+## Human-selected release boundary
+
+0.2.1 is macOS-only. Windows fixes continue for 0.2.2; Windows/Ubuntu 0.2.1
+production is canceled/deferred. The prior common-source three-platform 0.2.1
+coupling is superseded by release-scope-amendment.json. BPR-1527 remains In
+Progress with all behavioral/timing and affected portability requirements.
+Mac focused acceptance may integrate now; full exact-final-source Mac release
+gate, packages and all security/legal/trust obligations remain root-owned.
+
 ## Resource boundary
 
 Mac final producer at `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`
-remains untouched. The owned worktree is the only Mac engineering tree.
+remains root-owned and is never modified or rebound by this implementer. After
+this docs handback root owns Mac CPU exclusively. The owned branch retains all
+Windows follow-up changes; project version remains 0.2.1 in this docs slice.
 Windows/WSL remain coordinator-owned while the final Windows suite runs. No
 remote process or producer mutation begins until explicit PC lease release.
 The separate `C:/code/git/BetterPullReview` station never belongs to this task.
 No auth, signout, reboot, signing or publication is authorized.
 
-## First Windows diagnostic after release
+## First Windows 0.2.2 diagnostic after PC slot release
 
 Preserve the failed producer's actual clean source/branch/history and complete
 failure artifacts before adopting the intentional candidate into the owned
@@ -81,7 +92,8 @@ exact common candidate on an owned repair branch. Compile app and affected publi
 courses plus changed Qt paths; exercise typed reply, agent immutable source,
 tour zero receipts/held completion, Find geometry, scaling and affected painter/
 window contracts. No full Ubuntu release gate or package is dispatched by this
-leaf. Source changes after Mac acceptance require a narrow Mac affected recheck.
+leaf. Later follow-up source changes receive affected portability/Mac checks when
+coordinated; they never change or rebind the frozen Mac 0.2.1 producer.
 
 Current Mac source passes 20 normal affected courses in 180.33s, including both
 held-storage origin orderings. The superseded source fails the new reverse
@@ -94,9 +106,12 @@ The full app/manifest pins are reviewed and resealed; mutation branch unchanged.
 Finish static checks, self-review, explicit-path commits and canonical acceptance/
 finish only when all assigned native criteria are actually demonstrated.
 
-Root owns final complete native release gates/packages on one common final source,
-including optimized Release cache-bytes supplement, corresponding source, SPDX,
-installed notices and release approval. Focused checks do not replace them.
+Root owns the full exact-final-source macOS-only 0.2.1 gate/packages, optimized
+Release cache-bytes supplement, corresponding source, SPDX, installed notices
+and release approval, with all native/security/legal gaps preserved. Windows
+0.2.2 follow-up will have its own exact-source native release requirements. No
+Windows/Ubuntu 0.2.1 release gate/package or shared Mac commit is promised.
+Focused checks do not replace required final gates.
 
 ## Windows submission unit
 

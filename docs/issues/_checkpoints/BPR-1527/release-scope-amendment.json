@@ -1,0 +1,17 @@
+{
+  "schema": "bpr.authorized-release-scope-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "authority": "Direct human direction forwarded by authorized release monitor, accepted and explicitly assigned by coordinator on 2026-10-15",
+  "human_direction": "If windows is far away then just release Mac only and continue Windows fixes for 0.2.2",
+  "decision": "v0.2.1 macOS-only; Windows repairs target0.2.2; Windows/Ubuntu0.2.1 canceled/deferred",
+  "supersedes": "Common-source three-platform0.2.1 release coupling only; no failed test becomes passing and no BPR-1527 native repair criterion is closed",
+  "mac_source_candidate": "6747ca029b48c231539cb36360bcfc3e26173609",
+  "pre_amendment_checkpoint": "f8c6e053543d425162268be9e1754ebfd1d8a705",
+  "partial_mac_evidence": "20/20 focused courses180.33s;3/3 unchanged submission controls19.32s; strict8selectedTUs,format22,architecture,docs and67verifierunits pass",
+  "mac_remaining": "Coordinator integrates accepted Mac source plus docs, freezes exact common Mac binary/source/SPDX/notices producer revision, runs full normal Mac gate and optimizedRelease cache-bytes supplement, packages and completes native trust/security/legal obligations before publication",
+  "windows_remaining": "All ten criteria and nine exits preserved; actual native diagnosis, unchanged120s complete-workbench acceptance and title/browser/submission/application paths remain pending for0.2.2",
+  "ubuntu_remaining": "No Ubuntu0.2.1 gate/package; affected portability checks remain engineering follow-up; future Ubuntu release selection is not inferred",
+  "resource_boundary": "Docs-only now; no version/source/producer mutation. After docs handback coordinator owns MacCPU. Windows/WSL remain coordinator-owned until explicit PCslotrelease; future repairs stay on owned branch and never mutate/rebind frozen Macproducer",
+  "status": "BPR-1527 remains In Progress; BPR-1525/1526 Done unchanged",
+  "acceptance_limits": "No threshold/assertion/input relaxation, unsupported waiver, new signing/auth/publication authority, or full-gate pass is supplied"
+}

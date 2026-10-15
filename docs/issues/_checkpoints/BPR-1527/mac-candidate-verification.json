@@ -19,7 +19,7 @@
       "tests/end_to_end/application_review_progress_push_contract.cmake": "7620ef533a6f0fb801d8de96f6a557b57f9e1f2f25debcd12ffae82f9de84b3e",
       "tests/end_to_end/application_review_round_trip_composition_contract.cmake": "581833b387bbe7bb793c96f8694c1f0813c3be69c86a7d807232a43d1b07f219"
     },
-    "acceptance": "corrected_mac_public_and_static_pass_native_pending",
+    "acceptance": "focused_mac_slice_accepted_for_v021_integration_full_mac_release_gate_pending_windows_followup_v022",
     "binding_note": "Compiled the same source bytes before intentional 6747ca029 commit; current 20 normal courses and both held directions pass. Fresh current-source strict checks cover all 8 selected TUs (7 changed plus baseline Qt window consumer). No package or release identity claim. Qt production header/window returned exact d52 baseline."
   },
   "context": {
@@ -334,7 +334,7 @@
     "Already-scoped native Windows agent and affected application courses",
     "Affected Ubuntu 26.04 WSL compile and public-path acceptance, serialized after Windows",
     "Canonical accepted finish after required native work; BPR-1527 remains In Progress",
-    "Root complete common-source native release gates/packages, optimized Release cache-bytes supplement, corresponding source/SPDX/notices and release approval"
+    "Root full exact-final-source macOS-only0.2.1 gate/packages, optimized Release cache-bytes supplement, corresponding source/SPDX/notices, security/legal/trust and release approval"
   ],
   "render_review": "Current source-find-renders/03-narrow-900.png full public composition inspected: all existing controls fit; offscreen layout evidence only, no owner desktop capture or system appearance qualification.",
   "review_finding": {
@@ -375,5 +375,6 @@
   "private_current_evidence": {
     "directory": ".mask/sessions/BPR-1527/evidence/corrected-r14",
     "manifest": "preserved-logs.json"
-  }
+  },
+  "release_scope_amendment": "release-scope-amendment.json; direct human/coordinator decision supersedes three-platform common-source0.2.1 coupling. Mac focused source may integrate; Windows native repair criteria remain open for0.2.2. Ubuntu0.2.1production deferred with no new future release selection."
 }

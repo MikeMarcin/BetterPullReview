@@ -23,7 +23,7 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 - AC2: Threaded Reply, label authoring and reply-draft public contracts pass with exact thread, anchor, draft, publication, refresh and restart assertions intact; navigation, stale scope and unrelated drafts cannot acquire a delayed reply target.
 - AC3: The agent invocation seed and reopen composition pass through the accepted immutable-source public path, preserving deliberate mutable-input refusal, unchecked-source confidentiality, exact invocation/cleanup/quiescence and zero GitHub mutation assertions.
 - AC4: The UIforETW public capture passes an exact complete toolbar-order oracle including the shipped Accept file action, preserving existing appearance, geometry, navigation, pixel and height assertions; an omitted or misplaced required control fails.
-- AC5: Pass focused native Mac verification of all five courses and affected portable/Windows/Ubuntu paths when their slots are released, meaningful negative controls, format 22, appropriate strict tidy, architecture and documentation checks; self-review and commit the narrow repair, and hand back exact source/command ownership with full final common-source release gates and packages still required.
+- AC5: Pass focused native Mac verification of all five courses and affected portable/Windows/Ubuntu paths when their slots are released, meaningful negative controls, format 22, appropriate strict tidy, architecture and documentation checks; self-review and commit the narrow repair, and hand back exact source/command ownership with exact-source release gates and packages required for the selected release set: macOS-only 0.2.1 now, Windows 0.2.2 follow-up. The affected portable/Windows/Ubuntu engineering acceptance remains required to finish BPR-1527; it no longer blocks the separately accepted Mac slice from 0.2.1 integration.
 - AC6: Diagnose the final d52 Windows `qt_diff_workbench_scale_200` timeout120.03s, demonstrate a bounded source-backed whole-workbench improvement and pass the normal complete course within its unchanged120s deadline under prescribed resource exclusivity, preserving all input/assertions and checking affected scales; retain the prior119.08s focused result and final-gate context honestly.
 - AC7: Diagnose and repair `application_review_progress_push_contract`, all three `application_review_tour_composition` scales, `application_active_changed_scaling` and `application_review_tour_cold_import_public_path`, retaining exact durable receipt identities, tour receipt isolation, automatic-Seen policy, bounded changed-set work and meaningful counterexamples without weaker thresholds or semantic assertions.
 - AC8: All three `application_source_find` scales pass their existing supported900-pixel-window, every-drawer-open floating-widget fit and query-width assertions, with exact geometry/focus/interaction and native appearance retained; counterexamples detect the demonstrated layout cause.
@@ -78,3 +78,21 @@ same current-head pending-draft selection assertion. Exact selectors are
 `application_review_submission_composition_scale_200`. Prior nine criteria and
 eight exits remain. Mac d52 passed these courses; no Windows fix is inferred from
 the reply repair, because this failure occurs before Comment or draft creation.
+
+## Human release boundary amendment, 2026-10-15
+
+The human directed: "If windows is far away then just release Mac only and
+continue Windows fixes for 0.2.2". The coordinator explicitly selects macOS-only
+0.2.1; Windows and Ubuntu 0.2.1 production is canceled/deferred, and Windows
+repairs target 0.2.2. This supersedes the prior common-source, three-platform
+0.2.1 coupling. The accepted focused Mac source may integrate for its full Mac
+gate while this card remains In Progress for Windows native repair and affected
+portability verification. All ten criteria and nine exits retain their behavioral
+and timing requirements; no failed course becomes accepted.
+
+[The release-scope receipt](../_checkpoints/BPR-1527/release-scope-amendment.json)
+preserves authority, exact candidate, pending native/security/legal obligations
+and the producer boundary. This docs-only slice does not change version 0.2.1.
+After handback, root owns Mac CPU and its frozen producer. Later Windows repairs
+stay on the owned branch after explicit PC slot release; they never modify or
+rebind the Mac 0.2.1 producer. Ubuntu release timing is not newly selected.

@@ -6,6 +6,23 @@ Sole engineering owner `/root/bpr1525_implementer`, native rfc-implementer /
 gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
 BPR-1527 remains In Progress. BPR-1525/1526 remain Done and unchanged.
 
+## Current release boundary: macOS-only 0.2.1
+
+The direct human instruction, forwarded by the authorized release monitor and
+explicitly accepted by the coordinator, is: "If windows is far away then just
+release Mac only and continue Windows fixes for 0.2.2". The selected 0.2.1 set is
+macOS only. Windows/Ubuntu 0.2.1 production is canceled/deferred; Windows repairs
+target 0.2.2. No new Ubuntu release timing is selected.
+
+This supersedes the prior common-source, three-platform 0.2.1 coupling. It does
+not accept any failed native course, lower a threshold, or finish BPR-1527. All
+ten behavioral/timing criteria and nine exits remain, with native and portable
+repair acceptance continuing as follow-up. The accepted focused Mac slice may
+integrate now so root can run its complete exact-final-source macOS gate. Full
+Mac gate, optimized Release cache-bytes supplement, packaging, trust, security
+and legal/source-distribution obligations remain with root. See
+[release-scope-amendment.json](release-scope-amendment.json).
+
 ## Exact source and ownership
 
 Current source candidate: `6747ca029b48c231539cb36360bcfc3e26173609` on
@@ -15,10 +32,13 @@ The following upkeep commit changes documentation only. Initial allocation
 `26fa0b98f` had identical production/tests to failed final-gate source
 `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`. Claim `7cb6796af` and initial
 binding `739b620e3` remain this same-owner continuation, with explicit amendments.
-No main integration or release-source freeze is claimed.
+No integration or source freeze is performed by this implementer. Root is
+authorized to integrate this focused-accepted Mac slice plus the docs-only
+release-boundary amendment and bind its own final Mac producer revision.
 
-All owned source/build/GUI/static/documentation commands are complete; no task
-command is handed off. Final documentation upkeep passes DOCUMENTATION_OK. Windows/WSL remain
+This continuation changes documentation only, with no source/version/build/test
+change. Documentation gate is run before handback; no task command is handed
+off. After handback root owns Mac CPU exclusively. Windows/WSL remain
 coordinator-owned during the final full Windows gate. This implementer has run
 no PC command or workload during that lease. Failed producers stay untouched,
 including `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`; the separate
@@ -43,12 +63,13 @@ Original full Mac result: 734 accounted, 719 pass / 14 fail / 1 skip, exit 8,
 3331.99s. All fourteen diagnostics were read before edits. Original log and receipt
 are `/tmp/bpr-release-021-macos-final.log` and its receipt; immutable private copies
 are under `.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
-Windows currently has twenty-two actual failures reported by root: the 200%
+The previous enumerated Windows checkpoint had twenty-two failures reported by root: the 200%
 timeout, nine shared local-cycle assertions, already-scoped agent / capture /
 reply / progress / tour failures, and three newly added submission failures.
 Agent invocation 21.04s corroborates AC3. Submission 100%/125% fail 42.47s/42.83s;
-200% fails the same assertion (duration not yet supplied). Root still collects
-the full result (635 / 705 at last report). Original UTF16 and derived UTF8 snapshots are private under
+200% fails the same assertion (duration not yet supplied). The latest coordinator report is 700 / 705 with twenty-four failures. Root
+will preserve and reconcile the completed raw result before releasing the PC;
+the two later selectors are not guessed or silently added here. Original UTF16 and derived UTF8 snapshots are private under
 `evidence/windows-d52-partial/`. Prior focused 200% pass 119.08s is retained but
 does not establish stability.
 
@@ -164,9 +185,12 @@ and affected application contracts, plus all three newly added submission course
 with exact current-head selection and submission/refusal assertions unchanged. Serialize Ubuntu 26.04 WSL compile and public
 paths afterward. Any later source change receives focused affected Mac acceptance.
 
-BPR-1527 canonical finish and main integration await actual native acceptance.
-Root owns complete final common-source native release gates and packages, the
-optimized Release cache-bytes supplement, corresponding-source/SPDX/notices and
-release approval. Focused passes are not source freeze or release acceptance.
-No required human decision is pending. This checkpoint preserves source ownership
-and permits the same implementer to resume when the native resource is released.
+BPR-1527 canonical finish still awaits required native repair acceptance. The
+focused-accepted Mac slice may integrate now for macOS-only 0.2.1. Root owns its
+complete final Mac gate, optimized Release cache-bytes supplement, packages,
+corresponding-source/SPDX/notices, trust/security/legal obligations and release
+approval. Windows follow-up repairs target 0.2.2 on the owned branch after PC
+release. They never mutate or rebind the frozen Mac producer. Affected Ubuntu
+portability checks remain engineering acceptance; no Ubuntu 0.2.1 release gate
+or package is required under the new selected set. No required human decision
+is pending. Source ownership remains with this same implementer for continuation.
