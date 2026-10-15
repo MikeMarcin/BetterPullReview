@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1524"
+  ],
+  "reserve_for": "release021-windows-search-performance",
+  "purpose": "",
+  "created": "2026-10-15T05:04:41.427355+00:00",
+  "base": "6230bd1e37dfdb9c00d35d9a43ccafe2878bf535"
+}
