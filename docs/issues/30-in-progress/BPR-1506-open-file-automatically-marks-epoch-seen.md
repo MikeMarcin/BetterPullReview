@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1506"
 title: "Automatically mark an opened file Seen for its epoch"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Seen should be automatically applied to a viewed file on an epoch when you open it"}
