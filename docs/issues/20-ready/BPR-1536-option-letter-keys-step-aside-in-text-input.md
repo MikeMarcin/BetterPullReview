@@ -4,10 +4,10 @@ id: "BPR-1536"
 title: "Option-letter window and menu keys step aside in text input on macOS (Option-R types ®)"
 status: "Ready"
 rfcs: []
-depends_on: ["BPR-1531"]
+depends_on: []
 priority: "P2"
 platforms: ["mac"]
-metadata: {"origin":"owner request 2026-10-15 (relayed by the coordinator)","owner_note":"Fix: Option-R (Compose review) in a comment box opens Compose review instead of typing ®. Make it step aside in every text-input widget with the BPR-1531 typing-widget rule, shared, and audit every other Option shortcut in the window and menu bar.","governing_rfc":"RFC-BPR-0052","related_rfcs":["RFC-BPR-0074","RFC-BPR-0028"],"related_cards":["BPR-1129","BPR-1295","BPR-1503","BPR-1531"],"reservation":"docs/issues/_reservations/BPR-1536--BPR-1536--f4c3a47480ed.json","branch_base":"bpr-alt-a-accept (BPR-1531 candidate a51990fd7); shares its takes_typed_text rule and key claim"}
+metadata: {"origin":"owner request 2026-10-15 (relayed by the coordinator)","owner_note":"Fix: Option-R (Compose review) in a comment box opens Compose review instead of typing ®. Make it step aside in every text-input widget with the BPR-1531 typing-widget rule, shared, and audit every other Option shortcut in the window and menu bar.","governing_rfc":"RFC-BPR-0052","related_rfcs":["RFC-BPR-0074","RFC-BPR-0028"],"related_cards":["BPR-1129","BPR-1295","BPR-1503","BPR-1531"],"reservation":"docs/issues/_reservations/BPR-1536--BPR-1536--f4c3a47480ed.json","branch_base":"bpr-alt-a-accept (BPR-1531 candidate a51990fd7); shares its takes_typed_text rule and key claim","merge_after":"BPR-1531"}
 ---
 
 # BPR-1536: Option-letter window and menu keys step aside in text input on macOS (Option-R types ®)
@@ -28,9 +28,11 @@ key (`˜` before `n`, `´`, `¨`, `ˆ`); the Cocoa plugin offers such a key to
 Qt's shortcut map before the text input system, and AppKit's native menu bar
 takes a key equivalent before Qt sees the key at all ([[BPR-1295]]).
 
-Depends on [[BPR-1531]]: the branch starts from its candidate and shares its
-`takes_typed_text` rule and key claim, so it lands after [[BPR-1531]] is
-accepted.
+Lands after [[BPR-1531]]: the branch starts from its candidate and shares its
+`takes_typed_text` rule and key claim, so it can merge only once [[BPR-1531]]
+is accepted and merged (recorded as `merge_after`, not `depends_on`, because
+the engineering does not wait for that verdict). If [[BPR-1531]] is rejected,
+this branch is rebased onto its replacement.
 
 ## Acceptance
 
