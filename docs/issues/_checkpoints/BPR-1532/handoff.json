@@ -1,0 +1,85 @@
+{
+  "assignment": "BPR-1532",
+  "mandate": "Owner request 2026-10-15: add Alt+Shift+Up / Alt+Shift+Down (Option-Shift-Up / Option-Shift-Down on macOS) to go to the first / last change in the current file.",
+  "governing_rfc": "RFC-BPR-0076 (file and change navigation enters Review), under the RFC-BPR-0005 workbench allocation",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1532-change-ends/BetterPullReview",
+  "branch": "bpr-1532-change-ends",
+  "baseline": "c2d6bb7ccabc9bd0af5204f5ad7bad1fa2459791",
+  "source_candidate": "82b3ef02b3ced3b0db22f2880c4c525d00ce3fa6",
+  "changed_paths": [
+    "src/core/include/bpr/core/diff_semantics.hpp",
+    "src/core/include/bpr/core/diff_interaction.hpp",
+    "src/core/include/bpr/core/workbench_interaction.hpp",
+    "src/core/src/diff_semantics.cpp",
+    "src/core/src/diff_interaction.cpp",
+    "src/core/src/workbench_interaction.cpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/adapters/qt/src/suggestion_editor.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/core/diff_semantics_tests.cpp",
+    "tests/core/workbench_interaction_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/adapters_qt/profile_management_window_tests.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "docs/ux/workbench-specification.md",
+    "docs/architecture/review-tours.md"
+  ],
+  "behaviour": {
+    "unit": "one change group of the selected file's exact comparison, the unit Alt+Up/Down step through; the comparison folds or hides no change, two panes and one pane alike; never crosses files",
+    "target": "core navigate_outermost_change via transition(navigate_diff_change_intent{Reach=outermost}); first group for previous, last for next, from a change, an unchanged line or no selection; policy ignored",
+    "already_at_end": "selection kept, change scrolled back into view, no bound message",
+    "disabled": "no active workbench; in Review with no open comparison or no changes (tooltip names the reason). Outside Review offered; the press enters Review (RFC-BPR-0076) and a Review file without changes shows the 3 s message",
+    "menus": "View: Fi&rst change, Last c&hange after Ne&xt change, window and macOS desktop bar; no review-bar button",
+    "key_yield": "keys unbound on focus in a widget taking typed text (editable QLineEdit/QPlainTextEdit/QTextEdit, WA_InputMethodEnabled widgets except item views) or where the focus or an ancestor binds the same key widget-scoped (tour outline tourMoveUp/Down); suggestion_editor claims Alt+Shift+Arrow in ShortcutOverride, read-only too"
+  },
+  "verification": {
+    "focused": "ctest core_diff_semantics, core_workbench_interaction, qt_diff_workbench_scale_100, qt_dif_workshop_placement, qt_change_end_keys, qt_workbench_window_scale_100/125/200, qt_profile_management_window, qt_suggestion_editor_1_0, qt_composed_github_scale_100, application_profile_management_public_path, application_review_navigation_entry: all pass at the candidate's sources",
+    "negative_controls": [
+      "navigate_outermost_change stepping one change: core_diff_semantics fails 'First change selects the first change and Last change the last'",
+      "no yield: qt_change_end_keys fails 'in an editable line field the keys are unbound'",
+      "no outline yield: fails 'with the tour outline focused, the window's keys step aside for its own'",
+      "suggestion editor not claiming: fails 'and its own box gesture still claims Option-Shift-Down'",
+      "in-test: window key bound on the outline too makes the reorder press do nothing"
+    ],
+    "format": "clang-format 22.1.8 over every touched C++ file: no change",
+    "tidy": "tidy.py --warnings-as-errors over every touched translation unit: clean except baseline naming findings at tests/core/diff_semantics_tests.cpp:826 (22fd21507)",
+    "documentation": "verify_documentation.py --root <worktree>: DOCUMENTATION_OK",
+    "not_run": "test_profile_empty_desktop_native_menu_bar (needs the owner's Aqua session); full ctest matrix"
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1532-change-ends-v001.ub219uos",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1532-change-ends-v001.ub219uos/launch.py",
+    "source_commit": "82b3ef02b3ced3b0db22f2880c4c525d00ce3fa6",
+    "fixture": "uiforetw-74",
+    "open_file": "UIforETW/UIforETWDlg.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:UIforETW/UIforETWDlg.cpp head e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "executable_sha256": "32e27125a2928c966b7ba63752c12409c575874adf5d87e96e41915933839648"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1532-v001-n36fMK/attended-review",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "eb0e1b14042f51587e16ba8961e1a43c",
+    "event_cursor": 3,
+    "candidates": {
+      "BPR-1532-change-ends-v001": "3468c7c29582f7d97cd64bc7e2fed024a73743bbded5774e258d6481a4249728"
+    },
+    "phase": "ready",
+    "protected": true,
+    "decisions": null,
+    "server_pid": 29433,
+    "server_port": 64096,
+    "complete_url": "Obtain from /Users/jaeger/.codex/attended-review/bpr1532-v001-n36fMK.serve.log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC4 human: owner Accept/Reject of candidate BPR-1532-change-ends-v001"
+  ],
+  "merge_notes": [
+    "workbench_window.cpp and workbench_window_tests.cpp also change in BPR-1531 (Alt+A, bpr-alt-a-accept). BPR-1532 keeps away from update_accept_file_shortcut. BPR-1531's takes_typed_text and this card's takes_typed_text_for_change_ends apply the same rule and can be merged into one helper at integration.",
+    "BPR-1536 (Option-letter keys stepping aside in text input) may want to take over this card's typed-text guard."
+  ],
+  "next_action": "On Accept: rebase bpr-1532-change-ends on main and resolve against BPR-1531. Rerun qt_change_end_keys, qt_workbench_window_scale_*, qt_profile_management_window, the core tests and the doc gate. Merge, then finish BPR-1532 with AC4 pass and remove the frozen root with freeze_attended_build.py remove. On Reject: apply the note on the branch and freeze a v002 in a new short session."
+}
