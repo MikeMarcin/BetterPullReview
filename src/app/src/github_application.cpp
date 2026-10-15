@@ -3490,7 +3490,12 @@ namespace bpr::app {
 		/// admitted then is another gesture's and is not taken.
 		bool Recording = true;
 
-		auto operator<=>(const pending_comment_workshop&) const = default;
+		/// [[BPR-1526]]. A first save replaces this exact placeholder before
+		/// the press can record it. Its acknowledgement, never another
+		/// draft's later save, supplies the durable identity.
+		std::optional<core::revisioned_review_draft> AwaitingMaterialization;
+
+		auto operator==(const pending_comment_workshop&) const -> bool = default;
 	};
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -12296,6 +12301,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									ReviewDraft         = saved.Accepted->Draft;
 									ReviewDraftRevision = saved.Accepted->Revision;
 								}
+#if defined(BPR_AGENT_INTEGRATIONS)
+								settle_materialized_comment_workshop(placeholder, shown ? saved.Accepted : std::nullopt);
+#endif
 								Window->review_editor()->acknowledge_materialized(aRevisionedCommand, *saved.Accepted);
 								if (shown && !Window->review_editor()->rejected_candidate()) {
 									accept_shared_draft(*saved.Accepted);
@@ -12307,6 +12315,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																					 ? QStringLiteral("Your text has not been saved: the comment storage limit was reached. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then choose Reapply my text. Your text is kept here.")
 																					 : QStringLiteral("Your text has not been saved. It is kept here; choose Reapply my text to retry before leaving this comment."));
 						}
+#if defined(BPR_AGENT_INTEGRATIONS)
+						// Also settle a refused, retired or empty first save.
+						settle_materialized_comment_workshop(placeholder, std::nullopt);
+#endif
 						if (settled) {
 							settled(accepted);
 						}
@@ -16093,6 +16105,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Draft     = aRequest.Draft,
 				.Operation = *admitted,
 			};
+			if (PrivateDraftCommandPending && ReviewDraft->Id.value() > core::maximum_private_identity) {
+				PendingWorkshopOperation->AwaitingMaterialization = core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope };
+				return;
+			}
+			record_comment_workshop_press();
+		}
+
+		void settle_materialized_comment_workshop(
+			const core::revisioned_review_draft&                aPlaceholder,
+			const std::optional<core::revisioned_review_draft>& aAccepted)
+		{
+			if (!PendingWorkshopOperation || PendingWorkshopOperation->AwaitingMaterialization != aPlaceholder) {
+				return;
+			}
+			if (Closing || !aAccepted || !ReviewDraft || ReviewDraft->Id != aAccepted->Draft.Id
+				|| aAccepted->Scope != aPlaceholder.Scope || aAccepted->Draft.Anchor != aPlaceholder.Draft.Anchor
+				|| aAccepted->Draft.ReplyToThread != aPlaceholder.Draft.ReplyToThread) {
+				PendingWorkshopOperation.reset();
+				present_comment_workshop_settlement(aPlaceholder.Draft.Id, "the draft could not be saved in Private history");
+				return;
+			}
+			PendingWorkshopOperation->Draft = aAccepted->Draft.Id;
+			PendingWorkshopOperation->AwaitingMaterialization.reset();
+			// Queue the immutable press before acknowledging the edit: the
+			// acknowledgement can dispatch text typed after the press. Both
+			// effects use the same FIFO private-review lane.
+			record_comment_workshop_press();
+		}
+
+		void record_comment_workshop_press()
+		{
 			// [[BPR-1245]], RFC-BPR-0023. The draft is mutable, so it is not
 			// sent. The press first records the draft's text, as the private
 			// lane holds it after every edit already queued, as one immutable
@@ -16103,8 +16146,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// there is still one press per turn.
 			const auto press = PendingWorkshopOperation;
 			PrivateReview->record_workshop_press(
-				aRequest.Draft,
-				[this, press, admitted](
+				press->Draft,
+				[this, press](
 					application::private_run_result<application::private_workshop_press> aPressed) {
 					if (Closing || PendingWorkshopOperation != press) {
 						return;
@@ -16121,7 +16164,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							std::string_view{ },
 							std::nullopt,
 							core::agent_entry_point::workshop_comment,
-							admitted);
+							press->Operation);
 						ExplicitPrivateRun.reset();
 					}
 					if (!sent) {

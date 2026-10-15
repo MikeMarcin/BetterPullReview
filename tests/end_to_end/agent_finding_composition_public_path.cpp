@@ -812,6 +812,10 @@ auto main(int argc, char** argv) -> int
 						invocation.Statistics.WorkspaceCleanups == 1U);
 			},
 			extended_agent_budget)) {
+		const auto finding = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		std::cerr << "agent-finding-press-state:operation=" << finding.WorkshopOperationText
+				  << " pending=" << finding.WorkshopPendingOperation
+				  << " draft-matches=" << (finding.LocalDraftBody == reviewer_original) << '\n';
 		return fail(*application, "agent-run", delivered.render());
 	}
 	QApplication::processEvents();

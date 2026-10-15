@@ -29,3 +29,14 @@ The release coordinator assigned this separately tracked acceptance unit to
 milestone. Own the action-composition test and any demonstrated narrow
 production cause. Load the required frontend-design skill before Qt surface
 changes. No visual redesign, signing, authentication or publication belongs here.
+
+
+## Demonstrated cause and focused repair
+
+The first save replaces a runtime-only draft identity before the workshop's
+queued store read; the immediate public press kept the obsolete identity.
+The application now retains the exact press through its acknowledged
+materialization and records the immutable private source before later edits.
+The original press, guidance siblings and construction-cut checks pass without
+sleeping or changing their assertions. The [verification record](../../verification/BPR-1526-macos-workshop-action.md)
+retains the trace and remaining combined-milestone obligations.

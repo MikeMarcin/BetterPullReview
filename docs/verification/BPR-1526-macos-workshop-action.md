@@ -1,0 +1,34 @@
+# BPR-1526: Workshop press during a first draft save
+
+Mandate `authorized-release-continuation-native-gates-r2`; constituent of
+`bpr-1525-windows-release-gates/native-gate-contracts`.
+
+The original Mac gate at `8f0d25418cd4278065d5a043dabaa728feb202f1`
+failed `application_agent_finding_workshop_press_contract`: process starts 0,
+no invocation, not quiescent. The same public course reproduced twice in this
+worktree (48.43 s and 48.32 s) while guidance siblings passed. A disposable
+trace then demonstrated the exact cause: the action named runtime placeholder
+`18446744073709551615` with a first save pending; by the recording callback the
+same save had assigned durable draft `1`, so loading the placeholder failed.
+The old-ID settlement also missed the newly identified editor, leaving “Asked
+for: Clarify” on screen. Trace code was removed after diagnosis.
+
+The application now holds that operation and exact placeholder revision/scope
+until its own materialization acknowledgement. Only a successful accepted save
+for the selected draft, same scope, anchor and reply target can supply the
+durable identity. A refused, retired or empty save settles the pending press
+without launching. The immutable private-history press queues on the existing
+FIFO lane before editor acknowledgement can dispatch later edits. It uses the
+same core admission and agent invocation path. No Qt surface, layout, action
+wording, readiness delay, budget, invocation assertion or mutation authority
+changes. The required frontend-design skill was loaded from the installed
+Claude plugin before diagnosis; the repair is application lifecycle only.
+
+The corrected public course passes in 4.75 s with all original one-process,
+one-cleanup, quiescence, original draft/private-source and zero GitHub mutation
+assertions. Default guidance (3.43 s), custom guidance (3.45 s), no-agent
+(3.10 s) and workshop construction-cut (2.62 s) pass in the same focused run.
+Format 22.1.8, whitespace and documentation checks pass. Final changed-source
+tidy, broader relevant lifecycle checks and final-source native release gates
+remain obligations of the combined milestone; no final release acceptance is
+inferred here.
