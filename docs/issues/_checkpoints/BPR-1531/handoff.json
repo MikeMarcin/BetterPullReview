@@ -1,0 +1,58 @@
+{
+  "assignment": "BPR-1531",
+  "mandate": "Owner request 2026-10-15: replace the Accept file shortcut Ctrl+Shift+A (Command-Shift-A on macOS) with Alt+A (Option-A on macOS); replace, not add.",
+  "governing_rfc": "RFC-BPR-0028 (review bar); RFC-BPR-0007 receipt semantics unchanged; RFC-BPR-0074 Option-key editor rule",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr-alt-a-accept/BetterPullReview",
+  "branch": "bpr-alt-a-accept",
+  "baseline": "c2d6bb7cc",
+  "source_candidate": "a51990fd7985c62d872ade1fb522ef5b93d83d89",
+  "changed_paths": [
+    "docs/architecture/review-ledger.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "verification": {
+    "focused": "ctest qt_review_state_icon, application_review_ledger_composition_contract, qt_workbench_focus_order_scale_100, architecture_boundaries, application_accepted_file_in_overview, application_diff_zoom_public_path, application_header_source_navigation: pass",
+    "wide": "ctest -R 'qt_workbench|qt_review_state|accept|ledger_composition|header_source|zoom|key|suggestion|review_cycle': 97/97 pass",
+    "negative_controls": {
+      "old_binding_ctrl_shift_a": "fails 'the Accept menu item and direct button name Option-A (Alt+A) without key repeat'",
+      "old_guard_lineedit_textedit_only": "fails 'a widget that takes typed text unbinds Accept's key'",
+      "no_shortcut_override_claim": "fails 'a reader made editable under focus types the character and accepts nothing'"
+    },
+    "format": "clang-format 22.1.8 dry run over the three C++ files: clean",
+    "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors over the three C++ files: pass (test lambda renamed textOf)",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests OK",
+    "render": "better_pull_review_qt_workbench_window_tests --review-state-icon with BPR_QT_RENDER_PATH, offscreen, scale 2: progress menu shows ⌥A for Accept, Light and Dark"
+  },
+  "macos_option_findings": "Qt Cocoa (6.10.0 source) keys an Option press from charactersIgnoringModifiers (Key_A) with text 'å' and offers it to the shortcut map before the input context; possibleKeys falls back to the event's combination for virtual key 0, so Alt+A matches without nativeVirtualKey matching. Non-Latin layouts do not offer it. The editor guard is required because the map sees the key first.",
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1531-option-a-v001.mcd5e3o5",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1531-option-a-v001.mcd5e3o5/launch.py",
+    "source_commit": "a51990fd7985c62d872ade1fb522ef5b93d83d89",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+    "executable_sha256": "4ae6e589ffc9fb1dc17d8a3faacd65111f8db43275d65647b500459d8fa09de8"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1531-v001-kVFsC7",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "203673dc69e83ec6df55581a9dc16e5a",
+    "event_cursor": 4,
+    "candidates": {
+      "BPR-1531-option-a-v001": "f239492a9a2843c5e6bc4fb08955101078e7f3097128b48974f5d6d0433341f2"
+    },
+    "phase": "ready",
+    "protected": true,
+    "decisions": null,
+    "server_pid": 57648,
+    "server_port": 62744,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC4 human: owner Accept/Reject of candidate BPR-1531-option-a-v001"
+  ],
+  "next_action": "On hand-back after cursor 4: Accept merges bpr-alt-a-accept into main (rebase onto main first; BPR-1532 also edits workbench_window.cpp keys), finishes the card Done and removes the frozen root; Reject's note becomes v002 on the same branch."
+}
