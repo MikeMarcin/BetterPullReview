@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1505"
 title: "Place Home Cancel left of Changes to preserve action alignment"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Put cancel on the left of changes etc on home so it doesn't move the alignment.","milestone_plan":{"id":"bpr1505-home-cancel","path":"docs/rfcs/plans/bpr1505-home-cancel/milestone-plan.json"}}
