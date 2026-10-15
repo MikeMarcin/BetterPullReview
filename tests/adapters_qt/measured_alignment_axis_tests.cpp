@@ -415,7 +415,7 @@ namespace {
 		expect(progress == qt::pane_measurement_progress::complete && measurement.result()
 				   && *measurement.result() == *qt::measure_plain_text_pane(pane, 40U),
 			   "batched native wrapped/Unicode/mixed-font boundaries equal the synchronous reference exactly");
-		const auto stale_after = [&](auto aChange) {
+		const auto staleAfter = [&](auto aChange) {
 			QApplication::processEvents();
 			qt::plain_text_pane_measurement pending{ pane, 40U };
 			expect(pending.advance(1U) == qt::pane_measurement_progress::pending, "one block leaves native work pending");
@@ -423,13 +423,13 @@ namespace {
 			expect(pending.advance(3U) == qt::pane_measurement_progress::invalidated && !pending.result(),
 				   "changed pane facts invalidate partial measurement atomically");
 		};
-		stale_after([&] { pane.setPlainText(source + QStringLiteral("different")); });
+		staleAfter([&] { pane.setPlainText(source + QStringLiteral("different")); });
 		pane.setPlainText(source);
-		stale_after([&] { auto font = pane.font(); font.setPointSizeF(font.pointSizeF() + 1); pane.setFont(font); });
-		stale_after([&] { pane.resize(pane.width() + 40, pane.height()); });
-		stale_after([&] { pane.setTabStopDistance(pane.tabStopDistance() + 8); });
-		stale_after([&] { pane.setLineWrapMode(QPlainTextEdit::NoWrap); });
-		stale_after([&] { pane.document()->setDocumentMargin(pane.document()->documentMargin() + 1); });
+		staleAfter([&] { auto font = pane.font(); font.setPointSizeF(font.pointSizeF() + 1); pane.setFont(font); });
+		staleAfter([&] { pane.resize(pane.width() + 40, pane.height()); });
+		staleAfter([&] { pane.setTabStopDistance(pane.tabStopDistance() + 8); });
+		staleAfter([&] { pane.setLineWrapMode(QPlainTextEdit::NoWrap); });
+		staleAfter([&] { pane.document()->setDocumentMargin(pane.document()->documentMargin() + 1); });
 		auto transient = std::make_unique<QPlainTextEdit>();
 		transient->setPlainText(QStringLiteral("one\ntwo\n"));
 		qt::plain_text_pane_measurement destroyed{ *transient, 2U };

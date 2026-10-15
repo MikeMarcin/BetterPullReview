@@ -430,3 +430,29 @@ passes this covers all276 courses; two dependency-script methods explicitly
 skip because the core-only graph does not build KSyntaxHighlighting. Strict
 clang-tidy22 passes all six newly changed TUs at d897dc239. The later peer
 measurement production/test changes still require their own strict tidy pass.
+
+### Remaining 200% redraw work
+
+At4af0e4e2b, Windows r26 passes the native pixel oracle and4 axis scales, then
+normal workbench100/125 at108.36/114.79s. Normal200 still times out120.01s.
+A same-source, otherwise idle PC trace completes every200% assertion in127.56s;
+keyboard is44.36s, divider22.25s and gutter20.75s. This extended diagnostic
+is not normal acceptance. Its disposable cleanup wrapper's single-pair array
+flattened in PowerShell; the separate explicit restore verifies the original
+bytes, removes only its hash-matched untracked `e`, restores/touches the exact
+absolute test path and recompiles the normal binary, exiting0 with clean source.
+
+The next candidate accumulates native block heights once for selected-row
+regions, eliminating repeated walks from the first visible block. A unified
+selection and native text damage invalidate their mapped gutter rows, including
+both complete number columns even in a narrow viewport. The fixed heading stays
+fixed; scrolling, origin placement, theme and content changes retain their
+full invalidations. No geometry, colour, selection or test assertion changes.
+All three complete Mac scales pass10.46/10.71/12.41s and strict tidy22 passes.
+The broader current Mac integration passes13/13 (workbench/axis, resources,
+workshop press+3 guidance siblings and resealed review round trip).
+
+Strict tidy also corrected the new helper's const local return to allow a
+QString move, and mechanically renamed inherited `stale_after` in the axis
+TU. No naming suppression or gate relaxation. Exact-source Windows200 and
+then100/125, plus the Ubuntu affected-path pass, remain open.

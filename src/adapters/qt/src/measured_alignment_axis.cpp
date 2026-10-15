@@ -359,7 +359,7 @@ namespace bpr::qt {
 			/// The complete plain-row case; all other formatting shapes normally.
 			[[nodiscard]] static auto plain_text(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> std::optional<QString>
 			{
-				const auto text   = aBlock.text();
+				auto       text   = aBlock.text();
 				const auto option = aBlock.document()->defaultTextOption();
 				if (option.wrapMode() != QTextOption::NoWrap || !aFormats.empty() || text.isEmpty() || text.endsWith(QLatin1Char{ ' ' })
 					|| !aBlock.charFormat().isEmpty() || !aBlock.blockFormat().isEmpty()

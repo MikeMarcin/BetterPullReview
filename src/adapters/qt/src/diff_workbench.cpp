@@ -494,8 +494,9 @@ namespace bpr::qt {
 				const auto previous = selected_rows_region();
 				SelectedBase        = aBase;
 				SelectedHead        = aHead;
-				viewport()->update(previous.xored(selected_rows_region()));
-				update_gutter();
+				const auto changed  = previous.xored(selected_rows_region());
+				viewport()->update(changed);
+				update_gutter(changed);
 			}
 			/// \brief [[BPR-1107]]. The lines this side's selection washes.
 			void set_selected_lines(std::optional<core::line_span> aLines)
@@ -1130,14 +1131,17 @@ namespace bpr::qt {
 			[[nodiscard]] auto selected_rows_region() const -> QRegion
 			{
 				auto region = QRegion{ };
-				for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
-					const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
-					if (geometry.top() > viewport()->height()) {
-						break;
-					}
+				auto block  = firstVisibleBlock();
+				if (!block.isValid()) {
+					return region;
+				}
+				auto top = blockBoundingGeometry(block).translated(contentOffset()).top();
+				for (; block.isValid() && top <= viewport()->height(); block = block.next()) {
+					const auto bottom = top + blockBoundingRect(block).height();
 					if (block.isVisible() && selected_block(block.blockNumber())) {
-						region += QRect{ 0, qFloor(geometry.top()), viewport()->width(), qCeil(geometry.bottom()) - qFloor(geometry.top()) };
+						region += QRect{ 0, qFloor(top), std::max(viewport()->width(), GutterWidth), qCeil(bottom) - qFloor(top) };
 					}
+					top = bottom;
 				}
 				return region;
 			}
@@ -1224,6 +1228,7 @@ namespace bpr::qt {
 
 		private:
 			void                                   update_gutter();
+			void                                   update_gutter(const QRegion& aRegion);
 			void                                   place_gutter();
 			[[nodiscard]] auto                     measured_gutter_width() const -> int;
 			void                                   restore_viewport_fill();
@@ -1543,6 +1548,15 @@ namespace bpr::qt {
 			Gutter->update();
 		}
 
+		void source_pane::update_gutter(const QRegion& aRegion)
+		{
+			auto column = QRegion{ };
+			for (const auto& damaged : aRegion) {
+				column += QRect{ 0, damaged.y() + gutter_header() - AppliedOffset, Gutter->width(), damaged.height() };
+			}
+			Gutter->update(column);
+		}
+
 		void source_pane::place_gutter()
 		{
 			const auto area = contentsRect();
@@ -1577,7 +1591,14 @@ namespace bpr::qt {
 					this,
 					[this](const QRect& aRect, const int aDy) {
 						if (UnifiedRows != nullptr) {
-							Gutter->update();
+							if (aDy != 0) {
+								// Rows move under the fixed heading; repaint the column.
+								Gutter->update();
+							} else {
+								// Text damage already names the changed rows. Translate
+								// their native viewport coordinates under the heading.
+								Gutter->update(0, aRect.y() + gutter_header() - AppliedOffset - 1, Gutter->width(), aRect.height() + 2);
+							}
 						} else if (aDy != 0) {
 							Gutter->scroll(0, aDy);
 							// The line under a still pointer has changed; the
