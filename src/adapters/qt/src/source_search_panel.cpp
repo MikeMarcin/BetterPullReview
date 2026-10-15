@@ -298,7 +298,7 @@ namespace bpr::qt {
 			const auto line = [&] { return QString::number((right ? right->Line : left->Line) + 1U); };
 			switch (aRole) {
 			case source_search_match_role:            return static_cast<unsigned>(global + 1U);
-			case source_search_sides_role:            return (left ? 1 : 0) | (right ? 2 : 0);
+			case source_search_sides_role:            return static_cast<int>((left ? 1U : 0U) | (right ? 2U : 0U));
 			case source_search_line_role:             return line();
 			case source_search_preview_role:          return snippet_of(hit).Text;
 			case source_search_highlight_start_role:  return snippet_of(hit).Start;
@@ -458,13 +458,13 @@ namespace bpr::qt {
 			const auto small  = tag_font(aOption.font);
 			const auto column = columns(aOption.rect, aOption.font);
 			const auto side   = (column.Tags.width() - 2) / 2;
-			const auto sides  = aIndex.data(source_search_sides_role).toInt();
+			const auto sides  = aIndex.data(source_search_sides_role).toUInt();
 			const auto tagInk = Colours.Text.isValid() ? Colours.Text : aInk;
 			// Two fixed slots, Left then Right, so a tag's place repeats its side.
-			if (sides & 1) {
+			if (sides & 1U) {
 				paint_tag(aPainter, small, tr("L"), column.Tags.left() + side, centre, Colours.Removed, tagInk, side, 3.0);
 			}
-			if (sides & 2) {
+			if (sides & 2U) {
 				paint_tag(aPainter, small, tr("R"), column.Tags.right() + 1, centre, Colours.Added, tagInk, side, 3.0);
 			}
 			const auto code    = aIndex.data(Qt::FontRole).value<QFont>();
