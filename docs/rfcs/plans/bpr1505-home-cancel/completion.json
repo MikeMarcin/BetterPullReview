@@ -1,0 +1,117 @@
+{
+  "run_id": "bpr1505-20261014",
+  "segment_id": "implementation-1",
+  "mandate_revision": "owner-testing-note-20261014-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "home-cancel-alignment",
+  "binding": {
+    "plan_id": "bpr1505-home-cancel",
+    "plan_path": "docs/rfcs/plans/bpr1505-home-cancel/milestone-plan.json",
+    "milestone_id": "home-cancel-alignment",
+    "definition_fingerprint": "sha256:56cd19c9daf9846dfb7c4ea79b751ab88704ee657301679d445eab2e234f5ef6",
+    "obligations": [
+      {
+        "id": "BPR-1505:*",
+        "source": "BPR-1505",
+        "selector": null,
+        "source_fingerprint": "sha256:c2808e0400abe1d5e033fea7ecc5e3892eef0fcbf0a0841509b320abb7083217"
+      }
+    ],
+    "obligation_fingerprint": "sha256:ea627115f2e7a8b265d6e80eff48d0d5ee2af944552435dd72d6552bd8ca9a2f",
+    "exit_criteria": [
+      {
+        "id": "home-cancel-alignment:exit:1",
+        "text": "AC1: Cancel appears left of the Home row's changes and adjacent facts."
+      },
+      {
+        "id": "home-cancel-alignment:exit:2",
+        "text": "AC2: Opening, waiting, retry and idle keep the facts column's horizontal position."
+      },
+      {
+        "id": "home-cancel-alignment:exit:3",
+        "text": "AC3: Offscreen composed Home renders and the existing cancellation interaction pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "d6b33559d019cbf53e769999fab7249908f81628",
+  "handoff_ref": "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+    "docs/rfcs/plans/bpr1505-home-cancel/acceptance.json",
+    "docs/issues/60-done/BPR-1505-home-cancel-control-preserves-action-alignment.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1505:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+        "docs/rfcs/plans/bpr1505-home-cancel/acceptance.json",
+        "docs/issues/60-done/BPR-1505-home-cancel-control-preserves-action-alignment.md"
+      ]
+    },
+    {
+      "id": "home-cancel-alignment:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+        "docs/rfcs/plans/bpr1505-home-cancel/acceptance.json",
+        "docs/issues/60-done/BPR-1505-home-cancel-control-preserves-action-alignment.md"
+      ]
+    },
+    {
+      "id": "home-cancel-alignment:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+        "docs/rfcs/plans/bpr1505-home-cancel/acceptance.json",
+        "docs/issues/60-done/BPR-1505-home-cancel-control-preserves-action-alignment.md"
+      ]
+    },
+    {
+      "id": "home-cancel-alignment:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/rfcs/plans/bpr1505-home-cancel/HANDOFF.md",
+        "docs/rfcs/plans/bpr1505-home-cancel/acceptance.json",
+        "docs/issues/60-done/BPR-1505-home-cancel-control-preserves-action-alignment.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "integrated-boundary",
+    "detail": "Assigned BPR-1505 outcome and exits pass; card is canonically Done. Coordinator owns main integration and the unrelated BPR-1521 prerequisite reconciliation for the global documentation gate."
+  },
+  "ownership": "quiescent"
+}

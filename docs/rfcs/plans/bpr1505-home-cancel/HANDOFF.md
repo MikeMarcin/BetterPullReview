@@ -26,6 +26,10 @@ Coordinator-authorized metadata commit `5a105579c` was cherry-picked as
 `e0048271f`; it adds the separate BPR-1521 card/reservation and current counter.
 It changes no product input. Use `git log` to identify the later acceptance and
 handoff commits; the verified product candidate remains `90958011c`.
+Canonical finish commit `d6b33559d` moves the card to Done and records all three
+passing criteria. `completion.json` is bound to that exact revision; its
+checkpoint check returned `action: stop` with quiescent ownership. The following
+receipt commit changes only continuation documentation.
 
 ## Result and review
 
@@ -49,6 +53,11 @@ this card. No attended session or server was created.
 - After final assertion refinements and rebuild, the same network-isolated public
   course passed with `--render-directory` and exit 0. It exercises Home's actual
   double-click, delayed read, Cancel widget/wire cancellation and Retry widget.
+  The command used `QT_QPA_PLATFORM=offscreen`,
+  `BPR_AUTOMATED_TEST_BOUNDARY=1` and
+  `python3 -I -S scripts/run_network_isolated_test.py --sandbox-exec /usr/bin/sandbox-exec --profile-template cmake/sandbox/macos-network-deny.sb --loopback-port-count 0 -- build/dev/tests/end_to_end/home_open_feedback_public_path --render-directory build/dev/bpr1505-renders`,
+  with the script, profile, executable and output resolved absolutely inside
+  this checkout.
 - `ctest --preset dev --output-on-failure -R '^qt_home_list_scale_(100|125|200)$' --parallel 1`: 3/3 passed (21.11, 20.55 and 22.12 seconds).
 - Canonical `_coding-standard/scripts/format.py --dry-run` on the three changed
   C++ files passed with clang-format 22.1.8; `git diff --check` passed.
@@ -73,12 +82,11 @@ These observations do not claim native desktop appearance acceptance.
 
 ## Continuation
 
-The acceptance file is ready for the scoped canonical card finish. All build,
-test and tidy commands have exited. The next unattended step is the card finish,
-then a checked completion observation and receipt commit. No review server,
-protected attended candidate, background writer or task-owned temporary process
-remains. Build outputs and inspection renders stay under this checkout's ignored
-build tree for optional inspection.
+The card is canonically Done, the completion observation is checked and all
+build, test and tidy commands have exited. No review server, protected attended
+candidate, background writer or task-owned temporary process remains. Build
+outputs and inspection renders stay under this checkout's ignored build tree
+for optional inspection.
 
 Coordinator may cherry-pick the product and bookkeeping commits onto main,
 omitting the already present metadata import, and run the integrated
