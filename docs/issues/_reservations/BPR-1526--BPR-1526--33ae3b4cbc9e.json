@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1526"
+  ],
+  "reserve_for": "native-release-implementer",
+  "purpose": "Repair macOS agent finding workshop action release-gate failure",
+  "created": "2026-10-15T06:08:09.505264+00:00",
+  "base": "5148da5a8a2ebb45c58bb5e16b9feab5a6657d4b"
+}
