@@ -1,0 +1,71 @@
+{
+ "assignment": "BPR-1533",
+ "mandate": "Owner report 2026-10-15: \"At least on dark theme I'm finding it quite hard to see a selected block (eg a word double clicked) in the middle of a change diff on the main pane. Partially because of the line highlight color, but I don't think that's the only cause. Actually it's not so easy to see even on unchanged lines. The single line details pane shows it much more clearly for some reason.\"",
+ "governing_rfc": "RFC-BPR-0006 (selection role and text floor), under RFC-BPR-0028",
+ "changed_paths": [
+  "src/adapters/qt/include/bpr/qt/code_sample_painter.hpp",
+  "src/adapters/qt/src/code_sample_painter.cpp",
+  "src/adapters/qt/src/diff_workbench.cpp",
+  "tests/adapters_qt/code_sample_painter_tests.cpp",
+  "tests/adapters_qt/diff_workbench_tests.cpp",
+  "docs/ux/workbench-specification.md"
+ ],
+ "root_causes": [
+  "selection drawn as Highlight at selection_wash_alpha 72/255, identical to the selected line's wash, and a double click selects the line first: 1.10-1.16:1 Dark",
+  "wash inserted before the opaque intraline emphasis: invisible inside a change (1.00:1)",
+  "Line details used Qt's opaque selection; Inactive palette equals Active, so focus is not a cause"
+ ],
+ "pending": [
+  "AC4 human: owner Accept/Reject of BPR-1533-selection-v001"
+ ],
+ "next_action": "On hand-back: Accept merges 1cf1db2f1 + a0538e749 (and c16ce09b1's harness) to main and finishes BPR-1533; Reject's note becomes v002. Weakest measured case to watch: Light, part of a changed run on the selected line, 1.02:1 hue-only against the selected row's derived emphasis (BPR-0323).",
+ "source_root": "/Users/jaeger/.codex/worktrees/bpr1533-selection/BetterPullReview",
+ "branch": "bpr-1533-selection",
+ "baseline": "1bd314121 (main when rebased; claimed at dd8f5691e)",
+ "commits": {
+  "shared_helper": "1cf1db2f1",
+  "BPR-1533": "a0538e749",
+  "BPR-1534": "c84681b0a",
+  "render_look": "c16ce09b1 (tests only)"
+ },
+ "source_candidate": "c84681b0a09ed2935f0f098cbdeb777b1ae95a14",
+ "independence": "BPR-1534's commit cherry-picks onto the helper alone and its tests pass there; BPR-1533's commit was tested on the helper alone before BPR-1534's was added",
+ "design": {
+  "frontend_design": "loaded before design work",
+  "treatment": "text selection painted last, solid in the pane's Highlight (code_selection_background), over band, selected-line wash and intraline emphasis; each run's colour through core::readable_selection_ink (append_text_selection_ranges in code_sample_painter); no setting, no hard-coded colour, no core change"
+ },
+ "verification": {
+  "focused": "ctest at the final sources: qt_diff_workbench_scale_{100,125,200}, qt_code_sample_painter, qt_appearance_profile, qt_workbench_window_scale_{100,125,200}, application_line_details_public_path, application_source_find{,_scale_1_25,_scale_2_0}, application_cpp_identifier_appearance, application_overview_summary_{1,1_25,2}, application_review_tour_composition_{public_path,scale_125,scale_200}, application_review_tour_publication_* : 28/28 pass; qt_diff_workbench_scale_{100,125,200}, qt_code_sample_painter, qt_workbench_window_scale_100, application_line_details_public_path, application_source_find: 7/7 at 38fd036e6 (= c84681b0a content)",
+  "negative_controls": "baseline pane sources with the new tests: line-kinds fails 'the selection is the theme's solid selection colour' (all 16 cases 17-29 sRGB units, 0 inside a change); Line details fails 'the selected type keeps its colour' in all four variants; BPR-1212's updated course fails 'the selection is the solid accent, not a wash'",
+  "format": "clang-format 22.1.8 dry run clean on the 7 touched C++ files",
+  "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors: clang-tidy passed on code_sample_painter.cpp, diff_workbench.cpp, line_details_pane.cpp, diff_workbench_tests.cpp, code_sample_painter_tests.cpp",
+  "documentation": "main's scripts/verify_documentation.py --root <worktree> after rebase: DOCUMENTATION_OK; verify_documentation_tests: 67 OK",
+  "build": "worktree build/dev configured Release with CPM_SOURCE_CACHE=main's build/.cpm-cache (disk was at 139 MiB free at start)",
+  "renders": "better_pull_review_qt_diff_workbench_tests --render-selection-looks DIR, QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2; after at c16ce09b1, before with dd8f5691e's diff_workbench.cpp and line_details_pane.{hpp,cpp} on the same harness"
+ },
+ "frozen": {
+  "root": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45",
+  "launcher": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45/launch.py",
+  "source_commit": "c84681b0a09ed2935f0f098cbdeb777b1ae95a14",
+  "fixture": "line-details-v1",
+  "open_file": "src/report/query.cpp",
+  "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/report/query.cpp head a7603d7f2fe157ae72a0d4e13dada90fab83b31a",
+  "executable_sha256": "f429c39b5ba91f82111a9ba9d3dab1ae3a9aa29fc31477f38ca6f21013097c11"
+ },
+ "review": {
+  "state": "/Users/jaeger/.codex/attended-review/bpr1533-v001-aCNnPi",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "session": "7c8004e6428577726d1ce8825ee1dff5",
+  "event_cursor": 8,
+  "candidates": {
+   "BPR-1533-selection-v001": "cfc14897d92f544bd5d618d95f1c6ce05f3eedf9543295dec3b4e48ae7a7b36c",
+   "BPR-1534-line-details-syntax-v001": "d9dda508db354a3567365412bdcd3059b0a9ea4de89f2bceb0ba5f7bb9c26268"
+  },
+  "phase": "ready",
+  "protected": true,
+  "decisions": null,
+  "server_pid": 70713,
+  "server_port": 64647,
+  "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+ }
+}
