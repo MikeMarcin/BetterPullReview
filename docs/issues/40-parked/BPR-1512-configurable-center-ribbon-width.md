@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1512"
 title: "Make center ribbon width configurable and halve its default"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Make the center ribbon width a setting and make the default half the current width","milestone_plan":{"id":"bpr1512-ribbon-width","path":"docs/rfcs/plans/bpr1512-ribbon-width/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7586722a31c88ccae46467c15dc61f98cc20167c","evidence":{"kind":"observation","detail":"Real Settings control exposes Center ribbon width with accessible logical-pixel description, px suffix and 16–256 bounds; Qt course passes100/125/200%."}},{"criterion":"AC2","outcome":"pass","revision":"7586722a31c88ccae46467c15dc61f98cc20167c","evidence":{"kind":"observation","detail":"Original production splitter/config width56; default/reset28 verified in real workbench. Exact schema19 migration adopts28 and preserves all existing profile/window choices."}},{"criterion":"AC3","outcome":"pass","revision":"7586722a31c88ccae46467c15dc61f98cc20167c","evidence":{"kind":"observation","detail":"Durable-publication semantics checked in Settings/workbench; profile lifecycle fan-out/failure/coalescing passes with explicit56. SQLite width16/28/56/256 round-trips; explicit256 survives close/reopen."}},{"criterion":"AC4","outcome":"pending","revision":"7586722a31c88ccae46467c15dc61f98cc20167c","evidence":{"kind":"observation","detail":"Offscreen ribbon geometry/hit identities and native splitter dragging pass100/125/200%; source pane widths checked with Files/Comments open and Repositories collapsed. Shipped selected-file composition passes. Exact frozen candidate requires attended human visual/interaction judgement."}}]
 ---
 
 # BPR-1512: Make center ribbon width configurable and halve its default
