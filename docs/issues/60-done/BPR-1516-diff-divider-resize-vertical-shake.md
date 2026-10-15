@@ -36,21 +36,21 @@ The pane now retains its width-independent native layouts and still lets Qt
 adjust its scrollbars from the actual viewport. Bounded remeasurement also
 retains fractional placement until the shared controller applies the new axis.
 
-- AC1: Actual center-handle mouse press, forty continuous forward/reverse moves
+- Reproduction: Actual center-handle mouse press, forty continuous forward/reverse moves
   and release reproduced 38 vertical row changes, up to 8 logical pixels, on
   the original 202/203-line comparison at 1.25 scale. A targeted negative
   control restoring only the old measurement offset reset produced 78 changes
   and 5 pixels of displacement on 2,002/2,003 lines.
-- AC2: The final candidate has zero displacement and zero row changes in every
+- Stability: The final candidate has zero displacement and zero row changes in every
   observed paint and yielded measurement turn. Each effective move has one
   geometry rebuild: 39 per course, compared with 58 on the original long-line
   baseline. No paint suppression or competing scroll authority was added.
-- AC3: Short and long files, unequal sides, the retained semantic line and
+- Correspondence: Short and long files, unequal sides, the retained semantic line and
   native text-selection range, native hit testing, shared comparison position,
   horizontal ranges and exact ribbon endpoints pass. The shipped readers are
   unwrapped; the wrapped/Unicode/mixed-font native measurement regression also
   passes through `qt_diff_axis_scale_100`.
-- AC4: The real `diff_workbench` and its `diff_link_map` receive actual pointer
+- Composition: The real `diff_workbench` and its `diff_link_map` receive actual pointer
   events. Offscreen before/wide/reversed renders and per-paint row observations
   cover 201/202, 202/203 and 2,002/2,003-line fixtures at 1.0, 1.25 and 2.0 scale.
   Coordinator main `a8b37e46c` includes this source with BPR-1512 ribbon width: full-window `application_diff_workbench_public_path` passes (4.28 s), and `qt_diff_workbench_scale_125` passes (15.94 s). The coordinator inspected the full-window render: selected paired lines 39/42, ribbons, gutters, Comments, text boundaries and horizontal bars remain correct.
