@@ -1568,7 +1568,7 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
-	void test_windows_pinned_transport_refuses_before_effects()
+	[[maybe_unused]] void test_windows_pinned_transport_refuses_before_effects()
 	{
 		for (const auto& originalCandidate : { cloud_candidate(), enterprise_candidate() }) {
 			auto             candidate = originalCandidate;
@@ -1613,7 +1613,7 @@ namespace {
 		std::cout << "GH_CLI_WINDOWS_PINNED_REFUSAL_OK: github.com and GHES, zero sensitive/API/witness effects\n";
 	}
 
-	void test_strict_acquisition_failures()
+	[[maybe_unused]] void test_strict_acquisition_failures()
 	{
 		temporary_layout layout;
 		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
@@ -1660,7 +1660,7 @@ namespace {
 		}
 	}
 
-	void test_cli_mutation_session_recovery()
+	[[maybe_unused]] void test_cli_mutation_session_recovery()
 	{
 		for (const bool mismatch : { false, true }) {
 			temporary_layout layout;
@@ -1729,7 +1729,7 @@ namespace {
 		}
 	}
 
-	void test_mutation_closed_shapes_and_ambiguous_results()
+	[[maybe_unused]] void test_mutation_closed_shapes_and_ambiguous_results()
 	{
 		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
 			temporary_layout                layout;
@@ -1814,7 +1814,7 @@ namespace {
 		}
 	}
 
-	void test_staged_cli_catalog()
+	[[maybe_unused]] void test_staged_cli_catalog()
 	{
 		using operation = application::staged_review_operation;
 		const std::array rows{
