@@ -1455,6 +1455,26 @@ namespace {
 		const auto sizeOnly = delegate->facts_rect(option_for(*view, second), second);
 		expect(!sizeOnly.isEmpty() && sizeOnly.right() == facts.right(), "rows share the column's right edge, so their figures line up");
 		expect(second.data(qt::home_row_role::age).toString().isEmpty() && second.data(qt::home_row_role::comments).toString().isEmpty(), "a row without an age or a count has neither");
+		// [[BPR-1505]]. Cancel and Retry belong before the facts, whose
+		// horizontal alignment must survive each opening state.
+		const auto tag    = delegate->reviewing_rect(option_for(*view, first), first);
+		const auto states = std::array{
+			std::pair{ qt::home_row_open_phase::opening, QString{ } },
+			std::pair{ qt::home_row_open_phase::waiting, QStringLiteral("Cancel") },
+			std::pair{ qt::home_row_open_phase::failed, QStringLiteral("Retry") },
+		};
+		for (const auto& [phase, label] : states) {
+			delegate->set_open({ first.data(qt::home_row_role::identity).toString(), phase, QStringLiteral("Opening this pull request"), label });
+			const auto during = delegate->facts_rect(option_for(*view, first), first);
+			expect(during.left() == facts.left() && during.right() == facts.right(), "opening, Cancel and Retry keep the changes and history aligned");
+			expect(delegate->reviewing_rect(option_for(*view, first), first).left() == tag.left(), "opening leaves the Reviewing tag aligned too");
+			const auto action = delegate->open_action_rect(option_for(*view, first), first);
+			expect(action.isEmpty() == label.isEmpty(), "Cancel and Retry have measured action geometry");
+			expect(action.isEmpty() || (action.right() < during.left() && !action.intersects(delegate->reviewing_rect(option_for(*view, first), first))),
+				   "Cancel and Retry sit left of the facts and never overlap the Reviewing tag");
+		}
+		delegate->set_open({ });
+		expect(delegate->facts_rect(option_for(*view, first), first) == facts, "ending the opening restores the complete idle facts geometry");
 		auto* const mine = home.List.state_view(qt::home_group::my_pull_requests);
 		expect(delegate->facts_rect(option_for(*mine, mine->model()->index(0, 0)), mine->model()->index(0, 0)).isEmpty(), "a row whose change was not read draws nothing");
 	}
