@@ -64,6 +64,7 @@
 #include <QHBoxLayout>
 #include <QHideEvent>
 #include <QIcon>
+#include <QInputMethodQueryEvent>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -117,6 +118,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <iterator>
 #include <limits>
 #include <string_view>
 #include <system_error>
@@ -924,39 +927,73 @@ namespace bpr::qt {
 				|| aWidget->testAttribute(Qt::WA_InputMethodEnabled);
 		}
 
-		/// \brief [[BPR-1531]]. Claims Option-A (Alt+A) for a widget in the
-		/// window that takes typed text when the key arrives.
+		/// \brief [[BPR-1536]]. Whether Option with a character key types text
+		/// here. On macOS it types a character ("®", "ç", "†") or starts a dead
+		/// key ("˜" before "n"); on Windows and Linux Alt is a command key, and
+		/// text input there is AltGr, which [[BPR-1336]] yields.
+		constexpr auto option_types_text =
+#if defined(Q_OS_MACOS)
+			true;
+#else
+			false;
+#endif
+
+		/// \brief [[BPR-1536]]. Option (Alt), alone or with Shift, and a
+		/// character key: the presses that type text on macOS. Arrows, Page
+		/// Up and Down, Return and Command-Option keys are not among them.
+		[[nodiscard]] auto option_character_key(const QKeyCombination aKey) -> bool
+		{
+			const auto modifiers = aKey.keyboardModifiers() & ~Qt::KeypadModifier;
+			const auto key       = aKey.key();
+			return (modifiers == Qt::AltModifier || modifiers == (Qt::AltModifier | Qt::ShiftModifier))
+				&& key >= Qt::Key_Space && key < Qt::Key_Escape;
+		}
+
+		/// \brief [[BPR-1531]] [[BPR-1536]]. Gives a widget in the window
+		/// that takes typed text the keys that type there.
 		///
-		/// \details The binding is removed when such a widget takes focus, but a
-		/// focused widget can begin taking text without a focus change: the
-		/// Review Cycle reader becomes the suggestion editor in place. Claiming
-		/// the key in `ShortcutOverride` keeps Accept from firing there, and the
-		/// key goes on to the widget and the text input system as "å".
+		/// \details In `ShortcutOverride` it claims Accept file's Option-A
+		/// (Alt+A) and, on macOS, every Option+character key, so no window,
+		/// button or widget shortcut fires and the key goes on to the widget
+		/// and the text input system as "å" or "®". The claim is made when the
+		/// key arrives, so it also holds for a widget that begins taking text
+		/// while it has focus: the Review Cycle reader becomes the suggestion
+		/// editor in place. That change reaches Qt as an input method query
+		/// for `ImEnabled` on the focused widget, on which `aRefresh` re-reads
+		/// the window's typing state; it returns at once when nothing changed.
 		class typed_text_key_claim final : public QObject
 		{
 		public:
-			explicit typed_text_key_claim(QWidget* const aWindow)
+			typed_text_key_claim(QWidget* const aWindow, std::function<void()> aRefresh)
 				: QObject{ aWindow }
 				, Window{ aWindow }
+				, Refresh{ std::move(aRefresh) }
 			{
 			}
 
 		protected:
 			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
 			{
-				if (aEvent->type() == QEvent::ShortcutOverride
-					&& QKeySequence{ static_cast<QKeyEvent*>(aEvent)->keyCombination() } == accept_file_key()) {
-					const auto* const widget = qobject_cast<const QWidget*>(aWatched);
-					if (widget != nullptr && Window->isAncestorOf(widget) && takes_typed_text(widget)) {
-						aEvent->accept();
-						return true;
+				if (aEvent->type() == QEvent::ShortcutOverride) {
+					const auto combination = static_cast<QKeyEvent*>(aEvent)->keyCombination();
+					if (QKeySequence{ combination } == accept_file_key() || (option_types_text && option_character_key(combination))) {
+						const auto* const widget = qobject_cast<const QWidget*>(aWatched);
+						if (widget != nullptr && Window->isAncestorOf(widget) && takes_typed_text(widget)) {
+							aEvent->accept();
+							return true;
+						}
 					}
+				} else if (aEvent->type() == QEvent::InputMethodQuery
+						   && static_cast<QInputMethodQueryEvent*>(aEvent)->queries().testFlag(Qt::ImEnabled)
+						   && aWatched == QApplication::focusWidget()) {
+					Refresh();
 				}
 				return QObject::eventFilter(aWatched, aEvent);
 			}
 
 		private:
-			QWidget* Window;
+			QWidget*              Window;
+			std::function<void()> Refresh;
 		};
 
 #if defined(Q_OS_WIN)
@@ -7784,8 +7821,8 @@ namespace bpr::qt {
 		// editor was last given it; the rule for "kept" is the core's.
 		const auto& shown     = ReviewSubmissionEditor != nullptr ? ReviewSubmissionEditor->shown_draft() : std::optional<core::review_submission_draft>{ };
 		const auto  keptDraft = shown.has_value() && core::kept(*shown);
-		const auto  key       = [](const QAction* const aAction) {
-			return aAction->shortcut().toString(QKeySequence::NativeText);
+		const auto  key       = [this](const QAction* const aAction) {
+			return presented_key(aAction);
 		};
 		const auto compose = keptDraft
 			? QStringLiteral("Compose review (%1)\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
@@ -7900,7 +7937,7 @@ namespace bpr::qt {
 		auto       words  = target;
 		words.remove(QLatin1Char{ '&' });
 		words.remove(QChar{ 0x2026 });
-		const auto key                = CommentAction->shortcut().toString(QKeySequence::NativeText);
+		const auto key                = presented_key(CommentAction);
 		const auto reason             = comment_target_reason(true);
 		const auto promotionAvailable = reason.isEmpty() && !ReviewEditor->body_editor()->isReadOnly();
 		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
@@ -14308,7 +14345,7 @@ namespace bpr::qt {
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
 			update_source_find_actions();
-			update_accept_file_shortcut();
+			update_typing_keys();
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
 			}
@@ -14357,7 +14394,7 @@ namespace bpr::qt {
 #if defined(Q_OS_WIN)
 		qApp->installEventFilter(new typed_text_yield{ this });
 #endif
-		qApp->installEventFilter(new typed_text_key_claim{ this });
+		qApp->installEventFilter(new typed_text_key_claim{ this, [this] { update_typing_keys(); } });
 		ViewMenu->addSeparator();
 		// [[BPR-1132]]. The tab keys, window-owned: Ctrl+Tab and Ctrl+Shift+Tab
 		// move between the tabs (the Control key on macOS too, where Qt names
@@ -15425,6 +15462,57 @@ namespace bpr::qt {
 		if (AcceptFileButton != nullptr) {
 			AcceptFileButton->setAccessibleDescription(action->toolTip());
 		}
+	}
+
+	void workbench_window::update_typing_keys()
+	{
+		const auto* const focused = QApplication::focusWidget();
+		const auto        typing  = focused != nullptr && isAncestorOf(focused) && takes_typed_text(focused);
+		if (typing == TypingFocus) {
+			return;
+		}
+		TypingFocus = typing;
+		update_accept_file_shortcut();
+		if (!option_types_text || PrimaryMenuBar == nullptr) {
+			return;
+		}
+		// [[BPR-1536]]. AppKit fires a native menu item's key equivalent
+		// before Qt sees the key, with no ShortcutOverride ([[BPR-1295]]), so
+		// the menu bar's Option+character keys are lifted while the keyboard
+		// is in a widget that takes typed text, and restored after.
+		if (!TypingFocus) {
+			for (const auto& [action, keys] : LiftedOptionKeys) {
+				if (action != nullptr) {
+					action->setShortcuts(keys);
+				}
+			}
+			LiftedOptionKeys.clear();
+			return;
+		}
+		auto pending = QList<QAction*>{ PrimaryMenuBar->actions() };
+		while (!pending.isEmpty()) {
+			auto* const action = pending.takeLast();
+			if (auto* const menu = action->menu(); menu != nullptr) {
+				pending.append(menu->actions());
+				continue;
+			}
+			const auto keys = action->shortcuts();
+			auto       kept = QList<QKeySequence>{ };
+			std::ranges::copy_if(keys, std::back_inserter(kept), [](const QKeySequence& aKey) {
+				return aKey.count() != 1 || !option_character_key(aKey[0]);
+			});
+			if (kept.size() != keys.size()) {
+				LiftedOptionKeys.emplace_back(action, keys);
+				action->setShortcuts(kept);
+			}
+		}
+	}
+
+	auto workbench_window::presented_key(const QAction* const aAction) const -> QString
+	{
+		const auto lifted = std::ranges::find_if(LiftedOptionKeys, [aAction](const auto& aLifted) { return aLifted.first == aAction; });
+		const auto key    = lifted != LiftedOptionKeys.end() && !lifted->second.isEmpty() ? lifted->second.front() : aAction->shortcut();
+		return key.toString(QKeySequence::NativeText);
 	}
 
 	void workbench_window::update_receipt_actions()

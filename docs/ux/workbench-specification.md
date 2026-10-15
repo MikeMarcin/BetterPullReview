@@ -1241,8 +1241,9 @@ the accessible status. Where a pane is too narrow, the panel extends left over
 its neighbour, then tightens its spacing, then lets Find in Selection give way
 to ⌥L, keeping every other control at the supported minimum window width.
 Native UI font and inherited palette roles supply the panel. ⌥C and ⌥R stay
-Comment and Compose review everywhere (owner, 2026-10-14); Match case and
-Regular expression take no key.
+Comment and Compose review (owner, 2026-10-14); Match case and Regular
+expression take no key. Inside the query, as in every text field, ⌥C and ⌥R
+type `ç` and `®` ([[BPR-1536]]); ⌥W and ⌥L stay the query's own toggles.
 
 Selected source text seeds the query, then a word at a real text caret, then
 the retained query. As in VS Code, the seeded occurrence is the current match
@@ -1652,6 +1653,20 @@ its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
 entered from the keyboard would be ([[BPR-1022]]). `Alt` used as a modifier
 (any chord above, `Alt+Space`, `Alt+F4`, AltGr text entry or an Alt-click)
 opens nothing.
+
+**Option keys and typing** ([[BPR-1536]]). On macOS Option with a character
+key types (`®`, `ç`, `†`, `¡`) or starts a dead key (`˜` before `n`). While
+the keyboard is in a widget that takes typed text (a field, a comment, reply,
+note or composer editor, an editable list, the Review Cycle suggestion editor,
+the find query), every Option+character window, button and menu key is that
+widget's: ⌥R types `®` instead of composing, ⌥⇧1 types `⁄` instead of hiding
+Files. The widget claims the key when it arrives, and the menu bar lifts its
+Option+character keys until the keyboard leaves, because AppKit fires a
+native menu item's key before Qt sees it ([[BPR-1295]]); tooltips keep naming
+the key. Elsewhere, including read-only code, the keys work as listed. Option
+with an arrow, Page Up or Down or Return, and Command-Option keys, are not
+text and are unchanged. On Windows and Linux Alt is a command key and keeps
+these commands in editors; text input there is AltGr ([[BPR-1336]]).
 
 The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench

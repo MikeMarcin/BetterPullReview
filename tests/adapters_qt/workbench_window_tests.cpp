@@ -7858,6 +7858,271 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1536]]. An Option key as macOS delivers it: the Cocoa
+	/// plugin offers the key, Option and the typed text to the shortcut map
+	/// before the text input system, and a declined offer goes on to the focus
+	/// widget. Returns whether the map took it.
+	auto option_key(qt::workbench_window& aWindow, const QKeyCombination aKey, const QString& aText) -> bool
+	{
+		if (QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, static_cast<int>(aKey.key()), aKey.keyboardModifiers(), 0U, 0U, 0U, aText)) {
+			QApplication::processEvents();
+			return true;
+		}
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, static_cast<int>(aKey.key()), aKey.keyboardModifiers(), aText);
+			QApplication::processEvents();
+		}
+		return false;
+	}
+
+	/// \brief [[BPR-1536]]. What an Option key types on a US macOS layout;
+	/// empty for a dead key, which types nothing until the next key.
+	[[nodiscard]] auto us_option_text(const QKeyCombination aKey) -> QString
+	{
+		const auto shifted = aKey.keyboardModifiers().testFlag(Qt::ShiftModifier);
+		switch (aKey.key()) {
+		case Qt::Key_A: return shifted ? QStringLiteral("Å") : QStringLiteral("å");
+		case Qt::Key_C: return shifted ? QStringLiteral("Ç") : QStringLiteral("ç");
+		case Qt::Key_K: return shifted ? QString{ } : QStringLiteral("˚");
+		case Qt::Key_N: return shifted ? QStringLiteral("˜") : QString{ };
+		case Qt::Key_O: return shifted ? QStringLiteral("Ø") : QStringLiteral("ø");
+		case Qt::Key_R: return shifted ? QStringLiteral("‰") : QStringLiteral("®");
+		case Qt::Key_T: return shifted ? QStringLiteral("ˇ") : QStringLiteral("†");
+		case Qt::Key_U: return shifted ? QStringLiteral("¨") : QString{ };
+		case Qt::Key_1: return shifted ? QStringLiteral("⁄") : QStringLiteral("¡");
+		case Qt::Key_2: return shifted ? QStringLiteral("€") : QStringLiteral("™");
+		case Qt::Key_3: return shifted ? QStringLiteral("‹") : QStringLiteral("£");
+		case Qt::Key_4: return shifted ? QStringLiteral("›") : QStringLiteral("¢");
+		case Qt::Key_5: return shifted ? QStringLiteral("ﬁ") : QStringLiteral("∞");
+		default:        return QString{ };
+		}
+	}
+
+	/// \brief [[BPR-1536]]. Every Option+character key in the window: Option,
+	/// alone or with Shift, and a key that types on macOS.
+	[[nodiscard]] auto is_option_character(const QKeySequence& aKey) -> bool
+	{
+		if (aKey.count() != 1) {
+			return false;
+		}
+		const auto modifiers = aKey[0].keyboardModifiers();
+		const auto key       = aKey[0].key();
+		return (modifiers == Qt::AltModifier || modifiers == (Qt::AltModifier | Qt::ShiftModifier)) && key >= Qt::Key_Space && key < Qt::Key_Escape;
+	}
+
+	/// \brief [[BPR-1536]]. The owner, 2026-10-15: Option-R in a comment box
+	/// opened Compose review instead of typing "®". Every Option+character
+	/// window, button and menu-bar key steps aside on macOS while the keyboard
+	/// is in a widget that takes typed text, and works everywhere else.
+	void test_option_keys_step_aside_in_text_input()
+	{
+#if defined(__APPLE__)
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(every_primary_command_offered());
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		auto* const compose = window.findChild<QAction*>(QStringLiteral("composeReviewAction"));
+		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		expect(compose != nullptr && button != nullptr && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") },
+			   "Compose review is Option-R");
+
+		// The audit: every Option+character binding the window holds, each
+		// enabled, each counted if it fires.
+		struct binding
+		{
+			QString              Owner;
+			QKeySequence         Key;
+			std::shared_ptr<int> Fired;
+			QPointer<QObject>    Source;
+		};
+		auto       bindings = std::vector<binding>{ };
+		const auto count    = [&bindings](QObject* const aSource, const QKeySequence& aKey) {
+			bindings.push_back({ .Owner = aSource->objectName(), .Key = aKey, .Fired = std::make_shared<int>(0), .Source = aSource });
+			return bindings.back().Fired;
+		};
+		for (auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& key : action->shortcuts()) {
+				if (is_option_character(key)) {
+					const auto fired = count(action, key);
+					QObject::connect(action, &QAction::triggered, &window, [fired] { ++*fired; });
+				}
+			}
+		}
+		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+			for (const auto& key : shortcut->keys()) {
+				if (is_option_character(key)) {
+					const auto fired = count(shortcut, key);
+					QObject::connect(shortcut, &QShortcut::activated, &window, [fired] { ++*fired; });
+					QObject::connect(shortcut, &QShortcut::activatedAmbiguously, &window, [fired] { ++*fired; });
+				}
+			}
+		}
+		for (auto* const other : window.findChildren<QAbstractButton*>()) {
+			if (is_option_character(other->shortcut())) {
+				const auto fired = count(other, other->shortcut());
+				QObject::connect(other, &QAbstractButton::pressed, &window, [fired] { ++*fired; });
+			}
+		}
+		// Each binding is offered enabled, as it would be when its command is
+		// available, so a binding's own state cannot hide a steal.
+		const auto enable = [](const binding& aEntry) {
+			if (aEntry.Source != nullptr) {
+				aEntry.Source->setProperty("enabled", true);
+			}
+		};
+		for (const auto& entry : bindings) {
+			std::cout << "option-keys audit: " << entry.Owner.toStdString() << ' ' << entry.Key.toString(QKeySequence::NativeText).toStdString() << '\n';
+		}
+		expect(bindings.size() >= 10U, "the audit finds the window's Option+character keys");
+		const auto fired = [&bindings] {
+			return std::ranges::any_of(bindings, [](const binding& aEntry) { return *aEntry.Fired != 0; });
+		};
+		const auto firedNames = [&bindings] {
+			auto names = std::string{ };
+			for (const auto& entry : bindings) {
+				if (*entry.Fired != 0) {
+					names += entry.Owner.toStdString() + ' ' + entry.Key.toString().toStdString() + "; ";
+				}
+			}
+			return names;
+		};
+		auto* const menuBar        = window.menuBar();
+		const auto  menuOptionKeys = [menuBar] {
+			auto found   = 0;
+			auto pending = menuBar->actions();
+			while (!pending.isEmpty()) {
+				auto* const action = pending.takeLast();
+				if (action->menu() != nullptr) {
+					pending.append(action->menu()->actions());
+					continue;
+				}
+				found += static_cast<int>(std::ranges::count_if(action->shortcuts(), is_option_character));
+			}
+			return found;
+		};
+		const auto menuKeys = menuOptionKeys();
+		expect(menuKeys >= 5, "the menu bar carries Option+character keys");
+
+		// Each kind of widget that takes typed text keeps every Option key.
+		QLineEdit      line{ &window };
+		QPlainTextEdit plain{ &window };
+		QTextEdit      rich{ &window };
+		QComboBox      combo{ &window };
+		combo.setEditable(true);
+		qt::suggestion_editor suggestion{ &window };
+		suggestion.set_read_only(false);
+		const auto textOf = [&](const QWidget* const aEditor) -> QString {
+			if (aEditor == &line) {
+				return line.text();
+			}
+			if (aEditor == &plain) {
+				return plain.toPlainText();
+			}
+			if (aEditor == &rich) {
+				return rich.toPlainText();
+			}
+			if (aEditor == &combo) {
+				return combo.currentText();
+			}
+			return QString::fromStdString(suggestion.text());
+		};
+		const auto clear = [&] {
+			line.clear();
+			plain.clear();
+			rich.clear();
+			combo.setEditText(QString{ });
+			suggestion.set_text("");
+		};
+		for (auto* const editor : std::array<QWidget*, 5>{ &line, &plain, &rich, &combo, &suggestion }) {
+			editor->show();
+			editor->setFocus();
+			process_events();
+			expect(QApplication::focusWidget() == editor && menuOptionKeys() == 0 && compose->shortcut().isEmpty(),
+				   "while a text widget has the keyboard the native menu bar carries no Option+character key");
+			QMetaObject::invokeMethod(window.findChild<QMenu*>(QStringLiteral("commentMenu")), "aboutToShow");
+			expect(window.findChild<QAction*>(QStringLiteral("composeInlineDraftAction"))->toolTip().contains(QStringLiteral("(⌥C)")),
+				   "a tooltip refreshed while typing still names the lifted key");
+			for (const auto& entry : bindings) {
+				clear();
+				enable(entry);
+				const auto typed = us_option_text(entry.Key[0]);
+				expect(!option_key(window, entry.Key[0], typed) && !fired(), ("an Option key in a text widget fires nothing: " + firedNames()).c_str());
+				expect(textOf(editor) == typed, "the text widget receives what the Option key types");
+			}
+		}
+
+		// A widget-scoped key fires from a text field inside its widget: the
+		// comparison control's Option-1 to 3 have its revision fields, the
+		// Overview's Option-K its page. A stand-in scope shows the field keeps
+		// the key and the scope's other widgets still have it.
+		QWidget     scope{ &window };
+		QLineEdit   inside{ &scope };
+		QPushButton beside{ QStringLiteral("Beside"), &scope };
+		beside.move(0, 40);
+		QShortcut scoped{ QKeySequence{ QStringLiteral("Alt+1") }, &scope };
+		scoped.setContext(Qt::WidgetWithChildrenShortcut);
+		auto scopedFired = 0;
+		QObject::connect(&scoped, &QShortcut::activated, &window, [&scopedFired] { ++scopedFired; });
+		scope.setGeometry(0, 0, 200, 80);
+		scope.show();
+		inside.setFocus();
+		process_events();
+		expect(!option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_1 }, QStringLiteral("¡")) && scopedFired == 0 && inside.text() == QStringLiteral("¡"),
+			   "a text field inside a widget-scoped key's widget keeps the key");
+		beside.setFocus();
+		process_events();
+		expect(option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_1 }, QStringLiteral("¡")) && scopedFired == 1,
+			   "the scope's other widgets keep its key");
+		scope.hide();
+
+		// A reader that becomes an editor in place gives up the keys at once.
+		suggestion.set_text("");
+		suggestion.set_read_only(true);
+		button->setFocus();
+		suggestion.setFocus();
+		process_events();
+		expect(menuOptionKeys() == menuKeys && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }, "read-only text keeps the menu bar's keys");
+		suggestion.set_read_only(false);
+		process_events();
+		expect(menuOptionKeys() == 0, "a reader made editable under focus lifts the menu bar's keys");
+		expect(!option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_R }, QStringLiteral("®")) && !fired()
+				   && suggestion.text() == QStringLiteral("®").toStdString(),
+			   "a reader made editable under focus types ® and composes nothing");
+		suggestion.set_read_only(true);
+		process_events();
+		expect(menuOptionKeys() == menuKeys, "the reader again keeps the menu bar's keys");
+
+		// Keys that do not type keep working in an editor's neighbourhood: a
+		// non-character Option key and a Command-Option key are untouched.
+		plain.setFocus();
+		process_events();
+		auto untouched = 0;
+		for (auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& key : action->shortcuts()) {
+				untouched += key == QKeySequence{ QStringLiteral("Alt+Down") } || key == QKeySequence{ QStringLiteral("Ctrl+Alt+0") } ? 1 : 0;
+			}
+		}
+		expect(untouched >= 2, "Option-Down and Command-Option-0 keep their bindings while typing");
+
+		// Outside text input Option-R composes, and the menu bar has its keys.
+		button->setFocus();
+		process_events();
+		expect(menuOptionKeys() == menuKeys && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") },
+			   "leaving the text widget restores every menu-bar key");
+		compose->setEnabled(true);
+		auto composed = 0;
+		QObject::connect(compose, &QAction::triggered, &window, [&composed] { ++composed; });
+		expect(option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_R }, QStringLiteral("®")) && composed == 1,
+			   "outside text input Option-R still opens Compose review");
+		window.hide();
+#endif
+	}
+
 	/// [[BPR-1331]]. The image an icon paints at the review bar's size.
 	[[nodiscard]] auto progress_icon_image(const QIcon& aIcon, const qreal aScale, const QIcon::Mode aMode = QIcon::Normal) -> QImage
 	{
@@ -15496,6 +15761,11 @@ auto main(int argc, char** argv) -> int
 		test_tour_retarget_key_reaches_only_the_outline();
 		test_dif_uses_the_corner_except_for_prime_spots();
 		std::cout << "dif-workshop-placement:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--option-keys"))) {
+		test_option_keys_step_aside_in_text_input();
+		std::cout << "option-keys:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
