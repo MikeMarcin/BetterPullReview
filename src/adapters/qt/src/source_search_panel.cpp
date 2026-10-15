@@ -345,8 +345,10 @@ namespace bpr::qt {
 		/// number decide them, so every match row shares the same three x ranges.
 		[[nodiscard]] auto columns(const QRect& aRow, const QFont& aFont) const -> source_search_match_columns
 		{
-			const auto area    = aRow.adjusted(4, 0, -6, 0);
-			const auto side    = QFontMetrics{ tag_font(aFont) }.height() + 2;
+			const auto area       = aRow.adjusted(4, 0, -6, 0);
+			const auto tagMetrics = QFontMetrics{ tag_font(aFont) };
+			// Reserve paint_tag's actual glyph width even on a wider native font.
+			const auto side    = std::max(tagMetrics.height() + 2, std::max(tagMetrics.horizontalAdvance(tr("L")), tagMetrics.horizontalAdvance(tr("R"))) + tagMetrics.height() / 2 + 2);
 			const auto metrics = QFontMetrics{ CodeFont };
 			const auto tags    = QRect{ area.left(), area.top(), side * 2 + 2, area.height() };
 			const auto number  = QRect{ tags.right() + 1 + 4, area.top(), metrics.horizontalAdvance(QString(std::max(LineDigits, 3), QLatin1Char('0'))), area.height() };
