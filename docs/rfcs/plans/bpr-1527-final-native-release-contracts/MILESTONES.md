@@ -8,9 +8,9 @@ These are integration outcomes, not compulsory agent-launch boundaries.
 
 ## final-composition-contracts
 
-The five named final native release composition failures are explained and repaired without weaker contracts, with focused cross-platform acceptance and a common-source handoff for final release reruns.
+The five named final Mac release composition failures and the Windows 200% complete-workbench timeout are explained and repaired without weaker contracts, with focused cross-platform acceptance and a common-source handoff for final release reruns.
 
-**Work:** `BPR-1527` [AC1, AC2, AC3, AC4, AC5]
+**Work:** `BPR-1527` [AC1, AC2, AC3, AC4, AC5, AC6]
 
 **Prerequisites:** None
 
@@ -21,5 +21,6 @@ The five named final native release composition failures are explained and repai
 - Assert the complete shipped toolbar order without removing controls, geometry, native pixel checks or existing thresholds.
 - Pass focused native and affected portable verification, useful negative controls, format22, appropriate strict tidy, architecture, documentation and self-review.
 - Commit intentional explicit paths, finish eligible bookkeeping, leave commands quiescent and preserve final full common-source native release/package obligations.
+- Demonstrate a bounded source-backed whole-workbench stability improvement and pass the normal Windows200% course within its unchanged120s deadline, preserving all inputs/assertions and rechecking affected scales under prescribed resource exclusivity.
 
-**Boundary:** Only the five explicitly enumerated d52f5bb1 final Mac gate failures: application_agent_invocation_composition_contract, application_uiforetw_selected_diff_contract, application_threaded_reply_contract, application_label_authoring_contract and application_reply_draft_contract. Sole implementer owns the assigned isolated worktree and narrow production/test/upkeep repairs. Active Mac and Windows suites and root main remain read-only; native commands require explicit slot release. Preserve completed BPR1525/1526 and all thresholds/assertions; later failures require enumerated mandate amendment. No signing, authentication, publication or separate leased Windows station mutation.
+**Boundary:** Only the five explicitly enumerated d52f5bb1 final Mac gate failures: application_agent_invocation_composition_contract, application_uiforetw_selected_diff_contract, application_threaded_reply_contract, application_label_authoring_contract and application_reply_draft_contract. Sole implementer owns the assigned isolated worktree and narrow production/test/upkeep repairs. Active Mac and Windows suites and root main remain read-only; native commands require explicit slot release. Preserve completed BPR1525/1526 and all thresholds/assertions; later failures require enumerated mandate amendment. No signing, authentication, publication or separate leased Windows station mutation. Explicit coordinator amendment: add final d52f5bb1 Windows qt_diff_workbench_scale_200 timeout120.03s; preserve the original120s deadline, complete course and all other criteria/exits. No competing native work until slot release.

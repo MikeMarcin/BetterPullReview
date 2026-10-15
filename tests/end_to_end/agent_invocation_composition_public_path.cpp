@@ -18,6 +18,7 @@
 #include <QComboBox>
 #include <QEventLoop>
 #include <QItemSelectionModel>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -1645,6 +1646,15 @@ auto main(int argc, char** argv) -> int
 		// so it goes through the channel that bounds and sanitizes it (BPR-0381).
 		auto success = wait_terms{ };
 		success.note_identifier("agent-status", panel->status_text().toStdString());
+		// [[BPR-1527]]. The launch panel can still hold an earlier deliberate
+		// refusal when the later Private history operation has not dispatched.
+		// Record that operation's own bounded status and selection as well.
+		const auto* const privatePanel = window.private_review();
+		const auto* const privateStatus = privatePanel->findChild<QLabel*>(QStringLiteral("privateReviewStatus"));
+		success.note_identifier("private-status", privateStatus != nullptr ? privateStatus->text().toStdString() : "absent");
+		success.note("private-enabled", privatePanel->isEnabled());
+		success.note("private-sources", static_cast<std::uint64_t>(privatePanel->selected_sources().size()));
+		success.note("start-intents", static_cast<std::uint64_t>(panel->statistics().StartIntents));
 		success.note(
 			"core",
 			static_cast<std::uint64_t>(failureEvidence.Statistics.CoreDecisions));

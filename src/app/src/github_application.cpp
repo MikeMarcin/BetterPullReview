@@ -12095,7 +12095,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				}
 			}
-			if (!Closing && !ReviewDraft && PrivateReview && aIdentity.starts_with(prefix) && SelectedSemanticSelection
+			// [[BPR-1527]]. An unused line placeholder has no durable draft
+			// identity to retarget. Select the exact reply through the existing
+			// private operation instead; first-save materialization deliberately
+			// refuses a ChangeReplyTarget command.
+			const auto unusedPlaceholder = ReviewDraft && ReviewDraft->Id.value() > core::maximum_private_identity
+				&& core::unused_review_draft(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope })
+				&& !PrivateDraftCommandPending;
+			if (!Closing && (!ReviewDraft || unusedPlaceholder) && PrivateReview && aIdentity.starts_with(prefix) && SelectedSemanticSelection
 				&& draft_on_thread_line(core::review_comment_draft{ .Anchor = SelectedSemanticSelection->PreferredLine }, aIdentity)) {
 				const auto anchor = SelectedSemanticSelection->PreferredLine;
 				if (PrivateDraftSelectionPending || !PrivateDraftsReady) {
@@ -25539,11 +25546,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, private progress, a spacer, the
+		// change pair with its position, Accept file ([[BPR-1507]]), private
+		// progress, a spacer, the
 		// review chip ([[BPR-1345]], hidden with no review in progress),
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
-		const auto exactReviewBarOrder = reviewBarActions.size() == 15
+		const auto* const acceptFile = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		const auto exactReviewBarOrder = reviewBarActions.size() == 16
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
@@ -25554,11 +25563,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
 			&& reviewBarActions[8] == previousChange
 			&& reviewBarActions[9] == nextChange
-			&& reviewBar->widgetForAction(reviewBarActions[10]) == reviewControls
-			&& widgetActionNamed(reviewBarActions, 11, "reviewBarSpacerAction")
-			&& reviewBarActions[12] == window->review_chip_action()
-			&& reviewBarActions[13] == window->compose_review_action()
-			&& reviewBarActions[14] == window->comment_action()
+			&& widgetActionNamed(reviewBarActions, 10, "workbenchAcceptFileAction")
+			&& acceptFile != nullptr && reviewBar->widgetForAction(reviewBarActions[10]) == acceptFile
+			&& acceptFile->defaultAction() == window->accept_action()
+			&& reviewBar->widgetForAction(reviewBarActions[11]) == reviewControls
+			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
+			&& reviewBarActions[13] == window->review_chip_action()
+			&& reviewBarActions[14] == window->compose_review_action()
+			&& reviewBarActions[15] == window->comment_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the

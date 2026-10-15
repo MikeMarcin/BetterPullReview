@@ -1,0 +1,23 @@
+{
+  "schema": "bpr.authorized-plan-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "source": "Coordinator explicit message 2026-10-15: add final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03; no threshold/assertion/input waiver",
+  "prior_criteria": [
+    "AC1",
+    "AC2",
+    "AC3",
+    "AC4",
+    "AC5"
+  ],
+  "added_criteria": [
+    "AC6"
+  ],
+  "preserved_exit_count": 5,
+  "added_exit_count": 1,
+  "mechanical_check": {
+    "exit_code": 2,
+    "state": "invalid",
+    "diagnostic": "amendment must preserve every obligation; reconcile changed requirements separately"
+  },
+  "interpretation": "The refinement checker rejects a changed work-selector list. This is a separately authorized requirements addition, not a claim of same-scope refinement. All original criteria and exits remain verbatim; renewed full binding follows."
+}

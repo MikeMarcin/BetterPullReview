@@ -24,6 +24,16 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 - AC3: The agent invocation seed and reopen composition pass through the accepted immutable-source public path, preserving deliberate mutable-input refusal, unchecked-source confidentiality, exact invocation/cleanup/quiescence and zero GitHub mutation assertions.
 - AC4: The UIforETW public capture passes an exact complete toolbar-order oracle including the shipped Accept file action, preserving existing appearance, geometry, navigation, pixel and height assertions; an omitted or misplaced required control fails.
 - AC5: Pass focused native Mac verification of all five courses and affected portable/Windows/Ubuntu paths when their slots are released, meaningful negative controls, format 22, appropriate strict tidy, architecture and documentation checks; self-review and commit the narrow repair, and hand back exact source/command ownership with full final common-source release gates and packages still required.
+- AC6: Diagnose the final d52 Windows `qt_diff_workbench_scale_200` timeout120.03s, demonstrate a bounded source-backed whole-workbench improvement and pass the normal complete course within its unchanged120s deadline under prescribed resource exclusivity, preserving all input/assertions and checking affected scales; retain the prior119.08s focused result and final-gate context honestly.
+
+## Explicit scope amendment
+
+The coordinator explicitly added the sixth criterion after the final Windows gate timed out at
+test359 (346/705). The Qt courses were serial; the earlier architecture591.63s
+and age180.26s courses had finished, with no competing root/WSL workload.
+The 125% course was still running when the amendment arrived: do not preempt it.
+All original five criteria and milestone exits remain. This is a new acceptance
+unit under the existing r3 mandate, not a reopened BPR-1525 or relaxed120s gate.
 
 ## Ownership and limits
 

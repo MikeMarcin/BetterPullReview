@@ -60,8 +60,57 @@ This is provenance evidence, not an executed historical reproduction.
 
 ## Remaining work
 
-Bind and claim the new card before product edits. Complete agent admission
-diagnosis, implement only demonstrated repairs, then use the first explicitly
-released native slot for the shortest affected public compositions and useful
-negative controls. Focused acceptance does not replace root's final full native
-gates, packages, corresponding-source/SPDX/notices or release approval.
+The plan/card commit is `871530c57`, canonical claim is `7cb6796af` and initial
+milestone binding is `739b620e3`. The initial binding held five criteria and
+five exits. The coordinator then explicitly added Windows whole-workbench200
+timeout120.03s as AC6 and exit6, retaining the original five verbatim and the
+unchanged120s deadline. The refinement helper refused a changed selector list;
+the separately authorized requirements addition and renewed binding are recorded
+in `scale200-amendment.json`. Acceptance is pending; helper validity is not
+acceptance.
+
+Prepared source changes, uncompiled and unverified:
+
+- `src/app/src/github_application.cpp`: route an unused exact current line
+  placeholder with no save pending through the existing typed `select_reply`
+  operation; preserve written/current draft, stale scope and navigation guards.
+  The complete capture oracle now checks16 ordered actions and verifies the
+  Accept button's exact action binding. No product toolbar change.
+- `tests/end_to_end/agent_invocation_composition_public_path.cpp`: the existing
+  typed-success failure records the Private history status, enabled/source
+  count and launch start-intent count, using the bounded identifier recorder.
+  No success assertion or budget changes. Agent cause remains unresolved.
+
+The required frontend-design skill was read at
+`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
+Read-only inspection of the original light full-window PNG shows the shipped
+Accept control between change arrows and private progress, consistent with
+the source-backed exact-oracle correction. No new visual design is proposed.
+Private copies of the still-running gate snapshot and original light capture
+are under `.mask/sessions/BPR-1527/evidence/original-d52/`, with a receipt that
+expressly disclaims a complete-suite result. Only `git diff --check` has run
+on the prepared source; no compilation, format/tidy or native test is claimed.
+
+Complete agent admission diagnosis once a native slot is explicitly released,
+and verify/correct the two prepared repairs. The [native continuation](NATIVE_NEXT.md)
+names the first focused commands and remaining negative/static obligations.
+Windows amendment frontier: normal final d52 test359 timed out120.03s, after
+346/705 courses, with Qt serial and no competing root/WSL workload. Earlier
+architecture591.63s and age180.26s had finished. The125% course was still active
+when root amended scope, so it must not be preempted. The prior focused200%
+119.08s pass remains valid for its exact context but does not establish full-gate
+stability. Inspect existing traces/source for a bounded performance repair;
+measure only after native release and preserve every input/assertion/deadline.
+The old trace remains a locator, not current duration evidence: r28 keyboard
+glyph drawing19.48s, gutter6.31s; r26 complete200% keyboard44.36s,
+divider22.25s, gutter20.75s. The accepted r32 gutter cache followed those traces.
+A second retained code-text cache was already rejected for limited benefit;
+do not repeat it without new evidence. No new performance edit is prepared.
+
+Focused acceptance does not replace root's final full native gates, packages,
+corresponding-source/SPDX/notices or release approval. The implementer retains
+source ownership; root and native station must not edit this branch.
+The current source preparation is checkpointed as an explicitly unverified WIP.
+This implementer's commands are quiescent; resume this same owner when the first
+native slot is released. This return is not milestone completion or a source
+freeze. Six criteria and six exits remain pending actual acceptance.

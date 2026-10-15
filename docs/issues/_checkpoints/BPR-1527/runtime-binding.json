@@ -13,5 +13,9 @@
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
   "command_state": "No task-owned native commands. Both full native gates coordinator-owned and active; no native build/test/performance until explicit slot release.",
-  "acceptance": "Pending; read-only source hypotheses are not native acceptance. Completed1525/1526 unchanged. No threshold/assertion relaxation or owner waiver."
+  "acceptance": "Pending; read-only source hypotheses are not native acceptance. Completed1525/1526 unchanged. No threshold/assertion relaxation or owner waiver.",
+  "amendments": [
+    "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline."
+  ],
+  "plan_definition_fingerprint": "sha256:3f196f3d3ead73da2d7a3fe88e9bce9b971cd35c74b9186276b8d4dbe81d04f0"
 }
