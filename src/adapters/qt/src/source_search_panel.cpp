@@ -113,7 +113,7 @@ namespace bpr::qt {
 				return { };
 			}
 			const auto leaf  = aIndex.internalId() != 0;
-			const auto group = leaf ? aIndex.internalId() - 1 : static_cast<std::size_t>(aIndex.row());
+			const auto group = leaf ? static_cast<std::size_t>(aIndex.internalId() - 1) : static_cast<std::size_t>(aIndex.row());
 			if (group >= Groups.size() || !Corpus) {
 				return { };
 			}
