@@ -678,6 +678,11 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # started inside the container is refused the Service Control
                 # Manager before it reaches the profile.
                 "service-manager-denied",
+                # [[BPR-1525]]. Exact contained native storage, private-root
+                # and isolated Git init refusals, distinct from DOS naming.
+                "ancestor-control-denied",
+                "owner-private-acl-denied",
+                "git-reference-parent-denied",
             },
         )
 

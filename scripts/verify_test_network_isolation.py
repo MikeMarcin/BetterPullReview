@@ -99,6 +99,26 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # here: each passes only on the container's own refusal, for itself and for a
 # child it starts, and fails uncontained. The reason is beside their
 # registration in tests/CMakeLists.txt.
+# [[BPR-1525]]. Nine formerly unmeasured registrations were measured on the
+# Windows station, Interactive Limited session 1, Git 2.55.0.windows.3, on
+# 2026-10-15. All nine pass normally and fail contained at the named boundary.
+# The exact commands and normal/contained evidence are recorded in
+# docs/verification/BPR-1525-windows-release-gates.md. Three newly measured
+# causes are distinct from the historical DOS-name failure above:
+# - `ancestor-control-denied`: the store's validate_ancestor_chain opens C:\
+#   with FILE_READ_ATTRIBUTES | READ_CONTROL and receives Win32 5, although
+#   the retained scratch root's DOS name and own private descriptor work.
+# - `owner-private-acl-denied`: QTemporaryDir canonicalization succeeds, but
+#   its root refuses the WRITE_DAC needed to narrow it, Win32 5; icacls in the
+#   older-theme script reports the same access denial. No broad ancestor ACE
+#   is added to make these application courses run inside the container.
+# - `git-reference-parent-denied`: Git starts, creates .git and refs, then
+#   the exact isolated fixture init command refuses the initial HEAD with
+#   "cannot lock ref 'HEAD': unable to create directory for .../.git/HEAD".
+#   The probe uses the actual scratch descriptor and fixture git_runner,
+#   rather than assuming a process-launch or DOS-name failure. This names
+#   Git's measured refusal, without claiming an unobserved Win32 cause.
+# No registration, network capability, assertion or deadline is changed.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_device_binding_storage": "dos-volume-name",
     # BPR-0806: measured on JaegAW 2026-09-17. Contained, std::filesystem::canonical
@@ -107,7 +127,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # public paths' make_storage_root_owner_private refuses the same root; all
     # five pass uncontained.
     "sqlite_profile_registry_storage": "dos-volume-name",
-    "sqlite_remembered_connection_storage": "unmeasured (registered on macOS)",
+    "sqlite_remembered_connection_storage": "ancestor-control-denied",
     "sqlite_window_review_restoration_storage": "dos-volume-name",
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
@@ -207,11 +227,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_line_details_public_path": "dos-volume-name",
     "application_review_navigation_entry": "dos-volume-name",
     "application_header_source_navigation": "dos-volume-name",
-    "application_source_find": "unmeasured (registered on macOS)",
-    "application_source_find_scale_1_25": "unmeasured (registered on macOS)",
-    "application_source_find_scale_2_0": "unmeasured (registered on macOS)",
+    "application_source_find": "owner-private-acl-denied",
+    "application_source_find_scale_1_25": "owner-private-acl-denied",
+    "application_source_find_scale_2_0": "owner-private-acl-denied",
     "application_header_source_navigation_large": "dos-volume-name",
-    "application_cpp_identifier_appearance": "unmeasured (registered on macOS)",
+    "application_cpp_identifier_appearance": "owner-private-acl-denied",
     # [[BPR-1423]], pinned by [[BPR-1484]]. PR Search's courses compose the
     # shipped application over `e2e::private_data_root`, whose first step
     # application_overview_double_click was measured refusing contained
@@ -372,13 +392,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1454]]. The Git metadata reader rows: the same scratch-root store
     # course with the build's Git making fixtures (and the publication catalog
     # for the outgoing row).
-    "review_cycle_git_readers": "unmeasured (registered on macOS)",
+    "review_cycle_git_readers": "git-reference-parent-denied",
     # [[BPR-1457]]. The scale bench's Git reader and adversarial cases.
-    "review_cycle_git_reader_scale": "unmeasured (registered on macOS)",
+    "review_cycle_git_reader_scale": "git-reference-parent-denied",
     # [[BPR-1455]] and [[BPR-1456]]. The Git metadata differential harness and
     # canary course: the same scratch-root store course, with the build's Git
     # making fixtures and answering as the oracle.
-    "git_metadata_harness": "unmeasured (registered on macOS)",
+    "git_metadata_harness": "git-reference-parent-denied",
     # [[BPR-1174]]. The same course shape.
     "review_cycle_publication": "dos-volume-name",
     # [[BPR-1175]]. The same course shape; the provider is simulated in memory.
@@ -430,7 +450,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_saved_server_contract": "dos-volume-name",
     "application_threaded_reply_contract": "dos-volume-name",
     "application_appearance_theme_customization_contract": "dos-volume-name",
-    "application_appearance_older_theme_contract": "unmeasured (registered on macOS)",
+    "application_appearance_older_theme_contract": "owner-private-acl-denied",
     "application_fixture_verdict_contract": "dos-volume-name",
     "application_attended_launch_contract": "dos-volume-name",
     "application_diff_workbench_shutdown_public_path": "dos-volume-name",

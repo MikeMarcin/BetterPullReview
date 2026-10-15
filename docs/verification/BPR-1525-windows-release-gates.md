@@ -131,3 +131,101 @@ corrected Windows and negative controls remain pending.
 BPR-1526's separately tracked [Mac action repair](BPR-1526-macos-workshop-action.md)
 is part of the coordinator-authorized combined milestone. Its original press
 and neighboring public courses now pass on the same application source.
+
+
+## Nine actual contained registrations
+
+Candidate `cf4f2452b986e2fb26bd481b5acf867d22b7aa67` rebuilt all affected
+measurement targets in Interactive Limited session 1. Fixture and complete
+metadata-harness normal courses both pass (104.27 s total). The nine original
+uncontained commands were then each run through the zero-capability container
+with their exact manifest arguments, working directory, environment and deadline:
+
+| Row | Exit | Actual first contained refusal |
+| --- | --- | --- |
+| sqlite_remembered_connection_storage | 3 | fresh or upgraded profile without metadata authorizes no CLI attempt |
+| review_cycle_git_reader_scale | 1 | fixture git command (after H6 measurements) |
+| review_cycle_git_readers | 1 | fixture git command |
+| git_metadata_harness | 1 | fixture git command (Git 2.55 version probe answered) |
+| application_appearance_older_theme_contract | 1 | narrowing owner-private root ACL: Access is denied |
+| application_cpp_identifier_appearance | 3 | render course owns its private data root (contrast probe passed first) |
+| application_source_find | 3 | private data root |
+| application_source_find_scale_1_25 | 3 | private data root |
+| application_source_find_scale_2_0 | 3 | private data root |
+
+All actual failures were retained at
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-contained-r4/`.
+All nine normal uncontained positives pass on cf4f2452b (260.32 s total):
+SQLite 3.02 s, reader scale 3.31 s, readers 9.19 s, harness 90.16 s,
+older-theme 24.32 s, identifier appearance 18.89 s, and source Find
+35.42/36.64/39.30 s. The corrected finite cause registry passes all 69 verifier
+unit tests. No row, assertion, network capability or deadline changes.
+
+The actual native scratch descriptor and shared storage inline code were then
+probed contained and normally in Interactive Limited session 1. DOS and NT
+names, std::filesystem canonicalization, the root's private descriptor,
+WRITE_DAC and local filesystem admission all succeed for the C++ scratch root.
+The storage ancestor walk instead fails opening `\\?\C:\` with
+FILE_READ_ATTRIBUTES | READ_CONTROL, Win32 5. The remembered-connection row is
+therefore `ancestor-control-denied`, not the historical DOS-name cause.
+
+QTemporaryDir canonicalization succeeds, but opening its own root with
+WRITE_DAC returns Win32 5. That root has a different descriptor from the C++
+scratch root. The five appearance/Find courses are `owner-private-acl-denied`;
+the older-theme script independently reports icacls Access is denied at its
+narrowing step. No broad ancestor or machine ACE is added.
+
+The exact isolated `workspace_fixture.hpp::git_runner` init command starts
+Git 2.55.0.windows.3 and creates accessible `.git` and `refs`, but exits 1:
+`cannot lock ref 'HEAD': unable to create directory for .../.git/HEAD`.
+The three Git-fixture courses are `git-reference-parent-denied`. This names
+Git's actual first refusal and makes no unobserved Win32-cause claim. The same
+probe succeeds normally. Probe source and complete output are retained outside
+Git in `bpr1525-native-focused-r9.log`; initial probes with Python's different
+TemporaryDirectory descriptor are retained as rejected, nonrepresentative
+experiments. The finite registry accepts only these three added cause names.
+
+The selected Python runtime grant remains container-specific RX on
+`C:/Users/mikem/AppData/Local/Python/pythoncore-3.14-64`; it grants no network
+capability. The child check still requires actual nested process creation,
+AppContainer token and WSAEACCES 10013. The separate contained
+divider-only course passes in 20.302 s, with zero painted displacement and row
+changes for all three shapes. Thus the original whole-workbench 120 s timeout
+is beyond that first course; per-course native tracing is now required.
+
+
+## Workbench and provider duration diagnosis
+
+The original three whole workbench rows each exceeded their unchanged 120 s
+CTest limit. A contained divider-only diagnostic passes in 20.302 s. The full
+instrumented course reaches the keyboard course (55.268 s), the 100,000-line
+gutter course (29.474 s) and later publication before timing out. A selected
+keyboard-only diagnostic takes 55.807 s: key delivery 6.710 s and four ordinary
+Qt event turns per key 45.515 s. Production instrumentation attributes 37.438 s
+to paintEvent calls. These serial functional traces locate work; they are not
+final duration acceptance.
+
+The custom text painter exists to place a selected-text wash below syntax.
+Unselected text now uses Qt's native painter, while selected text retains the
+existing custom path, overlays and ordering. All three whole Mac scale courses
+pass at 14.84/14.57/15.69 s. Strict clang-tidy 22 on the changed Qt TU passes.
+The required frontend-design skill was read; this preserves the existing visual
+contract and makes no redesign. Windows candidate 45520b2dc still times out at 120.02 s on scale100. Its owned
+CTest tree was stopped after that repeated result; scale125 is interrupted and
+scale200 has no acceptance. A complete functional trace is next; its extended
+diagnostic process bound is not a gate pass or a changed CTest deadline.
+
+The original provider timeout was 30.04 s under the normal jobs=4 full gate.
+An isolated original focused pass at 23.22 s alone did not explain that failure.
+Case tracing shows 20.714 s in the 18-case capability failure/retry matrix;
+other cases are small. A representative jobs=4 subset with the original
+neighboring HTTPS/paged/capability rows passes at similar cost (matrix 20.790 s),
+so the original full-context timeout was not reproduced by that subset. The
+matrix repeatedly parsed and split the same schema for every physical fake
+response. It now prepares the same nine canonical parts once and returns a
+fresh copy to each request. All six failure modes, three failure positions,
+full nine-part retries and assertions remain. Mac provider passes at 8.96 s;
+Windows candidate jobs=4 passes at 22.39 s. This modest reduction does not yet
+close the original timeout; production append/compile/finish tracing is next.
+Attributing the original extra delay to full-gate contention
+remains an inference, and the final native full gate is still mandatory.
