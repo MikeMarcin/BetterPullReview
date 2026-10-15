@@ -390,6 +390,16 @@ The read progression is `unread → seen → read`. A weaker claim is absorbed
 rather than treated as a regression — marking a read file seen leaves it read —
 but it stays legal and reports no change. Only an explicit mark-unread reopens.
 
+Opening a pull-request file records Seen automatically after its exact selected
+comparison is successfully presented and its material receipt is observed
+([[BPR-1506]]). The completion rechecks the file, comparison and request generation
+before submitting the ordinary core-decided durable command. Failed or superseded
+loading records nothing; preparing nearby files in the background records nothing.
+Material loaded under Home or Overview stays unread until the comparison is shown
+in Review. An explicit Mark unread stays until the next open.
+The accepted projection follows persistence. Reopening an already Seen or Read
+material needs no write, and opening never accepts or verifies a file.
+
 Every command carries the material it was issued against, so a command formed
 while the reader was looking at one comparison cannot be applied to the
 comparison that has since replaced it.

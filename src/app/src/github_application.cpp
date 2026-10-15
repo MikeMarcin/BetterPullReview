@@ -6890,6 +6890,9 @@ namespace bpr::app {
 			if (aOutcome == core::document_tab_view_outcome::ready) {
 				finish_review_navigation_focus();
 				resume_reply();
+				if (SelectedDiffPublication && ReviewLedgerHost) {
+					mark_presented_file_seen(*SelectedDiffPublication, ReviewLedgerHost->retained());
+				}
 			}
 			continue_review_navigation();
 		}
@@ -6954,6 +6957,9 @@ namespace bpr::app {
 			}
 			observe_tab_changes();
 			continue_review_navigation();
+			if (SelectedDiffPublication && ReviewLedgerHost) {
+				mark_presented_file_seen(*SelectedDiffPublication, ReviewLedgerHost->retained());
+			}
 		}
 		void drive_tab()
 		{
@@ -9302,6 +9308,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+				AutoSeenPresentedRequest.reset();
 				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
@@ -9312,6 +9319,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1132]]. A modality change decides whether the comparison
 			// shows the active tab's pair or the window's.
 			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
+				AutoSeenPresentedRequest.reset();
 				schedule_tab_presentation();
 			}
 #if defined(BPR_BUILD_TESTING)
@@ -13062,6 +13070,48 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				== aInvalidation.IdentityGeneration;
 		}
 
+		/// \brief Records Seen only while the successfully presented file is still current.
+		void mark_presented_file_seen(
+			const application::workbench_selected_diff_publication& aPublication,
+			const core::file_receipt&                               aReceipt)
+		{
+			const auto* const surface = Window == nullptr ? nullptr : Window->comparison_surface();
+			if (Closing || Window == nullptr || ReviewLedgerHost == nullptr || WorkbenchHost == nullptr
+				|| Window->showing_home() || Window->current_modality() != qt::review_modality::review
+				|| WorkbenchHost->state().Modality != core::workbench_modality::review
+				|| TabLoad || TabDriver || PendingRestoration || ReadingRestoration
+				|| AutoSeenPresentedRequest == std::optional{ aPublication.Request }
+				|| !SelectedDiffPublication || SelectedDiffPublication->Request != aPublication.Request
+				|| SelectedDiffRequest != std::optional{ aPublication.Request }
+				|| SelectedDiffPublication->Key != aPublication.Key
+				|| EpochHost == nullptr || EpochHost->context(aPublication.Request.WorkbenchAuthority) != std::optional{ aPublication.Request.Diff }
+				|| WorkbenchHost->generation() != aPublication.Request.Context.Generation
+				|| WorkbenchHost->selected() != std::optional{ aPublication.Request.File.File }
+				|| surface == nullptr || !surface->isVisibleTo(Window.get()) || !surface->current_result()
+				|| !surface->current_context() || surface->current_context()->Key != aPublication.Key
+				|| surface->current_result()->Alignment.Key != aPublication.Key
+				|| aReceipt.File != aPublication.Request.File.File
+				|| aReceipt.Material != core::file_material(aPublication.Key)) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable || ReviewLedgerAuthority != std::optional{ aPublication.Request.WorkbenchAuthority }) {
+					return;
+				}
+			}
+			AutoSeenPresentedRequest = aPublication.Request;
+			const auto command       = core::file_receipt_command{
+				.File     = aReceipt.File,
+				.Material = aReceipt.Material,
+				.Kind     = core::file_receipt_command_kind::mark_seen,
+			};
+			// The core absorbs Seen after Read and preserves Accept and Exclude.
+			if (core::apply(aReceipt, command).Changed) {
+				dispatch_receipt(command);
+			}
+		}
+
 		void observe_selected_material(
 			const application::diff_publication& aPublication)
 		{
@@ -13103,7 +13153,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.File     = SelectedDiffPublication->Request.File.File,
 					.Material = material,
 				},
-				ledger_answer([this](const std::expected<core::file_receipt, application::ledger_store_failure>&) {
+				ledger_answer([this, presented = *SelectedDiffPublication](const std::expected<core::file_receipt, application::ledger_store_failure>& aReceipt) {
+					if (aReceipt) {
+						mark_presented_file_seen(presented, *aReceipt);
+					}
 					if (SelectedSemanticSelection.has_value()) {
 						present_review_draft(*SelectedSemanticSelection);
 					}
@@ -16652,6 +16705,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
+			AutoSeenPresentedRequest.reset();
 			ReviewSourceMaterial.reset();
 			// [[BPR-1387]]. Clearing a displayed source removes its permalink
 			// placement. Initial PR setup has no source and already published
@@ -18164,6 +18218,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			enum class phase {
 				awaiting_observation,
+				awaiting_hidden_diff,
 				awaiting_diff,
 				awaiting_gestures,
 				awaiting_private_records,
@@ -18173,10 +18228,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				failed,
 			};
 
-			phase Phase = phase::awaiting_observation;
+			phase                        Phase = phase::awaiting_observation;
+			detail::course_modality_step Overview{ .Modality = qt::review_modality::overview };
+			detail::course_modality_step Review{ .Modality = qt::review_modality::review,
+												 .Needs    = {.Comparison  = true,
+															  .FilesDrawer = true } };
 			/// [[BPR-1211]]. The seed course's gestures, one per quiescent
 			/// ledger, and the private writes it then makes.
-			std::size_t                                       Gesture = 0U;
+			std::size_t                                       Gesture     = 0U;
+			bool                                              SeenOnEntry = false;
 			application::review_ledger_host_statistics        GesturesBefore;
 			std::optional<application::local_note_record>     AcceptedNote;
 			std::optional<application::durable_defect_record> PrivateDefect;
@@ -18834,6 +18894,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Host)&                         Host                     = Profile->Host;
 		std::optional<application::workbench_selected_diff_request>     SelectedDiffRequest;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
+		/// One automatic receipt attempt for each successfully opened selection.
+		std::optional<application::workbench_selected_diff_request> AutoSeenPresentedRequest;
 		/// [[BPR-1212]]. The last question asked about the selected comparison's
 		/// base numbering, and its answer once the epoch host gave one.
 		struct base_numbering_state
@@ -26131,17 +26193,48 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Evidence.ReadStateObserved
 				= ledger != nullptr && ledger->statistics().ConversationLoads >= 1U;
 			probe.InitialStatistics = ledger->statistics();
-			auto* const view        = window->files_drawer()->contents_view();
+			const auto modality     = enter_course_modality(aApplication, probe.Overview);
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
+			auto* const view = window->files_drawer()->contents_view();
 			if (!probe.Evidence.ExactAuthority || !probe.Evidence.HostComposed
 				|| !probe.Evidence.PublicPathAvailable || view == nullptr
 				|| view->model() == nullptr || view->model()->rowCount() == 0) {
 				return fail();
 			}
 			view->setCurrentIndex(view->model()->index(0, 0));
+			return advance(state_type::phase::awaiting_hidden_diff);
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_hidden_diff) {
+			const auto* surface = window->comparison_surface();
+			if (!surface->current_result() || !implementation->SelectedDiffPublication || !ledger->is_quiescent()) {
+				return wait("REVIEW_LEDGER_HIDDEN_DIFF_STALLED", ledgerFacts);
+			}
+			// Loading a selected file underneath Overview must not claim it was viewed.
+			probe.SeenOnEntry = ledger->retained().Read == core::file_read_state::seen;
+			if (!window->showing_overview() || surface->isVisibleTo(window)
+				|| ledger->statistics().Commands != 0U
+				|| (aCourse != review_ledger_composition_probe::unavailable
+					&& ledger->retained().Read != core::file_read_state::unread
+					&& !(aCourse == review_ledger_composition_probe::reopen && probe.SeenOnEntry))) {
+				return fail();
+			}
 			return advance(state_type::phase::awaiting_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_diff) {
+			const auto modality = enter_course_modality(aApplication, probe.Review);
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
 			const auto* const comparison = window->comparison_surface();
 			if (comparison == nullptr || comparison->current_result() == nullptr
 				|| !implementation->LastSelectedDiff.has_value() || !ledger->is_quiescent()) {
@@ -26180,12 +26273,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						&& retained.Material == material));
 			probe.Evidence.ExpectedPreGesturePersistence
 				= aCourse == review_ledger_composition_probe::seed
-				? statistics.PersistenceRequests == 0U
-					&& statistics.Completions == 0U
-				: aCourse == review_ledger_composition_probe::reopen
-				? statistics.Commands == 0U
+				? statistics.Commands == 1U
 					&& statistics.PersistenceRequests == 1U
 					&& statistics.Completions == 1U
+				: aCourse == review_ledger_composition_probe::reopen
+				? statistics.Commands == (probe.SeenOnEntry ? 0U : 1U)
+					&& statistics.PersistenceRequests == (probe.SeenOnEntry ? 0U : 2U)
+					&& statistics.Completions == (probe.SeenOnEntry ? 0U : 2U)
 				: statistics.Commands == 0U
 					&& statistics.PersistenceRequests == 0U
 					&& statistics.Completions == 0U
@@ -26223,6 +26317,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = state_type::phase::passed;
 				return result::passed;
 			}
+			// [[BPR-1506]]. The ordinary file gesture made Seen durable before
+			// any receipt action. A late receipt for another file, material or
+			// request generation must not submit a command, even if unread.
+			const auto durable = ledger->cached_receipt(probe.File);
+			if (retained.Read != core::file_read_state::seen || retained.Accepted || retained.Excluded
+				|| window->seen_action()->isEnabled() || progressMark() != "Private progress: seen"
+				|| !durable || !*durable || **durable != retained) {
+				return fail();
+			}
+			auto unread = retained;
+			unread.Read = core::file_read_state::unread;
+			implementation->AutoSeenPresentedRequest.reset();
+			auto stale                       = selected;
+			stale.Request.Context.Generation = core::request_generation{ selected.Request.Context.Generation.value() + 1U };
+			implementation->mark_presented_file_seen(stale, unread);
+			stale                   = selected;
+			stale.Request.File.File = core::file_identity_of("not-the-presented-file.cpp");
+			implementation->mark_presented_file_seen(stale, unread);
+			auto wrongMaterial     = unread;
+			wrongMaterial.Material = core::file_material_id{ };
+			implementation->mark_presented_file_seen(selected, wrongMaterial);
+			implementation->observe_selected_material(application::diff_publication{ .Context = *comparison->current_context() });
+			implementation->mark_presented_file_seen(selected, retained);
+			if (ledger->outstanding() != 0U || ledger->statistics().Commands != statistics.Commands) {
+				return fail();
+			}
+
 			const auto* const defectThread = implementation->accepted_thread(
 				review_ledger_probe_thread_identity());
 			if (defectThread == nullptr
@@ -26242,12 +26363,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto receipt      = ledger->retained();
 				const auto privateState = ledger->private_observation();
 				probe.Evidence.GestureSequence
-					= ledger->statistics().Commands == 0U;
+					= ledger->statistics().Commands == (probe.SeenOnEntry ? 0U : 1U);
 				probe.Evidence.DurableReceipt
 					= probe.Evidence.ReceiptLoadedOnEntry
 					&& receipt.File == probe.File
 					&& receipt.Material == probe.Material
-					&& receipt.Read == core::file_read_state::unread
+					&& receipt.Read == core::file_read_state::seen
 					&& !receipt.Accepted && !receipt.Excluded;
 				probe.Evidence.ProgressMark = progressMark();
 				const auto priorHead        = implementation->Fixture != nullptr
@@ -26286,7 +26407,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							  probe.File,
 							  storedComparison,
 							  *defectThread)
-						&& ledger->statistics().PrivateWrites == 1U;
+						&& ledger->statistics().PrivateWrites == (probe.SeenOnEntry ? 0U : 1U);
 				}
 				implementation->ReviewLedgerRoundTripPassed
 					= probe.Evidence.DurableReceipt;
@@ -26307,7 +26428,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			}
 			const auto actions = std::array{
-				window->seen_action(),
 				window->read_action(),
 				window->accept_action(),
 				window->accept_action(),

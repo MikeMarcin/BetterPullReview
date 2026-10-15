@@ -116,11 +116,14 @@ endfunction()
 bpr_private_data_root(BPR_ROOT)
 bpr_prepare_private_root("${BPR_ROOT}")
 # [[BPR-1331]]. The private progress button says accepted after the gestures,
-# and unread when the changed file is opened on the pushed head.
+# and Seen automatically when the changed file is opened on the pushed head.
 bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011
     "REVIEW_LEDGER_PROGRESS_MARK:Private progress: accepted\n")
 bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011
-    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: unread\n")
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: seen\n")
+# A second process at the same material loads automatic Seen without a write.
+bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: seen\n")
 
 set(bpr_unavailable_root "${BPR_ROOT}-unavailable")
 bpr_prepare_private_root("${bpr_unavailable_root}")
