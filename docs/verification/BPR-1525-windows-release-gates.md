@@ -313,3 +313,24 @@ has installed the final plain layout, then re-enables it. The existing 256-line
 batch and 4 ms yielding rules stay intact. The cache regression also requires
 that its native viewport actually leaves the initial rows. Complete Mac scales
 pass after these additions; Windows duration acceptance remains pending.
+
+Production subphase profiling (r19) attributes 18.943 s to geometry measurement,
+3.879 s to detached filling, 0.280 s to document adoption and 0.435 s to the
+publication adoption path. A font-metrics width prototype is rejected: its
+bounding width differs from Qt's native line width. The corrected optimization
+keeps Qt's full shaping and exact line dimensions. Entirely plain printable
+ASCII rows with default block/character formatting reuse one unbound
+QTextLayout with the exact document font and paint device; each new string is
+still laid out by Qt. All other rows retain the original document-bound
+transient engine. This keeps one temporary HarfBuzz buffer per measurer instead
+of constructing one for each short row, consistent with BPR-1032's bounded
+measurement rationale. A redundant empty setFormats is also omitted; Qt's
+[implementation](https://raw.githubusercontent.com/qt/qtbase/v6.11.2/src/gui/text/qtextlayout.cpp)
+marks its bound document changed even for that write. No native metric is
+approximated or sampled. All three complete Mac workbench scales and all four
+native-geometry comparison scales pass. Corrected Windows acceptance is pending.
+
+The prepared Ubuntu producer has now been inspected read-only while Windows
+was quiescent: distro `Ubuntu`, Ubuntu 26.04 LTS, clean detached baseline
+8f0d25418, Debug `build/dev`, `/usr/bin/c++`, pinned Qt 6.11.2 and its existing
+CPM cache. No Ubuntu build/test, package or authentication operation has run.

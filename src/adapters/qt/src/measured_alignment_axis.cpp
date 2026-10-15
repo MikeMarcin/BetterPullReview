@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <utility>
@@ -343,14 +344,57 @@ namespace bpr::qt {
 				}
 			}
 
-			[[nodiscard]] static auto transient_extent(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> block_extent
+			/// \brief Reuses one Qt shaping engine for entirely plain ASCII rows.
+			/// \details [[BPR-1525]]. The font, device and text option are the
+			/// same as the bound layout's; Qt still shapes every row and reads
+			/// its exact height and natural width. One reusable engine keeps
+			/// one HarfBuzz buffer, rather than creating one per short row.
+			[[nodiscard]] auto reusable_plain_layout(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> QTextLayout*
+			{
+				const auto text   = aBlock.text();
+				const auto option = aBlock.document()->defaultTextOption();
+				if (!aFormats.empty() || text.isEmpty() || text.endsWith(QLatin1Char{ ' ' })
+					|| !aBlock.charFormat().isEmpty() || !aBlock.blockFormat().isEmpty()
+					|| option.flags() != QTextOption::Flags{ } || option.useDesignMetrics()
+					|| option.alignment() != Qt::AlignLeft || option.textDirection() == Qt::RightToLeft
+					|| !std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter.unicode() >= 0x20U && aCharacter.unicode() <= 0x7EU; })) {
+					return nullptr;
+				}
+				auto fragment = aBlock.begin();
+				if (fragment.atEnd() || !fragment.fragment().charFormat().isEmpty()) {
+					return nullptr;
+				}
+				++fragment;
+				if (!fragment.atEnd()) {
+					return nullptr;
+				}
+				const auto  font   = aBlock.document()->defaultFont();
+				const auto* device = Native->paintDevice();
+				if (!PlainLayout || PlainFont != font || PlainDevice != device) {
+					PlainLayout = std::make_unique<QTextLayout>(QString{ }, font, device);
+					PlainFont   = font;
+					PlainDevice = device;
+				}
+				PlainLayout->setText(text);
+				return PlainLayout.get();
+			}
+
+			[[nodiscard]] auto transient_extent(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> block_extent
 			{
 				const auto* const document = aBlock.document();
 				const auto        margin   = document->documentMargin();
 				const auto        option   = document->defaultTextOption();
-				auto              layout   = QTextLayout{ aBlock };
-				layout.setTextOption(option);
-				layout.setFormats(aFormats);
+				auto              local    = std::optional<QTextLayout>{ };
+				auto*             layout   = reusable_plain_layout(aBlock, aFormats);
+				if (layout == nullptr) {
+					layout = &local.emplace(aBlock);
+				}
+				layout->setTextOption(option);
+				// Qt's setFormats also marks its bound document dirty. A fresh
+				// plain layout already has no formats, so leave it alone.
+				if (!aFormats.empty()) {
+					layout->setFormats(aFormats);
+				}
 				auto extraMargin = 0;
 				if (option.flags().testFlag(QTextOption::AddSpaceForLineAndParagraphSeparators)) {
 					extraMargin += QFontMetrics{ aBlock.charFormat().font() }.horizontalAdvance(QChar{ 0x21B5 });
@@ -361,8 +405,8 @@ namespace bpr::qt {
 				const auto available = static_cast<qreal>(INT_MAX) - (2.0 * margin + extraMargin);
 				auto       top       = qreal{ 0.0 };
 				auto       extent    = block_extent{ };
-				layout.beginLayout();
-				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+				layout->beginLayout();
+				for (auto line = layout->createLine(); line.isValid(); line = layout->createLine()) {
 					line.setLeadingIncluded(true);
 					line.setLineWidth(available);
 					line.setPosition(QPointF{ margin, top });
@@ -372,10 +416,14 @@ namespace bpr::qt {
 					}
 					extent.NaturalWidth = std::max(extent.NaturalWidth, line.naturalTextWidth());
 				}
-				layout.endLayout();
-				extent.Bottom = layout.boundingRect().bottom();
+				layout->endLayout();
+				extent.Bottom = layout->boundingRect().bottom();
 				return extent;
 			}
+
+			std::unique_ptr<QTextLayout> PlainLayout;
+			QFont                        PlainFont;
+			const QPaintDevice*          PlainDevice = nullptr;
 
 			const QAbstractTextDocumentLayout* Native   = nullptr;
 			const QPlainTextDocumentLayout*    Plain    = nullptr;
