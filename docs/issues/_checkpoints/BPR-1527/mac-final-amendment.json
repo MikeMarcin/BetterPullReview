@@ -1,0 +1,23 @@
+{
+  "schema": "bpr.authorized-plan-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "source": "Explicit coordinator Mac slot release and nine-course scope amendment, 2026-10-15",
+  "preserved_criteria": [
+    "AC1",
+    "AC2",
+    "AC3",
+    "AC4",
+    "AC5",
+    "AC6"
+  ],
+  "added_criteria": [
+    "AC7",
+    "AC8"
+  ],
+  "preserved_exit_count": 6,
+  "added_exit_count": 1,
+  "original_mac_source": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "original_mac_result": "734 accounted:719passed14failed1skipped;exit8;3331.99s",
+  "all_fourteen_diagnostics_read": true,
+  "ownership": "Mac isolated worktree released to sole implementer; failed Mac producer remains untouched; Windows/WSL final suite still coordinator-owned."
+}

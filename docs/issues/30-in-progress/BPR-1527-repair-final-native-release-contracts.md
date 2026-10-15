@@ -25,6 +25,8 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 - AC4: The UIforETW public capture passes an exact complete toolbar-order oracle including the shipped Accept file action, preserving existing appearance, geometry, navigation, pixel and height assertions; an omitted or misplaced required control fails.
 - AC5: Pass focused native Mac verification of all five courses and affected portable/Windows/Ubuntu paths when their slots are released, meaningful negative controls, format 22, appropriate strict tidy, architecture and documentation checks; self-review and commit the narrow repair, and hand back exact source/command ownership with full final common-source release gates and packages still required.
 - AC6: Diagnose the final d52 Windows `qt_diff_workbench_scale_200` timeout120.03s, demonstrate a bounded source-backed whole-workbench improvement and pass the normal complete course within its unchanged120s deadline under prescribed resource exclusivity, preserving all input/assertions and checking affected scales; retain the prior119.08s focused result and final-gate context honestly.
+- AC7: Diagnose and repair `application_review_progress_push_contract`, all three `application_review_tour_composition` scales, `application_active_changed_scaling` and `application_review_tour_cold_import_public_path`, retaining exact durable receipt identities, tour receipt isolation, automatic-Seen policy, bounded changed-set work and meaningful counterexamples without weaker thresholds or semantic assertions.
+- AC8: All three `application_source_find` scales pass their existing supported900-pixel-window, every-drawer-open floating-widget fit and query-width assertions, with exact geometry/focus/interaction and native appearance retained; counterexamples detect the demonstrated layout cause.
 
 ## Explicit scope amendment
 
@@ -34,6 +36,15 @@ and age180.26s courses had finished, with no competing root/WSL workload.
 The 125% course was still running when the amendment arrived: do not preempt it.
 All original five criteria and milestone exits remain. This is a new acceptance
 unit under the existing r3 mandate, not a reopened BPR-1525 or relaxed120s gate.
+
+The complete final Mac result was719pass/14fail/1skip, exit8. On releasing the
+Mac slot, the coordinator explicitly added nine courses: review-progress push,
+three tour composition scales, active-changed scaling, tour cold import and
+three source-find scales. The six prior criteria and exits remain unchanged.
+All fourteen exact diagnostics were read before further edits. The failed
+producer remains untouched; only the owned-worktree Mac build slot is released.
+Windows/WSL remain coordinator-owned while their final suite runs. The skipped
+Debug cache-bytes course still requires the later optimized Release supplement.
 
 ## Ownership and limits
 

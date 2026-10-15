@@ -30,46 +30,58 @@
     "plan_id": "bpr-1527-final-native-release-contracts",
     "plan_path": "docs/rfcs/plans/bpr-1527-final-native-release-contracts/milestone-plan.json",
     "milestone_id": "final-composition-contracts",
-    "definition_fingerprint": "sha256:3f196f3d3ead73da2d7a3fe88e9bce9b971cd35c74b9186276b8d4dbe81d04f0",
+    "definition_fingerprint": "sha256:6dc2aca12d7a476a9285a82b2f40ff55ece104cd36087a4ac091fdfc6f7e1c51",
     "obligations": [
       {
         "id": "BPR-1527:AC1",
         "source": "BPR-1527",
         "selector": "AC1",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       },
       {
         "id": "BPR-1527:AC2",
         "source": "BPR-1527",
         "selector": "AC2",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       },
       {
         "id": "BPR-1527:AC3",
         "source": "BPR-1527",
         "selector": "AC3",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       },
       {
         "id": "BPR-1527:AC4",
         "source": "BPR-1527",
         "selector": "AC4",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       },
       {
         "id": "BPR-1527:AC5",
         "source": "BPR-1527",
         "selector": "AC5",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       },
       {
         "id": "BPR-1527:AC6",
         "source": "BPR-1527",
         "selector": "AC6",
-        "source_fingerprint": "sha256:2746880ed147ca5b81837b31aa16ae400253cee705a88ac279f2f53d0646cd57"
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+      },
+      {
+        "id": "BPR-1527:AC7",
+        "source": "BPR-1527",
+        "selector": "AC7",
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
+      },
+      {
+        "id": "BPR-1527:AC8",
+        "source": "BPR-1527",
+        "selector": "AC8",
+        "source_fingerprint": "sha256:02fcc23c41167825d2ec494ba97899efcb8e36831637af2063eac01de4305c8e"
       }
     ],
-    "obligation_fingerprint": "sha256:9774145502d9f23c0893557fcd2db4048a6b355035d0a135a416a7234b2156d4",
+    "obligation_fingerprint": "sha256:9a951bd08d0c4e44d0d4ebcc6d843108412b7c8c84dfc662850b7e9deddf4277",
     "exit_criteria": [
       {
         "id": "final-composition-contracts:exit:1",
@@ -94,6 +106,10 @@
       {
         "id": "final-composition-contracts:exit:6",
         "text": "Demonstrate a bounded source-backed whole-workbench stability improvement and pass the normal Windows200% course within its unchanged120s deadline, preserving all inputs/assertions and rechecking affected scales under prescribed resource exclusivity."
+      },
+      {
+        "id": "final-composition-contracts:exit:7",
+        "text": "Diagnose and repair all nine additionally enumerated final Mac courses: review-progress push, three review-tour composition scales, active-changed scaling, tour cold import and three source-find scales; preserve exact receipt isolation, adopted automatic-Seen behavior and supported floating-search geometry without waivers."
       }
     ],
     "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -112,8 +128,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/v021-windows-gate-fixes",
-    "source_revision": "739b620e362ef7f3e207eaffcb0e91b5b578d35b",
+    "source_revision": "681b41b9c7b72e9c29fa5e19124440a5590e1ea1",
     "workflow_branch": "codex/v021-windows-gate-fixes",
-    "workflow_revision": "739b620e362ef7f3e207eaffcb0e91b5b578d35b"
+    "workflow_revision": "681b41b9c7b72e9c29fa5e19124440a5590e1ea1"
   }
 }

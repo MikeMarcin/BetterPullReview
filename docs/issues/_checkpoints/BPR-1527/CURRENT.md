@@ -17,11 +17,12 @@ The final-gate source is `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`;
 its production and test tree is identical to the adopted predecessor.
 The assigned branch remains `codex/v021-windows-gate-fixes`.
 
-Both final native release suites are coordinator-owned and still active.
-No build, test, performance process or producer mutation is authorized until
-the coordinator explicitly releases the relevant slot. This implementer has
-started none. Read-only source/log investigation and local plan/card upkeep
-are authorized. No review server or attended candidate is open.
+Mac final gate is complete:719passed14failed1skipped, exit8,3331.99s. Root
+verified wrapper28919/bash28920/suite31251/ctest31259 absent and released
+this owned-worktree Mac engineering slot exclusively. The failed producer stays
+read-only. Windows/WSL remain root-owned while their final suite continues.
+No PC build/test/performance starts before explicit release. No review server
+or attended candidate is open.
 
 ## Original failures and read-only diagnosis
 
@@ -114,3 +115,24 @@ The current source preparation is checkpointed as an explicitly unverified WIP.
 This implementer's commands are quiescent; resume this same owner when the first
 native slot is released. This return is not milestone completion or a source
 freeze. Six criteria and six exits remain pending actual acceptance.
+
+## Full Mac gate amendment and active continuation
+
+The full result adds nine named failures, recorded by `mac-final-amendment.json`;
+all fourteen diagnostics were read before further edits. Current binding holds
+eight criteria and seven exits, preserving the prior six criteria/exits.
+Complete immutable original evidence is copied privately to
+`.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
+
+New exact frontiers: review-progress push expects renderer unread but gets seen;
+the three tour composition scales and cold import find durable viewed receipts
+where they require none; active-changed scaling fails Seen-enabled after select;
+all three source-find scales fail the supported900-pixel-window/all-drawers-open
+floating-widget fit. Read normative automatic-Seen/tour isolation contracts and
+classify shared causes before repairs. The Debug cache-bytes skip still owes
+root an optimized Release supplement.
+
+Next: rebuild the prepared app and agent diagnostic in this worktree, run the
+shortest agent course, then validate prepared reply/oracle repairs and diagnose
+the newly enumerated families. This is active same-owner continuation; the
+previous quiescent return above is historical. No acceptance/final freeze claimed.
