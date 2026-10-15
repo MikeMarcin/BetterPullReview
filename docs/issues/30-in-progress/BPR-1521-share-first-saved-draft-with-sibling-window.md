@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1521"
 title: "Share a first-saved inline draft with an untouched sibling window"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1520"]
 priority: "P1"
