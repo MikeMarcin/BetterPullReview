@@ -6,7 +6,8 @@ cmake_minimum_required(VERSION 4.4.2)
 # src/ui/widgets/button.cpp. The application then restarts over the same data
 # root and is served the next push, which changes only renderer.cpp. Under
 # RFC-BPR-0007 a receipt survives exactly when its material is unchanged:
-# renderer.cpp reopens unread (not seen) and loses its acceptance, main.cpp
+# renderer.cpp loses its acceptance; explicitly opening its new material then
+# records Seen under BPR-1506, main.cpp
 # stays accepted, and button.cpp stays excluded. Before BPR-1331 the receipt
 # was keyed by the comparison digest, which names the epoch, so main.cpp
 # reopened unread too.
@@ -26,7 +27,7 @@ bpr_private_data_root(BPR_ROOT)
 set(bpr_first_head "b20cb443428212543f5911e091a0ffeb407d23cf")
 set(bpr_pushed_head "cd24836cfb58a9c14f4d3464d68a57ff8aa2a186")
 set(bpr_before_marks "head=${bpr_first_head};src/engine/renderer.cpp=Private progress: accepted;src/main.cpp=Private progress: accepted;src/ui/widgets/button.cpp=Private progress: excluded")
-set(bpr_after_marks "head=${bpr_pushed_head};src/engine/renderer.cpp=Private progress: unread;src/main.cpp=Private progress: accepted;src/ui/widgets/button.cpp=Private progress: excluded")
+set(bpr_after_marks "head=${bpr_pushed_head};src/engine/renderer.cpp=Private progress: seen;src/main.cpp=Private progress: accepted;src/ui/widgets/button.cpp=Private progress: excluded")
 
 foreach(course_spec IN ITEMS "before|single" "after|reuse")
     string(REPLACE "|" ";" course_parts "${course_spec}")

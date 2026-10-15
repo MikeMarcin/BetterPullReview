@@ -6673,16 +6673,16 @@ namespace {
 		// with no marker pressed; line 4's menu offers no thread to open.
 		cards->close_thread();
 		process_events();
-		const auto menu_at = [&window, code](const std::uint32_t aLine) {
+		const auto menuAt = [&window, code](const std::uint32_t aLine) {
 			static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, aLine));
 			process_events();
 			const auto row = window.comparison_surface()->line_rect(core::diff_side::right, aLine);
 			return window.code_context_menu(code, code->viewport()->mapFrom(window.comparison_surface(), row.center()));
 		};
-		auto* const plainMenu = menu_at(3U);
+		auto* const plainMenu = menuAt(3U);
 		expect(plainMenu->findChild<QAction*>(QStringLiteral("codeContextMenuOpenThread")) == nullptr, "a line without a thread offers none to open");
 		delete plainMenu;
-		auto* const threadMenu = menu_at(21U);
+		auto* const threadMenu = menuAt(21U);
 		auto* const openThread = threadMenu->findChild<QAction*>(QStringLiteral("codeContextMenuOpenThread"));
 		expect(openThread != nullptr && openThread->isEnabled(), "line 22's menu offers its thread");
 		openThread->trigger();
@@ -8378,6 +8378,8 @@ namespace {
 		tour.Draft = std::make_shared<const core::review_tour>(tests::review_tour_fixture());
 		editor->present(tour);
 		window.open_review_tour();
+		expect(fired == std::vector{ qt::tour_editor_action::open_preparation }, "opening Tour dispatches its semantic entry before deferred source completion");
+		fired.clear();
 		editor->show_stops();
 		process_events();
 		auto* const outline  = editor->outline();
@@ -8796,7 +8798,8 @@ namespace {
 		const auto settle  = [&] {
 			for (auto round = 0; round < 8 && applied < commands.size(); ++round) {
 				while (applied < commands.size()) {
-					const auto command = commands[applied++];
+					// Acknowledgement may append and reallocate commands reentrantly.
+					const auto command = core::revisioned_review_draft_command{ commands[applied++] };
 					if (!accepted || command.Command.Id != accepted->Draft.Id) {
 						continue;
 					}
@@ -9043,7 +9046,8 @@ namespace {
 		const auto settle  = [&] {
 			process_events();
 			while (applied < commands.size()) {
-				const auto command = commands[applied++];
+				// Acknowledgement may append and reallocate commands reentrantly.
+				const auto command = core::revisioned_review_draft_command{ commands[applied++] };
 				if (!accepted || command.Command.Id != accepted->Draft.Id) {
 					continue;
 				}
@@ -9710,7 +9714,7 @@ namespace {
 		{
 			using QPlainTextEdit::keyPressEvent;
 		};
-		const auto native_caret = [&body](const int aKey, const Qt::KeyboardModifiers aModifiers, const int aFrom) {
+		const auto nativeCaret = [&body](const int aKey, const Qt::KeyboardModifiers aModifiers, const int aFrom) {
 			reference_editor reference;
 			reference.setPlainText(body);
 			auto at = reference.textCursor();
@@ -9733,7 +9737,7 @@ namespace {
 			const auto from = note->textCursor().position();
 			deliver_key(window, key, modifiers);
 			expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && note->hasFocus() && note->toPlainText() == body
-					   && note->textCursor().position() == native_caret(key, modifiers, from),
+					   && note->textCursor().position() == nativeCaret(key, modifiers, from),
 				   std::string{ name } + " in an editor takes no gesture and moves the caret exactly as an editor on its own does");
 		}
 		if (QKeySequence::keyBindings(QKeySequence::MoveToEndOfBlock).contains(QKeySequence{ QStringLiteral("Alt+Down") })) {
@@ -9936,8 +9940,8 @@ namespace {
 				&& state.Navigation->File == order[aFile] && selectedOrdinal() == aChange;
 		};
 
-		const auto key         = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
-		const auto all_enabled = [&window] {
+		const auto key        = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
+		const auto allEnabled = [&window] {
 			return std::ranges::all_of(navigation_actions(window), [](const QAction* const aAction) { return aAction->isEnabled(); });
 		};
 		const auto message = [&window] { return window.statusBar()->currentMessage(); };
@@ -9946,7 +9950,7 @@ namespace {
 		open(1U);
 		expect(at(1U, 1U) && window.change_position_label()->toolTip() == QStringLiteral("Changes 1 of 1"),
 			   "the middle file opens on its only change");
-		expect(all_enabled(), "a one-change file keeps all four arrows enabled");
+		expect(allEnabled(), "a one-change file keeps all four arrows enabled");
 		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in this file.").arg(key("Alt+Down"))
 				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (%1)\nFirst change in this file.").arg(key("Alt+Up"))
 				   && window.next_change_action()->statusTip() == QStringLiteral("Last change in this file."),
@@ -9958,7 +9962,7 @@ namespace {
 		process_events();
 		expect(workbench.empty() && steps.empty() && at(1U, 1U),
 			   "next change at the file's last change sends nothing and stays on that change");
-		expect(all_enabled() && message() == QStringLiteral("Last change in this file."),
+		expect(allEnabled() && message() == QStringLiteral("Last change in this file."),
 			   "the arrow stays enabled and the status bar says why nothing moved");
 		window.previous_change_action()->trigger();
 		process_events();
@@ -9967,7 +9971,7 @@ namespace {
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
 		deliver_key(window, Qt::Key_Up, Qt::AltModifier);
 		deliver_key(window, Qt::Key_PageDown, Qt::AltModifier);
-		expect(workbench.empty() && steps.empty() && at(1U, 1U) && all_enabled(),
+		expect(workbench.empty() && steps.empty() && at(1U, 1U) && allEnabled(),
 			   "the change keys at the bounds do nothing too: no wrap and no other file");
 
 		// A file with two changes steps inside itself and stops at each end.
@@ -9984,7 +9988,7 @@ namespace {
 			   "next change steps inside its comparison");
 		window.next_change_action()->trigger();
 		process_events();
-		expect(steps.size() == 1U && workbench.size() == opened && at(0U, 2U) && all_enabled()
+		expect(steps.size() == 1U && workbench.size() == opened && at(0U, 2U) && allEnabled()
 				   && detail_of(window.next_change_action()) == QStringLiteral("Last change in this file."),
 			   "next change at the last change of a file that has a next file stays in this file");
 
@@ -9993,7 +9997,7 @@ namespace {
 			   "previous file names its bound on the first file");
 		window.previous_file_action()->trigger();
 		process_events();
-		expect(workbench.size() == opened && at(0U, 2U) && message() == QStringLiteral("First file in this pull request.") && all_enabled(),
+		expect(workbench.size() == opened && at(0U, 2U) && message() == QStringLiteral("First file in this pull request.") && allEnabled(),
 			   "previous file on the first file sends nothing and stays enabled");
 		window.next_file_action()->trigger();
 		process_events();
@@ -10003,7 +10007,7 @@ namespace {
 		window.next_file_action()->trigger();
 		deliver_key(window, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier);
 		process_events();
-		expect(workbench.size() == last && at(2U, 1U) && message() == QStringLiteral("Last file in this pull request.") && all_enabled(),
+		expect(workbench.size() == last && at(2U, 1U) && message() == QStringLiteral("Last file in this pull request.") && allEnabled(),
 			   "next file on the last file, by arrow or key, sends nothing and stays enabled");
 		save_render(window, QStringLiteral("change-arrows-last"));
 		window.hide();
@@ -13441,7 +13445,7 @@ namespace {
 		// [[BPR-1348]]. The file an Overview gesture selects, provided the
 		// selection follows Review's modality intent: choosing Review
 		// presents its active tab, so a selection sent before it loses.
-		const auto selected_after_review = [&log]() -> std::optional<core::workbench_file_id> {
+		const auto selectedAfterReview = [&log]() -> std::optional<core::workbench_file_id> {
 			auto review = false;
 			auto file   = std::optional<core::workbench_file_id>{ };
 			for (const auto& intent : log.Workbench) {
@@ -13457,7 +13461,7 @@ namespace {
 		log.Workbench.clear();
 		window.overview_page()->entry_button()->click();
 		process_events();
-		expect(selected_after_review() == workbench_file(2U),
+		expect(selectedAfterReview() == workbench_file(2U),
 			   "Start review selects the entry file through the core, after entering Review");
 		expect(window.current_modality() == qt::review_modality::review,
 			   "Start review enters Review even while Continue review defaults to Read");
@@ -13470,7 +13474,7 @@ namespace {
 		log.Workbench.clear();
 		window.overview_page()->entry_button()->click();
 		process_events();
-		expect(selected_after_review() == workbench_file(2U)
+		expect(selectedAfterReview() == workbench_file(2U)
 				   && window.current_modality() == qt::review_modality::review,
 			   "Continue review keeps its intended entry file and enters Review");
 
@@ -13479,7 +13483,7 @@ namespace {
 		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
 		window.overview_page()->files_view()->activated(first);
 		process_events();
-		expect(selected_after_review() == workbench_file(1U)
+		expect(selectedAfterReview() == workbench_file(1U)
 				   && window.current_modality() == qt::review_modality::review,
 			   "activating a file row enters Review, then selects that file");
 		expect(githubIntents == 0U,
@@ -14033,9 +14037,18 @@ namespace {
 			accepted.MarkdownContext = page_context(4U);
 			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
 			process_events();
-			expect(window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("A retained local cycle"))
-					   && !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled(),
-				   "same-PR publication retains the local cycle and never offers its browser button");
+			const auto retainedCycle = window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("A retained local cycle"))
+				&& !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled();
+			if (!retainedCycle) {
+				std::cerr << "local-cycle-republication width=" << window.width()
+						  << " identity-visible=" << window.identity_label()->isVisible()
+						  << " text=" << window.identity_label()->text().toStdString()
+						  << " tooltip=" << window.identity_label()->toolTip().toStdString()
+						  << " browser-visible=" << window.open_on_github_button()->isVisible()
+						  << " browser-enabled=" << window.open_on_github_action()->isEnabled()
+						  << " home=" << window.showing_home() << '\n';
+			}
+			expect(retainedCycle, "same-PR publication retains the local cycle and never offers its browser button");
 			window.leave_local_cycle();
 			process_events();
 			expectCurrent();

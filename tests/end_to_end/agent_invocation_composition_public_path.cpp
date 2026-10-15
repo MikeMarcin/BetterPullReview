@@ -1087,8 +1087,11 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "private-history-ready", ready.render());
 			}
 			auto created = wait_terms{ };
-			if (!wait_until_reporting(created, [privatePanel](wait_terms& aTerms) {
-					return aTerms.require("reviewer-turn", privatePanel->turn_model()->rowCount() == 1 && privatePanel->isEnabled());
+			if (!wait_until_reporting(created, [privatePanel, selectedSource](wait_terms& aTerms) {
+					const auto& rows = privatePanel->turn_model()->rows();
+					// [[BPR-1527]]. A migrated canary note is also one row. Await
+					// the exact newly committed reviewer turn before choosing it.
+					return aTerms.require("reviewer-turn", rows.size() == 1U && privatePanel->isEnabled() && rows.front().Revision.Body == selectedSource && std::holds_alternative<core::private_reviewer_actor>(rows.front().Revision.Actor));
 				})) {
 				return fail(*application, "private-reviewer-turn", created.render());
 			}
@@ -1649,7 +1652,7 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1527]]. The launch panel can still hold an earlier deliberate
 		// refusal when the later Private history operation has not dispatched.
 		// Record that operation's own bounded status and selection as well.
-		const auto* const privatePanel = window.private_review();
+		const auto* const privatePanel  = window.private_review();
 		const auto* const privateStatus = privatePanel->findChild<QLabel*>(QStringLiteral("privateReviewStatus"));
 		success.note_identifier("private-status", privateStatus != nullptr ? privateStatus->text().toStdString() : "absent");
 		success.note("private-enabled", privatePanel->isEnabled());

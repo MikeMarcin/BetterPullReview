@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"196783ba3563dce81368cb0409865ad0506ababfc2e28d9e99efb5aaa90e06f5"
+		"8123abed3e79f20745cbbcbd8275b4fdd568ddafad404f7b5d1ee77cc65fccae"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a7579ca03b303cdd948402143e7fb0e31e9ad654e49feda4ac8beae7b50d9f51"
+        "6065f269a7c5b9ad0db5ff87351bd552581270620a20b014c7d87cde29d95f74"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2539,3 +2539,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # exactly as it was), and the device capability follows a never-saved
 # profile. No publication, credential, grant, inventory or mutation-branch
 # change; the full application and production-manifest digests are refreshed.
+
+# [[BPR-1527]] reseal over d52f5bb1: pinned-scope source commit681b41b9c
+# and this BPR-1527 repair slice. Self-review is recorded in
+# docs/issues/_checkpoints/BPR-1527/SELF_REVIEW.md. An unused exact placeholder
+# chooses the existing typed reply operation. Tour entry/navigation retains its
+# exact source request through receipt completion; ordinary file/modality entry
+# clears it. Test-only capture asserts the shipped16-action bar and Accept's
+# binding. No new capability, grant, actor/target admission or publication path;
+# source inventory and production mutation-branch digest remain unchanged.
+# Normal public positives, old-route/guard/layout and missing/misplaced-control
+# counterexamples are recorded; final native release gates remain pending.

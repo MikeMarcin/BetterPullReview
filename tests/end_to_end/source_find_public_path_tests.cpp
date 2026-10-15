@@ -413,6 +413,9 @@ int main(int aArgc, char** aArgv)
 	query(*bar, QStringLiteral("needle"));
 	window.resize(900, 700);
 	settle();
+	std::cerr << "source-find-narrow window=" << window.width() << " surface=" << surface->width()
+			  << " bar=" << bar->geometry().x() << ',' << bar->geometry().y() << ',' << bar->width() << 'x' << bar->height()
+			  << " minimum=" << bar->minimumSizeHint().width() << " query=" << bar->query_editor()->width() << '\n';
 	expect(bar->width() >= bar->minimumSizeHint().width() && bar->query_editor()->width() >= 48 && bar->geometry().right() < surface->width() && bar->geometry().left() >= 0, "the floating widget fits the supported 900-pixel window, every drawer open");
 	render(window, QStringLiteral("03-narrow-900"));
 	window.resize(720, 640);

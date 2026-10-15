@@ -41,6 +41,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
@@ -253,6 +254,25 @@ namespace {
 		wait([&] {for(int row=0;row<files->model()->rowCount();++row){const auto index=files->model()->index(row,0);if(index.data(Qt::DisplayRole).toString().toStdString()==aPath){selected=index;return true;}}return false; }, "exact fixture file is available");
 		files->selectionModel()->setCurrentIndex(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		wait([&] {auto* surface=aWindow.comparison_surface();return surface->current_result() && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of(aPath) && surface->current_semantic_index() && !surface->geometry_pending(); }, "installed Git/cache produces exact selected file");
+	}
+	// [[BPR-1506]], [[BPR-1527]]. Files opens remain ordinary reading even
+	// while Tour is visible. Retain their exact durable identity independently
+	// from stop navigation, which must create no viewed receipt of its own.
+	auto ordinary_seen(app::github_application& aApp, std::string_view aPath) -> core::file_receipt
+	{
+		auto& window = aApp.window();
+		wait([&] {
+			const auto receipt = window.review_editor()->shown_receipt();
+			return access::review_ledger_settled(aApp) && receipt
+				&& receipt->File == core::file_identity_of(aPath)
+				&& receipt->Read == core::file_read_state::seen;
+		},
+			 "ordinary Files open makes Seen durable despite visible Tour");
+		const auto receipt = *window.review_editor()->shown_receipt();
+		expect(receipt.Material == core::file_material(window.comparison_surface()->current_context()->Key)
+				   && !receipt.Accepted && !receipt.Excluded,
+			   "ordinary Seen has exact displayed material and no acceptance/exclusion");
+		return receipt;
 	}
 	void select_range(qt::workbench_window& aWindow, core::diff_side aSide, int aFirst, int aLast)
 	{
@@ -1042,7 +1062,36 @@ auto main(int argc, char** argv) -> int
 			application = make();
 			open(*application);
 			expect(*application->window().tour_editor()->shown().Draft == accepted, "real store reopen retains raw baselines and remote attribution");
+			auto& reopened = application->window();
+			auto& route    = *reopened.tour_editor();
+			route.show_stops();
+			route.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
+			route.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+			wait([&] { return reopened.comparison_surface()->current_context()
+						   && reopened.comparison_surface()->current_context()->Key.File == core::file_identity_of("secondary.cpp")
+						   && access::review_ledger_settled(*application); }, "reopened tour's exact source and receipt observation settle");
+			{
+				// Hold the actual material receipt answer across a subsequent Files
+				// gesture. Its completion must retain the original tour identity.
+				const auto releaseLedger = access::hold_review_ledger_effects(*application);
+				const auto releaseOnExit = qScopeGuard(releaseLedger);
+				route.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+				route.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
+				wait([&] { return reopened.comparison_surface()->current_context()
+							   && reopened.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp")
+							   && reopened.comparison_surface()->current_semantic_index(); }, "tour source is shown while its material receipt answer is held");
+				select_file(reopened, "secondary.cpp");
+			}
+			const auto openedReceipt = ordinary_seen(*application, "secondary.cpp");
 			shutdown(*application);
+			{
+				auto ledger = adapters::sqlite::make_review_ledger_store({ .StorageRoot = *dataRoot, .Host = "github.com", .Account = "1001", .Repository = "octo-org/review-repository", .PullRequest = 17 });
+				expect(ledger.has_value(), "held-completion control reads actual durable ledger");
+				const auto toured = (*ledger)->load(core::file_identity_of("review.cpp"));
+				const auto opened = (*ledger)->load(openedReceipt.File);
+				expect(toured && !*toured && opened && *opened && **opened == openedReceipt,
+					   "delayed tour answer records nothing and subsequent Files open records only exact Seen");
+			}
 			std::cout << "review-tour-cold-import:pass\n";
 			return EXIT_SUCCESS;
 		}
@@ -1098,6 +1147,7 @@ auto main(int argc, char** argv) -> int
 		window.add_tour_stop_action()->trigger();
 		expect(editor.shown().Draft->Stops.empty() && editor.findChild<QLabel*>(QStringLiteral("tourSaveStatus"))->text().contains(QStringLiteral("Select a line")), "unavailable source refuses capture while preserving manual draft");
 		select_file(window, "review.cpp");
+		const auto reviewReceipt = ordinary_seen(*application, "review.cpp");
 		expect(window.behaviour().MarkRead == application::review_mark_read_behaviour::when_fully_seen, "real application loaded opt-in automatic read preference from admitted store");
 		select_range(window, core::diff_side::right, 2, 4);
 		window.add_tour_stop_action()->trigger();
@@ -1123,6 +1173,8 @@ auto main(int argc, char** argv) -> int
 		editor.stop_body()->insertPlainText(QStringLiteral("A different thought in the same file."));
 		const auto secondId = editor.selected_stop()->Id;
 		select_file(window, "secondary.cpp");
+		const auto secondaryReceipt = ordinary_seen(*application, "secondary.cpp");
+		const auto viewedCommands   = access::scaling_evidence(*application).Ledger.Commands;
 		select_range(window, core::diff_side::right, 1, 2);
 		window.add_tour_stop_action()->trigger();
 		editor.stop_title()->insert(QStringLiteral("Cross-file invariant"));
@@ -1278,14 +1330,16 @@ auto main(int argc, char** argv) -> int
 		expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions
 				   && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0U,
 			   "entry, editing, preview and section navigation perform zero remote mutations or agent launches");
+		wait([&] { return access::review_ledger_settled(*application); }, "receipt observations settle after tour navigation");
+		expect(access::scaling_evidence(*application).Ledger.Commands == viewedCommands, "tour navigation adds zero viewed commands after ordinary Files opens");
 		shutdown(*application);
 		{
 			expect(std::filesystem::exists(*dataRoot / "state" / "v1" / "review-ledger.sqlite3"), "real composed receipt store exists before inspection");
 			auto ledger = adapters::sqlite::make_review_ledger_store({ .StorageRoot = *dataRoot, .Host = "github.com", .Account = "1001", .Repository = "octo-org/review-repository", .PullRequest = 17 });
 			expect(ledger.has_value(), "read actual composed ledger after shutdown");
-			for (const auto* path : { "review.cpp", "secondary.cpp" }) {
-				const auto receipt = (*ledger)->load(core::file_identity_of(path));
-				expect(receipt && !*receipt, "tour route minted zero durable viewed-file receipts even with automatic mark-read opted in");
+			for (const auto& expected : { reviewReceipt, secondaryReceipt }) {
+				const auto receipt = (*ledger)->load(expected.File);
+				expect(receipt && *receipt && **receipt == expected, "tour navigation preserves exact ordinary Seen with zero new read/accept/exclude receipt effects");
 			}
 		}
 		application.reset();

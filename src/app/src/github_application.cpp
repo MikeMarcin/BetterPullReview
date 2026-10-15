@@ -9314,6 +9314,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
 				AutoSeenPresentedRequest.reset();
+				TourSourceRequest.reset();
+				PendingTourSource.reset();
 				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
@@ -9325,6 +9327,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// shows the active tab's pair or the window's.
 			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
 				AutoSeenPresentedRequest.reset();
+				TourSourceRequest.reset();
+				PendingTourSource.reset();
 				schedule_tab_presentation();
 			}
 #if defined(BPR_BUILD_TESTING)
@@ -10169,6 +10173,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void suspend_review_tour()
 		{
 			PendingTourSource.reset();
+			TourSourceRequest.reset();
 			if (TourHost && TourOwner) {
 				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
 			}
@@ -10797,6 +10802,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
+			case qt::tour_editor_action::open_preparation:
+				// Entering Tour is not an ordinary file open. Keep the exact
+				// request through its deferred material/receipt completion.
+				TourSourceRequest = SelectedDiffRequest;
+				return;
 			case qt::tour_editor_action::suggest_outline:
 				if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
 					request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });
@@ -13100,6 +13110,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| WorkbenchHost->state().Modality != core::workbench_modality::review
 				|| TabLoad || TabDriver || PendingRestoration || ReadingRestoration
 				|| AutoSeenPresentedRequest == std::optional{ aPublication.Request }
+				|| TourSourceRequest == std::optional{ aPublication.Request }
 				|| !SelectedDiffPublication || SelectedDiffPublication->Request != aPublication.Request
 				|| SelectedDiffRequest != std::optional{ aPublication.Request }
 				|| SelectedDiffPublication->Key != aPublication.Key
@@ -16831,6 +16842,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					!= std::optional{ aRequest.Diff }) {
 				return;
 			}
+			// [[BPR-1527]]. A stop's source load is navigation, not Seen.
+			// Bind the exclusion to its admitted request; a normal file gesture
+			// clears it before dispatch, regardless of the visible Tour tray.
+			const auto tourSource = PendingTourSource && TourOwner
+				&& aRequest.File.File == core::file_identity_of(PendingTourSource->Path)
+				&& aRequest.WorkbenchAuthority.Host == TourOwner->Host
+				&& aRequest.WorkbenchAuthority.HostAuthority == TourOwner->HostAuthority
+				&& aRequest.WorkbenchAuthority.Account == TourOwner->Account
+				&& aRequest.WorkbenchAuthority.Repository == TourOwner->Repository
+				&& aRequest.WorkbenchAuthority.PullRequest == TourOwner->PullRequest;
+			if (tourSource || (TourSourceRequest && application::same_selected_diff(*TourSourceRequest, aRequest))) {
+				TourSourceRequest = aRequest;
+			} else {
+				TourSourceRequest.reset();
+			}
 			// [[BPR-1277]]. An epoch refresh asks again for the selected file.
 			// When that is exactly the diff on screen, the reviewer's selection,
 			// the draft they are writing and any publish in flight stay: clearing
@@ -18946,6 +18972,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		/// One automatic receipt attempt for each successfully opened selection.
 		std::optional<application::workbench_selected_diff_request> AutoSeenPresentedRequest;
+		/// The exact source opened by a Tour gesture; never inferred from tray visibility.
+		std::optional<application::workbench_selected_diff_request> TourSourceRequest;
 		/// [[BPR-1212]]. The last question asked about the selected comparison's
 		/// base numbering, and its answer once the epoch host gave one.
 		struct base_numbering_state
@@ -25551,8 +25579,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// review chip ([[BPR-1345]], hidden with no review in progress),
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
-		const auto* const acceptFile = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto exactReviewBarOrder = reviewBarActions.size() == 16
+		const auto* const acceptFile          = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		const auto        exactReviewBarOrder = reviewBarActions.size() == 16
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")

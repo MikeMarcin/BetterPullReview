@@ -2400,16 +2400,18 @@ namespace bpr::qt {
 		// Inset from the pane's top-right corner as VS Code's widget is. A
 		// narrow pane keeps every control: the panel then extends left over
 		// the neighbouring pane rather than dropping any of them.
-		constexpr auto inset  = 8;
-		const auto     least  = Find->Bar->fit_to(this->width() - 2 * inset);
-		const auto     wanted = std::min(Find->Bar->preferred_width(), area.width() - 2 * inset);
-		const auto     width  = std::min(std::max(least, wanted), std::max(least, this->width() - 2 * inset));
-		const auto     height = Find->Bar->sizeHint().height();
+		constexpr auto preferredInset = 8;
+		const auto     least          = Find->Bar->fit_to(this->width() - 2 * preferredInset);
+		// [[BPR-1527]]. Keep every control at its minimum before reserving
+		// outer breathing room; a 242px surface can hold the 230px panel.
+		const auto inset       = std::clamp((this->width() - least) / 2, 0, preferredInset);
+		const auto wanted      = std::min(Find->Bar->preferred_width(), area.width() - 2 * inset);
+		const auto panelWidth  = std::min(std::max(least, wanted), std::max(least, this->width() - 2 * inset));
+		const auto panelHeight = Find->Bar->sizeHint().height();
 		// Where even that runs out of room on the left, the anchor slides right
 		// toward the surface's edge before any control is squeezed.
-		const auto right = std::min(std::max(area.right() - inset, inset + width - 1), this->width() - inset);
-		const auto left  = std::max(inset, right - width + 1);
-		Find->Bar->setGeometry(left, area.top() + inset / 2, std::min(width, right - left + 1), height);
+		const auto left = std::max(0, std::min(area.right() - preferredInset - panelWidth + 1, this->width() - inset - panelWidth));
+		Find->Bar->setGeometry(left, area.top() + preferredInset / 2, panelWidth, panelHeight);
 		Find->Bar->raise();
 	}
 	void diff_workbench::set_source_find_dispatch(std::function<void(const source_find_intent&)> aDispatch) { Find->Dispatch = std::move(aDispatch); }

@@ -314,6 +314,23 @@ try {
 				   && tree->work_statistics().ModelResets == treeBefore.ModelResets,
 			   "selection reads one receipt without catalogue observation, Overview reconstruction or model reset");
 		if (round == 0U) {
+			// [[BPR-1506]], [[BPR-1527]]. Opening the file already persisted
+			// Seen. Establish an explicit Unread baseline before measuring the
+			// existing one-receipt Seen gesture; it stays unread until reopened.
+			expect(window->review_editor()->shown_receipt()
+					   && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen
+					   && !window->seen_action()->isEnabled() && window->read_action()->isEnabled(),
+				   "opening the selected material automatically made Seen durable");
+			window->read_action()->trigger();
+			wait_for([&] { return window->review_editor()->shown_receipt()
+							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::read && quiet(); },
+					 "Read exposes the existing Mark unread command");
+			expect(window->read_action()->text().contains(QStringLiteral("unread")) && window->read_action()->isEnabled(), "Mark unread is the projected command");
+			window->read_action()->trigger();
+			wait_for([&] { return window->review_editor()->shown_receipt()
+							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread && quiet(); },
+					 "explicit Unread remains until another open");
+			settle([&] { return access::scaling_evidence(*owner); });
 			before      = access::scaling_evidence(*owner);
 			treeBefore  = tree->work_statistics();
 			Measurement = gesture_measurement{ };
