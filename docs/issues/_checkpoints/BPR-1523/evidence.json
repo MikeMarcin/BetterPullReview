@@ -1,0 +1,40 @@
+{
+  "candidate_revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+  "geometry_revision": "12a4987527589efe8db67ab9b12cb7aeec9d5e58",
+  "manifest": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/manifest.json",
+  "current_negatives": {
+    "revision": "219b62e98b571e640f726592065a3c798bb712f8",
+    "windows": "4/4 selected test builds fail; app builds",
+    "ubuntu": "app compile fails sign conversion"
+  },
+  "verification": {
+    "windows": "All affected targets build; matcher, staged session/restart, Git contract, Qt scale1/2 pass in Interactive Limited session1. PR search navigation performance fails twice; no full gate claimed.",
+    "ubuntu": {
+      "revision": "12a4987527589efe8db67ab9b12cb7aeec9d5e58",
+      "focused": "7/7 pass,14.39s"
+    },
+    "mac": {
+      "portability": "5/5 pass,32.44s at a5365921c",
+      "geometry": "3/3 pass,8.87s at12a498",
+      "diagnostic": "1/1 pass,7.91s atdcc5ace22",
+      "tidy": "Qt changed TU warnings-as-errors pass"
+    },
+    "format": "clang-format22.1.8 passes five paths",
+    "documentation": "DOCUMENTATION_OK"
+  },
+  "remaining_release_failure": {
+    "course": "application_source_pr_search_performance",
+    "command": "ctest.exe --preset windows-dev --output-on-failure -R '^(qt_source_search_panel_scale_[12]|application_source_pr_search_performance)$'",
+    "execution": "Limited Interactive Windows session1; serial PC; exact dcc source",
+    "navigation_ms": [
+      3188,
+      3142
+    ],
+    "limit_ms": 2000,
+    "other_budgets": "pass",
+    "repeat_log": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/native/windows-repeat.utf8.log",
+    "mechanism": "not yet proven; new implementer read-only diagnosis assigned by coordinator"
+  },
+  "self_review": "All assertions, budgets, warning policy and4px inset preserved; actual glyph width reserves fixed slots. Namespace relocation and explicit encodings/includes/types preserve behavior. No independent review claimed.",
+  "frontend_design": "Loaded before Qt conformance repair; Mac/Ubuntu light-narrow and Ubuntu dark-wide2x offscreen renders inspected."
+}

@@ -1,0 +1,36 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Current Windows4test compiler failures and Ubuntu index sign-conversion failure reproduced at exact219b; app-only current Windows pass and historical logs separately retained. Windows sign-in/Azure prerequisites distinguished from source failures.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/manifest.json"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Minimal corrections only five assigned files; all assertions, thresholds, warning gates and4px inset preserved. Actual native glyph widths restore fixed badge geometry. Existing performance JSON moved before unchanged assertions only. Frontend-design loaded; offscreen native renders inspected; self-review recorded.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/manifest.json"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Affected native targets build, Windows6focused compiler/geometry behavior checks pass in Interactive Limited session1; Ubuntu7/7 and Mac5portability+3geometry+1diagnostic checks pass with relevant reuse. Format22, focused Qt tidy and documentation pass. Exact source handed back with separately failed Windows performance course explicit; full release gates remain coordinator obligations.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/manifest.json"
+      }
+    }
+  ]
+}

@@ -1,10 +1,52 @@
 {
-  "assignment":"/root/release021_native_readiness",
-  "mandate":"0.2.1 Mac first, then Windows and Ubuntu; release fixes by implementers",
-  "baseline":"219b62e98b571e640f726592065a3c798bb712f8",
-  "milestone":"native-portability",
-  "state":"Native current-source reproduction in progress; product source unchanged",
-  "nativeRuntime":".mask/sessions/release-v0.2.1/native-readiness/checkpoint.json",
-  "next":"Complete Windows current app/configure preflight and reproduce four failing test compiles; serialize Ubuntu afterward, then repair exact proven causes.",
-  "limits":"No full normal gate, signing, packaging, publication or installed app changes in this engineering scope. Existing historical native/security gaps remain explicit."
+  "assignment": "/root/release021_native_readiness",
+  "mandate_revision": "owner-20261014-use-implementers",
+  "milestone": "native-portability",
+  "candidate_revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+  "geometry_revision": "12a4987527589efe8db67ab9b12cb7aeec9d5e58",
+  "state": "Bounded compiler and native font geometry corrections accepted. Separate Windows navigation performance release blocker is reproduced twice and handed to coordinator-assigned implementer.",
+  "evidence": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/manifest.json",
+  "nativeRuntime": ".mask/sessions/release-v0.2.1/native-readiness/checkpoint.json",
+  "verification": {
+    "windows": "All affected targets build; matcher, staged session/restart, Git contract, Qt scale1/2 pass in Interactive Limited session1. PR search navigation performance fails twice; no full gate claimed.",
+    "ubuntu": {
+      "revision": "12a4987527589efe8db67ab9b12cb7aeec9d5e58",
+      "focused": "7/7 pass,14.39s"
+    },
+    "mac": {
+      "portability": "5/5 pass,32.44s at a5365921c",
+      "geometry": "3/3 pass,8.87s at12a498",
+      "diagnostic": "1/1 pass,7.91s atdcc5ace22",
+      "tidy": "Qt changed TU warnings-as-errors pass"
+    },
+    "format": "clang-format22.1.8 passes five paths",
+    "documentation": "DOCUMENTATION_OK"
+  },
+  "remaining_release_failure": {
+    "course": "application_source_pr_search_performance",
+    "command": "ctest.exe --preset windows-dev --output-on-failure -R '^(qt_source_search_panel_scale_[12]|application_source_pr_search_performance)$'",
+    "execution": "Limited Interactive Windows session1; serial PC; exact dcc source",
+    "navigation_ms": [
+      3188,
+      3142
+    ],
+    "limit_ms": 2000,
+    "other_budgets": "pass",
+    "repeat_log": "/Users/jaeger/.codex/evidence/bpr1523-native-portability-jsim8_uo/native/windows-repeat.utf8.log",
+    "mechanism": "not yet proven; new implementer read-only diagnosis assigned by coordinator"
+  },
+  "ownership": "Engineering commands quiescent; canonical closeout and exact-source producer metadata sync are final owned operations. Azure console/wizard remain an explicit separate operational handoff.",
+  "producer_roots": {
+    "mac": "/Users/jaeger/Documents/Codex/releases/v0.2.1-macos",
+    "windows": "C:/Users/mikem/bpr-v021",
+    "ubuntu": "/home/mmarcin/bpr-v021"
+  },
+  "next": "Coordinator takes clean final source for release planning; performance implementer owns new bounded diagnosis after explicit source/PC handoff. No signing/publication before required gates and same final source.",
+  "limits": "No full gate, signing, packaging or publication performed. Existing RFC0038 M8/M9 native, vault, crash and vulnerability gaps remain. Fresh Azure profile only valid after supported exact object-ID proof.",
+  "commands": {
+    "engineering": "none active",
+    "azure_wizard_exec": 49297,
+    "azure_console_task": "BPR-v021-signer-reconnect-console-1523",
+    "completed_windows_signin_wizard_exec": 59775
+  }
 }

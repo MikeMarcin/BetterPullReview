@@ -1,1 +1,89 @@
-{"schema": "implement-rfc.milestone-checkpoint.v1", "run_id": "release-v0.2.1", "segment_id": "BPR-1523-native-portability", "mandate_revision": "owner-20261014-use-implementers", "selection": {"schema": "implement-rfc.strategy-selection.v1", "strategy": "coordinator-implementer", "topology_id": "coordinator-implementer", "recipe_revision": "2", "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14", "routing": {}, "requirement_profile": "coordinator-implementer", "owners": {"engineering": "implementer", "bookkeeping": "implementer", "product_edits": "implementer"}, "delegation": "recipe", "instruction_paths": ["references/engineering-contract.md", "references/strategies/coordinator-implementer.md"], "configuration_complete": true, "missing_routes": [], "host_load": "not_verified"}, "target": "BPR-1523", "binding": {"plan_id": "bpr-1523-native-release-portability", "plan_path": "docs/rfcs/plans/bpr-1523-native-release-portability/milestone-plan.json", "milestone_id": "native-portability", "definition_fingerprint": "sha256:4b25f35a5ee1cd87df26df658032733437c11dde286e26d439af8a1d2ea7ee7c", "obligations": [{"id": "BPR-1523:AC1", "source": "BPR-1523", "selector": "AC1", "source_fingerprint": "sha256:9afc0239e5de667ee4d892625f7c49b998cdc1859c7695f91986fb16a2be1f8e"}, {"id": "BPR-1523:AC2", "source": "BPR-1523", "selector": "AC2", "source_fingerprint": "sha256:9afc0239e5de667ee4d892625f7c49b998cdc1859c7695f91986fb16a2be1f8e"}, {"id": "BPR-1523:AC3", "source": "BPR-1523", "selector": "AC3", "source_fingerprint": "sha256:9afc0239e5de667ee4d892625f7c49b998cdc1859c7695f91986fb16a2be1f8e"}], "obligation_fingerprint": "sha256:ace1acdd7a917d678305aa9abf9541f6e6710d0c6fb515e7e0174ce9715402e7", "exit_criteria": [{"id": "native-portability:exit:1", "text": "Reproduce current native failures on exact committed release source and preserve original logs separately."}, {"id": "native-portability:exit:2", "text": "Apply minimal portable-source corrections without changing assertions, product behavior or global authentication/build policy."}, {"id": "native-portability:exit:3", "text": "Affected native target builds, focused portable tests, format22 and documentation pass; exact source and remaining full release/human prerequisites are recorded."}], "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a", "structural": "valid", "references": "resolved", "semantic_coverage": "unknown", "diagnostics": [], "diagnostics_truncated": false}, "target_milestones": ["native-portability"], "repository_state": {"source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview", "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview", "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git", "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git", "source_branch": "main", "source_revision": "a71f8bddaf9544a15769b1dbbbed6533c157bf05", "workflow_branch": "main", "workflow_revision": "a71f8bddaf9544a15769b1dbbbed6533c157bf05"}}
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "release-v0.2.1",
+  "segment_id": "BPR-1523-native-portability",
+  "mandate_revision": "owner-20261014-use-implementers",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1523",
+  "binding": {
+    "plan_id": "bpr-1523-native-release-portability",
+    "plan_path": "docs/rfcs/plans/bpr-1523-native-release-portability/milestone-plan.json",
+    "milestone_id": "native-portability",
+    "definition_fingerprint": "sha256:4b25f35a5ee1cd87df26df658032733437c11dde286e26d439af8a1d2ea7ee7c",
+    "obligations": [
+      {
+        "id": "BPR-1523:AC1",
+        "source": "BPR-1523",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:115f9388deac46099db0f09bb6982e5551c31d189f4b31c1d61dacbb9118e442"
+      },
+      {
+        "id": "BPR-1523:AC2",
+        "source": "BPR-1523",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:115f9388deac46099db0f09bb6982e5551c31d189f4b31c1d61dacbb9118e442"
+      },
+      {
+        "id": "BPR-1523:AC3",
+        "source": "BPR-1523",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:115f9388deac46099db0f09bb6982e5551c31d189f4b31c1d61dacbb9118e442"
+      }
+    ],
+    "obligation_fingerprint": "sha256:75ff8a4ed0f2897bed1c83d10cde819cdf009c7df760d5206002dc0fd56e3883",
+    "exit_criteria": [
+      {
+        "id": "native-portability:exit:1",
+        "text": "Reproduce current native failures on exact committed release source and preserve original logs separately."
+      },
+      {
+        "id": "native-portability:exit:2",
+        "text": "Apply minimal portable-source corrections without changing assertions, product behavior or global authentication/build policy."
+      },
+      {
+        "id": "native-portability:exit:3",
+        "text": "Affected native target builds, focused portable tests, format22 and documentation pass; exact source and remaining full release/human prerequisites are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "native-portability"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0",
+    "workflow_branch": "main",
+    "workflow_revision": "dcc5ace22d16583f32b48fe71a5f1842c214d2d0"
+  }
+}
