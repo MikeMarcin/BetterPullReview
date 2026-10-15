@@ -1772,6 +1772,13 @@ namespace bpr::qt {
 		void release_text_cache(QTextLayout& aLayout, QPainter& aPainter)
 		{
 			aLayout.setCacheEnabled(false);
+			if (aLayout.lineCount() == 0) {
+				// A native relayout can clear only the line list, retaining glyph
+				// data. Complete an empty layout to release it and keep zero lines.
+				aLayout.beginLayout();
+				aLayout.endLayout();
+				return;
+			}
 			const auto above = aLayout.position().y() + aLayout.boundingRect().top() - 2.0;
 			aLayout.draw(&aPainter, QPointF{ }, { }, QRectF{ 0.0, above, 1.0, 1.0 });
 		}
@@ -1796,12 +1803,16 @@ namespace bpr::qt {
 				CachedTextCursors.clear();
 				CachedTextDocument = document();
 			}
-			auto       visibleCursors = QList<QTextCursor>{ };
-			auto       visibleNumbers = QSet<int>{ };
-			auto       offset         = contentOffset();
-			auto       exposed        = aEvent->rect();
-			const auto viewportRect   = viewport()->rect();
-			const auto maximumWidth   = document()->documentLayout()->documentSize().width();
+			auto visibleCursors = QList<QTextCursor>{ };
+			auto visibleNumbers = QSet<int>{ };
+			visibleCursors.reserve(CachedTextCursors.size());
+			visibleNumbers.reserve(CachedTextCursors.size());
+			auto       retained     = CachedTextCursors.cbegin();
+			const auto retainedEnd  = CachedTextCursors.cend();
+			auto       offset       = contentOffset();
+			auto       exposed      = aEvent->rect();
+			const auto viewportRect = viewport()->rect();
+			const auto maximumWidth = document()->documentLayout()->documentSize().width();
 			// As Qt does: the brush origin for wave underlines, and the right
 			// margin kept clear of a full-width selection.
 			painter.setBrushOrigin(offset);
@@ -1847,7 +1858,13 @@ namespace bpr::qt {
 				auto* const layout = block.layout();
 				if (layout != nullptr) {
 					layout->setCacheEnabled(true);
-					visibleCursors.push_back(QTextCursor{ block });
+					// Persistent cursors stay in document order through edits. Copy
+					// their shared Qt state for retained rows instead of allocating
+					// and registering a new private cursor for every row on every paint.
+					while (retained != retainedEnd && retained->blockNumber() < block.blockNumber()) {
+						++retained;
+					}
+					visibleCursors.push_back(retained != retainedEnd && retained->block() == block ? *retained : QTextCursor{ block });
 					visibleNumbers.insert(block.blockNumber());
 				}
 				if (layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {

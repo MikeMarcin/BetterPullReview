@@ -8,7 +8,7 @@ No subagents, auth, signing, publication or owner desktop interaction.
 
 ## Candidate and completed evidence
 
-Code candidate `d897dc2397c42187c71eb150f0288f647c66cd78` on `codex/v021-windows-gate-fixes` in
+Last tested Windows candidate `80988abd1b303728903d98cfcd51a4ec0ac84506` on `codex/v021-windows-gate-fixes` in
 `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
 Windows repair branch `codex/bpr1525-native-repair-r2` in
 `C:/Users/mikem/bpr-v021`; clean original 8f0d25418 preserved separately.
@@ -60,40 +60,40 @@ clipped public draw; the flag-count regression alone is not allocation proof.
 Actual Mac large-review resource course passes. Preserve BPR-1032's memory
 contract; the rejected bare-block cache lifetime prototype remains documented.
 
-Windows r25 is now Ready/quiescent. At d897dc239 scale100 passes116.26s;
-125/200 time out120.02s. The shared-painter oracle and4 axis scales pass.
-No partial pass closes the gate. PC has no active owned native/WSL command.
+Code candidate4af0e4e2b is committed. Windows r26 is Ready: native pixel+4
+axis oracles pass, whole100/125 pass108.36/114.79s, whole200 times out120.01s.
+Mac peer source7/7 scales and two font/text guard negative controls pass as
+recorded; actual default-vs-different paint-device contexts are explicit.
 
-An uncommitted peer-record candidate now reuses existing16-byte extents for
-same-index identical plain ASCII rows under exact matching live cache/font/
-device/DPR/options facts. All mismatches keep Qt shaping and native widest-line
-behavior. The new regression asserts full reuse, changed-row-only fallback,
-font/device/revision fallback and exact Qt boundaries/range. It also fixed a
-stale previous-font maximum by rebuilding the measured maximum from current
-extents. Mac7/7 workbench/axis scales pass. Removing font or text guards causes
-native boundary/range failures; restored/touched/recompiled source passes4/4.
-No active Mac command remains after negative-control exec25647 completed.
+The200-scale diagnostic completed all unchanged assertions in127.56s. The
+explicit separate restore completed exit0, verified the original absolute
+source bytes, removed only the hash-matched owned `e`, touched and recompiled
+the normal test. Its original failed cleanup receipt is retained honestly.
+Normal r27 at80988abd1 passes native pixel+4 axis oracles, but200 still times
+out120.01s;100/125 were not attempted in r27. PC is quiescent.
 
-Full core-only276-course coverage is complete:272 initial positives plus4
-corrected setup reruns. MASK restored only declared locked ignored local links/
-roles, no tracked declaration or actual runtime switch. The fourth failure was
-an unwarmed pinned dependency in the new cache; all4 rerun normally contained
-using dev's prepared pinned cache. Explicit tidy22 at d897dc239 passes6 TUs;
-peer production/test changes still require tidy. No review server is active.
-The dead LLDB child30243 is a zombie awaiting init reap, not a writer.
+The next committed candidate reuses retained persistent Qt cursors for rows
+that remain visible, avoiding repeated private cursor allocation/registration
+on every paint. Retirement also handles a native layout whose line list was
+cleared while glyph data remained: an empty noncached layout releases that
+data and preserves zero lines. Mac3 complete scales+large-review resource
+course pass9.82/9.86/11.41/5.93s, strict tidy22 passes. Original tests, budgets,
+inputs and deadlines are unchanged. No Mac command/server is active. Dead
+LLDB child30243 remains a zombie awaiting init reap, not a writer.
 
-NEXT: commit this reviewed peer candidate and send an exact r26 bundle to the
-quiescent Windows repair branch; run new4-scale geometry oracles and3 original
-normal workbench scales without independent PC workload. Do not start WSL
-until those finish. Existing WSL bundle/scripts target d897dc239 and are now
-STALE: regenerate and update their exact expected SHA to the final peer
-candidate before dispatch. Preserve clean8f0d history, use an owned Ubuntu
-repair branch, normal dev compile and16 focused matcher/workshop/provider/core/
-Qt courses. No full Ubuntu gate or package.
+Full core-only276-course coverage is complete (272 original positives +4
+corrected setup reruns), including both architecture checks. MASK restoration
+and prepared-cache selection changed no tracked declarations or runtime route.
+
+NEXT: run exact next committed candidate on Windows,200 first then100/125
+and native geometry/pixel oracles. Existing WSL r1 bundle/script targets
+old d897dc239 and is STALE: regenerate + update exact expected SHA before
+dispatch. Ubuntu26.04 focused compile/16 courses remains mandatory after
+Windows focused work quiesces, no full release/package.
 
 ## Next action and remaining obligations
 
-Inspect r25 normal result and finish the demonstrated workbench repair without weaker
+Finish the demonstrated workbench repair without weaker
 assertions, inputs or timeouts. Complete current strict tidy, self-review and
 final format/documentation gates. Then, after all Windows commands are quiescent,
 preserve/reuse `/home/mmarcin/bpr-v021` in Ubuntu 26.04 WSL on an owned repair

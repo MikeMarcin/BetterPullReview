@@ -456,3 +456,13 @@ Strict tidy also corrected the new helper's const local return to allow a
 QString move, and mechanically renamed inherited `stale_after` in the axis
 TU. No naming suppression or gate relaxation. Exact-source Windows200 and
 then100/125, plus the Ubuntu affected-path pass, remain open.
+
+At80988abd1, r27 again passes the native pixel oracle and4 axis scales;
+normal200 times out120.01s. The next candidate reuses persistent Qt cursors
+already held for visible rows instead of allocating/registering a new private
+cursor per row on every paint. The document-ordered handles remain valid
+through edits. A zero-line retirement corner now completes an empty noncached
+layout, releasing glyph data retained after native relayout cleared only the
+line list. All3 Mac workbench scales and the actual large-review resource
+course pass9.82/9.86/11.41/5.93s; strict tidy22 passes. Native Windows
+acceptance remains pending, with all original inputs/assertions/deadlines.
