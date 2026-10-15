@@ -6,7 +6,7 @@ status: "In Progress"
 rfcs: ["RFC-BPR-0077", "RFC-BPR-0082"]
 depends_on: []
 priority: "P1"
-metadata: {"source":"0.2.1 native full gate at 8f0d25418cd4278065d5a043dabaa728feb202f1","assigned_implementer":"/root/windows_gate_fixes","milestone_plan":{"id":"bpr-1525-windows-release-gates","path":"docs/rfcs/plans/bpr-1525-windows-release-gates/milestone-plan.json"}}
+metadata: {"source":"0.2.1 native full gate at 8f0d25418cd4278065d5a043dabaa728feb202f1","assigned_implementer":"/root/bpr1525_implementer","milestone_plan":{"id":"bpr-1525-windows-release-gates","path":"docs/rfcs/plans/bpr-1525-windows-release-gates/milestone-plan.json"}}
 ---
 
 # BPR-1525: Restore Windows release gate contracts
@@ -23,3 +23,12 @@ The Windows normal production gate reports deterministic source Find/PR Search f
 ## Ownership
 
 Own the two source-course fixture generators, Windows isolation manifest and counterexample probes, application matcher cancellation wait and its two application construction sites, focused evidence and this card. The application callback repair is authorized by the release coordinator. Do not edit active producers or launch competing Windows/WSL work while their full gate runs.
+
+The coordinator's continuation also assigns the normal gate's discovered
+reader/harness and CLI fixture failures: Windows directory-identity oracle,
+the exact Git literal-prefix compatibility choice, selected Python runtime
+containment setup, and unsupported-platform CLI test composition. Preserve
+Windows production CLI unavailability, the conservative capture exclusion and
+all original assertions and budgets. The provider timeout still requires a
+demonstrated cause before any repair. The [verification record](../../verification/BPR-1525-windows-release-gates.md)
+and [handoff](../_checkpoints/BPR-1525/HANDOFF.md) retain the current frontier.

@@ -121,3 +121,106 @@ Inspect native task/log before any run. Complete bounded native measurements,
 child-launch diagnosis, cancellation public-host tests and race review. Preserve
 all original failure evidence and assertions. Finish BPR1525 only after every
 AC and exit is supported; full release gates/signing/publication remain root.
+
+## Active native implementer continuation (2026-10-15 UTC)
+
+Owner `/root/bpr1525_implementer`, native role `rfc-implementer`, configured
+`gpt-6.1-sol` / `xhigh`; no differing effective runtime value was exposed.
+Mandate remains `authorized-release-continuation`, selection and milestone unchanged.
+Fresh binding is `implementer-binding.json`; adopted source `a8abc5451`.
+No ownership of a running command was inherited. No subagents spawned.
+
+Original Windows gate is still active (most recent observation 372/705); its
+source, build, task and processes remain untouched. No new Windows/WSL tests or
+builds, and no Mac compilation, have been launched by this implementer.
+Original log snapshot and CTest manifest are retained outside Git at
+`/tmp/bpr1525-original-windows.log` (UTF-16) and `/tmp/bpr1525-manifest.json`.
+
+Additional bounded repairs in the worktree, native verification pending:
+
+- `tests/workspace_contract/git_metadata_oracle.hpp`: use native directory file
+  IDs on Windows. 85 of the original 89 unclassified GMR findings are C4; the
+  old Windows oracle always returned no identity while K returned actual IDs.
+- `tests/workspace_contract/{review_cycle_git_reader_tests.cpp,git_metadata_harness.cpp}`:
+  retain conservative capture exclusion for `config/local**/*.pem` matching
+  `config/local/a/key.pem`. Apple Git 2.50.1 ignores it; the original Windows
+  Git 2.55 oracle keeps it (four C5/C5-capture findings, both ignoreCase settings).
+  Upstream `dir.c::match_pathname` changed from stripping the entire literal
+  prefix in v2.50.1 to retaining one byte in v2.55.0. The coordinator confirms
+  existing RFC83 H1's documented deliberate-choice rule covers preserving this
+  confidential-capture policy. Classification binds candidate/component/case,
+  exact subject and both actual answers; unknown/reversed findings still fail.
+  The reader row asserts either known Git result independently and retains the
+  existing capture exclusion assertion. Exact native corrected course pending.
+- `cmake/WindowsTestIsolationSetup.cmake`: configure-time contained Python
+  descendant probe; only if it fails, grant the named test container RX to the
+  canonical selected interpreter runtime directory and re-probe. No capability
+  or broad machine ACE changes. The real CTest interpreter is the per-user
+  `C:/Users/mikem/AppData/Local/Python/pythoncore-3.14-64/python.exe`; its image
+  ACL has neither package nor named-container access. Program Files Python has
+  package RX but is not the selected interpreter. This corrects the previous
+  handoff's incomplete image diagnosis. Native negative/control evidence pending.
+
+Primary source evidence for Git's compatibility difference:
+`https://raw.githubusercontent.com/git/git/v2.50.1/dir.c` and
+`https://raw.githubusercontent.com/git/git/v2.55.0/dir.c` (`match_pathname`).
+
+`gh_cli_transport` has a test-composition mismatch: RFC78's new strict acquisition
+courses expect sensitive dispatch on Windows, while production deliberately
+refuses pinned Windows launches before the fake port (POSIX-only private account
+directory). No production auth change is authorized. Inspect/qualify exact
+Windows unavailable behavior and preserve portable compiler/parser checks.
+`github_provider` timeout cause remains unproven and needs native tracing after
+producer quiescence. Original full gate may reveal more failures.
+
+Next: keep native gate intact; after it exits, collect complete results, reproduce
+selected-Python contained descendant failure, verify narrow runtime permission
+repair and nine genuine contained measurements, then build/test exact corrected
+candidate in a separate owned Windows repair checkout. No acceptance or release
+source freeze is claimed. Formatter 22.1.8 applied to new workspace C++ edits;
+`git diff --check` passes. All changed/new code still requires focused native
+and portable verification before canonical finish.
+
+## Quiescent checkpoint authorized by coordinator
+
+Root instructed this implementer to finish static/doc checks, commit an
+intentional checkpoint and return while the original native gates retain their
+stations. Resume SAME implementer when root releases the first native slot.
+Source ownership is preserved here; root will not edit this worktree. No
+attended wait or human decision is being handed off.
+
+Implemented test-only CLI correction: portable configuration/request compiler,
+inventory/help parsers and changed-executable refusal always run. Windows has
+actual cloud/GHES pinned read/capability/mutation tool-refusal checks with no
+credential/API/witness/private-config effects; successful private-account
+strict dispatch/recovery courses report an explicit POSIX-only skip. No
+production authentication/profile changes. Native compile and acceptance pending.
+
+Latest original Windows observation418/705 adds `qt_diff_workbench_scale_100`
+timeout120.01s; output only offscreen size-hint warnings, scale125 then started.
+Cause unproven. Collect final inventory before repair/scope decisions; do not
+change timeout. Existing `github_provider` timeout and nine containment pins
+also remain pending. Both full gates remain untouched and active.
+
+Verification now completed: documentation gate passes; verifier tests67/67 pass
+(their intentional negative-control ERROR messages are expected); format22.1.8
+checks all8 touched C++ files; diff whitespace clean. Self-reviewed synchronized
+matcher wait, native file-handle lifetime, exact answer-bound classification,
+conditional selected-runtime ACL scope and Windows zero-effect fixture path.
+No C++ compilation/tidy, corrected native pass or classification/race negative
+control is claimed. Original portable fixture/CRLF controls from a8abc5451 are
+unchanged and retained.
+
+Exact next native commands, target names, environment/token requirements and
+pending controls are in `NATIVE_NEXT.md`. Disposable measurement script
+`/tmp/bpr1525-measure-native.py` is syntax checked only. Keep it, original log
+snapshots and manifest outside Git for resumption. No task-owned process,
+build, test, server or remote mutation is left running. No original producer
+or native station process was stopped. No integration to main or release-source
+freeze has occurred.
+
+Actual runtime/mandate binding is `runtime-binding.json`, paired with the strict
+shared `implementer-binding.json` schema. The shared checker requires a separate
+structured observation; the initial invocation omitted it and was refused.
+The corrected pending observation is retained under this worktree's private
+`.mask/sessions/BPR-1525/` runtime directory after the checkpoint commit.

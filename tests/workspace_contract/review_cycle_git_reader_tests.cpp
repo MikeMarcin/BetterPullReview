@@ -237,9 +237,16 @@ namespace {
 		const auto [outcome, manifest] = capture(repo);
 		expect(outcome.Status == cycle_capture_status::captured && manifest, "captured");
 		expect(excluded(*manifest, "a b") && excluded(*manifest, "xzy") && excluded(*manifest, "7Q"), "classes match what Git ignores");
-		const auto oracle = aGit.output(repo, { "check-ignore", "--no-index", "config/local/a/key.pem" }, aScratch / "prefix.out");
-		expect(oracle == "config/local/a/key.pem", "Git ignores a path below a double star after the literal part");
-		expect(core::find_entry(*manifest, "config/local/a/key.pem") == nullptr, "and so does capture");
+		const auto output = aScratch / "prefix.out";
+		const auto status = aGit.status(repo, { "check-ignore", "--no-index", "config/local/a/key.pem" }, std::nullopt, output);
+		const auto oracle = read_file(output);
+		// Git 2.50.1 stripped the literal prefix before wildmatch, making this
+		// `**` cross directories. Git 2.55 retains a prefix byte and keeps the
+		// path. Capture preserves the previously qualified, conservative exclusion.
+		const auto legacy = status == 0 && (oracle == "config/local/a/key.pem\n" || oracle == "config/local/a/key.pem\r\n");
+		expect(legacy || (status == 1 && oracle.empty()), "the Git oracle independently reports one of the two known literal-prefix double-star behaviors");
+		std::cout << "NATIVE: Git literal-prefix double star " << (legacy ? "ignores" : "keeps") << "; capture preserves its conservative exclusion\n";
+		expect(core::find_entry(*manifest, "config/local/a/key.pem") == nullptr, "capture preserves its conservative literal-prefix exclusion");
 		expect(core::find_entry(*manifest, "x y") != nullptr, "a negated class keeps what Git keeps");
 		std::cout << "NATIVE: POSIX bracket classes match as Git's\n";
 	}

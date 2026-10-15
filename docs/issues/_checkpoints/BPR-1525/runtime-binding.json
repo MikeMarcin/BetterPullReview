@@ -1,0 +1,17 @@
+{
+  "role": "rfc-implementer",
+  "model": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "evidence": "native role assigned; configured banner emitted; no differing effective model/effort exposed",
+  "mandate": "authorized-release-continuation",
+  "owner": "/root/bpr1525_implementer",
+  "command_state": "quiescent; original producers active and untouched",
+  "acceptance": "pending native verification,9 measurements and timeout diagnoses",
+  "schema": "bpr.engineering-runtime-binding.v1",
+  "plan_checkpoint": "implementer-binding.json",
+  "run_id": "release-v0.2.1",
+  "segment_id": "windows-gate-fixes",
+  "mandate_revision": "authorized-release-continuation",
+  "milestone": "native-gate-contracts",
+  "plan_definition_fingerprint": "sha256:64d91eb6ab4fb9f79cdef5bea43663e1eeea3bd128397a8926ac424d12136761"
+}

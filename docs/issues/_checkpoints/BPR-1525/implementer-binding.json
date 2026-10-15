@@ -1,0 +1,99 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "release-v0.2.1",
+  "segment_id": "windows-gate-fixes",
+  "mandate_revision": "authorized-release-continuation",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1525",
+  "binding": {
+    "plan_id": "bpr-1525-windows-release-gates",
+    "plan_path": "docs/rfcs/plans/bpr-1525-windows-release-gates/milestone-plan.json",
+    "milestone_id": "native-gate-contracts",
+    "definition_fingerprint": "sha256:64d91eb6ab4fb9f79cdef5bea43663e1eeea3bd128397a8926ac424d12136761",
+    "obligations": [
+      {
+        "id": "BPR-1525:AC1",
+        "source": "BPR-1525",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:2933bf91ce946bb986a4b88c7661772dfe6eb124fb002709864a6b9f56210a11"
+      },
+      {
+        "id": "BPR-1525:AC2",
+        "source": "BPR-1525",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:2933bf91ce946bb986a4b88c7661772dfe6eb124fb002709864a6b9f56210a11"
+      },
+      {
+        "id": "BPR-1525:AC3",
+        "source": "BPR-1525",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:2933bf91ce946bb986a4b88c7661772dfe6eb124fb002709864a6b9f56210a11"
+      },
+      {
+        "id": "BPR-1525:AC4",
+        "source": "BPR-1525",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:2933bf91ce946bb986a4b88c7661772dfe6eb124fb002709864a6b9f56210a11"
+      }
+    ],
+    "obligation_fingerprint": "sha256:1fca2306be253653ef0de366c230975eedd48cc3adc30d3e955988835ed622c6",
+    "exit_criteria": [
+      {
+        "id": "native-gate-contracts:exit:1",
+        "text": "Identify and retain each original failure and exact-source cause."
+      },
+      {
+        "id": "native-gate-contracts:exit:2",
+        "text": "Repair fixture byte generation and production cancellation with no weaker assertions or thresholds."
+      },
+      {
+        "id": "native-gate-contracts:exit:3",
+        "text": "Measure each new Windows containment refusal and prove a contained grandchild network denial."
+      },
+      {
+        "id": "native-gate-contracts:exit:4",
+        "text": "Pass focused native and portable checks, documentation and return explicit remaining release obligations."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "native-gate-contracts"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/v021-windows-gate-fixes",
+    "source_revision": "a8abc54518d951eface82c177ae5843c09ac59eb",
+    "workflow_branch": "codex/v021-windows-gate-fixes",
+    "workflow_revision": "a8abc54518d951eface82c177ae5843c09ac59eb"
+  }
+}

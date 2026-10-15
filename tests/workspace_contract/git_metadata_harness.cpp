@@ -85,6 +85,9 @@ namespace {
 		std::string_view Subject;
 		std::string_view Kind;
 		std::string_view Reason;
+		/// When supplied, both observed answers must match before classification.
+		std::string_view OracleAnswer{ };
+		std::string_view CandidateAnswer{ };
 	};
 
 	/// Components that read the repository format first, and so refuse
@@ -126,6 +129,13 @@ namespace {
 								"discovery opens the Git directories and reads no config; Git dies on the config before printing them, and every config-reading component refuses as Git does" });
 		}
 		// C5 and C6.
+		for (const auto* name : { "ignorecase-true", "ignorecase-false" }) {
+			for (const auto component : { std::string_view{ "C5" }, std::string_view{ "C5-capture" } }) {
+				entries.push_back({ "K", component, name, "config/local/a/key.pem", "deliberate",
+									"config/local**/*.pem: capture preserves Git 2.50.1's conservative exclusion; Git 2.55 retains one literal-prefix byte before wildmatch and keeps this path (BPR-1525); both core.ignoreCase settings are probed",
+									"kept", component == "C5" ? "ignored" : "excluded" });
+			}
+		}
 		entries.push_back({ "K", "C5", "ignorecase-latin1", "\xE9t\xE9.txt", "deliberate",
 							"these readers fold ASCII case only; Git under a UTF-8 locale on macOS also folds this Latin-1 byte through the C library (under LC_ALL=C it does not)" });
 		entries.push_back({ "K", "C6", "attributes-deleted-from-worktree", "a.bin", "deliberate",
@@ -257,7 +267,7 @@ namespace {
 				return;
 			}
 			for (const auto& item : aResult.Findings) {
-				const auto* found = classify(aResult.Candidate, aResult.Component, aResult.Case, item.Subject);
+				const auto* found = classify(aResult.Candidate, aResult.Component, aResult.Case, item);
 				const auto  kind  = found != nullptr ? std::string{ found->Kind } : std::string{ "UNCLASSIFIED" };
 				const auto  why   = found != nullptr ? std::string{ found->Reason } : std::string{ };
 				if (found == nullptr) {
@@ -311,14 +321,18 @@ namespace {
 		}
 
 	private:
-		auto classify(const std::string_view aCandidate, const std::string_view aComponent, const std::string_view aCase, const std::string_view aSubject) -> const classification*
+		auto classify(const std::string_view aCandidate, const std::string_view aComponent, const std::string_view aCase, const finding& aFinding) -> const classification*
 		{
 			const classification* general = nullptr;
 			for (const auto& entry : registry()) {
 				if (entry.Candidate != aCandidate || entry.Component != aComponent || entry.Case != aCase) {
 					continue;
 				}
-				if (entry.Subject == aSubject) {
+				if ((!entry.OracleAnswer.empty() && entry.OracleAnswer != aFinding.Oracle)
+					|| (!entry.CandidateAnswer.empty() && entry.CandidateAnswer != aFinding.Candidate)) {
+					continue;
+				}
+				if (entry.Subject == aFinding.Subject) {
 					Used.insert(&entry);
 					return &entry;
 				}
