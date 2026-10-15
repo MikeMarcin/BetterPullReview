@@ -1254,6 +1254,7 @@ namespace bpr::qt {
 			add_button*                                       AddButton = nullptr;
 			QColor                                            GutterBackground;
 			QColor                                            GutterText;
+			code_gutter_text_cache                            GutterLabels;
 			std::vector<std::uint32_t>                        Boundaries;
 			QColor                                            RuleColor;
 			std::optional<std::uint32_t>                      ConversationAnchor;
@@ -1914,6 +1915,7 @@ namespace bpr::qt {
 		void source_pane::paint_line_numbers(QPaintEvent* const aEvent)
 		{
 			auto painter = QPainter{ Gutter };
+			GutterLabels.retain_visible_rows(static_cast<int>(CachedTextCursors.size()));
 			painter.fillRect(aEvent->rect(),
 							 GutterBackground.isValid()
 								 ? GutterBackground
@@ -1929,8 +1931,8 @@ namespace bpr::qt {
 			const auto numbers      = Gutter->width();
 			if (UnifiedRows != nullptr) {
 				const auto column = numbers / 2;
-				painter.drawText(0, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("base"));
-				painter.drawText(column, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("head"));
+				GutterLabels.draw(painter, QRect{ 0, 0, column - GutterPadding, headerHeight }, QStringLiteral("base"));
+				GutterLabels.draw(painter, QRect{ column, 0, column - GutterPadding, headerHeight }, QStringLiteral("head"));
 				painter.setClipRect(QRect{ 0, headerHeight, Gutter->width(), Gutter->height() - headerHeight });
 			}
 			auto top = blockBoundingGeometry(block)
@@ -1970,8 +1972,7 @@ namespace bpr::qt {
 							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 								const auto number = side == core::diff_side::left ? row.Base : row.Head;
 								if (number) {
-									painter.drawText(side == core::diff_side::left ? 0 : columnWidth, qRound(top), columnWidth - GutterPadding,
-													 qRound(height), Qt::AlignRight | Qt::AlignVCenter, QString::number(*number + 1U));
+									GutterLabels.draw(painter, QRect{ side == core::diff_side::left ? 0 : columnWidth, qRound(top), columnWidth - GutterPadding, qRound(height) }, QString::number(*number + 1U));
 									++PaintedLineNumbers;
 								}
 							}
@@ -1983,12 +1984,7 @@ namespace bpr::qt {
 							painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(numbers), height }, wash);
 						}
 						paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
-						painter.drawText(0,
-										 qRound(top),
-										 right,
-										 qRound(height),
-										 Qt::AlignRight | Qt::AlignVCenter,
-										 QString::number(block.blockNumber() + 1));
+						GutterLabels.draw(painter, QRect{ 0, qRound(top), right, qRound(height) }, QString::number(block.blockNumber() + 1));
 						++PaintedLineNumbers;
 					}
 				}

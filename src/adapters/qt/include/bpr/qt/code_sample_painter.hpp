@@ -7,13 +7,17 @@
 #include "bpr/core/white_space.hpp"
 
 #include <QByteArray>
+#include <QCache>
 #include <QColor>
+#include <QFont>
 #include <QList>
 #include <QRectF>
+#include <QStaticText>
 #include <QString>
 #include <QStringView>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QTransform>
 
 #include <array>
 #include <cstdint>
@@ -21,13 +25,37 @@
 #include <span>
 #include <vector>
 
-class QFont;
 class QPainter;
+class QPaintDevice;
 class QPlainTextEdit;
 class QTextBlock;
 class QTextDocument;
 
 namespace bpr::qt {
+	/// Keeps only a viewport's worth of number/header layouts. Qt supplies the
+	/// exact right/vertical-center placement and all glyphs; colours stay live.
+	class code_gutter_text_cache final
+	{
+	public:
+		void retain_visible_rows(int aRows);
+		void draw(QPainter& aPainter, const QRect& aRect, const QString& aText);
+
+	private:
+		struct label
+		{
+			QStaticText Text;
+			QPointF     Offset;
+			QSize       Cell;
+		};
+		QCache<QString, label> Labels;
+		QFont                  Font;
+		QTransform             Transform;
+		const QPaintDevice*    Device           = nullptr;
+		qreal                  DevicePixelRatio = 0.0;
+		int                    LogicalDpiX      = 0;
+		int                    LogicalDpiY      = 0;
+	};
+
 	/// \brief One colour per core role, indexed by the role's own value.
 	///
 	/// \details A token span names a role and never a colour, so this table is

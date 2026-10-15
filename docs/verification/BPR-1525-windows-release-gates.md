@@ -466,3 +466,31 @@ layout, releasing glyph data retained after native relayout cleared only the
 line list. All3 Mac workbench scales and the actual large-review resource
 course pass9.82/9.86/11.41/5.93s; strict tidy22 passes. Native Windows
 acceptance remains pending, with all original inputs/assertions/deadlines.
+
+### Caching repeated gutter number layouts
+
+Normal r28 at583a26d40 still times out200. A fresh keyboard-only native
+trace completes all its keyboard assertions43.68s: glyph draw19.48s and
+gutter6.31s, compared with814ms geometry and70.7ms selected-row regions.
+The diagnostic omits the full course's final pass marker, so its receipt is
+failed and supplies no normal acceptance. Its explicit two-source cleanup
+restores/touches/recompiles the normal binary with clean source. Initial
+preparation/build failures and their receipts are retained separately.
+
+The next candidate uses Qt's QStaticText for repeated plain number/header
+labels and Qt's bounded QCache for at most two labels per observed visible
+row plus two headers. Its coordinates come from the same native floating
+QPainter::boundingRect, with the same cell clipping. The integer overload
+was rejected by a disposable540-case pixel probe. Glyphs and live colours
+stay Qt's; font, device, DPR, logical DPI, transform or cell changes prevent
+stale reuse. Unexpected non-ASCII/nonlabel text takes the complete native
+path. No per-file glyph cache or geometry approximation is added.
+
+The production helper's native oracle compares1080 font/cell/DPR/colour
+combinations, including a second draw with a changed live pen. Mac painter,
+all3 complete workbench scales and actual large-review resources pass
+0.56/9.93/10.81/13.53/7.77s. Strict tidy22 passes all3 changed TUs.
+The fixed-device/fixed-cell font-change regression also passes. Removing
+floating placement or font invalidation causes the native oracle to fail
+(exit8 each); restored/touched/recompiled production passes. Strict tidy22
+passes the extended test. Windows normal duration acceptance remains pending.

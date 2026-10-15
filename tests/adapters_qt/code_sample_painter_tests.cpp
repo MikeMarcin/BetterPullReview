@@ -47,6 +47,75 @@ namespace {
 		}
 	}
 
+	void test_cached_gutter_labels_match_native_text()
+	{
+		auto cache = qt::code_gutter_text_cache{ };
+		cache.retain_visible_rows(3);
+		for (const auto ratio : { 1.0, 1.25, 2.0 }) {
+			for (const auto size : { 9, 12, 18 }) {
+				for (const auto& family : { QStringLiteral("Arial"), QFontDatabase::systemFont(QFontDatabase::GeneralFont).family(), QFontDatabase::systemFont(QFontDatabase::FixedFont).family() }) {
+					const auto font = QFont{ family, size };
+					for (const auto& text : { QStringLiteral("1"), QStringLiteral("111"), QStringLiteral("888888"), QStringLiteral("base"), QStringLiteral("head") }) {
+						for (const auto width : { 80, 200 }) {
+							for (const auto height : { QFontMetricsF{ font }.height() - 2.0, 42.0 }) {
+								auto native = QImage{ QSize{ qRound(240.0 * ratio), qRound(120.0 * ratio) }, QImage::Format_ARGB32_Premultiplied };
+								native.setDevicePixelRatio(ratio);
+								auto       cached = native.copy();
+								const auto rect   = QRect{ 7, 23, width, qRound(height) };
+								// The second draw hits the same label with a changed live pen.
+								for (const auto& ink : { QColor{ Qt::black }, QColor{ 80, 120, 160 } }) {
+									native.fill(Qt::white);
+									cached.fill(Qt::white);
+									{
+										auto painter = QPainter{ &native };
+										painter.setFont(font);
+										painter.setPen(ink);
+										painter.drawText(rect, Qt::AlignRight | Qt::AlignVCenter, text);
+									}
+									{
+										auto painter = QPainter{ &cached };
+										painter.setFont(font);
+										painter.setPen(ink);
+										cache.draw(painter, rect, text);
+									}
+									expect(native == cached, "cached labels preserve every native pixel across fonts, cells, DPR and live colours");
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	void test_cached_gutter_labels_reposition_after_font_change()
+	{
+		auto cache  = qt::code_gutter_text_cache{ };
+		auto native = QImage{ 400, 180, QImage::Format_ARGB32_Premultiplied };
+		native.setDevicePixelRatio(2.0);
+		auto       cached = native.copy();
+		const auto rect   = QRect{ 7, 23, 180, 42 };
+		const auto text   = QStringLiteral("888888");
+		// Keep both devices and the cell fixed: only the live font changes.
+		for (const auto size : { 9, 18, 12 }) {
+			auto font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			font.setPointSize(size);
+			native.fill(Qt::white);
+			cached.fill(Qt::white);
+			{
+				auto painter = QPainter{ &native };
+				painter.setFont(font);
+				painter.drawText(rect, Qt::AlignRight | Qt::AlignVCenter, text);
+			}
+			{
+				auto painter = QPainter{ &cached };
+				painter.setFont(font);
+				cache.draw(painter, rect, text);
+			}
+			expect(native == cached, "a font change repositions a retained label exactly as native text");
+		}
+	}
+
 	[[nodiscard]] auto bytes_of(const QByteArray& aBytes)
 		-> std::span<const std::uint8_t>
 	{
@@ -788,6 +857,8 @@ auto main(int argc, char** argv) -> int
 	test_each_choice_draws_the_white_space_it_names();
 	test_long_editor_white_space_matches_full_native_projection();
 	test_the_gutter_paints_the_numbers_it_was_given();
+	test_cached_gutter_labels_match_native_text();
+	test_cached_gutter_labels_reposition_after_font_change();
 	std::cout << "code-sample-painter-tests:pass\n";
 	return EXIT_SUCCESS;
 }

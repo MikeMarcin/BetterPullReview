@@ -72,14 +72,27 @@ the normal test. Its original failed cleanup receipt is retained honestly.
 Normal r27 at80988abd1 passes native pixel+4 axis oracles, but200 still times
 out120.01s;100/125 were not attempted in r27. PC is quiescent.
 
-The next committed candidate reuses retained persistent Qt cursors for rows
-that remain visible, avoiding repeated private cursor allocation/registration
-on every paint. Retirement also handles a native layout whose line list was
-cleared while glyph data remained: an empty noncached layout releases that
-data and preserves zero lines. Mac3 complete scales+large-review resource
-course pass9.82/9.86/11.41/5.93s, strict tidy22 passes. Original tests, budgets,
-inputs and deadlines are unchanged. No Mac command/server is active. Dead
-LLDB child30243 remains a zombie awaiting init reap, not a writer.
+Candidate583a26d40707fcac835e4caf483585eab121e963 reuses retained Qt cursors
+and retires zero-line glyph caches. Mac3 scales/resources pass4/4 and strict
+tidy22 passes, but Windows r28 still times out200 at120s. Native pixel+4 axis
+oracles pass5/5. A fresh current keyboard-only diagnostic completes its
+assertions43.68s: glyph draw19.48s, gutter6.31s, unified paint2.13s,
+geometry814ms, selected-row regions70.7ms. It deliberately lacks the full
+normal course's pass marker, so its CTest receipt remains failed. Two initial
+diagnostic preparation/build failures and their original receipts are kept;
+all temporary test/production bytes were restored and touched/recompiled.
+Windows source is clean583a26d40 and all tasks are Ready.
+
+The next candidate caches only a viewport's number/header layouts using Qt's
+QStaticText and QCache. Qt's floating boundingRect owns exact placement, live
+pens own colour, and font/device/DPI/transform/cell changes invalidate reuse.
+All original text, geometry, colours, selections, inputs and budgets remain.
+A native pixel oracle covers1080 font/cell/DPR/colour combinations. Mac
+painter+3 complete scales+resource check pass5/5; strict tidy22 passes3 TUs.
+The retained-font regression passes; integer-origin and stale-font
+counterexamples both fail, restored production passes and strict tidy22
+passes the test. All local commands are complete. No Windows/WSL task is active. Dead LLDB
+child30243 remains a zombie awaiting init reap, not a writer.
 
 Full core-only276-course coverage is complete (272 original positives +4
 corrected setup reruns), including both architecture checks. MASK restoration
