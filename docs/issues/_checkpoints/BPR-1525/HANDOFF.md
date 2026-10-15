@@ -224,3 +224,31 @@ shared `implementer-binding.json` schema. The shared checker requires a separate
 structured observation; the initial invocation omitted it and was refused.
 The corrected pending observation is retained under this worktree's private
 `.mask/sessions/BPR-1525/` runtime directory after the checkpoint commit.
+
+
+## Authorized combined native repair scope, revision 2
+
+The coordinator explicitly expanded this same single-implementer milestone to
+include separately tracked BPR-1526, allocated by root commit 4cc67de6836271c77a3e4e5bd7bfc719cc5c65ba
+and adopted here as bbbe57e96. This is an authorized scope/requirement
+reconciliation, not a grouping-only amendment: the shared plan amendment checker
+intentionally refuses changed scope/requirement atoms. Preserve the prior plan
+and binding in 0445d7e0afb1d75e3f695e4e282c6c5e37b8cce6 history. All original BPR-1525
+criteria and exits remain; BPR-1526 adds its own action acceptance unit and exit.
+Mandate revision: `authorized-release-continuation-native-gates-r2`.
+
+Both native slots are now released. Root stopped and preserved the original
+failed/incomplete gates: Windows 426/705 with 11 failures/timeouts; Mac 579/734
+with workshop press failure and recorded cache skip. Root verified the recorded
+process trees absent. We stopped neither original gate. We may reuse
+`C:/Users/mikem/bpr-v021` only on a clearly named repair branch after preserving
+its clean baseline, and build Mac only in this worktree. No auth/signout/reboot,
+release redispatch or main integration is authorized by station availability.
+
+The first Mac focused build compiled 832/838 steps and failed only because the
+Windows-only refusal helper was intentionally discarded but lacked an explicit
+maybe-unused annotation. Correct that scoped compile issue and continue native
+validation. Selected Windows Python diagnosis now reproduces the contained
+WinError 5 with the actual per-user executable; inside it sys.executable points
+to the inaccessible per-user image while sys.prefix points to Program Files.
+No positive ACL repair or focused corrected native pass is claimed yet.
