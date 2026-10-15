@@ -887,10 +887,10 @@ namespace {
 			   "a cut inside a two-byte character moves back to the character's start");
 		expect(cut.Rows[0].Emphasis.empty() && cut.Rows[1].Emphasis.empty(),
 			   "a change wholly past the cut is not drawn inside the shown part");
-		const auto clipDiff = run("abXdefghij\n", "abYdefghij\n");
+		const auto clipDiff = run("ab X defgh\n", "ab Y defgh\n");
 		const auto clipped  = line_details(indexed(clipDiff), diff_side::left, line_span{ 0U, 1U },
 										   line_details_limits{ .MaximumLines = 16U, .MaximumLineBytes = 4U });
-		expect(clipped.Rows.size() == 2U && clipped.Rows[0].Emphasis == std::vector{ byte_span{ 2U, 3U } }
+		expect(clipped.Rows.size() == 2U && clipped.Rows[0].Emphasis == std::vector{ byte_span{ 3U, 4U } }
 				   && clipped.Rows[0].OmittedBytes == 6U,
 			   "a change inside the shown part keeps its emphasis");
 		const auto huge     = std::string(100'000U, 'x');
