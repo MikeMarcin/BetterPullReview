@@ -25,8 +25,8 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
-#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -9895,6 +9895,7 @@ namespace {
 		code->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(QApplication::focusWidget() == code && firstChange->shortcut() == up, "the code has the keyboard and the keys are bound");
+		const auto workbenchBefore = log.Workbench.size();
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
 		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier | Qt::KeypadModifier);
@@ -9903,7 +9904,7 @@ namespace {
 		};
 		expect(log.Change.size() == 3U && outermost(log.Change[0], core::change_navigation_direction::next)
 				   && outermost(log.Change[1], core::change_navigation_direction::previous) && outermost(log.Change[2], core::change_navigation_direction::next)
-				   && QApplication::focusWidget() == code && log.Workbench.empty(),
+				   && QApplication::focusWidget() == code && log.Workbench.size() == workbenchBefore,
 			   "Option-Shift-Down, Option-Shift-Up and the keypad-marked Option-Shift-Down in the code are Last, First and Last change");
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
 		expect(log.Change.size() == 4U && log.Change.back().Reach == core::change_navigation_reach::adjacent,
@@ -10002,8 +10003,7 @@ namespace {
 		editor->set_dispatch([&moves](const core::tour_command& aCommand) {
 			if (aCommand.Kind == core::tour_command_kind::move) {
 				moves.push_back(aCommand.Position);
-			}
-		},
+			} },
 							 [](qt::tour_editor_action) { });
 		auto tour       = tests::review_tour_fixture();
 		auto second     = tour.Stops.front();
@@ -10018,20 +10018,20 @@ namespace {
 		editor->show_stops();
 		process_events();
 		auto* const outline = editor->outline();
-		outline->setCurrentRow(1);
+		outline->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
 		outline->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(outline->isVisible() && outline->count() == 2 && outline->hasFocus() && firstChange->shortcut().isEmpty() && lastChange->shortcut().isEmpty(),
 			   "with the tour outline focused, the window's keys step aside for its own");
 		window_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
 		expect(moves == std::vector<std::size_t>{ 0U } && log.Change.size() == gestures.first, "Option-Shift-Up on the second stop moves it first and navigates nothing");
-		outline->setCurrentRow(0);
+		outline->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		window_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
 		expect(moves == std::vector<std::size_t>{ 0U, 1U } && log.Change.size() == gestures.first, "Option-Shift-Down on the first stop moves it down and navigates nothing");
 		// Negative control: bound in the window as well, the two claims are
 		// ambiguous and neither runs.
 		firstChange->setShortcut(up);
-		outline->setCurrentRow(1);
+		outline->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
 		window_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
 		expect(moves.size() == 2U && log.Change.size() == gestures.first, "a window key on the outline's own makes the press reorder nothing");
 		code->setFocus(Qt::OtherFocusReason);

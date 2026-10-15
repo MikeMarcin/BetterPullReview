@@ -519,18 +519,18 @@ namespace {
 		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[5]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[6]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && viewActions[13]->shortcut().isEmpty(),
+				   && viewActions[15]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
-		expect(viewActions[19]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
-				   && viewActions[20]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+		expect(viewActions[21]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && viewActions[22]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
 			   "tab navigation keeps the physical Control key on macOS");
 #else
-		expect(viewActions[19]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
-				   && viewActions[20]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+		expect(viewActions[21]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && viewActions[22]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[6], viewActions[10], viewActions[11], viewActions[12], viewActions[13], viewActions[15], viewActions[16], viewActions[17], viewActions[19], viewActions[20], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[15], viewActions[17], viewActions[18], viewActions[19], viewActions[21], viewActions[22], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,

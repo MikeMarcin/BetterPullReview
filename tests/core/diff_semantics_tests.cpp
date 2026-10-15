@@ -527,8 +527,8 @@ namespace {
 		for (const auto& origin : origins) {
 			for (const auto policy : { change_navigation_policy::stop, change_navigation_policy::wrap }) {
 				for (const auto direction : { change_navigation_direction::previous, change_navigation_direction::next }) {
-					auto state    = diff_interaction_state{ .Selection = origin };
-					const auto at = direction == change_navigation_direction::previous ? first : last;
+					auto       state = diff_interaction_state{ .Selection = origin };
+					const auto at    = direction == change_navigation_direction::previous ? first : last;
 					static_cast<void>(transition(state, *index, navigate_diff_change_intent{ .Direction = direction, .Policy = policy, .Reach = change_navigation_reach::outermost }));
 					expect(state.Selection == at,
 						   "First change selects the first change and Last change the last, from any origin and under either policy");
@@ -553,8 +553,8 @@ namespace {
 		const auto same      = run("one\ntwo\n", "one\ntwo\n");
 		const auto unchanged = build_diff_semantic_index(std::make_shared<const computed_file_diff>(same));
 		expect(unchanged && same.Alignment.Groups.empty(), "the unchanged fixture has no change");
-		auto       state     = diff_interaction_state{ .Selection = select_line(*unchanged, line(same, diff_side::right, 1U)) };
-		const auto original  = state.Selection;
+		auto       state    = diff_interaction_state{ .Selection = select_line(*unchanged, line(same, diff_side::right, 1U)) };
+		const auto original = state.Selection;
 		expect(navigate_outermost_change(*unchanged, std::nullopt, change_navigation_direction::next).Outcome == change_navigation_outcome::no_changes
 				   && !transition(state, *unchanged, navigate_diff_change_intent{ .Direction = change_navigation_direction::next, .Reach = change_navigation_reach::outermost })
 				   && state.Selection == original,

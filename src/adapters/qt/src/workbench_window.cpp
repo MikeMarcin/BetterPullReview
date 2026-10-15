@@ -10616,8 +10616,8 @@ namespace bpr::qt {
 			const auto projection = command(id);
 			const auto enabled    = projection && projection->Enabled;
 			const auto shown      = !projection ? core::workbench_reason_code::no_active_workbench
-								  : enabled   ? projection->Bound
-											  : projection->DisabledReason;
+				: enabled                       ? projection->Bound
+												: projection->DisabledReason;
 			describe_navigation_action(entry->Action, entry->Name, enabled, entry->Purpose, change_reason_text(shown));
 		}
 	}
