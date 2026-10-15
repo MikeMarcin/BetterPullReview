@@ -6877,7 +6877,10 @@ namespace bpr::app {
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
 			TabHost->complete(request->Request, aOutcome);
-			if (aOutcome == core::document_tab_view_outcome::unavailable) {
+			// A failed reading restoration refuses entry navigation. An ordinary
+			// file press can still use the now-settled exact file order below.
+			if (aOutcome == core::document_tab_view_outcome::unavailable
+				&& (!PendingReviewNavigation || PendingReviewNavigation->RestoreReading)) {
 				const auto command = PendingReviewNavigation ? std::optional{ PendingReviewNavigation->Command } : std::nullopt;
 				cancel_review_navigation();
 				if (command) {
