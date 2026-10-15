@@ -7048,6 +7048,15 @@ namespace bpr::app {
 			if (!showsTab) {
 				return;
 			}
+			// [[BPR-1527]]. A first file gesture can precede its accepted
+			// comparison. A reread may retire the workbench selection before
+			// that pair arrives, so open the core's retained explicit choice
+			// once the current catalogue admits it. Review entry alone has none.
+			if (const auto& tabs = TabHost->state(); !tabs.Active && tabs.Chosen
+				&& WorkbenchHost->state().Navigation && WorkbenchHost->contains_file(*tabs.Chosen)) {
+				TabHost->apply(core::open_in_active_tab_intent{ .File = *tabs.Chosen });
+				return;
+			}
 			const auto activeTab = [this]() -> const core::document_tab* {
 				const auto& tabs = TabHost->state();
 				return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;

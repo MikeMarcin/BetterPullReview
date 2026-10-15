@@ -130,3 +130,21 @@ changed-source strict analysis, and portable evidence remain pending.
 Local LF-normalized bookkeeping recomputed both full-app and ordered app-source
 manifest digests. The native canonical CMake print-only command must agree, then
 the ordinary pinned round-trip course must pass; calculating pins is not acceptance.
+
+
+## Retained first-file choice (Windows follow-up)
+
+The r28 native standalone trace delivers bounded numerical state directly to
+stderr; the earlier r26 queue trace had no installed writer and supplied no
+submission trace. It shows the explicit Files gesture accepted with selected1
+and core Chosen1 while no accepted/window comparison exists. Another same-PR
+read retires the workbench selection, but Chosen1 remains. When the exact pair
+arrives, the observer establishes WindowComparison and previously never opened
+that retained first choice, because it looked only at current selected state.
+The application now translates that existing core Chosen into its ordinary typed
+open intent only with no active tab, Review modality, an accepted available pair,
+a ready current catalogue and contains_file. Entry alone creates no tab. The
+existing new-PR/destination reset still retires the whole tab state and its choice;
+no host-owned alternate pending policy, direct diff request or test delay is added.
+Native corrected submission3, stale/scope/tab/navigation controls, static analysis
+and affected portability acceptance remain pending for this candidate.
