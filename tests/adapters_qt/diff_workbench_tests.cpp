@@ -2853,8 +2853,12 @@ namespace {
 				}
 			};
 			checkCaches();
+			const auto initialTop = workbench.right_pane()->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+			expect(workbench.shared_scrollbar()->maximum() > workbench.shared_scrollbar()->minimum(), "cache course has a scrollable source");
 			workbench.shared_scrollbar()->setValue(workbench.shared_scrollbar()->maximum());
 			process_events();
+			expect(workbench.right_pane()->cursorForPosition(QPoint{ 0, 0 }).blockNumber() > initialTop + 100,
+				   "cache course actually leaves the original native viewport");
 			checkCaches();
 			workbench.shared_scrollbar()->setValue(workbench.shared_scrollbar()->minimum());
 			process_events();

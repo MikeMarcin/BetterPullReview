@@ -2079,6 +2079,10 @@ namespace bpr::qt {
 			{
 				Text     = text_document(aSource);
 				Document = new QTextDocument{ &aPane };
+				// [[BPR-1525]]. This detached document is not presented yet.
+				// Defer layout while filling rather than shape a default rich
+				// layout that adoption immediately replaces with the pane's.
+				Document->setLayoutEnabled(false);
 				// A read-only pane keeps no history, and recording one per batch
 				// would cost time and memory for nothing.
 				Document->setUndoRedoEnabled(false);
@@ -2119,6 +2123,7 @@ namespace bpr::qt {
 			aDocument.setDocumentMargin(previous->documentMargin());
 			aDocument.setUndoRedoEnabled(previous->isUndoRedoEnabled());
 			aDocument.setDocumentLayout(new QPlainTextDocumentLayout{ &aDocument });
+			aDocument.setLayoutEnabled(true);
 			// The pane's first document belongs to its text control, which
 			// deletes it on replacement; one adopted earlier is the pane's child.
 			const auto adopted = previous->parent() == &aPane;

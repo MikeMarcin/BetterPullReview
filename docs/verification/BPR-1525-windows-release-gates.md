@@ -303,3 +303,13 @@ scales pass at 10.65/10.67/12.25 s; three focused repeats of the previously
 intermittent scale pass. Windows acceptance is still pending. Qt's
 [layout-cache API](https://doc.qt.io/qt-6/qtextlayout.html#setCacheEnabled)
 provides the cache; no custom shaping engine is introduced.
+
+Candidate 6fc970555 still exceeds Windows scale100's 120 s limit; its remaining
+owned copies are interrupted and no whole-course pass is claimed. The detached
+100,000-line phase diagnostic attributes 0.233 s to text construction, 2.099 s
+to diff computation and 23.572 s to composition (preparation, filling, adoption
+and geometry combined). Detached staging now defers Qt layout until adoption
+has installed the final plain layout, then re-enables it. The existing 256-line
+batch and 4 ms yielding rules stay intact. The cache regression also requires
+that its native viewport actually leaves the initial rows. Complete Mac scales
+pass after these additions; Windows duration acceptance remains pending.
