@@ -38,6 +38,7 @@
 #include <QPushButton>
 #include <QRegion>
 #include <QResizeEvent>
+#include <QScopedValueRollback>
 #include <QScrollBar>
 #include <QSet>
 #include <QShowEvent>
@@ -904,24 +905,40 @@ namespace bpr::qt {
 				}
 			}
 
+			/// [[BPR-1527]]. A shared frame supplies both parts of its origin.
+			/// Keep the residual through the native top-line change instead of
+			/// clearing it and resizing before its replacement arrives.
+			void place_top_line_and_offset(const std::size_t aLine, const qreal aOffset)
+			{
+				const auto holdOffset = QScopedValueRollback<bool>{ ApplyingPixelWheel, true };
+				set_top_line(aLine);
+				set_within_line_offset(aOffset);
+			}
+
 			/// \brief Places the native viewport, including native selection and hits.
 			/// \details The scrollbar still chooses the first block. The remaining
 			/// pixels move the viewport widget itself, clipped to its original
 			/// content area. No painter-only transform or second text layout is used.
 			void set_within_line_offset(const qreal aOffset)
 			{
-				RetainedOffset       = std::max(0.0, aOffset);
-				const auto offset    = std::max(0, qRound(RetainedOffset));
-				const auto area      = ViewportArea.isValid() ? ViewportArea : viewport()->geometry();
-				const auto placement = QRect{ area.x(), area.y() - offset, area.width(), area.height() + qCeil(QFontMetricsF{ font() }.lineSpacing() + 2.0 * document()->documentMargin()) };
-				if (offset == AppliedOffset && viewport()->geometry() == placement) {
+				RetainedOffset    = std::max(0.0, aOffset);
+				const auto offset = std::max(0, qRound(RetainedOffset));
+				const auto area   = ViewportArea.isValid() ? ViewportArea : viewport()->geometry();
+				// The shared bar owns split-view extent. Only the displaced
+				// pixels need overscan: an extra row would overlap the horizontal
+				// bar and make Qt refuse backing-store scroll reuse. Unified
+				// keeps its native vertical scrollbar's existing extent.
+				const auto overscan  = UnifiedRows == nullptr ? offset : qCeil(QFontMetricsF{ font() }.lineSpacing() + 2.0 * document()->documentMargin());
+				const auto placement = QRect{ area.x(), area.y() - offset, area.width(), area.height() + overscan };
+				const auto clipping  = QRegion{ QRect{ 0, offset, area.width(), area.height() } };
+				if (offset == AppliedOffset && viewport()->geometry() == placement && viewport()->mask() == clipping) {
 					return;
 				}
 				PlacingOrigin = true;
 				ViewportArea  = area;
 				AppliedOffset = offset;
 				viewport()->setGeometry(placement);
-				viewport()->setMask(QRegion{ QRect{ 0, offset, area.width(), area.height() } });
+				viewport()->setMask(clipping);
 				viewport()->update();
 				update_gutter();
 				PlacingOrigin = false;
@@ -944,6 +961,14 @@ namespace bpr::qt {
 				QPlainTextEdit::scrollContentsBy(aDx, aDy);
 				if (aDy != 0 && !ApplyingPixelWheel) {
 					set_within_line_offset(0.0);
+				}
+				// Qt's rectangle scroll also copies into the masked prefix.
+				// Restore the native parent frame that prefix can cover.
+				if (UnifiedRows == nullptr && AppliedOffset > 0) {
+					const auto covered = viewport()->geometry().intersected(QRect{ ViewportArea.x(), 0, ViewportArea.width(), ViewportArea.y() });
+					if (!covered.isEmpty()) {
+						update(covered);
+					}
 				}
 			}
 
@@ -4783,8 +4808,7 @@ namespace bpr::qt {
 				if (line > 0U && origin(line) - aOrigin > 0.000'001) {
 					--line;
 				}
-				aPane.set_top_line(line);
-				aPane.set_within_line_offset(aOrigin - origin(line));
+				aPane.place_top_line_and_offset(line, aOrigin - origin(line));
 				return origin(line) + aPane.within_line_offset();
 			};
 			const auto leftEstimate  = place(*pane(Left), core::diff_side::left, aFrame.Left.DocumentOriginY);
