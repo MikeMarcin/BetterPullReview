@@ -2,10 +2,11 @@
   "schema": "bpr.testing-note-integration.v1",
   "mandate": "Owner testing notes, one card and implementer per note; resume, autonomous routine work",
   "baseline": "55f4a5a510f33802cd920baf8744a10226ffd87b",
-  "integrated_head": "f0539b1b21aee4a7b4ca0052315906aa2a6dece4",
+  "integrated_head": "d61e47ed0c65410f5334a703ba21864ab94c4224",
   "priority": "BPR-1520 preservation/publication recovery",
   "integrated": [
     "BPR-1505",
+    "BPR-1506",
     "BPR-1507",
     "BPR-1508",
     "BPR-1509",
@@ -22,27 +23,31 @@
     "BPR-1520",
     "BPR-1521"
   ],
-  "active": [
-    "BPR-1506"
-  ],
+  "active": [],
   "acceptance": {
-    "BPR-1512": "human-pending; canonical parked; original frozen candidate remains bound",
-    "BPR-1513": "human-pending; canonical parked; original frozen candidate remains bound",
-    "BPR-1507": "Done after main8/8 integration batch",
-    "BPR-1520": "Done; main build and all three public recovery/restart/composition contracts pass",
-    "BPR-1515": "Done; main6/6 key/layout public checks",
-    "BPR-1516": "Done; main fractional drag/public2/2",
-    "BPR-1517": "leafDone, integrated; final combined navigation recheckpending",
-    "BPR-1518": "leafDone, integrated; final combined cursor recheckpending",
-    "BPR-1519": "Done; main6/6 layout/public checks",
-    "BPR-1521": "leafDone; exact main multiwindow recheckpending",
-    "BPR-1505": "sourcef0539b1b2 integrated; leafupkeep and main publicrecheckpending"
+    "BPR-1505": "Done; integrated and final focused verification passed",
+    "BPR-1506": "Done; integrated and final focused verification passed",
+    "BPR-1507": "Done; integrated and final focused verification passed",
+    "BPR-1508": "Done; integrated and final focused verification passed",
+    "BPR-1509": "Done; integrated and final focused verification passed",
+    "BPR-1510": "Done; integrated and final focused verification passed",
+    "BPR-1511": "Done; integrated and final focused verification passed",
+    "BPR-1512": "human visual verdict pending on protected frozen candidate",
+    "BPR-1513": "human visual verdict pending on protected frozen candidate",
+    "BPR-1514": "Done; integrated and final focused verification passed",
+    "BPR-1515": "Done; integrated and final focused verification passed",
+    "BPR-1516": "Done; integrated and final focused verification passed",
+    "BPR-1517": "Done; integrated and final focused verification passed",
+    "BPR-1518": "Done; integrated and final focused verification passed",
+    "BPR-1519": "Done; integrated and final focused verification passed",
+    "BPR-1520": "Done; integrated and final focused verification passed",
+    "BPR-1521": "Done; integrated and final focused verification passed"
   },
   "main_verification": {
     "p0_build": "/tmp/bpr-coordinator-integration-build.log; exit0",
     "p0_public": "/tmp/bpr-coordinator-p0-public-tests.log;3/3 pass,42.48seconds",
     "combined_build": "/tmp/bpr-coordinator-combined-build.log;exit0",
-    "documentation": "DOCUMENTATION_OK after batch integration",
+    "documentation": "DOCUMENTATION_OK; scoped board BPR-1505..BPR-1521 valid; clang-format 22 focused check passed",
     "merge_resolutions": [
       "BPR1520 issue card deduplicated equivalent owner recovery amendment, preserved AC8/diagnosis",
       "workbench test main kept both current-file-unread and center-ribbon test branches"
@@ -51,11 +56,35 @@
     "shared_public": "/tmp/bpr-coordinator-shared-public-tests.log;5/6pass;multiwindow draft edit propagation failure returned to BPR1520 implementer",
     "hotkey_layout": "/tmp/bpr-coordinator-hotkey-layout-tests.log;6/6pass,52.67seconds",
     "divider": "/tmp/bpr-coordinator-divider-tests.log;2/2pass,20.25seconds",
-    "navigation_build": "/tmp/bpr-coordinator-navigation-build.log;exit0 before final1521+Home+Seen integration"
+    "navigation_build": "/tmp/bpr-coordinator-navigation-build.log;exit0 before final1521+Home+Seen integration",
+    "final": {
+      "result": "10/10 passed",
+      "seconds": 241.34,
+      "log": "/tmp/bpr-coordinator-final-tests.log",
+      "candidate": "d61e47ed0c65410f5334a703ba21864ab94c4224",
+      "checks": [
+        "architecture_boundaries",
+        "qt_home_list_scale_125",
+        "application_diff_workbench_public_path",
+        "application_review_ledger_composition_contract",
+        "application_review_round_trip_composition_contract",
+        "application_label_publication_recovery",
+        "application_profile_multi_window_public_path",
+        "application_home_open_feedback_public_path",
+        "application_change_arrows_across_files",
+        "application_review_navigation_entry"
+      ]
+    }
   },
-  "source_pin": "18444c1d6 reviewed combined composition delta; existing production mutation digest unchanged",
+  "source_pin": "Final composition manifests resealed; production mutation-branch digest unchanged.",
   "safety": "No owner profile, installed application, live review, desktop or remote publication changed",
-  "next": "Integrate BPR1506 visible-Review-only autoSeen, rebuild final main targets, run exact final public/regression checks, finish mainupkeep. Keep1512/13 visual reviews pending; do not alter installedapp or ownerprofile.",
-  "pending_regression": "BPR1521 production correction41a8670a8 integrated; final main multiwindow recheck pending",
-  "archive": "Preserve referenced ignored evidence outside taskworktrees before managed archive.1512/13 reviewworktrees protected; originalchat1505checkout stays."
+  "next": "Obtain separate BPR-1512 and BPR-1513 visual verdicts through preserved attended sessions; resume after handback. No further unattended implementation remains.",
+  "pending_regression": "None; BPR-1521 sibling draft identity correction and final hotkey fixture correction verified",
+  "archive": "13 completed managed worktrees archived after evidence export and MASK unregister; original chat checkout retained; two protected review worktrees and servers retained.",
+  "evidence_manifest": "/Users/jaeger/.codex/evidence/testing-notes-final-0daytw3j/manifest.json",
+  "review_driver": ".mask/sessions/testing-notes-20261014/review-driver.json",
+  "uncertainties": [
+    "Original owner Publish error and exact forensic trigger were not captured; owner independently recovered comments.",
+    "Two human visual acceptance criteria remain pending."
+  ]
 }
