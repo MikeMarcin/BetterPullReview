@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1516-divider-viewport-stability",
+  "scope": {
+    "issues": [
+      "BPR-1516"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "stable-divider",
+      "outcome": "Dragging the diff divider keeps the vertical viewport stable through the existing comparison-space scroll authority.",
+      "work": [
+        {
+          "issue": "BPR-1516",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Record baseline displacement and verify representative continuous reversed actual divider drags with objective viewport and selection observations.",
+        "Focused composed rendering, scroll/geometry regression checks and documentation gate pass; command ownership and continuation are durable."
+      ],
+      "boundary": "Only BPR-1516 pane resize/scroll geometry and focused evidence; preserve center ribbon width and sibling navigation changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
