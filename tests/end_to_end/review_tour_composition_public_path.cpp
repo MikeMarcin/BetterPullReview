@@ -1092,6 +1092,28 @@ auto main(int argc, char** argv) -> int
 				expect(toured && !*toured && opened && *opened && **opened == openedReceipt,
 					   "delayed tour answer records nothing and subsequent Files open records only exact Seen");
 			}
+			application.reset();
+			application = make();
+			open(*application);
+			auto& ordinaryWindow = application->window();
+			{
+				// Reverse ordering: preparation cannot revoke an ordinary open
+				// already admitted while its material receipt answer was delayed.
+				const auto releaseLedger = access::hold_review_ledger_effects(*application);
+				const auto releaseOnExit = qScopeGuard(releaseLedger);
+				select_file(ordinaryWindow, "review.cpp");
+				ordinaryWindow.prepare_tour_action()->trigger();
+			}
+			const auto ordinaryReceipt = ordinary_seen(*application, "review.cpp");
+			shutdown(*application);
+			{
+				auto ledger = adapters::sqlite::make_review_ledger_store({ .StorageRoot = *dataRoot, .Host = "github.com", .Account = "1001", .Repository = "octo-org/review-repository", .PullRequest = 17 });
+				expect(ledger.has_value(), "reverse held-completion control reads actual ledger");
+				const auto ordinary = (*ledger)->load(ordinaryReceipt.File);
+				const auto previous = (*ledger)->load(openedReceipt.File);
+				expect(ordinary && *ordinary && **ordinary == ordinaryReceipt && previous && *previous && **previous == openedReceipt,
+					   "preparation preserves admitted ordinary Seen and every existing exact receipt");
+			}
 			std::cout << "review-tour-cold-import:pass\n";
 			return EXIT_SUCCESS;
 		}

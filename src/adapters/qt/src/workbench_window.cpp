@@ -7455,7 +7455,6 @@ namespace bpr::qt {
 		close_review_composition();
 		choose_home(false);
 		choose_modality(review_modality::review);
-		TourEditor->trigger(tour_editor_action::open_preparation);
 		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			conversations_drawer_toggle_action()->trigger();
 		}

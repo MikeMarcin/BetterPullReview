@@ -2,7 +2,7 @@
 
 Mandate `authorized-release-continuation-final-gates-r3`; sole implementer review,
 not an independent review or release approval. Baseline `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`.
-Pinned app scope changed only in `681b41b9c` and this BPR-1527 repair slice;
+Pinned app scope changes are `681b41b9c`, `0f6d288b1` and this admission-origin correction;
 intervening reservation/plan/checkpoint commits changed no pinned production source.
 
 The reply change applies only to an exact unused ephemeral placeholder with no
@@ -12,19 +12,26 @@ the previous retarget behavior. The existing typed private select_reply path
 provides admission; materialize_draft's ChangeReplyTarget refusal stays unchanged.
 The old-route counterexample reproduces exact missing ReplyToThread at line41.
 
-Tour preparation reports a semantic entry after the synchronous modality intent.
-The app binds the current source request before any deferred completion; a stop
-load binds its exact admitted request and current owner, file and comparison.
-Unchanged same-diff revalidation transfers only request generation, while normal
-file/modality gestures clear both pending destination and retained tour origin.
-Scope suspension clears it. Receipt completion still revalidates current exact
-request, material, visible comparison, epoch, generation and ledger authority.
-No policy is inferred from whether Tour is visible. The held-ledger public course
-proves a tour answer arriving after an ordinary Files gesture cannot mint the
-old receipt or suppress the new exact Seen. Cold import's absolute zero-receipt
-assertion remains, while ordinary authoring Files opens assert adopted BPR1506
-Seen and exact unchanged receipts/zero extra commands through tour navigation.
-Root explicitly accepted this source-backed old-oracle reconciliation.
+Coordinator read-only review falsified the0f6d preparation event: it assigned
+an already-admitted ordinary request as tour-origin, revoking its delayed Seen.
+The reverse held-storage control reproduces that failure26.06s. This correction
+removes the unnecessary Qt event; production Qt window/header return baseline.
+Only a newly reserved source request under the exact pending tour destination
+receives tour origin in begin(request), which the host calls before Effects.post.
+Modality entry leaves admitted origin intact; ordinary Files gestures clear it
+before their own request, and scope suspension clears it. Same-diff generation
+revalidation preserves origin only for that same authority/comparison/file.
+The first event-removal attempt exposed modality clearing on repeated tour visits
+(original cold zero-receipt assertion failed3.64s); the final correction retains
+origin across those entries too. Receipt completion still revalidates exact
+current request, material, epoch, generation, ledger authority and presentation.
+No policy is inferred from whether Tour is visible. Both actual held-storage
+ordering controls pass: tour then ordinary yields only new ordinary Seen; ordinary
+then preparation preserves its pending Seen. Original cold import still records
+zero receipts, while ordinary authoring Files opens retain exact Seen and tour
+navigation adds no commands/Read/Accept/Exclude changes. Detailed reproduction
+and disposition are in review-origin-correction.json. The earlier20passes remain
+historical positives, not acceptance of the disproven0f6d source.
 
 Find geometry yields outer margins before shrinking below the existing control
 minimum. It retains the preferred anchor, controls, font/palette and appearance.
@@ -63,3 +70,9 @@ can append to/reallocate the source vector, so a borrowed reference is unsafe.
 No diagnostic suppression, assertion or callback sequencing was introduced.
 The seven other changed translation units passed unchanged strict analysis;
 the corrected Qt test is analyzed/rebuilt and receives its affected public run.
+
+Corrected current-source integration passes20/20normal courses180.33s, including
+the new reverse control and previous forward control. The production mutation
+branch remains unchanged. A fresh strict check covers the corrected app and tour/
+Qt test consumers; previous unchanged-TU evidence remains separately bound.
+NativePCacceptance and complete final release reruns still remain pending.

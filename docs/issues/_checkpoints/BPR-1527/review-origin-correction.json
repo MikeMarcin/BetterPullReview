@@ -1,0 +1,123 @@
+{
+  "schema": "bpr.review-finding-disposition.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "reviewed_source": "0f6d288b1db229f4137f6a285a8a571660662905",
+  "reviewer": "coordinator read-only source review; no root code edits",
+  "finding": "Preparation overwrites the origin of an already-admitted ordinary selected request before its delayed material receipt completes.",
+  "reproduction": {
+    "log": "/tmp/bpr1527-reverse-control-r11.log",
+    "result": "required reverse control fails26.06s on0f6d; ordinary Files open never becomes Seen after Preparetour",
+    "source_binding": "0f6d production app/lib with added current cold-import reverse control; original absolute-zero and forward ordering assertions retained."
+  },
+  "intermediate": {
+    "log": "/tmp/bpr1527-admission-origin-r12.log",
+    "result": "removing event alone fails original cold zero-receipt3.64s; unconditional modality clear erases admitted tour origin on repeated visit"
+  },
+  "correction": [
+    "Remove unnecessary Qt preparation event and current-request reassignment; Qt header/window production return exact d52 baseline.",
+    "Retain admitted tour request origin across modality entries; ordinary Files gesture clears before its own new request; scope suspension clears.",
+    "Assign exclusion only in begin(request), after current epoch admission. Workbench host reserves request and delivers begin before Effects.post, retaining exact request for completion.",
+    "Keep all original receipt guards/material/authority identities, absolute cold zero-receipt, ordinary Seen and Read/Accept/Exclude semantics."
+  ],
+  "verification": {
+    "log": "/tmp/bpr1527-admission-origin-r13.log",
+    "result": "5/5normal courses pass26.77s; ordinaryledger8.99s, tour3scales5.01/3.89/4.22s, extendedcold4.63s includes both held storage ordering directions and exact durable receipts"
+  },
+  "integration": "Corrected source public acceptance passes; current strict4-TU recheck active /tmp/bpr1527-corrected-strict-tidy-r14.log. No main integration/sourcefreeze; nativePC remains coordinator-owned.",
+  "source_digests": {
+    "full_application": "0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b",
+    "production_app_manifest": "275ebd5fb8bf6f33d4bf02a505953c0350eaea9b1be0b43c400fd6eb1411dd4c",
+    "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
+  },
+  "current_source_sha256": {
+    "src/app/src/github_application.cpp": "0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b",
+    "tests/end_to_end/review_tour_composition_public_path.cpp": "48adb260941452c6102945f07dc7bf926cefcfb405a372d736e5d98309459946",
+    "tests/adapters_qt/workbench_window_tests.cpp": "a41134b9698d9285fd68ac997ca33bf02c174cf81e97969892fbfafbe04ce67c"
+  },
+  "corrected_integration": {
+    "log": "/tmp/bpr1527-corrected-integration-r14.log",
+    "result": "20/20 normal courses pass180.33s, includes all14 original Mac failures and both held storage ordering controls",
+    "courses": [
+      {
+        "name": "qt_workbench_conversation_reveal",
+        "seconds": 2.94
+      },
+      {
+        "name": "qt_workbench_window_scale_100",
+        "seconds": 26.56
+      },
+      {
+        "name": "qt_scoped_prose_editor",
+        "seconds": 0.54
+      },
+      {
+        "name": "application_agent_finding_workshop_press_contract",
+        "seconds": 3.57
+      },
+      {
+        "name": "application_agent_invocation_composition_contract",
+        "seconds": 14.52
+      },
+      {
+        "name": "application_uiforetw_selected_diff_contract",
+        "seconds": 18.17
+      },
+      {
+        "name": "application_review_ledger_composition_contract",
+        "seconds": 8.29
+      },
+      {
+        "name": "application_review_round_trip_composition_contract",
+        "seconds": 2.56
+      },
+      {
+        "name": "application_threaded_reply_contract",
+        "seconds": 4.53
+      },
+      {
+        "name": "application_label_authoring_contract",
+        "seconds": 4.64
+      },
+      {
+        "name": "application_reply_draft_contract",
+        "seconds": 14.64
+      },
+      {
+        "name": "application_review_progress_push_contract",
+        "seconds": 4.96
+      },
+      {
+        "name": "application_review_tour_composition_public_path",
+        "seconds": 3.94
+      },
+      {
+        "name": "application_review_tour_composition_scale_125",
+        "seconds": 3.88
+      },
+      {
+        "name": "application_review_tour_composition_scale_200",
+        "seconds": 4.17
+      },
+      {
+        "name": "application_active_changed_scaling",
+        "seconds": 19.95
+      },
+      {
+        "name": "application_review_tour_cold_import_public_path",
+        "seconds": 5.23
+      },
+      {
+        "name": "application_source_find",
+        "seconds": 13.7
+      },
+      {
+        "name": "application_source_find_scale_1_25",
+        "seconds": 11.52
+      },
+      {
+        "name": "application_source_find_scale_2_0",
+        "seconds": 11.97
+      }
+    ]
+  }
+}

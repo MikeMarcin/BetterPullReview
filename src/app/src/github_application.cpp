@@ -9327,7 +9327,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// shows the active tab's pair or the window's.
 			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
 				AutoSeenPresentedRequest.reset();
-				TourSourceRequest.reset();
+				// A modality entry reuses its admitted source request. It cannot
+				// change whether that request came from ordinary or tour navigation.
 				PendingTourSource.reset();
 				schedule_tab_presentation();
 			}
@@ -10802,11 +10803,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			switch (aAction) {
-			case qt::tour_editor_action::open_preparation:
-				// Entering Tour is not an ordinary file open. Keep the exact
-				// request through its deferred material/receipt completion.
-				TourSourceRequest = SelectedDiffRequest;
-				return;
 			case qt::tour_editor_action::suggest_outline:
 				if (const auto draft = TourHost->presentation().Draft; draft && !draft->ReadOnly) {
 					request_writing(core::writing_hook::outline, { .TextGeneration = draft->Revision, .EditorGeneration = draft->Revision });

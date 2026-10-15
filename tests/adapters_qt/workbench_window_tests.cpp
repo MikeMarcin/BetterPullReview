@@ -8378,8 +8378,6 @@ namespace {
 		tour.Draft = std::make_shared<const core::review_tour>(tests::review_tour_fixture());
 		editor->present(tour);
 		window.open_review_tour();
-		expect(fired == std::vector{ qt::tour_editor_action::open_preparation }, "opening Tour dispatches its semantic entry before deferred source completion");
-		fired.clear();
 		editor->show_stops();
 		process_events();
 		auto* const outline  = editor->outline();

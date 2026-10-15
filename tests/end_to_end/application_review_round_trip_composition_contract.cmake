@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8123abed3e79f20745cbbcbd8275b4fdd568ddafad404f7b5d1ee77cc65fccae"
+		"0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6065f269a7c5b9ad0db5ff87351bd552581270620a20b014c7d87cde29d95f74"
+        "275ebd5fb8bf6f33d4bf02a505953c0350eaea9b1be0b43c400fd6eb1411dd4c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2550,3 +2550,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # source inventory and production mutation-branch digest remain unchanged.
 # Normal public positives, old-route/guard/layout and missing/misplaced-control
 # counterexamples are recorded; final native release gates remain pending.
+
+# [[BPR-1527]] review correction over0f6d288b1, which follows681b41b9c.
+# Coordinator read-only review found preparation retroactively reclassified an
+# admitted ordinary request; actual held reverse control fails26.06s on0f6d.
+# This correction removes the added Qt preparation event and preserves admitted
+# origin across modality entry. Only begin(request), before effect submission,
+# binds a newly admitted tour source; an ordinary Files gesture clears origin
+# before its own request. Both held directions, original cold zero-receipt and
+# ordinary ledger pass unchanged budgets. Review disposition is recorded under
+# docs/issues/_checkpoints/BPR-1527/review-origin-correction.json. No capability,
+# grant, publication, inventory or production mutation-branch change.

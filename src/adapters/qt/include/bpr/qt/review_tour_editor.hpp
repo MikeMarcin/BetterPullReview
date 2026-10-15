@@ -40,8 +40,7 @@ namespace bpr::qt {
 												   reconcile_publication,
 												   stop_publication,
 												   suggest_outline,
-												   insert_outline,
-												   open_preparation };
+												   insert_outline };
 	/// \brief Native Markdown interaction and inert projections for private tour preparation.
 	class review_tour_editor final : public QWidget
 	{
