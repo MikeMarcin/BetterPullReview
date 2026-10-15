@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1505-home-cancel",
+  "scope": {
+    "issues": [
+      "BPR-1505"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "home-cancel-alignment",
+      "outcome": "Home row Cancel sits left of the unchanged right-aligned facts while its existing cancellation still stops the read.",
+      "work": [
+        {
+          "issue": "BPR-1505"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Cancel appears left of the Home row's changes and adjacent facts.",
+        "AC2: Opening, waiting, retry and idle keep the facts column's horizontal position.",
+        "AC3: Offscreen composed Home renders and the existing cancellation interaction pass."
+      ],
+      "boundary": "Stop after BPR-1505 verification, self-review, explicit commits and durable handoff; no further issue scope."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
