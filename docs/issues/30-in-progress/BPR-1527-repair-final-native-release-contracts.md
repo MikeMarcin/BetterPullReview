@@ -32,6 +32,8 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 
 - AC10: Diagnose and repair the three explicitly enumerated final Windows review-submission composition courses, retaining exact current-head line and inline-draft admission, pending-selection and summary stale-view refusal, publication counts, recovery and authority assertions; pass unchanged native courses at all three scales after PC slot release. Mac d52 passes do not establish a Windows fix.
 
+- AC11: Diagnose and repair the final Windows application_review_navigation_entry bound-message lifetime failure, preserving exact Review entry, file/pair/semantic position, all command routes and the existing approximately three-second explanation lifetime with unchanged 2600ms persistence and 3600ms upper checks; pass the normal native course for0.2.2 after PC release.
+
 ## Explicit scope amendment
 
 The coordinator explicitly added the sixth criterion after the final Windows gate timed out at
@@ -96,3 +98,14 @@ and the producer boundary. This docs-only slice does not change version 0.2.1.
 After handback, root owns Mac CPU and its frozen producer. Later Windows repairs
 stay on the owned branch after explicit PC slot release; they never modify or
 rebind the Mac 0.2.1 producer. Ubuntu release timing is not newly selected.
+
+## Windows 0.2.2 navigation unit
+
+After the macOS-only notes handback at `c233c7683`, root explicitly adds the
+completed final Windows #691 `application_review_navigation_entry` failure
+(67.40s): "bound explanation remains for almost three seconds". AC11 and exit10
+preserve all previous ten criteria/nine exits, source identity and timing bounds.
+This follow-up is excluded from the frozen Mac 0.2.1 producer. The complete d52
+Windows result is 705 accounted: 679 pass, 25 fail, 1 configured Debug cache-bytes
+skip. Root released the quiescent PC to this implementer for serial Windows/WSL
+repair and acceptance; there is no signing, auth, security or reboot authority.

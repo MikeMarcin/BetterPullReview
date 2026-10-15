@@ -40,7 +40,8 @@ The known completed launcher pattern is retained at
 `C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-native-focused-r32.ps1`,
 task `BPR-1525-focused-r32`: Interactive Limited user mikem, session1; SSHsession0
 only dispatches/observes. Its MSVC vcvars64 setup is the ordinary developer setup.
-That wrapper guards old fb2e72778; do not dispatch it unchanged as new acceptance.
+Actual read-only inspection now shows that wrapper guards old583a26d40, then
+fetches its r32bundle. Do not dispatch it unchanged as new acceptance.
 Create an explicit BPR-1527 wrapper/task with the new source guard and preserve
 its original bytes. Root/native station own any launcher diagnosis until release.
 

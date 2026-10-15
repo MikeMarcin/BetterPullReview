@@ -1,0 +1,26 @@
+{
+  "schema": "bpr.authorized-plan-amendment.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "authority": "Explicit coordinator final WindowsPC release and navigation scope addition,2026-10-15",
+  "release_target": "Windows0.2.2 only",
+  "mac_v021_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "prior_criteria_count": 10,
+  "prior_exit_count": 9,
+  "selectors": [
+    "application_review_navigation_entry"
+  ],
+  "failure": "FAILED: bound explanation remains for almost three seconds",
+  "source_revision": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "seconds": 67.4,
+  "full_gate": {
+    "accounted": 705,
+    "passed": 679,
+    "failed": 25,
+    "skipped": 1,
+    "runner_exit": 8,
+    "wrapper_exit": 1
+  },
+  "raw_local": "/tmp/bpr-v021-d52-windows-final.utf8.log",
+  "source_hypothesis": "Test starts its2600ms observation after optional full-window render and readiness checks, although QStatusBar product lifetime starts at the earlier action. Native duration/origin facts are needed before any correction; no threshold or product policy is changed.",
+  "ownership": "PCreleased for serial Windows/WSL; rootMacCPU; no frozen Macproducer edit/rebind"
+}

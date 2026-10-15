@@ -48,9 +48,10 @@ is open. Retain this sole source owner for the pending native continuation.
 
 ## Scope and original evidence
 
-Ten criteria and nine exits retain the original five Mac failures, Windows
+Eleven criteria and ten exits retain the original five Mac failures, Windows
 whole-workbench 200% timeout, nine later Mac courses and nine actual Windows
-local-cycle title/browser/window courses, plus three Windows submission courses.
+local-cycle title/browser/window courses, plus three Windows submission courses and the explicitly added Windows
+navigation-entry explanation-lifetime course.
 Explicit scope amendments are recorded
 in `scale200-amendment.json`, `mac-final-amendment.json` and
 `windows-local-cycle-amendment.json` and `windows-submission-amendment.json`.
@@ -194,3 +195,20 @@ release. They never mutate or rebind the frozen Mac producer. Affected Ubuntu
 portability checks remain engineering acceptance; no Ubuntu 0.2.1 release gate
 or package is required under the new selected set. No required human decision
 is pending. Source ownership remains with this same implementer for continuation.
+
+## Windows 0.2.2 continuation after Mac handback
+
+Root received clean docs-only `c233c768327cd6c0cb6807860625ec12a9aeac14` for
+Mac 0.2.1 integration; all following branch commits are Windows 0.2.2 follow-up
+and must not enter/rebind the frozen Mac producer. Root now owns Mac CPU.
+Windows full d52 completed 705 courses: 679 pass / 25 fail / 1 configured Debug
+cache-bytes skip, runner exit8 and wrapper exit1. Exact final log
+`/tmp/bpr-v021-d52-windows-final.utf8.log` was read for all25failures. The two
+later failures before navigation are already-scoped active-changed scaling and
+tour cold import; no extra selectors are invented. Root explicitly adds
+`application_review_navigation_entry` as AC11 / exit10, preserving prior10/9.
+PC is quiescent and released for serialized Windows/WSL work. Before adoption,
+preserve clean d52 source/branch/history plus complete build/test evidence.
+Current source diagnosis for navigation is recorded as a hypothesis only in
+windows-navigation-amendment.json; unchanged native evidence remains required.
+No new Mac build/test/performance or producer mutation is authorized.
