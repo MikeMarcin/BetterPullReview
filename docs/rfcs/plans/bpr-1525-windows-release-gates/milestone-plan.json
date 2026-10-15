@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1525-windows-release-gates",
+  "scope": {
+    "issues": [
+      "BPR-1525"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "native-gate-contracts",
+      "outcome": "The selected Windows fixture, containment and matcher-stop contracts pass with their original assertions and budgets intact.",
+      "work": [
+        {
+          "issue": "BPR-1525",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Identify and retain each original failure and exact-source cause.",
+        "Repair fixture byte generation and production cancellation with no weaker assertions or thresholds.",
+        "Measure each new Windows containment refusal and prove a contained grandchild network denial.",
+        "Pass focused native and portable checks, documentation and return explicit remaining release obligations."
+      ],
+      "boundary": "Only delegated fixture/network test infrastructure, application matcher cancellation and issue bookkeeping. No active producer mutation, signing, auth or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
