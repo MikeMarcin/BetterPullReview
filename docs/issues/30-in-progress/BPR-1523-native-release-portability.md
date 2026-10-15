@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1523"
 title: "Repair native compiler portability exposed by release preflight"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
