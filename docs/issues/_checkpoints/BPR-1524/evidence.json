@@ -1,0 +1,157 @@
+{
+  "schema": "bpr1524.evidence-reference.v1",
+  "testCandidate": "33b02cc5100c33afb6d3d9053cb36b329b80ca03",
+  "manifest": "/Users/jaeger/.codex/evidence/bpr1524-native-event-loop-i2ls6o05/manifest.json",
+  "finalReports": {
+    "windows": {
+      "architecture": "x86_64",
+      "cancel_ms": 3,
+      "cold": {
+        "acquired_bytes": 11779548,
+        "acquisition_us": 7294770,
+        "cache_hits": 0,
+        "compilations": 1,
+        "matching_us": 1282494,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 135,
+        "scans": 68
+      },
+      "cold_final_ms": 9069,
+      "cold_first_ms": 670,
+      "eligible_files": 68,
+      "fixture_entries": 70,
+      "navigation_geometry": {
+        "maximum_batch_lines": 64,
+        "measurement_batches": 127,
+        "measurement_restarts": 1,
+        "pane_measurements": 4,
+        "rebuilds": 1,
+        "reused_lines": 1
+      },
+      "navigation_ms": 1443,
+      "navigation_stages": {
+        "gesture_ms": 42,
+        "loading_ms": 116,
+        "maximum_sample_gap_ms": 122,
+        "result_ms": 522
+      },
+      "platform": "Windows 11 Version 25H2",
+      "qt": "6.11.2",
+      "rss_before_bytes": 150605824,
+      "rss_peak_bytes": 198623232,
+      "source_bytes": 11779610,
+      "warm": {
+        "acquired_bytes": 0,
+        "acquisition_us": 13397,
+        "cache_hits": 132,
+        "compilations": 1,
+        "matching_us": 1272006,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 132,
+        "scans": 68
+      },
+      "warm_final_ms": 1748,
+      "warm_first_ms": 108
+    },
+    "macos": {
+      "architecture": "arm64",
+      "cancel_ms": 1,
+      "cold": {
+        "acquired_bytes": 11779548,
+        "acquisition_us": 3303371,
+        "cache_hits": 0,
+        "compilations": 1,
+        "matching_us": 357302,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 136,
+        "scans": 68
+      },
+      "cold_final_ms": 3923,
+      "cold_first_ms": 155,
+      "eligible_files": 68,
+      "fixture_entries": 70,
+      "navigation_geometry": {
+        "maximum_batch_lines": 432,
+        "measurement_batches": 18,
+        "measurement_restarts": 1,
+        "pane_measurements": 4,
+        "rebuilds": 1,
+        "reused_lines": 176
+      },
+      "navigation_ms": 240,
+      "navigation_stages": {
+        "gesture_ms": 7,
+        "loading_ms": 28,
+        "maximum_sample_gap_ms": 15,
+        "result_ms": 131
+      },
+      "platform": "macOS Tahoe (26.6.2)",
+      "qt": "6.11.2",
+      "rss_before_bytes": 200523776,
+      "rss_peak_bytes": 233635840,
+      "source_bytes": 11779610,
+      "warm": {
+        "acquired_bytes": 0,
+        "acquisition_us": 4882,
+        "cache_hits": 132,
+        "compilations": 1,
+        "matching_us": 322610,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 132,
+        "scans": 68
+      },
+      "warm_final_ms": 567,
+      "warm_first_ms": 109
+    },
+    "ubuntu": {
+      "architecture": "x86_64",
+      "cancel_ms": 2,
+      "cold": {
+        "acquired_bytes": 11779548,
+        "acquisition_us": 1067454,
+        "cache_hits": 0,
+        "compilations": 1,
+        "matching_us": 983247,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 134,
+        "scans": 74
+      },
+      "cold_final_ms": 2446,
+      "cold_first_ms": 138,
+      "eligible_files": 68,
+      "fixture_entries": 70,
+      "navigation_geometry": {
+        "maximum_batch_lines": 512,
+        "measurement_batches": 11,
+        "measurement_restarts": 1,
+        "pane_measurements": 4,
+        "rebuilds": 1,
+        "reused_lines": 320
+      },
+      "navigation_ms": 187,
+      "navigation_stages": {
+        "gesture_ms": 7,
+        "loading_ms": 22,
+        "maximum_sample_gap_ms": 30,
+        "result_ms": 114
+      },
+      "platform": "Ubuntu 26.04 LTS",
+      "qt": "6.11.2",
+      "rss_before_bytes": 135786496,
+      "rss_peak_bytes": 174190592,
+      "source_bytes": 11779610,
+      "warm": {
+        "acquired_bytes": 0,
+        "acquisition_us": 16483,
+        "cache_hits": 132,
+        "compilations": 1,
+        "matching_us": 936032,
+        "peak_owned_bound_bytes": 192943168,
+        "read_calls": 132,
+        "scans": 68
+      },
+      "warm_final_ms": 1330,
+      "warm_first_ms": 107
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "schema": "bpr1524.handoff.v1",
+  "assignment": "BPR-1524 search-navigation-budget",
+  "owner": "/root/release021_review_controls",
+  "coordinator": "/root",
+  "mandateRevision": "owner-20261014-use-implementers",
+  "segment": "BPR-1524-native-event-loop",
+  "baseline": "6230bd1e37dfdb9c00d35d9a43ccafe2878bf535",
+  "testCandidate": "33b02cc5100c33afb6d3d9053cb36b329b80ca03",
+  "mainAtAcceptance": "c961443d0304950774ca0b66a1bf2769a78eef8c",
+  "productionChanges": false,
+  "changedBuildPaths": [
+    "tests/end_to_end/source_pr_search_performance_tests.cpp"
+  ],
+  "result": "The course itself inserted OS sleeps between every Qt event turn. Native Windows geometry takes127bounded batches; original polling inflates readiness to3196ms. A real bounded Qt event loop measures actual public scheduling at1443ms with the same work and every threshold intact. No product fix is needed.",
+  "verification": {
+    "finalPerformance": {
+      "windowsNavigationMs": 1443,
+      "macosNavigationMs": 240,
+      "ubuntuNavigationMs": 187,
+      "allOtherBudgets": "pass"
+    },
+    "macScopeRetryArchitecture": {
+      "passed": 3,
+      "failed": 0,
+      "elapsedSeconds": 29.64
+    },
+    "format": "clang-format22.1.8 pass",
+    "tidy": "supported SDK-aware helper,touched test TU,warnings-as-errors pass",
+    "documentation": "DOCUMENTATION_OK",
+    "selfReview": "Timer/observer lifetimes are scoped by local QObjects. Immediate-ready skips loop, async completion exits on exact condition, precise30s timeout exits only to final rechecked expectation; no false success. No production diff or threshold diff. Final compact observer is allocation-light. Windows max-macro compile failure in initial diagnostics was corrected and retained.",
+    "limits": "This is Debug native/offscreen regression evidence. Ubuntu WSL2 timing ran while the separately owned Windows recovery console waited on human device approval with auth polling; no competing build/scan/probe per native worker. No system appearance, clean native desktop, signing or release trust acceptance."
+  },
+  "evidenceManifest": "/Users/jaeger/.codex/evidence/bpr1524-native-event-loop-i2ls6o05/manifest.json",
+  "reviewHandoff": {
+    "pending": [],
+    "requiredHumanOrIndependentReview": false
+  },
+  "sourceRoots": {
+    "main": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "macos": "/Users/jaeger/Documents/Codex/releases/v0.2.1-macos",
+    "windows": "C:/Users/mikem/bpr-v021",
+    "ubuntu": "/home/mmarcin/bpr-v021"
+  },
+  "commandState": "All engineering build/test/tidy/doc commands completed. Native worker separately owns recovery console/DPAPI diagnosis; it is outside this leaf and is never stopped by it. Completed leaf task registration and final source metadata synchronization are accounted in final runtime receipt.",
+  "pendingReleaseObligations": [
+    "Full normal platform release gates on final source",
+    "Package audits, signatures/notarization and private release preflight/publication",
+    "Native/security and Windows signing prerequisites remain release coordinator/native worker scope"
+  ],
+  "nextAction": "Coordinator resumes Mac normal release gate after final writer handoff. Producer build/cache trees are preserved.",
+  "finalStateReceipt": ".mask/sessions/release-v0.2.1/search-navigation/final-state.json",
+  "skills": [
+    "implement-rfc",
+    "frontend-design (loaded; no visual design change)"
+  ]
+}

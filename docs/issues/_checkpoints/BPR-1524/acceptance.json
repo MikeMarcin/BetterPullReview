@@ -1,0 +1,51 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "33b02cc5100c33afb6d3d9053cb36b329b80ca03",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Original Windows navigation failures (3188/3142 ms) are retained. Exact 8fdec1f0f diagnostic records 3196 ms total, loading at 128 ms/result at 471 ms, 127 geometry batches, one restart and four pane measurements. Native Qt driver 068b650da takes 1447 ms with identical geometry work. The delay came from per-turn OS sleeps in the test driver; no production regression requiring a source fix was demonstrated.",
+        "references": [
+          "/Users/jaeger/.codex/evidence/bpr1524-native-event-loop-i2ls6o05/manifest.json",
+          "docs/issues/_checkpoints/BPR-1524/evidence.json",
+          "docs/issues/_checkpoints/BPR-1524/requirement-reconciliation.json",
+          "docs/issues/_checkpoints/BPR-1524/handoff.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "33b02cc5100c33afb6d3d9053cb36b329b80ca03",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Only source_pr_search_performance_tests.cpp changes. A real QEventLoop drives ordinary application continuations, with precise 1 ms observation and precise 30 s timeout. Initial/final condition checks and the final assertion remain; observers run for already-ready and asynchronous completion paths and after timeout, which cannot create false success. All public guards and committed thresholds remain. No production API, authority, source, layout, cache or acquisition change. Broad diagnostic traces removed after isolation.",
+        "references": [
+          "/Users/jaeger/.codex/evidence/bpr1524-native-event-loop-i2ls6o05/manifest.json",
+          "docs/issues/_checkpoints/BPR-1524/evidence.json",
+          "docs/issues/_checkpoints/BPR-1524/requirement-reconciliation.json",
+          "docs/issues/_checkpoints/BPR-1524/handoff.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "33b02cc5100c33afb6d3d9053cb36b329b80ca03",
+      "evidence": {
+        "kind": "command",
+        "detail": "Final 33b02cc51 performance passes: Windows 1443 ms, macOS 240 ms and Ubuntu 26.04 WSL2 187 ms navigation. All cold/warm/cancel/RSS/coverage/structural assertions pass. Mac scope/retry/architecture: 3/3 pass, 29.64 s. Format 22.1.8, touched test TU tidy and DOCUMENTATION_OK pass. Exact-source clean producer handoff follows; full normal release gates remain coordinator scope.",
+        "references": [
+          "/Users/jaeger/.codex/evidence/bpr1524-native-event-loop-i2ls6o05/manifest.json",
+          "docs/issues/_checkpoints/BPR-1524/evidence.json",
+          "docs/issues/_checkpoints/BPR-1524/requirement-reconciliation.json",
+          "docs/issues/_checkpoints/BPR-1524/handoff.json"
+        ]
+      }
+    }
+  ]
+}
