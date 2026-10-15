@@ -608,7 +608,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   colour rule: lines added are green and removed red (the theme's accepted
   and defect inks). Otherwise colour means state and nothing else: the reason word, and
   either a 3-point mark at the row's left or the rail of the panel holding
-  it. Row text wraps rather than eliding, and the style paints its own
+  it. The rail and header of My pull requests are the one section colour. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.
 - **One selection, and the open review** ([[BPR-1365]], the owner,
   2026-10-09: "Separate problem: the color of recent is the same as the
@@ -631,9 +631,13 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   row.
 - **Panels.** With State headers on — the default — each state is a bordered
   card with a rail in its colour and a tinted header carrying the name and
-  the count. My pull requests uses a neutral header because its rows carry
-  different states; their reason words keep their existing state colours and
-  their sentences identify the PR as mine alongside the observed activity.
+  the count. My pull requests has its own plum header and rail ([[BPR-1528]],
+  the owner, 2026-10-15: "Can we add a header and rail color for my reviews on
+  the home"), a fourth built-in Home tone per variant that, like the other
+  three, is neither stored nor customisable. It marks the section, not a
+  state: its rows carry different states, their reason words keep their
+  existing state colours and their sentences identify the PR as mine
+  alongside the observed activity.
   Its collapsed summary names actionable and unread activity, retaining unknown
   detail distinctly. Its own collapse starts expanded on upgrade and then
   persists per window independently of Waiting on others. A header sticks to the top of the scroll area while its panel is

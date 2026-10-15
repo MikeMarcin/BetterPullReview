@@ -445,7 +445,7 @@ namespace bpr::qt {
 		case home_group::needs_you:
 			return NeedsMe;
 		case home_group::my_pull_requests:
-			return QColor{ };
+			return MyPullRequests;
 		case home_group::waiting_on_others:
 			return WaitingOnOthers;
 		case home_group::following:
@@ -460,6 +460,7 @@ namespace bpr::qt {
 			.NeedsMe         = aProfile.attention_color(attention_tone::needs_me),
 			.WaitingOnOthers = aProfile.attention_color(attention_tone::waiting_on_others),
 			.Following       = aProfile.attention_color(attention_tone::following),
+			.MyPullRequests  = aProfile.attention_color(attention_tone::my_pull_requests),
 			.Failure         = aProfile.color(core::appearance_role::state_defect),
 			.Added           = aProfile.color(core::appearance_role::state_accepted),
 			.Removed         = aProfile.color(core::appearance_role::state_defect),
