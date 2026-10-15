@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1526"
 title: "Restore macOS workshop action release contract"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0051"]
 depends_on: []
 priority: "P1"
