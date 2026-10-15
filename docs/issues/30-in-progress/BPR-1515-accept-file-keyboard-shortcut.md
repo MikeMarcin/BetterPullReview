@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1515"
 title: "Add a keyboard shortcut for Accept File"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Need a hotkey for accept file","related_cards":["BPR-1507"],"milestone_plan":{"id":"bpr-1515-accept-file-hotkey","path":"docs/rfcs/plans/bpr-1515-accept-file-hotkey/milestone-plan.json"}}
