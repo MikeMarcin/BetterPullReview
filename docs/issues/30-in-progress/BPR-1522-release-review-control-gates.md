@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1522"
 title: "Repair review-control regressions exposed by the patch release gate"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"0.2.1 normal Mac release gate","assigned_implementer":"/root","baseline":"40bc43a8f17e6871593c3dde539b546155af4d2c","milestone_plan":{"id":"bpr-1522-release-review-controls","path":"docs/rfcs/plans/bpr-1522-release-review-controls/milestone-plan.json"}}
