@@ -209,6 +209,13 @@ int main(int aArgc, char** aArgv)
 		render(window, QStringLiteral("01-change-entry"));
 
 		// Exact bounds still enter, retain reading and show the existing status.
+		auto observedBound = QElapsedTimer{ };
+		auto boundObserver = QObject{ };
+		QObject::connect(window.statusBar(), &QStatusBar::messageChanged, &boundObserver, [&](const QString& aMessage) {
+			if (aMessage == QStringLiteral("Last change in this file.")) {
+				observedBound.start();
+			}
+		});
 		for (const auto modality : { qt::review_modality::overview, qt::review_modality::discuss, qt::review_modality::threads }) {
 			for (std::size_t command = 0U; command < commands.size(); ++command) {
 				open(*application, command < 2U ? (command == 0U ? order.front() : order.back()) : longFile);
@@ -233,13 +240,21 @@ int main(int aArgc, char** aArgv)
 				expect(after && before && after->Id == before->Id && after->View.File == before->View.File && after->View.Comparison == before->View.Comparison && window.comparison_surface()->selection() == selection, "bound preserves file, pair and semantic reading position");
 			}
 		}
+		const auto beforeRenderAge = observedBound.isValid() ? observedBound.elapsed() : -1;
 		render(window, QStringLiteral("02-bounded-entry"));
+		std::cout << "bound-lifetime before-render-ms=" << beforeRenderAge
+				  << " after-render-ms=" << (observedBound.isValid() ? observedBound.elapsed() : -1) << '\n'
+				  << std::flush;
 		auto boundTimer = QElapsedTimer{ };
 		boundTimer.start();
 		while (boundTimer.elapsed() < 2600) {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
+		std::cout << "bound-lifetime observation-ms=" << boundTimer.elapsed()
+				  << " message-age-ms=" << (observedBound.isValid() ? observedBound.elapsed() : -1)
+				  << " message-present=" << (window.statusBar()->currentMessage() == QStringLiteral("Last change in this file.")) << '\n'
+				  << std::flush;
 		expect(window.statusBar()->currentMessage() == QStringLiteral("Last change in this file."), "bound explanation remains for almost three seconds");
 		wait_for([&] { return window.statusBar()->currentMessage().isEmpty(); }, "three-second bound message clears");
 		expect(boundTimer.elapsed() < 3600, "bound message has existing three-second lifetime");

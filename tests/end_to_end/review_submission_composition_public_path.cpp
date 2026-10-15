@@ -638,7 +638,21 @@ auto main(int argc, char** argv) -> int
 			const auto selections = course.statistics().FileSelections;
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
-			wait([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, "select a current-head line for the pending draft");
+			if (!e2e::wait_until_plain([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, e2e::default_queue_budget)) {
+				const auto* surface = course.comparison_surface();
+				const auto& context = surface->current_context();
+				const auto& result = surface->current_result();
+				const auto selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
+				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
+						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
+						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())
+						  << " file-match=" << (selectedFile && context && context->Key.File == *selectedFile)
+						  << " left-lines=" << (result ? result->Alignment.LeftLineCount : 0U)
+						  << " right-lines=" << (result ? result->Alignment.RightLineCount : 0U)
+						  << " tab-pending=" << access::epoch_refresh_identity(*application).TabPending
+						  << " modality=" << static_cast<int>(course.current_modality()) << '\n';
+				throw std::runtime_error{ "select a current-head line for the pending draft" };
+			}
 			wait([&] { return course.comment_action()->isEnabled(); }, "Comment is offered on the current-head line");
 			course.comment_action()->trigger();
 			auto* const inlineDraft = course.review_editor();
