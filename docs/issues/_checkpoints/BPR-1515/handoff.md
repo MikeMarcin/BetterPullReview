@@ -48,9 +48,12 @@ split-diff render at `/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/
 review.cpp, selected lines39/42, visible Accept and state menu. No human gate.
 The separate sibling draft-sharing regression belongs to BPR-1521.
 
-Canonical finish follows with the passing acceptance decision and explicit owned
-upkeep paths. No acceptance or integration obligation remains for BPR-1515.
-The coordinator may retire this leaf after integrating its closeout commit;
+Canonical finish completed as `b7cc139605d5c8e6a8bca91887ded0c36f935990`, moving
+BPR-1515 to Done with the passing acceptance decision and explicit owned upkeep
+paths. The first invocation repeated --paths and therefore selected only its
+last group; it refused without mutation. One grouped --paths invocation passed.
+No acceptance or integration obligation remains for BPR-1515. The coordinator
+may retire this leaf after integrating its closeout commit and this final note;
 cc83e040e is the duplicate of already-main5a105579c and must not be imported.
 
 Changed product paths: workbench_window.hpp/.cpp, src/app/CMakeLists.txt,
