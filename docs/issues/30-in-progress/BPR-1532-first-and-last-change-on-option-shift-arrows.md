@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1532"
 title: "First and last change in the current file on Option-Shift-Up and Option-Shift-Down"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
