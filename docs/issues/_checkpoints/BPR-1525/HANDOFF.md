@@ -1,3 +1,7 @@
+> Latest authoritative frontier: [CURRENT.md](CURRENT.md). The sections below
+> are chronological records; their earlier active-producer instructions have
+> been superseded by root's preserved stop and native-slot release.
+
 # BPR-1525 engineering handoff
 
 Authorized release source baseline: `8f0d25418cd4278065d5a043dabaa728feb202f1`.
