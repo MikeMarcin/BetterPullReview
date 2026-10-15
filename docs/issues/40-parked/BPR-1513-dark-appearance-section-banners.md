@@ -85,3 +85,27 @@ Rather than guess at v002, a fresh short session asks one named-alternatives
 question about what to change. AC1 and AC4 stay pending, and the v001 source and
 frozen build stay protected until v002 supersedes them. Details are in
 [the handoff](../_checkpoints/BPR-1513/handoff.json).
+
+Engineering checkpoint v002, 2026-10-14.
+
+The owner asked for a better v002 straight away: the banners should form a
+distinct band without a bright flash, with titles that read clearly, and the
+same treatment in the Settings window. Frontend-design was loaded before the
+edit. Each Appearance section header, and the Keep/Cancel footer that appears
+while colours are edited, is now painted with the application surface moved 8%
+toward the application text. The band is computed at paint time from the live
+palette, so custom and high-contrast themes and live switching follow it,
+without a style sheet, a second palette or a hard-coded colour. Dark is
+`#2C3036` on `#1C2026` (1.23:1 band, 11.2:1 titles); Light is `#E5E6E8` on
+`#F6F7F9` (1.17:1, 12.7:1); both high-contrast themes keep titles above 17:1.
+
+Candidate `6b1d9e2af` on branch `bpr1513-dark-appearance-banners`, which has
+main merged in. The five focused Appearance, theme-switching and Settings
+courses pass, as do the three scaled Settings courses. Format, tidy and
+`git diff --check` pass. The composed course now asserts the painted band, its
+separation and its title contrast in six modes; with the band step at zero
+(v001's flat surface) it fails at that assertion. The frozen v002 build passed
+its launcher check and is under review in a fresh short session. The
+reason session that had gone unanswered is closed, and the v001 protection is
+released. AC1 and AC4 remain pending the owner's verdict. Details are in
+[the handoff](../_checkpoints/BPR-1513/handoff.json).
