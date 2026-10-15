@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1529"
 title: "Draw Review's file-tree folders in Overview's folder colour"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
