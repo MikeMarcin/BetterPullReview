@@ -636,6 +636,8 @@ auto main(int argc, char** argv) -> int
 			auto* const files = course.files_drawer()->contents_view();
 			wait([&] { return files->model()->rowCount() > 0; }, "a file to comment on");
 			const auto selections = course.statistics().FileSelections;
+			const auto desiredFile = course.files_drawer()->contents()->file_at(files->model()->index(0, 0));
+			const auto beforeFileGesture = access::epoch_refresh_identity(*application);
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
 			if (!e2e::wait_until_plain([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, e2e::default_queue_budget)) {
@@ -643,13 +645,21 @@ auto main(int argc, char** argv) -> int
 				const auto& context      = surface->current_context();
 				const auto& result       = surface->current_result();
 				const auto  selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
+				const auto current = access::epoch_refresh_identity(*application);
 				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
 						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
 						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())
 						  << " file-match=" << (selectedFile && context && context->Key.File == *selectedFile)
 						  << " left-lines=" << (result ? result->Alignment.LeftLineCount : 0U)
 						  << " right-lines=" << (result ? result->Alignment.RightLineCount : 0U)
-						  << " tab-pending=" << access::epoch_refresh_identity(*application).TabPending
+						  << " requested-file=" << desiredFile.has_value()
+						  << " selected-match=" << (desiredFile && current.SelectedFile == desiredFile)
+						  << " before-active=" << beforeFileGesture.ActiveTab.has_value()
+						  << " active=" << current.ActiveTab.has_value()
+						  << " active-file=" << (current.ActiveTab && current.ActiveTab->View.File.has_value())
+						  << " active-match=" << (desiredFile && current.ActiveTab && current.ActiveTab->View.File == desiredFile)
+						  << " comparison-pending=" << current.ComparisonPending
+						  << " tab-pending=" << current.TabPending
 						  << " modality=" << static_cast<int>(course.current_modality()) << '\n';
 				throw std::runtime_error{ "select a current-head line for the pending draft" };
 			}

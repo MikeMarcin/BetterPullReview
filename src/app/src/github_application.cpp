@@ -24512,6 +24512,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		auto&      probe = *implementation->UIforEtwSelectedDiffProbe;
 		const auto fail  = [&probe, implementation] {
+			const auto* const surface = implementation->Window->comparison_surface();
+			bpr::app::detail::terminal_text_stream{ }
+				<< "UIFORETW_PROBE_FAILURE:phase=" << static_cast<int>(probe.Phase)
+				<< " waits=" << static_cast<qulonglong>(probe.Waits)
+				<< " reveal_waits=" << static_cast<qulonglong>(probe.RevealWaits)
+				<< " next=" << probe.Evidence.NextChangeNavigation
+				<< " previous=" << probe.Evidence.PreviousChangeNavigation
+				<< " rc_revealed=" << probe.RcRevealed
+				<< " dispatches=" << static_cast<qulonglong>(implementation->WorkbenchChangeDispatches)
+				<< " baseline_dispatches=" << static_cast<qulonglong>(probe.ChangeDispatches)
+				<< " selection=" << (surface && surface->selection().has_value())
+				<< " geometry_pending=" << (surface && surface->geometry_pending())
+				<< " pending_navigation=" << implementation->PendingReviewNavigation.has_value()
+				<< " tab_pending=" << (implementation->TabHost && implementation->TabHost->state().Pending.has_value())
+				<< " tab_queued=" << implementation->TabAdvanceQueued << '\n';
 			probe.Evidence.FixtureDiffHelperUnused
 				= implementation->FixtureDiffHelperInvocations == 0U;
 			probe.Phase = state_type::phase::failed;
@@ -28593,7 +28608,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.Line));
 				}
 				const auto& draft = implementation->ReviewDraft;
-				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" }));
+				const auto* active = implementation->TabHost && implementation->TabHost->state().Active
+					? core::find_tab(implementation->TabHost->state(), *implementation->TabHost->state().Active) : nullptr;
+				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" })
+					+ " selected_file=" + std::to_string(implementation->WorkbenchHost->selected().has_value())
+					+ " active_tab=" + std::to_string(active != nullptr)
+					+ " tab_file=" + std::to_string(active && active->View.File.has_value())
+					+ " chosen=" + std::to_string(implementation->TabHost && implementation->TabHost->state().Chosen.has_value())
+					+ " material=" + std::to_string(implementation->ReviewSourceMaterial.has_value())
+					+ " tab_queued=" + std::to_string(implementation->TabAdvanceQueued));
 				if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right || draft->State != core::review_draft_state::drafting) {
 					return result::pending;
 				}

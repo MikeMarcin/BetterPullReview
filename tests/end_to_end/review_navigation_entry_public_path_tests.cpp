@@ -212,7 +212,7 @@ int main(int aArgc, char** aArgv)
 		auto observedBound = QElapsedTimer{ };
 		auto boundObserver = QObject{ };
 		QObject::connect(window.statusBar(), &QStatusBar::messageChanged, &boundObserver, [&](const QString& aMessage) {
-			if (aMessage == QStringLiteral("Last change in this file.")) {
+			if (aMessage == QStringLiteral("Last change in this file.") && !observedBound.isValid()) {
 				observedBound.start();
 			}
 		});
@@ -233,6 +233,7 @@ int main(int aArgc, char** aArgv)
 				window.statusBar()->clearMessage();
 				std::cout << "bound modality=" << static_cast<int>(modality) << " command=" << command << '\n'
 						  << std::flush;
+				observedBound.invalidate();
 				actions[command]->trigger();
 				const auto messages = std::array{ QStringLiteral("First file in this pull request."), QStringLiteral("Last file in this pull request."), QStringLiteral("First change in this file."), QStringLiteral("Last change in this file.") };
 				wait_for([&] { return window.current_modality() == qt::review_modality::review && !access::epoch_refresh_identity(*application).TabPending && window.statusBar()->currentMessage() == messages[command]; }, "bound enters Review and displays exact existing explanation");
@@ -245,8 +246,10 @@ int main(int aArgc, char** aArgv)
 		std::cout << "bound-lifetime before-render-ms=" << beforeRenderAge
 				  << " after-render-ms=" << (observedBound.isValid() ? observedBound.elapsed() : -1) << '\n'
 				  << std::flush;
-		auto boundTimer = QElapsedTimer{ };
-		boundTimer.start();
+		// The message owns its three seconds from emission. Rendering the
+		// evidence image has already used part of that lifetime.
+		expect(observedBound.isValid(), "the originating bound message was observed");
+		const auto boundTimer = observedBound;
 		while (boundTimer.elapsed() < 2600) {
 			QApplication::processEvents();
 			QThread::msleep(1);
