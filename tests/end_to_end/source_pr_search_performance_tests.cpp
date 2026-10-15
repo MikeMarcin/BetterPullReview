@@ -10,6 +10,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21,7 +22,7 @@
 #include <QScrollBar>
 #include <QSysInfo>
 #include <QTemporaryDir>
-#include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 #include <algorithm>
@@ -40,14 +41,28 @@ namespace {
 	using access = app::detail::github_application_fixture_access;
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aObserve = { })
 	{
-		QElapsedTimer timer;
-		timer.start();
-		while (!aCondition() && timer.elapsed() < 30000) {
-			QApplication::processEvents();
-			if (aObserve) {
-				aObserve();
-			}
-			QThread::msleep(1);
+		if (!aCondition()) {
+			// Keep the application's ordinary Qt continuations running. An OS
+			// sleep after every event turn magnifies Windows' timer granularity
+			// across the pane's bounded geometry batches ([[BPR-1524]]).
+			QEventLoop loop;
+			QTimer     observation;
+			observation.setTimerType(Qt::PreciseTimer);
+			observation.setInterval(1);
+			QObject::connect(&observation, &QTimer::timeout, &loop, [&] {
+				if (aObserve) {
+					aObserve();
+				}
+				if (aCondition()) {
+					loop.quit();
+				}
+			});
+			QTimer timeout;
+			timeout.setSingleShot(true);
+			QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+			observation.start();
+			timeout.start(30000);
+			loop.exec();
 		}
 		if (aObserve) {
 			aObserve();
