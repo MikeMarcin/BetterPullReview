@@ -639,10 +639,10 @@ auto main(int argc, char** argv) -> int
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
 			if (!e2e::wait_until_plain([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 29U); }, e2e::default_queue_budget)) {
-				const auto* surface = course.comparison_surface();
-				const auto& context = surface->current_context();
-				const auto& result = surface->current_result();
-				const auto selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
+				const auto* surface      = course.comparison_surface();
+				const auto& context      = surface->current_context();
+				const auto& result       = surface->current_result();
+				const auto  selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
 				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
 						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
 						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())

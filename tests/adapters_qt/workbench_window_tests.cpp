@@ -14040,9 +14040,9 @@ namespace {
 			// The native title may elide at the platform floor. Its full tooltip
 			// still names this exact cycle, and the visible prefix and badge must
 			// belong to it rather than to the PR updated behind it.
-			const auto caption = window.identity_label()->text();
+			const auto caption    = window.identity_label()->text();
 			const auto drawnTitle = caption.endsWith(cycleBadge) ? caption.chopped(cycleBadge.size()) : QString{ };
-			const auto prefix = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
+			const auto prefix     = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
 			const auto namesCycle = drawnTitle == cycleTitle
 				|| (!prefix.isEmpty() && prefix.size() < cycleTitle.size() && cycleTitle.startsWith(prefix));
 			const auto retainedCycle = window.identity_label()->isVisible() && namesCycle
