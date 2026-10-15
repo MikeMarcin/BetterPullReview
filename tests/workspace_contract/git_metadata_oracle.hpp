@@ -244,10 +244,17 @@ namespace bpr::tests::workspace_contract {
 
 		auto discover(const std::filesystem::path& aRoot) const -> std::expected<discovery_answer, candidate_refusal>
 		{
-			const auto [status, text] = ask(aRoot, { "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir" });
+			const auto output = Scratch / "oracle.out";
+			const auto error  = Scratch / "oracle.err";
+			const auto status = Git.status(aRoot, { "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir" }, std::nullopt, output, error);
 			if (status != 0) {
+				const auto reason = trimmed(read_file(error));
+				if (status == 128 && reason == "fatal: compatibility hash algorithm support requires Rust") {
+					return std::unexpected(std::string{ "rev-parse exit 128: compatibility hash algorithm support requires Rust" });
+				}
 				return std::unexpected("rev-parse exit " + std::to_string(status));
 			}
+			const auto text                = read_file(output);
 			const auto newline             = text.find('\n');
 			auto       answer              = discovery_answer{ .GitDirectory = text.substr(0, newline), .CommonDirectory = trimmed(text.substr(newline + 1)) };
 			answer.GitDirectoryIdentity    = identity_of(answer.GitDirectory);

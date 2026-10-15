@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import difflib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -323,6 +324,19 @@ def check_construction(expected: dict) -> None:
             f"{name}: construction.json is exactly what {expected['Generator']} "
             "writes, so it was not edited by hand",
         )
+    if name == "source-find-v1":
+        # This course intentionally contains mixed LF/CRLF source bytes.
+        # Ambient Git conversion must not rewrite those blobs and their OIDs.
+        with contained_temporary_directory() as directory:
+            regenerated = Path(directory) / "construction.json"
+            environment = {**os.environ, "GIT_CONFIG_COUNT": "1",
+                           "GIT_CONFIG_KEY_0": "core.autocrlf", "GIT_CONFIG_VALUE_0": "true"}
+            result = subprocess.run(
+                [sys.executable, str(ROOT / expected["Generator"]), str(regenerated)],
+                env=environment, capture_output=True, text=True, check=False,
+            )
+            expect(result.returncode == 0 and regenerated.read_bytes() == path.read_bytes(),
+                   f"{name}: ambient core.autocrlf=true preserves exact source blobs and commit identities")
     raw = path.read_text(encoding="utf-8")
     construction = json.loads(raw)
     expect(

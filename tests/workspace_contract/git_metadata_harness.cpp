@@ -128,6 +128,9 @@ namespace {
 			entries.push_back({ "K", "C4", name, "", "deliberate",
 								"discovery opens the Git directories and reads no config; Git dies on the config before printing them, and every config-reading component refuses as Git does" });
 		}
+		entries.push_back({ "K", "C4", "format-compat-object-format", "", "deliberate",
+							"discovery reads no config; Git 2.55 built without Rust refuses the exact compatObjectFormat=sha256 configuration before printing directories (BPR-1525); config-reading components still refuse",
+							"refused: rev-parse exit 128: compatibility hash algorithm support requires Rust", "answers" });
 		// C5 and C6.
 		for (const auto* name : { "ignorecase-true", "ignorecase-false" }) {
 			for (const auto component : { std::string_view{ "C5" }, std::string_view{ "C5-capture" } }) {

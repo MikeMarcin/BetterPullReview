@@ -1,6 +1,6 @@
 # BPR-1525: Windows normal release gate repairs
 
-Mandate `authorized-release-continuation`; milestone
+Mandate `authorized-release-continuation-native-gates-r2`; milestone
 `bpr-1525-windows-release-gates/native-gate-contracts`.
 Original release source: `8f0d25418cd4278065d5a043dabaa728feb202f1`.
 Engineering owner `/root/bpr1525_implementer`, native `rfc-implementer`, configured
@@ -25,11 +25,13 @@ not a complete final inventory, and no corrected native pass is claimed yet.
 | `github_provider` | 30.04 s timeout | Cause unproven; focused native diagnosis pending |
 | `qt_diff_workbench_scale_100` | 120.01 s timeout at original row 418/705 | Cause unproven; only offscreen size-hint warnings observed; no UI source or timeout changed |
 
-Original producer and evidence remain untouched:
-`C:/Users/mikem/bpr-v021`, scheduled task
-`BPR-v021-native-production-8f0d2541`, and external log
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/v021-windows-production.log`.
-Final full gate results must be collected after it exits.
+Root preserved and stopped the original failed partial gate (426/705,
+11 failures/timeouts) and confirmed its process tree absent. Original external
+log `C:/Users/mikem/AppData/Local/BetterPullReviewRelease/v021-windows-production.log`
+and partial reports remain retained. Root authorized reuse of
+`C:/Users/mikem/bpr-v021` on `codex/bpr1525-native-repair-r2` after preserving the
+clean baseline as `bpr1525-preserved-original-8f0d2541`. The separate station
+`C:/code/git/BetterPullReview` is outside this ownership.
 
 ## Git compatibility policy under existing RFC83 H1
 
@@ -86,3 +88,46 @@ These repairs invalidate baseline `8f0d25418` as final release source.
 Every release platform must rerun its required gate and packages from the same
 corrected final source. This milestone grants no authentication, signing,
 publication, native trust or release approval.
+
+
+## Focused native evidence and further exact causes
+
+Windows candidate `0d5f9cc2c90ecd99571a8dd32aba4347e585596a`, Interactive
+Limited session 1, configures and builds successfully. The selected-runtime
+probe fails before the named-container RX grant and succeeds after it.
+`test_network_isolation_child` passes (0.19 s), as do external (0.15 s), loopback
+(0.13 s) and concurrent launch (0.97 s). `application_diff_host` passes (6.06 s)
+with its original internal 10 ms stop limit; readers pass (10.01 s), CLI passes
+and provider passes (23.22 s) under its unchanged 30 s CTest limit. The original
+provider timeout remains unexplained; final-source/full-gate repetition remains
+required, and no cause or timeout repair is invented from this focused pass.
+
+The native construction check exposed a second independent byte cause after
+LF JSON writes: both JSON files had zero CRLF and equal lengths, but ambient
+`core.autocrlf=true` changed the intentionally mixed-ending source blobs and
+therefore their Git OIDs. Native regenerated head was `28a3fe88ff0de41b687d4fa750f9fdd247fee055`
+instead of committed `755992e699b42939e3bff7abbdd1d66827ce439f`. The shared fixture
+pack runner now disables that conversion per command; no global Git setting
+changes. The new ambient-autocrlf regression rejects the former implementation
+and accepts the corrected exact fixture. The complete portable fixture course
+passes. Native corrected repetition is pending.
+
+The harness drops from 89 to one unclassified difference on that native source.
+The remaining C4 `format-compat-object-format` case sets repository format 1
+and `extensions.compatObjectFormat=sha256`. Apple Git 2.50.1 prints the Git
+directory; Windows Git 2.55.0.windows.3 exits 128 with exactly `fatal:
+compatibility hash algorithm support requires Rust`. Upstream
+[`repo_set_compat_hash_algo`](https://github.com/git/git/blob/v2.55.0/repository.c)
+contains that compiled-without-Rust refusal. The existing deliberate discovery
+policy opens directories without reading config; all config-reading candidate
+components continue to refuse this extension. A new classification binds only
+that exact case, component, candidate, observed refusal text and `answers`.
+The oracle now retains that exact semantic refusal; every other error keeps its
+previous value and cannot match the new entry. The source-backed rule extends
+the existing C4 discovery distinction under H1, with no production change or
+blanket suppression. Portable readers and harness pass after the change;
+corrected Windows and negative controls remain pending.
+
+BPR-1526's separately tracked [Mac action repair](BPR-1526-macos-workshop-action.md)
+is part of the coordinator-authorized combined milestone. Its original press
+and neighboring public courses now pass on the same application source.

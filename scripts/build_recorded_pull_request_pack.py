@@ -48,7 +48,7 @@ FIXTURE_ENVIRONMENT = {
 
 def run(repository: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", "-C", repository, *arguments],
+        ["git", "-c", "core.autocrlf=false", "-C", repository, *arguments],
         capture_output=True,
         text=True,
         env={**os.environ, **FIXTURE_ENVIRONMENT},
