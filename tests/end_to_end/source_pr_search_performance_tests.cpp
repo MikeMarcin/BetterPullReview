@@ -175,12 +175,12 @@ int main(int aArgc, char** aArgv)
 	const auto rssPeak = peak_resident();
 	QFile      thresholdFile{ QString::fromUtf8(BPR_SEARCH_PERFORMANCE_THRESHOLDS) };
 	expect(thresholdFile.open(QIODevice::ReadOnly), "committed thresholds read");
-	const auto limits = QJsonDocument::fromJson(thresholdFile.readAll()).object();
-	expect(coldFirst >= 0 && coldFirst <= limits["cold_first_ms"].toInt() && warmFirst >= 0 && warmFirst <= limits["warm_first_ms"].toInt() && coldFinal <= limits["cold_final_ms"].toInt() && navigationMs <= limits["navigation_ms"].toInt() && warmFinal <= limits["warm_final_ms"].toInt() && cancelMs <= limits["cancel_ms"].toInt(), "public performance regression thresholds");
-	expect(rssPeak <= static_cast<std::uint64_t>(limits["peak_resident_mib"].toInt()) * 1024U * 1024U && warm.PeakOwnedBound <= application::maximum_source_pr_search_owned_bytes, "process peak and component admission remain bounded");
+	const auto  limits = QJsonDocument::fromJson(thresholdFile.readAll()).object();
 	QJsonObject report{ { "platform", QSysInfo::prettyProductName() }, { "architecture", QSysInfo::currentCpuArchitecture() }, { "qt", QString::fromUtf8(qVersion()) }, { "fixture_entries", 70 }, { "eligible_files", 68 }, { "source_bytes", 11779610 }, { "cold_final_ms", coldFinal }, { "cold_first_ms", coldFirst }, { "navigation_ms", navigationMs }, { "warm_first_ms", warmFirst }, { "warm_final_ms", warmFinal }, { "cancel_ms", cancelMs }, { "rss_before_bytes", static_cast<double>(rssBefore) }, { "rss_peak_bytes", static_cast<double>(rssPeak) }, { "cold", statistics(cold, aBefore) }, { "warm", statistics(warm, cold) } };
 	std::cout << "SOURCE_SEARCH_PERFORMANCE_JSON " << QJsonDocument{ report }.toJson(QJsonDocument::Compact).toStdString() << '\n'
 			  << std::flush;
+	expect(coldFirst >= 0 && coldFirst <= limits["cold_first_ms"].toInt() && warmFirst >= 0 && warmFirst <= limits["warm_first_ms"].toInt() && coldFinal <= limits["cold_final_ms"].toInt() && navigationMs <= limits["navigation_ms"].toInt() && warmFinal <= limits["warm_final_ms"].toInt() && cancelMs <= limits["cancel_ms"].toInt(), "public performance regression thresholds");
+	expect(rssPeak <= static_cast<std::uint64_t>(limits["peak_resident_mib"].toInt()) * 1024U * 1024U && warm.PeakOwnedBound <= application::maximum_source_pr_search_owned_bytes, "process peak and component admission remain bounded");
 	app->begin_shutdown();
 	wait_for([&] { return app->status().ShutdownComplete; }, "large search shutdown terminal");
 	std::cout << "SOURCE_PR_SEARCH_PERFORMANCE_OK\n";
