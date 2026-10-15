@@ -1,0 +1,65 @@
+{
+  "schema": "bpr1522.handoff.v1",
+  "issue": "BPR-1522",
+  "milestone": "bpr-1522-release-review-controls/review-control-gates",
+  "run": "release-v0.2.1",
+  "segment": "BPR-1522-review-controls",
+  "mandateRevision": "owner-20261014-use-implementers",
+  "engineeringOwner": "/root/release021_review_controls",
+  "coordinator": "/root",
+  "sourceRoot": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "baseline": "40bc43a8f17e6871593c3dde539b546155af4d2c",
+  "implementationRevision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+  "changedProductPaths": [
+    "src/adapters/qt/src/review_submission_editor.cpp",
+    "tests/adapters_qt/review_submission_editor_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "plan": "docs/rfcs/plans/bpr-1522-release-review-controls/milestone-plan.json",
+  "planDisposition": "Adopted unchanged. No public API, policy, layout, appearance, provider or persistence contract changes.",
+  "skills": [
+    "implement-rfc",
+    "frontend-design"
+  ],
+  "result": "Adopted and independently reviewed the inherited patch. Saved comments now has StrongFocus; narrow file position test matches established responsive policy and checks full accessible position. No production layout or manifest-pin change.",
+  "verification": {
+    "negative": "3/3 failures in each original group at all three scales, exact control facts retained",
+    "scaleCourses": {
+      "passed": 6,
+      "failed": 0,
+      "elapsedSeconds": 81.72
+    },
+    "focusedComposition": {
+      "passed": 4,
+      "failed": 0,
+      "elapsedSeconds": 38.39
+    },
+    "format": "clang-format22.1.8 pass",
+    "tidy": "supported helper, touched product TU, SDK-bound, warnings-as-errors pass; raw unsupported invocation retained as failed tool setup",
+    "documentation": "DOCUMENTATION_OK",
+    "directRenders": "Real offscreen editor at narrow width and full workbench width-floor image inspected. Render evidence verifies geometry only, not system appearance integration.",
+    "sourceEquality": "2545 tracked build-surface files compared byte-for-byte between main and verified producer; all equal.",
+    "evidenceManifest": "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+    "selfReview": "One-line Qt focus fix matches sibling controls. No new state, effects, ownership, stale-pointer or authority paths. Exact allowed counter forms plus accessibility retain responsive semantics; no broad assertion bypass."
+  },
+  "reviewHandoff": {
+    "requiredHumanOrIndependentReview": false,
+    "pending": [],
+    "reason": "Focused repair restores existing focus contract and aligns test with already adopted layout contract; no new design acceptance inferred."
+  },
+  "producer": {
+    "root": "/Users/jaeger/Documents/Codex/releases/v0.2.1-macos",
+    "build": "build/dev",
+    "cache": "build/.cpm-cache symlink to shared acquisition cache, preserved",
+    "nextState": "Fast-forward to canonical finish commit with only known committed task patch replaced; final actual revision is recorded in ignored final-state receipt."
+  },
+  "commandState": "All inherited and implementer-owned build/test/tidy/documentation commands completed. No task-owned server or child process retained. Source/build scope is released only at final handoff.",
+  "pendingReleaseObligations": [
+    "Coordinator reruns complete normal Mac gate on final clean committed source; earlier interrupted 734-row attempt with six failures is not passing evidence.",
+    "Only after normal gate: tests-disabled build, package audit, signing/notarization and explicit release publication checks. Windows/Ubuntu and native/trust gaps remain release-coordinator scope."
+  ],
+  "nextAction": "Coordinator resumes the release producer from final-state receipt after writer handoff. Do not restart full gate before that transfer.",
+  "finalStateReceipt": ".mask/sessions/release-v0.2.1/BPR-1522-final.json",
+  "safety": "No owner desktop, profile, installed app, browser/private data, remote producer, release asset, GitHub or push mutation. Existing BPR-1507/BPR-1520 Done evidence preserved."
+}

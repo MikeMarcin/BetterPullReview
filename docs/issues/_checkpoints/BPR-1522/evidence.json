@@ -1,0 +1,11 @@
+{
+  "schema": "bpr1522.evidence-reference.v1",
+  "sourceRevision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+  "manifest": "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+  "scope": [
+    "src/adapters/qt/src/review_submission_editor.cpp",
+    "tests/adapters_qt/review_submission_editor_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "sourceEquality": "All 2545 tracked src/tests/cmake/CMakeLists.txt/CMakePresets.json files are byte identical between main and verified producer worktree. Only producer task-owned patch was uncommitted at observation."
+}

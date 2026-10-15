@@ -1,0 +1,147 @@
+{
+  "run_id": "release-v0.2.1",
+  "segment_id": "BPR-1522-review-controls",
+  "mandate_revision": "owner-20261014-use-implementers",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "review-control-gates",
+  "binding": {
+    "plan_id": "bpr-1522-release-review-controls",
+    "plan_path": "docs/rfcs/plans/bpr-1522-release-review-controls/milestone-plan.json",
+    "milestone_id": "review-control-gates",
+    "definition_fingerprint": "sha256:c29d8c2b3ce7ab88e1cc6dafa7938e4fc5dd2083b89d8a5da51fdff0090f8501",
+    "obligations": [
+      {
+        "id": "BPR-1522:AC1",
+        "source": "BPR-1522",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:fc508d9280abcd9d6463a0fd77264630eb52c9fe9b4411e91eacdc1e4400945e"
+      },
+      {
+        "id": "BPR-1522:AC2",
+        "source": "BPR-1522",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:fc508d9280abcd9d6463a0fd77264630eb52c9fe9b4411e91eacdc1e4400945e"
+      },
+      {
+        "id": "BPR-1522:AC3",
+        "source": "BPR-1522",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:fc508d9280abcd9d6463a0fd77264630eb52c9fe9b4411e91eacdc1e4400945e"
+      }
+    ],
+    "obligation_fingerprint": "sha256:0e361df3e7341a620a0f1d6e97ba48ffd7cea5d606d8e1b53223106577a212ac",
+    "exit_criteria": [
+      {
+        "id": "review-control-gates:exit:1",
+        "text": "Reproduce both three-scale failure groups and identify actual focus/geometry facts."
+      },
+      {
+        "id": "review-control-gates:exit:2",
+        "text": "Saved comments has StrongFocus; the narrow file-position assertion admits only documented responsive forms with full accessible position."
+      },
+      {
+        "id": "review-control-gates:exit:3",
+        "text": "Affected three-scale courses and release-source composition evidence pass; format22, documentation and candidate identities are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1522/handoff.json",
+  "required_pending": [],
+  "evidence_refs": [
+    "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+    "docs/issues/_checkpoints/BPR-1522/evidence.json",
+    "docs/issues/_checkpoints/BPR-1522/handoff.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1522:AC1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    },
+    {
+      "id": "BPR-1522:AC2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    },
+    {
+      "id": "BPR-1522:AC3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    },
+    {
+      "id": "review-control-gates:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    },
+    {
+      "id": "review-control-gates:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    },
+    {
+      "id": "review-control-gates:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json",
+        "docs/issues/_checkpoints/BPR-1522/evidence.json",
+        "docs/issues/_checkpoints/BPR-1522/handoff.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "integrated-boundary",
+    "detail": "Bounded repair complete. Return source/build ownership to release coordinator, who must rerun the full normal release gate on final clean source before packaging, signing or publication."
+  },
+  "ownership": "quiescent"
+}

@@ -1,0 +1,36 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Both original failure groups reproduced 3/3 at 100%, 125% and 200%. wholeReviewSavedComments fits=1 and focus=1 (TabFocus); narrow file label visible=1, text=File, tooltip=File 3 of 40. Original failing full gate and focused negatives retained.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Saved comments now StrongFocus; all shown-button containment/focus assertions preserved. File counter admits exactly three documented forms and retains full tooltip/accessibility; all other visibility, overflow and font/floor checks retained. Editor and full width-floor offscreen renders inspected.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "e182c6848d47fa19d7d5e19bf8efcbd2d4642b75",
+      "evidence": {
+        "kind": "command",
+        "detail": "Affected Qt scale courses: 6/6 pass, 81.72 s. Architecture/round-trip composition/startup/multiwindow: 4/4 pass, 38.39 s. Format 22.1.8, touched production TU tidy via supported SDK-aware helper, and DOCUMENTATION_OK pass. Final clean source and exact producer digests are handed to coordinator for the required full normal gate before packaging; interrupted 734-row attempt remains failed/incomplete.",
+        "artifact": "/Users/jaeger/.codex/evidence/bpr1522-release-controls-qihmuare/manifest.json"
+      }
+    }
+  ]
+}
