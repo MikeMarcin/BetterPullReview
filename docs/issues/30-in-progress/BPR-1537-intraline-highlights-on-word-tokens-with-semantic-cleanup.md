@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1537"
 title: "Intraline highlights on word and punctuation tokens with semantic cleanup"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0082", "RFC-BPR-0004"]
 depends_on: []
 priority: "P1"
