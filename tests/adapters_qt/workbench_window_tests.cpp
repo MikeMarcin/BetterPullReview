@@ -26,6 +26,7 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -7656,7 +7657,50 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1531]]. Option-A (Alt+A) as the platform delivers it, with
+	/// the text it types: on macOS the Cocoa plugin offers the A key (virtual
+	/// key 0), Option and "å" to the shortcut map before the text input
+	/// system; elsewhere it is one window-system key press, which Qt offers
+	/// to the map before the focus widget. Returns whether the map took it.
+	auto option_a(qt::workbench_window& aWindow) -> bool
+	{
+		const auto typed = QStringLiteral("å");
+#if defined(__APPLE__)
+		if (QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, Qt::Key_A, Qt::AltModifier, 0U, 0U, 0U, typed)) {
+			QApplication::processEvents();
+			return true;
+		}
+#endif
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, Qt::Key_A, Qt::AltModifier, typed);
+			QApplication::processEvents();
+		}
+		return false;
+	}
+
+	/// \brief [[BPR-1531]]. The letter a label's mnemonic gives: the character
+	/// after its first single '&', upper case, or nothing. Computed here
+	/// because Qt registers mnemonics on Windows and Linux only.
+	[[nodiscard]] auto mnemonic_letter(const QString& aText) -> QChar
+	{
+		for (qsizetype index = 0; index + 1 < aText.size(); ++index) {
+			if (aText[index] == QLatin1Char{ '&' }) {
+				if (aText[index + 1] != QLatin1Char{ '&' }) {
+					return aText[index + 1].toUpper();
+				}
+				++index;
+			}
+		}
+		return QChar{ };
+	}
+
 	/// \brief [[BPR-1515]]. Accept's key reaches the retained action, and never its inverse.
+	///
+	/// \details [[BPR-1531]]. The key is Option-A (Alt+A), replacing
+	/// Command-Shift-A (Ctrl+Shift+A). Option-A types "å", so every widget in
+	/// the window that takes typed text keeps it, including one that begins
+	/// taking text while it has focus.
 	void test_file_accept_shortcut_is_accept_only_and_yields_to_editors()
 	{
 		qt::workbench_window window;
@@ -7669,8 +7713,9 @@ namespace {
 		process_events();
 		auto* const action  = window.accept_action();
 		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto  binding = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
-		const auto  press   = [&] { window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier); };
+		const auto  binding = QKeySequence{ QStringLiteral("Alt+A") };
+		const auto  retired = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
+		const auto  press   = [&] { return option_a(window); };
 		button->setFocus();
 		press();
 		expect(dispatched.empty() && !action->isEnabled(), "no current material offers no acceptance key");
@@ -7679,10 +7724,17 @@ namespace {
 		window.publish(application::project_file_receipt_actions(receipt));
 		button->setFocus();
 		process_events();
+#if defined(__APPLE__)
+		const auto shown = QStringLiteral("⌥A");
+#else
+		const auto shown = QStringLiteral("Alt+A");
+#endif
 		expect(action->shortcut() == binding && action->shortcutContext() == Qt::WindowShortcut && !action->autoRepeat()
 				   && action->isShortcutVisibleInContextMenu() && window.review_controls_menu()->actions().contains(action)
-				   && button->toolTip().contains(binding.toString(QKeySequence::NativeText)),
-			   "the existing Accept menu item and direct button expose the platform key without key repeat");
+				   && binding.toString(QKeySequence::NativeText) == shown
+				   && button->toolTip().startsWith(QStringLiteral("Accept file (%1)").arg(shown))
+				   && button->accessibleDescription() == button->toolTip(),
+			   "the Accept menu item and direct button name Option-A (Alt+A) without key repeat");
 		for (auto* const other : window.findChildren<QAction*>()) {
 			if (other != action) {
 				expect(!other->shortcuts().contains(binding), "no assembled action collides with Accept file");
@@ -7691,11 +7743,25 @@ namespace {
 		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
 			expect(!shortcut->keys().contains(binding), "no widget shortcut collides with Accept file");
 		}
+		// Windows and Linux bind Alt and a label's mnemonic; none may be A.
+		for (auto* const bar : window.findChildren<QMenuBar*>()) {
+			for (auto* const menu : bar->actions()) {
+				expect(mnemonic_letter(menu->text()) != QLatin1Char{ 'A' }, "no menu title's mnemonic is Alt+A");
+			}
+		}
+		for (auto* const other : window.findChildren<QAbstractButton*>()) {
+			expect(mnemonic_letter(other->text()) != QLatin1Char{ 'A' }, "no button's mnemonic is Alt+A");
+		}
+		for (auto* const label : window.findChildren<QLabel*>()) {
+			expect(label->buddy() == nullptr || mnemonic_letter(label->text()) != QLatin1Char{ 'A' }, "no label's mnemonic is Alt+A");
+		}
 		save_render(window, QStringLiteral("file-accept-shortcut"));
+		window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(action->shortcut() != retired && dispatched.empty(), "the replaced Command-Shift-A (Ctrl+Shift+A) no longer accepts");
 		press();
 		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
 				   && !window.review_controls_menu()->isVisible(),
-			   "actual window-system key delivery accepts exactly the current file without a menu");
+			   "Option-A through the window system accepts exactly the current file without a menu");
 		receipt = core::apply(receipt, dispatched.back()).Receipt;
 		window.publish(application::project_file_receipt_actions(receipt));
 		press();
@@ -7717,23 +7783,54 @@ namespace {
 		expect(dispatched.size() == 2U && !action->isEnabled(), "an explicit disabled projection keeps its refusal through key delivery and focus");
 		window.publish(application::project_file_receipt_actions(receipt));
 
-		// All editable fields keep the key, including native menu equivalents.
+		// Every widget that takes typed text keeps Option-A and receives "å".
+		const auto     typed = QStringLiteral("å");
 		QLineEdit      line{ &window };
 		QPlainTextEdit plain{ &window };
 		QTextEdit      rich{ &window };
-		for (auto* const editor : std::array<QWidget*, 3>{ &line, &plain, &rich }) {
+		QComboBox      combo{ &window };
+		combo.setEditable(true);
+		qt::suggestion_editor suggestion{ &window };
+		suggestion.set_read_only(false);
+		const auto textOf = [&](const QWidget* const aEditor) -> QString {
+			if (aEditor == &line) {
+				return line.text();
+			}
+			if (aEditor == &plain) {
+				return plain.toPlainText();
+			}
+			if (aEditor == &rich) {
+				return rich.toPlainText();
+			}
+			if (aEditor == &combo) {
+				return combo.currentText();
+			}
+			return QString::fromStdString(suggestion.text());
+		};
+		for (auto* const editor : std::array<QWidget*, 5>{ &line, &plain, &rich, &combo, &suggestion }) {
 			editor->show();
 			editor->setFocus();
 			process_events();
-			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "editable single and multi-line fields keep Accept's key");
-			press();
-			expect(dispatched.size() == 2U, "typing in a field cannot Accept a file");
+			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "a widget that takes typed text unbinds Accept's key");
+			expect(!press() && dispatched.size() == 2U && textOf(editor) == typed, "Option-A in a text field types its character and accepts nothing");
 		}
 		line.setText(QStringLiteral("keep text editing"));
 		line.setFocus();
 		process_events();
 		window_key(window, Qt::Key_A, Qt::ControlModifier);
 		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
+
+		// A reader that becomes an editor in place, as the Review Cycle reader
+		// becomes the suggestion editor, claims the key when it arrives.
+		suggestion.set_text("");
+		suggestion.set_read_only(true);
+		button->setFocus();
+		suggestion.setFocus();
+		process_events();
+		expect(action->shortcut() == binding, "a read-only reader keeps Accept's key");
+		suggestion.set_read_only(false);
+		expect(!press() && dispatched.size() == 2U && suggestion.text() == typed.toStdString(),
+			   "a reader made editable under focus types the character and accepts nothing");
 		button->setFocus();
 		process_events();
 		expect(action->shortcut() == binding, "leaving an editor restores the discoverable Accept key");
@@ -7743,10 +7840,18 @@ namespace {
 		expect(dispatched.size() == 2U, "authority replacement clears the old file's key eligibility");
 		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
 		window.publish(application::project_file_receipt_actions(receipt));
+		// Read-only text, such as a code pane, keeps the key.
+		QPlainTextEdit reading{ &window };
+		reading.setReadOnly(true);
+		reading.setPlainText(QStringLiteral("const int answer = 42;"));
+		reading.show();
+		reading.setFocus();
+		process_events();
 		press();
 		expect(dispatched.size() == 3U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material
-				   && dispatched.back().Kind == core::file_receipt_command_kind::accept,
-			   "the restored key targets only the replacement file and epoch material");
+				   && dispatched.back().Kind == core::file_receipt_command_kind::accept
+				   && reading.toPlainText() == QStringLiteral("const int answer = 42;"),
+			   "from read-only text the restored key accepts only the replacement file and epoch material");
 		window.clear_review_ledger(true);
 		press();
 		expect(dispatched.size() == 3U && !action->isEnabled(), "an unavailable ledger cannot Accept through its key");

@@ -59,10 +59,12 @@ The review bar's named Accept button ([[BPR-1507]]) presents the same acceptance
 and inverse label come from the accepted receipt projection. The direct click
 adds no policy, automatic acceptance or persistence path; the state icon and
 alternate actions remain in the adjacent menu. Its Accept command has
-Command+Shift+A on macOS and Ctrl+Shift+A elsewhere ([[BPR-1515]]), shown in
-the menu and direct button's tooltip. The binding is absent when the projected
-command is Revoke acceptance or an editable text field has focus; key repeat
-is disabled. The key therefore uses the same exact-material eligibility and
+Option-A on macOS and Alt+A elsewhere ([[BPR-1515]], replacing
+Command+Shift+A in [[BPR-1531]]), shown in the menu and direct button's
+tooltip. The binding is absent when the projected command is Revoke
+acceptance or a widget that takes typed text has focus, and such a widget
+claims the key when it arrives, so Option-A types `å` there; key repeat is
+disabled. The key therefore uses the same exact-material eligibility and
 never turns a repeated Accept into Revoke.
 
 If the SQLite store cannot open, the host answers every operation with that

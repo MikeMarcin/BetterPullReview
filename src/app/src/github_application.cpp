@@ -26530,19 +26530,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 					// [[BPR-1515]]. Accept uses the actual composed window's key;
 					// the inverse stays a deliberate one-click gesture.
+					// [[BPR-1531]]. The key is Option-A (Alt+A). On macOS Cocoa
+					// offers it to the shortcut map as the A key with Option and
+					// the text it types, "å", before the text input system.
 					window->activateWindow();
 					button->setFocus();
 					QCoreApplication::processEvents();
 					const auto acceptKey = [window] {
 	#if defined(Q_OS_MACOS)
-						if (QWindowSystemInterface::handleShortcutEvent(window->windowHandle(), 0UL, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier, 0U, 0U, 0U)) {
+						const auto typed = QStringLiteral("å");
+						if (QWindowSystemInterface::handleShortcutEvent(window->windowHandle(), 0UL, Qt::Key_A, Qt::AltModifier, 0U, 0U, 0U, typed)) {
 							QCoreApplication::processEvents();
 							return;
 						}
+	#else
+						const auto typed = QString{ };
 	#endif
 						for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
 							QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
-								window->windowHandle(), type, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier);
+								window->windowHandle(), type, Qt::Key_A, Qt::AltModifier, typed);
 							QCoreApplication::processEvents();
 						}
 					};
@@ -26556,7 +26562,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						QTextStream{ stdout } << "REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK\n";
 						button->click();
 					} else {
-						if (action->shortcut() != QKeySequence{ QStringLiteral("Ctrl+Shift+A") }) {
+						if (action->shortcut() != QKeySequence{ QStringLiteral("Alt+A") }) {
 							return fail();
 						}
 						acceptKey();

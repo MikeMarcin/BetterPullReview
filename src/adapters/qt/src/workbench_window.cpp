@@ -899,6 +899,66 @@ namespace bpr::qt {
 			return false;
 		}
 
+		/// \brief [[BPR-1531]]. Accept file's key: Option-A on macOS, Alt+A
+		/// elsewhere (owner, 2026-10-15, replacing Command-Shift-A).
+		[[nodiscard]] auto accept_file_key() -> QKeySequence
+		{
+			return QKeySequence{ QStringLiteral("Alt+A") };
+		}
+
+		/// \brief [[BPR-1531]]. Whether a focused widget takes typed text: an
+		/// editable line or multi-line editor, or any other widget Qt routes
+		/// text input to, such as an editable combo box, a spin box or the
+		/// Review Cycle suggestion editor. Qt marks exactly those with
+		/// `WA_InputMethodEnabled` and clears it when they are read-only. An
+		/// item view is not one: Qt marks it whenever its current item is
+		/// editable, even with no edit trigger, and an edit in progress has
+		/// its own focused editor.
+		[[nodiscard]] auto takes_typed_text(const QWidget* const aWidget) -> bool
+		{
+			if (aWidget == nullptr || qobject_cast<const QAbstractItemView*>(aWidget) != nullptr) {
+				return false;
+			}
+			const auto* const line = qobject_cast<const QLineEdit*>(aWidget);
+			return editable_multi_line(aWidget) || (line != nullptr && !line->isReadOnly())
+				|| aWidget->testAttribute(Qt::WA_InputMethodEnabled);
+		}
+
+		/// \brief [[BPR-1531]]. Claims Option-A (Alt+A) for a widget in the
+		/// window that takes typed text when the key arrives.
+		///
+		/// \details The binding is removed when such a widget takes focus, but a
+		/// focused widget can begin taking text without a focus change: the
+		/// Review Cycle reader becomes the suggestion editor in place. Claiming
+		/// the key in `ShortcutOverride` keeps Accept from firing there, and the
+		/// key goes on to the widget and the text input system as "å".
+		class typed_text_key_claim final : public QObject
+		{
+		public:
+			explicit typed_text_key_claim(QWidget* const aWindow)
+				: QObject{ aWindow }
+				, Window{ aWindow }
+			{
+			}
+
+		protected:
+			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ShortcutOverride
+					&& QKeySequence{ static_cast<QKeyEvent*>(aEvent)->keyCombination() } == accept_file_key()) {
+					const auto* const widget = qobject_cast<const QWidget*>(aWatched);
+					if (widget != nullptr && Window->isAncestorOf(widget) && takes_typed_text(widget)) {
+						aEvent->accept();
+						return true;
+					}
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			QWidget* Window;
+		};
+
 #if defined(Q_OS_WIN)
 		/// \brief [[BPR-1336]]. Lets an editable field keep an AltGr character.
 		class typed_text_yield final : public QObject
@@ -14297,6 +14357,7 @@ namespace bpr::qt {
 #if defined(Q_OS_WIN)
 		qApp->installEventFilter(new typed_text_yield{ this });
 #endif
+		qApp->installEventFilter(new typed_text_key_claim{ this });
 		ViewMenu->addSeparator();
 		// [[BPR-1132]]. The tab keys, window-owned: Ctrl+Tab and Ctrl+Shift+Tab
 		// move between the tabs (the Control key on macOS too, where Qt names
@@ -15348,13 +15409,16 @@ namespace bpr::qt {
 		// [[BPR-1515]]. Accept's retained action becomes Revoke after
 		// persistence, without this binding. Removing it while editing also
 		// yields native menu equivalents without changing receipt eligibility.
+		// [[BPR-1531]]. The key is Option-A (Alt+A), the owner's replacement
+		// for Command-Shift-A. Option-A types "å", so the binding steps aside
+		// for every widget that takes typed text, not only line and text
+		// edits: the Cocoa plugin offers the key to the shortcut map before
+		// the text input system sees it.
 		auto* const       action  = ReceiptActions[2];
 		const auto* const focused = QApplication::focusWidget();
-		const auto* const line    = qobject_cast<const QLineEdit*>(focused);
-		const auto        editing = focused != nullptr && isAncestorOf(focused)
-			&& (editable_multi_line(focused) || (line != nullptr && !line->isReadOnly()));
-		const auto accepts = !Receipt || Receipt->Actions[2].Command.Kind == core::file_receipt_command_kind::accept;
-		action->setShortcut(accepts && !editing ? QKeySequence{ QStringLiteral("Ctrl+Shift+A") } : QKeySequence{ });
+		const auto        editing = focused != nullptr && isAncestorOf(focused) && takes_typed_text(focused);
+		const auto        accepts = !Receipt || Receipt->Actions[2].Command.Kind == core::file_receipt_command_kind::accept;
+		action->setShortcut(accepts && !editing ? accept_file_key() : QKeySequence{ });
 		const auto key = action->shortcut().toString(QKeySequence::NativeText);
 		action->setToolTip(key.isEmpty() ? action->statusTip()
 										 : QStringLiteral("Accept file (%1)\n%2").arg(key, action->statusTip()));
