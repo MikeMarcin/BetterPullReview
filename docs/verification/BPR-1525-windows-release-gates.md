@@ -494,3 +494,41 @@ The fixed-device/fixed-cell font-change regression also passes. Removing
 floating placement or font invalidation causes the native oracle to fail
 (exit8 each); restored/touched/recompiled production passes. Strict tidy22
 passes the extended test. Windows normal duration acceptance remains pending.
+
+Normal Windows r32 atfb2e72778 passes the new native pixel oracle and all4
+axis scales, then complete workbench200/100/125 at119.08/100.56/105.71s.
+Its receipt is complete/exit0 and source is clean. No concurrent Windows/WSL
+build, suite or performance work overlapped these normal duration runs.
+The200-scale margin is only0.92s; the coordinator's final normal-concurrency
+full gate remains required and may expose residual contention. No deadline
+or acceptance was waived. A subsequent otherwise idle native QtDebug probe
+matches108 native glyph pixel cases but replaying glyph runs only reduces
+2000draws from1119.5 to1038.1ms; a second retained code-text cache was rejected.
+That disposable probe mutates no producer source and supplies no normal gate
+acceptance.
+
+At the same fb2e72778 code candidate, Mac public composition is rebuilt and
+relinked against the current painter. Workshop press, default/custom/no-agent
+guidance and resealed round trip pass5/5 at4.28/2.87/2.93/2.57/2.82s. The
+current architecture check passes12.98s, all1542 files pass format22.1.8,
+documentation passes and all67 documentation verifier units pass. Strict
+changed-TU tidy22 is passing; no full-project tidy pass is claimed.
+
+The initial Ubuntu dispatcher used a non-login shell and stopped before any
+source mutation because ordinary user-local cmake was absent from its PATH.
+Its exit127/source8f0d receipt is retained. The corrected dispatcher uses the
+ordinary configured login shell, whose cmake/python3 are under the user's
+.local/bin and whose compiler is /usr/bin/c++. No global environment/tool or
+security change was made. Focused Ubuntu compile/16-course result is pending.
+
+Ubuntu r2 compiles all affected targets and passes16 normal courses, with
+Linux exit0; its Windows dispatcher reports1. That mismatch is retained,
+not interpreted as a fully successful dispatcher. Final r3 uses the same
+ordinary user-local tools through a process-local PATH and a non-login shell,
+with System.Diagnostics.Process.ExitCode for the Windows child. All16 normal
+courses pass again in61.98s and both receipts agree on0. No global environment
+or security policy changes, test substitutions or source changes are involved.
+Actual Ubuntu26.04, GCC15.2.0, CMake4.4.2, Python3.13.15 and runtime Qt6.11.2
+are recorded. Normal painter/native-axis/workbench/appearance, matcher,
+provider/capability and four workshop paths all pass. Both repair producers
+are clean atfb2e72778 and all recorded native commands are quiescent.

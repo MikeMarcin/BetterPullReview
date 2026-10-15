@@ -1,132 +1,109 @@
-# Current BPR-1525 / BPR-1526 engineering frontier
+# BPR-1525 / BPR-1526 closeout
 
-This is the latest continuation record; HANDOFF.md below its link retains the
-chronological checkpoints. Mandate `authorized-release-continuation-native-gates-r2`,
-plan `bpr-1525-windows-release-gates` / `native-gate-contracts`, same single owner
-`/root/bpr1525_implementer`, native rfc-implementer / gpt-6.1-sol / xhigh.
-No subagents, auth, signing, publication or owner desktop interaction.
+Focused acceptance is complete; canonical card closeout is the next action.
+Assignment: plan `bpr-1525-windows-release-gates`, milestone
+`native-gate-contracts`, mandate `authorized-release-continuation-native-gates-r2`.
+The single engineering owner is `/root/bpr1525_implementer`, native
+rfc-implementer / gpt-6.1-sol / xhigh. No subagents were used.
 
-## Candidate and completed evidence
+## Candidate and scope
 
-Last tested Windows candidate `80988abd1b303728903d98cfcd51a4ec0ac84506` on `codex/v021-windows-gate-fixes` in
+Tested code: `fb2e72778d3c61de6ec6723dffc16a1212ab5c31` on
+`codex/v021-windows-gate-fixes`, in
 `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
-Windows repair branch `codex/bpr1525-native-repair-r2` in
-`C:/Users/mikem/bpr-v021`; clean original 8f0d25418 preserved separately.
-The separate station `C:/code/git/BetterPullReview` remains untouched.
+Subsequent closeout commits contain documentation and acceptance bookkeeping;
+the final report and private observation identify their final Git revision.
 
-Fixture LF and ambient-autocrlf controls pass; Windows fixture passes.
-Production matcher stop wakes without the former timer polling; native host
-passes its unchanged 10 ms internal stop contract. CLI platform tests preserve
-production refusal and portable parser/compiler courses. Reader/harness normal
-courses pass on Windows Git 2.55.0.windows.3 and Apple Git 2.50.1.
-Native registry-answer negative controls fail with 2 and 1 unclassified
-findings, restored/recompiled exact positives pass with zero.
+Windows: `C:/Users/mikem/bpr-v021`, branch
+`codex/bpr1525-native-repair-r2`, clean at the tested code revision.
+Ubuntu: `/home/mmarcin/bpr-v021`, branch
+`codex/bpr1525-wsl-native-repair-r2`, clean at that same revision.
+Both preserve `bpr1525-preserved-original-8f0d2541`. The separately leased
+station `C:/code/git/BetterPullReview` was untouched.
 
-Nine actual contained failures and all nine normal positives are recorded.
-Their finite cause registry and all 69 verifier unit tests pass. Native
-manifest reports configured=705 / registrations=681 and passes. Real nested
-Python prints AppContainer=True and WSAEACCES 10013; the selected canonical
-runtime has only the named-container RX grant added. No network capability.
+The verification records retain original failures, demonstrated causes,
+rejected experiments, negative controls and individual source identities:
+[BPR-1525](../../../verification/BPR-1525-windows-release-gates.md) and
+[BPR-1526](../../../verification/BPR-1526-macos-workshop-action.md).
+[HANDOFF.md](HANDOFF.md) preserves earlier chronological checkpoints.
 
-Provider append tracing attributes 17.68 of 20.62 seconds to repeated prefix
-parsing. Request-local retained Glaze assembly preserves all bounds and final
-normalization. Windows provider passes in the normal four-job subset at
-7.75 s; Mac provider and capability courses pass at 3.13 / 4.58 s. Original
-full-context contention remains an inference; final full gate is required.
+## Acceptance evidence
 
-BPR-1526's public first-save race is reproduced and fixed at c3009b2b0; the
-held-save regression is deterministic. Original invocation, cleanup, draft,
-authority and zero-mutation assertions remain. Rebuilt Mac press, three guidance
-courses and resealed public review round trip pass together. Production app
-source pins include only that reviewed path and mechanical naming upkeep.
+Fixture LF generation and hostile ambient-autocrlf controls pass, including
+the complete Windows fixture course. Matcher cancellation uses stop notification
+and passes the unchanged native 10 ms internal contract. Git readers/harness
+pass with Windows Git 2.55.0.windows.3 and Apple Git 2.50.1, preserving the
+conservative capture contract and exact named compatibility classification.
+Registry-answer counterexamples fail; restored positives report no unknowns.
+Windows CLI tests retain production refusal and portable parser/compiler checks.
 
-## Open work and command state
+All nine genuine Windows containment refusals and their normal positive courses
+were measured before recording their finite causes. The manifest and 69
+verifier units pass. A real contained Python grandchild reports AppContainer
+and network denial, after only the named test container receives RX on the
+selected canonical runtime. No network capability or broad machine ACE was added.
 
-Windows whole workbench remains unresolved through normal r23 at 5e5f14790:
-all three scales time out at their unchanged 120 s limits. R22's whole
-functional trace completes every assertion in diagnostic 124.04 s. R24's
-isolated long-line course takes 9.39 s, of which whitespace endpoint projection
-is 6.91 s; 26,616 prefix decodes total only 50 ms. Rejected uncommitted
-experiments: ASCII prefix shortcut and temporary per-draw cache flag.
+Provider tracing identifies repeated prefix parsing. Retained request-local
+Glaze assembly preserves all admission/output limits; the normal Windows
+four-job representative subset passes provider in 7.75 s and its neighbors.
+The original full-context contention remains an inference, requiring the final
+full gate. No timeout or input/assertion reduction was made.
 
-Candidate d897dc239 bounds projection of whitespace endpoints to the horizontal
-viewport for strict unwrapped LTR ASCII rows, with edge neighbors. Core policy
-still reads the entire line; native Qt hit tests and cursor positions own all
-coordinates. Unicode, RTL, wrapped and control text keep the full path.
-A new full-native-projection pixel oracle passes at left/middle/right, along
-with all complete Mac workbench scales (4/4). No input or assertion reduction.
-The earlier 5e5f14790 corrected actual glyph cache retirement via a completely
-clipped public draw; the flag-count regression alone is not allocation proof.
-Actual Mac large-review resource course passes. Preserve BPR-1032's memory
-contract; the rejected bare-block cache lifetime prototype remains documented.
+Windows normal r32 passes native painter plus four axis oracles, and complete
+workbench 100% / 125% / 200% at 100.56 / 105.71 / 119.08 s. The 120 s deadlines
+are unchanged. Viewport caches, exact peer geometry, bounded whitespace
+projection and gutter invalidations retain native geometry and pixels.
+The new gutter layout cache's pixel/font-change tests pass; integer-origin and
+stale-font controls fail, and restored production passes. A second code-text
+cache was rejected after a small measured benefit. The 200% margin is only
+0.92 s and remains a material risk for the final normal-concurrency full gate.
 
-Code candidate4af0e4e2b is committed. Windows r26 is Ready: native pixel+4
-axis oracles pass, whole100/125 pass108.36/114.79s, whole200 times out120.01s.
-Mac peer source7/7 scales and two font/text guard negative controls pass as
-recorded; actual default-vs-different paint-device contexts are explicit.
+At the same code candidate, Mac painter, three complete workbench scales and
+large-review resource course pass 5/5. Rebuilt current workshop press, three
+guidance siblings and resealed round trip pass 5/5. The first-save race has a
+deterministic held-persistence regression; exact press/draft identity, one
+invocation, one cleanup, quiescence and zero mutation assertions remain.
+The required frontend-design skill was loaded; native pixels and the existing
+visual contract were preserved, without a new human judgment criterion.
 
-The200-scale diagnostic completed all unchanged assertions in127.56s. The
-explicit separate restore completed exit0, verified the original absolute
-source bytes, removed only the hash-matched owned `e`, touched and recompiled
-the normal test. Its original failed cleanup receipt is retained honestly.
-Normal r27 at80988abd1 passes native pixel+4 axis oracles, but200 still times
-out120.01s;100/125 were not attempted in r27. PC is quiescent.
+Ubuntu 26.04 r3 compiles the eight affected targets and passes all 16 normal
+courses in 61.98 s: matcher, provider/capability, painter, four axis scales,
+three workbench scales, appearance and four workshop paths. GCC 15.2.0,
+CMake 4.4.2, Python 3.13.15 and runtime Qt 6.11.2 are recorded. Ordinary
+user-local tools are selected in the process PATH. Linux and Windows process
+receipts both report exit 0. Earlier missing-PATH and exit-propagation receipts
+are retained honestly; the final wrapper reads the actual child ExitCode.
 
-Candidate583a26d40707fcac835e4caf483585eab121e963 reuses retained Qt cursors
-and retires zero-line glyph caches. Mac3 scales/resources pass4/4 and strict
-tidy22 passes, but Windows r28 still times out200 at120s. Native pixel+4 axis
-oracles pass5/5. A fresh current keyboard-only diagnostic completes its
-assertions43.68s: glyph draw19.48s, gutter6.31s, unified paint2.13s,
-geometry814ms, selected-row regions70.7ms. It deliberately lacks the full
-normal course's pass marker, so its CTest receipt remains failed. Two initial
-diagnostic preparation/build failures and their original receipts are kept;
-all temporary test/production bytes were restored and touched/recompiled.
-Windows source is clean583a26d40 and all tasks are Ready.
+All 1,542 C/C++ files pass clang-format 22.1.8. Strict clang-tidy 22 passes
+all changed translation units; a full-project tidy pass is not claimed.
+Core-only coverage accounts for all 276 courses, including four corrected
+setup reruns; the current architecture check also passes. Documentation and
+all 67 documentation verifier units pass, with final bookkeeping revalidation
+still due after the canonical moves.
 
-The next candidate caches only a viewport's number/header layouts using Qt's
-QStaticText and QCache. Qt's floating boundingRect owns exact placement, live
-pens own colour, and font/device/DPI/transform/cell changes invalidate reuse.
-All original text, geometry, colours, selections, inputs and budgets remain.
-A native pixel oracle covers1080 font/cell/DPR/colour combinations. Mac
-painter+3 complete scales+resource check pass5/5; strict tidy22 passes3 TUs.
-The retained-font regression passes; integer-origin and stale-font
-counterexamples both fail, restored production passes and strict tidy22
-passes the test. All local commands are complete. No Windows/WSL task is active. Dead LLDB
-child30243 remains a zombie awaiting init reap, not a writer.
+## Ownership and remaining release work
 
-Full core-only276-course coverage is complete (272 original positives +4
-corrected setup reruns), including both architecture checks. MASK restoration
-and prepared-cache selection changed no tracked declarations or runtime route.
+All native build/test commands have finished. Windows r32, disposable r33 and
+WSL r3 tasks are Ready; their recorded wrapper/child PIDs are absent. Historical
+scheduled-task records and failed originals remain as evidence, with no trigger
+scheduled. No review server or attended candidate is open. A dead LLDB child
+30243 remains a zombie awaiting init reap and is not a writer. Disposable Mac
+and Windows probe build directories were removed; producer builds are retained.
 
-NEXT: run exact next committed candidate on Windows,200 first then100/125
-and native geometry/pixel oracles. Existing WSL r1 bundle/script targets
-old d897dc239 and is STALE: regenerate + update exact expected SHA before
-dispatch. Ubuntu26.04 focused compile/16 courses remains mandatory after
-Windows focused work quiesces, no full release/package.
+Next: finish the two cards canonically, revalidate documentation, record the
+quiescent checkpoint and return source ownership to the coordinator. Main
+integration remains coordinated by root, including its current issue counter.
+All complete native release gates and packages must then run on one common
+final source, with binary, corresponding-source, SPDX and installed-notice
+identities bound. Original failed partial gates at 8f0d25418 (Windows 426/705,
+Mac 579/734) remain incomplete evidence. No final-source freeze, release
+acceptance, signing, authentication, vault or publication result is supplied
+by this milestone.
 
-## Next action and remaining obligations
+## Evidence locations
 
-Finish the demonstrated workbench repair without weaker
-assertions, inputs or timeouts. Complete current strict tidy, self-review and
-final format/documentation gates. Then, after all Windows commands are quiescent,
-preserve/reuse `/home/mmarcin/bpr-v021` in Ubuntu 26.04 WSL on an owned repair
-branch and compile/run affected matcher/workshop (and changed shared paths).
-No full Ubuntu release gate or package is authorized to this leaf.
-
-Both cards remain In Progress. Canonical finish, final checkpoint and root
-coordination for integration are pending. Original full gates were stopped by
-root only after retaining failed partial evidence (Windows 426/705, Mac
-579/734). All native full gates and packages must run on the common corrected
-final source. Baseline 8f0d25418 is invalidated as final release source; no final
-source freeze or release acceptance is claimed.
-
-## Evidence preservation
-
-The verification Markdown files contain durable findings and source identities.
-External Windows logs, scripts, receipts and synthetic probes are under the
-release evidence directory above. Local logs are copied to the worktree's
-ignored `.mask/sessions/BPR-1525/evidence/`; preserve that before archiving this
-worktree. `/tmp/bpr1525-remote.py` is the encoded PowerShell SSH helper.
-All disposable native source edits have been restored before subsequent runs;
-MSBuild restores explicitly touch sources because Copy-Item preserves old
-file timestamps. Negative-control and interrupted receipts remain honest.
+Private local copies: `.mask/sessions/BPR-1525/evidence/`, especially
+`final-mac/` and `final-native/`; preserve them before archiving the worktree.
+Native originals and wrappers:
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease`.
+[Native continuation](NATIVE_NEXT.md) names reproducible focused commands.

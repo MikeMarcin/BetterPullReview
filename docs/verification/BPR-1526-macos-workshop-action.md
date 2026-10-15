@@ -49,3 +49,9 @@ resealed to this reviewed source; the production mutation-branch digest remains
 `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
 The rebuilt, resealed public round-trip course passes in 4.37 s; the held-save
 regression repeats in 3.52 s. No visual surface changed for BPR-1526.
+
+At code candidatefb2e72778 the public binary and production app are rebuilt
+and relinked with the current Qt painter. The press plus default/custom/no-agent
+guidance and resealed round trip pass5/5 at4.28/2.87/2.93/2.57/2.82s. Current
+format22, changed-TU strict tidy22 and documentation/unit gates pass. Final
+common-source release gates/packages remain the coordinator's obligation.
