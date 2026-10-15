@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1521"
 title: "Share a first-saved inline draft with an untouched sibling window"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1520"]
 priority: "P1"
 metadata: {"source":"Coordinator combined testing-note integration regression","assigned_implementer":"/root/bpr1520","related_cards":["BPR-1520"],"baseline":"3c24b9ec834fcafc87af05680f9f2799708b4267","milestone_plan":{"id":"bpr-1521-sibling-first-save","path":"docs/rfcs/plans/bpr-1521-sibling-first-save/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f364022cc97ebc472e5b40be1a66eab757d79f6d","evidence":{"kind":"observation","detail":"Exact integrated baseline3c24b9ec8 reproduced accepted draft edit reaches sibling editor in31.78s; isolated own synthetic profile and unchanged original body assertions."}},{"criterion":"AC2","outcome":"pass","revision":"f364022cc97ebc472e5b40be1a66eab757d79f6d","evidence":{"kind":"observation","detail":"Expanded composed multiwindow test passed23.20s: distinct per-consumer placeholders become the same exact durable draft, accepted body fans out and sibling edits return through shared owner. Full authority admission plus exact scope/anchor/reply and shown-selection guards retained."}},{"criterion":"AC3","outcome":"pass","revision":"f364022cc97ebc472e5b40be1a66eab757d79f6d","evidence":{"kind":"observation","detail":"Composed unrelated-anchor publication leaves untouched sibling unchanged. Held same-anchor concurrent first saves preserve separate durable IDs and exact multiline bodies, no rejected candidate; later edit leaves other authored record unchanged. Code refuses placeholder following for local candidate/pending save, different runtime scope, anchor, reply and inactive incoming state. Existing host/editor scoped refusal and identity/coalescing tests pass."}},{"criterion":"AC4","outcome":"pass","revision":"f364022cc97ebc472e5b40be1a66eab757d79f6d","evidence":{"kind":"observation","detail":"Final composed multiwindow passes23.20s. Same production source passes private-review host4.68s, Qt editor0.45s, publication recovery22.25s including application reconstruction/restart and failure/navigation, composition contract3.52s. Clang-format22, documentation gate and67 doc tests pass. Production mutation-branch pin unchanged; self-review only, no unperformed human/native/independent claims."}}]
 ---
 
 # BPR-1521: Share a first-saved inline draft with an untouched sibling window
