@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "90958011c",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The composed Home public path measures actual Cancel and Retry widget bounds left of the matching row's change facts; inspected light and dark offscreen idle/waiting/failed renders show the control left of the stable facts."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "90958011c",
+      "evidence": {
+        "kind": "command",
+        "detail": "qt_home_list_scale_100/125/200 pass: facts left/right and Reviewing-tag left remain unchanged through opening, Cancel, Retry and idle. The final composed public course passes matching horizontal geometry assertions through opening, waiting, cancellation and failure/Retry."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "90958011c",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_home_open_feedback_public_path passes; final network-isolated replay with --render-directory exits 0 and prints home-open-feedback-public-path:pass. Home double-click, delayed transport, Cancel wire stop and Retry are exercised. Light and dark renders inspected; clang-format 22, diff whitespace check and 67 documentation-verifier tests pass."
+      }
+    }
+  ]
+}
