@@ -7473,10 +7473,15 @@ namespace {
 		}
 
 		// An ambiguous shortcut overload triggers neither action, so one key
-		// sequence may never be offered twice in one window.
+		// sequence may never be offered twice in one window. [[BPR-1532]]: the
+		// tour outline's reorder keys are First and Last change's, and the
+		// window unbinds those while the outline has focus
+		// (test_change_end_keys_yield), so the two never match at once.
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* const action : window.findChildren<QAction*>()) {
-			if (action->shortcut().isEmpty()) {
+			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
+				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
+			if (action->shortcut().isEmpty() || yieldedTo) {
 				continue;
 			}
 			expect(!sequences.contains(action->shortcut()),
