@@ -26440,7 +26440,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (action == nullptr || !action->isEnabled()) {
 					return fail();
 				}
-				const auto gesture = probe.Gesture++;
+				++probe.Gesture;
 				if (action == window->accept_action()) {
 					// [[BPR-1507]]. Exercise the normal one-click presenter through
 					// the same exact command, durable host and published receipt.
@@ -26467,7 +26467,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							QCoreApplication::processEvents();
 						}
 					};
-					if (gesture == 3U) {
+					if (ledger->retained().Accepted) {
 						const auto commands = ledger->statistics().Commands;
 						acceptKey();
 						acceptKey();

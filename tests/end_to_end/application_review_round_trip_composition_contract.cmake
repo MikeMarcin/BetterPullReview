@@ -1,3 +1,6 @@
+# Combined BPR-1506/1515 fixture correction: identify the inverse Accept
+# gesture from the persisted Accepted receipt, not the old ordinal that
+# included a manual Seen press. Production paths and mutation pin unchanged.
 # Final testing-note integration through bcb2eed79. BPR-1506 submits the
 # existing Seen command only after exact visible Review material admission,
 # with generation, tab and authority rechecks. Hidden/stale loading cannot mark
@@ -1503,7 +1506,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"437518c20608d2143a9ad2eebcc4acae04af7f885e5bfbcdfdc961bdf6d042bc"
+		"d062fedec7d30c825020c3fb9272e488d4ac28c72395ec488fa1fd1e44aa1cd1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1719,7 +1722,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "3efe79904670dc67b398fb28c52a72ac143a49ff6ac9e307583631dbeb682577"
+        "af25236f14fa48c57167b215ab94f23ec6e846d5b3540d7436f336f1a1f69510"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
