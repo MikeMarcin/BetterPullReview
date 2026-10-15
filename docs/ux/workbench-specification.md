@@ -1062,6 +1062,18 @@ platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a sec
 names the bound, and the status tip carries that line. The stop-versus-wrap
 wrap policy, used only by a fixture probe, still wraps inside the comparison.
 
+A clicked source line is the origin for Previous/Next change ([[BPR-1518]]).
+Inside a change, either direction steps from that change. On an unchanged line,
+Next chooses the nearest following change and Previous the nearest preceding
+change in the same file and exact comparison. The clicked side is resolved in
+the canonical alignment, so insertions, deletions and unequal line counts cannot
+borrow the other side's numeric line. Before the first change Previous keeps the
+clicked line; after the last change Next keeps it. Those bounds preserve both
+panes' visible positions and show the ordinary bound message. A later click
+replaces an earlier change-navigation origin. With no source selection, Next
+still enters at the first change and Previous at the last; the fixture-only
+wrap policy remains explicit.
+
 An exact tab view that must load retains at most the latest navigation press,
 bound to that PR, active tab and exact pair. Review shows immediately. The step
 runs once after that view returns; a later file, tab, comparison, modality, Home

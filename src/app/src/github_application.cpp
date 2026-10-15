@@ -12529,7 +12529,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto cursor = core::workbench_change_cursor{
 				.ChangeCount = static_cast<std::uint32_t>(groups.size()),
 			};
-			if (!aSelection.has_value() || !aSelection->Group.has_value()) {
+			if (aSelection && !aSelection->Group) {
+				const auto index = comparison->current_semantic_index();
+				const auto next  = index ? core::navigate_change(*index, aSelection->PreferredLine,
+																 core::change_navigation_direction::next, core::change_navigation_policy::stop)
+										 : core::change_navigation_result{ };
+				if (next.Outcome == core::change_navigation_outcome::invalid_selection) {
+					WorkbenchHost->observe_change_navigation(selected.Request, std::nullopt);
+					return;
+				}
+				cursor.AtUnchangedLine   = true;
+				cursor.Ordinal           = next.Index.value_or(cursor.ChangeCount);
+				cursor.PreviousAvailable = cursor.Ordinal > 0U;
+				cursor.NextAvailable     = cursor.Ordinal < cursor.ChangeCount;
+			} else if (!aSelection) {
 				cursor.PreviousAvailable = !groups.empty();
 				cursor.NextAvailable     = !groups.empty();
 			} else {

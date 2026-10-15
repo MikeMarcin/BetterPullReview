@@ -532,6 +532,30 @@ namespace {
 			   "the last change still offers the previous change");
 	}
 
+	void test_change_command_source_line_bounds()
+	{
+		for (const auto before : { 0U, 1U, 3U }) {
+			const auto cursor = workbench_change_cursor{
+				.Ordinal           = before,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = before > 0U,
+				.NextAvailable     = before < 3U,
+				.AtUnchangedLine   = true,
+			};
+			const auto commands = project_workbench_commands(comparing(cursor));
+			expect(before == 0U ? bounded(commands.Commands[change_entry(change_navigation_direction::previous)], workbench_reason_code::at_first_change)
+								: moves(commands.Commands[change_entry(change_navigation_direction::previous)]),
+				   "unchanged source origin projects its previous bound");
+			expect(before == 3U ? bounded(commands.Commands[change_entry(change_navigation_direction::next)], workbench_reason_code::at_last_change)
+								: moves(commands.Commands[change_entry(change_navigation_direction::next)]),
+				   "unchanged source origin projects its next bound");
+		}
+		expect(!valid(workbench_change_cursor{ .Ordinal = 4U, .ChangeCount = 3U, .AtUnchangedLine = true })
+				   && !valid(workbench_change_cursor{ .Group = opaque<change_group_id>(5U), .ChangeCount = 3U, .AtUnchangedLine = true })
+				   && !valid(workbench_change_cursor{ .ChangeCount = 3U, .PreviousAvailable = true, .NextAvailable = true, .AtUnchangedLine = true }),
+			   "source cursor rejects impossible counts, mixed origins and invented neighbours");
+	}
+
 	auto test_change_commands_agree_with_navigate_change() -> void
 	{
 		const auto  diff   = change_fixture();
@@ -1627,6 +1651,7 @@ int main()
 	test_change_cursor_contract();
 	test_navigation_follows_actionable_order();
 	test_the_ends_of_the_change_order_are_named_not_derived();
+	test_change_command_source_line_bounds();
 	test_change_commands_agree_with_navigate_change();
 	test_navigation_commands_are_bounded_and_always_enabled();
 	test_command_projection();

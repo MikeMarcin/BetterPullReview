@@ -165,7 +165,9 @@ namespace bpr::core {
 	/// facts about the open comparison's canonical change order; the core decides
 	/// change-command legality from them alone. `Ordinal` is 1-based within that
 	/// order and is zero when the selected group is absent from it, which is the
-	/// selection `navigate_change` refuses rather than steps from.
+	/// selection `navigate_change` refuses rather than steps from. An unchanged
+	/// source line has no Group: AtUnchangedLine makes Ordinal the count of groups
+	/// before its alignment segment, from zero through ChangeCount.
 	struct workbench_change_cursor
 	{
 		std::optional<change_group_id> Group;
@@ -173,6 +175,9 @@ namespace bpr::core {
 		std::uint32_t                  ChangeCount       = 0U;
 		bool                           PreviousAvailable = false;
 		bool                           NextAvailable     = false;
+
+		/// Ordinal is an alignment boundary count, rather than a selected group.
+		bool AtUnchangedLine = false;
 
 		auto operator<=>(const workbench_change_cursor&) const = default;
 	};
