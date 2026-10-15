@@ -1,6 +1,6 @@
 # BPR-1525 / BPR-1526 closeout
 
-Focused acceptance is complete; canonical card closeout is the next action.
+BPR-1525 and BPR-1526 are canonically Done; focused acceptance is complete.
 Assignment: plan `bpr-1525-windows-release-gates`, milestone
 `native-gate-contracts`, mandate `authorized-release-continuation-native-gates-r2`.
 The single engineering owner is `/root/bpr1525_implementer`, native
@@ -78,8 +78,8 @@ All 1,542 C/C++ files pass clang-format 22.1.8. Strict clang-tidy 22 passes
 all changed translation units; a full-project tidy pass is not claimed.
 Core-only coverage accounts for all 276 courses, including four corrected
 setup reruns; the current architecture check also passes. Documentation and
-all 67 documentation verifier units pass, with final bookkeeping revalidation
-still due after the canonical moves.
+all 67 documentation verifier units pass. The canonical moves receive a final
+documentation revalidation before handoff.
 
 ## Ownership and remaining release work
 
@@ -90,9 +90,11 @@ scheduled. No review server or attended candidate is open. A dead LLDB child
 30243 remains a zombie awaiting init reap and is not a writer. Disposable Mac
 and Windows probe build directories were removed; producer builds are retained.
 
-Next: finish the two cards canonically, revalidate documentation, record the
-quiescent checkpoint and return source ownership to the coordinator. Main
-integration remains coordinated by root, including its current issue counter.
+Canonical finish commits are `11d2be39f436b08e9f8fe58fc636be8a8719af30`
+and `b719d6c38c0217b0724c0fc07d41d65a7749c843`. A final documentation
+checkpoint follows them. The next engineering action is coordinator review
+and main integration, preserving its current issue counter. No further
+product edits or native commands are planned by this implementer.
 All complete native release gates and packages must then run on one common
 final source, with binary, corresponding-source, SPDX and installed-notice
 identities bound. Original failed partial gates at 8f0d25418 (Windows 426/705,

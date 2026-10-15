@@ -6,7 +6,7 @@
   "mandate": "authorized-release-continuation-native-gates-r2",
   "owner": "/root/bpr1525_implementer",
   "command_state": "All task-owned commands quiescent; Windows r32/r33 and Ubuntu r3 Ready, recorded wrapper/child PIDs absent; no review server; zombie30243 not a writer",
-  "acceptance": "Focused Windows3workbench scales+5oracles pass; Mac painter/scales/resources5 and current public5 pass; Ubuntu26.04 affected compile+16normal courses pass with matching Linux/Windows exit0; format22,strict changed-TU tidy22,architecture,core276,docs+67units pass; canonical closeout due",
+  "acceptance": "BPR-1525 and BPR-1526 canonically Done; all7assigned criteria and5milestone exits pass. Windows3normal scales+5oracles,Mac5painter/resources+5public,Ubuntu16normal courses allpass; current format22/strict changed-TU tidy22/core276/architecture/docs+67units. Final full release gates/packages remain coordinator-owned.",
   "schema": "bpr.engineering-runtime-binding.v1",
   "plan_checkpoint": "implementer-binding.json",
   "run_id": "release-v0.2.1",

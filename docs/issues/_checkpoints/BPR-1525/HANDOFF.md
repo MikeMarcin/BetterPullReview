@@ -256,3 +256,50 @@ validation. Selected Windows Python diagnosis now reproduces the contained
 WinError 5 with the actual per-user executable; inside it sys.executable points
 to the inaccessible per-user image while sys.prefix points to Program Files.
 No positive ACL repair or focused corrected native pass is claimed yet.
+
+
+## Final combined-milestone handoff
+
+Mandate `authorized-release-continuation-native-gates-r2`, plan
+`bpr-1525-windows-release-gates` / `native-gate-contracts`, single native
+rfc-implementer / gpt-6.1-sol / xhigh owner `/root/bpr1525_implementer`.
+BPR-1525 and BPR-1526 finish canonically at `11d2be39f` and `b719d6c38`.
+Tested code is `fb2e72778d3c61de6ec6723dffc16a1212ab5c31`; later commits
+contain acceptance/checkpoint documentation. [CURRENT.md](CURRENT.md) is
+authoritative.
+
+Windows r32 passes three complete workbench scales and painter/four axis
+oracles. Mac current painter/scales/resources and rebuilt workshop/public
+round-trip groups each pass 5/5. Ubuntu 26.04 r3 compiles eight affected
+targets and passes 16 normal courses in 61.98 s; Linux and actual Windows
+child ExitCode both report 0. Earlier unchanged-path corrected contracts and
+276 core-only courses are retained, alongside current architecture, format 22,
+strict changed-TU tidy 22, documentation and 67 verifier units. Thresholds,
+cases, inputs and assertions are preserved. The required frontend-design
+skill was loaded; native geometry/pixel oracles preserve the visual contract.
+No human review criterion or server remains.
+
+All task-owned commands are quiescent. Latest native task records are Ready
+and their wrapper/child PIDs are absent; repair producers are clean at
+`fb2e72778` and preserve original `8f0d25418` history. The separately leased
+station was untouched. Disposable probe build directories were removed;
+failed diagnostics, scripts and receipts remain as evidence. Dead LLDB 30243
+is a zombie, not a writer. Signing, authentication, vault, publication and
+owner desktop actions remain outside this milestone.
+
+Next: coordinator review/integration, then every required complete native
+release gate and package on one common final source, binding binary,
+corresponding-source, SPDX and installed notices. Windows 200% passes in
+119.08 s against 120 s, leaving 0.92 s; the normal-concurrency full gate is
+still material acceptance. Original `8f0d25418` partial gates remain failed
+and incomplete. The provider's measured prefix-parsing cost is corrected;
+attribution of its original extra full-context delay to contention remains
+an inference. This handoff supplies focused acceptance, with final release
+approval and source freeze still pending.
+
+Private evidence is under `.mask/sessions/BPR-1525/evidence/`, including
+`final-mac/` and `final-native/`; preserve it before worktree archival.
+Native originals remain under
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease`. The final report/private
+observation supplies the final Git revision, and the source-equivalence record
+checks that closeout commits contain documentation only.
