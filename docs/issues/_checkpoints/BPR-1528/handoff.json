@@ -1,0 +1,58 @@
+{
+  "assignment": "BPR-1528",
+  "mandate": "Owner request 2026-10-15: \"Can we add a header and rail color for my reviews on the home\"",
+  "governing_rfc": "RFC-BPR-0066 (owner amendment recorded on the RFC)",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1528-mine-colour/BetterPullReview",
+  "branch": "bpr-1528-mine-colour",
+  "baseline": "46077aaa1b6f87109a7ba4969f588e92347edb4b",
+  "source_candidate": "4773c9ceac11259944168313df0daa9e57e2a0cd",
+  "changed_paths": [
+    "docs/rfcs/RFC-BPR-0066-home-authored-pull-requests.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/appearance_profile.hpp",
+    "src/adapters/qt/include/bpr/qt/home_row_delegate.hpp",
+    "src/adapters/qt/src/appearance_profile.cpp",
+    "src/adapters/qt/src/home_row_delegate.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/adapters_qt/home_list_tests.cpp"
+  ],
+  "design": {
+    "frontend_design": "loaded before choosing the colour",
+    "tone": "fourth built-in Home tone attention_tone::my_pull_requests, plum; header tint 0.18, rule 0.35, rail 0.6 like the state panels",
+    "colours": {"light": "#9A3FB0", "dark": "#CF86E8", "high_contrast_light": "#6B0080", "high_contrast_dark": "#E59CFF"},
+    "contrast_base_surface": {"light": [5.65, 5.27], "dark": [7.41, 6.40], "high_contrast_light": [10.84, 10.84], "high_contrast_dark": [10.53, 10.53]},
+    "settings": "none: Home tones are built-in per variant and neither stored nor customisable (BPR-0776); no Appearance setting precedent exists"
+  },
+  "verification": {
+    "focused": "ctest qt_appearance_profile, qt_home_list_scale_100/125/200, application_personal_discovery_public_path, application_home_waiting_public_path: 6/6 pass at 4773c9cea",
+    "negative_control": "neutral for_group(my_pull_requests) fails test_authored_sections_in_every_home_arrangement's BPR-1528 tone expectation",
+    "format": "clang-format 22.1.8 dry run over the six touched C++ files: clean",
+    "tidy": "_coding-standard/scripts/tidy.py over the four touched translation units: clang-tidy passed",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests 67 pass",
+    "renders": "composed application, personal_discovery_public_path --home-waiting --render-directory, offscreen, all four modes at 1100 and 520; before built from baseline product sources in the same tree"
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1528-mine-colour-v001.7cmsoidr",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1528-mine-colour-v001.7cmsoidr/launch.py",
+    "source_commit": "4773c9ceac11259944168313df0daa9e57e2a0cd",
+    "arguments": "--github-fixture github-com --attended-launch --attended-home-look",
+    "check": "CHECK_OK (first head): ATTENDED_HOME_SHOWN:rows=3:delay=0ms",
+    "executable_sha256": "0e60cfd77c536ca94130bdf7c0236d0e58a60abb50afcf532ba1ac69d13b58af"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1528-v001-3HQ11Q",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "c752a6404866ca55ac7600c163aec391",
+    "event_cursor": 3,
+    "candidate": "BPR-1528-mine-colour-v001",
+    "fingerprint": "c64bd48ed0f200e40b5de4a8233f8139100d2f4707016d46b4cb537a9ccfb141",
+    "phase": "ready",
+    "protected": true,
+    "decision": null,
+    "server_pid": 7416,
+    "server_port": 59022,
+    "complete_url": "Obtain from the session state's serve log; never commit the loopback bearer token."
+  },
+  "pending": ["AC4 human: owner Accept/Reject of the exact frozen candidate"],
+  "next_action": "Coordinator waits on handed-back after cursor 3. Accept: merge bpr-1528-mine-colour to main, finish BPR-1528 done with AC4 evidence, stop server 7416, remove the frozen root with freeze_attended_build.py remove. Reject: a fresh implementer applies the note as v002."
+}
