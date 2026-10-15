@@ -13,7 +13,7 @@ AC1–AC4 pass in [acceptance.json](acceptance.json). Eleven focused CTest rows,
 67 documentation tests, format22 and diff whitespace pass. Offscreen light/dark
 state sheet and full composed source-diff window inspected. The frozen launcher
 check also passes. Commands and actual timings are recorded on the
-[card](../../30-in-progress/BPR-1507-one-click-file-accept.md).
+[card](../../60-done/BPR-1507-one-click-file-accept.md).
 
 Canonical finish was attempted with the acceptance file and explicit owned
 paths. The guard refuses local NEXT_ID `BPR-1516` against shared historical

@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1507"
 title: "Make file Accept available in one click"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Accept should be the default action on a file so it's one click, or we redesign that element so it can easily be one click.","milestone_plan":{"id":"bpr-1507-one-click-file-accept","path":"docs/rfcs/plans/bpr-1507-one-click-file-accept/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e483ef9997f3e85632e44c8c46c0fb34682cd792","evidence":{"kind":"observation","detail":"The offscreen physical mouse click test dispatches one exact accept command without opening the menu; the composed ledger seed course clicks the normal button for Accept/Revoke/Accept and observes seven exact durable completions."}},{"criterion":"AC2","outcome":"pass","revision":"e483ef9997f3e85632e44c8c46c0fb34682cd792","evidence":{"kind":"observation","detail":"Inspected light/dark state-sheet renders and the full composed diff window. Accept is named; accepted state exposes Revoke acceptance and the existing state icon; all four alternate menu actions remain. Focus and toolbar geometry pass at 1.0, 1.25 and 2.0 scale."}},{"criterion":"AC3","outcome":"pass","revision":"e483ef9997f3e85632e44c8c46c0fb34682cd792","evidence":{"kind":"observation","detail":"The direct presenter uses the existing QAction and exact projected file/material command. Tests prove Seen projection emits no acceptance, no optimistic checked state, disabled excluded/loading/unavailable state, replacement material identity, durable receipt round trip and changed-material reopen."}},{"criterion":"AC4","outcome":"pass","revision":"e483ef9997f3e85632e44c8c46c0fb34682cd792","evidence":{"kind":"observation","detail":"qt_review_state_icon, all six focus/title scale rows, architecture_boundaries, application_review_ledger_composition_contract, application_github_public_path_github_com and application_diff_workbench_public_path pass. Offscreen production diff render inspected; frozen launcher --check reaches src/engine/renderer.cpp."}}]
 ---
 
 # BPR-1507: Make file Accept available in one click
