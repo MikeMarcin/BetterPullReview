@@ -1,3 +1,9 @@
+# Testing-note integration reseal, baseline583eb4689 through e8884475d.
+# BPR-1507 changes only the fixture acceptance presenter; BPR-1514 projects
+# pending startup and gates competing setup intents through core policy.
+# Existing publication grants/target checks and mutation branch are unchanged.
+# Main P0 public recovery/restart contracts passed before these integrations;
+# combined composition and UI checks are recorded in the coordinator checkpoint.
 # BPR-1520 r2 self-review: baseline9f2ebc10a through this product slice.
 # No intervening pinned-scope commits. Changed manifest paths are
 # github_application.cpp, private_review_workflow.cpp and .hpp: runtime-only
@@ -1476,7 +1482,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6e0c8fa2ece8d7f152a3f820f08bbadb5c59814a3f2422413403667aa3c90641"
+		"5e45871b9b6fd0e6f6857b1b0741a5a67a9fc66ab15db07810edf753c25c9a0f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1692,7 +1698,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0e5f22087c4982f779e41f15fa7e075b9ce23a3a5ebc2450e8187725bec56040"
+        "e7648adda3b4029fb4990aa718c8d947d4a4594a3d75f90b566196359b1d26ba"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
