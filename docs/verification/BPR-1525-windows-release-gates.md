@@ -395,3 +395,38 @@ local generated roles without tracked declarations or upgrades. One nested
 configure tried downloading pinned LibArchive from an unwarmed local cache
 inside network containment. Its normal rerun uses the same prepared pinned
 cache already used by dev; containment and source assertions stay unchanged.
+
+### Reusing exact plain-row geometry between the two panes
+
+At d897dc239, normal Windows scale100 passes in116.26 s, while125 and200
+still time out at120.02 s. The new shared-painter pixel oracle and four native
+axis scales all pass. These partial results do not close the workbench gate.
+
+The next candidate lets the right measurement borrow the left pane's existing
+16-byte records for same-index, exactly equal plain ASCII rows. It requires
+unchanged live peer cache facts, equal full pane/document fonts, margin, tab
+stop, DPR, layout direction and the identical native paint-device context.
+Both rows must have empty block/fragment/additional formats and the same strict
+unwrapped plain options; every mismatch shapes through Qt as before. No text
+hash, sampled metric, alignment guess or new per-file store is introduced.
+The record stores must outlive the measurement; the workbench's pending
+measurement is destroyed before those member stores.
+
+New native-oracle courses prove all40 eligible rows reuse, a changed row alone
+falls back, and different fonts/devices or a changed peer revision reuse none.
+Every boundary and the horizontal widest-line result are independently read
+back from Qt. New tests also exposed Qt retaining its previous font's larger
+maximum: the measurer now reconstructs the maximum from current extents, so
+that stale maximum cannot suppress visiting the newly measured widest block.
+All seven Mac workbench/axis scales pass. Removing the font guards causes a
+native-boundary failure; removing text equality causes the widest-line oracle
+to change from1958 to13476.8. Both negative controls exit8, and restored,
+touched, recompiled source passes all four axis scales. Native Windows
+performance and Ubuntu focused verification remain pending.
+
+The four core-only setup failures now all pass after declared MASK deployment
+and selecting dev's already prepared pinned cache. Together with the272 initial
+passes this covers all276 courses; two dependency-script methods explicitly
+skip because the core-only graph does not build KSyntaxHighlighting. Strict
+clang-tidy22 passes all six newly changed TUs at d897dc239. The later peer
+measurement production/test changes still require their own strict tidy pass.

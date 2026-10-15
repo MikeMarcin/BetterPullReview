@@ -8,7 +8,7 @@ No subagents, auth, signing, publication or owner desktop interaction.
 
 ## Candidate and completed evidence
 
-Code candidate `c4ec0f7abbc815725b8b270022368ee43c560a28` on `codex/v021-windows-gate-fixes` in
+Code candidate `d897dc2397c42187c71eb150f0288f647c66cd78` on `codex/v021-windows-gate-fixes` in
 `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
 Windows repair branch `codex/bpr1525-native-repair-r2` in
 `C:/Users/mikem/bpr-v021`; clean original 8f0d25418 preserved separately.
@@ -42,40 +42,58 @@ source pins include only that reviewed path and mechanical naming upkeep.
 
 ## Open work and command state
 
-Windows whole workbench remains unresolved. Candidates through c4ec0f7ab exceed
-its unchanged 120 s whole-course deadline. No diagnostic is a normal pass.
-The latest exact candidate passes all four native geometry scale oracles at
-1.70 / 1.75 / 1.76 / 1.84 s. Reusing one Qt shaping engine for plain ASCII
-rows preserves every measured answer but only reduces the 100,000-line
-composition from 23.75 to 21.83 s; this has not demonstrated an adequate repair.
+Windows whole workbench remains unresolved through normal r23 at 5e5f14790:
+all three scales time out at their unchanged 120 s limits. R22's whole
+functional trace completes every assertion in diagnostic 124.04 s. R24's
+isolated long-line course takes 9.39 s, of which whitespace endpoint projection
+is 6.91 s; 26,616 prefix decodes total only 50 ms. Rejected uncommitted
+experiments: ASCII prefix shortcut and temporary per-draw cache flag.
 
-The viewport cache experiment needs further self-review: Qt's cache-enabled
-flag does not itself release glyph allocations. The flag-count regression is
-not proof of retained-memory boundedness. Correct or remove this experiment
-before acceptance; preserve BPR-1032's memory contract. The earlier bare-block
-cache prototype crashed and was rejected; persistent cursors corrected that
-lifetime problem but do not establish the separate memory claim.
+Candidate d897dc239 bounds projection of whitespace endpoints to the horizontal
+viewport for strict unwrapped LTR ASCII rows, with edge neighbors. Core policy
+still reads the entire line; native Qt hit tests and cursor positions own all
+coordinates. Unicode, RTL, wrapped and control text keep the full path.
+A new full-native-projection pixel oracle passes at left/middle/right, along
+with all complete Mac workbench scales (4/4). No input or assertion reduction.
+The earlier 5e5f14790 corrected actual glyph cache retirement via a completely
+clipped public draw; the flag-count regression alone is not allocation proof.
+Actual Mac large-review resource course passes. Preserve BPR-1032's memory
+contract; the rejected bare-block cache lifetime prototype remains documented.
 
-ACTIVE Windows diagnostic task `BPR-1525-focused-r22` profiles every existing
-workbench case plus actual shaping and painting time. It temporarily instruments
-three sources and runs the same full inputs with a diagnostic-only longer
-wrapper bound, then restores/touches/recompiles all three. The production CTest
-deadline remains 120 s. Log/receipt prefix:
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-native-focused-r22`.
-Do not run Windows or WSL workloads concurrently with it. Its predecessor r21
-failed its diagnostic build on a shadowed local profiling variable, restored
-and recompiled the original candidate before r22 started.
+Windows r25 is now Ready/quiescent. At d897dc239 scale100 passes116.26s;
+125/200 time out120.02s. The shared-painter oracle and4 axis scales pass.
+No partial pass closes the gate. PC has no active owned native/WSL command.
 
-No Mac build, test, tidy or review server is active. Strict clang-tidy 22 passes
-for the changed Qt workbench/test and measurement TUs. Documentation gate and
-all 67 documentation verifier unit tests pass (the unit command needs the
-installed implement-rfc scripts on PYTHONPATH). The stalled task-owned LLDB
-launch was terminated by exact PIDs; its child 30243 was dead/zombie awaiting
-init reaping, not a live writer. No authentication or desktop action was used.
+An uncommitted peer-record candidate now reuses existing16-byte extents for
+same-index identical plain ASCII rows under exact matching live cache/font/
+device/DPR/options facts. All mismatches keep Qt shaping and native widest-line
+behavior. The new regression asserts full reuse, changed-row-only fallback,
+font/device/revision fallback and exact Qt boundaries/range. It also fixed a
+stale previous-font maximum by rebuilding the measured maximum from current
+extents. Mac7/7 workbench/axis scales pass. Removing font or text guards causes
+native boundary/range failures; restored/touched/recompiled source passes4/4.
+No active Mac command remains after negative-control exec25647 completed.
+
+Full core-only276-course coverage is complete:272 initial positives plus4
+corrected setup reruns. MASK restored only declared locked ignored local links/
+roles, no tracked declaration or actual runtime switch. The fourth failure was
+an unwarmed pinned dependency in the new cache; all4 rerun normally contained
+using dev's prepared pinned cache. Explicit tidy22 at d897dc239 passes6 TUs;
+peer production/test changes still require tidy. No review server is active.
+The dead LLDB child30243 is a zombie awaiting init reap, not a writer.
+
+NEXT: commit this reviewed peer candidate and send an exact r26 bundle to the
+quiescent Windows repair branch; run new4-scale geometry oracles and3 original
+normal workbench scales without independent PC workload. Do not start WSL
+until those finish. Existing WSL bundle/scripts target d897dc239 and are now
+STALE: regenerate and update their exact expected SHA to the final peer
+candidate before dispatch. Preserve clean8f0d history, use an owned Ubuntu
+repair branch, normal dev compile and16 focused matcher/workshop/provider/core/
+Qt courses. No full Ubuntu gate or package.
 
 ## Next action and remaining obligations
 
-Inspect r22 diagnostic result and finish the demonstrated workbench repair without weaker
+Inspect r25 normal result and finish the demonstrated workbench repair without weaker
 assertions, inputs or timeouts. Complete current strict tidy, self-review and
 final format/documentation gates. Then, after all Windows commands are quiescent,
 preserve/reuse `/home/mmarcin/bpr-v021` in Ubuntu 26.04 WSL on an owned repair

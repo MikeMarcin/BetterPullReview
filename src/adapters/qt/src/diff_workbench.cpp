@@ -4593,7 +4593,7 @@ namespace bpr::qt {
 			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
 				.Result = CurrentResult,
 				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount, LeftHeights },
-				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount, RightHeights },
+				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount, RightHeights, *Left, LeftHeights },
 			});
 			Statistics.PaneMeasurements += 2U;
 		}
