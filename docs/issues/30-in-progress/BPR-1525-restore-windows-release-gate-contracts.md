@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1525"
 title: "Restore Windows release gate contracts without weaker assertions"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0077", "RFC-BPR-0082"]
 depends_on: []
 priority: "P1"
