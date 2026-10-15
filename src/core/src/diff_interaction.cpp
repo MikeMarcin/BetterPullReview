@@ -44,7 +44,15 @@ namespace bpr::core {
 					if (const auto selected = select_group(aIndex, aValue.Group)) {
 						replacement = selected;
 					}
-				} else {
+				} else if (aValue.Reach == change_navigation_reach::outermost) {
+					// [[BPR-1532]]. The end is reached from anywhere, and an end
+					// already selected is selected again: the gesture is the way
+					// back to it.
+					const auto navigation = navigate_outermost_change(aIndex, replacement ? replacement->Group : std::optional<change_group_id>{ }, aValue.Direction);
+					if (navigation.Group) {
+						replacement = select_group(aIndex, *navigation.Group);
+					}
+				} else if (aValue.Reach == change_navigation_reach::adjacent) {
 					const auto navigation = replacement && !replacement->Group
 						? navigate_change(aIndex, replacement->PreferredLine, aValue.Direction, aValue.Policy)
 						: navigate_change(aIndex, replacement ? replacement->Group : std::optional<change_group_id>{ }, aValue.Direction, aValue.Policy);

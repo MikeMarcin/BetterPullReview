@@ -1135,6 +1135,29 @@ bottom and top: Command-Down and Command-Up on macOS, Ctrl+End and Ctrl+Home on
 Windows and Linux (`QKeySequence::MoveToEndOfDocument` and
 `MoveToStartOfDocument`).
 
+**First and Last change** ([[BPR-1532]], the owner, 2026-10-15).
+Option-Shift-Up and Option-Shift-Down (Alt+Shift+Up and Alt+Shift+Down) go to
+the first and the last change in the current file. A change is what
+Option-Up and Option-Down step through: one change group of the file's exact
+comparison, in its order; the comparison shows the whole file and folds or
+hides no change, in two panes and in one. The core decides the end through the
+change-navigation transition with an outermost reach, from a change, an
+unchanged line or no selection; pressed on that end it keeps the selection and
+brings the change back into view, with no bound message. The commands are
+**View > First change** and **Last change** (mnemonics R and H) after Next
+change, in the window and on the empty desktop's bar, and have no review-bar
+button. Unlike the four
+arrows they are disabled in Review where nothing can be reached (no open
+comparison, or one with no changes), the tooltip naming why. From Overview,
+Discuss or Threads they enter Review first, as the arrows do
+(RFC-BPR-0076), and a Review file without changes shows the three-second
+message. The keys are unbound while the focused widget takes typed text (an
+editable line or multi-line editor, an editable combo box, a spin box, the
+suggestion editor), where they extend the selection on macOS; the suggestion
+editor claims them as its box gesture, read-only too. They are unbound as well
+while the focus is in a widget that binds the same key itself: the tour
+outline reorders stops on them.
+
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation
@@ -1172,6 +1195,8 @@ never invents enabled state.
 | In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
+| View > First change in the file ([[BPR-1532]]) | `Alt+Shift+Up` (⌥⇧↑) |
+| View > Last change in the file ([[BPR-1532]]) | `Alt+Shift+Down` (⌥⇧↓) |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
 | Toggle files drawer | `Alt+Shift+1` |
@@ -1300,7 +1325,10 @@ the composed epoch control already holds `Alt+1` through `Alt+3` with
 widget-with-children context. Both bindings match whenever that control has
 focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
 plain-`Alt` form produced two silently dead toggles. No key sequence may be
-duplicated anywhere in the assembled window.
+duplicated anywhere in the assembled window, with one exception: the tour
+outline's widget-scoped reorder keys are First and Last change's, and the
+window unbinds those two while the outline has focus ([[BPR-1532]]), so the
+two never match at once.
 
 `Ctrl+B` is Qt's standard Bold key, which no Qt text widget acts on, so a
 window shortcut would fire inside a composer. An editable multi-line editor

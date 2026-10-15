@@ -1217,6 +1217,19 @@ set_tests_properties(qt_shared_snapshot_navigation PROPERTIES
     TIMEOUT 30
 )
 
+# [[BPR-1532]]. First and Last change: View menu items, Option-Shift-Up and
+# Option-Shift-Down, the disabled state, and the keys' yield to text inputs,
+# the suggestion editor and the tour outline's own reorder keys.
+bpr_add_network_isolated_test(
+    NAME qt_change_end_keys
+    COMMAND test_better_pull_review_qt_workbench_window_tests --change-end-keys
+)
+set_tests_properties(qt_change_end_keys PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "change-end-keys:pass"
+    TIMEOUT 60
+)
+
 # [[BPR-1331]]. The review bar's progress button shows the selected file's
 # decided mark: glyph, name and tooltip, through a change, a file switch and a
 # palette refresh.

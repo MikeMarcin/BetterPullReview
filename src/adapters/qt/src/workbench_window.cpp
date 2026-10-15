@@ -872,6 +872,61 @@ namespace bpr::qt {
 			return QKeySequence{ QStringLiteral("Ctrl+Alt+Down") };
 		}
 
+		/// \brief [[BPR-1532]]. The owner, 2026-10-15: Option-Shift-Up and
+		/// Option-Shift-Down (Alt+Shift+Up and Alt+Shift+Down elsewhere) go to
+		/// the first and the last change in the current file.
+		[[nodiscard]] auto change_end_keys() -> std::array<QKeySequence, 2>
+		{
+			return { QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
+		}
+
+		/// \brief [[BPR-1532]]. Whether a widget takes typed text, where
+		/// Option-Shift-Up and Option-Shift-Down extend the selection (macOS)
+		/// or make box carets (the suggestion editor).
+		///
+		/// \details Editable line and multi-line editors, and any other widget
+		/// Qt routes text input to: editable combo boxes, spin boxes and the
+		/// Review Cycle suggestion editor carry `WA_InputMethodEnabled`, which
+		/// Qt clears when they are read-only. An item view carries it whenever
+		/// its current item is editable, and is not one; the read-only
+		/// comparison panes are not either.
+		[[nodiscard]] auto takes_typed_text_for_change_ends(const QWidget* const aWidget) -> bool
+		{
+			if (aWidget == nullptr || qobject_cast<const QAbstractItemView*>(aWidget) != nullptr) {
+				return false;
+			}
+			if (const auto* const plain = qobject_cast<const QPlainTextEdit*>(aWidget); plain != nullptr) {
+				return !plain->isReadOnly();
+			}
+			if (const auto* const rich = qobject_cast<const QTextEdit*>(aWidget); rich != nullptr) {
+				return !rich->isReadOnly();
+			}
+			if (const auto* const line = qobject_cast<const QLineEdit*>(aWidget); line != nullptr) {
+				return !line->isReadOnly();
+			}
+			return aWidget->testAttribute(Qt::WA_InputMethodEnabled);
+		}
+
+		/// \brief [[BPR-1532]]. Whether the focused widget, or a widget between
+		/// it and the window, binds `aKey` with a widget-scoped shortcut of its
+		/// own, as the tour editor's stop outline binds Option-Shift-Up to
+		/// reorder. A window shortcut on the same key there would make Qt's
+		/// match ambiguous, and neither would run.
+		[[nodiscard]] auto binds_key_nearer(const QWidget* const aFocus, const QWidget* const aWindow, const QKeySequence& aKey) -> bool
+		{
+			for (const auto* widget = aFocus; widget != nullptr && widget != aWindow; widget = widget->parentWidget()) {
+				const auto actions = widget->actions();
+				if (std::ranges::any_of(actions, [&](const QAction* const aAction) {
+						const auto context = aAction->shortcutContext();
+						return (context == Qt::WidgetWithChildrenShortcut || (context == Qt::WidgetShortcut && widget == aFocus))
+							&& aAction->shortcuts().contains(aKey);
+					})) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		/// \brief [[BPR-1328]]. The keys an editor being written keeps for its
 		/// own caret: Option-Up and Option-Down, its paragraph moves on macOS,
 		/// and Command-Up and Command-Down, its document start and end there.
@@ -1388,6 +1443,26 @@ namespace bpr::qt {
 					this,
 					[this, index] { dispatch_navigation(index); });
 		}
+		// [[BPR-1532]]. First and Last change, after Next change. Menu and
+		// keys only: the review bar keeps its four arrows. R and H are the
+		// View menu's unused mnemonics.
+		ChangeEnds[0] = make(QStringLiteral("Fi&rst change"),
+							 QStringLiteral("First change"),
+							 QStringLiteral("First change"),
+							 QStringLiteral("firstWorkbenchChangeAction"),
+							 QStringLiteral("Select the first change in this file."),
+							 { change_end_keys()[0] });
+		ChangeEnds[1] = make(QStringLiteral("Last c&hange"),
+							 QStringLiteral("Last change"),
+							 QStringLiteral("Last change"),
+							 QStringLiteral("lastWorkbenchChangeAction"),
+							 QStringLiteral("Select the last change in this file."),
+							 { change_end_keys()[1] });
+		for (const auto [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
+			ViewMenu->insertAction(HeaderSourceAction, entry->Action);
+			connect(entry->Action, &QAction::triggered, this, [this, id] { dispatch_navigation(static_cast<std::size_t>(id)); });
+		}
+		connect(qApp, &QApplication::focusChanged, this, [this] { update_change_end_keys(); });
 		ViewMenu->insertSeparator(HeaderSourceAction);
 		// [[BPR-1287]]. Open first file is Next file's gesture, so it is
 		// offered exactly when Next file is.
@@ -10507,6 +10582,46 @@ namespace bpr::qt {
 		return Navigation[3].Action;
 	}
 
+	auto workbench_window::first_change_action() const noexcept -> QAction*
+	{
+		return ChangeEnds[0].Action;
+	}
+
+	auto workbench_window::last_change_action() const noexcept -> QAction*
+	{
+		return ChangeEnds[1].Action;
+	}
+
+	void workbench_window::update_change_end_keys()
+	{
+		const auto* const focused = QApplication::focusWidget();
+		const auto        inside  = focused != nullptr && isAncestorOf(focused);
+		const auto        keys    = change_end_keys();
+		for (std::size_t index = 0U; index < ChangeEnds.size(); ++index) {
+			if (ChangeEnds[index].Action == nullptr) {
+				continue;
+			}
+			const auto yields = inside && (takes_typed_text_for_change_ends(focused) || binds_key_nearer(focused, this, keys[index]));
+			ChangeEnds[index].Action->setShortcut(yields ? QKeySequence{ } : keys[index]);
+		}
+		describe_change_ends();
+	}
+
+	void workbench_window::describe_change_ends()
+	{
+		for (const auto [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
+			if (entry->Action == nullptr) {
+				continue;
+			}
+			const auto projection = command(id);
+			const auto enabled    = projection && projection->Enabled;
+			const auto shown      = !projection ? core::workbench_reason_code::no_active_workbench
+								  : enabled   ? projection->Bound
+											  : projection->DisabledReason;
+			describe_navigation_action(entry->Action, entry->Name, enabled, entry->Purpose, change_reason_text(shown));
+		}
+	}
+
 	auto workbench_window::seen_action() const noexcept -> QAction*
 	{
 		return ReceiptActions[0];
@@ -13960,13 +14075,21 @@ namespace bpr::qt {
 	void workbench_window::perform_review_navigation(const core::workbench_command_id aCommand)
 	{
 		const auto index = static_cast<std::size_t>(aCommand);
-		if (index >= Navigation.size() || showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+		const auto ends  = aCommand == core::workbench_command_id::first_change || aCommand == core::workbench_command_id::last_change;
+		if ((index >= Navigation.size() && !ends) || showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
 			return;
 		}
 		if (const auto offered = command(aCommand);
 			!offered || !offered->Enabled || offered->Bound != core::workbench_reason_code::none) {
-			if (offered && offered->Enabled) {
-				statusBar()->showMessage(index < file_navigation_entries ? reason_text(offered->Bound) : change_reason_text(offered->Bound),
+			// [[BPR-1532]]. First and Last change are disabled in Review where
+			// nothing can be reached, so a press that entered Review from
+			// elsewhere meets a disabled command and names its reason too. An
+			// arrow is disabled only without a workbench, which names nothing.
+			const auto reason = !offered ? core::workbench_reason_code::no_active_workbench
+				: offered->Enabled       ? offered->Bound
+										 : offered->DisabledReason;
+			if (reason != core::workbench_reason_code::no_active_workbench) {
+				statusBar()->showMessage(index < file_navigation_entries ? reason_text(reason) : change_reason_text(reason),
 										 bounded_navigation_message_ms);
 			}
 			focus_review_navigation(aCommand);
@@ -13983,7 +14106,7 @@ namespace bpr::qt {
 			focus_review_navigation(aCommand);
 			return;
 		}
-		const auto direction = index == file_navigation_entries
+		const auto direction = aCommand == core::workbench_command_id::previous_change || aCommand == core::workbench_command_id::first_change
 			? core::change_navigation_direction::previous
 			: core::change_navigation_direction::next;
 		if (!ChangeDispatch) {
@@ -13991,10 +14114,11 @@ namespace bpr::qt {
 		}
 		// The gesture repeats the policy the projection offered it, so the
 		// emitted intent and the enablement that offered it cannot disagree about
-		// stop versus wrap.
+		// stop versus wrap. First and Last change reach the end of the order.
 		ChangeDispatch(core::navigate_diff_change_intent{
 			.Direction = direction,
 			.Policy    = Commands.Policy,
+			.Reach     = ends ? core::change_navigation_reach::outermost : core::change_navigation_reach::adjacent,
 		});
 		focus_review_navigation(aCommand);
 	}
@@ -15312,6 +15436,7 @@ namespace bpr::qt {
 									   Navigation[index].Purpose,
 									   detail);
 		}
+		describe_change_ends();
 
 		update_drawer_action(0U,
 							 core::workbench_command_id::toggle_files_drawer,

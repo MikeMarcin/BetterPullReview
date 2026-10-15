@@ -9367,6 +9367,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_BUILD_TESTING)
 			++WorkbenchChangeDispatches;
 #endif
+			// [[BPR-1532]]. First and Last change reach the end of the order.
+			if (aIntent.Reach == core::change_navigation_reach::outermost) {
+				static_cast<void>(Window->comparison_surface()->navigate_outermost_change(aIntent.Direction));
+				return;
+			}
 			static_cast<void>(Window->comparison_surface()->navigate_change(
 				aIntent.Direction, aIntent.Policy));
 		}

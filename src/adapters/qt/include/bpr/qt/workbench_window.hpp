@@ -919,6 +919,10 @@ namespace bpr::qt {
 		void               focus_review_navigation(core::workbench_command_id aCommand);
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1532]]. View > First change, Option-Shift-Up (Alt+Shift+Up).
+		[[nodiscard]] auto first_change_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1532]]. View > Last change, Option-Shift-Down (Alt+Shift+Down).
+		[[nodiscard]] auto last_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto seen_action() const noexcept -> QAction*;
 		[[nodiscard]] auto read_action() const noexcept -> QAction*;
 		[[nodiscard]] auto accept_action() const noexcept -> QAction*;
@@ -1423,6 +1427,12 @@ namespace bpr::qt {
 		void update_public_preview_title();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
+		/// \brief [[BPR-1532]]. Binds First and Last change's keys unless the
+		/// focused widget takes typed text or binds the same key itself.
+		void update_change_end_keys();
+		/// \brief [[BPR-1532]]. Enables and describes First and Last change
+		/// from the core's projection.
+		void describe_change_ends();
 		void dispatch_drawer_toggle(std::size_t aIndex);
 		void observe_drawer_width(
 			core::workbench_drawer aDrawer,
@@ -2082,6 +2092,9 @@ namespace bpr::qt {
 		epoch_comparison_control* EpochSelectors = nullptr;
 
 		std::array<navigation_entry, 4> Navigation{ };
+		/// [[BPR-1532]]. First and Last change; menu and keys only, no
+		/// review-bar button.
+		std::array<navigation_entry, 2> ChangeEnds{ };
 		QAction*                        NextNewCommentAction = nullptr;
 		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };

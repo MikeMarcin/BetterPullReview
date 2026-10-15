@@ -610,6 +610,66 @@ namespace {
 			   "a comparison with no changes explains itself exactly");
 	}
 
+	/// \brief [[BPR-1532]]. First and Last change are offered wherever the
+	/// change order has an entry, and an end is no bound: the press selects
+	/// that end again.
+	auto test_first_and_last_change_commands() -> void
+	{
+		const auto  diff   = change_fixture();
+		const auto& groups = diff.Alignment.Groups;
+		const auto  first  = static_cast<std::size_t>(workbench_command_id::first_change);
+		const auto  last   = static_cast<std::size_t>(workbench_command_id::last_change);
+		expect(first == 12U && last == 13U && workbench_command_count == 14U,
+			   "First and Last change follow the existing commands, so no earlier entry moves");
+
+		auto selections = std::vector<std::optional<change_group_id>>{ std::nullopt };
+		for (const auto& group : groups) {
+			selections.emplace_back(group.Id);
+		}
+		for (const auto& selected : selections) {
+			const auto commands = project_workbench_commands(comparing(change_cursor(diff, selected)));
+			expect(moves(commands.Commands[first]) && moves(commands.Commands[last])
+					   && commands.Commands[first].Id == workbench_command_id::first_change
+					   && commands.Commands[last].Id == workbench_command_id::last_change,
+				   "with changes, both are offered from any selection, the ends included");
+		}
+		const auto atUnchanged = project_workbench_commands(comparing(workbench_change_cursor{ .Ordinal = 3U, .ChangeCount = 3U, .PreviousAvailable = true, .AtUnchangedLine = true }));
+		expect(moves(atUnchanged.Commands[first]) && moves(atUnchanged.Commands[last]),
+			   "an unchanged line after the last change still offers both");
+
+		const auto disabled = [&](const workbench_interaction_state& aState, const workbench_reason_code aReason) {
+			const auto commands = project_workbench_commands(aState);
+			return !commands.Commands[first].Enabled && commands.Commands[first].DisabledReason == aReason && commands.Commands[first].Bound == workbench_reason_code::none
+				&& !commands.Commands[last].Enabled && commands.Commands[last].DisabledReason == aReason && commands.Commands[last].Bound == workbench_reason_code::none;
+		};
+		auto noChanges   = comparing(change_cursor(diff, std::nullopt));
+		noChanges.Change = workbench_change_cursor{ };
+		expect(disabled(workbench_interaction_state{ }, workbench_reason_code::no_active_workbench),
+			   "an inactive workbench disables both");
+		expect(disabled(active(resident(2U, 3U)), workbench_reason_code::no_open_comparison),
+			   "in Review, a file with no open comparison disables both");
+		expect(disabled(noChanges, workbench_reason_code::no_changes),
+			   "in Review, a comparison with no changes disables both");
+		const auto arrows = project_workbench_commands(noChanges);
+		expect(bounded(arrows.Commands[change_entry(change_navigation_direction::next)], workbench_reason_code::no_changes),
+			   "while Previous and Next change stay pressable there ([[BPR-1328]])");
+
+		// Elsewhere the press enters Review, whose own context decides it
+		// ([[BPR-1417]]); the window's comparison only names the bound.
+		for (const auto modality : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::threads }) {
+			auto elsewhere     = noChanges;
+			elsewhere.Modality = modality;
+			const auto offered = project_workbench_commands(elsewhere);
+			expect(bounded(offered.Commands[first], workbench_reason_code::no_changes)
+					   && bounded(offered.Commands[last], workbench_reason_code::no_changes),
+				   "outside Review both stay offered and name the window comparison's bound");
+			auto closed     = active(resident(2U, 3U));
+			closed.Modality = modality;
+			expect(bounded(project_workbench_commands(closed).Commands[first], workbench_reason_code::no_open_comparison),
+				   "outside Review a closed comparison is a bound, not a disabled command");
+		}
+	}
+
 	/// \brief [[BPR-1328]]. The owner, 2026-10-08, first: "It doesn't feel
 	/// good for next change arrows to get greyed out when there's only 1
 	/// change". Then, rejecting arrows that crossed into the next file: "Just
@@ -695,6 +755,8 @@ namespace {
 		case workbench_command_id::go_to_header_source:
 		case workbench_command_id::previous_change:
 		case workbench_command_id::next_change:
+		case workbench_command_id::first_change:
+		case workbench_command_id::last_change:
 			// A change gesture leaves as an RFC-BPR-0004 diff intent rather than
 			// a workbench intent, so the workbench core projects its legality
 			// without owning its transition.
@@ -1654,6 +1716,7 @@ int main()
 	test_change_command_source_line_bounds();
 	test_change_commands_agree_with_navigate_change();
 	test_navigation_commands_are_bounded_and_always_enabled();
+	test_first_and_last_change_commands();
 	test_command_projection();
 	test_selection_gestures();
 	test_navigation_observations();
