@@ -1,0 +1,17 @@
+{
+  "schema": "bpr.engineering-runtime-binding.v1",
+  "role": "rfc-implementer",
+  "model": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "evidence": "Native assigned role; configured banner emitted; no differing effective route exposed. Existing implementer explicitly resumed by coordinator for enumerated final-gate repair.",
+  "owner": "/root/bpr1525_implementer",
+  "run_id": "release-v0.2.1",
+  "segment_id": "final-gate-fixes-r3",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "milestone": "final-composition-contracts",
+  "plan_checkpoint": "implementer-binding.json",
+  "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
+  "command_state": "No task-owned native commands. Both full native gates coordinator-owned and active; no native build/test/performance until explicit slot release.",
+  "acceptance": "Pending; read-only source hypotheses are not native acceptance. Completed1525/1526 unchanged. No threshold/assertion relaxation or owner waiver."
+}
