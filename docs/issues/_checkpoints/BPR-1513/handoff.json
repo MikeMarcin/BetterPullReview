@@ -6,10 +6,9 @@
   "source_root": "/Users/jaeger/.codex/worktrees/bpr1513-dark-banners/BetterPullReview",
   "branch": "bpr1513-dark-appearance-banners",
   "baseline": "9c80010a0",
-  "source_candidate": "6b1d9e2afff2cc0e7e876f0e38a376ffb5b60036",
+  "source_candidate": "b99680a10ced643846f546edd512739304b0bc12",
   "changed_product_paths": [
     "src/adapters/qt/src/appearance_settings_panel.cpp",
-    "src/adapters/qt/include/bpr/qt/appearance_settings_panel.hpp",
     "src/adapters/qt/src/workbench_window.cpp",
     "tests/end_to_end/profile_startup_public_path_tests.cpp"
   ],
@@ -29,7 +28,7 @@
     "platform": "Darwin arm64; Qt6.11.2; QT_QPA_PLATFORM=offscreen; no native appearance integration claim"
   },
   "pending": [
-    "AC1/AC4 owner visual judgement of BPR-1513-dark-banners-v002 in session 95a8c969\u2026."
+    "AC1/AC4 owner visual judgement of BPR-1513-dark-banners-v003 in session 0fec6737\u2026."
   ],
   "commands": {
     "freeze": "finished exit0; launcher-check child exited",
@@ -41,7 +40,7 @@
     },
     "repository_writer": "released at handoff; candidate source paths protected"
   },
-  "next_action": "On Accept: integrate branch bpr1513-dark-appearance-banners (6b1d9e2af) into main, record AC1/AC4 pass, move the card to 60-done, remove the v001 and v002 frozen roots with scripts/freeze_attended_build.py remove. On Reject: apply the note's change on the branch, freeze v003, present it in a fresh short session.",
+  "next_action": "On Accept: integrate branch bpr1513-dark-appearance-banners (b99680a10) into main, record AC1/AC4 pass, move the card to 60-done, and remove the v001, v002 and v003 frozen roots with scripts/freeze_attended_build.py remove. On Reject: apply the note on the branch, freeze v004, and present it in a fresh short session.",
   "scope_notes": "No live GitHub calls or owner desktop driving/capture; source3 only; frontend-design loaded before UX edits.",
   "frozen": {
     "root": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o",
@@ -140,10 +139,54 @@
       "candidate": "BPR-1513-dark-banners-v002",
       "fingerprint": "254faf210bcb954cc7286ef252d8a43f4cc7e7dd1c383cad02df4858954ab53f",
       "event_cursor": 4,
+      "protected": false,
+      "decision": {
+        "outcome": "reject",
+        "source": "owner chat verdict relayed by the coordinator, 2026-10-14; recorded in the session as an observation (event 5), not as a browser decision",
+        "note": "better but i still feel like the original before v001 was better except the color"
+      },
+      "server_pid": null,
+      "server_base_url": "http://127.0.0.1:53313/",
+      "complete_url": "Printed in the private serve log beside the state directory; never commit the bearer token.",
+      "closed": "Protection released; server 68579 stopped."
+    }
+  },
+  "v003": {
+    "owner_instruction": "Restore the original pre-v001 banner design exactly and change only its colours so Dark has no bright flash and readable titles; Light should look like the original.",
+    "branch": "bpr1513-dark-appearance-banners: v003 commit b99680a10 on top of v002 6b1d9e2af; not yet integrated into main",
+    "restored": "appearance_settings_panel.cpp/.hpp at baseline 9c80010a0: plain QWidget header and preview footer with autoFillBackground and a background role, StyledPanel frame, hairline, insets, demibold title, flat Reset buttons. v002's section_band painter and settings_section_band API removed. The original had no gradient or other emphasis.",
+    "changed": "Only the background role, AlternateBase (code current-line fill) to QPalette::Light (profile raised surface, surface.lighter(150)), in both places. The Settings-window palette propagation from v001 stays, because the original dark flash was the Settings window keeping the platform's light palette.",
+    "original_as_seen": "offscreen default palette in every mode: band #F7F7F7 on #EFEFEF (1.07:1, raised), black titles",
+    "colours": {
+      "light": "#FFFFFF on #F6F7F9: band/page 1.07:1, title/band 15.8:1",
+      "dark": "#2A3039 on #1C2026: 1.23:1, 11.25:1",
+      "high_contrast": "flat (#000000 or #FFFFFF equals the page); titles 21:1, frame and hairline remain"
+    },
+    "verification": {
+      "focused": "build/bpr1513/v003/focused.log: 8/8 (startup, appearance panel, settings window and its three scales, appearance profile, multi-window)",
+      "renders": "build/bpr1513/v003/renders and v003/original: six modes each; sampled pixels match",
+      "negative_control": "build/bpr1513/v003/negative.log: original AlternateBase role fails",
+      "format": "pass",
+      "tidy": "exit 0 with warnings as errors",
+      "diff_check": "pass",
+      "platform": "Darwin arm64; Qt 6.11.2; offscreen; no native appearance claim"
+    },
+    "frozen": {
+      "root": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v003.ghxc5j7f",
+      "source_commit": "b99680a10ced643846f546edd512739304b0bc12",
+      "executable_sha256": "bdc2bb83a719c3bcef6f15da36a1aef4693ce444bd39c287144809145b3e037f",
+      "check": "CHECK_OK ATTENDED_PULL_REQUEST_OPENED"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1513-v003-meQzvM",
+      "session": "0fec673709be766d18cae7971d436b51",
+      "candidate": "BPR-1513-dark-banners-v003",
+      "fingerprint": "cff4dcac2098b8dae6e527f84fc4192692a128b18edaf9dac83d5edd3aea1225",
+      "event_cursor": 4,
       "protected": true,
       "decision": null,
-      "server_pid": 68579,
-      "server_base_url": "http://127.0.0.1:53313/",
+      "server_pid": 92112,
+      "server_base_url": "http://127.0.0.1:54598/",
       "complete_url": "Printed in the private serve log beside the state directory; never commit the bearer token."
     }
   }

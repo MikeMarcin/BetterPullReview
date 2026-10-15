@@ -109,3 +109,32 @@ its launcher check and is under review in a fresh short session. The
 reason session that had gone unanswered is closed, and the v001 protection is
 released. AC1 and AC4 remain pending the owner's verdict. Details are in
 [the handoff](../_checkpoints/BPR-1513/handoff.json).
+
+Owner verdict on v002 and engineering checkpoint v003, 2026-10-14.
+
+The owner rejected v002 in chat, relayed by the coordinator: "better but i
+still feel like the original before v001 was better except the color". The
+verdict is recorded in the v002 session as an observation, and that session is
+closed.
+
+v003 restores the original banner code exactly: the filled header strip and
+colour-preview footer, frame, hairline, insets, demibold title and Reset
+buttons. It changes only their palette role, from the code current-line fill
+(`AlternateBase`) to the profile's raised surface (`Light`). The original had
+no gradient or other emphasis to restore. As the owner saw it, the original
+was a raised strip (`#F7F7F7` on `#EFEFEF`, 1.07:1), because Settings kept the
+platform palette, and that same behaviour was the flash in Dark. v003 keeps the
+raised strip: Light is `#FFFFFF` on `#F6F7F9` (1.07:1, titles 15.8:1), and Dark
+is `#2A3039` on `#1C2026` (1.23:1, titles 11.3:1). The high-contrast themes
+have pure black or white surfaces, so their strip is flat; titles stay at 21:1
+and the frame and hairline remain. The Settings-window palette fix from v001
+stays.
+
+Candidate `b99680a10` on branch `bpr1513-dark-appearance-banners`. Eight
+focused Appearance, theme-switching and Settings courses pass, including the
+scaled Settings window. Format, tidy and `git diff --check` pass. With the
+original role, the composed course fails. The frozen v003 build passed its
+launcher check and is under review in a fresh short session, which shows the
+original in Light, the original in Dark, v002 in Dark, and v003 in Dark and
+Light. AC1 and AC4 remain pending. Details are in
+[the handoff](../_checkpoints/BPR-1513/handoff.json).
