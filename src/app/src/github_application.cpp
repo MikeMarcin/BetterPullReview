@@ -14015,6 +14015,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				load_defects();
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
+				// [[BPR-1527]]. This observation retires every workbench
+				// selection. A tab driver that already selected its file is
+				// waiting for retired material and cannot select it again.
+				// Let the accepted comparison and returned files restart that
+				// active view, rather than leave it blocking the owed refresh.
+				abandon_tab_load();
 				// [[BPR-1303]]. A refresh that moves the head changes the
 				// tab's comparison, and that reloads the tab; one that keeps
 				// the diff leaves the workbench with no file and is owed it.
