@@ -599,7 +599,13 @@ namespace bpr::qt {
 		if (!aBlock.isValid() || aDrawing == core::white_space_drawing::none || !aColor.isValid()) {
 			return 0U;
 		}
-		const auto text  = aBlock.text();
+		const auto text = aBlock.text();
+		// [[BPR-1525]]. Most source rows contain no drawable white space.
+		// Avoid constructing and scanning two per-character vectors on every
+		// paint for those rows; the core still decides every row with marks.
+		if (!text.contains(QLatin1Char{ ' ' }) && !text.contains(QLatin1Char{ '\t' })) {
+			return 0U;
+		}
 		const auto drawn = core::white_space_drawn(white_space_characters(text), aDrawing, aSelected);
 		auto       marks = std::vector<white_space_mark>{ };
 		auto       row   = QRectF{ };

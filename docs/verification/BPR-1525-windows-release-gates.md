@@ -229,3 +229,25 @@ Windows candidate jobs=4 passes at 22.39 s. This modest reduction does not yet
 close the original timeout; production append/compile/finish tracing is next.
 Attributing the original extra delay to full-gate contention
 remains an inference, and the final native full gate is still mandatory.
+
+The complete serial functional workbench trace (r10) finishes every original
+assertion in 151.87 s: keyboard 55.27 s, 100,000-line gutter 29.59 s, divider
+19.20 s and line-details syntax 10.21 s. The ordinary native-painter attempt
+changed no dominant duration and is removed. The shared whitespace painter
+instead skips per-character classification/all-false vectors when a row has
+neither ASCII space nor tab. Every row with possible marks still uses the core
+policy, and the text-selection painter remains unchanged. Mac painter and
+complete three-scale workbench courses pass (0.51/13.02/13.30/15.09 s).
+Strict tidy 22 on the painter passes; native duration acceptance is pending.
+
+Provider production tracing on 45520b2dc (r10) attributes 17.682 s of 20.62 s
+total to 289 batch appends; compilation takes 0.005 s total. Each append parsed
+the whole serialized prefix again before merging its next part. Request-local
+Glaze assembly now retains that admitted tree, moves each validated next part
+into it and serializes each prefix under the same output bound. Input-byte,
+value, alias, order and sticky-failure checks and final complete normalization
+remain. State allocation is inside the existing append exception boundary;
+there is no shared attempt cache. Mac provider falls from 8.96 to 3.13 s and
+the complete capability course passes in 4.58 s, including cumulative byte/value
+refusals, missing/unexpected aliases, duplicate parts, GitHub/GHES fact equality
+and malformed Unicode/envelope checks. Native concurrency acceptance is pending.

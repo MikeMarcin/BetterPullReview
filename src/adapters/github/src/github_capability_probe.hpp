@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -215,10 +216,19 @@ namespace bpr::adapters::github::detail {
 	class capability_probe_batch
 	{
 	public:
+		capability_probe_batch();
+		~capability_probe_batch();
+		capability_probe_batch(const capability_probe_batch&)                    = delete;
+		auto operator=(const capability_probe_batch&) -> capability_probe_batch& = delete;
+		capability_probe_batch(capability_probe_batch&&) noexcept;
+		auto operator=(capability_probe_batch&&) noexcept -> capability_probe_batch&;
+
 		[[nodiscard]] auto append(const capability_probe_response& aResponse, std::uint8_t aPart) noexcept -> std::expected<void, capability_probe_observation>;
 		[[nodiscard]] auto finish() const noexcept -> capability_probe_observation;
 
 	private:
+		struct assembly;
+		std::unique_ptr<assembly> Assembly;
 		capability_probe_response Response;
 		std::size_t               Bytes  = 0U;
 		std::size_t               Values = 0U;

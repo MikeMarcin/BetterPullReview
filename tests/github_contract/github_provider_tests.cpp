@@ -1874,8 +1874,8 @@ namespace {
 							 retry_after };
 		// This matrix changes only the failing part. Prepare the nine exact
 		// canonical responses once; every attempt still receives its own copy.
-		// Re-reading and splitting the whole schema for every physical request
-		// dominated the native gate without exercising provider behavior.
+		// This avoids repeated fixture I/O and splitting while preserving every
+		// physical request, refusal and full retry in the matrix.
 		const auto canonical = supported_capability_response();
 		auto       parts     = std::array<capability_probe_response, 9U>{ };
 		for (auto index = std::size_t{ 0U }; index < parts.size(); ++index) {
