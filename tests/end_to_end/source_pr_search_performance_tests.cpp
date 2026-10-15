@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLineEdit>
@@ -23,6 +24,7 @@
 #include <QThread>
 #include <QToolButton>
 #include <QTreeView>
+#include <algorithm>
 #include <iostream>
 #if defined(_WIN32)
 	#include <windows.h>
@@ -128,8 +130,37 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return panel->projection().Status == core::source_search_status::searching && panel->projection().Summary.EligibleFiles == 68U && panel->projection().Summary.SearchedFiles < 68U; }, "cold scan visibly active with whole original corpus", note);
 	QElapsedTimer navigation;
 	navigation.start();
+	qint64      loadingMs          = -1;
+	qint64      resultMs           = -1;
+	qint64      lastSampleMs       = 0;
+	qint64      maximumSampleGapMs = 0;
+	QJsonArray  navigationTrace;
+	QJsonObject previousNavigationState;
+	const auto  noteNavigation = [&] {
+		note();
+		const auto elapsed       = navigation.elapsed();
+		maximumSampleGapMs       = std::max(maximumSampleGapMs, elapsed - lastSampleMs);
+		lastSampleMs             = elapsed;
+		const auto targetContext = surface->current_context() && surface->current_context()->Key.File == core::file_identity_of("bulk/063.cpp");
+		const auto targetResult  = targetContext && surface->current_result() && surface->current_result()->Alignment.Key.File == core::file_identity_of("bulk/063.cpp");
+		if (targetContext && loadingMs < 0) {
+			loadingMs = elapsed;
+		}
+		if (targetResult && resultMs < 0) {
+			resultMs = elapsed;
+		}
+		const auto  work = access::diff_work_evidence(*app);
+		QJsonObject state{ { "loading", targetContext }, { "result", targetResult }, { "geometry_pending", surface->geometry_pending() }, { "diff_pending", work.Pending }, { "diff_jobs", static_cast<double>(work.OutstandingJobs) }, { "file_requests", static_cast<double>(work.WorkbenchOutstandingRequests) }, { "epoch_reviewer_jobs", static_cast<double>(work.EpochReviewerJobs) }, { "epoch_preparation_jobs", static_cast<double>(work.EpochPreparationJobs) }, { "preparing", static_cast<double>(work.Preparing) } };
+		if (state != previousNavigationState && navigationTrace.size() < 128) {
+			previousNavigationState = state;
+			state.insert(QStringLiteral("elapsed_ms"), elapsed);
+			navigationTrace.append(state);
+		}
+	};
 	open("bulk/063.cpp");
-	wait_for([&] { return surface->current_result() && surface->current_context()->Key.File == core::file_identity_of("bulk/063.cpp") && !surface->geometry_pending(); }, "navigation outranks cold corpus acquisition", note);
+	const auto gestureMs = navigation.elapsed();
+	noteNavigation();
+	wait_for([&] { return surface->current_result() && surface->current_context()->Key.File == core::file_identity_of("bulk/063.cpp") && !surface->geometry_pending(); }, "navigation outranks cold corpus acquisition", noteNavigation);
 	const auto navigationMs = navigation.elapsed();
 	expect(panel->projection().Generation == generation && panel->projection().Query == "catalogue token", "same active-tab navigation preserves original query generation");
 	wait_for([&] { return panel->projection().Status == core::source_search_status::complete && app->status().SourceSearchQuiescent; }, "cold search resumes to full truthful coverage", note);
@@ -177,6 +208,7 @@ int main(int aArgc, char** aArgv)
 	expect(thresholdFile.open(QIODevice::ReadOnly), "committed thresholds read");
 	const auto  limits = QJsonDocument::fromJson(thresholdFile.readAll()).object();
 	QJsonObject report{ { "platform", QSysInfo::prettyProductName() }, { "architecture", QSysInfo::currentCpuArchitecture() }, { "qt", QString::fromUtf8(qVersion()) }, { "fixture_entries", 70 }, { "eligible_files", 68 }, { "source_bytes", 11779610 }, { "cold_final_ms", coldFinal }, { "cold_first_ms", coldFirst }, { "navigation_ms", navigationMs }, { "warm_first_ms", warmFirst }, { "warm_final_ms", warmFinal }, { "cancel_ms", cancelMs }, { "rss_before_bytes", static_cast<double>(rssBefore) }, { "rss_peak_bytes", static_cast<double>(rssPeak) }, { "cold", statistics(cold, aBefore) }, { "warm", statistics(warm, cold) } };
+	report.insert(QStringLiteral("navigation_stages"), QJsonObject{ { "gesture_ms", gestureMs }, { "loading_ms", loadingMs }, { "result_ms", resultMs }, { "maximum_sample_gap_ms", maximumSampleGapMs }, { "trace", navigationTrace } });
 	std::cout << "SOURCE_SEARCH_PERFORMANCE_JSON " << QJsonDocument{ report }.toJson(QJsonDocument::Compact).toStdString() << '\n'
 			  << std::flush;
 	expect(coldFirst >= 0 && coldFirst <= limits["cold_first_ms"].toInt() && warmFirst >= 0 && warmFirst <= limits["warm_first_ms"].toInt() && coldFinal <= limits["cold_final_ms"].toInt() && navigationMs <= limits["navigation_ms"].toInt() && warmFinal <= limits["warm_final_ms"].toInt() && cancelMs <= limits["cancel_ms"].toInt(), "public performance regression thresholds");

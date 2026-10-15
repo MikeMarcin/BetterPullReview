@@ -1,0 +1,89 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "release-v0.2.1",
+  "segment_id": "BPR-1524-search-navigation",
+  "mandate_revision": "owner-20261014-use-implementers",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1524",
+  "binding": {
+    "plan_id": "bpr-1524-windows-search-navigation",
+    "plan_path": "docs/rfcs/plans/bpr-1524-windows-search-navigation/milestone-plan.json",
+    "milestone_id": "search-navigation-budget",
+    "definition_fingerprint": "sha256:a7ae8ff145440917dda29600a1539b2e77d52ebd36e2ac07597e40866a60729e",
+    "obligations": [
+      {
+        "id": "BPR-1524:AC1",
+        "source": "BPR-1524",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:cd2dcac5542a641c9377f28dc1ec593c34cfd74cf15359b684e6cadf2083b910"
+      },
+      {
+        "id": "BPR-1524:AC2",
+        "source": "BPR-1524",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:cd2dcac5542a641c9377f28dc1ec593c34cfd74cf15359b684e6cadf2083b910"
+      },
+      {
+        "id": "BPR-1524:AC3",
+        "source": "BPR-1524",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:cd2dcac5542a641c9377f28dc1ec593c34cfd74cf15359b684e6cadf2083b910"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8a4489d091d8001316609591c19f48ae3fcc30a91b034dc9e79308e2abe00e80",
+    "exit_criteria": [
+      {
+        "id": "search-navigation-budget:exit:1",
+        "text": "Retain both original Windows failures and identify the stage and production mechanism behind the navigation delay."
+      },
+      {
+        "id": "search-navigation-budget:exit:2",
+        "text": "Correct the demonstrated production cause without weakening thresholds, assertions, source identity, acquisition containment or complete search coverage."
+      },
+      {
+        "id": "search-navigation-budget:exit:3",
+        "text": "Demonstrate passing exact-candidate Windows performance with other budgets intact, focused Mac public paths, format22, relevant architecture/structure checks and clean-source handoff."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "search-navigation-budget"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "1933ea80f1dfdad1b65d627b0e46e3c5d2734d63",
+    "workflow_branch": "main",
+    "workflow_revision": "1933ea80f1dfdad1b65d627b0e46e3c5d2734d63"
+  }
+}
