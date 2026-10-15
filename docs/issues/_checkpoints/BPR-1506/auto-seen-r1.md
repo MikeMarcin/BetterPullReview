@@ -25,3 +25,9 @@ The successful ledger material answer supplies the exact selected publication an
 All task build/test subprocesses complete before handoff; no server, live GitHub effect, owner desktop/profile access or candidate protection is retained. Frontend-design was read for visible progress behavior. No required human/native/independent acceptance is specified by this card; no attended session is needed. No temporary files/build output are committed.
 
 Coordinator: integrate the product and canonical card finish commits, skipping `d4a2af14a` if `5a105579c` already exists in its history. Reconcile the separate P0 board dependency and run the global documentation gate on integration. Other source changes and file navigation/hotkey slices remain coordinator-owned.
+
+## Final upkeep
+
+Canonical finish `c8bffd47189d17370b049173b31437369846d80b` moved BPR-1506 to Done with all four passing acceptance records against product candidate `348bf36ee`. Scoped board validation remains valid and the working tree was clean. The final global gate still reports only the unrelated BPR-1521/BPR-1520 Ready dependency.
+
+The original milestone check detected the card path/body fingerprint change caused by canonical finish and evidence additions. The acceptance text and plan remain unchanged. Rebound the same mandate/milestone as segment `auto-seen-r1-recovery`; [milestone-binding.json](milestone-binding.json) retains that post-finish binding. Runtime final observation and check live at `/tmp/bpr1506-recovery-observation.json` and `/tmp/bpr1506-recovery-check.json`.
