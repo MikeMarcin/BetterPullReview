@@ -33,12 +33,14 @@
   "main_verification": {
     "p0_build": "/tmp/bpr-coordinator-integration-build.log; exit0",
     "p0_public": "/tmp/bpr-coordinator-p0-public-tests.log;3/3 pass,42.48seconds",
-    "combined_build": "/tmp/bpr-coordinator-combined-build.log; currently running session34110",
+    "combined_build": "/tmp/bpr-coordinator-combined-build.log;exit0",
     "documentation": "DOCUMENTATION_OK after batch integration",
     "merge_resolutions": [
       "BPR1520 issue card deduplicated equivalent owner recovery amendment, preserved AC8/diagnosis",
       "workbench test main kept both current-file-unread and center-ribbon test branches"
-    ]
+    ],
+    "combined_ui_recovery": "/tmp/bpr-coordinator-combined-tests.log;8/8pass,68.20seconds",
+    "shared_public": "/tmp/bpr-coordinator-shared-public-tests.log;running"
   },
   "source_pin": "18444c1d6 reviewed combined composition delta; existing production mutation digest unchanged",
   "safety": "No owner profile, installed application, live review, desktop or remote publication changed",
