@@ -158,8 +158,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/v021-windows-gate-fixes",
-    "source_revision": "ac75b5c16aafeb864b60ce04f17d9ac46986a909",
+    "source_revision": "076922c1340086b02a706665b2de2c9cbc9f28fa",
     "workflow_branch": "codex/v021-windows-gate-fixes",
-    "workflow_revision": "ac75b5c16aafeb864b60ce04f17d9ac46986a909"
+    "workflow_revision": "076922c1340086b02a706665b2de2c9cbc9f28fa"
   }
 }

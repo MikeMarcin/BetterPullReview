@@ -111,22 +111,43 @@ skip. Root released the quiescent PC to this implementer for serial Windows/WSL
 repair and acceptance; there is no signing, auth, security or reboot authority.
 
 
-## Windows 0.2.2 focused continuation
+## Execution record
 
-The original d52 producer and full evidence were preserved before adoption to
-an owned repair branch. [Native evidence](../_checkpoints/BPR-1527/windows-native-verification.json)
-records all nine title/browser/window courses passing728.19s and a compiled
-loss-of-cycle control failing4.02s, followed by exact restoration and a normal
-42.13s pass. The oracle retains canonical full tooltip and badge plus lawful
-native title elision, exact browser refusal, Home/new-PR and all scale/width rules.
-The navigation course passes93.92s with the clock bound to the originating
-message, preserving screenshots and2600/3600ms lifetime checks. These focused
-passes do not finish the other criteria or supply release approval.
+Code candidate `076922c1340086b02a706665b2de2c9cbc9f28fa` stays on the sole
+implementer's isolated branch. Later notes commits change no production/test bytes.
+[Native evidence](../_checkpoints/BPR-1527/windows-native-verification.json) and
+[the checkpoint](../_checkpoints/BPR-1527/CURRENT.md) retain failed originals,
+actual producer/source bindings, rejected trials and meaningful controls.
 
-The normal200 workbench baseline still takes118.85s inside unchanged120s, so
-stability and bounded source improvement remain pending. Application12/18 and
-later3/5 observations retain the remaining UIforETW, label-phase33 and submission
-failures. A bounded native trace identifies a second accepted refresh leaving an
-older tab presentation waiting for retired selection material; corrected native
-acceptance and all other listed obligations remain pending. Mac source/producer
-remain isolated at the accepted c233 handback boundary.
+All9title/browser/window scales pass, preserving canonical tooltip/badge, lawful
+native elision and browser refusal; deliberate lost-cycle fails. Navigation binds
+its clock to originating message emission, retaining2600/3600ms and3000ms policy.
+Accepted rereads retire obsolete presentation drivers; only the core's retained
+explicit file choice opens against a current accepted pair/catalogue. Exact revoked
+authority retires the pending choice. Native label/submission scales/controls pass.
+
+Normal Windows workbench100/125/200 passes93.64/104.43/108.10s under unchanged120s
+versus genuine old-source200119.35s. Split-only actual overscan reuses native pixels;
+mask initialization and narrow frame repair preserve every prior navigation/quality
+assertion. Removing only that repair fails the actual backing-frame oracle. Find
+compares both exact displayed pane rectangles with all fit/focus/interaction rules;
+deliberate product layout reflow fails.
+
+WSL exposes a later lost confirmed discard during private-store reopening. Retain
+the exact core command/CAS with owner/consumer, never a newly substituted revision.
+The existing deleted-thread reply course holds real private effects across confirm,
+then requires its original durable discard/zero sends. Removing only retained
+intent fails; forced normal restore passes. No sleep/repeated-click workaround or
+weaker threshold/assertion is introduced.
+
+Current Windows9affected courses pass169.00s with actual rebuilt producers. WSL
+Ubuntu26.04 22normal courses pass188.97s; naming-only submission upkeep passes its
+normal course4.46s and strict22.1.8. All10changed TUs pass via9exact unchanged results
+plus1repaired recheck; architecture/fullformat22/docgate/67units pass. These are
+focused engineering results, not full705-test Windows0.2.2 release qualification,
+Ubuntu desktop/vault acceptance, package/trust approval or a version promise.
+
+BPR1527 remains In Progress. Later Mac affected native checks still require explicit
+coordinator engineering CPU release; none reached this owner. Published Mac0.2.1
+stays immutable. Resume the same implementer for remaining acceptance/canonical
+finish, preserving all11criteria/10exits. No human review/server or waiver is pending.

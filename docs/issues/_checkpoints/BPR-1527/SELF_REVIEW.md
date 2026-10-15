@@ -2,27 +2,73 @@
 
 Mandate `authorized-release-continuation-final-gates-r3`; sole implementer review,
 not an independent review or release approval. Baseline `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`.
-Current Windows follow-up source is ccf70c312 (production/test bytes equal
-830963602); Mac6747/c233 remains a separate immutable release boundary. Historical
-source notes below retain their original candidate context. For evidence status,
-[the incremental-build audit](windows-native-incremental-audit.json) supersedes
-old copied-source/build-success claims: r29/r32 exact-source positives and r27's
-uninstrumented whole timing are withdrawn. r26 tracing never actually compiled;
-a missing terminal writer alone did not explain that attempt. Delivered r28
-stderr remains actual cause evidence.
+Current owned candidate is `076922c1340086b02a706665b2de2c9cbc9f28fa`.
+Production Qt bytes remain851; application action retention remainsdf589 and passes WSL R53/R54. Native Windows
+R55 passes9normal courses on0769; later Mac checks await CPU release.
+Application bytes remain830/ccf;851 adds the bounded Qt scroll/frame repair and
+its regression oracle. Mac6747/c233 is a separate immutable release boundary.
+Historical notes below retain their candidate context. The
+[incremental audit](windows-native-incremental-audit.json) supersedes old
+copied-source/build-success claims: r29/r32 exact-source positives and r27whole
+uninstrumented timing are withdrawn. R26 tracing did not actually compile;
+missing terminal output alone did not explain it. Delivered r28 stderr remains
+actual cause evidence.
 
-Proper forced-object/executable r34 acceptance now passes label, all3submissions,
-agent/UIfor, held refresh-pick/file-switch/header/navigation/roundtrip. Missing
-choice-retirement actually compiles and fails chosen1/active0/pending0. Legitimate
-one-turn navigation deferral plus old probe actually compiles and fails; the
-current exact completion-observed probe passes. Source/normal objects restore
-exactly and roundtrip passes. r35 explicitly rebuilds the cold-import standalone
-producer and passes its original zero-receipt and both held-origin controls.
-These replace pending native statements in the historical notes; strict changed
-TUs, appropriate affected portability and final integration remain pending.
-Fresh normal200119.35s supplies no stability repair. Temporary performance
-trials remain unadopted; actual r39 is ongoing. All eleven criteria/ten exits
-remain bound, with no release approval or BPR-1527 Done.
+Proper r34 forced-object application acceptance and runtime-witnessed negatives
+replace the pending native statements in historical source notes, except its stale
+agent standalone row (withdrawn and replaced by R50). R35 explicitly
+relinks cold-import's standalone producer and passes its original zero-receipt
+and both held-origin controls. R46 then accepts committed851 Qt behavior: all3
+normal complete scales93.64/104.43/108.10s under unchanged120s,4axis scales+painter,
+fullformat22.1.8 of1542files and docgate/67units pass. Removing only the production
+frame repair makes the unchanged normal course fail26.34s with actual two-pixel
+frame corruption. Exact forced source/object/exe restoration verifies and normal
+200passes108.34s. R47 yields19current application passes; two stale standalone passes are withdrawn
+in the selected-producer audit. R50 explicitly rebuilds those producers and checks
+the corrected Find display oracle, including a product-only layout counterexample.
+Strict/architecture,
+Ubuntu and appropriate Mac affected acceptance and final upkeep remain pending.
+All eleven criteria/ten exits remain bound; no release approval or Done.
+
+## Native backing-store repair
+
+The split viewport's old whole-row overscan overlaps its horizontal-scrollbar
+container. [Qt6.11.2's scroll implementation](https://raw.githubusercontent.com/qt/qtbase/v6.11.2/src/widgets/kernel/qwidgetrepaintmanager.cpp)
+refuses retained-pixel scrolling for higher-sibling overlap. Only the displaced
+fraction needs extra split height; its displayed mask is unchanged. The native
+unified vertical bar retains its previous extent. A shared-frame helper retains
+the residual across its native line change, avoiding offset-clear/resize churn.
+The source uses existing Qt geometry and backing pixels; fonts, brushes, glyph
+layouts and actual displayed bounds remain the same.
+
+Two prototype regressions were falsified before adoption. Equal geometry at
+zero offset skipped initial mask installation: unchanged far-navigation failed
+with mask0x0/visible0x0/bar0. The return now also requires exact mask equality;
+original far cases pass with identical positions. Native rectangle scrolling
+can also overwrite the parent frame outside the viewport mask. Fresh grabs hid
+that defect; completed backing images exposed a two-pixel strip. The source
+now repaints only the intersection with the native frame above the displayed
+split canvas. All12completed/fresh prototype captures match the normal baseline.
+
+The new regression oracle snapshots the owned completed raster before any grab,
+then compares both visible source frames against a fresh native render. Native
+frameWidth makes this oracle independent of the implementation's mask arithmetic.
+It follows [QBackingStore's device lifetime](https://doc.qt.io/qt-6/qbackingstore.html#paintDevice):
+empty beginPaint, copy inside the boundary, endPaint, with no cached device pointer.
+Frame crops are converted to the same pixel format for exact colour comparison;
+no tolerance is added. Capturing both panes before a grab prevents one forced
+render from concealing the other pane's stale frame. The compiled deliberate
+missing-repaint control fails this oracle on the normal public course.
+
+The complete course retains its inputs and prior assertions plus this frame
+oracle. Native Debug Windows200 now takes108.10/108.34s versus verified119.35s
+baseline under prescribed exclusivity and the original120s deadline. This is
+machine/configuration evidence, not a universal frame-rate guarantee. Earlier
+signal/ordering/offset-only trials supplied insufficient margin and remain
+rejected. The source introduces no second text/raster cache or new dependency.
+Frontend-design was loaded before Qt work; existing appearance is retained.
+
+## Historical source notes
 
 Pinned app scope changes are `681b41b9c`, `0f6d288b1` and this admission-origin correction;
 intervening reservation/plan/checkpoint commits changed no pinned production source.
@@ -203,3 +249,72 @@ Native clang-format22.1.8 formatted the three paths; canonical print-only CMake
 computed both full-app and ordered source-manifest pins, with production mutation
 branch unchanged. Actual native corrected tests, the two controls and strict
 analysis/portable acceptance remain pending. Pin calculation itself is not a pass.
+
+## Find displayed geometry and actual producer binding
+
+The adopted Find contract preserves pane layout and visible source height. R48
+actual native measurements show both outer143x632 panes and both displayed
+canvas rectangles remain exact; only the invisible backing viewport changes
+105x616 to105x617 when alignment needs one overscan pixel. The old test compared
+that hidden size while discarding its position. 7aaf instead retains both outer
+rectangles and compares both clipped canvas rectangles, including their positions.
+All prior assertion text, focus, input, query width, supported fit and interaction
+controls remain. R50's deliberate product-only Find-in-layout change must still
+fail the opening geometry assertion; no requirement or timing waiver is inferred.
+
+Selected commands, not suite names, bind producers. The R47 manifest identifies
+two standalone agent executables absent from its8target rebuild. Their raw passes
+remain historical only, including the old R34 agent row. R50 forces their actual
+CPP objects and relinks both targets against current composition/Qt before rerunning
+them. The other19R47 passes and R46 Qt evidence are unaffected.
+
+R50 completes Ready/exit0 on7aaf: the product-only Find reflow actually compiles
+and fails the unchanged opening-geometry assertion7.47s. Both normal5course
+passes succeed with actual rebuilt producers; final agent25.91s/workshop9.31s
+and Find100/125/20033.40/33.86/36.94s. Exact source/object/executable restoration,
+marker absence and clean source verify. R51 now runs the serialized WSL affected
+compile/public paths and strict/static gates; its result remains pending.
+
+## Kept-reply action during private-store reopening
+
+WSL R51/R52 reproduces a later existing reply-draft failure: its confirmation
+accepts exact draft1/revision2 while private storage is unready/unbound. The shared
+synchronous owner correctly refuses a durable change; no private mutation is posted.
+R52 restores exact normal app/private-workflow objects and executable, and the same
+failure remains. This is distinct from the earlier missing reply-target diagnosis.
+
+Df589 keeps the already core-admitted command with exact shared owner and consumer.
+The bounded owner's draft identity keys one pending intent; a later explicit action
+on that same draft replaces the pending command. Restore acknowledgement checks
+owner, consumer, original revision and scope, then posts the original CAS once. No
+latest revision is substituted, scope replacement clears it, and completion still
+requires exact current owner/consumer plus accepted durable adoption. Existing core
+keep/discard policy and durable-required refusal remain. Qt event routing/appearance
+and the generic private workflow are unchanged.
+
+The existing deleted-thread public course now holds only private storage across its
+real confirmation. It verifies storage has not changed before release, then demands
+the original discard and zero-send result under unchanged waits/budgets. QScopeGuard
+and failure cleanup release the owned hold. R53 will run a product-only lost-retention
+negative against this unchanged stronger course, force exact restoration and repeat.
+Native22format and print-only digests are observed; full app/manifest pins are renewed
+with this source review, mutation pin unchanged. No acceptance/release claim yet.
+
+R54 accepts22normal current WSL courses188.97s and architecture/fullformat22/
+docgate/67units. Strict22.1.8 checks all10TUs, finding only the original d52
+submission refresh_until local name. Nine unchanged TUs pass. Naming-only0769
+renames its declaration/four calls plus formatter alignment; no action, assertion,
+wait or budget changes. R54b forces the actual submission object/exe, passes its
+normal public course4.46s, strict one-TU and current architecture. Combined exact
+unchanged-source reuse supplies all10clean TUs without suppression. App/manifest/
+mutation digests remain e9ba5166/b1a9cabd/e067befe respectively. Windows R55 is
+currently running the freshly rebuilt exact candidate; no native result is inferred.
+
+R55 completes actual native Windows0769 acceptance:9/9normal courses169.00s,
+including held-storage deleted reply/all7reply subcourses, threaded/label/submission,
+both receipt-origin orders, agent/workshop and pinned roundtrip. Forced actual
+objects/5producer relinks, times and markers verify. No temporary diagnostic is
+installed; originals/counterexamples stay retained. Later Mac lifecycle/viewport/
+Find/held-reply checks remain required pending explicit CPU release. Published
+Mac0.2.1 supplies no acceptance for these later bytes. This is sole-owner review,
+not independent review or release approval.

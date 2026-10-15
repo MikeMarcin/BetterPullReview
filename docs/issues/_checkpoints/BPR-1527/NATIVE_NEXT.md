@@ -1,131 +1,114 @@
 # BPR-1527 native continuation
 
-Mandate `authorized-release-continuation-final-gates-r3`; same sole implementer,
-no subagents. Read [CURRENT.md](CURRENT.md), the card and actual task/receipt
-before dispatch. BPR-1525/1526 remain Done; BPR-1527 remains In Progress with all
-eleven criteria and ten exits. Current source is ccf70c312 (production/test bytes equal830963602).
-Audit corrections and actual forced-object acceptance are in CURRENT.md.
+Mandate `authorized-release-continuation-final-gates-r3`; plan
+`bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
+Same sole implementer `/root/bpr1525_implementer`; no subagents. BPR-1527 remains
+In Progress with all eleven criteria and ten exits; BPR-1525/1526 remain Done.
+Read [CURRENT](CURRENT.md), the live card, private ACTIVE.json and the actual
+native receipt/task/process state before any dispatch.
 
-## Resource and release boundaries
+## Resource and source boundaries
 
-0.2.1 is macOS-only. Mac code/test6747 plus docs handbackc233 are immutable
-for this implementer. Root owns Mac CPU and its release producer; no new Mac
-build/test/performance/format/tidy command begins without root coordination.
-Windows fixes target0.2.2 on this owned branch; no source/version/package change
-may enter or rebind the frozen Mac producer. Version remains0.2.1 for now.
-Windows/Ubuntu0.2.1 production is canceled/deferred; no future Ubuntu release date
-is inferred. Root retains exact-final-source Mac gate, optimized Release
-cache-bytes supplement, packaging/trust/security/legal/source/SPDX/notices and
-publication obligations. Focused engineering passes do not supply release approval.
+0.2.1 is macOS-only. Mac code6747 plus docs boundaryc233 are immutable for this
+implementer. Root owns Mac CPU and its release producer; no Mac build, tests,
+performance or format/tidy starts without explicit release. Windows repairs
+are0.2.2 follow-up; project version stays0.2.1 until separately authorized.
+No Ubuntu release date, native desktop/vault pass or release approval is inferred.
+Root retains exact-final-source selected release gates/packages, optimized Release
+cache-bytes supplement, source/SPDX/notices and security/legal/trust obligations.
 
-Root explicitly released the quiescent PC. Owned native repair checkout:
-`C:/Users/mikem/bpr-v021`, branch`codex/bpr1527-windows-v022-r17`.
-Original clean d52 ref`preserve/bpr1527-v021-final-d52-r17`, original branch and
-external evidence`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-v021-d52-preserved-r17`
-remain intact. Never touch separate leased`C:/code/git/BetterPullReview`.
-No auth/security/signout/reboot/signing/publication action is authorized.
-Serialize every Windows/WSL build/test/performance workload on this PC.
+Root released PC engineering exclusively for serialized Windows/WSL work.
+Windows `C:/Users/mikem/bpr-v021`, branch`codex/bpr1527-windows-v022-r17`.
+Original d52 source/branch/history/build/full705 evidence are preserved by
+`preserve/bpr1527-v021-final-d52-r17` and the external preservation root.
+WSL Ubuntu26.04 `/home/mmarcin/bpr-v021`, branch`codex/bpr1527-wsl-v022-r51`.
+Its actual clean baselinefb2 is preserved by its original branch,
+`preserve/bpr1527-v021-ubuntu-fb2-r51` and R51 baseline metadata.
+Never touch leased`C:/code/git/BetterPullReview`, auth, signing, security,
+signout/reboot or publication. Do not mutate any running producer.
 
-## Actual current tasks
+## Candidate and actual frontier
 
-r34 forced exact app/Qt/test objects and selected executables before normal
-acceptance, then actually compiled/runtime-witnessed the missing-choice-retirement
-negative and old/current deferred-navigation probes. Eleven current producers
-pass, exact normal restoration and pinned roundtrip pass. r35 explicitly relinks
-cold-import's standalone producer; its original zero-receipt and both held-origin
-controls pass15.53s. Normal complete200 baseline is119.35s/120, not stability.
+Owned source `076922c1340086b02a706665b2de2c9cbc9f28fa`; branch
+`codex/v021-windows-gate-fixes` in the assigned isolated worktree.
+Production Qt/QtDiff bytes remain851; Find display metric remains7aaf.
+Df589 adds retained unsent-reply commands and the held-storage public course.
+Windows and WSL source are076922c13; its only addition overdf589 is the
+submission local-name correction. Production app bytes remaindf589.
 
-r33 atomic native top-line/fractional offset trial reduces split viewportMoves
-152 to2 but unchanged fullcourse119.57s supplies no useful margin. Trial rejected;
-forced exact normal source/object/executable restoration verified, Ready/exit0.
-r36 confirms a higher native horizontal-scrollbar sibling overlaps masked source
-overscan, but its hardcoded diagnostic capture path is refused by containment.
-That attempt restores/rebuilds exact source, Ready/exit1; no ACL is broadened.
-r37 uses the existing configured render path: six captures are byte-identical,
-but Qt layout undoes the constructor raise, damage stays unchanged and full200
-takes119.64s. Forced exact restoration verified, Ready/exit0; reject trial.
-r38 confirms90horizontal events (45jump/restore pairs) per180-key case. Its
-hold removes all90 and full updateRequests, with six identical fresh renders,
-but whole118.65s versus119.35s baseline is insufficient margin; reject as a
-standalone repair. Exact forced normal restoration verified, Ready/exit0.
-r39 temporarily trims split-only overscan to actual fractional offset and places
-frame origin atomically; visible mask and unified native bar stay unchanged.
-Actual completed offscreen backing pixels plus fresh renders, damage and row
-counts decide; test region filtering only if new disjoint overdraw is observed.
-Uninstrumented original whole200 then forced exact restoration follow.
+R46 accepts unchanged120s normal complete workbench scales93.64/104.43/108.10s,
+axis4/painter and meaningful actual-frame negative26.34s. Forced normal restore
+and200108.34s verify. No performance/input/quality waiver. R47 supplies19current
+application passes; two stale standalone claims are withdrawn and replaced by
+R50's proper actual producer builds. R50 all5agent/workshop/Find courses pass
+twice, meaningful Find-in-layout negative fails7.47s, exact forced restore verifies.
 
-Read actual r39 task/receipt and private `ACTIVE.json` before another workload.
-Scripts/logs/receipts are under
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/` with
-`bpr1527-native-focused-rNN` / `bpr1527-native-dispatch-rNN` names.
+R51 WSL compiles10changed TUs/relinks12actual producers:21/22normal passes186.84s.
+Its deleted-thread reply course loses confirmed discard while private storage is
+unready/unbound. R52 normal/traced/restored repeats all fail. Actual trace shows
+no private mutation posts; shared synchronous apply correctly refuses a durable
+record. Exact app/private-workflow source/object/exe restore verifies, Ready/0.
 
-Every copied/restored source must be touched and its exact owned Debug object
-removed before rebuilding; delete selected executables to force static relink.
-Use `bpr1527-native-object-r34.py invalidate/verify` and verify actual object
-mtime >= source. Binary/runtime canaries discriminate controls. Copy-Item's old
-timestamps previously left stale objects despite clean Git/buildexit0: r29/r32
-exact-source positives and r27whole timing are withdrawn; preserve the audit.
+Df589 keeps the already core-admitted command/CAS with owner/consumer until
+restore completion. A different owner, consumer, revision or scope cannot acquire
+it; scope replacement clears pending commands. No fresh revision is substituted.
+The existing deleted course holds private effects across actual confirmation,
+then requires original durable discard/zero-send evidence under unchanged bounds.
+R53 normal held reply8.55/roundtrip1.90 pass; only removing retained command makes
+the unchanged held course fail7.43s. Exact forced restoration/marker absence
+verify; restored reply8.65/roundtrip1.95 pass. Ready/exit0, clean source.
 
-## Windows next acceptance
+## Completed PC work and pending boundary
 
-Submission first-file and label accepted-refresh lifecycle corrections now pass
-all three native submission scales plus label/file-switch/held-refresh controls
-on freshly forced current producers (r34). Exact pending choice invalidation
-negative actually compiles and fails with chosen1/active0/pending0. UIforETW
-current probe passes with a legitimate deferred navigation completion; old
-synchronous probe actually compiles and fails pending-navigation1. Historical
-r21 primary-profile exact substep remains unproven; do not claim its reconstruction.
+R54:22normal WSL courses188.97s, architecture/fullformat22/doc67 pass. Strict10TUs
+finds only the existing submission local name;9unchanged TUs pass. Naming-only
+0769/R54b passes native22format/check, forced object/exe, normal submission4.46s,
+strict repaired1TU and current architecture. All10changed TUs are clean with exact
+unchanged-source reuse and no new suppression. R54's failed original stays retained.
 
-After a selected Qt improvement, explicitly rebuild all affected standalone
-producers before focused integration. Application producers include app,
-`test_better_pull_review_review_submission_composition_public_path`,
-`test_review_navigation_entry_public_path`, `test_header_source_public_path`,
-`test_review_tour_composition_public_path`, `test_application_scaling`, and
-`test_source_find_public_path`. Static-link source provenance is required for
-each selected executable, not just a CTest row count.
+R55 Ready/exit0 on Windows0769: app/submission objects compile,5actual producers
+relink, source/object times and markers verify. All9normal courses pass169.00s:
+workshop9.31, agent25.61, roundtrip8.56, threaded14.17, label16.19, refresh-pick13.03,
+held reply41.24, submission10024.94 and both-origin cold tour15.87s. No task-owned
+native build/test/analyzer remains. Final notes source-only validation precedes
+handoff; private final-documentation.receipt.json binds exact commit/result/state.
 
-## Whole-workbench stability
+External wrapper/log/receipt base:
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-focused-rNN.*`.
+Private originals, readable derivatives, per-run LastTests, receipts and WSL archives:
+`.mask/sessions/BPR-1527/evidence/windows-v022-active/`.
+WSL metadata: `/home/mmarcin/.local/state/BetterPullReviewRelease/bpr1527-v022-rNN`.
+The user-private22.1.8 analyzer remains under R54/llvm22-tools; no system install.
+Completed scheduler records/external diagnostics are retained deliberately for
+provenance/recovery. No diagnostic is installed in either producer.
 
-Original full d52 Windows200TIMEOUT120.03s and prior focused119.08s remain.
-Fresh actual current uninstrumented baseline is119.35s (r35), too close to
-establish stability. Native text redraw dominates the keyboard6cases;180keys
-percase remain unchanged. Empty full-width cursor invalid-rectangle and disjoint
-paint-region hypotheses are unsupported/falsified. Temporary unified signal
-suppression and atomic offset placement alone supply no useful duration margin.
-Constructor-only ordering trial did not persist through native layout. Current
-r39 measures split-only exact overscan plus atomic origin placement and actual
-completed backing pixels, with region filtering conditional on measured new
-disjoint overdraw. Validate damage/pixels/wholecourse before adopting anything.
+Root reports Mac0.2.1 published/installed; it stays immutable. No explicit Mac
+engineering CPU release reached this owner, so BPR1527 remains InProgress. Resume
+the same implementer after that release for later lifecycle/Qt/Find/held-reply
+checks in this owned worktree/build. Build every actual selected producer from
+the CTest manifest; complete Qt workbench, Find scales and affected application
+courses exercise the changed paths. No competing Qt/performance workload, no
+published producer mutation. No human criterion or review server is open.
 
-Select a bounded source-backed improvement only after actual experiment results;
-retain original complete inputs/cases/assertions/120s, all scales, axis, painter,
-long-line scrolling, pixel/selection and native font/quality rules. Temporary
-instrumentation is not timing acceptance. Restore sources and normal binaries;
-then verify the exact committed candidate under normal prescribed exclusivity.
-Targets: `test_better_pull_review_qt_diff_workbench_tests`,
-`test_better_pull_review_qt_diff_axis_tests`,
-`test_better_pull_review_qt_code_sample_painter_tests`.
-All nine title/browser/window courses already pass with a compiled product
-counterexample and exact restoration; later relevant Qt changes need affected
-checks, not automatic repetition of unrelated passing evidence.
+## Mandatory provenance and remaining obligations
 
-## Portable and closeout work
+PowerShell Copy-Item retains old source timestamps. The incremental audit
+withdraws old r27 uninstrumented timing and r29/r32 exact-source claims; R26trace
+also never compiled. After every temporary copy/restoration, touch the source,
+remove its exact owned object and selected executable, rebuild/relink and verify
+object time >=source plus binary/runtime markers. Source hash and buildexit0 alone
+are insufficient. Inspect actual CTest command/contract producer paths and build
+every selected standalone target; suite names do not prove producer identity.
 
-Finish appropriate changed-source strict analysis, format22, architecture and
-documentation gates. No new suppressions, acceptance weakening or broad rerun
-is inferred. Any later production change receives affected Mac acceptance when
-root coordinates a resource slot, without touching the frozen producer.
-After Windows focused work, serialize Ubuntu26.04 WSL compile/affected public
-paths on the same PC, preserving actual clean source/history before adoption of
-the exact follow-up candidate to an owned repair branch. Root previously prepared
-`/home/mmarcin/bpr-v021`; inspect rather than assuming its old revision.
-Exercise affected reply/refresh lifecycle, both held receipt-origin directions,
-agent immutable source, Find/scaling and any changed Qt/native painting paths.
-No full Ubuntu0.2.1 release gate or package is selected.
+Finish appropriate later Mac lifecycle/Qt/Find/held-reply checks
+when root explicitly releases an engineering slot. Use only this owned source/
+build, never the frozen Mac producer. Mac6747 focused evidence does not cover
+later generic lifecycle, retained-discard or viewport/frame changes.
 
-Update source review, exact candidate/pins/commands/evidence and durable checkpoint;
-finish own background commands, restore all diagnostic changes/binaries and
-account for source writers/protected candidates before return. Only after every
-assigned criterion/exit is actually met may canonical BPR-1527 finish occur.
-No human criterion/review server is currently pending. Root owns release
-integration and exact-source production reruns for its selected release set.
+Finish final source/pins/self-review, checkpoint/card upkeep, exact-source document
+validation and explicit-path commits. Canonical finish requires all11criteria/
+10exits actually met. No human criterion, attended session or review server is open.
+Before return, finish all own commands and diagnostics, account for writers and
+protected candidates, and hand back quiescent exact source. Root coordinates main
+integration and later full Windows0.2.2 release gates/packages; focused engineering
+passes supply no release approval.

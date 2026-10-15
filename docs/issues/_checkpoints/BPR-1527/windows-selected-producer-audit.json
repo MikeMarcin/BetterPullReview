@@ -1,0 +1,24 @@
+{
+  "schema": "bpr.selected-producer-binding-audit.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "finding": "Actual R47 manifest identifies two selected standalone executables omitted from its eight explicit relink targets. A selected row name is not producer provenance.",
+  "provisional": [
+    {
+      "row": "application_agent_invocation_composition_contract",
+      "actual": "better_pull_review_agent_invocation_composition_public_path.exe via -DBPR_APPLICATION",
+      "last_explicit_target_build": "r21; later application/Qt static library changes were not consumed by this old executable",
+      "affected_claims": "r34/r35/r47 current-source agent acceptance withdrawn; raw observed passes retained as historical producer results."
+    },
+    {
+      "row": "application_agent_finding_workshop_press_contract",
+      "actual": "better_pull_review_agent_finding_composition_public_path.exe",
+      "last_explicit_target_build": "original d52 producer; not among r47 eight targets",
+      "affected_claims": "r47 current-source workshop pass provisional; original d52/BPR1526 evidence remains historical."
+    }
+  ],
+  "valid_r47": "Other22rows map to the8explicit targets. Raw24result21pass3Findfail therefore supplies19current-producer passes,2provisional passes and3actual Find-oracle failures. No QtR46 acceptance is affected.",
+  "repair": "R50 actually invalidates both standalone CPP objects and executables, builds both actual targets against current composition/Qt and passes both courses twice: agent25.70/25.91s, workshop9.24/9.31s. Selected manifest and object times retained. Old raw claims remain withdrawn, now replaced by R50 evidence.",
+  "future": "Derive every selected process path from actual CTest command/contract arguments, then build all corresponding targets. Preserve unchanged helper-source bindings separately.",
+  "result": "Ready/exit0, exact7aaf source restored/clean; R47 other19current application passes and R46 Qt evidence remain valid."
+}

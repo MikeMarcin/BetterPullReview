@@ -1,0 +1,16 @@
+{
+  "schema": "bpr.binding-upkeep.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "reason": "Card mutable progress lacked recognized Execution record heading, so helper fingerprint included changing observations. Normalize only that heading and renew the current binding; no new mandate, strategy, requirements or waiver.",
+  "prior_binding": "prior-execution-record-binding.json",
+  "current_binding": "implementer-binding.json",
+  "proof": "All original source bytes before the old progress heading, including11criteria and every explicit scope/ownership/release amendment, are byte-identical. Plan definition and10exits unchanged.",
+  "preserved_prefix_sha256": "12fb2985a6884efd8164bc39b4fa7dc1b858daa083f8393c91509ec47584d5aa",
+  "acceptance_section_sha256": "3885dc27433a3a0d4e96ac989decb9965c92907f33ae7311e1d02db4b86f1b98",
+  "code_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "acceptance": "not evaluated by this metadata operation; Mac native evidence still pending.",
+  "prior_obligation_fingerprint": "sha256:17ea9e05a222878edae57acb6a4b2bf00a1b9fee4e94a66862a981aae118d439",
+  "current_obligation_fingerprint": "sha256:17ea9e05a222878edae57acb6a4b2bf00a1b9fee4e94a66862a981aae118d439",
+  "unchanged_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e"
+}

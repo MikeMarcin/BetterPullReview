@@ -24,9 +24,14 @@ Mac producer. Root exclusively owns Mac CPU and
 Mac build, test, format/tidy or performance workload without a new slot release.
 
 Owned source: `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`,
-branch `codex/v021-windows-gate-fixes`, current revision `ccf70c3121a792342a95c786677679663c5cb801`.
-Its production/test bytes equal `8309636028c7cf84dc60592935ff16b1bcdd3856`;
-ccf changes audit documentation only. Root main, auth/signing/publication and
+branch `codex/v021-windows-gate-fixes`, current revision `076922c1340086b02a706665b2de2c9cbc9f28fa`.
+Production/QtDiff bytes remain851;7aaf corrects only Find display measurement.
+The formatted Qt repair/native-frame oracle is in851. Df589 adds the later WSL-
+exposed kept-reply action retention and held-storage regression course. Its WSL
+held-course/control and broader integration pass; current Windows/Mac acceptance
+is still pending. Earlier application830/ccf evidence retains its scope. R44
+verified the Qt algorithm against original tests, and R46 accepts851 and its new
+regression oracle as recorded below. Root main, auth/signing/publication and
 separately leased `C:/code/git/BetterPullReview` remain outside this scope.
 No owner-desktop access, review server, attended candidate or human decision is open.
 
@@ -45,7 +50,7 @@ adoption. Ref `preserve/bpr1527-v021-final-d52-r17` and original branch retain
 d52f5bb1221e26dc00dbc9269c3ad0408b64548a. External evidence:
 `C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-v021-d52-preserved-r17`.
 Owned repair checkout `C:/Users/mikem/bpr-v021` uses
-`codex/bpr1527-windows-v022-r17`, now ccf. Native context is Interactive Limited
+`codex/bpr1527-windows-v022-r17`, now7aaf76a30. Native context is Interactive Limited
 mikem/session1, windows-dev Visual Studio/MSBuild Debug, Qt6.11.2 offscreen,
 normal scale/container registrations. SSH/session0 dispatches/observes only.
 No independent Windows, WSL or root workload competes with measurements.
@@ -104,20 +109,22 @@ UTF16 logs, derived UTF8, per-run LastTests and receipts are in
   next0,pending-navigation1). Same deferral plus current probe passes49.21s,
   retaining original semantic/pixel/geometry/height and16-toolbar controls.
   The precise historical r21 primary-profile failing substep remains unproven.
-- Proper r34 normal current producers pass agent25.03, UIfor48.25,
+- Proper r34 normal current producers pass UIfor48.25,
   roundtrip7.91, label16.09, published-file-switch19.95, held refresh-pick12.99,
   submission100/125/20024.50/25.33/27.57, header20.40 and navigation94.27s.
   The missing-retirement control actually compiles and fails with runtime
   exact-chosen1/active0/pending0. Forced exact normal restoration and pinned
   roundtrip pass8.57s. Native format22/doc gate/67verifier units/threepins pass.
   Freshly relinked r35 cold-import passes15.53s with original absolute zero
-  receipts and both held-origin orderings.
+  receipts and both held-origin orderings. R34 raw agent25.03 had a stale standalone
+  producer and is superseded by R50 current acceptance below.
 
-## Performance remains open
+## Performance source and native acceptance
 
-Fresh uninstrumented current normal200 takes119.35s under unchanged120s (r35).
-That tiny headroom does not establish stability or a production improvement.
-No Qt production optimization is selected. Temporary diagnostic trials retain
+Fresh uninstrumented pre-repair normal200 took119.35s under unchanged120s (r35).
+That tiny headroom did not establish stability or a production improvement.
+WIP851 now passes r46 native acceptance of the bounded r44 algorithm and its new
+committed oracle, as recorded below; remaining milestone obligations stay open. Earlier temporary diagnostic trials retain
 original inputs/assertions/normal environment and are not candidate acceptance.
 
 r27 suppressed native unified transient bar signals390 to130 but supplied no
@@ -143,13 +150,67 @@ split1021/0px, unified589/0px. A scoped hold removes them and90full updateReques
 baseline is insufficient margin. Reject as a standalone stability repair. Exact
 forced normal restoration verified, Ready/exit0.
 
-r39 now temporarily trims only split viewport overscan to its actual fractional
-offset, keeping the displayed mask and unified visible-bar geometry unchanged.
-Atomic frame placement avoids an intermediate offset-clear/resize. Actual native
-paint damage/row counts and both completed offscreen backing pixels and fresh
-renders are compared. Region filtering is measured only if the changed geometry
-actually creates disjoint dirty regions/undamaged row overdraw. Original whole200
-and forced exact normal restoration follow. No production variant is adopted.
+r39 normal baseline captures both completed offscreen backing pixels and fresh
+renders; a missing diagnostic include stops its trial before native execution,
+then exact normal restore verifies. r40 trims split-only overscan to actual
+offset and places frame origin atomically: split6.4-6.7s to4.1-4.3s, rows~4200
+to~760-1900. Six fresh renders match but actual backing pixels detect a two-pixel
+parent-frame strip corrupted by Qt's rectangle blit outside its viewport mask.
+Reject that trial; forced exact normal restore verifies (Ready/exit1).
+
+r41 adds only a repaint of the covered native parent-frame strip. All12actual/
+fresh PNGs now match baseline exactly and keyboard improvement remains. However,
+the original full200 fails52.76s at Down from a far selected line landing flush
+at the bottom. This is a real functional regression; no source is adopted.
+Exact forced normal restore verifies (Ready/exit0, wholeExit8).
+r43 isolates the unchanged far-navigation course: original source passes all6;
+both trimmed variants, with and without atomic placement, fail with mask0x0,
+visible0x0 and bar0. At zero offset the new placement equals the native rectangle,
+so the old early return omits its initial explicit mask. This falsifies the
+atomic-ordering hypothesis; no offset-first workaround is selected. Exact forced
+normal restore and diagnostic-marker absence verify; Ready/exit0.
+
+r44 exact mask equality fixes all6original far cases (4.45s); all12actual/fresh
+captures match baseline. The genuine uninstrumented original complete200 passes
+108.02s, versus119.35s baseline, with unchanged120s/environment/exclusivity and
+all original inputs/assertions. Exact original source/object/exe restoration
+verifies; Ready/exit0. This is an algorithm prototype positive, not acceptance of
+the later committed regression oracle.
+
+Native22.1.8 formats/checks the2candidate files in a separate mirrored root,
+without modifying the producer. WIP851 adds the bounded repair plus a test reading
+the completed raster before any forced grab, then comparing both visible native
+frames to a fresh native render. The oracle uses native frameWidth, independent
+of viewport-mask arithmetic. r46 verifies exact committed Qt objects/producers: all3complete scales pass
+93.64/104.43/108.10s,4axis scales+painter pass. Missing only the frame repair makes
+the unchanged normal course fail26.34s on its actual two-pixel frame strip. Exact
+forced normal restoration verifies; original200passes108.34s. Fullformat22 checks
+1542files and docgate/67units pass. R47 subsequently rebuilt8application/standalone
+producers and ran24affected normal courses; its two omitted standalone producers
+were later found and properly replaced by R50 acceptance below. Strict/architecture/portable/source
+review and final upkeep remain pending; no milestone or release closure.
+
+## Find display and selected-producer reconciliation
+
+R47 completes24courses:21rawpass/3Findfail, Ready/exit1. Actual command audit
+finds the agent-invocation and workshop-press rows launch two other standalone
+executables outside its8relink targets. Those2current-source claims (also r34's
+agent claim) are withdrawn pending explicit relink; the other19passes remain
+current. [The producer audit](windows-selected-producer-audit.json) preserves
+paths and disposition. This does not affect R46 Qt acceptance.
+
+R48 shows the3Find failures are a stale geometry proxy: only invisible buffer
+height changes616to617; both143x632outerpanes and both displayed canvas fullrects
+remain exact. BPR1503's layout/height contract and RFC0073's actual-clipped-edge
+contract support test-only7aaf: compare both outerpanes and both clipped canvas
+positions/sizes (4rects instead of3). All original assert texts, input, focus,
+fit, query-width, match, scope and geometry controls remain. R50 actually forces
+all3actual standalone objects/producers and passes all5normal courses twice. A
+product-only Find-in-layout reflow fails the unchanged opening geometry assertion
+in7.47s. Exact Qt source/object/exe restoration and marker absence verify. Agent
+passes25.70/25.91s; workshop9.24/9.31s; restored Find100/125/200passes
+33.40/33.86/36.94s. R50 is Ready/exit0.
+No requirement, threshold or unsupported-platform waiver is inferred.
 
 ## Mac evidence retained unchanged
 
@@ -168,24 +229,81 @@ changes still need appropriate portable/Mac acceptance when root releases a slot
 
 ## Command state and next action
 
-Native task `BPR-1527-focused-r39` is active. Wrapper/log/receipt are under
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-focused-r39.*`.
-It owns temporary source/test/CTest variants and restores exact normal objects
-before completion. Read private `ACTIVE.json` and actual task receipt/state
-before another native workload. No local background, Mac or WSL workload exists.
-This is a mid-work checkpoint; ownership remains with the same implementer.
+Native R50 completed Ready/exit0 with exact7aaf and verified restoration. R51
+preserves actual cleanfb2WSL baseline/history/build metadata, adopts7aaf, compiles
+all10changed TUs/relinks12actual producers and runs22registered normal courses.
+21pass/1fail in186.84s. Complete Qt200/frame, matcher/workshop/agent, reply target,
+label/submission, held receipt origins, navigation and3Find scales pass. The
+existing reply-draft deleted-thread subcourse fails later at confirmed discard:
+copy/question succeed but saved shared draft remains drafting with its kept note
+(evidence1111101/phase9). Its earlier4subcourses pass. No static/strict stages were
+reached, and no failed course is waived or relabeled.
 
-After r39, preserve results and compare actual pixel captures before selecting
-any product change. Finish useful whole200 improvement and affected normal
-scales/axis/painter/selected application integration; strict changed TUs and
-final format22/architecture/documentation checks; a serialized Ubuntu26.04 WSL
-affected compile/public-path pass after preserving actual source/history;
-appropriate Mac affected acceptance when coordinated; and exact-source
-self-review, explicit commits, bookkeeping and quiescent handback.
-[Native continuation](NATIVE_NEXT.md) retains commands and boundaries.
+R52 completes Ready/exit0 with exact normal source/object/executable restoration.
+Its three normal repeats all reproduce the failure. Actual compiled trace proves
+confirmation accepts while private storage is unready/unbound; the core command is
+admitted, but the shared synchronous fallback refuses durable_required and no private
+mutation is posted. [The disposition](windows-reply-discard-reconciliation.json)
+retains source-backed cause, original failures and restoration.
+
+Df589 retains that exact admitted command/CAS with its shared owner and consumer
+until restore completion. Different owner/consumer/revision/scope cannot inherit it;
+no command is regenerated against a newer revision. The existing deleted-thread
+course now holds private storage across real confirmation and still requires its
+original durable discard/zero-send result. Native22formats/checks the proposal;
+actual print-only pins are recorded, with mutation branch unchanged.
+
+R53 completes Ready/exit0: normal held reply8.55s/pinned roundtrip1.90s pass.
+Removing only the production retained-command insertion makes the unchanged held
+course fail7.43s at phase9/evidence1111101, with actual compiled/runtime marker.
+Exact forced source/object/executable restoration and marker absence verify;
+restored held reply8.65s/roundtrip1.95s pass. Source clean df589.
+
+R54 rebuilds all10changed TUs plus the production matcher/relinks12actual
+producers:22/22normal registered WSL courses pass188.97s. Architecture, fullformat22,
+docgate/67units pass. Strict22.1.8 actually checks all10TUs:9pass and one existing
+submission local name fails. R54 remains Ready/exit1, not relabeled. The old
+refresh_until name is present identically in d52. Naming-only076922c13 corrects its
+declaration/four calls and formatter alignment; app/Qt production bytes are unchanged.
+R54b formats/checks it, forces its exact object/exe, passes the public submission
+4.46s and strict1TU, plus current architecture. Thus all10changed TUs now pass strict
+without new suppression; the9unchanged source results are reused. R54b Ready/exit0.
+
+Native Windows R55 completes Ready/exit0 on076922c13: all9normal courses pass
+169.00s. Workshop9.31, agent25.61, pinned roundtrip8.56, threaded14.17, label16.19,
+refresh-pick13.03, held reply41.24, submission10024.94 and both-origin cold tour
+15.87s. Exact app/submission objects and5producer relinks, source/object times,
+marker absence and held-probe linkage verify. Source is clean; failed originals
+and deliberate counterexamples remain preserved.
+
+## Quiescent handback boundary
+
+R55/R54b leave no task-owned native build/test/analyzer. The final notes commit
+must pass `python3 scripts/verify_documentation.py --root .` before return; private
+`windows-v022-active/final-documentation.receipt.json` binds its actual revision,
+result and final source/process inventory. Read the receipt; metadata alone is
+no verification. Code candidate stays076922c13; later notes commits change no
+production/test bytes and do not retag earlier binaries.
+
+The coordinator reports Mac0.2.1 published/installed and immutable. No explicit
+Mac engineering CPU release reached this implementer. BPR1527 therefore remains
+In Progress: later Mac lifecycle/Qt/Find/held-reply checks are still required under
+AC5 and all unchanged11criteria/10exits. Resume this same owner after an explicit
+slot release, in this owned worktree/build only. Never rebind the published Mac
+producer. No human judgment, attended session or review server is pending.
+
+Source ownership remains here at the checkpoint. No root/main integration,
+canonical finish or release approval is inferred. Finish later Mac acceptance,
+any true regression and final bookkeeping, then coordinate integration with root.
+[Native continuation](NATIVE_NEXT.md) retains candidate and command boundaries.
 
 Root owns full exact-final-source macOS-only0.2.1 gate, optimized Release
 cache-bytes supplement, packages, corresponding-source/SPDX/installed notices,
 trust/security/legal gaps and release approval. Windows0.2.2 has separate later
 exact-source native release obligations. No auth/signout/reboot/signing action,
 waiver, full-gate pass or false BPR-1527 Done is supplied.
+
+The [binding upkeep receipt](binding-upkeep.json) preserves the prior binding and
+normalizes only the card's mutable progress heading to Execution record. All11
+criteria, every preceding scope/ownership/release amendment and all10exits are
+unchanged; the renewed source fingerprint is metadata upkeep, no acceptance waiver.

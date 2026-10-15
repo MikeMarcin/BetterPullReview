@@ -12,8 +12,8 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "Windows/WSLPC explicitly released and quiescent; first read-only producer inspection confirms clean d52 on codex/bpr1525-native-repair-r2. Root ownsMacCPU after c233notes handback; no new Macbuild/test or frozen producer mutation. Native preservation/adoption then serialized repair pending.",
-  "acceptance": "Current source 6747ca029 corrects coordinator review finding: old reverse control failed 26.06s; corrected 20 normal courses pass 180.33s, including both held orderings. Fresh strict tidy passes all 8 selected TUs, format 1542 files and architecture pass. Windows 9 local-cycle courses, 200% source-backed performance repair, affected Windows/Ubuntu acceptance remain pending. BPR-1527 In Progress; no integration or release freeze. Unchanged Mac submission 3 scales pass19.32s; new AC10/exit9 native Windows cause/repair remains unresolved. Direct human release plan permits partial Mac source integration for0.2.1 before unfinished Windows native repair, now targeting0.2.2. Full exact-final-source Mac release gate/security/legal/trust/package obligations remain pending with root; no Done or failed-test acceptance.",
+  "command_state": "R55Ready/0 and R54bReady/0; no native build/test/analyzer remains. Final notes documentation validation/process inventory precedes handback; private receipt binds actual notes commit. No Mac engineering CPU release.",
+  "acceptance": "0769 Windows9normal169s, WSL22normal188.97s plus naming-only submission4.46s, strict10TUs (9unchanged+1repaired), architecture/format22/doc67pass. Earlier unchanged Qt/oracle evidence retained. Later Mac checks required; InProgress, no canonical finish/main integration/release approval.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
     "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
@@ -23,5 +23,9 @@
     "Coordinator finalWindows705=679pass25fail1skip; PCreleased; explicit navigation-entryAC11/exit10 addition for0.2.2 preservesprior10/9. Mac0.2.1 boundaryc233c7683 excludes laterWindowscommits."
   ],
   "plan_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e",
-  "source_candidate": "6747ca029b48c231539cb36360bcfc3e26173609"
+  "source_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "windows_release_target": "0.2.2",
+  "obligation_fingerprint": "sha256:17ea9e05a222878edae57acb6a4b2bf00a1b9fee4e94a66862a981aae118d439",
+  "binding_upkeep": "binding-upkeep.json; execution-record heading normalized, prior binding retained,11criteria/10exits and all preceding amendments unchanged."
 }
