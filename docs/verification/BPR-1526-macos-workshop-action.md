@@ -32,3 +32,20 @@ Format 22.1.8, whitespace and documentation checks pass. Final changed-source
 tidy, broader relevant lifecycle checks and final-source native release gates
 remain obligations of the combined milestone; no final release acceptance is
 inferred here.
+
+
+The regression now holds the existing private persistence lane before typing,
+presses immediately and proves that placeholder, pending Clarify operation,
+zero processes and disabled repeat control persist until release. The original
+public contract then passes in 4.71 s. This barrier makes the race deterministic;
+no timer, readiness sleep or weaker condition was introduced.
+
+Changed-source strict tidy exposed nine inherited naming violations already in
+`8f0d25418` in this same owned translation unit. Mechanical local/parameter
+renames correct those diagnostics without behavior changes; strict tidy on this
+TU and the deterministic public-path TU passes. The source review covers c3009b2b0 plus those renames. It is the only
+changed production-app manifest path. The full application/manifest pins are
+resealed to this reviewed source; the production mutation-branch digest remains
+`e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
+The rebuilt, resealed public round-trip course passes in 4.37 s; the held-save
+regression repeats in 3.52 s. No visual surface changed for BPR-1526.

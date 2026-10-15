@@ -8469,7 +8469,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
-			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
+			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -9779,8 +9779,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// seconds), so an accept in progress can finish first.
 		void rearm_base_numbering()
 		{
-			constexpr auto maximum_cancellations = std::size_t{ 80U };
-			if (Closing || Window == nullptr || BaseNumberingCancellations >= maximum_cancellations) {
+			constexpr auto maximumCancellations = std::size_t{ 80U };
+			if (Closing || Window == nullptr || BaseNumberingCancellations >= maximumCancellations) {
 				return;
 			}
 			++BaseNumberingCancellations;
@@ -10491,18 +10491,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			std::vector<application::writing_source> sources;
 			std::size_t                              total = 0;
-			const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {
-				if (text.empty() || sources.size() == 8) {
+			const auto                               add   = [&](std::string aId, std::string_view aText, std::size_t aLimit = 2048) {
+				if (aText.empty() || sources.size() == 8) {
 					return;
 				}
-				auto size = std::min({ text.size(), limit, 8192 - total });
-				while (size && !core::writing_boundary(text, size)) {
+				auto size = std::min({ aText.size(), aLimit, 8192 - total });
+				while (size && !core::writing_boundary(aText, size)) {
 					--size;
 				}
-				if (!size || !core::valid_writing_utf8(text.substr(0, size))) {
+				if (!size || !core::valid_writing_utf8(aText.substr(0, size))) {
 					return;
 				}
-				sources.push_back({ std::move(id), std::string{ text.substr(0, size) } });
+				sources.push_back({ std::move(aId), std::string{ aText.substr(0, size) } });
 				total += size;
 			};
 			if (aHook == core::writing_hook::outline) {
@@ -29813,7 +29813,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		// Published drafts leave the saved list; each carried one is read by
 		// its identity.
-		const auto count_published = [&] {
+		const auto countPublished = [&] {
 			return static_cast<std::size_t>(std::ranges::count_if(probe.Drafts, [&](const core::review_draft_id aDraft) {
 				if (!implementation->SharedDrafts) {
 					return false;
@@ -29822,7 +29822,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return read.Accepted && read.Accepted->Draft.State == core::review_draft_state::published && read.Accepted->Draft.InReview;
 			}));
 		};
-		const auto count_held = [&] {
+		const auto countHeld = [&] {
 			const auto all = saved();
 			return static_cast<std::size_t>(std::ranges::count_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); }));
 		};
@@ -29999,7 +29999,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
 				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};
-		const auto start_one = [&](const state_type::phase aAfter) -> result {
+		const auto startOne = [&](const state_type::phase aAfter) -> result {
 			switch (probe.Phase) {
 			case state_type::phase::awaiting_first_line: {
 				const auto line = pick();
@@ -30073,7 +30073,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_first_text:
 		case state_type::phase::awaiting_first_offer:
 		case state_type::phase::awaiting_first_pending:
-			return start_one(aCourse == course::pending || aCourse == course::again ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
+			return startOne(aCourse == course::pending || aCourse == course::again ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
 		case state_type::phase::awaiting_second_line: {
 			// The range ends on the line below its first, which is free.
 			auto line = pick();
@@ -30261,8 +30261,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_submitted: {
 			const auto sent      = posts();
 			const auto remaining = pending();
-			const auto published = count_published();
-			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " pending=" + std::to_string(remaining.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
+			const auto published = countPublished();
+			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " pending=" + std::to_string(remaining.size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
 			if (sent.size() != 1U || published != 2U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-submitted");
 			}
@@ -30414,8 +30414,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_refused: {
 			const auto sent = posts();
 			const auto now  = pending();
-			note("posts=" + std::to_string(sent.size()) + " pending=" + std::to_string(now.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
-			if (sent.size() != 1U || now.size() != 1U || count_held() != 0U || !chipSays(1U) || !ready()) {
+			note("posts=" + std::to_string(sent.size()) + " pending=" + std::to_string(now.size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
+			if (sent.size() != 1U || now.size() != 1U || countHeld() != 0U || !chipSays(1U) || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
 			}
 			// [[BPR-1345]] v003. A refusal keeps the page open, with its words.
@@ -30459,7 +30459,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_held: {
 			const auto all  = saved();
 			const auto held = std::ranges::find_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); });
-			note("posts=" + std::to_string(posts().size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString()
+			note("posts=" + std::to_string(posts().size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString()
 				 + " reconcile=" + std::to_string(summary->reconcile_action()->isEnabled() ? 1 : 0));
 			if (held == all.end() || !summary->reconcile_action()->isEnabled() || !chipShown->isVisible() || !chip->submitting()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-held");
@@ -30481,9 +30481,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		case state_type::phase::awaiting_reconciled: {
-			const auto published = count_published();
-			note("posts=" + std::to_string(posts().size()) + " published=" + std::to_string(published) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
-			if (published != 1U || count_held() != 0U || chipShown->isVisible() || !ready()) {
+			const auto published = countPublished();
+			note("posts=" + std::to_string(posts().size()) + " published=" + std::to_string(published) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
+			if (published != 1U || countHeld() != 0U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-reconciled");
 			}
 			// Check status found it published: the page closes as on any
@@ -30742,7 +30742,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		case state_type::phase::awaiting_again_submitted: {
 			const auto sent      = posts();
-			const auto published = count_published();
+			const auto published = countPublished();
 			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " status=" + summary->status_label()->text().toStdString());
 			if (sent.size() != 1U || published != 1U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("again-not-submitted");
