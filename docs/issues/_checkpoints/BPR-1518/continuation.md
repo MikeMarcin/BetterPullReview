@@ -59,6 +59,26 @@ candidate now tags the existing Ordinal with AtUnchangedLine and retains the
 that directly moved a hidden native scrollbar; test setup now uses the shared
 controller before the actual click. No Qt geometry product edit was necessary.
 
-Pending: acceptance-driven finish and final checkpoint consistency check. No human/native/independent criterion is required.
-Next action: consume the final focused result, finish BPR-1518 and return exact
-commits to the coordinator for integration with parallel work.
+## Acceptance and handoff
+
+Acceptance-driven finish `6027f1e26737ce6fcbb993c1685d49ff7f89174b` moves BPR-1518
+to Done. [Acceptance](acceptance.json) passes AC1–AC4 on exact candidate
+`c703ed29200eaf07d620cdc669678fd02937c5ed`. All ten product/UX/test paths are
+byte-identical between that tested candidate and the acceptance commit. The
+[closeout binding](closeout-binding.json) renews only mutable bookkeeping after
+adding evidence; the source requirements and milestone exits remain unchanged.
+[Completion](completion.json) covers the full card obligation and all three exits.
+[Consistency check](closeout-check.json) is evaluated at the acceptance commit.
+
+No task-owned command, writer, descendant agent or review server remains active.
+No candidate protection or pending human/native/independent decision exists.
+The isolated branch and its ignored build trees remain for coordinator integration;
+no push, remote mutation, main edit, allocation or owner desktop/profile access
+occurred. Scoped reviewed MASK registration is complete and its mutation slot was
+released to BPR-1519. Shared tracker metadata is retained without counter edits.
+Task-owned diagnostic logs are retained under `build/verification-bpr1518/`;
+consumed temporary plan material and the superseded failure render are removed.
+
+Return completed milestone `bpr1518-next-change/cursor-relative-change` and exact
+commits to the coordinator, then stop. Coordinator owns integration with
+BPR-1516/1517/1519; no successor milestone is selected by this leaf.
