@@ -1607,6 +1607,15 @@ tree, Home or a URL, so an earlier row is never left current to swallow the
 gesture that would open it. The filters, the files order selector and Clear
 filter are declared focus stops ahead of their trees.
 
+In the files tree a folder's name is DemiBold in the muted ink Overview's
+folder rows draw their paths in, the palette's placeholder text, so folders
+read apart from files on both surfaces ([[BPR-1529]]); file names keep the
+ordinary text ink. A folder draws its file count at the row's right edge only
+while it is collapsed: an open folder shows its files instead, and the count
+returns when it closes by mouse, keyboard or collapse-all ([[BPR-1530]]). The
+folder's accessible text names its count either way. Overview's folder rows
+keep their count slot ([[BPR-1363]]).
+
 Both drawers are independently collapsible and resizable. Collapsing hides the
 panel rather than resizing it to zero, because a splitter distributes a hidden
 child's space among its remaining children; that is what actually returns the
