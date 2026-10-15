@@ -3402,6 +3402,233 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1533]]. The fixture of the selection courses: an
+	/// unchanged line, a removed line, a changed line whose change is one run
+	/// of seven characters, and an added line, each in its own region.
+	constexpr std::string_view selection_left
+		= "int shared_value = 1;\n"
+		  "keep_one();\n"
+		  "int removed_value = 2;\n"
+		  "keep_two();\n"
+		  "fetch(alpha_value, beta_value, sixteen);\n"
+		  "keep_three();\n"
+		  "keep_four();\n";
+	constexpr std::string_view selection_right
+		= "int shared_value = 1;\n"
+		  "keep_one();\n"
+		  "keep_two();\n"
+		  "fetch(alpha_value, beta_value, zzzzzzz);\n"
+		  "keep_three();\n"
+		  "int added_value = 3;\n"
+		  "keep_four();\n";
+
+	/// \brief [[BPR-1533]]. One rendered selection: the fill under the
+	/// selected characters and the ground beside them on the same line.
+	struct selection_sample
+	{
+		QColor Fill;
+		QColor Ground;
+	};
+
+	/// \brief The commonest colour in a viewport rectangle, in device pixels.
+	[[nodiscard]] auto commonest(const QImage& aImage, const QRect& aLogical) -> QColor
+	{
+		const auto scale  = aImage.devicePixelRatio();
+		auto       counts = std::map<QRgb, int>{ };
+		for (auto y = static_cast<int>(aLogical.top() * scale); y <= static_cast<int>(aLogical.bottom() * scale); ++y) {
+			for (auto x = static_cast<int>(aLogical.left() * scale); x <= static_cast<int>(aLogical.right() * scale); ++x) {
+				if (x >= 0 && y >= 0 && x < aImage.width() && y < aImage.height()) {
+					++counts[aImage.pixel(x, y)];
+				}
+			}
+		}
+		return counts.empty() ? QColor{ } : QColor{ std::ranges::max_element(counts, { }, &std::map<QRgb, int>::value_type::second)->first };
+	}
+
+	/// \brief Selects characters `aFrom` to `aTo` of one block of `aPane`, as
+	/// a double click selects a word.
+	void select_characters(QPlainTextEdit& aPane, const int aBlock, const int aFrom, const int aTo)
+	{
+		const auto block  = aPane.document()->findBlockByNumber(aBlock);
+		auto       cursor = QTextCursor{ block };
+		cursor.setPosition(block.position() + aFrom);
+		cursor.setPosition(block.position() + aTo, QTextCursor::KeepAnchor);
+		aPane.setTextCursor(cursor);
+		process_events();
+	}
+
+	/// \brief Samples, on the rendered pane, the fill under characters `aFrom`
+	/// to `aTo` of one block and the ground beside them (characters
+	/// `aGroundFrom` to `aGroundTo`), each the commonest colour there.
+	[[nodiscard]] auto measure_selection(QPlainTextEdit& aPane, const int aBlock, const int aFrom, const int aTo, const int aGroundFrom,
+										 const int aGroundTo) -> selection_sample
+	{
+		const auto block = aPane.document()->findBlockByNumber(aBlock);
+		auto       at    = [&aPane, &block](const int aCharacter) {
+			auto cursor = QTextCursor{ block };
+			cursor.setPosition(block.position() + aCharacter);
+			return aPane.cursorRect(cursor);
+		};
+		aPane.viewport()->repaint();
+		const auto image = aPane.viewport()->grab().toImage();
+		const auto line  = at(aFrom);
+		const auto fill  = QRect{ QPoint{ at(aFrom).left() + 2, line.top() + 1 }, QPoint{ at(aTo).left() - 2, line.bottom() - 1 } };
+		const auto beside
+			= QRect{ QPoint{ at(aGroundFrom).left() + 1, line.top() + 1 }, QPoint{ at(aGroundTo).left() - 1, line.bottom() - 1 } };
+		return { .Fill = commonest(image, fill), .Ground = commonest(image, beside) };
+	}
+
+	[[nodiscard]] auto luminance_ratio(const QColor& aFirst, const QColor& aSecond) -> double
+	{
+		return static_cast<double>(core::contrast_ratio_hundredths(qt::to_appearance_color(aFirst), qt::to_appearance_color(aSecond))) / 100.0;
+	}
+
+	[[nodiscard]] auto colour_distance(const QColor& aFirst, const QColor& aSecond) -> double
+	{
+		const auto red   = aFirst.red() - aSecond.red();
+		const auto green = aFirst.green() - aSecond.green();
+		const auto blue  = aFirst.blue() - aSecond.blue();
+		return std::sqrt(static_cast<double>((red * red) + (green * green) + (blue * blue)));
+	}
+
+	/// \brief [[BPR-1533]], [[BPR-1534]]. The selection fixture's
+	/// classification, so the looks show syntax colours under a selection.
+	[[nodiscard]] auto selection_spans(const core::diff_side aSide) -> application::token_span_list
+	{
+		using role = core::appearance_role;
+		if (aSide == core::diff_side::left) {
+			return {
+				{ .Line = 0U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+				{ .Line = 0U, .Column = 19U, .Length = 1U, .Role = role::syntax_number },
+				{ .Line = 1U, .Column = 0U, .Length = 8U, .Role = role::syntax_function },
+				{ .Line = 2U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+				{ .Line = 2U, .Column = 20U, .Length = 1U, .Role = role::syntax_number },
+				{ .Line = 3U, .Column = 0U, .Length = 8U, .Role = role::syntax_function },
+				{ .Line = 4U, .Column = 0U, .Length = 5U, .Role = role::syntax_function },
+				{ .Line = 5U, .Column = 0U, .Length = 10U, .Role = role::syntax_function },
+				{ .Line = 6U, .Column = 0U, .Length = 9U, .Role = role::syntax_function },
+			};
+		}
+		return {
+			{ .Line = 0U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+			{ .Line = 0U, .Column = 19U, .Length = 1U, .Role = role::syntax_number },
+			{ .Line = 1U, .Column = 0U, .Length = 8U, .Role = role::syntax_function },
+			{ .Line = 2U, .Column = 0U, .Length = 8U, .Role = role::syntax_function },
+			{ .Line = 3U, .Column = 0U, .Length = 5U, .Role = role::syntax_function },
+			{ .Line = 4U, .Column = 0U, .Length = 10U, .Role = role::syntax_function },
+			{ .Line = 5U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+			{ .Line = 5U, .Column = 18U, .Length = 1U, .Role = role::syntax_number },
+			{ .Line = 6U, .Column = 0U, .Length = 9U, .Role = role::syntax_function },
+		};
+	}
+
+	/// \brief [[BPR-1533]], [[BPR-1534]]. Renders the attended looks: a word
+	/// double-clicked on an unchanged, a removed, an added and a changed line
+	/// (each then the selected line), and one selected on an unchanged line
+	/// that is not the selected line, with Line details showing the selected
+	/// line under the comparison and the same word selected there. No checks:
+	/// the same harness renders the baseline for the before images.
+	void render_selection_looks(const QString& aDirectory)
+	{
+		const auto diff = computed(selection_left, selection_right, { }, 50U);
+		struct look
+		{
+			const char*     Name;
+			core::diff_side Side;
+			std::uint32_t   Line;
+			int             Character;
+			bool            DoubleClick;
+		};
+		const auto looks = std::array{
+			look{ "unchanged-current", core::diff_side::right, 0U, 8, true },
+			look{ "removed", core::diff_side::left, 2U, 8, true },
+			look{ "added", core::diff_side::right, 5U, 8, true },
+			look{ "changed", core::diff_side::right, 3U, 34, true },
+			look{ "unchanged-not-current", core::diff_side::right, 0U, 8, false },
+		};
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		for (const auto& [modeName, mode] : modes) {
+			for (const auto& each : looks) {
+				auto workbench = qt::diff_workbench{ };
+				workbench.resize(760, 420);
+				workbench.show();
+				process_events();
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				profile.apply_to(workbench);
+				workbench.adopt_appearance(profile);
+				const auto selected = context(diff, 97U, 97U);
+				workbench.set_loading(selected);
+				workbench.publish(bpr::qt::test::prepare_publication({
+					.Context = selected,
+					.Result  = std::make_shared<const core::computed_file_diff>(diff),
+				}));
+				settle_geometry(workbench);
+				for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+					static_cast<void>(workbench.adopt_token_spans(side, std::make_shared<const application::token_span_list>(selection_spans(side))));
+				}
+				process_events();
+				auto* const pane  = each.Side == core::diff_side::left ? workbench.left_pane() : workbench.right_pane();
+				const auto  block = pane->document()->findBlockByNumber(static_cast<int>(each.Line));
+				auto        at    = QTextCursor{ block };
+				at.setPosition(block.position() + each.Character);
+				pane->setFocus();
+				if (each.DoubleClick) {
+					const auto point = QPointF{ pane->cursorRect(at).center() } + QPointF{ 3.0, 0.0 };
+					send_click(*pane->viewport(), point);
+					auto doubled = QMouseEvent{ QEvent::MouseButtonDblClick, point, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+					auto release = QMouseEvent{ QEvent::MouseButtonRelease, point, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+					QCoreApplication::sendEvent(pane->viewport(), &doubled);
+					QCoreApplication::sendEvent(pane->viewport(), &release);
+				} else {
+					static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 5U));
+					process_events();
+					at.movePosition(QTextCursor::StartOfWord);
+					const auto start = at.position() - block.position();
+					at.movePosition(QTextCursor::EndOfWord);
+					select_characters(*pane, static_cast<int>(each.Line), start, at.position() - block.position());
+				}
+				process_events();
+				// The same word selected in Line details, where its row shows.
+				const auto word  = pane->textCursor().selectedText();
+				auto*      strip = workbench.line_details();
+				for (auto row = strip->document()->begin(); row.isValid() && !word.isEmpty(); row = row.next()) {
+					if (row.text() == block.text()) {
+						auto inStrip = QTextCursor{ row };
+						inStrip.setPosition(row.position() + pane->textCursor().selectionStart() - block.position());
+						inStrip.setPosition(row.position() + pane->textCursor().selectionEnd() - block.position(), QTextCursor::KeepAnchor);
+						strip->setTextCursor(inStrip);
+					}
+				}
+				process_events();
+				pane->viewport()->repaint();
+				strip->viewport()->repaint();
+				const auto path = QStringLiteral("%1/%2-%3.png").arg(aDirectory, QLatin1StringView{ modeName }, QLatin1StringView{ each.Name });
+				expect(workbench.grab().save(path), "save " + path.toStdString());
+				// The fill under the word and the ground just after it, in the
+				// pane and, where its row shows, in Line details.
+				const auto from     = pane->textCursor().selectionStart() - block.position();
+				const auto to       = pane->textCursor().selectionEnd() - block.position();
+				const auto measured = measure_selection(*pane, static_cast<int>(each.Line), from, to, to, std::min(to + 2, block.length() - 1));
+				std::cout << "RENDERED " << path.toStdString() << " selected '" << word.toStdString() << "' pane fill " << measured.Fill.name().toStdString()
+						  << " ground " << measured.Ground.name().toStdString() << " ratio " << luminance_ratio(measured.Fill, measured.Ground) << " distance "
+						  << colour_distance(measured.Fill, measured.Ground);
+				if (strip->textCursor().hasSelection()) {
+					const auto row     = strip->textCursor().block();
+					const auto details = measure_selection(*strip, row.blockNumber(), from, to, to, std::min(to + 2, row.length() - 1));
+					std::cout << "; Line details fill " << details.Fill.name().toStdString() << " ground " << details.Ground.name().toStdString() << " ratio "
+							  << luminance_ratio(details.Fill, details.Ground) << " distance " << colour_distance(details.Fill, details.Ground);
+				}
+				std::cout << '\n';
+			}
+		}
+	}
+
 	/// \brief A classified blob must reach the pane's rendered formats.
 	auto test_syntax_spans_colour_the_panes() -> void
 	{
@@ -5583,6 +5810,18 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-selection-looks") {
+		render_selection_looks(QString::fromLocal8Bit(argv[2]));
+		return EXIT_SUCCESS;
+	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--selection-only") {
+		// One of them by name, or all three.
+		const auto only = argc > 2 ? std::string_view{ argv[2] } : std::string_view{ };
+		if (only.empty() || only == "syntax") {
+			test_a_selection_keeps_the_syntax_colours();
+		}
+		return EXIT_SUCCESS;
+	}
 	test_divider_drag_keeps_fractional_viewport();
 	if (argc > 1 && std::string_view{ argv[1] } == "--divider-resize-only") {
 		return EXIT_SUCCESS;
