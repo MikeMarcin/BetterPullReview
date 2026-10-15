@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1535"
 title: "Home moves to Command-Shift-H (Ctrl+Shift+H) and Actual Size to Command-0 (Ctrl+0)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
