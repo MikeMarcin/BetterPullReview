@@ -6,7 +6,7 @@ status: "Ready"
 rfcs: []
 depends_on: ["BPR-1520"]
 priority: "P1"
-metadata: {"source":"Coordinator combined testing-note integration regression","assigned_implementer":"/root/bpr1520","related_cards":["BPR-1520"],"baseline":"3c24b9ec834fcafc87af05680f9f2799708b4267"}
+metadata: {"source":"Coordinator combined testing-note integration regression","assigned_implementer":"/root/bpr1520","related_cards":["BPR-1520"],"baseline":"3c24b9ec834fcafc87af05680f9f2799708b4267","milestone_plan":{"id":"bpr-1521-sibling-first-save","path":"docs/rfcs/plans/bpr-1521-sibling-first-save/milestone-plan.json"}}
 ---
 
 # BPR-1521: Share a first-saved inline draft with an untouched sibling window
