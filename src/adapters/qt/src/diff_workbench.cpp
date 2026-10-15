@@ -1167,34 +1167,36 @@ namespace bpr::qt {
 			/// "+"; a press or a drag in the code is the text's, and hides it.
 			auto viewportEvent(QEvent* aEvent) -> bool override;
 
-			/// \brief [[BPR-1212]] v002. Paints the text as `QPlainTextEdit`
-			/// does, except the text selection.
+			/// \brief [[BPR-1212]] v002, [[BPR-1533]]. Paints the text as
+			/// `QPlainTextEdit` does, except the text selection.
 			///
 			/// \details Qt draws a text selection in the palette's
 			/// `HighlightedText`, which replaces every glyph's colour, so the
 			/// selected code lost its syntax colours (the owner, v001: "are we
 			/// meant to lose all syntax highlighting when we select
-			/// something?"). Here the selection is a translucent wash with no
-			/// foreground of its own, laid among the extra selections before
-			/// the intraline emphasis, so each glyph is drawn in its own
-			/// colour over it. Only public and protected `QPlainTextEdit`
-			/// members are used; the panes are read-only and draw no caret,
-			/// placeholder or preedit, which Qt's paint also skips for them.
+			/// something?"). v002 made it a translucent wash under the
+			/// intraline emphasis, which hid it: on the selected line it was
+			/// the line's own wash again, 1.19:1 in Dark, and on a changed run
+			/// the emphasis covered it (the owner, 2026-10-15: "quite hard to
+			/// see a selected block"). Now it is the top layer, solid in the
+			/// pane's `Highlight`, with each glyph in its own colour made
+			/// readable on it (`append_text_selection_ranges`), as Line details
+			/// and Review Cycles' code view draw theirs. Only public and
+			/// protected `QPlainTextEdit` members are used; the panes are
+			/// read-only and draw no caret, placeholder or preedit, which Qt's
+			/// paint also skips for them.
 			void paint_text(QPaintEvent* aEvent);
 
 		public:
-			/// \brief [[BPR-1212]] v002. Where among the extra selections the
-			/// text selection's wash goes: after the bands and the selected
-			/// lines' wash, before the intraline emphasis.
-			void set_text_wash_index(const qsizetype aIndex) noexcept
+			/// \brief [[BPR-1533]]. The ink of unclassified text and the
+			/// variant whose floor the selected glyphs are held to.
+			void set_selection_ink(const QColor& aNormal, const core::appearance_variant aVariant)
 			{
-				TextWashIndex = aIndex;
-			}
-			/// \brief [[BPR-1212]] v002. How many times the text selection was
-			/// painted as a wash, for the tests.
-			[[nodiscard]] auto painted_text_washes() const noexcept -> std::uint64_t
-			{
-				return PaintedTextWashes;
+				if (SelectionNormal != aNormal || SelectionVariant != aVariant) {
+					SelectionNormal  = aNormal;
+					SelectionVariant = aVariant;
+					viewport()->update();
+				}
 			}
 
 		protected:
@@ -1276,8 +1278,8 @@ namespace bpr::qt {
 			std::function<void()>                                  FontObserver;
 			QPointer<QTextDocument>                                CachedTextDocument;
 			QList<QTextCursor>                                     CachedTextCursors;
-			qsizetype                                              TextWashIndex     = -1;
-			std::uint64_t                                          PaintedTextWashes = 0U;
+			QColor                                                 SelectionNormal;
+			core::appearance_variant                               SelectionVariant = core::appearance_variant::light;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1824,29 +1826,31 @@ namespace bpr::qt {
 
 			auto context = getPaintContext();
 			// Qt puts the text selection last, in Highlight and HighlightedText.
-			// It becomes a wash with no foreground, among the extra selections.
+			// [[BPR-1533]]. It stays last, the top layer, but is drawn per block
+			// below in the selection's fill with each glyph's own readable ink.
 			const auto cursor = textCursor();
 			// [[BPR-1503]]. Find selects the current match; its own wash and
-			// outline mark it, so the selection wash is not stacked on top.
-			const bool findCurrent = std::ranges::any_of(FindOutlines, [&cursor](const QTextCursor& aOutline) {
+			// outline mark it, so the selection is not stacked on top.
+			const bool findCurrent   = std::ranges::any_of(FindOutlines, [&cursor](const QTextCursor& aOutline) {
 				return aOutline.selectionStart() == cursor.selectionStart() && aOutline.selectionEnd() == cursor.selectionEnd();
 			});
-			if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor && findCurrent) {
+			auto       textSelection = std::optional<std::pair<int, int>>{ };
+			auto       fullWidth     = false;
+			if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor) {
+				// The style's choice: on macOS a selection past a line's end
+				// runs to the pane's edge.
+				fullWidth = context.selections.back().format.boolProperty(QTextFormat::FullWidthSelection);
 				context.selections.removeLast();
-			} else if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor) {
-				auto selection = context.selections.takeLast();
-				auto format    = QTextCharFormat{ };
-				if (selection.format.hasProperty(QTextFormat::FullWidthSelection)) {
-					format.setProperty(QTextFormat::FullWidthSelection, true);
+				if (!findCurrent) {
+					textSelection = std::pair{ cursor.selectionStart(), cursor.selectionEnd() };
 				}
-				auto wash = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight);
-				wash.setAlpha(core::selection_wash_alpha);
-				format.setBackground(wash);
-				selection.format = format;
-				const auto at    = TextWashIndex < 0 ? context.selections.size() : std::min(TextWashIndex, context.selections.size());
-				context.selections.insert(at, selection);
-				++PaintedTextWashes;
 			}
+			const auto selectionInk = code_text_selection{
+				.Fill      = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight),
+				.Normal    = SelectionNormal.isValid() ? SelectionNormal : context.palette.text().color(),
+				.Variant   = SelectionVariant,
+				.FullWidth = fullWidth,
+			};
 			painter.setPen(context.palette.text().color());
 
 			const auto caret = textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard) || !isReadOnly();
@@ -1892,6 +1896,9 @@ namespace bpr::qt {
 							}
 							ranges.push_back(range);
 						}
+					}
+					if (textSelection && textSelection->first - position < length && textSelection->second > position) {
+						append_text_selection_ranges(ranges, block, std::max(0, textSelection->first - position), std::min(length, textSelection->second - position), selectionInk);
 					}
 					layout->draw(&painter, offset, ranges, exposed);
 					if (caret && context.cursorPosition >= position && context.cursorPosition < position + length) {
@@ -5389,8 +5396,6 @@ namespace bpr::qt {
 		}
 		apply_syntax_formats(*Unified, core::diff_side::left, base);
 		apply_syntax_formats(*Unified, core::diff_side::right, head);
-		// [[BPR-1212]] v002. The text selection's wash, under the emphasis.
-		pane(Unified)->set_text_wash_index(selections.size());
 		if (Colors.Supplied) {
 			append_intraline_emphasis(selections, *Unified, core::diff_side::left, base, selectedBase);
 			append_intraline_emphasis(selections, *Unified, core::diff_side::right, head, selectedHead);
@@ -5634,6 +5639,9 @@ namespace bpr::qt {
 		// typography record the preview reads.
 		for (auto* const target : { Left, Right, Unified }) {
 			pane(target)->set_white_space(aProfile.typography().Code.WhiteSpace);
+			// [[BPR-1533]]. The selection's glyphs keep their colours, held to
+			// this variant's floor on the selection.
+			pane(target)->set_selection_ink(Colors.Syntax[core::index_of(role::syntax_normal)], Colors.Variant);
 		}
 		update_diff_paint();
 	}
@@ -5791,9 +5799,6 @@ namespace bpr::qt {
 				}
 			}
 			pane(&aPane)->set_selected_lines(washed);
-			// [[BPR-1212]] v002. The text selection's wash goes here, over the
-			// bands and under the intraline emphasis.
-			pane(&aPane)->set_text_wash_index(selections.size());
 
 			if (CurrentResult && Colors.Supplied) {
 				append_intraline_emphasis(

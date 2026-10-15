@@ -3318,14 +3318,16 @@ namespace {
 			   "two-column tab stops narrow all three authored indentation depths");
 	}
 
-	/// \brief [[BPR-1212]] v002. A text selection keeps the syntax colours.
+	/// \brief [[BPR-1212]] v002, [[BPR-1533]]. A text selection keeps the
+	/// syntax colours.
 	///
 	/// \details The owner, rejecting right-click-v001: "are we meant to lose
 	/// all syntax highlighting when we select something?" Qt draws a text
-	/// selection in `HighlightedText`, white over the accent. The pane draws it
-	/// as a translucent wash instead, and each glyph keeps its own colour.
-	/// Measured on the rendered pane: the darkest ink of a selected comment
-	/// line, against the same line unselected.
+	/// selection in `HighlightedText`, white over the accent. The pane draws
+	/// it in the solid accent with each glyph in its own colour, moved only as
+	/// far as it must to read on the accent ([[BPR-1533]]; v002's translucent
+	/// wash could hardly be seen). Measured on the rendered pane: the darkest
+	/// ink of a selected comment line, against the same line unselected.
 	auto test_a_selection_keeps_the_syntax_colours() -> void
 	{
 		const auto diff      = computed(classified_left, classified_right, { }, 45U);
@@ -3354,8 +3356,9 @@ namespace {
 		const auto distance = [](const QColor& aLeft, const QColor& aRight) {
 			return std::abs(aLeft.red() - aRight.red()) + std::abs(aLeft.green() - aRight.green()) + std::abs(aLeft.blue() - aRight.blue());
 		};
-		// A row's ground (the commonest colour across its first characters)
-		// and its ink: the pixel there farthest from the ground.
+		// A row's ground (the commonest colour across its first characters,
+		// inside the line's text, past the document margin) and its ink: the pixel there
+		// farthest from the ground.
 		const auto sample = [&](const QRect aRow) {
 			pane->viewport()->repaint();
 			const auto image  = pane->viewport()->grab().toImage();
@@ -3363,14 +3366,14 @@ namespace {
 			const auto at     = [&image, scale](const int aX, const int aY) { return image.pixelColor(static_cast<int>(aX * scale), static_cast<int>(aY * scale)); };
 			auto       counts = std::map<QRgb, int>{ };
 			for (auto y = aRow.top() + 1; y < aRow.bottom(); ++y) {
-				for (auto x = aRow.left() + 2; x < aRow.left() + 160; ++x) {
+				for (auto x = aRow.left() + 6; x < aRow.left() + 110; ++x) {
 					++counts[at(x, y).rgb()];
 				}
 			}
 			const auto ground = QColor{ std::ranges::max_element(counts, { }, &std::map<QRgb, int>::value_type::second)->first };
 			auto       ink    = ground;
 			for (auto y = aRow.top() + 1; y < aRow.bottom(); ++y) {
-				for (auto x = aRow.left() + 2; x < aRow.left() + 160; ++x) {
+				for (auto x = aRow.left() + 6; x < aRow.left() + 110; ++x) {
 					const auto pixel = at(x, y);
 					if (distance(pixel, ground) > distance(ink, ground)) {
 						ink = pixel;
@@ -3392,10 +3395,12 @@ namespace {
 		const auto [washGround, washInk] = sample(comment);
 		const auto highlightedText       = pane->palette().color(QPalette::Active, QPalette::HighlightedText);
 		const auto highlight             = pane->palette().color(QPalette::Active, QPalette::Highlight);
-		expect(distance(washGround, plainGround) > 12 && distance(washGround, highlight) > 60,
-			   "the selection shows as a wash, lighter than the solid accent");
-		expect(distance(washInk, plainInk) < 90 && distance(washInk, plainInk) < distance(washInk, highlightedText),
-			   "selected, the comment line keeps its comment colour, not the highlighted-text colour");
+		expect(distance(washGround, highlight) <= 6 && distance(washGround, plainGround) > 60,
+			   "the selection is the solid accent, not a wash");
+		const auto readable = qt::to_presentation_color(core::readable_selection_ink(
+			qt::to_appearance_color(profile.color(core::appearance_role::syntax_comment)), qt::to_appearance_color(highlight), profile.variant()));
+		expect(distance(washInk, readable) < 90 && distance(washInk, readable) < distance(washInk, highlightedText),
+			   "selected, the comment line keeps its comment colour, read on the selection, not the highlighted-text colour");
 		expect(pane->textCursor().selectedText().size() > 0 && pane->textCursor() == cursor, "the selection itself is unchanged, for Copy");
 		if (const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH"); !render.isEmpty()) {
 			expect(workbench.grab().save(render + QStringLiteral("-selection-keeps-syntax.png")), "capture the selection over coloured code");
@@ -3757,6 +3762,104 @@ namespace {
 					}
 				}
 				std::cout << '\n';
+			}
+		}
+	}
+
+	/// \brief [[BPR-1533]]. A text selection reads on every line kind.
+	///
+	/// \details The owner, 2026-10-15: "quite hard to see a selected block (eg
+	/// a word double clicked) in the middle of a change diff on the main pane
+	/// [...] not so easy to see even on unchanged lines. The single line
+	/// details pane shows it much more clearly". A word is selected on an
+	/// unchanged, a removed, an added and a changed line, each the selected
+	/// line (a double click selects its line first), in the four built-in
+	/// variants, with the pane focused and not. The fill under the word must
+	/// be the theme's solid selection colour, the one Line details paints,
+	/// and stand apart from the ground beside it: v002's wash measured 22 to
+	/// 37 sRGB units from it, and none at all inside a change, where the
+	/// intraline emphasis covered it. The nearest case now is a word inside a
+	/// change in Light, about 48 units from the selected row's deeper
+	/// emphasis ([[BPR-0323]]).
+	auto test_a_text_selection_reads_on_every_line_kind() -> void
+	{
+		const auto diff  = computed(selection_left, selection_right, { }, 48U);
+		auto       run   = std::optional<core::byte_span>{ };
+		const auto pairs = std::span{ diff.Alignment.Pairs };
+		for (const auto& edit : diff.Intraline) {
+			const auto pair = std::ranges::find_if(pairs, [&edit](const core::line_pair& aPair) { return aPair.Id == edit.Pair; });
+			if (pair != pairs.end() && pair->RightLine == 3U && edit.Right.End > edit.Right.Begin + 4U) {
+				run = edit.Right;
+			}
+		}
+		expect(run.has_value(), "the changed line carries an intraline run of at least five characters");
+		const auto runBegin = static_cast<int>(run->Begin);
+		const auto runEnd   = static_cast<int>(run->End);
+		struct look
+		{
+			const char*     Name;
+			core::diff_side Side;
+			std::uint32_t   Line;
+			int             From;
+			int             To;
+			int             GroundFrom;
+			int             GroundTo;
+		};
+		const auto looks = std::array{
+			look{ "unchanged", core::diff_side::right, 0U, 4, 16, 17, 21 },
+			look{ "removed", core::diff_side::left, 2U, 4, 17, 18, 22 },
+			look{ "added", core::diff_side::right, 5U, 4, 15, 16, 20 },
+			look{ "changed", core::diff_side::right, 3U, runBegin + 2, runEnd - 2, runBegin, runBegin + 2 },
+		};
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+		for (const auto& [modeName, mode] : modes) {
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(1'100, 760);
+			workbench.show();
+			process_events();
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			const auto selected = context(diff, 95U, 95U);
+			workbench.set_loading(selected);
+			workbench.publish(bpr::qt::test::prepare_publication({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			}));
+			settle_geometry(workbench);
+			const auto selection = profile.color(core::appearance_role::code_selection_background);
+			for (const auto& each : looks) {
+				const auto name = std::string{ modeName } + " " + each.Name;
+				expect(workbench.select_conversation_line(each.Side, each.Line), name + ": the line selects");
+				process_events();
+				auto* const pane  = each.Side == core::diff_side::left ? workbench.left_pane() : workbench.right_pane();
+				auto* const other = each.Side == core::diff_side::left ? workbench.right_pane() : workbench.left_pane();
+				pane->setFocus();
+				process_events();
+				select_characters(*pane, static_cast<int>(each.Line), each.From, each.To);
+				const auto focused = measure_selection(*pane, static_cast<int>(each.Line), each.From, each.To, each.GroundFrom, each.GroundTo);
+				if (!render.isEmpty()) {
+					expect(workbench.grab().save(render + QStringLiteral("-bpr1533-%1-%2.png").arg(QLatin1StringView{ modeName }, QLatin1StringView{ each.Name })),
+						   name + ": capture the selection");
+				}
+				other->setFocus();
+				process_events();
+				const auto unfocused = measure_selection(*pane, static_cast<int>(each.Line), each.From, each.To, each.GroundFrom, each.GroundTo);
+				std::cout << "BPR-1533 " << name << ": fill " << focused.Fill.name().toStdString() << " ground "
+						  << focused.Ground.name().toStdString() << " ratio " << luminance_ratio(focused.Fill, focused.Ground)
+						  << " distance " << colour_distance(focused.Fill, focused.Ground) << "; unfocused fill "
+						  << unfocused.Fill.name().toStdString() << '\n';
+				expect(colour_distance(focused.Fill, selection) <= 4.0, name + ": the selection is the theme's solid selection colour");
+				expect(colour_distance(unfocused.Fill, selection) <= 4.0, name + ": unfocused, the selection keeps the same colour");
+				expect(colour_distance(focused.Fill, focused.Ground) >= 40.0,
+					   name + ": the selection stands clearly apart from the line it sits in");
 			}
 		}
 	}
@@ -5955,6 +6058,9 @@ auto main(int argc, char** argv) -> int
 		if (only.empty() || only == "syntax") {
 			test_a_selection_keeps_the_syntax_colours();
 		}
+		if (only.empty() || only == "line-kinds") {
+			test_a_text_selection_reads_on_every_line_kind();
+		}
 		return EXIT_SUCCESS;
 	}
 	test_divider_drag_keeps_fractional_viewport();
@@ -5990,6 +6096,7 @@ auto main(int argc, char** argv) -> int
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();
 	test_a_selection_keeps_the_syntax_colours();
+	test_a_text_selection_reads_on_every_line_kind();
 	test_tabbed_source_correspondence_survives_syntax_and_tab_width();
 	test_comparison_zoom_scales_and_holds_the_reading_line();
 	test_code_zoom_design_captures();

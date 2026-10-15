@@ -1301,7 +1301,7 @@ scroll tracks accompany exact source selection through the shared reveal
 controller. The washes are the theme's `find_match_background` and, stronger,
 `find_current_match_background`, composited at the selection's opacity and held
 to the same contrast floors; the outline is the current-match hue carried to the
-indicator ratio, and the selection wash is not stacked on the current match. Match traversal uses the accepted immutable record collection.
+indicator ratio, and the text selection is not stacked on the current match. Match traversal uses the accepted immutable record collection.
 Escape clears decorations and restores target source focus; Next can reopen
 and advance the retained query without another scan. Unrelated editors, modal
 dialogs, Home and other modalities retain their keys. The resident desktop menu
@@ -1499,10 +1499,15 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   click selects a line, a drag or Shift-click selects lines in the pane's own
   text selection, and Shift+Up and Shift+Down extend either. The selected
   line wears the current-line band and extended lines the pane's text
-  selection. A text selection is a translucent wash under the code, so each
-  selected glyph keeps its syntax colour ([[BPR-1212]] v002; the owner, on
-  v001: "are we meant to lose all syntax highlighting when we select
-  something?"). A move is announced once, politely ("Line
+  selection. A text selection is the top layer: it is filled solid in the
+  theme's selection colour over the line's band, the selected line's wash and
+  the intraline emphasis, as Line details and every text box in the window
+  fill one, and each selected glyph keeps its syntax colour, moved only as far
+  as it must to read on the fill at the variant's text floor ([[BPR-1212]]
+  v002; the owner, on v001: "are we meant to lose all syntax highlighting when
+  we select something?"; [[BPR-1533]], replacing v002's translucent wash, which
+  the owner found "quite hard to see", and which the emphasis hid inside a
+  change). A move is announced once, politely ("Line
   12 of the later version selected", "Lines 9 to 13 selected"). In one pane
   the same keys move by rows, and each end keeps its row's side.
 - Return comments on the selected lines and Shift+Return suggests a change to
