@@ -1,0 +1,153 @@
+{
+  "assignment": "BPR-1516 stable-divider only",
+  "mandate_revision": "owner-2026-10-14-r1",
+  "scope": "source_pane NoWrap resize, bounded measurement placement, focused actual-divider evidence and owning documentation",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview",
+  "branch": "bpr1516-divider-shake",
+  "baseline": "583eb4689",
+  "plan_commit": "afcccbf37",
+  "claim_commit": "7266fe626",
+  "source_candidate": "accf697f92fe20aff2f593e43db217d3f84f2d9b",
+  "metadata_import": "cd85b988b (= coordinator5a105579c; do not duplicate on main)",
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp",
+    "docs/architecture/diff-pipeline-and-rendering.md",
+    "docs/issues/30-in-progress/BPR-1516-diff-divider-resize-vertical-shake.md",
+    "docs/issues/_checkpoints/BPR-1516/",
+    "docs/rfcs/plans/bpr-1516-divider-viewport-stability/"
+  ],
+  "diagnosis": [
+    "Native width relayout forgets longest line; horizontal scrollbar toggles and axis viewport alternates601/583px; q fixed while0.43rail produces8px repeated shake.",
+    "Clearing native fractional offset during bounded measurement exposes whole-row intermediate paints on large files."
+  ],
+  "implementation": [
+    "For NoWrap, pass a height-only resize to native editor; both scrollbar ranges still use real viewport. Wrapped resize path unchanged.",
+    "Keep fractional origin through measurement; apply rebuilt axis through the existing sole comparison-space controller.",
+    "Actual center-handle continuous forward/reverse QMouseEvents; every paint and yielded measurement turn observed and rendered. Native source selection/cursor/hit identity, horizontal ranges and ribbon endpoints checked."
+  ],
+  "verification": {
+    "baseline": "202/203lines at1.25:38row changes,8px max,58rebuilds; test exit1.",
+    "offset_negative_control": "NoWrap fix plus restored old offset reset:2002/2003lines at1.25 gives78row changes,5px max; test exit1.",
+    "candidate": "201/202 short,202/203 long,2002/2003 long at1.25&2.0:0px,0row changes,39rebuilds. Source selection/hits/ranges/q/ribbons pass.",
+    "focused_ctest": "qt_diff_workbench_scale_100, qt_comparison_scroll_controller_scale_100, qt_diff_axis_scale_100:3/3pass17.55sec; includes native wrapped/Unicode/mixed-font measurement.",
+    "format": "clang-format22.1.8 touched-file dry-run and git diff --check pass.",
+    "documentation": "DOCUMENTATION_OK after authorizedcounterimport;67verifier tests pass. Initial stalecounterrefusal retained.",
+    "environment": "macOS arm64,Qt6.11.2,offscreen,scales1.0/1.25/2.0. No native desktop observation, no universal frame-rate claim.",
+    "self_review": "Two presentation-local corrections remove layout/scroll feedback; no paint suppression, extra scroll authority, source identity or host/core/provider/persistence change. Frontend-design loaded; existing native palette/typography/layout retained.",
+    "public_integration": {
+      "revision": "a8b37e46c",
+      "source_includes": "accf697f9 plus BPR-1512 ribbon width",
+      "checks": "qt_diff_workbench_scale_125 pass15.94sec; application_diff_workbench_public_path pass4.28sec",
+      "log": "/tmp/bpr-coordinator-divider-tests.log",
+      "inspection": "Coordinator inspected exact full-window raster: paired selected lines39/42 aligned; ribbons,gutters,Comments,normal text boundaries and horizontal bars correct. Source stable during run."
+    }
+  },
+  "evidence_logs": {
+    "/tmp/bpr1516-baseline-replay.log": {
+      "sha256": "9046d1d676ba546ba155e7eb88568d11053c16d9c5013f0de176e0dd23abcebe",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-axis-trace.log": {
+      "sha256": "117501e9fe6466770612a373a71ff9b06f9c21f21a56ec30f6df3069a7c2d40a",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-offset-negative.log": {
+      "sha256": "4820350219ec3fbd5876e93efc05cdb7d682ef2f20aa7beab8f320bc1fe2a70f",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-final-focused.log": {
+      "sha256": "d0b64847f92abdb6e9cd1d97cca6458ae04ec68559fd60b9eac6e46f367e2d4b",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-scale200.log": {
+      "sha256": "7c50e9b83a02540900a959b9c9c66d4a1dbd64f826f99f29df430df1f3c608ac",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-ctest.log": {
+      "sha256": "5888cc0ed82268eb059aba009e8bf3b87bbd460e2e47ddfc5b24e13f822a0ec4",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-docs.log": {
+      "sha256": "ba3bbe4af0e145bc4291fb04fff8cce6191198d859a8ab7682163fef8ad31efe",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-docs-final.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-doc-tests.log": {
+      "sha256": "68a98d327ed1dca8b0fb6d5e05c2cc702cc6e004d45ad7785fa1b7de9ada98a4",
+      "kind": "task-owned command log; synthetic fixtures only"
+    },
+    "/tmp/bpr1516-restored-build.log": {
+      "sha256": "731ede903e81ba35f641f9c9687878672274edd97d2ba42ba96c213b8cb9076d",
+      "kind": "task-owned command log; synthetic fixtures only"
+    }
+  },
+  "artifacts": {
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-long-before.png": {
+      "sha256": "3646d698ba340a1015837f1b92c99c04e51cd2f75690ba2d0cf8f33282f3b635",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-short-wide.png": {
+      "sha256": "7f68b3365a02c5c9c26de17b2afb5223ce007181cf5e7d5356b7c88e5aedfc48",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-2000-long-wide.png": {
+      "sha256": "c8e9e698d41d58338fa0054a5c9d0fa9b8af9f49f219db63070e6566773f848c",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-short-before.png": {
+      "sha256": "abef34be6623165f3108199b097878ce0c19d935a508c06894c67c76c0033cd8",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-2000-long-reversed.png": {
+      "sha256": "f817c360c3e5d7d8d1efc5d43bca3b61e9686f33abc7e4481821c751c1a661f0",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-2000-long-before.png": {
+      "sha256": "f817c360c3e5d7d8d1efc5d43bca3b61e9686f33abc7e4481821c751c1a661f0",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-short-reversed.png": {
+      "sha256": "abef34be6623165f3108199b097878ce0c19d935a508c06894c67c76c0033cd8",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-long-wide.png": {
+      "sha256": "7fa9b3abe762a14a9c0ad17759b99b205d223e1b530b9662dc6b3ff9474ce5bb",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-final-divider-200-long-reversed.png": {
+      "sha256": "3646d698ba340a1015837f1b92c99c04e51cd2f75690ba2d0cf8f33282f3b635",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-200-divider-2000-long-reversed.png": {
+      "sha256": "8f188905897bacc259092214dbde268ff225bfc2d9650ceeb06969c2a4f6c8af",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-200-divider-2000-long-before.png": {
+      "sha256": "8f188905897bacc259092214dbde268ff225bfc2d9650ceeb06969c2a4f6c8af",
+      "kind": "offscreen synthetic fixture evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1516-divider-shake/BetterPullReview/build/dev/tests/adapters_qt/bpr1516-200-divider-2000-long-wide.png": {
+      "sha256": "85625e76c97231e1ee0e3ce676730062ea59cb98d6261c36ccc68992cf2313b0",
+      "kind": "offscreen synthetic fixture evidence"
+    }
+  },
+  "commands": {
+    "running": [],
+    "review_server": null,
+    "build": "Completed j2,g0 focused dev targets; no full app duplicate.",
+    "configure": "cmake --preset dev -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache -DCMAKE_CXX_FLAGS_DEBUG=-g0 -DCMAKE_C_FLAGS_DEBUG=-g0",
+    "focused": "ctest --preset dev --output-on-failure -R ^(qt_diff_workbench_scale_100|qt_comparison_scroll_controller_scale_100|qt_diff_axis_scale_100)$",
+    "state": "All task-owned builds/tests completed. No process stopped by pattern."
+  },
+  "ownership": {
+    "writers": "Only this leaf on its isolated branch; no subagents; coordinator and sibling worktrees preserved.",
+    "protected_candidate": "Retain own663Mi dev build/evidence until coordinator integration. No attended protections or server.",
+    "safety": "No owner desktop/profile/browser/credentials read or modified; no GitHub calls."
+  },
+  "pending": [],
+  "next_action": "Canonical finish and helper check, then return only own upkeep commits to coordinator; no further milestone."
+}

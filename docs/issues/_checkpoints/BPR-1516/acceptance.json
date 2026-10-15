@@ -1,0 +1,50 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "accf697f92fe20aff2f593e43db217d3f84f2d9b",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Original actual reversed-divider drag recorded8px/38vertical rowchanges; independent offset reset negative control5px/78changes on2002/2003lines.",
+        "checkpoint": "docs/issues/_checkpoints/BPR-1516/checkpoint.json",
+        "integrated_revision": "a8b37e46c"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "accf697f92fe20aff2f593e43db217d3f84f2d9b",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Final actual continuous reversed drags at1.0/1.25/2.0 show0px/0changes and39rebuilds; native longest-line relayout feedback removed, fractional placement retained between batches.",
+        "checkpoint": "docs/issues/_checkpoints/BPR-1516/checkpoint.json",
+        "integrated_revision": "a8b37e46c"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "accf697f92fe20aff2f593e43db217d3f84f2d9b",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Native selection/cursor,source hit identity,shared q,horizontal ranges and exact ribbon correspondence pass for unequal short/long/large sources. Full native measurement suite covers wrapped/Unicode/mixed-font boundaries.",
+        "checkpoint": "docs/issues/_checkpoints/BPR-1516/checkpoint.json",
+        "integrated_revision": "a8b37e46c"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "accf697f92fe20aff2f593e43db217d3f84f2d9b",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Actual diff_link_map press/move/reverse/release through composed diff_workbench, per-paint/yield row measurements and offscreen renders pass. Integrated exact maina8b37e46c full-window public app path plus Qt1.25 pass; coordinator inspected raster.",
+        "checkpoint": "docs/issues/_checkpoints/BPR-1516/checkpoint.json",
+        "integrated_revision": "a8b37e46c"
+      }
+    }
+  ]
+}
