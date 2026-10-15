@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1516"
 title: "Stop vertical diff text shake while dragging the pane divider"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"There's a weird vertical shake of the diff text panes when dragging the divider to resize them","dispatch":"Fresh dedicated implementer queued pending an available agent slot","milestone_plan":{"id":"bpr-1516-divider-viewport-stability","path":"docs/rfcs/plans/bpr-1516-divider-viewport-stability/milestone-plan.json"}}
