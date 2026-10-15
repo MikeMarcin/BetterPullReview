@@ -27,9 +27,7 @@
     "frozen_launcher": "scripts/freeze_attended_build.py freeze: exit0; CHECK_OK ATTENDED_PULL_REQUEST_OPENED; fixtures checked before launch",
     "platform": "Darwin arm64; Qt6.11.2; QT_QPA_PLATFORM=offscreen; no native appearance integration claim"
   },
-  "pending": [
-    "AC1/AC4 owner visual judgement of BPR-1513-dark-banners-v003 in session 0fec6737\u2026."
-  ],
+  "pending": [],
   "commands": {
     "freeze": "finished exit0; launcher-check child exited",
     "verification": "all finished; no task-owned background build/test/tidy process remains",
@@ -40,7 +38,7 @@
     },
     "repository_writer": "released at handoff; candidate source paths protected"
   },
-  "next_action": "On Accept: integrate branch bpr1513-dark-appearance-banners (b99680a10) into main, record AC1/AC4 pass, move the card to 60-done, and remove the v001, v002 and v003 frozen roots with scripts/freeze_attended_build.py remove. On Reject: apply the note on the branch, freeze v004, and present it in a fresh short session.",
+  "next_action": "None; BPR-1513 is done.",
   "scope_notes": "No live GitHub calls or owner desktop driving/capture; source3 only; frontend-design loaded before UX edits.",
   "frozen": {
     "root": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o",
@@ -182,12 +180,28 @@
       "session": "0fec673709be766d18cae7971d436b51",
       "candidate": "BPR-1513-dark-banners-v003",
       "fingerprint": "cff4dcac2098b8dae6e527f84fc4192692a128b18edaf9dac83d5edd3aea1225",
-      "event_cursor": 4,
-      "protected": true,
-      "decision": null,
-      "server_pid": 92112,
+      "event_cursor": 6,
+      "protected": false,
+      "decision": {
+        "outcome": "accept",
+        "decision_id": "d96dea45-144f-4be0-82b5-2680b95472cd",
+        "saved_at": "2026-10-15T03:32:38.651586Z",
+        "handed_back_event": 6
+      },
+      "server_pid": null,
       "server_base_url": "http://127.0.0.1:54598/",
       "complete_url": "Printed in the private serve log beside the state directory; never commit the bearer token."
     }
+  },
+  "closeout": {
+    "integrated": "447ec465c merges b99680a10 into main; main src/tests trees identical to the candidate",
+    "verification_on_main": "build/bpr1513-closeout/focused.log 8/8 pass; documentation gate",
+    "sessions": "v003 protection released and server 92112 stopped; v001, v002 and reason sessions already released",
+    "frozen_roots_removed": [
+      "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o",
+      "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v002.kn2uo2td",
+      "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v003.ghxc5j7f"
+    ],
+    "left_running": "PID 23842 (coordinator's v001 server), not task-owned"
   }
 }

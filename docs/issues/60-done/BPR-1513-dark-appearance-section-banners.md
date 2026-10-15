@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1513"
 title: "Reduce bright Appearance section banners in dark mode"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"I don't like the dark mode section banner background color in appearance, it's like white on white and a flash bang","milestone_plan":{"id":"bpr1513-dark-appearance-banners","path":"docs/rfcs/plans/bpr1513-dark-appearance-banners/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pending","revision":"59cefd86f83c9a7ed2a586a06739ac774d98dfb0","evidence":{"kind":"observation","detail":"Dark header pixels use application_surface and actual renders are inspected; owner keep/change judgement is pending in the exact frozen attended candidate.","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC2","outcome":"pass","revision":"59cefd86f83c9a7ed2a586a06739ac774d98dfb0","evidence":{"kind":"observation","detail":"All4 painted banners match application Window; title ink matches application WindowText at >=4.5:1 across6 modes. Header styling uses existing roles; no hard-coded colour.","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC3","outcome":"pass","revision":"59cefd86f83c9a7ed2a586a06739ac774d98dfb0","evidence":{"kind":"observation","detail":"Composed open Appearance switches through all6 supported modes; shared-window Settings public path also passes.","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC4","outcome":"pending","revision":"59cefd86f83c9a7ed2a586a06739ac774d98dfb0","evidence":{"kind":"observation","detail":"Actual offscreen dark/light renders inspected and switch course passes; frozen launcher check passes and fresh attended candidate is ready. Owner visual judgement remains pending.","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"b99680a10ced643846f546edd512739304b0bc12","evidence":{"kind":"observation","detail":"Human accepted exact frozen candidate BPR-1513-dark-banners-v003 in session 0fec673709be766d18cae7971d436b51; decision d96dea45-144f-4be0-82b5-2680b95472cd at 2026-10-15T03:32:38.651586+00:00; handed back at event 6. Fingerprint cff4dcac2098b8dae6e527f84fc4192692a128b18edaf9dac83d5edd3aea1225. Dark banner #2A3039 on #1C2026 (1.23:1).","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC2","outcome":"pass","revision":"b99680a10ced643846f546edd512739304b0bc12","evidence":{"kind":"observation","detail":"Banners and preview footer use the profile's QPalette::Light role (no hard-coded colour or style sheet); titles at least 7:1 on the painted band in six modes (11.3:1 Dark, 15.8:1 Light).","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC3","outcome":"pass","revision":"b99680a10ced643846f546edd512739304b0bc12","evidence":{"kind":"observation","detail":"Composed open Appearance switches through all six modes with the Settings shell receiving the selected palette; multi-window shared Settings course passes; Light keeps the original raised white strip (1.07:1).","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}},{"criterion":"AC4","outcome":"pass","revision":"b99680a10ced643846f546edd512739304b0bc12","evidence":{"kind":"observation","detail":"Offscreen dark/light renders of original, v002 and v003 inspected and sampled; switch course passes; frozen v003 launcher check passed; human visual acceptance recorded as AC1.","handoff":"docs/issues/_checkpoints/BPR-1513/handoff.json"}}]
 ---
 
 # BPR-1513: Reduce bright Appearance section banners in dark mode
@@ -138,3 +137,13 @@ launcher check and is under review in a fresh short session, which shows the
 original in Light, the original in Dark, v002 in Dark, and v003 in Dark and
 Light. AC1 and AC4 remain pending. Details are in
 [the handoff](../_checkpoints/BPR-1513/handoff.json).
+
+Closeout, 2026-10-14.
+
+The owner accepted `BPR-1513-dark-banners-v003` in session `0fec6737…`
+(event 5, handed back at event 6). Branch `bpr1513-dark-appearance-banners` at
+`b99680a10` is merged into main, and main's `src` and `tests` trees are
+identical to the accepted candidate. On main, eight focused Appearance,
+theme-switching and Settings courses pass, and the documentation gate passes.
+All four criteria pass at `b99680a10`. The review sessions are released, task
+servers are stopped, and the v001, v002 and v003 frozen builds are removed.
