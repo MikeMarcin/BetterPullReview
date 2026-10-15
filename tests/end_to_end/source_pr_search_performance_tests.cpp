@@ -139,7 +139,7 @@ int main(int aArgc, char** aArgv)
 	const auto  noteNavigation = [&] {
 		note();
 		const auto elapsed       = navigation.elapsed();
-		maximumSampleGapMs       = std::max(maximumSampleGapMs, elapsed - lastSampleMs);
+		maximumSampleGapMs       = (std::max)(maximumSampleGapMs, elapsed - lastSampleMs);
 		lastSampleMs             = elapsed;
 		const auto targetContext = surface->current_context() && surface->current_context()->Key.File == core::file_identity_of("bulk/063.cpp");
 		const auto targetResult  = targetContext && surface->current_result() && surface->current_result()->Alignment.Key.File == core::file_identity_of("bulk/063.cpp");
