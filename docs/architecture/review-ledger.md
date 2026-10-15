@@ -277,6 +277,8 @@ most 64 entries. The bounded draft collection retains at most 4,096 records, wit
 
 Schema 9 rebuilds only the scope-counter table, copying every counter, binding, generation and allocation frontier while widening its retained-draft bound. It leaves all draft bytes, composition references and publication lineage in place. Browsing a source line creates one runtime-only empty selection per window consumer and writes no record or durable identity. The first edit creates the normal draft and applies that edit in one transaction before its projection can publish.
 
+An untouched sibling selection at the same complete runtime scope, exact anchor and reply target follows that committed identity. A sibling with its own candidate or save in flight keeps its own identity and acknowledgement; simultaneous authors retain separate saved comments rather than overwriting either body. Other anchors and authorities do not follow the first save.
+
 There is no automatic expiry of authored text or publication history. Explicit cleanup removes only empty, never-edited revision-one ordinary placeholders, checks for publication references and rechecks eligibility transactionally. A racing accepted edit refuses the whole cleanup; a retained allocation frontier prevents a late restore from resurrecting removed placeholders. Written, intentionally cleared, composed, reply, pending and uncertain material is preserved.
 
 Per scope, the store admits 4,096 threads, 65,536 turn revisions, 65,536 runs,

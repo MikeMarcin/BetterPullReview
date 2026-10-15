@@ -93,6 +93,12 @@ namespace {
 		}
 		return count;
 	}
+	auto draft_at_selection(const qt::workbench_window& aWindow) -> bool
+	{
+		const auto& draft     = aWindow.review_editor()->shown_draft();
+		const auto& selection = aWindow.comparison_surface()->selection();
+		return draft && selection && draft->Anchor == selection->PreferredLine;
+	}
 	void capture(qt::workbench_window& aWindow, const QString& aName)
 	{
 		const auto root = qEnvironmentVariable("BPR_MULTI_WINDOW_ARTIFACT_ROOT");
@@ -732,12 +738,61 @@ try {
 	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
 			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
 		   "both windows select the same review anchor");
-	wait_for([&] { return windowB->review_editor()->shown_draft() && windowC->review_editor()->shown_draft(); }, "both actual editors receive a local draft");
+	wait_for([&] { return draft_at_selection(*windowB) && draft_at_selection(*windowC); }, "both actual editors receive the selected local draft");
 	expect(windowB->review_editor()->shown_draft()->Anchor == windowC->review_editor()->shown_draft()->Anchor, "shared draft course uses identical comparison and line");
+	expect(windowB->review_editor()->shown_draft()->Id != windowC->review_editor()->shown_draft()->Id
+			   && windowB->review_editor()->shown_draft()->Id.value() > core::maximum_private_identity
+			   && windowC->review_editor()->shown_draft()->Id.value() > core::maximum_private_identity,
+		   "untouched same-anchor selections have distinct runtime-only identities");
 	windowB->review_editor()->body_editor()->setPlainText(QStringLiteral("Shared profile draft from surviving window"));
 	wait_for([&] { return windowC->review_editor()->body_editor()->toPlainText() == QStringLiteral("Shared profile draft from surviving window"); }, "accepted draft edit reaches sibling editor");
+	expect(windowB->review_editor()->shown_draft()->Id == windowC->review_editor()->shown_draft()->Id
+			   && windowB->review_editor()->shown_draft()->Id.value() <= core::maximum_private_identity
+			   && windowB->review_editor()->shown_draft() == windowC->review_editor()->shown_draft(),
+		   "untouched sibling adopts the exact durable draft after first save");
 	windowC->review_editor()->body_editor()->setPlainText(QStringLiteral("Shared profile draft edited in replacement"));
-	wait_for([&] { return windowB->review_editor()->body_editor()->toPlainText() == QStringLiteral("Shared profile draft edited in replacement"); }, "replacement edit returns through shared owner");
+	wait_for([&] { return windowB->review_editor()->body_editor()->toPlainText() == QStringLiteral("Shared profile draft edited in replacement")
+					   && !windowB->review_editor()->rejected_candidate() && !windowC->review_editor()->rejected_candidate(); }, "replacement edit returns through shared owner");
+	const auto sharedDraft = *windowB->review_editor()->shown_draft();
+	// [[BPR-1521]]. An unrelated untouched anchor must stay untouched.
+	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 1U)
+			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 3U),
+		   "first-save isolation course selects different anchors");
+	wait_for([&] { return draft_at_selection(*windowB) && draft_at_selection(*windowC); }, "different-anchor editors finish selecting before typing");
+	const auto untouchedSibling = *windowC->review_editor()->shown_draft();
+	windowB->review_editor()->body_editor()->setPlainText(QStringLiteral("Comment at a different anchor"));
+	wait_for([&] { return windowB->review_editor()->shown_draft()->Body == "Comment at a different anchor" && !windowB->review_editor()->rejected_candidate(); }, "different-anchor comment commits");
+	expect(windowC->review_editor()->shown_draft() == untouchedSibling && windowC->review_editor()->body_editor()->toPlainText().isEmpty(), "different-anchor publication leaves sibling placeholder unchanged");
+	// Both first saves wait on the real persistence lane. Delivering either
+	// durable record must leave the other's candidate and acknowledgement alone.
+	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 3U), "both authors select the same previously untouched anchor");
+	wait_for([&] { return draft_at_selection(*windowB) && draft_at_selection(*windowC); }, "concurrent authors finish selecting before their first saves");
+	const auto releaseDraftSaves = app::detail::github_application_fixture_access::hold_private_review_effects(*owner);
+	windowB->review_editor()->body_editor()->setPlainText(QStringLiteral("Independent first-save body B\nexact later line"));
+	windowC->review_editor()->body_editor()->setPlainText(QStringLiteral("Independent first-save body C\nother exact line"));
+	expect(windowB->review_editor()->rejected_candidate() && windowC->review_editor()->rejected_candidate()
+			   && windowB->review_editor()->rejected_candidate()->Scope == windowC->review_editor()->rejected_candidate()->Scope
+			   && windowB->review_editor()->rejected_candidate()->Command.Id != windowC->review_editor()->rejected_candidate()->Command.Id,
+		   "same-authority concurrent authors retain separate pending placeholder commands");
+	releaseDraftSaves();
+	wait_for([&] {
+		return windowB->review_editor()->shown_draft()->Id.value() <= core::maximum_private_identity
+			&& windowC->review_editor()->shown_draft()->Id.value() <= core::maximum_private_identity
+			&& windowB->review_editor()->shown_draft()->Body == "Independent first-save body B\nexact later line"
+			&& windowC->review_editor()->shown_draft()->Body == "Independent first-save body C\nother exact line"
+			&& !windowB->review_editor()->rejected_candidate() && !windowC->review_editor()->rejected_candidate();
+	},
+			 "both concurrent first saves acknowledge their own exact durable content");
+	const auto independentB = *windowB->review_editor()->shown_draft();
+	const auto independentC = *windowC->review_editor()->shown_draft();
+	expect(independentB.Id != independentC.Id && independentB.Anchor == independentC.Anchor, "authored siblings keep distinct durable identities at the same anchor");
+	windowB->review_editor()->body_editor()->setPlainText(QStringLiteral("Independent B edited again"));
+	wait_for([&] { return windowB->review_editor()->shown_draft()->Body == "Independent B edited again" && !windowB->review_editor()->rejected_candidate(); }, "independent author can edit after the first-save race");
+	expect(windowC->review_editor()->shown_draft() == independentC && windowC->review_editor()->body_editor()->toPlainText() == QStringLiteral("Independent first-save body C\nother exact line"), "later sibling edit cannot replace independently authored text");
+	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
+			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
+		   "both authors return to the original shared comment");
+	wait_for([&] { return windowB->review_editor()->shown_draft() == sharedDraft && windowC->review_editor()->shown_draft() == sharedDraft; }, "original shared identity and content remain selectable after the race");
 	// Queue the sibling write before starting a different-file request. Observe
 	// action transitions throughout delivery, including before Git completes.
 	auto*      pendingReceiptAction            = action(*windowC, "toggleSelectedFileReadAction");

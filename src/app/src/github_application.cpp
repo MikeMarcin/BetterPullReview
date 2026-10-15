@@ -11522,7 +11522,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SharedDrafts  = owner->Host;
 			auto attached = SharedDrafts->attach(SharedDrafts->authority(), DraftWindow,
 												 [this](const core::revisioned_review_draft& aAccepted) {
-													 if (!Closing && ReviewDraft && ReviewDraft->Id == aAccepted.Draft.Id) {
+													 // [[BPR-1521]]. A sibling's first save replaces only
+													 // our untouched selection at this exact anchor. A local
+													 // candidate keeps its own first-save acknowledgement.
+													 const auto* editor    = Window ? Window->review_editor() : nullptr;
+													 const auto  untouched = ReviewDraft && ReviewDraft->Id.value() > core::maximum_private_identity
+														 && core::unused_review_draft({ *ReviewDraft, ReviewDraftRevision, DraftScope })
+														 && aAccepted.Scope == DraftScope && aAccepted.Draft.Id.value() <= core::maximum_private_identity
+														 && aAccepted.Draft.Anchor == ReviewDraft->Anchor && aAccepted.Draft.ReplyToThread == ReviewDraft->ReplyToThread
+														 && (aAccepted.Draft.State == core::review_draft_state::drafting || aAccepted.Draft.State == core::review_draft_state::publishing)
+														 && !PrivateDraftCommandPending && editor && !editor->rejected_candidate() && editor->shown_draft() == ReviewDraft;
+													 if (!Closing && ReviewDraft && (ReviewDraft->Id == aAccepted.Draft.Id || untouched)) {
 														 accept_shared_draft(aAccepted);
 													 } else {
 														 present_saved_drafts();

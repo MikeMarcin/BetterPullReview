@@ -1,0 +1,96 @@
+{
+  "assignment": "BPR-1521 followup in /root/bpr1520",
+  "mandate_revision": "coordinator-2026-10-14-integrated-sibling-regression-r1",
+  "baseline": "3c24b9ec834fcafc87af05680f9f2799708b4267",
+  "branch": "fix/bpr-1520-sibling-materialization",
+  "claim": "730071a0815ffea4d4661e2fc87fe0c08c6850c2",
+  "diagnosis": "Runtime-only per-window placeholders have different IDs; exact-ID-only draft subscription ignores first durable identity in untouched siblings.",
+  "plan": "docs/rfcs/plans/bpr-1521-sibling-first-save/milestone-plan.json",
+  "prior_acceptance": "BPR-1520 Done acceptance preserved without edits.",
+  "commands": {
+    "running": [],
+    "review_server": null,
+    "ownership": "All task-owned builds/tests finished; no command stopped by pattern. Main build/source never touched.",
+    "build": "cmake --build --preset dev --parallel 4 --target test_profile_multi_window_public_path test_label_publication_recovery test_better_pull_review_qt_review_draft_editor_tests test_private_review_host",
+    "baseline_test": "ctest --preset dev --output-on-failure -R '^application_profile_multi_window_public_path$'",
+    "candidate_tests": "ctest --preset dev --output-on-failure -R '^(application_profile_multi_window_public_path|application_label_publication_recovery|application_private_review_host|qt_review_draft_editor)$'",
+    "final_multiwindow": "ctest --preset dev --output-on-failure -R '^application_profile_multi_window_public_path$'",
+    "composition": "ctest --preset dev --output-on-failure -R '^application_review_round_trip_composition_contract$'"
+  },
+  "next_action": "Commit explicit source/plan/evidence paths; finish BPR-1521 with criterion acceptance. Preserve original BPR-1520 acceptance. Hand commits to coordinator.",
+  "ownership": "Own isolated worktree only; main untouched; no owner profile, remote or desktop effects.",
+  "status": "source correction verified; canonical finish next",
+  "source_candidate": "product commit containing this checkpoint, exact app digest d98659783b358427b58a234561362ecd0b8223f2e9d8b833f0d8388ea9e00762",
+  "changed_paths": [
+    "src/app/src/github_application.cpp",
+    "tests/end_to_end/profile_multi_window_public_path_tests.cpp",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "docs/architecture/review-ledger.md",
+    "docs/issues/30-in-progress/BPR-1521-share-first-saved-draft-with-sibling-window.md",
+    "docs/issues/_checkpoints/BPR-1521",
+    "docs/rfcs/plans/bpr-1521-sibling-first-save/MILESTONES.md"
+  ],
+  "implementation": "Untouched runtime placeholder follows durable active comment only with core-unused predicate, exact runtime scope/anchor/reply, matching shown selection, no candidate or pending save. Ordinary real-ID updates and authored acknowledgements unchanged.",
+  "verification": {
+    "baseline": "Original composed failure reproduced31.78s on3c24b9ec8.",
+    "multiwindow": "Final expanded composed course passed23.20s; exact identity/body, bidirectional sharing, unrelated anchor, held concurrent first saves and subsequent isolation.",
+    "recovery": "application_label_publication_recovery passed22.25s on unchanged production source, including failed/unknown publishing, navigation, app reconstruction/restart.",
+    "private_host": "application_private_review_host passed4.68s; atomic save/refusal and durable recovery.",
+    "editor": "qt_review_draft_editor passed0.45s; first-save identity remap/coalescing.",
+    "composition": "application_review_round_trip_composition_contract passed3.52s; mutation-branch pin unchanged.",
+    "format": "clang-format22.1.8 dry-run passed for both changed C++ files.",
+    "documentation": "DOCUMENTATION_OK and67 script tests passed; scoped board validation valid1511cards.",
+    "review": "Complete changed-source self-review over3c24b9ec8; no independent/human or Windows/Linux native acceptance claimed.",
+    "intermediate_failure": "Expanded test initially typed before asynchronous new-anchor selection finished; original sharing assertions passed. Final test waits shown Anchor == accepted public semantic selection before typing. Production source did not change after the initial candidate build."
+  },
+  "evidence_logs": {
+    "/tmp/bpr1521-baseline-public.log": {
+      "sha256": "64fab0065696a8d7bc62b97dac21147c3ac5bf881db8169dd1ac0802bf402f07",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-candidate-build.log": {
+      "sha256": "a2d27990f9dc57be40d4bc9f12f4adabd75a434d259c1e57ebd4b9760549abc7",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-candidate-tests.log": {
+      "sha256": "489beea5557cd3a309a93171fa4238ff1b89af102b83f2c47ed38079c6b6c4f1",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-race-build.log": {
+      "sha256": "c8b58e94ec64b43c046cd4e95bf44080ae7c50dd51fb7cd4f0710d1a816fa642",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-final-multiwindow.log": {
+      "sha256": "bef11f8257ca929a98d011e170704f221b0e1a213c664d9091c4167b329ec106",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-composition-contract.log": {
+      "sha256": "b381d1819a036db434cb7033b5bc7340ab45d152c2351f8d89c05d6070f75806",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-pinned-digests.log": {
+      "sha256": "6029f89645b7839b9e12f7f40477f93017c5084975107e23e2854b73ccc8583c",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-format.log": {
+      "sha256": "639120e260ace10f50a44d386785d1ddfb0c4de5113d50fdf9dd96886796afc6",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-doc-tests.log": {
+      "sha256": "4680b0f6d6b56ad07229c0ac9dff2ab91ea08b037643d153f88ae3a9290e86b8",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-board-validation.log": {
+      "sha256": "a939b034f4319fedba104ed638c99b5477fd42413fce1652d96caec824e3b817",
+      "retention": "task-owned local evidence; synthetic fixture only"
+    }
+  },
+  "pending": [
+    "Canonical BPR-1521 finish and final exact commit checkpoint.",
+    "Coordinator integration with current main1515/1519, combined-source composition pin reseal and focused integration check."
+  ]
+}

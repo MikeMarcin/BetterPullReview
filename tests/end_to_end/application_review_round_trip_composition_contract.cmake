@@ -6,6 +6,13 @@
 # delivery replaces the existing Accept gesture; repeated Accept proves no
 # revoke and the explicit button still exercises the inverse. No production
 # composition, grant, provider or mutation-branch change.
+# BPR-1521 scoped self-review over 3c24b9ec8: the only new production
+# manifest change is the shared draft subscription in github_application.cpp.
+# An unused runtime placeholder follows a committed active draft only at the
+# exact scope/anchor/reply, with no candidate or save pending and matching
+# displayed selection. Authored concurrent first saves retain their identities.
+# Existing durable-before-projection and first-save acknowledgements are kept;
+# no publication, provider, credential, grant or mutation branch change.
 # Testing-note integration reseal, baseline583eb4689 through e8884475d.
 # BPR-1507 changes only the fixture acceptance presenter; BPR-1514 projects
 # pending startup and gates competing setup intents through core policy.
@@ -1490,7 +1497,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d95461249330250feb791c56d6bf5cde3adc21fbb4f6beed0189023ee14ac78f"
+		"4ce2b1247f34b97f65520e651712f05f3cbfd1b5d13d679778f052473fad06b0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1706,7 +1713,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1a9c40f1ee45cd2ed72c2d87acd61eb7e3b9c542b08f0bec26177cd05116ac95"
+        "66063b69ac898abdf2dc7a6ef4016faa2a81be88060519fd339ab4c21856aaa1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

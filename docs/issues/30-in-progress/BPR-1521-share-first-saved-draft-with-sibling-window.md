@@ -23,3 +23,18 @@ The combined application_profile_multi_window_public_path check fails at “acce
 ## Coordination
 
 Correct this before declaring the combined testing-note batch accepted. The BPR-1520 implementer owns diagnosis and the bounded correction; main integration remains coordinator-owned. No owner profile, live GitHub review, desktop or browser data is inspected or changed. Follow existing layer boundaries and frontend-design requirements for any UX edits.
+
+## Diagnosis and correction
+
+The isolated integrated baseline `3c24b9ec834fcafc87af05680f9f2799708b4267` reproduced the original composed failure at “accepted draft edit reaches sibling editor” in 31.78 seconds. The shared host correctly keeps each empty selection runtime-only; the application subscription previously followed only an identical draft ID.
+
+The subscription now permits an untouched runtime-only selection to follow a committed active draft in the same runtime scope, exact source anchor and reply target. It requires the core's unused-draft predicate, a durable incoming identity, matching displayed selection, no local candidate and no save pending. Existing real-ID updates keep their ordinary conflict/acknowledgement path. A simultaneous author retains its own first-save acknowledgement and distinct saved comment. The host's full authority admission and durable-before-projection ordering are unchanged.
+
+## Verification and source review
+
+- `application_profile_multi_window_public_path` passes with its original bidirectional body assertions. Additional assertions prove separate runtime placeholders become the same exact durable record, unrelated anchors remain untouched, and two same-anchor authors held behind the real persistence lane keep distinct durable identities and exact multiline bodies. A subsequent edit preserves the other author's saved text; both can select the original shared comment again. New line-selection steps wait for the actual accepted draft anchor before typing.
+- `application_private_review_host`, `qt_review_draft_editor` and `application_label_publication_recovery` pass on the same production source. These retain first-save atomic failure/coalescing, scoped identity refusal, rejected/indeterminate publication, refresh/navigation and application reconstruction/restart evidence. The final multiwindow rerun changes only the test's waits for asynchronous selection completion.
+- `application_review_round_trip_composition_contract` passes after scoped self-review and resealing the full application/manifest pins. Only the shared subscription in `github_application.cpp` changes in the production manifest over `3c24b9ec8`; no provider, publication grant, credential route, source inventory or mutation branch changes. The production mutation-branch digest remains `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
+- Clang-format 22 and the documentation gate pass; all 67 documentation script tests pass. The frontend-design skill was already loaded for the underlying native editor work; this followup changes no layout or copy. Automated native Qt interaction runs offscreen on macOS. Windows/Linux native execution and independent/human review are not claimed.
+
+BPR-1520's historical acceptance and checkpoint remain unchanged. No owner profile, real review, live GitHub, desktop or browser data was read or modified. Main integration and the combined-source pin reseal remain with the coordinator.
