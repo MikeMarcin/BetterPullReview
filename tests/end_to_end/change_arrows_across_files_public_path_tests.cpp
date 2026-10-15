@@ -214,6 +214,18 @@ namespace {
 		}
 	}
 
+	void check_group_cursor(qt::workbench_window& aWindow, const core::change_group& aGroup, int& aOrigins)
+	{
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			const auto span = side == core::diff_side::left ? aGroup.Left : aGroup.Right;
+			if (!span.empty()) {
+				check_cursor_action(aWindow, side, span.Begin, true);
+				check_cursor_action(aWindow, side, span.Begin, false);
+				aOrigins += 2;
+			}
+		}
+	}
+
 	/// \brief Exercises unchanged line origins, both directions and viewport reveal.
 	void check_cursor_navigation(qt::workbench_window& aWindow, int& aOrigins, bool& aUnequal)
 	{
@@ -233,6 +245,8 @@ namespace {
 			aOrigins += 4;
 			aUnequal = aUnequal || segment.Left.Begin != segment.Right.Begin;
 		}
+		check_group_cursor(aWindow, result->Alignment.Groups.front(), aOrigins);
+		check_group_cursor(aWindow, result->Alignment.Groups.back(), aOrigins);
 		// Leave the original arrow walk at its documented first-group origin.
 		expect(surface.restore_selection(*core::select_group(*surface.current_semantic_index(), result->Alignment.Groups.front().Id)), "course restores its first-group starting point");
 	}
