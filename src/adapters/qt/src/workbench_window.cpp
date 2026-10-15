@@ -1727,6 +1727,8 @@ namespace bpr::qt {
 			QStringLiteral("workbenchStripFilePosition"),
 			QStringLiteral("File position"),
 			QStringLiteral("The selected file's position among the actionable files"));
+		// [[BPR-1519]]. Keep each label beside its arrows inside the stable counter slot.
+		FilePositionLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		FilePositionAction = rowWidget(
 			ReviewBar, FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
 		ReviewBar->addAction(Navigation[0].Action);
@@ -1736,6 +1738,7 @@ namespace bpr::qt {
 			QStringLiteral("workbenchStripChangePosition"),
 			QStringLiteral("Change position"),
 			QStringLiteral("The selected change's position among the comparison's changes"));
+		ChangePositionLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		ChangePositionAction = rowWidget(
 			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		ReviewBar->addAction(Navigation[2].Action);

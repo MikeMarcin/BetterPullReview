@@ -5723,6 +5723,90 @@ namespace {
 		return computed_comparison(left, right);
 	}
 
+	/// \brief [[BPR-1519]]. Measures the last strong text pixel, excluding the rail below it.
+	[[nodiscard]] auto navigation_label_ink_right(QLabel& aLabel) -> qreal
+	{
+		const auto raster   = aLabel.grab().toImage();
+		const auto scale    = raster.devicePixelRatio();
+		const auto ink      = aLabel.palette().color(QPalette::WindowText);
+		const auto paper    = aLabel.palette().color(QPalette::Window);
+		const auto distance = [](const QColor& aLeft, const QColor& aRight) {
+			return std::abs(aLeft.red() - aRight.red()) + std::abs(aLeft.green() - aRight.green()) + std::abs(aLeft.blue() - aRight.blue());
+		};
+		for (auto x = raster.width() - 1; x >= 0; --x) {
+			for (auto y = qRound(2 * scale); y < qRound((aLabel.height() - 4) * scale); ++y) {
+				const auto pixel = raster.pixelColor(x, y);
+				if (distance(pixel, ink) < distance(pixel, paper)) {
+					return static_cast<qreal>(x + 1) / scale;
+				}
+			}
+		}
+		expect(false, "the navigation label raster contains visible text");
+		return 0.0;
+	}
+
+	/// \brief [[BPR-1519]]. Actual label ink stays beside the arrows inside their stable slots.
+	void test_navigation_label_spacing()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		if (const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expected.isEmpty()) {
+			expect(std::abs(window.devicePixelRatioF() - expected.toDouble()) < 0.001, "navigation labels render at the expected scale");
+		}
+		const auto emptyLabels = std::array{ window.file_position_label(), window.change_position_label() };
+		const auto arrows      = navigation_actions(window);
+		for (auto index = std::size_t{ 0 }; index < emptyLabels.size(); ++index) {
+			auto* const label   = emptyLabels[index];
+			const auto  aligned = label->alignment();
+			label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+			const auto oldGap = window.review_bar()->widgetForAction(arrows[index * 2])->x() - label->x() - navigation_label_ink_right(*label);
+			expect(oldGap > 12.0, "negative control: left-aligned text in the reserved counter slot fails the spacing bound");
+			std::cout << "navigation-label-spacing old_gap=" << oldGap << " group=" << index << '\n';
+			label->setAlignment(aligned);
+		}
+		const auto diff = separated_changes(11U);
+		for (const auto available : { 1'280, platform_floor_width() }) {
+			window.resize(available, 820);
+			process_events();
+			for (const auto selected : { false, true }) {
+				if (selected) {
+					publish_positioned_review_bar(window);
+					auto* const surface = window.comparison_surface();
+					surface->set_loading(request_context(diff));
+					surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(diff), .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+					expect(surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop), "selected spacing state opens a real change");
+					window.publish(every_primary_command_offered());
+				} else {
+					window.comparison_surface()->clear();
+					window.publish(application::workbench_projection{ .Selection = core::workbench_selection_delta{ } });
+				}
+				process_events();
+				auto       gaps    = std::array<qreal, 2>{ };
+				const auto labels  = std::array{ window.file_position_label(), window.change_position_label() };
+				const auto actions = navigation_actions(window);
+				for (auto index = std::size_t{ 0 }; index < labels.size(); ++index) {
+					auto* const label = labels[index];
+					auto* const arrow = window.review_bar()->widgetForAction(actions[index * 2]);
+					gaps[index]       = arrow->x() - label->x() - navigation_label_ink_right(*label);
+					expect(gaps[index] >= 4.0 && gaps[index] <= 12.0, "rendered navigation text ends within twelve logical pixels of its first arrow");
+					expect(label->isVisible() && label->text().startsWith(index == 0 ? QStringLiteral("File") : QStringLiteral("Changes"))
+							   && !label->text().contains(QChar{ 0x2026 }) && !label->geometry().intersects(arrow->geometry()),
+						   "both navigation names remain whole and separate from their controls");
+					expect(label->focusPolicy() == Qt::NoFocus && !label->accessibleName().isEmpty() && !label->accessibleDescription().isEmpty(),
+						   "navigation labels retain their noninteractive accessible identity");
+				}
+				expect(std::abs(gaps[0] - gaps[1]) <= 2.0, "File and Changes use consistent rendered spacing");
+				std::cout << "navigation-label-spacing width=" << window.width() << " scale=" << window.devicePixelRatioF()
+						  << " selected=" << selected << " file_gap=" << gaps[0] << " changes_gap=" << gaps[1] << '\n';
+				save_render(window, QStringLiteral("navigation-labels-%1-%2").arg(selected ? QStringLiteral("selected") : QStringLiteral("empty")).arg(available));
+			}
+		}
+		window.hide();
+	}
+
 	/// \brief [[BPR-1385]]. Text changes must not move the controls under the pointer.
 	void test_review_bar_geometry_is_stable_while_working()
 	{
@@ -15335,6 +15419,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
+		test_navigation_label_spacing();
 		test_compact_icon_row_preserves_exact_order_and_edges();
 		test_title_row_settles_on_content_publication();
 		test_open_on_github_beside_the_title();
@@ -15432,6 +15517,7 @@ auto main(int argc, char** argv) -> int
 	test_strip_modalities_positions_and_account();
 	test_title_row_settles_on_content_publication();
 	test_strip_identity_stays_at_every_width();
+	test_navigation_label_spacing();
 	test_review_bar_geometry_is_stable_while_working();
 	test_the_review_bar_yields_dates_then_words();
 	test_the_floor_follows_the_review_bar();
