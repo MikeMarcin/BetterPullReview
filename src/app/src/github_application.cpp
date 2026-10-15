@@ -11218,6 +11218,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return true;
 		}
 
+		struct pending_unsent_reply_commands
+		{
+			std::shared_ptr<application::shared_draft_application_host> Owner;
+			application::shared_draft_consumer                          Consumer;
+			// One exact admitted command per draft in the bounded owner. A
+			// later explicit action on that draft replaces its pending intent.
+			std::map<core::review_draft_id, core::revisioned_review_draft_command> Commands;
+		};
+		std::optional<pending_unsent_reply_commands> PendingUnsentReplyCommands;
+
+		void change_unsent_reply(const core::revisioned_review_draft_command& aCommand)
+		{
+			const auto owner    = SharedDrafts;
+			const auto consumer = DraftConsumer;
+			PrivateReview->change_draft(aCommand, [this, owner, consumer](auto aCommit) {
+				if (!Closing && owner == SharedDrafts && consumer == DraftConsumer && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					present_saved_drafts();
+				}
+			});
+		}
+
+		/// [[BPR-1527]]. A visible kept reply can be acted on while a reread
+		/// reopens its private store. Keep its original command and CAS; a
+		/// different owner, consumer or draft revision never inherits it.
+		void flush_unsent_reply_commands()
+		{
+			if (!PendingUnsentReplyCommands) {
+				return;
+			}
+			if (Closing || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+				PendingUnsentReplyCommands.reset();
+				return;
+			}
+			if (!PrivateReview || !PrivateDraftsReady || !PrivateReview->binding()) {
+				return;
+			}
+			auto pending = std::exchange(PendingUnsentReplyCommands, std::nullopt);
+			for (const auto& [id, command] : pending->Commands) {
+				if (Closing || pending->Owner != SharedDrafts || pending->Consumer != DraftConsumer) {
+					return;
+				}
+				const auto current = SharedDrafts->read(DraftConsumer, id);
+				if (current.Accepted && current.Accepted->Revision == command.ExpectedRevision && current.Accepted->Scope == command.Scope) {
+					change_unsent_reply(command);
+				}
+			}
+		}
+
 		/// \brief [[BPR-1374]]. A kept reply's note: its words become a new
 		/// comment on its line, or it is discarded. Decided by the core
 		/// against the threads the server holds now; nothing is published.
@@ -11236,13 +11284,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!command) {
 				return;
 			}
-			if (PrivateReview && PrivateDraftsReady) {
-				const auto owner = SharedDrafts;
-				PrivateReview->change_draft(*command, [this, owner](auto aCommit) {
-					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
-						present_saved_drafts();
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || !PrivateReview->binding()) {
+					if (!PendingUnsentReplyCommands || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+						pending_unsent_reply_commands pending;
+						pending.Owner              = SharedDrafts;
+						pending.Consumer           = DraftConsumer;
+						PendingUnsentReplyCommands = std::move(pending);
 					}
-				});
+					PendingUnsentReplyCommands->Commands.insert_or_assign(aDraft, *command);
+				} else {
+					change_unsent_reply(*command);
+				}
 				return;
 			}
 			if (const auto outcome = SharedDrafts->apply(DraftConsumer, *command); !outcome.Failure && outcome.Accepted) {
@@ -11537,6 +11590,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (SharedDrafts && SharedDrafts->authority() == authority) {
 				return true;
 			}
+			PendingUnsentReplyCommands.reset();
 			if (SharedDrafts) {
 				SharedDrafts->detach(DraftConsumer);
 			}
@@ -12923,6 +12977,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							present_review_draft(*SelectedSemanticSelection);
 						}
 						resume_reply();
+						flush_unsent_reply_commands();
 					} else {
 						PrivateDraftsReady = false;
 					}
@@ -14123,6 +14178,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				suspend_review_tour();
 			}
 			if (retiresLedger) {
+				PendingUnsentReplyCommands.reset();
 				retire_review_ledger();
 				retire_review_mutation_host();
 				if (SharedDrafts) {
@@ -18546,12 +18602,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				passed,
 				failed,
 			};
-			detail::reply_draft_probe_evidence       Evidence;
-			std::optional<core::review_draft_id>     Draft;
-			detail::review_mutation_fixture_evidence Before;
-			std::size_t                              Waited = 0U;
-			phase                                    Phase  = phase::awaiting_file;
-			std::string                              Diagnostic;
+			detail::reply_draft_probe_evidence                Evidence;
+			std::optional<core::review_draft_id>              Draft;
+			detail::review_mutation_fixture_evidence          Before;
+			std::size_t                                       Waited = 0U;
+			phase                                             Phase  = phase::awaiting_file;
+			std::string                                       Diagnostic;
+			std::optional<QScopeGuard<std::function<void()>>> PrivateEffectsHold;
+			bool                                              HeldDiscard = false;
 		};
 		std::optional<reply_draft_probe_state> ReplyDraftProbe;
 		// [[BPR-1478]]. The course in which a reread lands just after the
@@ -29292,6 +29350,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.PrivateEffectsHold.reset();
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
@@ -29381,6 +29440,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
 		};
 		const auto finish = [&] {
+			if (aCourse == course::deleted && !probe.HeldDiscard) {
+				return fail("discard-not-held");
+			}
 			probe.Evidence.NothingSent = !sent();
 			const auto& evidence       = probe.Evidence;
 			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
@@ -29440,6 +29502,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				fixture.stage_server_root(std::string{ threadId }, std::nullopt, true);
 			} else if (aCourse == course::deleted || aCourse == course::kept) {
 				fixture.stage_server_thread_deleted(std::string{ threadId });
+			}
+			if (aCourse == course::deleted) {
+				// Hold only private storage, while the reread and visible note
+				// complete normally. Confirm must retain this exact discard.
+				probe.PrivateEffectsHold.emplace(hold_private_review_effects(aApplication));
 			}
 			window->github_refresh_action()->trigger();
 			probe.Waited = 0U;
@@ -29557,8 +29624,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (const auto stored = saved(); !stored || stored->Draft.State != core::review_draft_state::drafting) {
 				return fail("discarded-before-asked");
 			}
+			if (!probe.PrivateEffectsHold || implementation->PrivateDraftsReady || (implementation->PrivateReview && implementation->PrivateReview->binding())) {
+				return fail("discard-store-not-held");
+			}
 			yes->click();
 			QCoreApplication::processEvents();
+			const auto retained = saved();
+			probe.HeldDiscard   = retained && retained->Draft.State == core::review_draft_state::drafting;
+			probe.PrivateEffectsHold.reset();
+			if (!probe.HeldDiscard) {
+				return fail("discard-before-store-resumes");
+			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_discarded;
 			return result::pending;

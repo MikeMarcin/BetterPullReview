@@ -1,3 +1,13 @@
+# BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
+# a confirmed kept-reply action can arrive while a reread reopens private storage.
+# Retain its core-admitted command/CAS with the exact shared owner and consumer;
+# restore completion drains it, and scope replacement retires it. A later explicit
+# action on the same draft replaces its pending intent without recomputing a CAS.
+# The existing deleted-thread public course holds the private effect lane across
+# confirmation, then requires the original durable discard/zero-send evidence.
+# Native format22 and print-only digests were observed; print mode verifies nothing.
+# Focused native/control/static acceptance remains pending in the BPR-1527 checkpoint.
+# Production mutation-branch pin, provider, grant and credential admission unchanged.
 # BPR-1527 Windows0.2.2 scoped review after Mac boundary c233c7683:
 # github_application.cpp changes only test-build failure observations for
 # the already-scoped UIforETW probe and label authoring. No new source body,
@@ -1522,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8656771498362b6676d23e5c41dcc124ae2512ae403821041dae376a64f0e2d0"
+		"e9ba51661ca432bfa72bde3016dad69084a042fd755dd7f4444c74bf0e5d2ad3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1738,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "724c7055084d928a7857161ca8ee368fd468aac6b3217ba76b8a51cc4e5017c0"
+        "b1a9cabd301664576ba0df3887e719c6c7cd5196a9c591a6527a8ec8229fae64"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
