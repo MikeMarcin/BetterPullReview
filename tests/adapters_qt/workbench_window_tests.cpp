@@ -7571,6 +7571,103 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1515]]. Accept's key reaches the retained action, and never its inverse.
+	void test_file_accept_shortcut_is_accept_only_and_yields_to_editors()
+	{
+		qt::workbench_window window;
+		auto                 dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const action  = window.accept_action();
+		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		const auto  binding = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
+		const auto  press   = [&] { window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier); };
+		button->setFocus();
+		press();
+		expect(dispatched.empty() && !action->isEnabled(), "no current material offers no acceptance key");
+
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		button->setFocus();
+		process_events();
+		expect(action->shortcut() == binding && action->shortcutContext() == Qt::WindowShortcut && !action->autoRepeat()
+				   && action->isShortcutVisibleInContextMenu() && window.review_controls_menu()->actions().contains(action)
+				   && button->toolTip().contains(binding.toString(QKeySequence::NativeText)),
+			   "the existing Accept menu item and direct button expose the platform key without key repeat");
+		for (auto* const other : window.findChildren<QAction*>()) {
+			if (other != action) {
+				expect(!other->shortcuts().contains(binding), "no assembled action collides with Accept file");
+			}
+		}
+		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+			expect(!shortcut->keys().contains(binding), "no widget shortcut collides with Accept file");
+		}
+		save_render(window, QStringLiteral("file-accept-shortcut"));
+		press();
+		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
+				   && !window.review_controls_menu()->isVisible(),
+			   "actual window-system key delivery accepts exactly the current file without a menu");
+		receipt = core::apply(receipt, dispatched.back()).Receipt;
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		press();
+		expect(action->isEnabled() && action->shortcut().isEmpty() && dispatched.size() == 1U && button->isChecked(),
+			   "after acceptance repeated presses cannot dispatch the explicit Revoke action");
+		button->click();
+		expect(dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "Revoke remains available by deliberate button or menu gesture");
+		receipt          = core::apply(receipt, dispatched.back()).Receipt;
+		receipt.Excluded = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		expect(dispatched.size() == 2U && !action->isEnabled(), "excluded material preserves the canonical Accept refusal");
+		receipt.Excluded           = false;
+		auto refused               = application::project_file_receipt_actions(receipt);
+		refused.Actions[2].Enabled = false;
+		window.publish(refused);
+		press();
+		expect(dispatched.size() == 2U && !action->isEnabled(), "an explicit disabled projection keeps its refusal through key delivery and focus");
+		window.publish(application::project_file_receipt_actions(receipt));
+
+		// All editable fields keep the key, including native menu equivalents.
+		QLineEdit      line{ &window };
+		QPlainTextEdit plain{ &window };
+		QTextEdit      rich{ &window };
+		for (auto* const editor : std::array<QWidget*, 3>{ &line, &plain, &rich }) {
+			editor->show();
+			editor->setFocus();
+			process_events();
+			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "editable single and multi-line fields keep Accept's key");
+			press();
+			expect(dispatched.size() == 2U, "typing in a field cannot Accept a file");
+		}
+		line.setText(QStringLiteral("keep text editing"));
+		line.setFocus();
+		process_events();
+		window_key(window, Qt::Key_A, Qt::ControlModifier);
+		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
+		button->setFocus();
+		process_events();
+		expect(action->shortcut() == binding, "leaving an editor restores the discoverable Accept key");
+
+		window.clear_review_ledger();
+		press();
+		expect(dispatched.size() == 2U, "authority replacement clears the old file's key eligibility");
+		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		expect(dispatched.size() == 3U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material
+				   && dispatched.back().Kind == core::file_receipt_command_kind::accept,
+			   "the restored key targets only the replacement file and epoch material");
+		window.clear_review_ledger(true);
+		press();
+		expect(dispatched.size() == 3U && !action->isEnabled(), "an unavailable ledger cannot Accept through its key");
+		window.hide();
+	}
+
 	/// [[BPR-1331]]. The image an icon paints at the review bar's size.
 	[[nodiscard]] auto progress_icon_image(const QIcon& aIcon, const qreal aScale, const QIcon::Mode aMode = QIcon::Normal) -> QImage
 	{
@@ -15202,6 +15299,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
 		test_file_accept_is_one_click_and_keeps_projected_eligibility();
+		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
 		test_review_state_icon_shows_the_decided_mark();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";

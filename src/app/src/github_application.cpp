@@ -73,6 +73,7 @@
 	#include <QPainter>
 	#include <QStatusBar>
 	#include <glaze/json.hpp>
+	#include <qpa/qwindowsysteminterface.h>
 #endif
 
 // [[BPR-1179]]. BPR_AGENT_INTEGRATIONS and BPR_LOCAL_AUTOMATION are defined
@@ -26282,7 +26283,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (action == nullptr || !action->isEnabled()) {
 					return fail();
 				}
-				++probe.Gesture;
+				const auto gesture = probe.Gesture++;
 				if (action == window->accept_action()) {
 					// [[BPR-1507]]. Exercise the normal one-click presenter through
 					// the same exact command, durable host and published receipt.
@@ -26291,7 +26292,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						|| button->defaultAction() != action || button->menu() != nullptr) {
 						return fail();
 					}
-					button->click();
+					// [[BPR-1515]]. Accept uses the actual composed window's key;
+					// the inverse stays a deliberate one-click gesture.
+					window->activateWindow();
+					button->setFocus();
+					QCoreApplication::processEvents();
+					const auto acceptKey = [window] {
+	#if defined(Q_OS_MACOS)
+						if (QWindowSystemInterface::handleShortcutEvent(window->windowHandle(), 0UL, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier, 0U, 0U, 0U)) {
+							QCoreApplication::processEvents();
+							return;
+						}
+	#endif
+						for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+							QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+								window->windowHandle(), type, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier);
+							QCoreApplication::processEvents();
+						}
+					};
+					if (gesture == 3U) {
+						const auto commands = ledger->statistics().Commands;
+						acceptKey();
+						acceptKey();
+						if (ledger->statistics().Commands != commands || !ledger->retained().Accepted || !action->shortcut().isEmpty()) {
+							return fail();
+						}
+						QTextStream{ stdout } << "REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK\n";
+						button->click();
+					} else {
+						if (action->shortcut() != QKeySequence{ QStringLiteral("Ctrl+Shift+A") }) {
+							return fail();
+						}
+						acceptKey();
+					}
 				} else {
 					action->trigger();
 				}

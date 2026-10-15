@@ -1693,6 +1693,7 @@ namespace bpr::qt {
 		void               dispatch_file_selection(const QModelIndex& aIndex);
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
+		void               update_accept_file_shortcut();
 		void               classify_selected_conversation();
 		void               navigate_defect(int aDirection);
 		void               update_defect_surface();

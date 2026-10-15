@@ -217,6 +217,21 @@ if(BPR_BUILD_QT)
         target_link_libraries(better_pull_review_composition PRIVATE PkgConfig::BPR_XCB)
     endif()
     if(BUILD_TESTING)
+        # [[BPR-1515]]. The ledger course delivers the Accept key where the
+        # platform hands it to Qt, including the macOS shortcut offer.
+        if(APPLE)
+            file(GLOB bpr_ledger_qtgui_headers LIST_DIRECTORIES true
+                "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
+        else()
+            file(GLOB bpr_ledger_qtgui_headers LIST_DIRECTORIES true
+                "${Qt6Gui_DIR}/../../../include/QtGui/[0-9]*.[0-9]*.[0-9]*")
+        endif()
+        list(LENGTH bpr_ledger_qtgui_headers bpr_ledger_qtgui_header_count)
+        if(NOT bpr_ledger_qtgui_header_count EQUAL 1)
+            message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_ledger_qtgui_headers}")
+        endif()
+        target_include_directories(better_pull_review_composition SYSTEM PRIVATE
+            "${bpr_ledger_qtgui_headers}" "${bpr_ledger_qtgui_headers}/QtGui")
         target_compile_definitions(
             better_pull_review_composition
             PRIVATE

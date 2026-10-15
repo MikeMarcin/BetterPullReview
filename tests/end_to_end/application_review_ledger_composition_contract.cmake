@@ -95,6 +95,12 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence e
             )
         endif()
     endforeach()
+    if(course STREQUAL "seed")
+        string(FIND "${probe_output}" "REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK" accept_shortcut)
+        if(accept_shortcut EQUAL -1)
+            message(FATAL_ERROR "review-ledger seed omitted actual Accept-key/repeat evidence\n${probe_output}")
+        endif()
+    endif()
     string(FIND "${probe_output}" "REVIEW_LEDGER_COMPOSITION_${course_marker}_FAILED" failed)
     if(NOT failed EQUAL -1)
         message(FATAL_ERROR

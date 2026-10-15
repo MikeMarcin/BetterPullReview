@@ -1460,6 +1460,9 @@ namespace bpr::qt {
 					  QStringLiteral("&Accept"),
 					  QStringLiteral("toggleSelectedFileAcceptanceAction"),
 					  QStringLiteral("Change private acceptance for the selected exact file material."));
+		ReceiptActions[2]->setShortcutContext(Qt::WindowShortcut);
+		ReceiptActions[2]->setAutoRepeat(false);
+		ReceiptActions[2]->setShortcutVisibleInContextMenu(true);
 		receiptAction(3U,
 					  QStringLiteral("E&xclude"),
 					  QStringLiteral("toggleSelectedFileExclusionAction"),
@@ -14242,6 +14245,7 @@ namespace bpr::qt {
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
 			update_source_find_actions();
+			update_accept_file_shortcut();
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
 			}
@@ -15336,6 +15340,26 @@ namespace bpr::qt {
 		apply_public_preview_availability();
 	}
 
+	void workbench_window::update_accept_file_shortcut()
+	{
+		// [[BPR-1515]]. Accept's retained action becomes Revoke after
+		// persistence, without this binding. Removing it while editing also
+		// yields native menu equivalents without changing receipt eligibility.
+		auto* const       action  = ReceiptActions[2];
+		const auto* const focused = QApplication::focusWidget();
+		const auto* const line    = qobject_cast<const QLineEdit*>(focused);
+		const auto        editing = focused != nullptr && isAncestorOf(focused)
+			&& (editable_multi_line(focused) || (line != nullptr && !line->isReadOnly()));
+		const auto accepts = !Receipt || Receipt->Actions[2].Command.Kind == core::file_receipt_command_kind::accept;
+		action->setShortcut(accepts && !editing ? QKeySequence{ QStringLiteral("Ctrl+Shift+A") } : QKeySequence{ });
+		const auto key = action->shortcut().toString(QKeySequence::NativeText);
+		action->setToolTip(key.isEmpty() ? action->statusTip()
+										 : QStringLiteral("Accept file (%1)\n%2").arg(key, action->statusTip()));
+		if (AcceptFileButton != nullptr) {
+			AcceptFileButton->setAccessibleDescription(action->toolTip());
+		}
+	}
+
 	void workbench_window::update_receipt_actions()
 	{
 		const auto disabled = LedgerUnavailable
@@ -15400,6 +15424,7 @@ namespace bpr::qt {
 					? QStringLiteral("Include this file from Private progress before accepting it.")
 					: disabled);
 		}
+		update_accept_file_shortcut();
 		if (AcceptFileButton != nullptr) {
 			AcceptFileButton->setAccessibleName(ReceiptActions[2]->isChecked()
 													? QStringLiteral("Revoke file acceptance")

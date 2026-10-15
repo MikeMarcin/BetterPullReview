@@ -214,7 +214,11 @@ the selected exact file material and becomes **Revoke acceptance** after the
 saved receipt arrives. It is disabled while no comparison is selected, private
 progress is unavailable, or the file is excluded. The adjacent state menu keeps
 Seen, Read, acceptance and exclusion actions; use Include there before accepting
-an excluded file. Opening or seeing a file does not accept it. At the bar's right
+an excluded file. **Command+Shift+A** on macOS (**Ctrl+Shift+A** elsewhere)
+accepts the current file without opening the menu ([[BPR-1515]]). The menu and
+Accept tooltip show the key. It works outside editable text fields and never
+revokes an accepted file; use Revoke acceptance explicitly. Opening or seeing
+a file does not accept it. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
