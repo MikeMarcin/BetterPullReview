@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1539"
 title: "File and change arrows do nothing after opening another pull request from Home"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0076"]
 depends_on: []
 priority: "P1"
