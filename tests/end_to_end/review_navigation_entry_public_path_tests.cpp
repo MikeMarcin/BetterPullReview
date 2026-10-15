@@ -363,6 +363,13 @@ int main(int aArgc, char** aArgv)
 		const auto adjacent = order[command == 0U ? 1U : 3U];
 		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == adjacent && identity.ActiveTab && identity.ActiveTab->View.File == adjacent && identity.AcceptedComparison == oldPair && shown(window, adjacent) && !identity.TabPending; }, "ordinary Review file arrow escapes unavailable source on the exact pair");
 	}
+	for (const auto command : { 0U, 1U }) {
+		window.files_drawer()->contents_view()->setCurrentIndex(window.files_drawer()->contents()->index_for_file(missingFile));
+		expect(access::epoch_refresh_identity(*application).SelectedFile == missingFile, "tree chooses unavailable file before its source terminal");
+		actions[command]->trigger();
+		const auto adjacent = order[command == 0U ? 1U : 3U];
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == adjacent && identity.ActiveTab && identity.ActiveTab->View.File == adjacent && identity.AcceptedComparison == oldPair && shown(window, adjacent) && !identity.TabPending; }, "source failure arriving after ordinary file press cannot discard the queued step");
+	}
 	for (const auto command : { 1U, 0U }) {
 		window.files_drawer()->contents_view()->setCurrentIndex(window.files_drawer()->contents()->index_for_file(order[4]));
 		expect(access::epoch_refresh_identity(*application).SelectedFile == order[4], "tree gesture chooses the file before queued tab reflection");
