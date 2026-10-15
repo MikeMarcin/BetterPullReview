@@ -17,8 +17,6 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMetaObject>
-#include <QPaintEvent>
-#include <QPainter>
 #include <QPalette>
 #include <QPushButton>
 #include <QSpinBox>
@@ -31,23 +29,6 @@
 #include <utility>
 
 namespace bpr::qt {
-	auto settings_section_band(const QPalette& aPalette) -> QColor
-	{
-		// About 1.2:1 against the surface: enough to read as a band, and in
-		// Dark (#2C3036 on #1C2026) still far from the bright strip the owner
-		// rejected. Titles keep at least 11:1 in the built-in themes.
-		constexpr auto step    = 0.08F;
-		const auto     surface = aPalette.color(QPalette::Window);
-		const auto     text    = aPalette.color(QPalette::WindowText);
-		const auto     mix     = [](const float aFrom, const float aTo) {
-			return aFrom + step * (aTo - aFrom);
-		};
-		return QColor::fromRgbF(
-			mix(surface.redF(), text.redF()),
-			mix(surface.greenF(), text.greenF()),
-			mix(surface.blueF(), text.blueF()));
-	}
-
 	namespace {
 		// The row language of RFC-BPR-0032 as RFC-BPR-0034 amends it, on the same
 		// 8-point grid the Accounts page uses. A row is one line, so its height is a
@@ -137,23 +118,6 @@ namespace bpr::qt {
 			}
 		};
 
-		/// \brief A banner strip painted from its palette's live section band.
-		///
-		/// \details Painted rather than given a palette of its own, so a theme
-		/// change reaches it through ordinary palette propagation (BPR-1513).
-		class section_band final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* const aEvent) override
-			{
-				auto painter = QPainter{ this };
-				painter.fillRect(aEvent->rect(), settings_section_band(palette()));
-			}
-		};
-
 		/// \brief One card: a header that names it and carries its Reset, and a body.
 		struct settings_card
 		{
@@ -179,10 +143,14 @@ namespace bpr::qt {
 			column->setContentsMargins(0, 0, 0, 0);
 			column->setSpacing(0);
 
-			// A band derived from the application surface and text; AlternateBase
-			// is the independently customisable code current-line fill (BPR-1513).
-			auto* const header = new section_band{ card.Frame };
+			auto* const header = new QWidget{ card.Frame };
 			header->setObjectName(aObjectName + QStringLiteral("Header"));
+			header->setAutoFillBackground(true);
+			// A native palette role, so the header tint follows every theme.
+			// `Light` is the profile's raised surface: a near-white strip in
+			// Light and a lifted, never bright, strip in Dark. AlternateBase is
+			// the code current-line fill and is not settings chrome (BPR-1513).
+			header->setBackgroundRole(QPalette::Light);
 			card.Header = new QHBoxLayout{ header };
 			card.Header->setContentsMargins(
 				card_inset, row_inset, card_inset, row_inset);
@@ -1676,8 +1644,10 @@ namespace bpr::qt {
 			column->setContentsMargins(0, 0, 0, 0);
 			column->setSpacing(0);
 			column->addWidget(make_hairline(PreviewBar));
-			auto* const foot = new section_band{ PreviewBar };
-			foot->setObjectName(QStringLiteral("appearancePreviewBarFoot"));
+			auto* const foot = new QWidget{ PreviewBar };
+			foot->setAutoFillBackground(true);
+			// The same raised surface as the card headers (BPR-1513).
+			foot->setBackgroundRole(QPalette::Light);
 			auto* const line = new QHBoxLayout{ foot };
 			line->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
 			line->setSpacing(column_gap / 2);

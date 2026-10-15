@@ -6,7 +6,6 @@
 #include "bpr/qt/colour_role_list.hpp"
 #include "bpr/qt/theme_preview_strip.hpp"
 
-#include <QColor>
 #include <QFont>
 #include <QString>
 #include <QWidget>
@@ -21,22 +20,12 @@ class QAbstractButton;
 class QCheckBox;
 class QComboBox;
 class QLabel;
-class QPalette;
 class QPushButton;
 class QSpinBox;
 
 namespace bpr::qt {
 	class appearance_profile;
 	class type_preview;
-
-	/// \brief The fill of a Settings section banner under one palette.
-	///
-	/// \details [[BPR-1513]]. The application surface moved one fixed step toward
-	/// the application text, so a banner is a distinct band in every theme yet stays
-	/// on the surface's side: dark in Dark, never a bright strip. Derived from the
-	/// two roles rather than named, so a custom or high-contrast theme gets its own
-	/// band and its titles keep their contrast.
-	[[nodiscard]] auto settings_section_band(const QPalette& aPalette) -> QColor;
 
 	/// \brief Records directly observable settings-surface activity.
 	struct appearance_settings_panel_statistics
