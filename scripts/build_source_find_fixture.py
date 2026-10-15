@@ -36,7 +36,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     recording = Path(sys.argv[1]) if len(sys.argv) > 1 else root/'tests/fixtures/github/pull-requests/source-find-v1/construction.json'
     recording.parent.mkdir(parents=True,exist_ok=True)
-    recording.write_text(json.dumps(construction(),indent='\t',sort_keys=True)+'\n',encoding='utf-8')
+    recording.write_text(json.dumps(construction(),indent='\t',sort_keys=True)+'\n',encoding='utf-8',newline='\n')
     if len(sys.argv) > 1:
         return 0
     subprocess.run([sys.executable,str(root/'scripts/build_recorded_pull_request_pack.py'),str(recording),str(recording.parent/'objects.pack')],check=True)

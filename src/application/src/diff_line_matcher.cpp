@@ -1,6 +1,5 @@
 #include "bpr/application/diff_line_matcher.hpp"
 
-#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <memory>
@@ -32,10 +31,6 @@ namespace bpr::application {
 			bool                                         Finished = false;
 			std::optional<std::vector<core::diff_match>> Result;
 		};
-
-		/// How long the caller waits between two polls of the computation's
-		/// stop: a stop returns within this, well inside the 10 ms budget.
-		constexpr auto stop_poll_interval = std::chrono::milliseconds{ 1 };
 	} // namespace
 
 	diff_line_matching::diff_line_matching(diff_line_matcher_port& aMatcher) noexcept
@@ -57,8 +52,9 @@ namespace bpr::application {
 		return result;
 	}
 
-	abandonable_diff_line_matching::abandonable_diff_line_matching(std::shared_ptr<diff_line_matcher_port> aMatcher) noexcept
+	abandonable_diff_line_matching::abandonable_diff_line_matching(std::shared_ptr<diff_line_matcher_port> aMatcher, std::stop_token aStop) noexcept
 		: Matcher{ std::move(aMatcher) }
+		, Stop{ std::move(aStop) }
 	{
 	}
 
@@ -105,19 +101,21 @@ namespace bpr::application {
 			// where a stop could not reach it.
 			return std::nullopt;
 		}
-		for (;;) {
-			{
-				auto lock = std::unique_lock{ call->Mutex };
-				if (call->Done.wait_for(lock, stop_poll_interval, [&call] { return call->Finished; })) {
-					auto result = std::move(call->Result);
-					lock.unlock();
-					aMeter.tick(request_steps(aRequest));
-					return result;
-				}
-			}
-			// Does not return when the computation was stopped: the matcher's
-			// thread is abandoned with its own copies.
-			aMeter.poll();
-		}
+		// A timed wait rounds up to the Windows timer period, which can exceed
+		// the stop budget. Synchronizing the notification with the wait mutex
+		// prevents a stop between the predicate check and the wait being lost.
+		const auto wakeOnStop = std::stop_callback{ Stop, [call] {
+													   const auto lock = std::scoped_lock{ call->Mutex };
+													   call->Done.notify_all();
+												   } };
+		auto lock = std::unique_lock{ call->Mutex };
+		call->Done.wait(lock, [this, &call] { return call->Finished || Stop.stop_requested(); });
+		auto result = std::move(call->Result);
+		lock.unlock();
+		// Poll through the core's existing predicate before accepting a result;
+		// a stopped caller abandons the matcher's independently owned state.
+		aMeter.poll();
+		aMeter.tick(request_steps(aRequest));
+		return result;
 	}
 } // namespace bpr::application

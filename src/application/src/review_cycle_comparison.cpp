@@ -139,7 +139,7 @@ namespace bpr::application {
 		};
 		// [[BPR-1485]] The host's line matcher, abandoned on a stop.
 		auto check    = stop_token_check{ aStop };
-		auto matching = abandonable_diff_line_matching{ Matcher };
+		auto matching = abandonable_diff_line_matching{ Matcher, aStop };
 		auto run      = core::compute_material_diff({ .Key = *key, .Options = aOptions, .LeftBytes = spanOf(before), .RightBytes = spanOf(after), .Limits = limits },
 													core::diff_compute_control{ .Stop = &check }, matching);
 		if (!run.Outcome.has_value() || aStop.stop_requested()) {

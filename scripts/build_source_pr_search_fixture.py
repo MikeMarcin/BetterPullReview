@@ -69,7 +69,7 @@ def make(large: bool = False) -> tuple[dict, bytes, str]:
                 run('update-index', '--cacheinfo', '120000', oid, 'unsupported/symlink')
         retain_unsupported_mode()
         run('commit','-q','-m','head');head=run('rev-parse','HEAD').stdout.strip()
-        (root/'historical/only.cpp').unlink();(root/'today').mkdir();(root/'today/only.cpp').write_text('today-only token\n')
+        (root/'historical/only.cpp').unlink();(root/'today').mkdir();(root/'today/only.cpp').write_text('today-only token\n',encoding='utf-8',newline='\n')
         run('add','-A');retain_unsupported_mode();run('commit','-q','-m','later head');second=run('rev-parse','HEAD').stdout.strip()
         names=run('diff','--name-status','-M',base,head).stdout
         if 'R100\told/name.cpp\tsrc/renamed.cpp' not in names:raise RuntimeError('exact rename absent')
@@ -102,7 +102,7 @@ def main() -> int:
     result,blob,second=make(large)
     output = arguments.output_root or root/'tests/fixtures/github'
     directory=output/'pull-requests'/name;directory.mkdir(parents=True,exist_ok=True)
-    recording=directory/'construction.json';recording.write_text(json.dumps(result,indent='\t',sort_keys=True)+'\n')
+    recording=directory/'construction.json';recording.write_text(json.dumps(result,indent='\t',sort_keys=True)+'\n',encoding='utf-8',newline='\n')
     (directory/'objects.pack').write_bytes(blob)
     subprocess.run([sys.executable,str(root/'scripts/build_recorded_pull_request_contract.py'),str(recording),str(output/'contracts/v1'/name)],check=True)
     later = copy.deepcopy(result)
@@ -116,7 +116,7 @@ def main() -> int:
     later['pull_request']['deletions'] = sum(file['deletions'] for file in later['files'])
     later['commits'][0].update(sha=second, parents=[result['pull_request']['head']['sha']])
     later_recording = directory/'later-construction.json'
-    later_recording.write_text(json.dumps(later, indent='\t', sort_keys=True)+'\n')
+    later_recording.write_text(json.dumps(later, indent='\t', sort_keys=True)+'\n',encoding='utf-8',newline='\n')
     subprocess.run([sys.executable, str(root/'scripts/build_recorded_pull_request_contract.py'), str(later_recording), str(output/'contracts/v1'/name.replace('-v1', '-later-v1'))], check=True)
     print(f"SOURCE_SEARCH_FIXTURE_OK {name} base={result['pull_request']['base']['sha']} head={result['pull_request']['head']['sha']} second={second} pack={len(blob)} bytes={result['search_fixture']['source_bytes']}")
     return 0
