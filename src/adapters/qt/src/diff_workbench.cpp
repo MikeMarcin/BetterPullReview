@@ -1264,6 +1264,8 @@ namespace bpr::qt {
 			std::optional<core::line_span>                         SelectedLines;
 			core::white_space_drawing                              WhiteSpace = core::white_space_drawing::none;
 			std::function<void()>                                  FontObserver;
+			QPointer<QTextDocument>                                CachedTextDocument;
+			QList<QTextCursor>                                     CachedTextCursors;
 			qsizetype                                              TextWashIndex     = -1;
 			std::uint64_t                                          PaintedTextWashes = 0U;
 		};
@@ -1741,11 +1743,29 @@ namespace bpr::qt {
 
 		void source_pane::paint_text(QPaintEvent* const aEvent)
 		{
-			auto       painter      = QPainter{ viewport() };
-			auto       offset       = contentOffset();
-			auto       exposed      = aEvent->rect();
-			const auto viewportRect = viewport()->rect();
-			const auto maximumWidth = document()->documentLayout()->documentSize().width();
+			// [[BPR-1525]]. Qt otherwise discards glyph layout data after a
+			// draw. Retain only this viewport's blocks, and let Qt invalidate
+			// their caches when text, font or formats change. Persistent cursors
+			// follow replacements within a document; bare QTextBlock handles
+			// become invalid when a publication clears its previous blocks.
+			if (CachedTextDocument != document()) {
+				if (CachedTextDocument) {
+					for (const auto& cachedCursor : CachedTextCursors) {
+						const auto block = cachedCursor.block();
+						if (block.isValid() && block.layout() != nullptr) {
+							block.layout()->setCacheEnabled(false);
+						}
+					}
+				}
+				CachedTextCursors.clear();
+				CachedTextDocument = document();
+			}
+			auto       visibleCursors = QList<QTextCursor>{ };
+			auto       painter        = QPainter{ viewport() };
+			auto       offset         = contentOffset();
+			auto       exposed        = aEvent->rect();
+			const auto viewportRect   = viewport()->rect();
+			const auto maximumWidth   = document()->documentLayout()->documentSize().width();
 			// As Qt does: the brush origin for wave underlines, and the right
 			// margin kept clear of a full-width selection.
 			painter.setBrushOrigin(offset);
@@ -1789,6 +1809,10 @@ namespace bpr::qt {
 					continue;
 				}
 				auto* const layout = block.layout();
+				if (layout != nullptr) {
+					layout->setCacheEnabled(true);
+					visibleCursors.push_back(QTextCursor{ block });
+				}
 				if (layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {
 					if (const auto background = block.blockFormat().background(); background != Qt::NoBrush) {
 						auto contents = rect;
@@ -1824,6 +1848,13 @@ namespace bpr::qt {
 					break;
 				}
 			}
+			for (const auto& cachedCursor : CachedTextCursors) {
+				const auto block = cachedCursor.block();
+				if (block.isValid() && std::ranges::none_of(visibleCursors, [&block](const QTextCursor& aCursor) { return aCursor.block() == block; }) && block.layout() != nullptr) {
+					block.layout()->setCacheEnabled(false);
+				}
+			}
+			CachedTextCursors = std::move(visibleCursors);
 		}
 
 		void source_pane::paint_line_numbers(QPaintEvent* const aEvent)

@@ -270,3 +270,36 @@ relies on an unrelated repeated color assignment. Text band invalidation
 continues through Qt, whose [extra-selection implementation](https://raw.githubusercontent.com/qt/qtbase/v6.11.2/src/widgets/widgets/qwidgettextcontrol.cpp)
 tracks changed selections. All complete Mac workbench scales pass after this
 change (14.46/13.85/15.43 s); Windows acceptance remains pending.
+
+Native Git classification counterexamples (r12, Git 2.55.0.windows.3) change
+only the registry's observed `kept` answer and exact Rust-refusal text in a
+disposable source edit. `ignorecase-true` fails with two unclassified findings;
+`format-compat-object-format` fails with one. Both exit 1. Restoring the exact
+source, touching it, recompiling the harness and repeating both cases yields
+zero unclassified findings and pass. The core capture assertion stays intact.
+The previous full corrected Windows harness and the full Apple Git 2.50.1
+harness pass; no unknown answer or broad pattern is suppressed.
+
+The direct contained nested-process proof prints `GRANDCHILD_TOKEN=True:appcontainer`,
+`NETWORK_ISOLATION_EXTERNAL_DENIED:10013` and
+`REAL_GRANDCHILD_TOKEN_AND_WSAEACCES_PROVED`. Runtime ACL inspection shows only
+the named `BprAutomatedTest` SID added as `(OI)(CI)(RX)` to the canonical selected
+runtime, inherited as `(RX)` by its interpreter. No all-package ACE was added.
+The complete proof and negative/positive controls are retained in
+`bpr1525-native-controls-r12.log`; all disposable source changes are restored.
+
+A disposable Windows experiment with Qt's existing layout cache reduces the
+same keyboard course from 52.38 to 37.47 s and text painting from 25.49 to
+12.18 s. The production implementation retains only visible block caches and
+disables them when they leave the viewport. It uses persistent QTextCursor
+handles: the first experimental bare-QTextBlock list intermittently crashed
+after document clearing, and a signal backtrace plus offline symbolization
+localized the stale dereference to eviction. That experiment is rejected.
+QObject lifetime is tracked, and persistent cursors follow edits within a
+surviving document. No foreground, band, selection or glyph drawing changes.
+The actual-layout regression checks nonempty cache use, a one-viewport bound
+at both scroll ends, return to the start and document clearing. Complete Mac
+scales pass at 10.65/10.67/12.25 s; three focused repeats of the previously
+intermittent scale pass. Windows acceptance is still pending. Qt's
+[layout-cache API](https://doc.qt.io/qt-6/qtextlayout.html#setCacheEnabled)
+provides the cache; no custom shaping engine is introduced.

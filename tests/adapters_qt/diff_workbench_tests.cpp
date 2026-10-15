@@ -2832,8 +2832,36 @@ namespace {
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
 			}));
 			process_events();
-			return static_cast<std::size_t>(
-				workbench.left_pane()->extraSelections().size());
+			const auto selections = static_cast<std::size_t>(workbench.left_pane()->extraSelections().size());
+			settle_geometry(workbench);
+			// [[BPR-1525]]. Glyph caching must follow the viewport rather than
+			// accumulate every row the reviewer has passed. Check the actual
+			// native layouts at both ends, including eviction of the old end.
+			const auto checkCaches = [&] {
+				for (auto* editor : { workbench.left_pane(), workbench.right_pane() }) {
+					editor->viewport()->repaint();
+					auto cached = 0;
+					auto height = std::numeric_limits<qreal>::max();
+					for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+						if (block.layout() != nullptr && block.layout()->cacheEnabled()) {
+							++cached;
+							height = std::min(height, block.layout()->lineAt(0).height());
+						}
+					}
+					expect(cached > 0 && height > 0 && cached <= qCeil(editor->viewport()->height() / height) + 2,
+						   "glyph layout caches are nonempty and bounded by one viewport after scrolling");
+				}
+			};
+			checkCaches();
+			workbench.shared_scrollbar()->setValue(workbench.shared_scrollbar()->maximum());
+			process_events();
+			checkCaches();
+			workbench.shared_scrollbar()->setValue(workbench.shared_scrollbar()->minimum());
+			process_events();
+			checkCaches();
+			workbench.clear();
+			process_events();
+			return selections;
 		};
 
 		const auto smallSelections = measure(small);
