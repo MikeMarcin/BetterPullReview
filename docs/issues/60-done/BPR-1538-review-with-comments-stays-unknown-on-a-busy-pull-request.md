@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1538"
 title: "A review with comments stays unknown on every Check status on a busy pull request"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0008"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","origin":"owner report 2026-10-15 (relayed by the coordinator), installed app, a pull request on a GitHub Enterprise Server instance","governing_rfc":"RFC-BPR-0008","related_cards":["BPR-1345","BPR-1367","BPR-0614","BPR-0615","BPR-1475"],"reservation":"docs/issues/_reservations/BPR-1538--BPR-1538--35177d881942.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"5a09d4f61","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1538-review-with-comments-stays-unknown-on-a-busy-pull-request.md","detail":"live_review_submission_provider row review_with_comments_reconciles_on_a_busy_pull_request (GitHub.com and GHES 3.18 targets, full-size GitHub-shaped pages) fails on 126ded865 at its first submit and passes at the fix; each of the three defects alone fails it at the named step."}},{"criterion":"AC2","outcome":"pass","revision":"5a09d4f61","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1538-review-with-comments-stays-unknown-on-a-busy-pull-request.md","detail":"Submit after a 504 confirms the approval over two collection pages; an unlisted review is unknown, then Check status in a later session at a pushed head confirms it with no second POST and pending() is empty."}},{"criterion":"AC3","outcome":"pass","revision":"5a09d4f61","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1538-review-with-comments-stays-unknown-on-a-busy-pull-request.md","detail":"A 504 with no review stays unknown on Check status with one POST and the attempt kept; a review holding a comment with other words stays unknown."}},{"criterion":"AC4","outcome":"pass","revision":"5a09d4f61","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1538-review-with-comments-stays-unknown-on-a-busy-pull-request.md","detail":"Live course on MikeMarcin/BPR-Test#70 (MikeMarcinTest approval with three comments over 100 earlier comments, then a push); --replay-busy-live runs the production session over GitHub's saved answers: unknown before the fix, published after, including Check status after the push. PR closed, branches deleted."}},{"criterion":"AC5","outcome":"pass","revision":"5a09d4f61","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1538-review-with-comments-stays-unknown-on-a-busy-pull-request.md","detail":"8 focused ctest rows pass on macOS; clang-format 22.1.8 check passes; clang-tidy clean on changed code; verify_documentation DOCUMENTATION_OK."}}]
 ---
 
 # BPR-1538: A review with comments stays unknown on every Check status on a busy pull request
