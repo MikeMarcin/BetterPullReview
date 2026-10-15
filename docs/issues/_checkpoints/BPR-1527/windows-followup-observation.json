@@ -3,13 +3,13 @@
   "mandate_revision": "authorized-release-continuation-final-gates-r3",
   "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
   "release_target": "Windows0.2.2",
-  "reviewed_base": "1f34aeda2",
-  "full_application": "90371891b4a2b1c4027a83ad038231c81fbd00f1397302c1eb72541ebc1a0a44",
-  "production_app_manifest": "4c1a1b10ec69d2b20f62db3dec67940c70e1fcff3dca77810daab8da091666f1",
+  "reviewed_base": "b315ea13a",
+  "full_application": "f84cf84082f92c960f45ec9cb301af8e9c99ffd866f74a1bf44ff435bbfcd091",
+  "production_app_manifest": "dee03b5c05b5b57dd42e11a11f6d6ecf02281402912a373c5ad2113f973cc267",
   "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df",
   "digest_command": "cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=C:/Users/mikem/bpr-v021 -P tests/end_to_end/application_review_round_trip_composition_contract.cmake",
-  "digest_mode": "Local static LF-normalized bookkeeping; canonical native CMake agreement and normal pinned roundtrip still pending",
-  "changed_source_scope": "Application lifecycle: abandon obsolete tab presentation on accepted handoff; no visual/action/mutation/grant branch change",
-  "native_next": "Native label/submission100/refresh-pick/roundtrip acceptance after current r25 performance baseline/profile quiescence",
-  "acceptance": "Navigation original course passed93.92s exactf0e; current production restart not built/tested yet"
+  "digest_mode": "Local LF-normalized static bookkeeping; next native canonical CMake agreement and normal pinned round-trip pending",
+  "changed_source_scope": "Application lifecycle: abandon obsolete presentation on accepted handoff; translate retained first core Chosen to existing typed open after exact comparison/catalogue admission. No Qt visual/action/mutation/grant branch change.",
+  "native_next": "After r27 temporary performance trial restoration, native first-file submission3 plus tab/navigation/refresh/roundtrip controls; all serialized PC",
+  "acceptance": "94ff label16.05/heldrefresh13.00/fileswitch20.10/roundtrip8.11 passed; current first-file patch not yet built/tested."
 }
