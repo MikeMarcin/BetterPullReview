@@ -1882,7 +1882,7 @@ namespace bpr::adapters::github::detail {
 			.WorkingDirectory        = path_bytes(Configuration.NeutralWorkingDirectory),
 			.StandardInput           = aRequest.Wire.Body,
 			.StandardInputLimit      = maximum_review_mutation_body_bytes,
-			.StandardOutputLimit     = maximum_review_mutation_response_bytes + 32U * 1024U,
+			.StandardOutputLimit     = maximum_review_mutation_wire_response_bytes(aRequest.Wire.Operation) + 32U * 1024U,
 			.StandardErrorLimit      = maximum_standard_error_bytes,
 			.Timeout                 = process_timeout,
 			.ReapTimeout             = process_reap_timeout,
@@ -1913,7 +1913,9 @@ namespace bpr::adapters::github::detail {
 			return github_mutation_wire_error{ .Transmission = sent };
 		}
 		auto response = parse_gh_cli_response(result->StandardOutput);
-		if (!response || response->Body.size() > maximum_review_mutation_response_bytes
+		// [[BPR-1538]]. A page of the review list or comment collection may
+		// be larger than any other answer here.
+		if (!response || response->Body.size() > maximum_review_mutation_wire_response_bytes(aRequest.Wire.Operation)
 			|| (result->ExitCode != 0 && response->Status < 300)) {
 			return github_mutation_wire_error{ .Transmission = sent };
 		}
