@@ -1,3 +1,9 @@
+# Final testing-note integration through bcb2eed79. BPR-1506 submits the
+# existing Seen command only after exact visible Review material admission,
+# with generation, tab and authority rechecks. Hidden/stale loading cannot mark
+# a receipt; explicit unread remains until reopening. No new publication grant,
+# provider route or production mutation branch change. Earlier integration
+# review notes below remain bound to their respective changes.
 # BPR-1517/1518 integration reseal: ordinary file navigation retains the
 # exact accepted order through source failure, while entry navigation still
 # restores reading. Cursor-relative change navigation uses the accepted semantic
@@ -1497,7 +1503,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4ce2b1247f34b97f65520e651712f05f3cbfd1b5d13d679778f052473fad06b0"
+		"437518c20608d2143a9ad2eebcc4acae04af7f885e5bfbcdfdc961bdf6d042bc"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1713,7 +1719,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "66063b69ac898abdf2dc7a6ef4016faa2a81be88060519fd339ab4c21856aaa1"
+        "3efe79904670dc67b398fb28c52a72ac143a49ff6ac9e307583631dbeb682577"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
