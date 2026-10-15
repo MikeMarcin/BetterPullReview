@@ -1,0 +1,154 @@
+{
+  "run_id": "bpr1519",
+  "segment_id": "initial",
+  "mandate_revision": "owner-2026-10-14-label-spacing-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "navigation-label-spacing",
+  "binding": {
+    "plan_id": "bpr-1519-navigation-label-spacing",
+    "plan_path": "docs/rfcs/plans/bpr-1519-navigation-label-spacing/milestone-plan.json",
+    "milestone_id": "navigation-label-spacing",
+    "definition_fingerprint": "sha256:a6f39b9fcf28216049575a3b7f8cf023b52d0fbb0b547489a7d76c57feaeae17",
+    "obligations": [
+      {
+        "id": "BPR-1519:*",
+        "source": "BPR-1519",
+        "selector": null,
+        "source_fingerprint": "sha256:8f435a977c77cc2c5e5d2031b0a03b8b1910c8e304c2521be3743c9bddefcaab"
+      }
+    ],
+    "obligation_fingerprint": "sha256:91ea61a803a814f970dbb05f395fa0292ae7e3f60b969ddeb43291fce117e992",
+    "exit_criteria": [
+      {
+        "id": "navigation-label-spacing:exit:1",
+        "text": "AC1: File and Change labels sit close enough to their corresponding navigation controls to read as clear groups, without the current excessive gap."
+      },
+      {
+        "id": "navigation-label-spacing:exit:2",
+        "text": "AC2: Both groups retain consistent spacing and alignment at normal and narrow supported window widths and supported display scaling, without overlap or clipped text."
+      },
+      {
+        "id": "navigation-label-spacing:exit:3",
+        "text": "AC3: Navigation, focus order, accessible label relationships and existing control hit targets remain correct."
+      },
+      {
+        "id": "navigation-label-spacing:exit:4",
+        "text": "AC4: Verify the actual offscreen rendered navigation area at representative widths/scales and exercise its existing controls."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "b840720f5b85cbc7a283363316f006b760316b17",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+    "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+    "build/bpr1519-evidence/qt-scale-100.log",
+    "build/bpr1519-evidence/qt-scale-125.log",
+    "build/bpr1519-evidence/qt-scale-200.log",
+    "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1519:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+        "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+        "build/bpr1519-evidence/qt-scale-100.log",
+        "build/bpr1519-evidence/qt-scale-125.log",
+        "build/bpr1519-evidence/qt-scale-200.log",
+        "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+      ]
+    },
+    {
+      "id": "navigation-label-spacing:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+        "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+        "build/bpr1519-evidence/qt-scale-100.log",
+        "build/bpr1519-evidence/qt-scale-125.log",
+        "build/bpr1519-evidence/qt-scale-200.log",
+        "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+      ]
+    },
+    {
+      "id": "navigation-label-spacing:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+        "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+        "build/bpr1519-evidence/qt-scale-100.log",
+        "build/bpr1519-evidence/qt-scale-125.log",
+        "build/bpr1519-evidence/qt-scale-200.log",
+        "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+      ]
+    },
+    {
+      "id": "navigation-label-spacing:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+        "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+        "build/bpr1519-evidence/qt-scale-100.log",
+        "build/bpr1519-evidence/qt-scale-125.log",
+        "build/bpr1519-evidence/qt-scale-200.log",
+        "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+      ]
+    },
+    {
+      "id": "navigation-label-spacing:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/60-done/BPR-1519-file-change-label-control-spacing.md",
+        "docs/issues/_checkpoints/BPR-1519/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+        "build/bpr1519-evidence/qt-scale-100.log",
+        "build/bpr1519-evidence/qt-scale-125.log",
+        "build/bpr1519-evidence/qt-scale-200.log",
+        "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "integrated-boundary",
+    "detail": "BPR-1519 complete; coordinator integrates closeout commits only, having already integrated plan/claim/source."
+  },
+  "ownership": "quiescent"
+}

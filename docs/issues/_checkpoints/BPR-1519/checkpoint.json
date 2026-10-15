@@ -45,7 +45,11 @@
       "fixture": "132-line synthetic comparison,11separated groups",
       "bounded_work": "existing stable counter slots; no semantic recomputation added",
       "elapsed": "6tests21.9s; no performance guarantee"
-    }
+    },
+    "documentation_final": "Post-finish DOCUMENTATION_OK",
+    "board_final": "Scoped validation valid; no errors",
+    "self_review": "Complete review of the bounded3-line product change and raster test; native palette/font, arrow geometry and translation preserved. No additional API or effect path.",
+    "limitations": "Offscreen macOS evidence at1/1.25/2; no native Windows/Linux or independent/human review claim. No separate native/human gate is required by this card."
   },
   "commands": {
     "completed": [
@@ -56,7 +60,9 @@
       "dev configure with shared CPM and -O0 -g0",
       "Focused Qt-only build session94950 returned0",
       "Serial six-row Qt test batch session16165 returned0",
-      "Coordinator combined build/public test batch complete;6/6passed at integrated productfce3377fb"
+      "Coordinator combined build/public test batch complete;6/6passed at integrated productfce3377fb",
+      "Acceptance-driven finish b840720f5; first repeated --paths spelling was refused without mutation; one explicit list succeeded",
+      "Post-finish documentation and scoped board validation complete"
     ],
     "running": [],
     "earlier_refusal": "An initial build launched before configure had completed refused for a missing CMakeCache. The build was restarted after configure returned0.",
@@ -77,7 +83,8 @@
       "-R",
       "^qt_workbench_(title_row|focus_order)_scale_(100|125|200)$"
     ],
-    "render_prefix": "BPR_QT_RENDER_PATH=<absolute source root>/build/bpr1519-evidence/workbench-<100|125|200>.png; three serial per-scale invocations"
+    "render_prefix": "BPR_QT_RENDER_PATH=<absolute source root>/build/bpr1519-evidence/workbench-<100|125|200>.png; three serial per-scale invocations",
+    "review_server": null
   },
   "ownership": {
     "writers": "This leaf only; other worktrees own Accept hotkey, file navigation, change cursor and divider.",
@@ -85,9 +92,9 @@
     "safety": "No owner desktop/profile/browser data or credentials touched; no live GitHub calls."
   },
   "pending": [
-    "Acceptance-driven finish and final checkpoint commit"
+    "Coordinator integrates closeout b840720f5 plus final checkpoint commit. Do not re-integrate already consumed plan/claim/source or metadata-only4338b0554."
   ],
-  "next_action": "Finish BPR-1519 with passing AC1\u2013AC4, then verify documentation/scoped board and return only closeout commits; coordinator already integrated plan/claim/source.",
+  "next_action": "Coordinator cherry-picks only the closeout commits returned in the final handoff; no further BPR-1519 engineering or human decision remains.",
   "evidence": {
     "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/qt-scale-100.log": {
       "sha256": "15164a765aa2a067b65cc3e93dde08fce362b4390e6a9ffff920a7347839cbf0",
@@ -116,11 +123,21 @@
     "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/workbench-200-navigation-labels-selected-1280.png": {
       "sha256": "f477f8852f09ef05dd473da04eaaa211d15aa7e7d37e1f63a0302d3caeaf1032",
       "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/documentation-post-finish.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "kind": "local gate evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/board-post-finish.json": {
+      "sha256": "a939b034f4319fedba104ed638c99b5477fd42413fce1652d96caec824e3b817",
+      "kind": "local gate evidence"
     }
   },
   "authorized_import": {
     "coordinator_commit": "5a105579c",
     "local_cherry_pick": "4338b0554",
     "scope": "BPR-1521 card, NEXT_ID1522, allocation receipt only. Coordinator already owns original; do not integrate duplicate."
-  }
+  },
+  "canonical_finish": "b840720f5b85cbc7a283363316f006b760316b17",
+  "upkeep_status": "Done; accepted AC1\u2013AC4. Post-finish DOCUMENTATION_OK and scoped board validation valid."
 }
