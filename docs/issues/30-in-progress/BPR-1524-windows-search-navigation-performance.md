@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1524"
 title: "Restore Windows source navigation latency during cold PR search"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0077"]
 depends_on: ["BPR-1523"]
 priority: "P1"
