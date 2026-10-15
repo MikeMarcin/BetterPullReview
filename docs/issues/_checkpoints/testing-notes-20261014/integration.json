@@ -1,0 +1,46 @@
+{
+  "schema": "bpr.testing-note-integration.v1",
+  "mandate": "Owner testing notes, one card and implementer per note; resume, autonomous routine work",
+  "baseline": "55f4a5a510f33802cd920baf8744a10226ffd87b",
+  "integrated_head": "feeab64ba3e160f5f60fae0788c609fc20cd4603",
+  "priority": "BPR-1520 preservation/publication recovery",
+  "integrated": [
+    "BPR-1507",
+    "BPR-1508",
+    "BPR-1509",
+    "BPR-1510",
+    "BPR-1511",
+    "BPR-1512",
+    "BPR-1513",
+    "BPR-1514",
+    "BPR-1520"
+  ],
+  "active": [
+    "BPR-1505",
+    "BPR-1506",
+    "BPR-1515",
+    "BPR-1516",
+    "BPR-1517",
+    "BPR-1518",
+    "BPR-1519"
+  ],
+  "acceptance": {
+    "BPR-1512": "human-pending; canonical parked; original frozen candidate remains bound",
+    "BPR-1513": "human-pending; canonical parked; original frozen candidate remains bound",
+    "BPR-1507": "verified leaf evidence; canonical finish awaits combined checks",
+    "BPR-1520": "Done; main build and all three public recovery/restart/composition contracts pass"
+  },
+  "main_verification": {
+    "p0_build": "/tmp/bpr-coordinator-integration-build.log; exit0",
+    "p0_public": "/tmp/bpr-coordinator-p0-public-tests.log;3/3 pass,42.48seconds",
+    "combined_build": "/tmp/bpr-coordinator-combined-build.log; currently running session34110",
+    "documentation": "DOCUMENTATION_OK after batch integration",
+    "merge_resolutions": [
+      "BPR1520 issue card deduplicated equivalent owner recovery amendment, preserved AC8/diagnosis",
+      "workbench test main kept both current-file-unread and center-ribbon test branches"
+    ]
+  },
+  "source_pin": "18444c1d6 reviewed combined composition delta; existing production mutation digest unchanged",
+  "safety": "No owner profile, installed application, live review, desktop or remote publication changed",
+  "next": "Finish combined build, focused shared UI/public checks, then integrate active leaves one at a time and record final verification. Do not claim installed delivery."
+}
