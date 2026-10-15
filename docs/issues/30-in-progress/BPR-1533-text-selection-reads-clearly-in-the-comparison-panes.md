@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1533"
 title: "A text selection in the comparison panes reads as clearly as in Line details, on every line kind"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
