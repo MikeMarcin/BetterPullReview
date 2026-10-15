@@ -111,3 +111,22 @@ diagnostics. The full application and manifest pins are resealed from actual
 native print-only digests after format22; print mode verifies nothing. The
 production mutation-branch digest remains unchanged. All actual causes and
 acceptance remain pending until their normal native courses demonstrate them.
+
+
+## Accepted-refresh presentation restart (Windows follow-up)
+
+The bounded r24 native trace reproduces a second accepted same-head handoff
+while the previous tab driver is already waiting for selected material. That
+handoff retires the workbench selection, but the old driver cannot repeat its
+completed select-file stage. Its TabLoad then blocks the separately owed refresh.
+On every accepted handoff the composition abandons that obsolete presentation
+before observing the new workbench authority. The core still retains the active
+view and explicit Chosen file; the existing accepted-comparison/file-catalogue
+path issues and completes a fresh typed tab load. Completion identity, material,
+stale-view, different-head/PR and mutation guards are unchanged. This is a lifecycle
+change with no Qt visual or action surface change. Native corrected acceptance,
+changed-source strict analysis, and portable evidence remain pending.
+
+Local LF-normalized bookkeeping recomputed both full-app and ordered app-source
+manifest digests. The native canonical CMake print-only command must agree, then
+the ordinary pinned round-trip course must pass; calculating pins is not acceptance.
