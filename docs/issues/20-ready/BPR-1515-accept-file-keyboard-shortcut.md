@@ -5,7 +5,7 @@ title: "Add a keyboard shortcut for Accept File"
 status: "Ready"
 rfcs: []
 depends_on: []
-metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Need a hotkey for accept file","related_cards":["BPR-1507"]}
+metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Need a hotkey for accept file","related_cards":["BPR-1507"],"milestone_plan":{"id":"bpr-1515-accept-file-hotkey","path":"docs/rfcs/plans/bpr-1515-accept-file-hotkey/milestone-plan.json"}}
 ---
 
 # BPR-1515: Add a keyboard shortcut for Accept File
