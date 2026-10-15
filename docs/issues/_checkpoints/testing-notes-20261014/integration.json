@@ -13,7 +13,9 @@
     "BPR-1512",
     "BPR-1513",
     "BPR-1514",
-    "BPR-1520"
+    "BPR-1520",
+    "BPR-1515",
+    "BPR-1519"
   ],
   "active": [
     "BPR-1505",
@@ -40,9 +42,10 @@
       "workbench test main kept both current-file-unread and center-ribbon test branches"
     ],
     "combined_ui_recovery": "/tmp/bpr-coordinator-combined-tests.log;8/8pass,68.20seconds",
-    "shared_public": "/tmp/bpr-coordinator-shared-public-tests.log;running"
+    "shared_public": "/tmp/bpr-coordinator-shared-public-tests.log;5/6pass;multiwindow draft edit propagation failure returned to BPR1520 implementer"
   },
   "source_pin": "18444c1d6 reviewed combined composition delta; existing production mutation digest unchanged",
   "safety": "No owner profile, installed application, live review, desktop or remote publication changed",
-  "next": "Finish combined build, focused shared UI/public checks, then integrate active leaves one at a time and record final verification. Do not claim installed delivery."
+  "next": "Test integrated hotkey/label candidate, integrate BPR1520 multiwindow correction and remaining leaves; final main acceptance remains pending",
+  "pending_regression": "application_profile_multi_window_public_path: accepted draft edit reaches sibling editor"
 }

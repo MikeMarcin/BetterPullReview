@@ -1,3 +1,7 @@
+# BPR-1515 integration reseal over95041e84d: only test-build fixture key
+# delivery replaces the existing Accept gesture; repeated Accept proves no
+# revoke and the explicit button still exercises the inverse. No production
+# composition, grant, provider or mutation-branch change.
 # Testing-note integration reseal, baseline583eb4689 through e8884475d.
 # BPR-1507 changes only the fixture acceptance presenter; BPR-1514 projects
 # pending startup and gates competing setup intents through core policy.
@@ -1482,7 +1486,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5e45871b9b6fd0e6f6857b1b0741a5a67a9fc66ab15db07810edf753c25c9a0f"
+		"d707261f3bee5ac91dd64f6edb2501534ff86eeb1cdddb1f7c240e88d8b716ba"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1698,7 +1702,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e7648adda3b4029fb4990aa718c8d947d4a4594a3d75f90b566196359b1d26ba"
+        "8f601b3f1c5608b46e8bbf57cf6d394bcab51fd8ca56712e7b55e02492ba3d45"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
