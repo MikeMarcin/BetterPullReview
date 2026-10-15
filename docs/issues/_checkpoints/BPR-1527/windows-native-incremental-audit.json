@@ -1,0 +1,26 @@
+{
+  "schema": "bpr.native-incremental-build-audit.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "mac_impact": "None; source/build/gate remain separate and root-owned",
+  "finding": "PowerShell Copy-Item preserved older temporary/backup source timestamps. MSBuild skipped changed or restored translation units despite successful build exit and clean Git source. Source-only pinned guards do not establish compiled-object provenance.",
+  "trigger": "r32 expected missing-retirement counterexample unexpectedly passed. Audit found no github_application.cpp compile in that variant build or restore.",
+  "dispositions": {
+    "original_d52": "Failed complete evidence/source preserved unchanged",
+    "r20_r21_cycle": "Nine normal native courses and actual loss-of-cycle failure/restored pass precede Qt prototype changes; remain separate valid evidence",
+    "r23": "Fresh f0e composition/nav/submission compile before Qt trials; original navigation93.92 and roundtrip/UIfor observations retained",
+    "r25_baseline": "Original complete200 baseline118.85 occurred before temporary keyboard compile, retained as uninstrumented baseline",
+    "r26_normal": "Fresh94ff composition compiled before Qt trials; label16.05/refreshpick13.00/fileswitch20.10/roundtrip8.11 remain baseline observations",
+    "r26_temporary_trace": "No actual composition recompile occurred; no delivered trace is evidence. Earlier attribution solely to missing standalone terminal writer was incomplete.",
+    "r28_trace": "Runtime bounded stderr trace actually delivered first-choice states; source-cause evidence retained. Restoration build provenance was inadequate.",
+    "r27_profile": "Initial trial Qt/test compilation and observed390-to130 frame change are diagnostic facts. The supposed normal whole118.39 still contains keyboard instrumentation; withdraw uninstrumented timing claim. Restore compilation skipped.",
+    "r29": "Composition e987 compiled, Qt diff cpp did not; library could retain transient r27 guard. Withdraw exact-source acceptance for12/12pass337.97 until fresh forced normal rebuild/rerun.",
+    "r30": "Paint diagnostics actually compiled and delivered; restore compilation skipped, leaving diagnostic Qt object. Retain only diagnostic observations.",
+    "r31": "Actual native format22/canonical print-only source digests remain source evidence, not binary acceptance.",
+    "r32": "Fresh830 composition/test compiled, but Qt object retained r30 diagnostics; six positives are provisional. Missing-guard variant skipped compilation, so its unexpected pass is failed control construction, not evidence against guard or negative acceptance. Task Ready/exit1 with clean830source; no native command remains."
+  },
+  "required_repair": "Invalidate only exact task-owned affected Debug .obj/.exe artifacts before normal baseline and after every source variant copy/restoration, touch source timestamp, inspect compile output/object timestamps and use binary/runtime canaries for controls. Fresh normal affected acceptance and negatives must rerun. Never reinterpret stale-object results as passes.",
+  "source_status": "8309636028c7cf84dc60592935ff16b1bcdd3856 clean on owned Mac/PC branches; production Qt source unchanged; compiled PC objects untrusted pending forced rebuild. No integration/final freeze/Done.",
+  "next": "Fresh r34 workflow under existing exclusive PC lease; r33 must not dispatch with its old timestamp assumptions."
+}

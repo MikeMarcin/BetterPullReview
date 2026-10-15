@@ -7,6 +7,21 @@ gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
 BPR-1527 remains In Progress with eleven criteria and ten exits. BPR-1525/1526
 remain Done. Every behavioral, native and timing requirement remains in force.
 
+## Native build audit: pending forced rebuild
+
+[The incremental-build audit](windows-native-incremental-audit.json) supersedes
+later statements that copied source plus a successful build restored normal
+binaries. Copy-Item retained older file timestamps; MSBuild skipped some variant
+and restoration compiles. r27's118.39s whole course still had keyboard diagnostics;
+r29's12passes and r32's6passes have provisional Qt-object provenance and are
+withdrawn as exact-source acceptance. r32's negative unexpectedly passed because
+its changed composition never compiled; that is a failed control construction.
+The native task is Ready/exit1 and source clean830963602. No native workload is
+active. Required next action is exact owned-object/executable invalidation plus
+fresh normal rebuild/acceptance and compiled/runtime-witnessed controls. Earlier
+original/cycle/r23/r26baseline evidence is separately classified in the audit;
+Mac source and root-owned gate are unaffected. Do not dispatch the old r33 wrapper.
+
 ## Release and ownership boundary
 
 The human directed: "If windows is far away then just release Mac only and
