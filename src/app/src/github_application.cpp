@@ -14102,7 +14102,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (TabHost && !TabHost->state().Active && TabHost->state().Chosen) {
 					TabHost->reset();
 				}
-
 			}
 			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
 				return aAuthority.Profile == aInvalidation.Profile
@@ -21088,31 +21087,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (!owner || !owner->TabHost || !owner->LastAcceptedHandoff || !owner->WorkbenchReview.exact(*owner->LastAcceptedHandoff)) {
 			return false;
 		}
-		const auto& tabs = owner->TabHost->state();
+		const auto& tabs   = owner->TabHost->state();
 		const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
 		if (!active || !active->View.File) {
 			return false;
 		}
-		const auto file = *active->View.File;
+		const auto  file    = *active->View.File;
 		const auto& handoff = *owner->LastAcceptedHandoff;
-		const auto exact = application::pull_request_authority_invalidation{
+		const auto  exact   = application::pull_request_authority_invalidation{
 			.ApplicationSession = handoff.ApplicationSession,
-			.Profile = handoff.Profile,
-			.ProfileRevision = handoff.ProfileRevision,
-			.Host = handoff.Host,
-			.HostAuthority = handoff.HostAuthority,
-			.Account = handoff.Account,
-			.Viewer = handoff.Viewer,
-			.Repository = handoff.Repository,
-			.PullRequest = handoff.PullRequest,
+			.Profile            = handoff.Profile,
+			.ProfileRevision    = handoff.ProfileRevision,
+			.Host               = handoff.Host,
+			.HostAuthority      = handoff.HostAuthority,
+			.Account            = handoff.Account,
+			.Viewer             = handoff.Viewer,
+			.Repository         = handoff.Repository,
+			.PullRequest        = handoff.PullRequest,
 			.IdentityGeneration = handoff.IdentityGeneration,
-			.Mode = handoff.Mode,
+			.Mode               = handoff.Mode,
 		};
 		// Arrange the core state already observed between the real first-file
 		// gesture and its comparison: an explicit choice, no tab or pair yet.
 		owner->TabHost->reset();
 		owner->TabHost->observe_file_choice(file);
-		auto foreign = exact;
+		auto foreign        = exact;
 		foreign.PullRequest = core::pull_request_id{ exact.PullRequest.value() == 1U ? 2U : 1U };
 		owner->invalidate(foreign);
 		if (tabs.Active || tabs.Chosen != std::optional{ file }) {
@@ -25005,7 +25004,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					|| !nextChange->isEnabled() || !workbench->selection()) {
 					return fail();
 				}
-				probe.ChangeOrigin = workbench->selection();
+				probe.ChangeOrigin     = workbench->selection();
 				probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 				nextChange->trigger();
 				return result::pending;

@@ -148,3 +148,36 @@ existing new-PR/destination reset still retires the whole tab state and its choi
 no host-owned alternate pending policy, direct diff request or test delay is added.
 Native corrected submission3, stale/scope/tab/navigation controls, static analysis
 and affected portability acceptance remain pending for this candidate.
+
+
+## Pending-choice authority and capture completion controls
+
+The retained first choice has no active tab comparison yet. Exact matching
+WorkbenchReview authority invalidation now resets only that no-active/Chosen
+state; same-authority rereads retain it, while a revoked PR/account/reopen scope
+cannot lend the pending open to a later comparison. A bounded fixture control at
+the end of the unchanged public submission course arranges the already observed
+core pending state through the tab host, proves a foreign PR invalidation keeps
+it, then proves the exact invalidation retires it with no active/pending tab.
+It uses the application's actual typed authority invalidation port; this internal
+control is distinct from the real public Files-gesture reproduction. Removing
+only the production guard must fail that new control before acceptance.
+
+The UIforETW probe previously issued Next/Previous change and required their
+semantic effects synchronously. RFC-BPR-0076 and the composition retain a press
+while its tab restoration completes. The probe now captures the exact original
+selection and dispatch baseline, issues each gesture once, and observes exactly
+one forward dispatch/different group and one reverse dispatch/exact original
+selection on later normal completion turns. Duplicate/unexpected dispatches or
+wrong completed semantic results still fail; existing named wait/run bounds,
+all16controls, appearance, geometry/pixel/height and publication assertions stay.
+A legitimate one-turn command deferral will be forced as a counterexample: old
+synchronous probe must fail, new completion-observed probe must pass, then normal
+production source/binaries are restored exactly. The r21 failure was before the
+Rc role-paint verdict, but its exact substep remains unproven; this source-backed
+contract correction does not invent a historical phase diagnosis.
+
+Native clang-format22.1.8 formatted the three paths; canonical print-only CMake
+computed both full-app and ordered source-manifest pins, with production mutation
+branch unchanged. Actual native corrected tests, the two controls and strict
+analysis/portable acceptance remain pending. Pin calculation itself is not a pass.
