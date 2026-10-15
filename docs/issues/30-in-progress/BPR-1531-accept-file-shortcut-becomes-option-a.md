@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1531"
 title: "Accept file's shortcut becomes Option-A (Alt+A), replacing Command-Shift-A"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
