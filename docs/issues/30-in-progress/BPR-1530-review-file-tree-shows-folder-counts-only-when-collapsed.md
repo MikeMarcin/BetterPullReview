@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1530"
 title: "Show a Review file-tree folder's file count only while it is collapsed"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
