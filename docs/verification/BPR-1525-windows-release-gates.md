@@ -334,3 +334,34 @@ The prepared Ubuntu producer has now been inspected read-only while Windows
 was quiescent: distro `Ubuntu`, Ubuntu 26.04 LTS, clean detached baseline
 8f0d25418, Debug `build/dev`, `/usr/bin/c++`, pinned Qt 6.11.2 and its existing
 CPM cache. No Ubuntu build/test, package or authentication operation has run.
+
+### Current whole workbench trace and bounded painting correction
+
+At c4ec0f7ab, r22's diagnostic-only whole run completes every unchanged case
+in 124.04 s; the normal 120 s gate remains failed. Keyboard takes 37.29 s,
+100,000-line gutter 27.99 s, divider 15.83 s and syntax line details 9.11 s.
+Profiles record text draw 18.26 s, gutter paint 13.97 s, whitespace walk 8.00 s
+and geometry 28.48 s. No independent Windows or WSL workload overlaps this
+measurement; three diagnostic sources are restored, touched and recompiled.
+
+The next candidate removes repeated walks from the first visible block when
+painting whitespace. The core exposes its existing line-admission rule so an
+unselected line in selection mode prepares no character vectors or cursor
+geometry; all six modes, both selection states and invalid mode agree with the
+existing actual-mark oracle. Geometry keys visit only present Qt format
+properties instead of querying every possible font property per syntax range.
+No input, semantic assertion, batch limit or deadline changes.
+
+Self-review corrected a separate cache-lifetime issue: Qt 6.11.2's
+`QTextLayout::setCacheEnabled(false)` only changes a flag. Its noncached draw
+completion frees glyph layout data. Retired viewport caches now complete a
+fully clipped public draw above every line, preserving all line geometry and
+painting no pixels; membership uses a viewport-sized set. Persistent cursors
+still track document replacement safely. The existing flag-count regression
+alone is not evidence of allocation release. The source-backed mechanism is
+[Qt's pinned implementation](https://github.com/qt/qtbase/blob/v6.11.2/src/gui/text/qtextlayout.cpp).
+The actual large-review resource course also passes on Mac, alongside all
+three complete workbench scales, all four native geometry scales and core
+appearance policy (9/9). That Mac functional run overlaps strict tidy, so its
+durations are not performance evidence. Windows normal performance acceptance
+and Ubuntu affected-path verification remain pending.

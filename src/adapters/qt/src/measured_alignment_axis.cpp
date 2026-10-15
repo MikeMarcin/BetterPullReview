@@ -166,16 +166,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto range_key(std::uint64_t aKey, const QTextLayout::FormatRange& aRange) -> std::optional<std::uint64_t>
 		{
 			aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(aRange.start)), static_cast<std::uint32_t>(aRange.length));
-			for (const auto property : layout_properties) {
-				const auto value = aRange.format.property(property);
-				if (!value.isValid()) {
+			// Syntax commonly carries only a foreground. Visit the properties
+			// actually present, in Qt's stable property order, instead of asking
+			// Qt for every possible font property on every coloured range.
+			const auto properties = aRange.format.properties();
+			for (auto property = properties.cbegin(); property != properties.cend(); ++property) {
+				if (std::ranges::find(layout_properties, property.key()) == layout_properties.end()) {
 					continue;
 				}
-				const auto valueKey = value_key(value);
+				const auto valueKey = value_key(property.value());
 				if (!valueKey) {
 					return std::nullopt;
 				}
-				aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(property)), *valueKey);
+				aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(property.key())), *valueKey);
 			}
 			return aKey;
 		}

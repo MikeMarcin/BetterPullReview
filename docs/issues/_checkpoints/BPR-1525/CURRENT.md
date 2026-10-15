@@ -8,7 +8,7 @@ No subagents, auth, signing, publication or owner desktop interaction.
 
 ## Candidate and completed evidence
 
-Code candidate `112b5b98bf59a23aad50e26872f874ded754d05b` on `codex/v021-windows-gate-fixes` in
+Code candidate `c4ec0f7abbc815725b8b270022368ee43c560a28` on `codex/v021-windows-gate-fixes` in
 `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
 Windows repair branch `codex/bpr1525-native-repair-r2` in
 `C:/Users/mikem/bpr-v021`; clean original 8f0d25418 preserved separately.
@@ -42,36 +42,40 @@ source pins include only that reviewed path and mechanical naming upkeep.
 
 ## Open work and command state
 
-Windows whole workbench remains unresolved. Previous 497ccda29 and 6fc970555
-scale100 attempts exceed the unchanged 120 s limit; later copies were explicitly
-interrupted after the repeated first failure. No failed or diagnostic run is a
-normal pass. Functional whole trace completes all assertions in 151.87 s.
-Keyboard profile is 52.38 s; a Qt layout-cache experiment reduces it to 37.47 s.
-The committed cache uses persistent Qt cursors and tracks document lifetime;
-its first bare-block experiment crashed at eviction after document clearing
-and is rejected. Complete Mac scales and three repeats pass after correction.
-The actual native cache-bound course also proves it leaves the initial view.
+Windows whole workbench remains unresolved. Candidates through c4ec0f7ab exceed
+its unchanged 120 s whole-course deadline. No diagnostic is a normal pass.
+The latest exact candidate passes all four native geometry scale oracles at
+1.70 / 1.75 / 1.76 / 1.84 s. Reusing one Qt shaping engine for plain ASCII
+rows preserves every measured answer but only reduces the 100,000-line
+composition from 23.75 to 21.83 s; this has not demonstrated an adequate repair.
 
-The 100,000-line phase trace shows text 0.233 s, diff computation 2.099 s and
-combined composition 23.572 s. Candidate 112b5b98b defers detached layout until
-adoption installs its final plain layout; batch/yield limits are unchanged.
-Mac complete scales pass (10.57 / 10.48 / 12.36 s).
+The viewport cache experiment needs further self-review: Qt's cache-enabled
+flag does not itself release glyph allocations. The flag-count regression is
+not proof of retained-memory boundedness. Correct or remove this experiment
+before acceptance; preserve BPR-1032's memory contract. The earlier bare-block
+cache prototype crashed and was rejected; persistent cursors corrected that
+lifetime problem but do not establish the separate memory claim.
 
-ACTIVE Windows task `BPR-1525-focused-r18`: clean source advance, focused build,
-normal scale100; if it passes, normal scale125/200. If it fails, the same owned
-job captures prepare/publish/settle subphases, then restores and touches the
-exact source and recompiles its test. Log/receipt prefix:
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-native-focused-r18`.
-Do not run Windows or WSL workloads concurrently with it.
-ACTIVE Mac strict clang-tidy 22 on the changed Qt production/test TUs, unified
-exec session 20058; log `/tmp/bpr1525-cache-final-tidy.log`.
-No Mac build/test/review server is active. The stalled task-owned LLDB launch
-was terminated by its exact PIDs; its child 30243 was dead/zombie awaiting init
-reaping, not a live writer. No authentication or desktop action was used.
+ACTIVE Windows diagnostic task `BPR-1525-focused-r22` profiles every existing
+workbench case plus actual shaping and painting time. It temporarily instruments
+three sources and runs the same full inputs with a diagnostic-only longer
+wrapper bound, then restores/touches/recompiles all three. The production CTest
+deadline remains 120 s. Log/receipt prefix:
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-native-focused-r22`.
+Do not run Windows or WSL workloads concurrently with it. Its predecessor r21
+failed its diagnostic build on a shadowed local profiling variable, restored
+and recompiled the original candidate before r22 started.
+
+No Mac build, test, tidy or review server is active. Strict clang-tidy 22 passes
+for the changed Qt workbench/test and measurement TUs. Documentation gate and
+all 67 documentation verifier unit tests pass (the unit command needs the
+installed implement-rfc scripts on PYTHONPATH). The stalled task-owned LLDB
+launch was terminated by exact PIDs; its child 30243 was dead/zombie awaiting
+init reaping, not a live writer. No authentication or desktop action was used.
 
 ## Next action and remaining obligations
 
-Inspect r18 result and finish the demonstrated workbench repair without weaker
+Inspect r22 diagnostic result and finish the demonstrated workbench repair without weaker
 assertions, inputs or timeouts. Complete current strict tidy, self-review and
 final format/documentation gates. Then, after all Windows commands are quiescent,
 preserve/reuse `/home/mmarcin/bpr-v021` in Ubuntu 26.04 WSL on an owned repair

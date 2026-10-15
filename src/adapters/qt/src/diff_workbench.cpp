@@ -39,6 +39,7 @@
 #include <QRegion>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QSet>
 #include <QShowEvent>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -1106,16 +1107,19 @@ namespace bpr::qt {
 				if (!GutterText.isValid() || WhiteSpace == core::white_space_drawing::none) {
 					return;
 				}
+				auto block = firstVisibleBlock();
+				if (!block.isValid()) {
+					return;
+				}
 				const auto limit = static_cast<qreal>(viewport()->height());
-				for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
-					const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
-					if (geometry.top() > limit) {
-						break;
+				auto       top   = blockBoundingGeometry(block).translated(contentOffset()).top();
+				for (; block.isValid() && top <= limit; block = block.next()) {
+					// Native block geometry walks from the first visible block.
+					// Accumulate its heights once, as the text painter does.
+					top += blockBoundingRect(block).height();
+					if (block.isVisible()) {
+						PaintedWhiteSpace += paint_white_space_of_block(aPainter, *this, block, WhiteSpace, selected_block(block.blockNumber()), GutterText);
 					}
-					if (!block.isVisible()) {
-						continue;
-					}
-					PaintedWhiteSpace += paint_white_space_of_block(aPainter, *this, block, WhiteSpace, selected_block(block.blockNumber()), GutterText);
 				}
 			}
 
@@ -1741,8 +1745,19 @@ namespace bpr::qt {
 			}
 		}
 
+		/// Disabling Qt's flag alone retains its allocated glyph data. Qt frees
+		/// it on completion of a noncached draw; a clip above every layout line
+		/// completes that operation without painting or changing line geometry.
+		void release_text_cache(QTextLayout& aLayout, QPainter& aPainter)
+		{
+			aLayout.setCacheEnabled(false);
+			const auto above = aLayout.position().y() + aLayout.boundingRect().top() - 2.0;
+			aLayout.draw(&aPainter, QPointF{ }, { }, QRectF{ 0.0, above, 1.0, 1.0 });
+		}
+
 		void source_pane::paint_text(QPaintEvent* const aEvent)
 		{
+			auto painter = QPainter{ viewport() };
 			// [[BPR-1525]]. Qt otherwise discards glyph layout data after a
 			// draw. Retain only this viewport's blocks, and let Qt invalidate
 			// their caches when text, font or formats change. Persistent cursors
@@ -1753,7 +1768,7 @@ namespace bpr::qt {
 					for (const auto& cachedCursor : CachedTextCursors) {
 						const auto block = cachedCursor.block();
 						if (block.isValid() && block.layout() != nullptr) {
-							block.layout()->setCacheEnabled(false);
+							release_text_cache(*block.layout(), painter);
 						}
 					}
 				}
@@ -1761,7 +1776,7 @@ namespace bpr::qt {
 				CachedTextDocument = document();
 			}
 			auto       visibleCursors = QList<QTextCursor>{ };
-			auto       painter        = QPainter{ viewport() };
+			auto       visibleNumbers = QSet<int>{ };
 			auto       offset         = contentOffset();
 			auto       exposed        = aEvent->rect();
 			const auto viewportRect   = viewport()->rect();
@@ -1812,6 +1827,7 @@ namespace bpr::qt {
 				if (layout != nullptr) {
 					layout->setCacheEnabled(true);
 					visibleCursors.push_back(QTextCursor{ block });
+					visibleNumbers.insert(block.blockNumber());
 				}
 				if (layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {
 					if (const auto background = block.blockFormat().background(); background != Qt::NoBrush) {
@@ -1850,8 +1866,8 @@ namespace bpr::qt {
 			}
 			for (const auto& cachedCursor : CachedTextCursors) {
 				const auto block = cachedCursor.block();
-				if (block.isValid() && std::ranges::none_of(visibleCursors, [&block](const QTextCursor& aCursor) { return aCursor.block() == block; }) && block.layout() != nullptr) {
-					block.layout()->setCacheEnabled(false);
+				if (block.isValid() && !visibleNumbers.contains(block.blockNumber()) && block.layout() != nullptr) {
+					release_text_cache(*block.layout(), painter);
 				}
 			}
 			CachedTextCursors = std::move(visibleCursors);

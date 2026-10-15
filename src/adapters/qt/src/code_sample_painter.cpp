@@ -596,7 +596,7 @@ namespace bpr::qt {
 		const bool                      aSelected,
 		const QColor&                   aColor) -> std::uint32_t
 	{
-		if (!aBlock.isValid() || aDrawing == core::white_space_drawing::none || !aColor.isValid()) {
+		if (!aBlock.isValid() || !core::white_space_may_draw(aDrawing, aSelected) || !aColor.isValid()) {
 			return 0U;
 		}
 		const auto text = aBlock.text();
