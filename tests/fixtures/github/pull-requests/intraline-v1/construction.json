@@ -1,0 +1,98 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Rename the comparison helpers and tidy their messages",
+			"parents": [
+				"a3f915b5baa6b05b2ffc1ac6502b218b5d16bec7"
+			],
+			"sha": "d7e2f04de93e5e51097627e58093a42b68de36ce"
+		}
+	],
+	"constructed": "Synthetic BPR-1537 fixture written by scripts/build_intraline_fixture.py; not a recording",
+	"files": [
+		{
+			"additions": 4,
+			"base_content_base64": "ewoJInNjaGVtYSI6ICJyZXZpZXcvdjIiLAoJInJldHJpZXMiOiAyLAoJInRpbWVvdXRTZWNvbmRzIjogNDUsCgkic291cmNlX3JldmlzaW9uIjogIjkwMTNlMTY4MzNhNjA3NmUyNjEyMGExMmU1ZTk4ZGQxMTliMmFjMzkiLAoJInRoZW1lIjogImNvbWZvcnRhYmxlIiwKCSJtZXNzYWdlIjogIk15IHB1bGwgcmVxdWVzdDsgTm90aGluZyBhYm91dCBpdCBoYXMgYmVlbiByZWFkIHlldC4iCn0K",
+			"changes": 8,
+			"deletions": 4,
+			"filename": "config/review.json",
+			"head_content_base64": "ewoJInNjaGVtYSI6ICJyZXZpZXcvdjIiLAoJInJldHJpZXMiOiAzLAoJInRpbWVvdXRTZWNvbmRzIjogNDUsCgkic291cmNlX3JldmlzaW9uIjogImZiMmU3Mjc3OGQzYzYxZGU2ZWM2NzIzZGZmYzE2YTEyMTJhYjVjMzEiLAoJInRoZW1lIjogImNvbXBhY3QiLAoJIm1lc3NhZ2UiOiAiTXkgcHVsbCByZXF1ZXN0OyBub3RoaW5nIGFib3V0IGl0IGhhcyBiZWVuIHJlYWQgeWV0LiIKfQo=",
+			"patch": "@@ -1,8 +1,8 @@\n {\n \t\"schema\": \"review/v2\",\n-\t\"retries\": 2,\n+\t\"retries\": 3,\n \t\"timeoutSeconds\": 45,\n-\t\"source_revision\": \"9013e16833a6076e26120a12e5e98dd119b2ac39\",\n-\t\"theme\": \"comfortable\",\n-\t\"message\": \"My pull request; Nothing about it has been read yet.\"\n+\t\"source_revision\": \"fb2e72778d3c61de6ec6723dffc16a1212ab5c31\",\n+\t\"theme\": \"compact\",\n+\t\"message\": \"My pull request; nothing about it has been read yet.\"\n }",
+			"sha": "aabe27f85320af42ae4ee9f7593f1a68d47a4586",
+			"status": "modified"
+		},
+		{
+			"additions": 6,
+			"base_content_base64": "IyBSZXZpZXdpbmcgYSBwdWxsIHJlcXVlc3QKCk9wZW4gdGhlIHB1bGwgcmVxdWVzdCBmcm9tIEhvbWUgYW5kIGNob29zZSBhIGZpbGUgaW4gdGhlIE92ZXJ2aWV3LgoKSWYgYW4gZXhwb3J0IGZhaWxzLCB0aGUgcmVwb3J0IHNob3dzIGFuIGVycm9yIGFuZCB5b3UgY2FuIHRyeSBhZ2Fpbi4KClBlbmRpbmcgZHJhZnRzIGFyZSBub3RlcyBhdCB0aGVpciBsaW5lcyBuYW1lZCAiUGVuZGluZyBpbiB5b3VyIHJldmlldyIuCgpTZWUgW3RoZSBjYXJkXSguLi9pc3N1ZXMvMzAtaW4tcHJvZ3Jlc3MvQlBSLTExODgtY2xvc2UtcmZjLTAwNTUubWQpIGZvciB0aGUgcmVtYWluaW5nIHN0ZXBzLgoKRXhwb3J0cyBvbGRlciB0aGFuIHRoaXJ0eSBkYXlzIGFyZSBkZWxldGVkLgoKVGhpcyBpcyB0aGUgbGFzdCBjaGFuZ2UgaW4gdGhpcyBjb21wYXJpc29uLgoKS2V5Ym9hcmQ6IE5leHQgY2hhbmdlICjijJjihpMpIGFuZCBQcmV2aW91cyBjaGFuZ2UgKOKMmOKGkSkuCg==",
+			"changes": 12,
+			"deletions": 6,
+			"filename": "docs/review-guide.md",
+			"head_content_base64": "IyBSZXZpZXdpbmcgYSBwdWxsIHJlcXVlc3QKCk9wZW4gdGhlIHB1bGwgcmVxdWVzdCBmcm9tIEhvbWUgYW5kIGNob29zZSBhIGZpbGUgaW4gdGhlIE92ZXJ2aWV3LgoKSWYgYW4gZXhwb3J0IGZhaWxzLCB0aGUgcmVwb3J0IHNheXMgd2hpY2ggc3RlcCBmYWlsZWQgYW5kIHdoeSwgYW5kIHlvdSBjYW4gdHJ5IGFnYWluLgoKUGVuZGluZyBkcmFmdHMgYXJlIG5vdGVzIGF0IHRoZWlyIGxpbmVzIHRhZ2dlZCAiUGVuZGluZyBpbiB5b3VyIHJldmlldyIgaW4gdGhlIHdyaXRpbmcgYmx1ZS4KClNlZSBbdGhlIGNhcmRdKC4uL2lzc3Vlcy82MC1kb25lL0JQUi0xMTg4LWNsb3NlLXJmYy0wMDU1Lm1kKSBmb3IgdGhlIHJlbWFpbmluZyBzdGVwcy4KCkV4cG9ydHMgb2xkZXIgdGhhbiBuaW5ldHkgZGF5cyBhcmUgZGVsZXRlZC4KCkxhc3QgY2hhbmdlIGluIHRoZSBwdWxsIHJlcXVlc3QuCgpLZXlib2FyZDogTmV4dCBjaGFuZ2UgKOKMpeKGkykgYW5kIFByZXZpb3VzIGNoYW5nZSAo4oyl4oaRKS4K",
+			"patch": "@@ -2,14 +2,14 @@\n \n Open the pull request from Home and choose a file in the Overview.\n \n-If an export fails, the report shows an error and you can try again.\n+If an export fails, the report says which step failed and why, and you can try again.\n \n-Pending drafts are notes at their lines named \"Pending in your review\".\n+Pending drafts are notes at their lines tagged \"Pending in your review\" in the writing blue.\n \n-See [the card](../issues/30-in-progress/BPR-1188-close-rfc-0055.md) for the remaining steps.\n+See [the card](../issues/60-done/BPR-1188-close-rfc-0055.md) for the remaining steps.\n \n-Exports older than thirty days are deleted.\n+Exports older than ninety days are deleted.\n \n-This is the last change in this comparison.\n+Last change in the pull request.\n \n-Keyboard: Next change (\u2318\u2193) and Previous change (\u2318\u2191).\n+Keyboard: Next change (\u2325\u2193) and Previous change (\u2325\u2191).",
+			"sha": "1a1f8c178f77d3699b8bdfb387bba6831a95edbd",
+			"status": "modified"
+		},
+		{
+			"additions": 4,
+			"base_content_base64": "Z3JlZXRpbmcgPSBCb25qb3VyLCB2b3VsZXotdm91cyB1biBjYWbDqSBjcsOobWUgPwoKc2F2ZWRfdmlldyA9IOS/neWtmOOBleOCjOOBn+ODk+ODpeODvAoKc3RhdHVzID0gZG9uZSDwn5Gp4oCN8J+SuyB0b2RheQoKYXJyb3cgPSBOZXh0IGNoYW5nZSAo4oyY4oaTKQo=",
+			"changes": 8,
+			"deletions": 4,
+			"filename": "locale/messages.txt",
+			"head_content_base64": "Z3JlZXRpbmcgPSBCb25qb3VyLCB2b3VsZXotdm91cyB1biBjYWbDqSBub2lyID8KCnNhdmVkX3ZpZXcgPSDkv53lrZjjgZfjgZ/ooajnpLoKCnN0YXR1cyA9IGRvbmUg8J+nkeKAjfCflKcgdG9kYXkKCmFycm93ID0gTmV4dCBjaGFuZ2UgKOKMpeKGkykK",
+			"patch": "@@ -1,7 +1,7 @@\n-greeting = Bonjour, voulez-vous un caf\u00e9 cr\u00e8me ?\n+greeting = Bonjour, voulez-vous un caf\u00e9 noir ?\n \n-saved_view = \u4fdd\u5b58\u3055\u308c\u305f\u30d3\u30e5\u30fc\n+saved_view = \u4fdd\u5b58\u3057\u305f\u8868\u793a\n \n-status = done \ud83d\udc69\u200d\ud83d\udcbb today\n+status = done \ud83e\uddd1\u200d\ud83d\udd27 today\n \n-arrow = Next change (\u2318\u2193)\n+arrow = Next change (\u2325\u2193)",
+			"sha": "c4a1318dd0fdb38180a9d669cdf9ce89896efcc2",
+			"status": "modified"
+		},
+		{
+			"additions": 21,
+			"base_content_base64": "I2luY2x1ZGUgInJldmlldy9jb21wYXJpc29uLmgiCgojaW5jbHVkZSAicmV2aWV3L2RpZmZfZW5naW5lLmgiCiNpbmNsdWRlIDxRS2V5RXZlbnQ+CgpuYW1lc3BhY2UgcmV2aWV3IHsKCS8vIENvbXBhcmVzIG9uZSBmaWxlIG9mIHRoZSBwdWxsIHJlcXVlc3QgYW5kIGtlZXBzIHRoZSByZXN1bHQgZm9yIHRoZSBwYW5lcy4KCWF1dG8gY29tcGFyZV9maWxlKGNvbnN0IGZpbGVfaW5wdXQmIGlucHV0LCBjb25zdCBjb21wb25lbnRzJiBwYXJ0cywgc3RvcF90b2tlbiBzdG9wKSAtPiBjb21wYXJpc29uCgl7CgkJY29uc3QgYXV0byByZXN1bHQgPSBjb21wdXRlX2ZpbGVfZGlmZihpbnB1dCwgcGFydHMpOwoKCQlhdXRvIGNvbnZlcnNhdGlvbkNvdW50ID0gbW9kZWwtPnJvd0NvdW50KCk7CgoJCWNvbnN0IGF1dG8gbGVmdFNjYWxhcnMgPSBkZWNvZGUoaW5wdXQuTGVmdEJ5dGVzKTsKCgkJY29uc3QgYXV0byBvdXRjb21lID0gcnVuX3Rvb2wocHJvY2VzcywgY29uZmlndXJhdGlvbiwgc3RkOjptb3ZlKGludm9jYXRpb24pLCBzdG9wKTsKCgkJc2V0U2l6ZVBvbGljeShRU2l6ZVBvbGljeTo6RXhwYW5kaW5nLCBleHBhbmRlZCA/IFFTaXplUG9saWN5OjpFeHBhbmRpbmcgOiBRU2l6ZVBvbGljeTo6Rml4ZWQpOwoKCQlsYWJlbC0+c2V0VGV4dCh0cigiU2hvdyB0aGUgY29udmVyc2F0aW9uIGRyYXdlciBhdCBpdHMgc2F2ZWQgd2lkdGguIikpOwoKCQl2aWV3LT5zZXRUb29sVGlwKFFTdHJpbmdMaXRlcmFsKCJPbmx5IGNvbnZlcnNhdGlvbnMgd2l0aCBhIGxhYmVsIikpOwoKCQlpZiAocmVzdWx0LlB1YmxpY2F0aW9uICE9IHB1Ymxpc2hlZCAmJiBvYnNlcnZlZCkgewoKCQlpZiAoaW5kZXggIT0gMFUgJiYgbWF0Y2guTGVmdCA8PSBwcmV2aW91cy5MZWZ0KSB7CgoJCXN0ZDo6dWludDY0X3QgICAgIExhcmdlc3RQb2xsRGVsYXkgPSAwVTsKCgkJY29uc3RleHByIGF1dG8gU3RvcmVGaWxlcyA9IHN0ZDo6YXJyYXk8c3RkOjpzdHJpbmdfdmlldywgMTFVPnsKCgkJcmV0dXJuIGEud2lkdGgoKSA8IGIud2lkdGgoKSAmJiBhLmhlaWdodCgpIDwgYi5oZWlnaHQoKTsKCgkJY29uc3QgYXV0byBbbGVmdCwgcmlnaHRdID0gc3RkOjpwYWlyeyBmaXJzdCwgc2Vjb25kIH07CgoJCS8vIFRoZSBjaGVja3MgdGhhdCBuZWVkIG5vIHRleHQsIHRoZW4gYSBmcmVzaCBwcm9ncmVzcyBob2xkaW5nIGNvcGllcwoKCQlpZiAocGF0dGVybi5mcm9udCgpID09ICcvJykgewoKCQlhdXRvIHJlY2lldmVkID0gcXVldWUudGFrZSgpOwoKCQl1c2luZyBzaXplX3R5cGUgPSBzdGQ6OnNpemVfdDsKCgkJdHJhbnNwb3J0eyAqY2xvdWQsICpjb25maWd1cmF0aW9uLCBwcm9jZXNzIH07CgoJCXJldHVybiBjb21wYXJpc29ueyByZXN1bHQsIGNvbnZlcnNhdGlvbkNvdW50IH07Cgl9CgoJdm9pZCBzZXRfZGlzcGF0Y2gocHJpdmF0ZV9kaXNwYXRjaCBkaXNwYXRjaCkgeyBEaXNwYXRjaCA9IHN0ZDo6bW92ZShkaXNwYXRjaCk7IH0KfSAvLyBuYW1lc3BhY2UgcmV2aWV3Cg==",
+			"changes": 42,
+			"deletions": 21,
+			"filename": "src/review/comparison.cpp",
+			"head_content_base64": "I2luY2x1ZGUgInJldmlldy9jb21wYXJpc29uLmgiCgojaW5jbHVkZSAicmV2aWV3L2RpZmZfZW5naW5lLmgiCiNpbmNsdWRlIDxRS2V5U2VxdWVuY2U+CgpuYW1lc3BhY2UgcmV2aWV3IHsKCS8vIENvbXBhcmVzIG9uZSBmaWxlIG9mIHRoZSBwdWxsIHJlcXVlc3QgYW5kIGtlZXBzIHRoZSByZXN1bHQgZm9yIHRoZSBwYW5lcy4KCWF1dG8gY29tcGFyZV9maWxlKGNvbnN0IGZpbGVfaW5wdXQmIGlucHV0LCBjb25zdCBjb21wb25lbnRzJiBwYXJ0cywgc3RvcF90b2tlbiBzdG9wKSAtPiBjb21wYXJpc29uCgl7CgkJY29uc3QgYXV0byBvdXRjb21lID0gY29tcHV0ZV9maWxlX2RpZmYoaW5wdXQsIHBhcnRzKTsKCgkJYXV0byB0aHJlYWRDb3VudCA9IG1vZGVsLT5yb3dDb3VudCgpOwoKCQljb25zdCBhdXRvIGxlZnRWYWx1ZXMgPSBkZWNvZGUoaW5wdXQuTGVmdEJ5dGVzKTsKCgkJY29uc3QgYXV0byBvdXRjb21lID0gcnVuX3Rvb2wocHJvY2VzcywgY29uZmlndXJhdGlvbiwgc3RkOjptb3ZlKGludm9jYXRpb24pLCBzdG9wLCBhY2NvdW50KTsKCgkJc2V0U2l6ZVBvbGljeShRU2l6ZVBvbGljeTo6RXhwYW5kaW5nLCBRU2l6ZVBvbGljeTo6RXhwYW5kaW5nKTsKCgkJbGFiZWwtPnNldFRleHQodHIoIlNob3cgdGhlIGNvbW1lbnRzIGRyYXdlciBhdCBpdHMgc2F2ZWQgd2lkdGguIikpOwoKCQl2aWV3LT5zZXRUb29sVGlwKFFTdHJpbmdMaXRlcmFsKCJPbmx5IHRocmVhZHMgd2l0aCBhIGxhYmVsIikpOwoKCQlpZiAocmVzdWx0LlB1YmxpY2F0aW9uID09IHB1Ymxpc2hlZCAmJiBvYnNlcnZlZCkgewoKCQlpZiAoaW5kZXggIT0gMFUgJiYgbWF0Y2guTGVmdCA8IHByZXZpb3VzLkxlZnQpIHsKCgkJc3RkOjp1aW50NjRfdCBMYXJnZXN0UG9sbERlbGF5ID0gMFU7CgoJCWNvbnN0ZXhwciBhdXRvIFN0b3JlRmlsZXMgPSBzdGQ6OmFycmF5PHN0ZDo6c3RyaW5nX3ZpZXcsIDEyVT57CgoJCXJldHVybiBhLmhlaWdodCgpIDwgYi5oZWlnaHQoKSAmJiBhLndpZHRoKCkgPCBiLndpZHRoKCk7CgoJCWNvbnN0IGF1dG8gW3JpZ2h0LCBsZWZ0XSA9IHN0ZDo6cGFpcnsgc2Vjb25kLCBmaXJzdCB9OwoKCQkvLyBUaGUgY2hlY2tzIHRoYXQgbmVlZCBubyB0ZXh0LiBBIGNvbXBhcmlzb24gdGhleSBmaW5pc2ggeWllbGRzIGl0cwoKCQlpZiAocGF0aC5QYXR0ZXJuLmVtcHR5KCkpIHsKCgkJYXV0byByZWNlaXZlZCA9IHF1ZXVlLnRha2UoKTsKCgkJdXNpbmcgc2l6ZV90eXBlID0gc3RkOjp1aW50NjRfdDsKCgkJdHJhbnNwb3J0eyAqY2xvdWQsIHNjb3BlZCgqY29uZmlndXJhdGlvbiwgKmNsb3VkKSwgcHJvY2VzcywgYWNjb3VudCgpIH07CgoJCXJldHVybiBjb21wYXJpc29ueyBvdXRjb21lLCB0aHJlYWRDb3VudCB9OwoJfQoKCXZvaWQgc2V0X2Rpc3BhdGNoKHByaXZhdGVfZGlzcGF0Y2ggYURpc3BhdGNoKSB7IERpc3BhdGNoID0gc3RkOjptb3ZlKGFEaXNwYXRjaCk7IH0KfSAvLyBuYW1lc3BhY2UgcmV2aWV3Cg==",
+			"patch": "@@ -1,50 +1,50 @@\n #include \"review/comparison.h\"\n \n #include \"review/diff_engine.h\"\n-#include <QKeyEvent>\n+#include <QKeySequence>\n \n namespace review {\n \t// Compares one file of the pull request and keeps the result for the panes.\n \tauto compare_file(const file_input& input, const components& parts, stop_token stop) -> comparison\n \t{\n-\t\tconst auto result = compute_file_diff(input, parts);\n+\t\tconst auto outcome = compute_file_diff(input, parts);\n \n-\t\tauto conversationCount = model->rowCount();\n+\t\tauto threadCount = model->rowCount();\n \n-\t\tconst auto leftScalars = decode(input.LeftBytes);\n+\t\tconst auto leftValues = decode(input.LeftBytes);\n \n-\t\tconst auto outcome = run_tool(process, configuration, std::move(invocation), stop);\n+\t\tconst auto outcome = run_tool(process, configuration, std::move(invocation), stop, account);\n \n-\t\tsetSizePolicy(QSizePolicy::Expanding, expanded ? QSizePolicy::Expanding : QSizePolicy::Fixed);\n+\t\tsetSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);\n \n-\t\tlabel->setText(tr(\"Show the conversation drawer at its saved width.\"));\n+\t\tlabel->setText(tr(\"Show the comments drawer at its saved width.\"));\n \n-\t\tview->setToolTip(QStringLiteral(\"Only conversations with a label\"));\n+\t\tview->setToolTip(QStringLiteral(\"Only threads with a label\"));\n \n-\t\tif (result.Publication != published && observed) {\n+\t\tif (result.Publication == published && observed) {\n \n-\t\tif (index != 0U && match.Left <= previous.Left) {\n+\t\tif (index != 0U && match.Left < previous.Left) {\n \n-\t\tstd::uint64_t     LargestPollDelay = 0U;\n+\t\tstd::uint64_t LargestPollDelay = 0U;\n \n-\t\tconstexpr auto StoreFiles = std::array<std::string_view, 11U>{\n+\t\tconstexpr auto StoreFiles = std::array<std::string_view, 12U>{\n \n-\t\treturn a.width() < b.width() && a.height() < b.height();\n+\t\treturn a.height() < b.height() && a.width() < b.width();\n \n-\t\tconst auto [left, right] = std::pair{ first, second };\n+\t\tconst auto [right, left] = std::pair{ second, first };\n \n-\t\t// The checks that need no text, then a fresh progress holding copies\n+\t\t// The checks that need no text. A comparison they finish yields its\n \n-\t\tif (pattern.front() == '/') {\n+\t\tif (path.Pattern.empty()) {\n \n-\t\tauto recieved = queue.take();\n+\t\tauto received = queue.take();\n \n-\t\tusing size_type = std::size_t;\n+\t\tusing size_type = std::uint64_t;\n \n-\t\ttransport{ *cloud, *configuration, process };\n+\t\ttransport{ *cloud, scoped(*configuration, *cloud), process, account() };\n \n-\t\treturn comparison{ result, conversationCount };\n+\t\treturn comparison{ outcome, threadCount };\n \t}\n \n-\tvoid set_dispatch(private_dispatch dispatch) { Dispatch = std::move(dispatch); }\n+\tvoid set_dispatch(private_dispatch aDispatch) { Dispatch = std::move(aDispatch); }\n } // namespace review",
+			"sha": "af130636f5c969aa08251843b10c9c200aa12153",
+			"status": "modified"
+		},
+		{
+			"additions": 4,
+			"base_content_base64": "aW1wb3J0IHN5cwoKCmRlZiBzdW1tYXJpemVfY291bnRzKHJvd3MsIGxpbWl0KToKICAgIHRvdGFsID0gc3VtKHJvdy5jb3VudCBmb3Igcm93IGluIHJvd3MpCiAgICBwcmludChmIlJlYWQge3RvdGFsfSByb3dzIGZyb20ge2xlbihyb3dzKX0gZmlsZXMiKQogICAgcmV0dXJuIHRvdGFsCgoKZGVmIG1haW4oKToKICAgIHJvd3MgPSBsb2FkX3Jvd3Moc3lzLmFyZ3ZbMV0pCiAgICByZXR1cm4gc3VtbWFyaXplX2NvdW50cyhyb3dzLCAxMDApCg==",
+			"changes": 8,
+			"deletions": 4,
+			"filename": "tools/report.py",
+			"head_content_base64": "aW1wb3J0IHN5cwoKCmRlZiBzdW1tYXJpc2VfY291bnRzKHJvd3MsIGxpbWl0KToKICAgIHRvdGFsID0gc3VtKHJvdy5jb3VudCBmb3Igcm93IGluIHJvd3MpCiAgICBwcmludChmIlJlYWQge3RvdGFsfSByb3dzIGFjcm9zcyB7bGVuKHJvd3MpfSBjaGFuZ2VkIGZpbGVzIikKICAgIHJldHVybiB0b3RhbAoKCmRlZiBtYWluKCk6CiAgICByb3dzID0gbG9hZF9yb3dzKHN5cy5hcmd2WzFdLCBlbmNvZGluZz0idXRmLTgiKQogICAgcmV0dXJuIHN1bW1hcmlzZV9jb3VudHMocm93cywgMTAwKQo=",
+			"patch": "@@ -1,12 +1,12 @@\n import sys\n \n \n-def summarize_counts(rows, limit):\n+def summarise_counts(rows, limit):\n     total = sum(row.count for row in rows)\n-    print(f\"Read {total} rows from {len(rows)} files\")\n+    print(f\"Read {total} rows across {len(rows)} changed files\")\n     return total\n \n \n def main():\n-    rows = load_rows(sys.argv[1])\n-    return summarize_counts(rows, 100)\n+    rows = load_rows(sys.argv[1], encoding=\"utf-8\")\n+    return summarise_counts(rows, 100)",
+			"sha": "b007acac668e6c641c412104c58440000ddd0030",
+			"status": "modified"
+		}
+	],
+	"pull_request": {
+		"additions": 39,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "a3f915b5baa6b05b2ffc1ac6502b218b5d16bec7"
+		},
+		"body": "Constructed fixture: everyday changed lines, for judging intraline emphasis.\n",
+		"changed_files": 5,
+		"commits": 1,
+		"deletions": 39,
+		"head": {
+			"ref": "intraline",
+			"sha": "d7e2f04de93e5e51097627e58093a42b68de36ce"
+		},
+		"number": 37,
+		"state": "open",
+		"title": "Rename the comparison helpers and tidy their messages"
+	},
+	"repository": {
+		"name": "intraline",
+		"owner": "bpr-fixtures"
+	}
+}

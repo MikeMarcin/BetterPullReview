@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b"
+		"8c0e3fcf5d15155bb426563ff0a9c8770f94c76c7254577409c8be68e6e5771f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "275ebd5fb8bf6f33d4bf02a505953c0350eaea9b1be0b43c400fd6eb1411dd4c"
+        "684590282ac266c3ef011ffcf92bf9dcf121d57983e412dfc60181fc4eed021f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2561,3 +2561,13 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # ordinary ledger pass unchanged budgets. Review disposition is recorded under
 # docs/issues/_checkpoints/BPR-1527/review-origin-correction.json. No capability,
 # grant, publication, inventory or production mutation-branch change.
+
+# [[BPR-1537]] reseal over 6747ca029 (the last matching pins); no other
+# pinned-scope commit in between. The constructed intraline-v1 fixture joins
+# the test-build fixture enum (github_application_fixture_access.hpp), the
+# host-profile table (github_application.cpp), the served-fixture table
+# (github_public_path_fixture.cpp) and the --github-fixture names (main.cpp),
+# exactly as line-details-v1 did for BPR-1334. Test builds only: no grant,
+# target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1537.

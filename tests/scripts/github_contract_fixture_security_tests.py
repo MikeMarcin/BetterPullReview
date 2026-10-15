@@ -178,6 +178,13 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "line-details", 34),
         "mirrors": None,
     },
+    # [[BPR-1537]]. Everyday changed lines for judging intraline emphasis,
+    # written by scripts/build_intraline_fixture.py.
+    "intraline-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "intraline", 37),
+        "mirrors": None,
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {
