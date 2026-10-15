@@ -3491,6 +3491,127 @@ namespace {
 		return std::sqrt(static_cast<double>((red * red) + (green * green) + (blue * blue)));
 	}
 
+	/// \brief [[BPR-1534]]. Line details keeps the syntax colours under a
+	/// text selection.
+	///
+	/// \details The owner, 2026-10-15: "the line details [loses] syntax
+	/// highlights on selecting". Qt repainted every selected glyph in
+	/// `HighlightedText`. Line details now draws the comparison panes'
+	/// selection: the solid theme selection, each glyph in its own colour made
+	/// readable on it. In each built-in variant a selected `int` is drawn in
+	/// the type colour's selection ink and not in `HighlightedText`, the fill
+	/// is the selection colour, and nothing outside the selection changes.
+	auto test_line_details_keeps_the_syntax_colours_under_a_selection() -> void
+	{
+		const auto diff  = computed(selection_left, selection_right, { }, 49U);
+		using role       = core::appearance_role;
+		const auto spans = application::token_span_list{
+			{ .Line = 0U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+			{ .Line = 5U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+			{ .Line = 5U, .Column = 18U, .Length = 1U, .Role = role::syntax_number },
+		};
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+		for (const auto& [modeName, mode] : modes) {
+			const auto name      = std::string{ modeName };
+			auto       workbench = qt::diff_workbench{ };
+			workbench.resize(1'100, 760);
+			workbench.show();
+			process_events();
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(workbench);
+			workbench.adopt_appearance(profile);
+			const auto selected = context(diff, 96U, 96U);
+			workbench.set_loading(selected);
+			workbench.publish(bpr::qt::test::prepare_publication({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			}));
+			settle_geometry(workbench);
+			expect(workbench.adopt_token_spans(core::diff_side::right, std::make_shared<const application::token_span_list>(spans)),
+				   name + ": the head side adopts its classification");
+			expect(workbench.select_conversation_line(core::diff_side::right, 5U), name + ": the added line selects");
+			process_events();
+			auto* const strip = workbench.line_details();
+			auto        row   = -1;
+			for (auto block = strip->document()->begin(); block.isValid(); block = block.next()) {
+				if (block.text() == QStringLiteral("int added_value = 3;")) {
+					row = block.blockNumber();
+				}
+			}
+			expect(row >= 0, name + ": Line details shows the added line");
+			// The caret where the selection will end, so the two paints differ
+			// only by the selection.
+			auto caretOnly = QTextCursor{ strip->document()->findBlockByNumber(row) };
+			caretOnly.setPosition(caretOnly.block().position() + 18);
+			strip->setTextCursor(caretOnly);
+			process_events();
+			strip->viewport()->repaint();
+			const auto before = strip->viewport()->grab().toImage();
+			// "int added_value = " selected; "3;" is not.
+			select_characters(*strip, row, 0, 18);
+			const auto sample = measure_selection(*strip, row, 0, 18, 18, 20);
+			const auto after  = strip->viewport()->grab().toImage();
+			if (!render.isEmpty()) {
+				expect(workbench.grab().save(render + QStringLiteral("-bpr1534-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture Line details");
+			}
+			const auto fill = profile.color(role::code_selection_background);
+			expect(colour_distance(sample.Fill, fill) <= 4.0, name + ": the selection is the theme's solid selection colour");
+			std::cout << "BPR-1534 " << name << ": fill " << sample.Fill.name().toStdString() << " ground " << sample.Ground.name().toStdString()
+					  << " ratio " << luminance_ratio(sample.Fill, sample.Ground) << " distance " << colour_distance(sample.Fill, sample.Ground) << '\n';
+
+			// The selected `int`: its ink is the pixel farthest from the fill.
+			const auto block = strip->document()->findBlockByNumber(row);
+			auto       caret = [strip, &block](const int aCharacter) {
+				auto cursor = QTextCursor{ block };
+				cursor.setPosition(block.position() + aCharacter);
+				return strip->cursorRect(cursor);
+			};
+			const auto scale = after.devicePixelRatio();
+			auto       ink   = sample.Fill;
+			for (auto y = static_cast<int>((caret(0).top() + 1) * scale); y < static_cast<int>((caret(0).bottom() - 1) * scale); ++y) {
+				for (auto x = static_cast<int>(caret(0).left() * scale); x < static_cast<int>(caret(3).left() * scale); ++x) {
+					if (colour_distance(after.pixelColor(x, y), sample.Fill) > colour_distance(ink, sample.Fill)) {
+						ink = after.pixelColor(x, y);
+					}
+				}
+			}
+			const auto type     = profile.color(role::syntax_type);
+			const auto readable = qt::to_presentation_color(
+				core::readable_selection_ink(qt::to_appearance_color(type), qt::to_appearance_color(fill), profile.variant()));
+			const auto highlightedText = strip->palette().color(QPalette::Active, QPalette::HighlightedText);
+			std::cout << "BPR-1534 " << name << ": type " << type.name().toStdString() << " ink " << ink.name().toStdString() << " expected "
+					  << readable.name().toStdString() << " highlighted text " << highlightedText.name().toStdString() << " ink ratio "
+					  << luminance_ratio(readable, fill) << '\n';
+			expect(colour_distance(ink, readable) < 90.0 && colour_distance(ink, readable) < colour_distance(ink, highlightedText),
+				   name + ": the selected type keeps its colour, read on the selection, not the highlighted-text colour");
+			expect(core::contrast_ratio_hundredths(qt::to_appearance_color(readable), qt::to_appearance_color(fill))
+					   >= core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant()),
+				   name + ": the selected type's ink reaches the variant's text floor on the selection");
+
+			// Outside the selected characters the strip is painted as Qt
+			// painted it: the bands, the other row, the unselected "3;".
+			const auto selectedRect = QRect{ QPoint{ caret(0).left() - 1, caret(0).top() }, QPoint{ caret(18).left() + 1, caret(0).bottom() } };
+			auto       differing    = 0;
+			for (auto y = 0; y < after.height(); ++y) {
+				for (auto x = 0; x < after.width(); ++x) {
+					if (after.pixel(x, y) != before.pixel(x, y)
+						&& !selectedRect.contains(QPoint{ static_cast<int>(x / scale), static_cast<int>(y / scale) })) {
+						++differing;
+					}
+				}
+			}
+			expect(differing == 0, name + ": nothing outside the selection changes");
+			expect(strip->textCursor().selectedText() == QStringLiteral("int added_value = "), name + ": the selection itself is unchanged, for Copy");
+		}
+	}
+
 	/// \brief [[BPR-1533]], [[BPR-1534]]. The selection fixture's
 	/// classification, so the looks show syntax colours under a selection.
 	[[nodiscard]] auto selection_spans(const core::diff_side aSide) -> application::token_span_list
@@ -5817,6 +5938,9 @@ auto main(int argc, char** argv) -> int
 	if (argc > 1 && std::string_view{ argv[1] } == "--selection-only") {
 		// One of them by name, or all three.
 		const auto only = argc > 2 ? std::string_view{ argv[2] } : std::string_view{ };
+		if (only.empty() || only == "line-details") {
+			test_line_details_keeps_the_syntax_colours_under_a_selection();
+		}
 		if (only.empty() || only == "syntax") {
 			test_a_selection_keeps_the_syntax_colours();
 		}
@@ -5867,6 +5991,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panes_scroll_past_their_end_and_the_bar_agrees();
 	test_selected_rows_derive_their_intraline_fill();
 	test_dark_intraline_preserves_readable_syntax_hues();
+	test_line_details_keeps_the_syntax_colours_under_a_selection();
 	test_group_selection_washes_every_line();
 	test_the_reading_line_wears_the_current_line_band();
 	test_the_keyboard_line_cursor_and_return();

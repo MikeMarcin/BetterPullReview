@@ -1511,7 +1511,9 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   through the same format ranges. The change highlight is a background under
   them, so a changed token keeps its own colour, moved only as far as it must
   to stay readable on the fill, as in the panes. A cut row is coloured only as
-  far as it is shown. A text
+  far as it is shown. A text selection in Line details is drawn as the panes
+  draw theirs, solid in the selection colour with each glyph keeping its
+  syntax colour ([[BPR-1534]]). A text
   selection across lines that holds the current line shows each selected
   line's pair, up to sixteen, then how many more were selected. An unchanged
   line shows both versions plainly. A removed or added line shows its own row
