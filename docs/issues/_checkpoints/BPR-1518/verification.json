@@ -1,0 +1,85 @@
+{
+  "assignment": "BPR-1518",
+  "mandate_revision": "bpr1518-r1",
+  "milestone": "bpr1518-next-change/cursor-relative-change",
+  "candidate_revision": "c703ed29200eaf07d620cdc669678fd02937c5ed",
+  "product_revision": "64b76b673d78bc3ad3594a21962e4702a676bf30",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "qt": "6.11.2",
+    "presentation": "offscreen"
+  },
+  "checks": [
+    {
+      "command": "ctest --preset dev -R '^(core_diff_semantics|core_workbench_interaction|application_change_arrows_across_files)$' --output-on-failure",
+      "exit_code": 0,
+      "result": "3/3 pass; core0.38s/0.23s; composed50.14s",
+      "observations": {
+        "files": 17,
+        "bounds": 37,
+        "ordinary_change_steps": 8,
+        "clicked_origins": 46,
+        "unequal_line_mapping": true,
+        "both_sides_and_directions": true,
+        "same_file_pair_replacement": "base/base refuses prior source identity; both directions retain new no-changes origin",
+        "hunk_reveal": "exact canonical source anchor intersects viewport"
+      }
+    },
+    {
+      "command": "ctest --preset core-only -R '^(core_diff_semantics|core_workbench_interaction|architecture_boundaries)$' --output-on-failure",
+      "exit_code": 0,
+      "result": "3/3 pass15.42s; all core inputs byte-identical at final candidate"
+    },
+    {
+      "command": "ctest --preset dev -R '^architecture_boundaries' --output-on-failure",
+      "exit_code": 0,
+      "result": "1/1 pass23.84s; no dependency edges changed afterward"
+    },
+    {
+      "command": "ctest --preset dev -R '^architecture_boundary_contract$' --output-on-failure",
+      "exit_code": 0,
+      "result": "1/1 pass205.56s; unchanged contract evidence reused"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run src/core/include/bpr/core/diff_semantics.hpp src/core/include/bpr/core/workbench_interaction.hpp src/core/src/diff_interaction.cpp src/core/src/diff_semantics.cpp src/core/src/workbench_interaction.cpp tests/core/diff_semantics_tests.cpp tests/core/workbench_interaction_tests.cpp tests/end_to_end/change_arrows_across_files_public_path_tests.cpp",
+      "exit_code": 0,
+      "result": "clang-format22.1.8 pass; app formatting applied only inside changed function"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm@22/bin/clang-tidy --paths src/core/src/diff_semantics.cpp src/core/src/diff_interaction.cpp src/core/src/workbench_interaction.cpp --warnings-as-errors",
+      "exit_code": 0,
+      "result": "all3 changed core translation units pass"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "exit_code": 0,
+      "result": "67 tests pass5.241s"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK after acceptance evidence added"
+    }
+  ],
+  "negative_control": "negative-control.json",
+  "corrected_development_observations": [
+    "Initial optional-position draft exceeded the core128-byte state limit; compact AtUnchangedLine tag retains that limit.",
+    "Initial viewport test bypassed the shared scroll authority through a hidden native bar; corrected test uses the shared controller. No Qt geometry product changes."
+  ],
+  "self_review": {
+    "result": "pass",
+    "details": [
+      "Source query uses indexed canonical segment/group order; no opposite-side line-number guess or full-result revalidation.",
+      "Bounded projection retains compact/trivial core state and existing absent/group origins; invalid/stale lines fail closed.",
+      "Stop endpoints preserve selection; explicit fixture wrap and unchanged group semantics remain.",
+      "No effects, provider types, new publication authority or Qt policy added."
+    ]
+  },
+  "required_pending": []
+}

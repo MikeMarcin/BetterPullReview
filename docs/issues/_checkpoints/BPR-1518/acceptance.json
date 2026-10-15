@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "c703ed29200eaf07d620cdc669678fd02937c5ed",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Actual unchanged-line clicks between hunks followed by composed Next Change choose the following hunk. Restoring group-only origin makes the exact hunk/source assertion fail.",
+        "reference": "docs/issues/_checkpoints/BPR-1518/verification.json"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "c703ed29200eaf07d620cdc669678fd02937c5ed",
+      "evidence": {
+        "kind": "observation",
+        "detail": "46 exact file/side/source click origins in17 files include unequal mappings; each action asserts the canonical target selection, exact comparison and visible source anchor.",
+        "reference": "docs/issues/_checkpoints/BPR-1518/verification.json"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "c703ed29200eaf07d620cdc669678fd02937c5ed",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Core and composed checks cover before-first, inside endpoint groups, gaps and after-last; Previous is symmetric, bounded actions keep source/viewport, fixture wrap remains explicit. Owning UX contract updated.",
+        "reference": "docs/issues/_checkpoints/BPR-1518/verification.json"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "c703ed29200eaf07d620cdc669678fd02937c5ed",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real QMouseEvent source clicks replace prior navigated groups before real window QActions. Same-file base/base replacement refuses the stale selection and preserves the new source origin/no-changes bound.",
+        "reference": "docs/issues/_checkpoints/BPR-1518/verification.json"
+      }
+    }
+  ]
+}

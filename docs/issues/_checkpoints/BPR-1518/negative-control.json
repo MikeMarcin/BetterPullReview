@@ -1,0 +1,10 @@
+{
+  "candidate": "64b76b673d78bc3ad3594a21962e4702a676bf30",
+  "essential_wire": "diff_interaction line-origin branch replaced with the old group-only origin",
+  "source_before_sha256": "372bbc401978b01d9d5596aaa8c72910b62538fe3a68f73f4bc5237d7e44263e",
+  "mutant_build_exit": 0,
+  "negative_exit": 8,
+  "observed_failure": true,
+  "source_restored_sha256": "372bbc401978b01d9d5596aaa8c72910b62538fe3a68f73f4bc5237d7e44263e",
+  "restore_build_exit": 0
+}
