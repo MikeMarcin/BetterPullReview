@@ -146,9 +146,11 @@ namespace bpr::qt {
 			auto* const header = new QWidget{ card.Frame };
 			header->setObjectName(aObjectName + QStringLiteral("Header"));
 			header->setAutoFillBackground(true);
-			// Settings chrome follows the application surface; AlternateBase is
-			// the independently customisable code current-line fill (BPR-1513).
-			header->setBackgroundRole(QPalette::Window);
+			// A native palette role, so the header tint follows every theme.
+			// `Light` is the profile's raised surface: a near-white strip in
+			// Light and a lifted, never bright, strip in Dark. AlternateBase is
+			// the code current-line fill and is not settings chrome (BPR-1513).
+			header->setBackgroundRole(QPalette::Light);
 			card.Header = new QHBoxLayout{ header };
 			card.Header->setContentsMargins(
 				card_inset, row_inset, card_inset, row_inset);
@@ -1644,7 +1646,8 @@ namespace bpr::qt {
 			column->addWidget(make_hairline(PreviewBar));
 			auto* const foot = new QWidget{ PreviewBar };
 			foot->setAutoFillBackground(true);
-			foot->setBackgroundRole(QPalette::AlternateBase);
+			// The same raised surface as the card headers (BPR-1513).
+			foot->setBackgroundRole(QPalette::Light);
 			auto* const line = new QHBoxLayout{ foot };
 			line->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
 			line->setSpacing(column_gap / 2);

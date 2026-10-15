@@ -81,14 +81,19 @@ namespace {
 				auto* const header = panel->findChild<QWidget*>(prefix + QStringLiteral("Header"));
 				auto* const title  = panel->findChild<QLabel*>(prefix + QStringLiteral("Title"));
 				expect(header != nullptr && title != nullptr, "every Appearance section has its header and title");
-				expect(header->palette().color(header->backgroundRole()) == surface,
-					   "Appearance banners use the application surface rather than a code-row fill");
+				const auto band     = header->palette().color(QPalette::Light);
+				const auto bandPage = qt::contrast_ratio(qt::to_appearance_color(band), qt::to_appearance_color(surface));
+				expect(header->autoFillBackground() && header->backgroundRole() == QPalette::Light
+						   && band == settings->palette().color(QPalette::Light),
+					   "Appearance banners keep their filled strip on the open Settings shell's raised surface");
+				expect(band.lightnessF() >= surface.lightnessF() && bandPage <= 1.35,
+					   "the banner is raised above the surface yet stays close to it, never a bright strip");
 				expect(title->palette().color(title->foregroundRole()) == ink
-						   && qt::contrast_ratio(qt::to_appearance_color(ink), qt::to_appearance_color(surface)) >= 4.5,
-					   "Appearance titles retain readable application text after each live mode change");
+						   && qt::contrast_ratio(qt::to_appearance_color(ink), qt::to_appearance_color(band)) >= 7.0,
+					   "Appearance titles retain readable application text on the banner after each live mode change");
 				const auto raster = header->grab().toImage();
-				expect(!raster.isNull() && raster.pixelColor(5, raster.height() / 2) == surface,
-					   "the actual painted banner uses the restrained surface");
+				expect(!raster.isNull() && raster.pixelColor(5, raster.height() / 2).rgb() == band.rgb(),
+					   "the actual painted banner uses the raised surface");
 			}
 			if (!captureDirectory.isEmpty()) {
 				const auto name = core::stable_name(mode);
