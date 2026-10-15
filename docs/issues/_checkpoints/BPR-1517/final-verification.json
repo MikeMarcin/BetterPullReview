@@ -1,0 +1,13 @@
+{
+  "criterion": "AC1-AC4",
+  "outcome": "pass",
+  "revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^application_review_navigation_entry$|^application_workbench_host$|^architecture_boundaries$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 49.788,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/bpr1517-file-navigation/BetterPullReview/build/dev\n    Start   5: architecture_boundaries\n1/3 Test   #5: architecture_boundaries ...............   Passed   14.53 sec\n    Start 191: application_workbench_host\n2/3 Test #191: application_workbench_host ............   Passed    0.23 sec\n    Start 710: application_review_navigation_entry\n3/3 Test #710: application_review_navigation_entry ...   Passed   34.96 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated                    =  49.73 sec*proc (3 tests)\nbpr_serial_gui                          =  34.96 sec*proc (1 test)\nbpr_windows_uncontained_registration    =  34.96 sec*proc (1 test)\n\nTotal Test time (real) =  49.78 sec\n",
+    "stderr_tail": ""
+  }
+}

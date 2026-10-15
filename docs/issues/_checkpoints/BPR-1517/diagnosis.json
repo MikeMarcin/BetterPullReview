@@ -1,0 +1,81 @@
+{
+  "assignment": "BPR-1517",
+  "mandate_revision": "bpr1517-owner-testing-2026-10-14",
+  "baseline": "583eb4689",
+  "candidate_revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+  "product_revision": "256f45366",
+  "diagnosis": [
+    "Ordinary file arrows incorrectly required tab_view_presented, including readable diff material and exact line selection; tree selection bypassed that gate.",
+    "Command capture preceded queued tree-to-tab reflection, allowing that preceding gesture to cancel a later press as a changed context.",
+    "An unavailable source terminal unconditionally discarded even ordinary file presses queued during its load."
+  ],
+  "negative_controls": [
+    {
+      "revision": "5e4b66b7baba3f90f54fa3629605053848cf134a",
+      "command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-R",
+        "^application_review_navigation_entry$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "elapsed_seconds": 53.28,
+      "failed_assertion": "ordinary Review file arrow escapes unavailable source on the exact pair"
+    },
+    {
+      "revision": "ec54779bb",
+      "command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "-R",
+        "^application_review_navigation_entry$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "elapsed_seconds": 52.44,
+      "failed_assertion": "source failure arriving after ordinary file press cannot discard the queued step"
+    }
+  ],
+  "verification_ref": "docs/issues/_checkpoints/BPR-1517/final-verification.json",
+  "additional_checks": {
+    "architecture_boundary_contract": {
+      "outcome": "pass",
+      "seconds": 210.67,
+      "scope": "unchanged boundary verifier contract; actual changed-source architecture_boundaries repeated in final receipt"
+    },
+    "documentation_verifier_tests": {
+      "outcome": "pass",
+      "count": 67,
+      "seconds": 4.73
+    },
+    "format": {
+      "outcome": "pass",
+      "tool": "clang-format 22.1.8 through repository format.py/format_check.py",
+      "scope": "entire changed test and complete touched navigation implementation region; unrelated baseline formatting preserved"
+    },
+    "diff_check": "pass"
+  },
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "qt": "6.11.2",
+    "surface": "offscreen full composed window at 1280x860, scale 1",
+    "fixture": "inline-drawer-v1; installed Git/cache actor; exact base/base unavailable added file"
+  },
+  "renders_inspected": [
+    "build/dev/review-navigation-renders/05-unavailable-exact-material.png",
+    "build/dev/review-navigation-renders/06-file-navigation-recovery.png"
+  ],
+  "source_sha256": {
+    "src/app/src/github_application.cpp": "c60a6a1fdf3239b524ac17307aa7401490db4d29fc855efa8a0a29a26ab8f2fc",
+    "tests/end_to_end/review_navigation_entry_public_path_tests.cpp": "2c4bc96515401cbc0f87f86de4af6fb56e8694413b7f10fd66924a647ca8193a"
+  },
+  "self_review": "Bounded composition-only change; core file-order/bound policy remains authoritative. Exact PR, generation, active tab, file and comparison checks remain. Entry restoration, source-dependent change navigation and later-gesture cancellation remain covered by the existing course. No provider, credential, public API, persistent schema or model reset change.",
+  "uncertainties": [
+    "Representative permanent no-op and queued-failure sequences reproduced; the owner original unknown triggering sequence cannot be identified conclusively."
+  ],
+  "required_pending": []
+}
