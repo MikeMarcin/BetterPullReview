@@ -5,7 +5,7 @@ title: "Bring File and Change labels closer to their controls"
 status: "Ready"
 rfcs: []
 depends_on: []
-metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"The controls for file and change are far away from their label's text. Probably need to shift those labels right","dispatch":"Fresh dedicated implementer queued pending an available agent slot"}
+metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"The controls for file and change are far away from their label's text. Probably need to shift those labels right","dispatch":"Fresh dedicated implementer queued pending an available agent slot","milestone_plan":{"id":"bpr-1519-navigation-label-spacing","path":"docs/rfcs/plans/bpr-1519-navigation-label-spacing/milestone-plan.json"}}
 ---
 
 # BPR-1519: Bring File and Change labels closer to their controls
