@@ -4,211 +4,165 @@ Mandate `authorized-release-continuation-final-gates-r3`; plan
 `bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
 Sole engineering owner `/root/bpr1525_implementer`, native rfc-implementer /
 gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
-BPR-1527 remains In Progress. BPR-1525/1526 remain Done and unchanged.
+BPR-1527 remains In Progress with eleven criteria and ten exits. BPR-1525/1526
+remain Done. Every behavioral, native and timing requirement remains in force.
 
-## Current release boundary: macOS-only 0.2.1
+## Release and ownership boundary
 
-The direct human instruction, forwarded by the authorized release monitor and
-explicitly accepted by the coordinator, is: "If windows is far away then just
-release Mac only and continue Windows fixes for 0.2.2". The selected 0.2.1 set is
-macOS only. Windows/Ubuntu 0.2.1 production is canceled/deferred; Windows repairs
-target 0.2.2. No new Ubuntu release timing is selected.
+The human directed: "If windows is far away then just release Mac only and
+continue Windows fixes for 0.2.2". Root selects macOS-only 0.2.1, cancels/defers
+Windows and Ubuntu 0.2.1 production, and assigns Windows repairs to 0.2.2.
+[The scope receipt](release-scope-amendment.json) preserves that authority.
+This supersedes the former common-source three-platform 0.2.1 coupling only;
+failed gates remain failed. No future Ubuntu release date is inferred.
 
-This supersedes the prior common-source, three-platform 0.2.1 coupling. It does
-not accept any failed native course, lower a threshold, or finish BPR-1527. All
-ten behavioral/timing criteria and nine exits remain, with native and portable
-repair acceptance continuing as follow-up. The accepted focused Mac slice may
-integrate now so root can run its complete exact-final-source macOS gate. Full
-Mac gate, optimized Release cache-bytes supplement, packaging, trust, security
-and legal/source-distribution obligations remain with root. See
-[release-scope-amendment.json](release-scope-amendment.json).
+Mac accepted code/test source is `6747ca029b48c231539cb36360bcfc3e26173609`;
+clean docs-only handback boundary is
+`c233c768327cd6c0cb6807860625ec12a9aeac14`. All later branch commits are Windows
+follow-up and must not enter or rebind the frozen Mac producer. Root exclusively
+owns Mac CPU and `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`.
+This implementer runs no new Mac build, test, format/tidy or performance course.
+Version stays 0.2.1 until a separately authorized release/version change.
 
-## Exact source and ownership
+The owned source worktree is
+`/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`, branch
+`codex/v021-windows-gate-fixes`. Current production lifecycle candidate is
+`94ff0ce28` (the following checkpoint commit changes documentation only).
+Root main, auth/signing/publication and the separately leased Windows station
+`C:/code/git/BetterPullReview` remain outside this scope. No owner-desktop access,
+review server, protected attended candidate or human decision is open.
 
-Current source candidate: `6747ca029b48c231539cb36360bcfc3e26173609` on
-`codex/v021-windows-gate-fixes`, owned worktree
-`/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`.
-The following upkeep commit changes documentation only. Initial allocation
-`26fa0b98f` had identical production/tests to failed final-gate source
-`d52f5bb1221e26dc00dbc9269c3ad0408b64548a`. Claim `7cb6796af` and initial
-binding `739b620e3` remain this same-owner continuation, with explicit amendments.
-No integration or source freeze is performed by this implementer. Root is
-authorized to integrate this focused-accepted Mac slice plus the docs-only
-release-boundary amendment and bind its own final Mac producer revision.
+## Preserved original evidence and Windows adoption
 
-This continuation changes documentation only, with no source/version/build/test
-change. Documentation gate is run before handback; no task command is handed
-off. After handback root owns Mac CPU exclusively. Windows/WSL remain
-coordinator-owned during the final full Windows gate. This implementer has run
-no PC command or workload during that lease. Failed producers stay untouched,
-including `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`; the separate
-Windows `C:/code/git/BetterPullReview` station never belongs to this task.
-No review server, protected attended candidate, auth, signing or publication
-is open. Retain this sole source owner for the pending native continuation.
+Original final Mac d52 result:734 accounted,719pass/14fail/1skip, exit8,
+3331.99s. All14diagnostics were read before edits. Immutable private originals
+remain under `.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
+Original complete Windows d52 result:705 accounted,679pass/25fail/1configured
+Debug cache-bytes skip, runnerexit8/wrapperexit1. All25exact failure diagnostics
+were read; late scaling/cold-import failures were already scoped. Root explicitly
+added the final navigation-entry lifetime failure as the eleventh unit.
 
-## Scope and original evidence
+Root released the quiescent PC for serialized Windows/WSL engineering. Before
+adoption, clean d52 source/branch/history and complete suite/CTest/cache/build
+metadata were preserved. Ref `preserve/bpr1527-v021-final-d52-r17` and the original
+branch still point to `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`. External evidence:
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-v021-d52-preserved-r17`.
+Repair checkout `C:/Users/mikem/bpr-v021` now uses owned branch
+`codex/bpr1527-windows-v022-r17`. No original gate result is overwritten as a pass.
 
-Eleven criteria and ten exits retain the original five Mac failures, Windows
-whole-workbench 200% timeout, nine later Mac courses and nine actual Windows
-local-cycle title/browser/window courses, plus three Windows submission courses and the explicitly added Windows
-navigation-entry explanation-lifetime course.
-Explicit scope amendments are recorded
-in `scale200-amendment.json`, `mac-final-amendment.json` and
-`windows-local-cycle-amendment.json` and `windows-submission-amendment.json`.
-No threshold, input, semantic assertion,
-native requirement or release obligation was waived. The helper rejected treating
-new selectors as same-scope refinement; coordinator scope-addition authority is
-recorded honestly. Renewed structural binding does not establish acceptance.
+## Verified Windows frontier
 
-Original full Mac result: 734 accounted, 719 pass / 14 fail / 1 skip, exit 8,
-3331.99s. All fourteen diagnostics were read before edits. Original log and receipt
-are `/tmp/bpr-release-021-macos-final.log` and its receipt; immutable private copies
-are under `.mask/sessions/BPR-1527/evidence/original-d52-complete/`.
-The previous enumerated Windows checkpoint had twenty-two failures reported by root: the 200%
-timeout, nine shared local-cycle assertions, already-scoped agent / capture /
-reply / progress / tour failures, and three newly added submission failures.
-Agent invocation 21.04s corroborates AC3. Submission 100%/125% fail 42.47s/42.83s;
-200% fails the same assertion (duration not yet supplied). The latest coordinator report is 700 / 705 with twenty-four failures. Root
-will preserve and reconcile the completed raw result before releasing the PC;
-the two later selectors are not guessed or silently added here. Original UTF16 and derived UTF8 snapshots are private under
-`evidence/windows-d52-partial/`. Prior focused 200% pass 119.08s is retained but
-does not establish stability.
+[The native receipt](windows-native-verification.json) binds candidates, actual
+commands/results and limits. Private UTF16 originals, derived UTF8, task receipts
+and per-run LastTest copies live under
+`.mask/sessions/BPR-1527/evidence/windows-v022-active/`.
+Native context is Interactive Limited mikem session1, ordinary windows-dev
+Visual Studio/MSBuild Debug, Qt6.11.2 offscreen, original scale/container
+registrations. All PC build/test/performance work is serialized; no independent
+Windows or WSL workload competes. SSH session0 only dispatches and observes.
 
-## Demonstrated causes and repairs
+- Local-cycle title/browser/window: all9 normal100/125/200 courses pass728.19s
+  on ccfc961. Native902px caption elides only its title, while exact canonical
+  tooltip, Local cycle badge and refused browser remain. The corrected oracle
+  requires exact full title or a nonempty exact prefix plus ellipsis, exact full
+  tooltip/badge, visible identity and original browser/Home/new-PR/width controls.
+  A deliberate compiled product loss-of-cycle change fails the exact assertion
+  in4.02s with PR identity/browser exposed. Exact source restored, normal rebuild,
+  then title100passes42.13s. An earlier C4189 compilation failure is retained as
+  a failed control attempt, not negative acceptance.
+- Application ccfc961 run:12/18pass599.51s. Agent, threaded reply, reply draft,
+  progress, tour3, scaling, cold import with both held-origin directions and zero
+  receipt, and Find3 pass. UIforETW primary high-contrast-dark, label laterphase33,
+  submission3 and navigation fail; their outputs are preserved.
+- Navigation: the original post-render clock waited2607ms after the originating
+  message was already455ms old, checking at3063ms after lawful3000ms expiry.
+  Exact f0e750 binds a latched clock to the first exact message of each originating
+  gesture, retaining all inputs/screenshots and2600/3600checks. Normal native
+  navigation passes93.92s. Same run UIforETW48.87 and roundtrip8.39pass; label42.43
+  and submission10042.08fail. An isolated UIforETW pass does not explain its r21
+  primary-profile failure: original d52 passed that profile and failed only later
+  compact-toolbar capture, so inheritance/regression is not guessed.
+- Label lifecycle: bounded r24 trace shows gen7 tab restoration selecting its
+  file, then another accepted gen8 snapshot retiring that selection. The older
+  driver has passed select-file, waits for retired material, and its TabLoad
+  blocks the owed fresh presentation; gen9 remains stuck. The6-line production
+  correction abandons obsolete presentation on accepted handoff, preserving the
+  core active view/Chosen and all exact comparison/material/request guards.
+  Exact94ff0ce28 native label nowpasses16.05s, published-file-switch20.10,
+  held refresh-pick13.00 and pinned roundtrip8.11. Format22/docgate and canonical
+  full/manifest/mutation digests agree. Submission100 still fails before Comment,
+  with no active tab or selected/material source; its distinct cause remains open.
+- Performance: current normal complete200 baseline passes118.85s inside unchanged
+  120s, confirming tiny headroom rather than stability or repair. Temporary,
+  otherwise unchanged keyboard-minimal6cases take39.79s. Split panes produce
+  139native bar events/141frames, unified390events/390frames for180keys each.
+  Unified samples74,60,61/75,61,62 identify native cursor centering/rollback;
+  no viewport resizes or corresponding split centering churn occur. Old profiles
+  remain locators. No new Qt production improvement is selected yet.
 
-- Reply: an unused lazy placeholder sent ChangeReplyTarget into materialization,
-  which correctly refuses it. Route the exact unused placeholder with no private
-  save pending through existing typed select_reply, retaining current thread,
-  anchor, scope, navigation and written-draft guards. Source provenance
-  `7bf1baeeb5` / `f55e39e726` predates BPR-1525/1526; no historical run is claimed.
-- Toolbar capture: BPR-1507 shipped Accept at index 10; the old probe expected
-  fifteen actions. Assert all sixteen ordered controls and the exact Accept
-  default action. No product toolbar or geometry/pixel/height check was removed.
-- Agent: a migrated legacy canary row satisfied rowCount 1 before create ack.
-  Bounded trace proved subject absent / invalid_binding, so refusal was correct.
-  Wait for the exact immutable reviewer body and actor before selecting. All
-  confidentiality, refusal, invocation and cleanup checks remain. Temporary
-  production tracing was restored byte-for-byte; bounded failure facts remain.
-- Find: at 900px with all drawers open, surface 242 and panel 227 conflicted with
-  the existing minimum 230. Outer margins now yield before shrinking the panel.
-  All original scales and query/focus/geometry checks pass with native controls.
-- Progress/scaling: adopted BPR-1506 makes ordinary Files opens Seen. The push
-  oracle retains exact flags/material and expects Seen after its explicit open.
-  Scaling establishes Unread through real Read / Mark unread before resetting
-  the original one-write / one-row Seen measurement. Budgets remain unchanged.
-- Tour: RFC-BPR-0039/0040 forbid viewed receipts from stop visits. Origin is bound
-  to the admitted source request in begin(request), before effects are posted,
-  and checked at receipt completion. Ordinary Files gestures clear origin before
-  their own new request; modality entry retains already-admitted origin. There
-  is no blanket visible-Tour exemption. Ordinary authoring opens assert Seen;
-  tour navigation adds no command and preserves every Read/Accept/Exclude field.
-  Absolute cold import remains zero receipts. Both real held-storage orderings
-  pass: tour then ordinary creates only new ordinary Seen; ordinary then Prepare
-  Tour preserves its already-admitted Seen.
-- Windows local-cycle: the original assertion is unchanged. Bounded failure facts
-  distinguish identity, tooltip, browser and Home clauses. Cause and repair await
-  the PC lease. Mac title-row scales and full-window pass do not prove Windows.
-- Windows submission: the failure is before Comment or inline-draft creation:
-  Files row zero increments FileSelections, then right line 29 cannot be selected.
-  That counter proves dispatch rather than adopted material readiness. The
-  selector can fail without current result/index, without that line in the exact
-  alignment, or after reentrant selection replacement. Native context/material
-  facts remain needed; the reply repair is not assumed to fix this earlier path.
-- Windows 200%: no new performance repair or improvement is claimed. Old keyboard,
-  gutter and divider profiles are locators. Preserve the accepted bounded gutter
-  cache; collect current native costs before another source-backed improvement.
+Temporary diagnostics are never exact-candidate acceptance. r24 restored source
+and normal app; r25 restored source, generated CTest registration and normal
+QtDiff binary. r26 retained its ordinary candidate result separately, then
+restored exact source and normal app/submission binaries. Its temporary trace
+was rebuilt into both targets but the standalone submission executable has no
+installed application terminal writer, so that attempt supplied no submission
+trace. Current r28 directs only the temporary bounded facts to stderr, then
+restores exact source and normal submission binary. Do not dispatch another PC
+workload until r28 finishes.
 
-## Coordinator review finding and disposition
+## Mac evidence retained unchanged
 
-`0f6d288b1db229f4137f6a285a8a571660662905` passed the previous focused suite but
-coordinator read-only review found that preparation retroactively changed an
-already-admitted ordinary request to tour origin. A new reverse held-storage
-control actually failed on that source in 26.06s. Removing the Qt event alone
-then exposed the modality reset erasing admitted tour origin (original cold-zero
-assertion failed in 3.64s). These are retained findings, not accepted source.
+[Mac verification](mac-candidate-verification.json), [source review](SELF_REVIEW.md)
+and [origin disposition](review-origin-correction.json) bind the accepted source.
+The initial reply placeholder wrongly entered materialization's deliberate
+ChangeReplyTarget refusal; exact unused placeholders now take existing typed
+select_reply with thread/anchor/scope/private-save guards intact. Toolbar capture
+asserts all16 ordered controls including shipped Accept. Agent readiness waits
+for exact immutable subject/actor rather than a migrated canary. Find margins
+yield before the230px control minimum. Progress/scaling assert adopted ordinary
+Seen through real controls; tour origin is assigned only at admitted begin(request).
+Both held directions and original absolute cold-zero receipt controls pass.
+Root falsified intermediate0f6d retroactive origin classification with a26.06s
+reverse control; corrected6747passes both directions. Qt production window/header
+are exact d52 baseline; no visible-Tour blanket exemption exists.
 
-Current `6747ca029` removes that unnecessary Qt preparation event and retains
-origin across modality entry. Qt production window/header are exact d52 baseline;
-only admitted begin(request) assigns TourSourceRequest. Both held directions and
-the original absolute-zero contract now pass. Exact guards and source review are
-in [SELF_REVIEW.md](SELF_REVIEW.md) and
-[review-origin-correction.json](review-origin-correction.json).
+Accepted Mac source passes20/20 normal affected courses180.33s and unchanged
+submission3/3control19.32s, fresh strict8selectedTUs, full clang-format22 of1542
+files, architecture, documentation and67verifierunits. Old reply/origin/geometry
+and omitted/misplaced toolbar controls fail and are restored byte-for-byte.
+Frontend-design was loaded at the installed official skill path before Qt work;
+existing appearance is retained. Offscreen evidence does not claim native system
+appearance or release approval. Later Windows lifecycle changes still need
+appropriate affected portability/Mac acceptance when root coordinates a slot.
 
-## Verification
+## Active command and next action
 
-[mac-candidate-verification.json](mac-candidate-verification.json) binds exact
-source hashes, commands and limitations. macOS 26.6.2 arm64, Qt 6.11.2 offscreen;
-GUI/timing courses ran serially without independent build, suite or performance
-work. Evidence logs are preserved privately under
-`.mask/sessions/BPR-1527/evidence/corrected-r14/` with SHA256 manifest.
+Mid-run checkpoint: native task `BPR-1527-focused-r28` is active at this write;
+wrapper/log/receipt are under
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-focused-r28.*`.
+No background local command, WSL workload or Mac workload exists. Source ownership
+stays with the same implementer; no quiescent handback or canonical finish occurs.
+Read private `ACTIVE.json` plus actual task receipt/state before continuing.
 
-- Corrected current-source combined 20 / 20 normal courses pass in 180.33s:
-  all fourteen Mac failures plus conversation reveal, full Qt window, scoped
-  prose, workshop press, ordinary ledger and publication round-trip. Log
-  `/tmp/bpr1527-corrected-integration-r14.log`. Earlier corrected five-course
-  pass 26.77s includes the two held orderings and cold-zero controls.
-- Fresh strict clang-tidy 22 passes all eight selected translation units in two
-  disjoint four-unit commands; no source changed between checks. Logs
-  `/tmp/bpr1527-corrected-strict-tidy-r14.log` and
-  `/tmp/bpr1527-corrected-consumer-tidy-r14.log`. No new NOLINT or setting change.
-- Full clang-format 22.1.8 passes all 1542 files. Architecture passes 15.15s.
-  Logs `/tmp/bpr1527-corrected-format-r14.log` and
-  `/tmp/bpr1527-corrected-architecture-r14.log`.
-- Documentation passes (DOCUMENTATION_OK) and all 67 verifier units pass on the
-  current upkeep. Exact results and logs are recorded in the candidate evidence. Full app/manifest pins are reviewed and resealed; production
-  mutation branch remains
-  `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
-- Five deliberately broken public controls fail: omitted Accept 3.63s, old reply
-  placeholder 40.61s, disabled tour guard 4.42s, old Find placement 11.77s and
-  misplaced Accept 3.71s. Exact candidate bytes were restored and SHA256 checked.
-  Logs `/tmp/bpr1527-negative-r7.log` and `-r8.log`; no injected control remains.
-- Unchanged Mac submission control passes all three newly added scales in
-  19.32s (7.83 / 5.59 / 5.88s). This confirms current Mac behavior only; Windows
-  cause and native acceptance remain open. Log
-  `/tmp/bpr1527-submission-mac-control-r15.log`.
-- Current 900px public full-window Find render was inspected; controls fit.
-  Offscreen layout evidence does not claim native system appearance acceptance.
+After r28 quiesces, preserve exact trace/results and diagnose the submission
+first-tab loss; do not add a test delay or weaker readiness/assertion. A prepared
+r27 experiment narrowly suppresses unified native vertical-scroll signals during
+its owned cursor-update/rollback, then measures the unchanged keyboard cases and
+normal complete200 course; it is a temporary hypothesis, not adopted product.
+Preserve120s/input/assertions/container/environment, all scale/pixel/axis controls,
+exact restoration and no competing PC workload. UIforETW needs source-backed
+closure of its additional observed primary-profile failure.
 
-Frontend-design was read before Qt work at the installed official skill path
-`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
-Existing appearance is preserved; no new human look-and-judge decision is parked.
+Finish all three native submission scales, label correction affected controls,
+whole-workbench source improvement and normal affected scales, strict changed-TU
+analysis, format22, architecture/documentation checks and scoped self-review.
+Then serialize an Ubuntu26.04 WSL affected compile/public-path pass, preserving
+its actual clean source/history before adoption. No full Ubuntu0.2.1 gate/package
+is selected. [Native continuation](NATIVE_NEXT.md) retains exact commands and
+boundaries; update this checkpoint to actual quiescence before final return.
 
-## Remaining work and next action
-
-Once root releases the PC, follow [NATIVE_NEXT.md](NATIVE_NEXT.md): preserve failed
-producer history and artifacts, adopt the exact candidate on an owned repair
-branch, run unchanged title-row 100% for native clause facts, repair the actual
-shared cause and pass all nine named courses. Trace current whole-workbench
-costs before a bounded source improvement; restore and rebuild normal binaries,
-then pass the complete 200% course within unchanged 120s and affected scales under
-prescribed exclusivity. Recheck the already-scoped native Windows agent course
-and affected application contracts, plus all three newly added submission courses
-with exact current-head selection and submission/refusal assertions unchanged. Serialize Ubuntu 26.04 WSL compile and public
-paths afterward. Any later source change receives focused affected Mac acceptance.
-
-BPR-1527 canonical finish still awaits required native repair acceptance. The
-focused-accepted Mac slice may integrate now for macOS-only 0.2.1. Root owns its
-complete final Mac gate, optimized Release cache-bytes supplement, packages,
-corresponding-source/SPDX/notices, trust/security/legal obligations and release
-approval. Windows follow-up repairs target 0.2.2 on the owned branch after PC
-release. They never mutate or rebind the frozen Mac producer. Affected Ubuntu
-portability checks remain engineering acceptance; no Ubuntu 0.2.1 release gate
-or package is required under the new selected set. No required human decision
-is pending. Source ownership remains with this same implementer for continuation.
-
-## Windows 0.2.2 continuation after Mac handback
-
-Root received clean docs-only `c233c768327cd6c0cb6807860625ec12a9aeac14` for
-Mac 0.2.1 integration; all following branch commits are Windows 0.2.2 follow-up
-and must not enter/rebind the frozen Mac producer. Root now owns Mac CPU.
-Windows full d52 completed 705 courses: 679 pass / 25 fail / 1 configured Debug
-cache-bytes skip, runner exit8 and wrapper exit1. Exact final log
-`/tmp/bpr-v021-d52-windows-final.utf8.log` was read for all25failures. The two
-later failures before navigation are already-scoped active-changed scaling and
-tour cold import; no extra selectors are invented. Root explicitly adds
-`application_review_navigation_entry` as AC11 / exit10, preserving prior10/9.
-PC is quiescent and released for serialized Windows/WSL work. Before adoption,
-preserve clean d52 source/branch/history plus complete build/test evidence.
-Current source diagnosis for navigation is recorded as a hypothesis only in
-windows-navigation-amendment.json; unchanged native evidence remains required.
-No new Mac build/test/performance or producer mutation is authorized.
+Root owns full exact-final-source macOS-only0.2.1 gate, optimized Release
+cache-bytes supplement, packages, corresponding-source/SPDX/installed notices,
+trust/security/legal gaps and release approval. Windows0.2.2 has its own later
+exact-source native release obligations. No auth/signout/reboot/signing action,
+waiver, full-gate pass or false BPR-1527 Done is supplied.

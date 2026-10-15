@@ -1,0 +1,58 @@
+{
+  "schema": "bpr.native-repair-verification.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "runtime": "rfc-implementer / gpt-6.1-sol / xhigh; no differing effective route exposed",
+  "release_target": "Windows0.2.2",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "original": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "original_full_result": "705accounted:679pass25fail1configured Debug cachebytes skip, exit8; failed/incomplete acceptance, not rerun by implementer",
+  "preservation": {
+    "ref": "preserve/bpr1527-v021-final-d52-r17",
+    "external_root": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-v021-d52-preserved-r17",
+    "contents": "Clean source/status/branch/history, complete original suite and CTest/build metadata retained before adoption",
+    "repair_branch": "codex/bpr1527-windows-v022-r17"
+  },
+  "native_context": "Interactive Limited mikem session1; ordinary windows-dev VS/MSBuild Debug, Qt6.11.2, offscreen, original scale/container registrations. All Windows/WSL builds/tests/performance serialized; no independent PC workload. Mac CPU root-owned.",
+  "cycle": {
+    "candidate": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+    "positive": "All9 normal title/browser/window100/125/200 pass728.19s, original thresholds/assertions except source-backed adaptive caption oracle",
+    "cause": "At902 native caption is A retain\u2026  \u00b7  Local cycle, tooltip retains full canonical title+badge, browser hidden/disabled, Home0. Existing production elides only title before exact badge. Old startsWith(full title) oracle contradicted native adaptive contract.",
+    "oracle": "Canonical exact tooltip, exact title or nonempty exact prefix plus ellipsis, exact Local cycle suffix, visible identity and original refused browser; all Home/newPR/width/scale controls retained",
+    "negative": "Deliberately discard cycle on samePR refresh: actual compiled product control fails exact assertion4.02s with browser exposed and PR identity. Source restored byte-for-byte; normal title100passes42.13s. First control failed C4189 compilation, retained as failed attempt, no negative acceptance."
+  },
+  "application_r21": {
+    "candidate": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+    "result": "12/18pass599.51s",
+    "pass": "agent,threadedreply,replydraft,progress,tour3,scaling,coldimport with BOTH held-origin directions and zero receipt,Find3",
+    "fail": "UIforETW primaryhighcontrastdark, label laterphase33, submission3, navigation lifetime. UIfor originally d52 passed primaryprofiles then failed later compact toolbar; new failure not proven inherited or introduced."
+  },
+  "r23": {
+    "candidate": "f0e7508f335f2909c861d83893ca86e971eb10b6",
+    "checks": "native clang-format22.1.8 threepaths,docgate,app/nav/submissionbuild pass",
+    "tests": "UIforETW48.87,roundtrip8.39,navigation93.92 pass; label42.43 andsubmission10042.08fail;3/5total235.92s",
+    "nav_cause": "Message emitted455ms before original post-render clock; original waits2607ms and observes3063ms after correct3000ms expiry. Newclock latches first exact message for each originating gesture, retains screenshots and unchanged2600/3600checks. Normal native course actually passes.",
+    "limits": "UIfor isolated pass does not close r21 different observed failure; label andsubmission remain open."
+  },
+  "r24": {
+    "mode": "Temporary bounded trace, not acceptance. Exact original source+normalapp restored after diagnostic, wrapperexit0/traceexit8",
+    "cause": "Label gen7 tabdriver selectedfile andwaitedmaterial; nextacceptedgen8retiresselection whileload/driverremainactive. keep1 cannotrestart becauseTabLoadblocks;gen9stillstuck. Current candidate abandons obsolete application presentation on accepted handoff, letting existing core activeview/Chosen and acceptedcomparison path restart.",
+    "limit": "Separate submission binary was not relinked with trace in r24, so no submissiontrace claim. r26 builds bothlinkedtargets."
+  },
+  "performance": {
+    "normal_candidate": "f0e7508f335f2909c861d83893ca86e971eb10b6",
+    "normal_baseline": "Whole200pass118.85s unchanged120s; not stability or repair",
+    "temporary_keyboard": "Same6 keyboardminimal cases/180keys each,39.79s; split139bar-events141frames0resizes6.35\u20136.63s, unified390bar-events390frames0resizes5.25\u20135.28s. Unified74,60,61/75,61,62 samples prove temporarynativecentering rollback; splitgeneralhypothesisfalsified.",
+    "next": "Temporary scoped vertical-signal guard experiment after r26 quiescence; no production Qt change selected yet. Restore exactsources/generatedCTest/binaries before normal acceptance."
+  },
+  "current_candidate": "94ff0ce28",
+  "current_source_status": "Exact94ff nativeformat22/docgate/canonicaldigest agreement/buildpass. Normal label16.05,publishedswitch20.10,refreshpick13.00,roundtrip8.11pass;submission100fail(noactive/selected). r26restorednormalbinary/source; r28temporary stderrtrace forstandalone submission pending.",
+  "pending": "UIfor new phase diagnosis/closure; label correction acceptance; submission3 actualfix/acceptance; bounded whole200 production improvement; affected scales/pixels/axis; strict changed source and format/doc gates; one serialized Ubuntu26.04 WSL affected compile/publicpaths; exact final source checkpoint/selfreview/canonical finish. Root owns selected Mac-only fullgate/packages/trust/security/legal/source obligations.",
+  "private_evidence": ".mask/sessions/BPR-1527/evidence/windows-v022-active/; preserved UTF16 originals and UTF8 derived logs, receipts, individual LastTest copies. Transient logs excluded from Git.",
+  "r26": {
+    "candidate": "94ff0ce288947241d20a8892a01a37fde29e0101",
+    "positive": "Native normal4/5courses, label16.05,published20.10,refreshpick13.00,roundtrip8.11; canonicaldigestsagree,format22/docgatepass",
+    "negative": "Submission100stillfails noactive/no selected; exactduration inpreservedlog",
+    "diagnostic_limit": "Both executables relinked with bounded trace but standalone submission has no terminal-diagnostics owner, so no trace delivered. r28 uses temporary bounded stderr only; not acceptance. Source/normal binaries restored after r26."
+  }
+}

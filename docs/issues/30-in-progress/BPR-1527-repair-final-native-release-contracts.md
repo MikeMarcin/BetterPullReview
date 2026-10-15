@@ -109,3 +109,24 @@ This follow-up is excluded from the frozen Mac 0.2.1 producer. The complete d52
 Windows result is 705 accounted: 679 pass, 25 fail, 1 configured Debug cache-bytes
 skip. Root released the quiescent PC to this implementer for serial Windows/WSL
 repair and acceptance; there is no signing, auth, security or reboot authority.
+
+
+## Windows 0.2.2 focused continuation
+
+The original d52 producer and full evidence were preserved before adoption to
+an owned repair branch. [Native evidence](../_checkpoints/BPR-1527/windows-native-verification.json)
+records all nine title/browser/window courses passing728.19s and a compiled
+loss-of-cycle control failing4.02s, followed by exact restoration and a normal
+42.13s pass. The oracle retains canonical full tooltip and badge plus lawful
+native title elision, exact browser refusal, Home/new-PR and all scale/width rules.
+The navigation course passes93.92s with the clock bound to the originating
+message, preserving screenshots and2600/3600ms lifetime checks. These focused
+passes do not finish the other criteria or supply release approval.
+
+The normal200 workbench baseline still takes118.85s inside unchanged120s, so
+stability and bounded source improvement remain pending. Application12/18 and
+later3/5 observations retain the remaining UIforETW, label-phase33 and submission
+failures. A bounded native trace identifies a second accepted refresh leaving an
+older tab presentation waiting for retired selection material; corrected native
+acceptance and all other listed obligations remain pending. Mac source/producer
+remain isolated at the accepted c233 handback boundary.
