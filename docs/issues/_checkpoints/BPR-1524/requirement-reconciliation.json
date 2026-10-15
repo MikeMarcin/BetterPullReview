@@ -1,0 +1,34 @@
+{
+  "schema": "bpr1524.requirement-reconciliation.v1",
+  "reason": "Correct an engineer-authored premature production-cause assumption after exact native measurement; original assignment required determining whether the product regressed.",
+  "authority": "Coordinator explicitly approved test-only bounded native event-loop helper correction, retaining all budgets and assertions.",
+  "mandateRevision": "owner-20261014-use-implementers",
+  "oldExitCriteria": [
+    "Retain both original Windows failures and identify the stage and production mechanism behind the navigation delay.",
+    "Correct the demonstrated production cause without weakening thresholds, assertions, source identity, acquisition containment or complete search coverage.",
+    "Demonstrate passing exact-candidate Windows performance with other budgets intact, focused Mac public paths, format22, relevant architecture/structure checks and clean-source handoff."
+  ],
+  "newExitCriteria": [
+    "Retain both original Windows failures and identify the native delayed stage and whether its cause belongs to production or the test driver.",
+    "Correct the demonstrated cause without weakening thresholds, assertions, source identity, acquisition containment or complete search coverage.",
+    "Demonstrate passing exact-candidate Windows performance with other budgets intact, focused Mac public paths, format22, relevant architecture/structure checks and clean-source handoff."
+  ],
+  "unchanged": [
+    "one issue and one milestone",
+    "AC1/AC2/AC3 selectors",
+    "2000ms navigation and all other regression thresholds",
+    "30-second condition wait",
+    "public composition and coverage assertions",
+    "no production source assignment",
+    "full release gate remains coordinator obligation"
+  ],
+  "candidateBeforeCorrection": "8fdec1f0f3130b566f4c574d8ef83b733c53264c",
+  "candidateDemonstratingCorrection": "068b650da81d6929a43a785c41e5fe67c03f680f",
+  "observations": {
+    "manualSleepNavigationMs": 3196,
+    "nativeEventLoopNavigationMs": 1447,
+    "geometryBatchesBoth": 127,
+    "measurementRestartsBoth": 1
+  },
+  "mechanicalRefinement": "This is explicit reconciliation of the initial requirement wording, not a claim that unchanged-exit refinement validation authorizes changed wording."
+}

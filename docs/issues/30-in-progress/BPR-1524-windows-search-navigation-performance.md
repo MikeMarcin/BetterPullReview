@@ -15,8 +15,8 @@ The public large-review search course reproducibly records selected-file navigat
 
 ## Acceptance
 
-- AC1: Preserve both exact-source Windows failures, use the shortest public composition to identify the delayed stage and production cause, and distinguish measured facts from hypotheses.
-- AC2: Correct that production cause within explicitly assigned paths. Preserve every committed threshold, original public-path assertion, exact source/authority/cancellation boundary and truthful full-corpus search coverage.
+- AC1: Preserve both exact-source Windows failures, use the shortest public composition to identify the delayed stage and production or test-driver cause, and distinguish measured facts from hypotheses.
+- AC2: Correct that demonstrated cause within explicitly assigned paths. Preserve every committed threshold, original public-path assertion, exact source/authority/cancellation boundary and truthful full-corpus search coverage.
 - AC3: Verify the corrected committed candidate on Windows with navigation within 2000 ms and all other budgets passing; run relevant focused Mac public composition, format22, documentation and changed-boundary checks. Return clean main and producer source with commands quiescent. Full normal release gates, packaging/signing and publication remain coordinator obligations.
 
 ## Ownership and execution
@@ -24,3 +24,9 @@ The public large-review search course reproducibly records selected-file navigat
 The owner requires implementers to perform release fixes. Engineering owner `/root/release021_review_controls` initially owns timing diagnostics in `tests/end_to_end/source_pr_search_performance_tests.cpp`; the coordinator must receive the precise proposed production paths before their assignment and edit. Thresholds are not editable. Existing frontend-design is loaded if the diagnosed path affects Qt mechanics; no new visual design or acceptance is inferred.
 
 Main and native/Mac producers were released clean by the BPR-1523 implementer at `6230bd1e37dfdb9c00d35d9a43ccafe2878bf535`. PC Windows and WSL build/test work is serialized. The separately owned Azure console/login wizard remains outside this issue. No owner desktop, profiles, installed apps, browser data, secrets, authentication settings, signing or remote publication are touched.
+
+## Execution record
+
+The initial plan called the unknown cause a production defect before measurement. The original coordinator assignment explicitly required establishing whether it was an actual product regression. Exact native observations instead identify the test driver: it calls `QThread::msleep(1)` after every `processEvents` turn. Windows takes 127 bounded geometry batches and the external sleeps inflate their completion from native event-loop latency to over three seconds. The coordinator approved a test-only `QEventLoop` correction, retaining the 30-second wait bound, all conditions/assertions and every performance/memory limit. No production edit is needed or made.
+
+The authored plan and card wording are reconciled with that measured cause and the original mandate, without changing scope, criterion IDs, latency targets, source authority, coverage or pending release gates. The original plan/binding and reconciliation are retained in the BPR-1524 checkpoint.

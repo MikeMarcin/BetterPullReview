@@ -22,11 +22,11 @@
       ],
       "depends_on": [],
       "exit_criteria": [
-        "Retain both original Windows failures and identify the stage and production mechanism behind the navigation delay.",
-        "Correct the demonstrated production cause without weakening thresholds, assertions, source identity, acquisition containment or complete search coverage.",
+        "Retain both original Windows failures and identify the native delayed stage and whether its cause belongs to production or the test driver.",
+        "Correct the demonstrated cause without weakening thresholds, assertions, source identity, acquisition containment or complete search coverage.",
         "Demonstrate passing exact-candidate Windows performance with other budgets intact, focused Mac public paths, format22, relevant architecture/structure checks and clean-source handoff."
       ],
-      "boundary": "Initial diagnostic edit: tests/end_to_end/source_pr_search_performance_tests.cpp. Name exact production/test correction paths and obtain coordinator scope assignment before editing them. No full release gate, signing, publication, global authentication or owner desktop interaction."
+      "boundary": "Only tests/end_to_end/source_pr_search_performance_tests.cpp and task bookkeeping. No production source or threshold changes. No full release gate, signing, publication, global authentication or owner desktop interaction."
     }
   ],
   "coverage": "complete",
