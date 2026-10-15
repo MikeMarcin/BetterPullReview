@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1522"
+  ],
+  "reserve_for": "release-v021",
+  "purpose": "Repair review-control gate regressions found by the 0.2.1 normal Mac gate",
+  "created": "2026-10-15T04:14:00.238494+00:00",
+  "base": "40bc43a8f17e6871593c3dde539b546155af4d2c"
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1522-release-review-controls",
+  "scope": {
+    "issues": [
+      "BPR-1522"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "review-control-gates",
+      "outcome": "Saved comments takes keyboard and pointer focus; narrow review-bar tests recognize the existing numeric fallback without relaxing group-name, tooltip or control visibility requirements.",
+      "work": [
+        {
+          "issue": "BPR-1522",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reproduce both three-scale failure groups and identify actual focus/geometry facts.",
+        "Saved comments has StrongFocus; the narrow file-position assertion admits only documented responsive forms with full accessible position.",
+        "Affected three-scale courses and release-source composition evidence pass; format22, documentation and candidate identities are recorded."
+      ],
+      "boundary": "Only review_submission_editor.cpp and the two affected Qt test files; no change to responsive layout policy, accepted visual design, provider or owner data."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
