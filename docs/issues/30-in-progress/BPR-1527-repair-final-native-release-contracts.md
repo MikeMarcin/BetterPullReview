@@ -103,7 +103,7 @@ rebind the Mac 0.2.1 producer. Ubuntu release timing is not newly selected.
 
 After the macOS-only notes handback at `c233c7683`, root explicitly adds the
 completed final Windows #691 `application_review_navigation_entry` failure
-(67.40s): "bound explanation remains for almost three seconds". AC11 and exit10
+(67.40s): "bound explanation remains for almost three seconds". The new criterion and tenth exit
 preserve all previous ten criteria/nine exits, source identity and timing bounds.
 This follow-up is excluded from the frozen Mac 0.2.1 producer. The complete d52
 Windows result is 705 accounted: 679 pass, 25 fail, 1 configured Debug cache-bytes

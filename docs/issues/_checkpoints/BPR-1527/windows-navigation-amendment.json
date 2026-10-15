@@ -22,5 +22,6 @@
   },
   "raw_local": "/tmp/bpr-v021-d52-windows-final.utf8.log",
   "source_hypothesis": "Test starts its2600ms observation after optional full-window render and readiness checks, although QStatusBar product lifetime starts at the earlier action. Native duration/origin facts are needed before any correction; no threshold or product policy is changed.",
-  "ownership": "PCreleased for serial Windows/WSL; rootMacCPU; no frozen Macproducer edit/rebind"
+  "ownership": "PCreleased for serial Windows/WSL; rootMacCPU; no frozen Macproducer edit/rebind",
+  "binding_reconciliation": "Initial helper bind refused ambiguous repeated criterion label in prose; rephrased prose, then actual11obligations/10exits binding passed. No acceptance requirement changed."
 }

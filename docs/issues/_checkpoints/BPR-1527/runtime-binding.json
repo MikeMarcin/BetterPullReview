@@ -22,6 +22,6 @@
     "Direct human/coordinator release-boundary amendment: macOS-only0.2.1; Windows/Ubuntu0.2.1 canceled/deferred; Windows fixes0.2.2. Supersede common-source0.2.1 coupling, retain all10 behavioral/timing criteria and9 exits; BPR-1527 In Progress. Root owns MacCPU/frozen producer after docs handback; no PCwork until explicit lease.",
     "Coordinator finalWindows705=679pass25fail1skip; PCreleased; explicit navigation-entryAC11/exit10 addition for0.2.2 preservesprior10/9. Mac0.2.1 boundaryc233c7683 excludes laterWindowscommits."
   ],
-  "plan_definition_fingerprint": "sha256:343e71c4c5ad82722c0726e08b5c0e3b65630440085d83d0291c21b6caabcab7",
+  "plan_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e",
   "source_candidate": "6747ca029b48c231539cb36360bcfc3e26173609"
 }
