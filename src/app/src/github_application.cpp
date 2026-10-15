@@ -14097,6 +14097,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++WorkbenchInvalidations;
 #endif
 				WorkbenchHost->invalidate(*authority);
+				// A pending first choice has no tab comparison to bind it.
+				// Only this exact revoked authority retires that ephemeral open.
+				if (TabHost && !TabHost->state().Active && TabHost->state().Chosen) {
+					TabHost->reset();
+				}
+
 			}
 			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
 				return aAuthority.Profile == aInvalidation.Profile
@@ -18253,6 +18259,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                                   SelectedDiffFailures     = 0U;
 			std::size_t                                   IntentDispatches         = 0U;
 			std::size_t                                   ChangeDispatches         = 0U;
+			std::optional<core::semantic_selection>       ChangeOrigin;
 			/// \brief [[BPR-0859]]. Ticks of the waits this probe bounds by
 			/// count and names itself: the panes, the role paint, the change
 			/// walk and the focused layout.
@@ -21072,6 +21079,47 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.arg(course_surface_names(aStep.Needs), course_surface_names(missing), bound));
 		}
 		return report("COURSE_MODALITY_STALLED", bound);
+	}
+
+	auto detail::github_application_fixture_access::verify_pending_first_file_choice_invalidation(
+		github_application& aApplication) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		if (!owner || !owner->TabHost || !owner->LastAcceptedHandoff || !owner->WorkbenchReview.exact(*owner->LastAcceptedHandoff)) {
+			return false;
+		}
+		const auto& tabs = owner->TabHost->state();
+		const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		if (!active || !active->View.File) {
+			return false;
+		}
+		const auto file = *active->View.File;
+		const auto& handoff = *owner->LastAcceptedHandoff;
+		const auto exact = application::pull_request_authority_invalidation{
+			.ApplicationSession = handoff.ApplicationSession,
+			.Profile = handoff.Profile,
+			.ProfileRevision = handoff.ProfileRevision,
+			.Host = handoff.Host,
+			.HostAuthority = handoff.HostAuthority,
+			.Account = handoff.Account,
+			.Viewer = handoff.Viewer,
+			.Repository = handoff.Repository,
+			.PullRequest = handoff.PullRequest,
+			.IdentityGeneration = handoff.IdentityGeneration,
+			.Mode = handoff.Mode,
+		};
+		// Arrange the core state already observed between the real first-file
+		// gesture and its comparison: an explicit choice, no tab or pair yet.
+		owner->TabHost->reset();
+		owner->TabHost->observe_file_choice(file);
+		auto foreign = exact;
+		foreign.PullRequest = core::pull_request_id{ exact.PullRequest.value() == 1U ? 2U : 1U };
+		owner->invalidate(foreign);
+		if (tabs.Active || tabs.Chosen != std::optional{ file }) {
+			return false;
+		}
+		owner->invalidate(exact);
+		return !tabs.Active && !tabs.Pending && !tabs.Chosen;
 	}
 
 	auto detail::github_application_fixture_access::epoch_refresh_identity(
@@ -24951,30 +24999,42 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.RcIntralinePairs || !pairOne->Group.has_value()) {
 				return fail();
 			}
-			if (!probe.Evidence.NextChangeNavigation) {
-				auto* const nextChange     = window->next_change_action();
-				auto* const previousChange = window->previous_change_action();
-				const auto  before         = workbench->selection();
-				if (nextChange == nullptr || previousChange == nullptr
-					|| !nextChange->isEnabled() || !before.has_value()) {
+			if (!probe.ChangeOrigin) {
+				auto* const nextChange = window->next_change_action();
+				if (!nextChange || !window->previous_change_action()
+					|| !nextChange->isEnabled() || !workbench->selection()) {
 					return fail();
 				}
+				probe.ChangeOrigin = workbench->selection();
 				probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 				nextChange->trigger();
+				return result::pending;
+			}
+			// [[BPR-1527]]. A navigation press may be retained until its tab
+			// restoration completes. Issue each gesture once, then observe its
+			// exact dispatch and semantic result on the normal completion lane.
+			if (!probe.Evidence.NextChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches) {
+					return wait("UIFORETW_RC_NEXT_CHANGE_STALLED", rcFacts);
+				}
+				auto* const previousChange = window->previous_change_action();
 				probe.Evidence.NextChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 1U
-					&& workbench->selection().has_value()
-					&& workbench->selection()->Group != before->Group
-					&& previousChange->isEnabled();
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U
+					&& workbench->selection() && workbench->selection()->Group != probe.ChangeOrigin->Group
+					&& previousChange && previousChange->isEnabled();
 				if (!probe.Evidence.NextChangeNavigation) {
 					return fail();
 				}
 				previousChange->trigger();
+				return result::pending;
+			}
+			if (!probe.Evidence.PreviousChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U) {
+					return wait("UIFORETW_RC_PREVIOUS_CHANGE_STALLED", rcFacts);
+				}
 				probe.Evidence.PreviousChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 2U
-					&& workbench->selection() == before;
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 2U
+					&& workbench->selection() == probe.ChangeOrigin;
 				if (!probe.Evidence.PreviousChangeNavigation) {
 					return fail();
 				}

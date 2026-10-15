@@ -1542,6 +1542,11 @@ namespace bpr::app::detail {
 		/// wrong modality from any other stall in one run.
 		[[nodiscard]] static auto course_modality_facts(
 			const github_application& aApplication) -> QString;
+		/// \brief Tests exact authority retirement of a retained first-file choice.
+		/// Uses the already-observed core pending state after the public course;
+		/// a foreign invalidation keeps it and its exact authority retires it.
+		[[nodiscard]] static auto verify_pending_first_file_choice_invalidation(
+			github_application& aApplication) -> bool;
 		/// \brief Observes the exact host, tab and displayed-publication identities.
 		[[nodiscard]] static auto epoch_refresh_identity(
 			const github_application& aApplication) -> epoch_refresh_identity_evidence;

@@ -704,6 +704,8 @@ auto main(int argc, char** argv) -> int
 					   "the current view submits the revised summary once");
 			}
 		}
+		expect(access::verify_pending_first_file_choice_invalidation(*application),
+			   "only exact authority invalidation retires a pending first-file choice, with no empty tab");
 		shutdown(*application);
 		cli.check();
 		std::cout << "review-submission-composition:pass\n";
