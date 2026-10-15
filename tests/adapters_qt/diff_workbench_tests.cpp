@@ -3647,8 +3647,9 @@ namespace {
 	/// double-clicked on an unchanged, a removed, an added and a changed line
 	/// (each then the selected line), and one selected on an unchanged line
 	/// that is not the selected line, with Line details showing the selected
-	/// line under the comparison and the same word selected there. No checks:
-	/// the same harness renders the baseline for the before images.
+	/// line under the comparison and the same word selected there; and an
+	/// added line triple-clicked whole, so its coloured tokens are selected.
+	/// No checks: the same harness renders the baseline for the before images.
 	void render_selection_looks(const QString& aDirectory)
 	{
 		const auto diff = computed(selection_left, selection_right, { }, 50U);
@@ -3666,6 +3667,7 @@ namespace {
 			look{ "added", core::diff_side::right, 5U, 8, true },
 			look{ "changed", core::diff_side::right, 3U, 34, true },
 			look{ "unchanged-not-current", core::diff_side::right, 0U, 8, false },
+			look{ "added-whole-line", core::diff_side::right, 5U, 8, true },
 		};
 		const auto modes = std::array{
 			std::pair{ "light", core::appearance_mode::light },
@@ -3706,6 +3708,11 @@ namespace {
 					auto release = QMouseEvent{ QEvent::MouseButtonRelease, point, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 					QCoreApplication::sendEvent(pane->viewport(), &doubled);
 					QCoreApplication::sendEvent(pane->viewport(), &release);
+					// A third click selects the whole line, its coloured tokens
+					// with it ([[BPR-1534]]'s look).
+					if (std::string_view{ each.Name } == "added-whole-line") {
+						send_click(*pane->viewport(), point);
+					}
 				} else {
 					static_cast<void>(workbench.select_conversation_line(core::diff_side::right, 5U));
 					process_events();
@@ -3722,7 +3729,8 @@ namespace {
 					if (row.text() == block.text()) {
 						auto inStrip = QTextCursor{ row };
 						inStrip.setPosition(row.position() + pane->textCursor().selectionStart() - block.position());
-						inStrip.setPosition(row.position() + pane->textCursor().selectionEnd() - block.position(), QTextCursor::KeepAnchor);
+						inStrip.setPosition(row.position() + std::min(pane->textCursor().selectionEnd() - block.position(), row.length() - 1),
+											QTextCursor::KeepAnchor);
 						strip->setTextCursor(inStrip);
 					}
 				}
@@ -3732,18 +3740,21 @@ namespace {
 				const auto path = QStringLiteral("%1/%2-%3.png").arg(aDirectory, QLatin1StringView{ modeName }, QLatin1StringView{ each.Name });
 				expect(workbench.grab().save(path), "save " + path.toStdString());
 				// The fill under the word and the ground just after it, in the
-				// pane and, where its row shows, in Line details.
-				const auto from     = pane->textCursor().selectionStart() - block.position();
-				const auto to       = pane->textCursor().selectionEnd() - block.position();
-				const auto measured = measure_selection(*pane, static_cast<int>(each.Line), from, to, to, std::min(to + 2, block.length() - 1));
-				std::cout << "RENDERED " << path.toStdString() << " selected '" << word.toStdString() << "' pane fill " << measured.Fill.name().toStdString()
-						  << " ground " << measured.Ground.name().toStdString() << " ratio " << luminance_ratio(measured.Fill, measured.Ground) << " distance "
-						  << colour_distance(measured.Fill, measured.Ground);
-				if (strip->textCursor().hasSelection()) {
-					const auto row     = strip->textCursor().block();
-					const auto details = measure_selection(*strip, row.blockNumber(), from, to, to, std::min(to + 2, row.length() - 1));
-					std::cout << "; Line details fill " << details.Fill.name().toStdString() << " ground " << details.Ground.name().toStdString() << " ratio "
-							  << luminance_ratio(details.Fill, details.Ground) << " distance " << colour_distance(details.Fill, details.Ground);
+				// pane and, where its row shows, in Line details; a selection
+				// running to the line's end has no ground beside it.
+				const auto from = pane->textCursor().selectionStart() - block.position();
+				const auto to   = pane->textCursor().selectionEnd() - block.position();
+				std::cout << "RENDERED " << path.toStdString() << " selected '" << word.toStdString() << "'";
+				if (to + 2 <= block.length() - 1) {
+					const auto measured = measure_selection(*pane, static_cast<int>(each.Line), from, to, to, to + 2);
+					std::cout << " pane fill " << measured.Fill.name().toStdString() << " ground " << measured.Ground.name().toStdString() << " ratio "
+							  << luminance_ratio(measured.Fill, measured.Ground) << " distance " << colour_distance(measured.Fill, measured.Ground);
+					if (strip->textCursor().hasSelection()) {
+						const auto row     = strip->textCursor().block();
+						const auto details = measure_selection(*strip, row.blockNumber(), from, to, to, to + 2);
+						std::cout << "; Line details fill " << details.Fill.name().toStdString() << " ground " << details.Ground.name().toStdString()
+								  << " ratio " << luminance_ratio(details.Fill, details.Ground) << " distance " << colour_distance(details.Fill, details.Ground);
+					}
 				}
 				std::cout << '\n';
 			}
