@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1506-auto-seen-v1",
+  "scope": {
+    "rfcs": [],
+    "issues": [
+      "BPR-1506"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "automatic-seen-on-open",
+      "outcome": "A successfully presented selected file automatically gains a durable Seen receipt for its exact selected material, retaining existing stronger progress and identity rules.",
+      "work": [
+        {
+          "issue": "BPR-1506"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1 and AC2: The composed file-open completion records Seen only for its exact current file/material, refusing failed or superseded observations.",
+        "AC3 and AC4: Focused composed restart/changed-material and persistence-failure evidence passes; Seen remains weaker than Read and Accept.",
+        "Card, receipt contract, durable checkpoint and explicit commits agree with the verified candidate; task commands are quiescent."
+      ],
+      "boundary": "BPR-1506 only, owner testing note of 2026-10-14. Preserve BPR-1505 Home layout and BPR-1507 explicit Accept control; no GitHub mutation or native desktop operation."
+    }
+  ],
+  "unplanned_work": []
+}
