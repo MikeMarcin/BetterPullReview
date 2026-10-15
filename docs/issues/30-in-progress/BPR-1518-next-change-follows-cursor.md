@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1518"
 title: "Navigate to the next change after the clicked cursor position"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"If we click a line below a change hunk next change goes to the first change in the file. Should be the next change after the cursor probably","dispatch":"Dedicated leaf /root/bpr1518 on codex/bpr1518-next-change","milestone_plan":{"id":"bpr1518-next-change","path":"docs/rfcs/plans/bpr1518-next-change/milestone-plan.json"}}
