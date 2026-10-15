@@ -17,10 +17,10 @@
     "final_multiwindow": "ctest --preset dev --output-on-failure -R '^application_profile_multi_window_public_path$'",
     "composition": "ctest --preset dev --output-on-failure -R '^application_review_round_trip_composition_contract$'"
   },
-  "next_action": "Commit explicit source/plan/evidence paths; finish BPR-1521 with criterion acceptance. Preserve original BPR-1520 acceptance. Hand commits to coordinator.",
-  "ownership": "Own isolated worktree only; main untouched; no owner profile, remote or desktop effects.",
-  "status": "source correction verified; canonical finish next",
-  "source_candidate": "product commit containing this checkpoint, exact app digest d98659783b358427b58a234561362ecd0b8223f2e9d8b833f0d8388ea9e00762",
+  "next_action": "Coordinator cherry-picks plan2ace98bd5, claim730071a08, sourcef364022cc, finish5748658a8 and final checkpoint commit. Allocation importbabd8e6fe duplicates coordinator5a105579c and must not be cherry-picked again. Preserve BPR-1520 historical acceptance.",
+  "ownership": "Only this leaf wrote isolated branch; no subagents. All own processes finished, no review server. Main source/build/allocation untouched apart from authorized card-only import in own branch. Keep own source/build until integration; no owner data or remote effects.",
+  "status": "complete; canonical Done with all4 criteria passing",
+  "source_candidate": "f364022cc97ebc472e5b40be1a66eab757d79f6d",
   "changed_paths": [
     "src/app/src/github_application.cpp",
     "tests/end_to_end/profile_multi_window_public_path_tests.cpp",
@@ -87,10 +87,31 @@
     "/tmp/bpr1521-board-validation.log": {
       "sha256": "a939b034f4319fedba104ed638c99b5477fd42413fce1652d96caec824e3b817",
       "retention": "task-owned local evidence; synthetic fixture only"
+    },
+    "/tmp/bpr1521-postfinish-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "retention": "task-owned post-finish documentation evidence"
     }
   },
   "pending": [
-    "Canonical BPR-1521 finish and final exact commit checkpoint.",
     "Coordinator integration with current main1515/1519, combined-source composition pin reseal and focused integration check."
-  ]
+  ],
+  "canonical_finish": "5748658a82c343b906f380d94d43f21e9d821c2f",
+  "tracker": {
+    "card": "docs/issues/60-done/BPR-1521-share-first-saved-draft-with-sibling-window.md",
+    "lane": "60-done",
+    "acceptance": "docs/issues/_checkpoints/BPR-1521/acceptance.json",
+    "all_criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4"
+    ]
+  },
+  "consistency_check": {
+    "path": "docs/issues/_checkpoints/BPR-1521/completion-check.json",
+    "candidate_revision": "5748658a82c343b906f380d94d43f21e9d821c2f",
+    "action": "stop",
+    "limit": "Checks binding/obligation consistency; engineering acceptance is the explicit card evidence, not helper inference. This final checkpoint commit changes only workflow evidence."
+  }
 }
