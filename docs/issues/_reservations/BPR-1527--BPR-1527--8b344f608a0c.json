@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1527"
+  ],
+  "reserve_for": "release-v021-final-gate-repair",
+  "purpose": "Repair newly observed final native release gate failures without weakening contracts",
+  "created": "2026-10-15T15:21:25.683087+00:00",
+  "base": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a"
+}
