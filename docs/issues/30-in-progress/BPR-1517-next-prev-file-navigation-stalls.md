@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1517"
 title: "Investigate Next/Previous File stalling while file tree navigation works"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"I haven't figured out how yet but I've gotten into a state where next/prev file do nothing although I can still navigate through files using the file tree","reproduction":"Trigger unknown; owner observed stalled Next/Previous File with working file tree","dispatch":"Fresh dedicated implementer queued pending an available agent slot","milestone_plan":{"id":"bpr1517-file-navigation","path":"docs/rfcs/plans/bpr1517-file-navigation/milestone-plan.json"}}
