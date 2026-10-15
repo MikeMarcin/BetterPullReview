@@ -2,6 +2,28 @@
 
 Mandate `authorized-release-continuation-final-gates-r3`; sole implementer review,
 not an independent review or release approval. Baseline `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`.
+Current Windows follow-up source is ccf70c312 (production/test bytes equal
+830963602); Mac6747/c233 remains a separate immutable release boundary. Historical
+source notes below retain their original candidate context. For evidence status,
+[the incremental-build audit](windows-native-incremental-audit.json) supersedes
+old copied-source/build-success claims: r29/r32 exact-source positives and r27's
+uninstrumented whole timing are withdrawn. r26 tracing never actually compiled;
+a missing terminal writer alone did not explain that attempt. Delivered r28
+stderr remains actual cause evidence.
+
+Proper forced-object/executable r34 acceptance now passes label, all3submissions,
+agent/UIfor, held refresh-pick/file-switch/header/navigation/roundtrip. Missing
+choice-retirement actually compiles and fails chosen1/active0/pending0. Legitimate
+one-turn navigation deferral plus old probe actually compiles and fails; the
+current exact completion-observed probe passes. Source/normal objects restore
+exactly and roundtrip passes. r35 explicitly rebuilds the cold-import standalone
+producer and passes its original zero-receipt and both held-origin controls.
+These replace pending native statements in the historical notes; strict changed
+TUs, appropriate affected portability and final integration remain pending.
+Fresh normal200119.35s supplies no stability repair. Temporary performance
+trials remain unadopted; actual r39 is ongoing. All eleven criteria/ten exits
+remain bound, with no release approval or BPR-1527 Done.
+
 Pinned app scope changes are `681b41b9c`, `0f6d288b1` and this admission-origin correction;
 intervening reservation/plan/checkpoint commits changed no pinned production source.
 

@@ -3,8 +3,8 @@
 Mandate `authorized-release-continuation-final-gates-r3`; same sole implementer,
 no subagents. Read [CURRENT.md](CURRENT.md), the card and actual task/receipt
 before dispatch. BPR-1525/1526 remain Done; BPR-1527 remains In Progress with all
-eleven criteria and ten exits. Current Windows lifecycle candidate is94ff0ce28;
-subsequent documentation-only upkeep does not establish a new source result.
+eleven criteria and ten exits. Current source is ccf70c312 (production/test bytes equal830963602).
+Audit corrections and actual forced-object acceptance are in CURRENT.md.
 
 ## Resource and release boundaries
 
@@ -28,64 +28,74 @@ Serialize every Windows/WSL build/test/performance workload on this PC.
 
 ## Actual current tasks
 
-r26 completed and restored exact94ff source plus normal app/submission binaries.
-Its ordinary candidate courses passed label16.05s, published-file-switch20.10,
-held refresh-pick13.00 and pinned roundtrip8.11; submission100stillfails before
-Comment, with no selected file or active tab. Native22/docgate and canonical
-full/manifest/mutation digests agree. The bounded label trace identified an
-accepted-refresh lifecycle gap; no label oracle or product timing changed.
+r34 forced exact app/Qt/test objects and selected executables before normal
+acceptance, then actually compiled/runtime-witnessed the missing-choice-retirement
+negative and old/current deferred-navigation probes. Eleven current producers
+pass, exact normal restoration and pinned roundtrip pass. r35 explicitly relinks
+cold-import's standalone producer; its original zero-receipt and both held-origin
+controls pass15.53s. Normal complete200 baseline is119.35s/120, not stability.
 
-Temporary r26 tracing was compiled into both executables, but the standalone
-submission course does not install the application's terminal diagnostic writer,
-so it supplied no submission trace. r28 switches only the temporary bounded
-trace to its test process's stderr, runs the unchanged submission100course, then
-restores exact source and rebuilds the normal submission binary. Do not interpret
-this temporary instrumentation as exact-candidate functional or duration acceptance.
-Before continuing, inspect r28 actual task/receipt and source restoration.
+r33 atomic native top-line/fractional offset trial reduces split viewportMoves
+152 to2 but unchanged fullcourse119.57s supplies no useful margin. Trial rejected;
+forced exact normal source/object/executable restoration verified, Ready/exit0.
+r36 confirms a higher native horizontal-scrollbar sibling overlaps masked source
+overscan, but its hardcoded diagnostic capture path is refused by containment.
+That attempt restores/rebuilds exact source, Ready/exit1; no ACL is broadened.
+r37 uses the existing configured render path: six captures are byte-identical,
+but Qt layout undoes the constructor raise, damage stays unchanged and full200
+takes119.64s. Forced exact restoration verified, Ready/exit0; reject trial.
+r38 confirms90horizontal events (45jump/restore pairs) per180-key case. Its
+hold removes all90 and full updateRequests, with six identical fresh renders,
+but whole118.65s versus119.35s baseline is insufficient margin; reject as a
+standalone repair. Exact forced normal restoration verified, Ready/exit0.
+r39 temporarily trims split-only overscan to actual fractional offset and places
+frame origin atomically; visible mask and unified native bar stay unchanged.
+Actual completed offscreen backing pixels plus fresh renders, damage and row
+counts decide; test region filtering only if new disjoint overdraw is observed.
+Uninstrumented original whole200 then forced exact restoration follow.
 
-Next prepared r27 is a separate performance experiment, not yet an adopted
-change: scoped native vertical-signal suppression during unified cursor update
-and rollback. It profiles the same complete keyboard-minimal function and runs
-the normal whole200course, preserving container/environment/120s deadline.
-Its finally restores both production/test sources, generated CTest registration
-and normal QtDiff binary. Dispatch only after r28 is quiescent. Exact scripts,
-logs and receipts are under`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/`
-with`bpr1527-native-focused-rNN`/`bpr1527-native-dispatch-rNN` names. Private local
-`evidence/windows-v022-active/ACTIVE.json` records active task and actual source.
+Read actual r39 task/receipt and private `ACTIVE.json` before another workload.
+Scripts/logs/receipts are under
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/` with
+`bpr1527-native-focused-rNN` / `bpr1527-native-dispatch-rNN` names.
+
+Every copied/restored source must be touched and its exact owned Debug object
+removed before rebuilding; delete selected executables to force static relink.
+Use `bpr1527-native-object-r34.py invalidate/verify` and verify actual object
+mtime >= source. Binary/runtime canaries discriminate controls. Copy-Item's old
+timestamps previously left stale objects despite clean Git/buildexit0: r29/r32
+exact-source positives and r27whole timing are withdrawn; preserve the audit.
 
 ## Windows next acceptance
 
-Diagnose and repair the submission first-tab loss from actual bounded event
-order, preserving the immediate Files gesture, original queue/course deadlines,
-exact current-head line29, pending-draft and summary stale-view refusals,
-publication counts, recovery and authority. No artificial sleep/readiness delay.
-Run all three normal scales after actual repair. A Mac pass is not native proof.
-The original label reply phase19 is fixed; its later phase33 is now corrected by
-restarting obsolete presentation on accepted handoff. Retain held refresh-pick,
-file-switch and exact-source round-trip controls after further lifecycle edits.
+Submission first-file and label accepted-refresh lifecycle corrections now pass
+all three native submission scales plus label/file-switch/held-refresh controls
+on freshly forced current producers (r34). Exact pending choice invalidation
+negative actually compiles and fails with chosen1/active0/pending0. UIforETW
+current probe passes with a legitimate deferred navigation completion; old
+synchronous probe actually compiles and fails pending-navigation1. Historical
+r21 primary-profile exact substep remains unproven; do not claim its reconstruction.
 
-```powershell
-cmake --build --preset windows-dev --parallel 8 --target app_better_pull_review test_better_pull_review_review_submission_composition_public_path
-ctest --test-dir build/windows-dev -C Debug --output-on-failure -j1 -R '^(application_label_authoring_contract|application_review_submission_composition_public_path|application_review_submission_composition_scale_125|application_review_submission_composition_scale_200|application_refresh_pick_contract|application_published_file_switch_contract|application_review_round_trip_composition_contract)$'
-```
-
-UIforETW still needs explanation/closure of its r21 primary high-contrast-dark
-failure, which an isolated48.87s pass does not establish. Original d52 reached
-later compact capture, so do not call the new failure merely masked/inherited.
-Bounded failure facts now name exact phase, reveal/navigation/geometry state.
-Use a representative serial agent-to-UIforETW context or an actual held-completion
-counterexample when warranted; preserve all16ordered controls, pixel/height and
-geometry/navigation assertions. Await real completion rather than retry gestures.
+After a selected Qt improvement, explicitly rebuild all affected standalone
+producers before focused integration. Application producers include app,
+`test_better_pull_review_review_submission_composition_public_path`,
+`test_review_navigation_entry_public_path`, `test_header_source_public_path`,
+`test_review_tour_composition_public_path`, `test_application_scaling`, and
+`test_source_find_public_path`. Static-link source provenance is required for
+each selected executable, not just a CTest row count.
 
 ## Whole-workbench stability
 
 Original full d52 Windows200TIMEOUT120.03s and prior focused119.08s remain.
-Current normal f0e whole200passes118.85s, still too close to establish stability.
-The bounded keyboard profile preserves6cases and180keys each: split139bar-events/
-141frames with no resize; unified390events/390frames with no resize, samples
-74,60,61/75,61,62 proving temporary native centering/rollback. The general split
-centering hypothesis was falsified and narrowed. A prior second text cache gave
-limited benefit and was rejected. No new production Qt improvement is selected.
+Fresh actual current uninstrumented baseline is119.35s (r35), too close to
+establish stability. Native text redraw dominates the keyboard6cases;180keys
+percase remain unchanged. Empty full-width cursor invalid-rectangle and disjoint
+paint-region hypotheses are unsupported/falsified. Temporary unified signal
+suppression and atomic offset placement alone supply no useful duration margin.
+Constructor-only ordering trial did not persist through native layout. Current
+r39 measures split-only exact overscan plus atomic origin placement and actual
+completed backing pixels, with region filtering conditional on measured new
+disjoint overdraw. Validate damage/pixels/wholecourse before adopting anything.
 
 Select a bounded source-backed improvement only after actual experiment results;
 retain original complete inputs/cases/assertions/120s, all scales, axis, painter,

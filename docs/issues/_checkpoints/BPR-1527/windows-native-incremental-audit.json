@@ -10,7 +10,7 @@
     "original_d52": "Failed complete evidence/source preserved unchanged",
     "r20_r21_cycle": "Nine normal native courses and actual loss-of-cycle failure/restored pass precede Qt prototype changes; remain separate valid evidence",
     "r23": "Fresh f0e composition/nav/submission compile before Qt trials; original navigation93.92 and roundtrip/UIfor observations retained",
-    "r25_baseline": "Original complete200 baseline118.85 occurred before temporary keyboard compile, retained as uninstrumented baseline",
+    "r25_baseline": "Uninstrumented whole200118.85 before prototypes, but prior static-link provenance for the then-current Find geometry was not fully rebound. Preserve as timing reference, not final exact-source acceptance; forced current baseline remains required.",
     "r26_normal": "Fresh94ff composition compiled before Qt trials; label16.05/refreshpick13.00/fileswitch20.10/roundtrip8.11 remain baseline observations",
     "r26_temporary_trace": "No actual composition recompile occurred; no delivered trace is evidence. Earlier attribution solely to missing standalone terminal writer was incomplete.",
     "r28_trace": "Runtime bounded stderr trace actually delivered first-choice states; source-cause evidence retained. Restoration build provenance was inadequate.",
@@ -21,6 +21,42 @@
     "r32": "Fresh830 composition/test compiled, but Qt object retained r30 diagnostics; six positives are provisional. Missing-guard variant skipped compilation, so its unexpected pass is failed control construction, not evidence against guard or negative acceptance. Task Ready/exit1 with clean830source; no native command remains."
   },
   "required_repair": "Invalidate only exact task-owned affected Debug .obj/.exe artifacts before normal baseline and after every source variant copy/restoration, touch source timestamp, inspect compile output/object timestamps and use binary/runtime canaries for controls. Fresh normal affected acceptance and negatives must rerun. Never reinterpret stale-object results as passes.",
-  "source_status": "8309636028c7cf84dc60592935ff16b1bcdd3856 clean on owned Mac/PC branches; production Qt source unchanged; compiled PC objects untrusted pending forced rebuild. No integration/final freeze/Done.",
-  "next": "Fresh r34 workflow under existing exclusive PC lease; r33 must not dispatch with its old timestamp assumptions."
+  "source_status": "ccf70c312 production/test bytes equal830963602; actual forced normal objects and app controls verifiedr34/r35. r38 forced normalrestore complete. Temporaryr39 active; no productionQt change adopted.",
+  "next": "Read r39 actual receipt/profile/captures; exact owned .obj/.exe invalidation/touch/time and binary/runtime witnesses remain mandatory.",
+  "standalone_producers": "Each selected standalone executable must be explicitly built/relinked against current composition. r29/r34 cold-import selection requires test_review_tour_composition_public_path, not just app/nav/header/submission targets. Fresh later integration will include every selected producer; no count-only acceptance.",
+  "r35": {
+    "candidate": "ccf70c3121a792342a95c786677679663c5cb801",
+    "provenance": "Normal source/object timestamps verified; temporary diagnostic/control markers absent from QtDiff binary. Explicitly rebuilt test_review_tour_composition_public_path, replacing the stale cold-import producer selected in r34.",
+    "cold_import": "Original absolute zero-receipt and both held-origin ordering controls pass15.53s.",
+    "performance": "Fresh uninstrumented normal complete200 passes119.35s under original120s deadline and prescribed exclusivity. Tiny headroom is not a stability repair.",
+    "command_state": "Ready/exit0; no restoration ambiguity."
+  },
+  "r33": {
+    "candidate": "ccf70c3121a792342a95c786677679663c5cb801",
+    "mode": "Temporary atomic native-top-line/fractional-offset experiment, not adopted. Exact affected object/executable invalidation and timestamp checks at every source copy/restoration.",
+    "observations": "Split viewport moves152 to2 per180-key case; unified262 unchanged. Split elapsed6.389/6.387/6.633/6.647s to6.368/6.390/6.612/6.633s; paint area and row work unchanged.",
+    "whole200": "Genuine uninstrumented normal fullcourse trial119.57s versus119.35s freshbaseline. No useful improvement; reject as AC6 repair. Original120s/input/assertions/env/container unchanged.",
+    "restoration": "Normal source SHA and object timestamps verified after forced exact rebuild; keyboard/text diagnostic markers absent. Native task Ready/exit0 and no ctest/cmake/ninja/cl remains.",
+    "followup": "Qt6.11.2 source does not support invalid rectangle from an empty cursor as general cause. Temporary r36 checks whether masked overscan overlaps a higher scrollbar sibling and prevents native scroll reuse; not selected production."
+  },
+  "r36": {
+    "mode": "Temporary public native scroll diagnosis; no product acceptance",
+    "observed": "Masked overscan overlaps higher qt_scrollarea_hcontainer. Opaque background/auto-fill valid. First180-key case90 full updateRequests,139scroll events.",
+    "failed_attempt": "Hardcoded external PNG path refused by normal containment. Do not broaden ACL. Test stopped afterfirstcase; finally forced exactnormal source/object/exe restoration verified, task Ready/exit1.",
+    "next": "r37 uses configured BPR_QT_DIFF_WORKBENCH_RENDER_PATH. Existing containment stays intact."
+  },
+  "r37": {
+    "mode": "Temporary constructor viewport raise only, not adopted",
+    "observations": "Normal Qt layout raises the horizontal container afterward: higher overlap remains in all6actualtrial cases. Damage unchanged. All6baseline/trial PNGs byte-identical via existing contained render path.",
+    "whole200": "Actual uninstrumented fulltrial passes119.64s, no useful margin versus119.35normalbaseline. Reject trial; this does not falsify the Qt overlap implementation, because ordering change did not persist.",
+    "state": "Exact normal source/object/executable restoration verified, task Ready/exit0.",
+    "next": "Measure native horizontal auto-reveal/rollback around line cursor update, narrowly scoped horizontal signal hold only if actually demonstrated. Whole200 deadline/input/assertions remain unchanged."
+  },
+  "r38": {
+    "mode": "Temporary scoped horizontal scroll signal hold only; not adopted",
+    "baseline": "90 native horizontal value changes per180-key case =45jump/rollback pairs. Split1021/0pixels, unified589/0pixels.",
+    "trial": "Horizontal events90to0; full updateRequests90to0; six baseline/trial fresh-render PNGs byte-identical. Split paintedarea24768128to23873024, unified45757360to42669440; genuine whole200118.65s versus119.35normalbaseline.",
+    "disposition": "Insufficient useful stability margin; no production change selected. Exact normal source/object/exe restoration verified; Ready/exit0.",
+    "capture_limit": "QWidget grab produces a fresh render. r39 additionally reads actual completed offscreen backing pixels within public QBackingStore beginPaint(empty)/paintDevice/endPaint, without caching its device pointer or reading owner desktop."
+  }
 }
