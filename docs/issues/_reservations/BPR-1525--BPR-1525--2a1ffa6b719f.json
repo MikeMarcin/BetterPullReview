@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1525"
+  ],
+  "reserve_for": "windows-gate-fixes",
+  "purpose": "Repair Windows 0.2.1 fixture determinism and native network isolation release gates",
+  "created": "2026-10-15T05:38:41.867062+00:00",
+  "base": "8f0d25418cd4278065d5a043dabaa728feb202f1"
+}
