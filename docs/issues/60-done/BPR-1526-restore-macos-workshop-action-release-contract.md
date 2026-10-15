@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1526"
 title: "Restore macOS workshop action release contract"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0051"]
 depends_on: []
 priority: "P1"
 metadata: {"source":"0.2.1 Mac normal gate at 8f0d25418cd4278065d5a043dabaa728feb202f1","assigned_implementer":"/root/bpr1525_implementer","milestone_plan":{"id":"bpr-1525-windows-release-gates","path":"docs/rfcs/plans/bpr-1525-windows-release-gates/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"fb2e72778d3c61de6ec6723dffc16a1212ab5c31","evidence":{"kind":"observation","detail":"Original Mac8f0d failure retained and public course reproduced twice. Trace binds obsolete runtime draft18446744073709551615 to acknowledged durable draft1; deterministic held-save public regression establishes exact race."}},{"criterion":"AC2","outcome":"pass","revision":"fb2e72778d3c61de6ec6723dffc16a1212ab5c31","evidence":{"kind":"observation","detail":"Application retains exact immutable press/scope/anchor/reply through accepted materialization and queues history before later edits. Public original one-process,one-cleanup,quiescence,draft/authority/zero-mutation assertions pass without sleeps or longer budgets."}},{"criterion":"AC3","outcome":"pass","revision":"fb2e72778d3c61de6ec6723dffc16a1212ab5c31","evidence":{"kind":"observation","detail":"Rebuilt/relinked fb2 Mac press+3guidance+resealed round trip5/5 pass4.28/2.87/2.93/2.57/2.82s. Ubuntu affected paths pass. Current format22,strict changed-TU tidy22,documentation+67units pass; full final-source release reruns remain root obligation."}}]
 ---
 
 # BPR-1526: Restore macOS workshop action release contract
