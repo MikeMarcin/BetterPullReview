@@ -197,7 +197,7 @@ namespace bpr::qt {
 		for (const auto& [text, name, keys] : {
 				 std::tuple{ tr("Zoom In"), QStringLiteral("desktopZoomInCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } } },
 				 std::tuple{ tr("Zoom Out"), QStringLiteral("desktopZoomOutCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+-") } } },
-				 std::tuple{ tr("Actual Size"), QStringLiteral("desktopActualSizeCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } } },
+				 std::tuple{ tr("Actual Size"), QStringLiteral("desktopActualSizeCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+0") } } },
 			 }) {
 			auto* const zoom = ViewMenu->addAction(text);
 			zoom->setObjectName(name);

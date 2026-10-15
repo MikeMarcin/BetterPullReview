@@ -26,6 +26,7 @@
 #include <QComboBox>
 #include <QGroupBox>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -656,6 +657,11 @@ namespace {
 				   && row->geometry().top() > size->geometry().top()
 				   && row->geometry().top() - size->geometry().bottom() < row->geometry().height(),
 			   "the row sits directly beneath Code size on the Type card");
+		// [[BPR-1535]]. The row names Actual Size's key, ⌘0, in the platform's notation.
+		const auto* const glyph = panel.findChild<QToolButton*>(QStringLiteral("appearanceCodeZoomRowGlyph"));
+		expect(glyph != nullptr
+				   && glyph->accessibleDescription().contains(QStringLiteral("Actual Size (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+0") }.toString(QKeySequence::NativeText))),
+			   "the Diff zoom row names Actual Size's key, ⌘0 (Ctrl+0)");
 
 		selector->setCurrentIndex(selector->findData(200U));
 		const auto offered = recorded.last_typography();

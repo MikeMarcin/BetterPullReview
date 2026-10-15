@@ -530,7 +530,7 @@ namespace {
 			if (verb == QStringLiteral("home")) {
 				// [[BPR-1171]]. Home, by its shortcut, over the open cycle.
 				reactivate(Window);
-				tests::window_system_key(Window, Qt::Key_0, Qt::ControlModifier);
+				tests::window_system_key(Window, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier);
 				require(wait_for([&] { return Window.showing_home(); }), "Home shows over the open cycle");
 				return state(Window, Page);
 			}

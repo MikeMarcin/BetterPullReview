@@ -831,8 +831,8 @@ namespace bpr::qt {
 	{
 		if (aEvent->type() == QEvent::ShortcutOverride) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
-			// ⌘0 is the window's Home shortcut; inside the open menu it is
-			// Plain comment, and nowhere else.
+			// ⌘0 is the window's Actual Size shortcut; inside the open menu it
+			// is Plain comment, and nowhere else.
 			if (is_command(*key, Qt::Key_0) || key->key() == Qt::Key_Escape || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
 				key->accept();
 				return true;

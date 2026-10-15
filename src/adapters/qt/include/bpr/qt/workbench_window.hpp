@@ -104,8 +104,9 @@ namespace bpr::qt {
 	/// Control+Alt character from the window's shortcuts.
 	///
 	/// \details Windows reports AltGr as Control+Alt, so on a German or Nordic
-	/// layout AltGr+0 types `}` and also matches Actual Size's Ctrl+Alt+0. A
-	/// field that would type the character claims the key. A key that types
+	/// layout AltGr+0 types `}` and would also match a window shortcut on
+	/// Ctrl+Alt+0, as Actual Size's was until [[BPR-1535]] moved it to Ctrl+0.
+	/// A field that would type the character claims the key. A key that types
 	/// nothing, or a read-only surface such as the code panes, leaves it to the
 	/// window.
 	[[nodiscard]] auto editor_keeps_typed_text(const QObject* aReceiver, const QKeyEvent& aEvent) -> bool;

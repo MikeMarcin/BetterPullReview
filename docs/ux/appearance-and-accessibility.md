@@ -191,7 +191,7 @@ Separate settings exist for interface and code fonts. Code settings include fami
 
 The comparison has its own zoom ([[BPR-1336]]): **Diff zoom**, a percentage of
 Code size, stored per profile with the code font. View > Zoom In (⌘= or ⌘+,
-Ctrl+= or Ctrl++), Zoom Out (⌘−, Ctrl+−) and Actual Size (⌘⌥0, Ctrl+Alt+0)
+Ctrl+= or Ctrl++), Zoom Out (⌘−, Ctrl+−) and Actual Size (⌘0, Ctrl+0; [[BPR-1535]])
 step it, as do ⌘-scroll (Ctrl+wheel) and pinch over the code: one step per
 wheel notch or per 0.15 of pinch. The steps are 50, 67, 75, 80, 90, 100, 110,
 125, 150, 175, 200, 250 and 300 percent. The core owns the steps, and the size

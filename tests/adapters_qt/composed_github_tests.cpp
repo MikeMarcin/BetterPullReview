@@ -6135,7 +6135,7 @@ namespace {
 		expect(
 			window.home_action() != nullptr && window.home_action()->isChecked()
 				&& window.home_action()->shortcut()
-					== QKeySequence{ QStringLiteral("Ctrl+0") }
+					== QKeySequence{ QStringLiteral("Ctrl+Shift+H") }
 				&& homeButton != nullptr && homeButton->isVisible()
 				&& homeButton->accessibleName() == QStringLiteral("Home")
 				&& !window.primary_toolbar()

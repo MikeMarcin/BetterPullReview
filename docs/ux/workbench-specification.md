@@ -476,8 +476,9 @@ clarification on [[BPR-1213]] replaced with these flat rows.
 ## Home
 
 Home is the window's other page, shown whenever no pull request is open and
-reachable at any time through Home in the strip (`Ctrl+0`, which macOS
-presents as ⌘0). The Home button's tooltip includes that shortcut in the
+reachable at any time through Home in the strip (`Ctrl+Shift+H`, which macOS
+presents as ⌘⇧H; `Ctrl+0` until the owner moved it on 2026-10-15,
+[[BPR-1535]]). The Home button's tooltip includes that shortcut in the
 platform's native notation. It is the window ground edge to edge rather than
 a narrow column, and RFC-BPR-0032 gives it one job per row.
 
@@ -781,7 +782,7 @@ one — the two ways in RFC-BPR-0018 requires, without opening Settings; and
 the status bar line "Not signed in. Public pull requests open read-only."
 No list, no panels, no filters.
 
-Home over an open review keeps the way back: **Back to the review** (⌘0),
+Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
 the filled button at the bar's right on the bar's own line, its description
 naming what is being reviewed and how far through it. Home beneath it is
 unchanged, and whatever had focus in the review has it again when the review
@@ -1197,16 +1198,21 @@ never invents enabled state.
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
-| Actual Size: the comparison's code at Code size ([[BPR-1336]]) | `Ctrl+Alt+0` (⌘⌥0) |
+| Actual Size: the comparison's code at Code size ([[BPR-1336]], [[BPR-1535]]) | `Ctrl+0` (⌘0) |
+| Home: show Home, or leave it for the review ([[BPR-0650]], [[BPR-1535]]) | `Ctrl+Shift+H` (⌘⇧H) |
 
-Actual Size cannot take ⌘0 (`Ctrl+0`). That key is Home, and inside the open
-label menu it is Plain ([[BPR-1080]]). Actual Size takes ⌘⌥0 (`Ctrl+Alt+0`)
-instead. ⌘⌥ is the modifier pair the comparison control already uses for its
-own commands, and the label menu matches ⌘0 exactly, so ⌘⌥0 never chooses
-Plain. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0 types `}` on German
-and Nordic layouts. An editable text field that receives `Ctrl+Alt+0` with a
-typed character claims it in `ShortcutOverride`, so the character is typed and
-the zoom is left alone. The read-only code panes leave the key to Actual Size.
+Actual Size is ⌘0 (`Ctrl+0`), as in browsers and editors. Until the owner
+moved Home to ⌘⇧H on 2026-10-15 ([[BPR-1535]]), ⌘0 was Home and Actual Size
+had ⌘⌥0 (`Ctrl+Alt+0`); ⌘0 replaced it rather than adding to it, so `Ctrl+Alt+0`
+is bound to nothing. ⌘⇧H is Home in Safari and Finder, and no text widget or
+macOS system command takes it; ⌘-backtick was considered and rejected because macOS
+cycles an application's windows with it. Inside the open label menu ⌘0 is
+still Plain ([[BPR-1080]]): the menu is a popup and claims the key before the
+window's Actual Size. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0
+types `}` on German and Nordic layouts. An editable text field that receives
+`Ctrl+Alt` with a typed character claims it in `ShortcutOverride`, so the
+character is typed and no window shortcut on that key fires. The read-only
+code panes leave such a key to the window.
 The three zoom commands sit in View after Updates Line, between separators,
 and the resident desktop menu bar offers them disabled with the same keys
 ([[BPR-0796]]).

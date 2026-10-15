@@ -293,7 +293,8 @@ namespace {
 		settle();
 		expect(overrides(f.menu()->label_button(core::feedback_label::issue), Qt::Key_0), "inside the open menu ⌘0 is the menu's own key");
 		{
-			// [[BPR-1336]]. ⌘⌥0 is the window's Actual Size, never Plain.
+			// [[BPR-1336]]. ⌘⌥0 is never Plain ([[BPR-1535]]: the window binds
+			// it to nothing now that Actual Size is ⌘0).
 			auto actualSize = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier };
 			actualSize.ignore();
 			QApplication::sendEvent(f.menu()->label_button(core::feedback_label::issue), &actualSize);
@@ -305,7 +306,7 @@ namespace {
 		key(f.menu(), Qt::Key_0, Qt::ControlModifier);
 		settle();
 		expect(f.text() == "Fix it." && !f.menu()->isVisible(), "⌘0 in the menu makes the comment plain and closes it");
-		expect(!overrides(f.body(), Qt::Key_0), "outside the menu ⌘0 stays the window's Home shortcut");
+		expect(!overrides(f.body(), Qt::Key_0), "outside the menu ⌘0 stays the window's Actual Size shortcut");
 		expect(f.Commands.size() == 11U, "each change was one draft edit");
 
 		// A header typed by hand with several and custom decorations shows on

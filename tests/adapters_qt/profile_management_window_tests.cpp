@@ -413,7 +413,7 @@ namespace {
 		expect(viewActions[15]->text() == QStringLiteral("Zoom In")
 				   && viewActions[15]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }
 				   && viewActions[16]->text() == QStringLiteral("Zoom Out") && viewActions[16]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
-				   && viewActions[17]->text() == QStringLiteral("Actual Size") && viewActions[17]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } }
+				   && viewActions[17]->text() == QStringLiteral("Actual Size") && viewActions[17]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+0") } }
 				   && !viewActions[15]->isEnabled() && !viewActions[16]->isEnabled() && !viewActions[17]->isEnabled(),
 			   "Zoom In, Zoom Out and Actual Size are offered with no window, on the window's keys, and disabled");
 		{

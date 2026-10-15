@@ -81,7 +81,7 @@ namespace bpr::qt {
 		Shortcut->setObjectName(QStringLiteral("workbenchHomeReturnShortcut"));
 		Shortcut->setTextFormat(Qt::PlainText);
 		Shortcut->setForegroundRole(QPalette::PlaceholderText);
-		Shortcut->setText(QKeySequence{ Qt::CTRL | Qt::Key_0 }.toString(QKeySequence::NativeText));
+		Shortcut->setText(QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_H }.toString(QKeySequence::NativeText));
 
 		Header = new QHBoxLayout;
 		Header->setContentsMargins(0, 0, 0, 0);

@@ -8207,8 +8207,8 @@ namespace {
 
 	/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size: their
 	/// keys, their place in the menu, their states and reasons, that no key in
-	/// the window is bound twice, that ⌘0 is still Home, and that an editor
-	/// keeps an AltGr character.
+	/// the window is bound twice, that ⌘0 is Actual Size and ⌘⇧H Home
+	/// ([[BPR-1535]]), and that an editor keeps an AltGr character.
 	void test_code_zoom_commands_keys_and_collisions()
 	{
 		qt::workbench_window window;
@@ -8238,8 +8238,8 @@ namespace {
 		// Their keys.
 		expect(zoomIn->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }
 				   && zoomOut->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
-				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } },
-			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘⌥0 is Actual Size");
+				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+0") } },
+			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘0 is Actual Size");
 		auto keys = QList<QKeySequence>{ };
 		for (const auto* const action : window.findChildren<QAction*>()) {
 			for (const auto& key : action->shortcuts()) {
@@ -8247,16 +8247,19 @@ namespace {
 				keys.push_back(key);
 			}
 		}
+		expect(!keys.contains(QKeySequence{ QStringLiteral("Ctrl+Alt+0") }), "⌘⌥0 is bound to nothing: Actual Size replaced it with ⌘0");
 		// Widget-scoped QShortcuts (Esc in several places) are scoped by
 		// design; none may take a zoom key or Home's.
 		const auto zoomKeys = QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") }, QKeySequence{ QStringLiteral("Ctrl+-") },
-									 QKeySequence{ QStringLiteral("Ctrl+Alt+0") }, QKeySequence{ QStringLiteral("Ctrl+0") } };
+									 QKeySequence{ QStringLiteral("Ctrl+0") }, QKeySequence{ QStringLiteral("Ctrl+Shift+H") } };
 		for (const auto* const shortcut : window.findChildren<QShortcut*>()) {
 			for (const auto& key : shortcut->keys()) {
 				expect(!zoomKeys.contains(key), "no widget shortcut takes a zoom key or Home's: " + key.toString().toStdString());
 			}
 		}
-		expect(window.home_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+0") }, "⌘0 is still Home");
+		expect(window.home_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Shift+H") } }
+				   && window.home_action()->toolTip().contains(QKeySequence{ QStringLiteral("Ctrl+Shift+H") }.toString(QKeySequence::NativeText)),
+			   "Home is ⌘⇧H alone, and its tooltip names it");
 
 		auto steps = std::vector<core::code_zoom_step>{ };
 		window.set_code_zoom_dispatch([&steps](const core::code_zoom_step aStep) { steps.push_back(aStep); });
@@ -8281,18 +8284,22 @@ namespace {
 		window_key(window, Qt::Key_Minus, Qt::ControlModifier);
 		expect(steps == std::vector{ core::code_zoom_step::in, core::code_zoom_step::in, core::code_zoom_step::out },
 			   "⌘=, ⌘+ and ⌘− in the code pane are one step each");
-		window_key(window, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
-		expect(steps.size() == 3U && homes == 0, "Actual Size at 100% sends nothing, and ⌘⌥0 is not Home");
+		window_key(window, Qt::Key_0, Qt::ControlModifier);
+		expect(steps.size() == 3U && homes == 0, "Actual Size at 100% sends nothing, and ⌘0 is not Home");
 		code.ZoomPercent = 125U;
 		window.adopt_code_zoom(code);
 		auto* const pill = window.comparison_surface()->code_zoom_indicator();
 		expect(pill->isVisible() && pill->accessibleName() == QStringLiteral("Code zoom 125%, 16.25 pt"),
 			   "a moved zoom shows the indicator with the percentage and the size on screen");
 		window_key(window, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
-		expect(steps.size() == 4U && steps.back() == core::code_zoom_step::actual_size && homes == 0,
-			   "⌘⌥0 is Actual Size once the zoom has moved");
+		expect(steps.size() == 3U && homes == 0, "⌘⌥0 is no longer Actual Size, nor Home");
 		window_key(window, Qt::Key_0, Qt::ControlModifier);
-		expect(steps.size() == 4U && homes == 1, "⌘0 is still Home, and no zoom");
+		expect(steps.size() == 4U && steps.back() == core::code_zoom_step::actual_size && homes == 0,
+			   "⌘0 is Actual Size once the zoom has moved, and not Home");
+		window_key(window, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(steps.size() == 4U && homes == 1 && window.showing_home(), "⌘⇧H is Home, and no zoom");
+		window.choose_modality(qt::review_modality::review);
+		process_events();
 
 		// The clamps.
 		code.ZoomPercent = 300U;
@@ -8320,7 +8327,56 @@ namespace {
 			   "an editable field keeps the } AltGr+0 types on a German layout");
 		expect(!qt::editor_keeps_typed_text(&field, altGr({ })) && !qt::editor_keeps_typed_text(&readOnly, altGr(QStringLiteral("}")))
 				   && !qt::editor_keeps_typed_text(window.comparison_surface()->right_pane(), altGr(QStringLiteral("}"))),
-			   "a key that types nothing, a read-only field and the code panes leave Ctrl+Alt+0 to Actual Size");
+			   "a key that types nothing, a read-only field and the code panes leave a Control+Alt key to the window");
+	}
+
+	/// \brief [[BPR-1535]]. ⌘⇧H (Ctrl+Shift+H) shows Home from each review
+	/// surface and from an editor that has the keyboard, and ⌘0 shows it from
+	/// none of them.
+	void test_home_key_shows_home_from_every_surface()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto home = QKeySequence{ QStringLiteral("Ctrl+Shift+H") };
+		expect(window.home_action()->shortcuts() == QList{ home } && window.home_action()->toolTip().contains(home.toString(QKeySequence::NativeText)),
+			   "Home's one key is ⌘⇧H, and its tooltip names it in the platform's notation");
+		const auto surfaces = std::array{
+			std::pair{ qt::review_modality::overview, "Overview" },
+			std::pair{ qt::review_modality::review, "Review" },
+			std::pair{ qt::review_modality::discuss, "Discuss" },
+			std::pair{ qt::review_modality::threads, "Threads" },
+		};
+		for (const auto& [modality, name] : surfaces) {
+			window.choose_modality(modality);
+			process_events();
+			expect(!window.showing_home() && window.current_modality() == modality, std::string{ "the review shows " } + name);
+			window_key(window, Qt::Key_0, Qt::ControlModifier);
+			expect(!window.showing_home(), std::string{ "⌘0 does not show Home from " } + name);
+			window_key(window, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier);
+			expect(window.showing_home() && window.home_action()->isChecked(), std::string{ "⌘⇧H shows Home from " } + name);
+		}
+
+		// With the keyboard in an editable editor in the window: no text
+		// widget claims Ctrl+Shift+H, so the window's Home takes it.
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const editor = new QPlainTextEdit{ window.centralWidget() };
+		editor->setGeometry(10, 10, 200, 80);
+		editor->show();
+		editor->setFocus(Qt::OtherFocusReason);
+		process_events();
+		auto claim = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier };
+		claim.ignore();
+		QApplication::sendEvent(editor, &claim);
+		expect(editor->hasFocus() && !window.showing_home() && !claim.isAccepted(), "an editor with the keyboard leaves ⌘⇧H to the window");
+		window_key(window, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(window.showing_home() && editor->toPlainText().isEmpty(), "⌘⇧H from the editor shows Home and types nothing");
+		delete editor;
+		window.hide();
 	}
 
 	/// \brief [[BPR-1129]]. Option-R (Alt+R) composes the review and Option-C
@@ -15579,6 +15635,7 @@ auto main(int argc, char** argv) -> int
 	test_strip_tooltips_sit_directly_below_their_controls();
 	test_change_keys_are_named_and_yield_in_editors();
 	test_code_zoom_commands_keys_and_collisions();
+	test_home_key_shows_home_from_every_surface();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_thread_defect_menus_badges_and_navigation();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();

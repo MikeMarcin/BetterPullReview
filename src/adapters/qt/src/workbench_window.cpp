@@ -1577,11 +1577,12 @@ namespace bpr::qt {
 		rowWidget(PrimaryToolbar, StripMenuButton, QStringLiteral("workbenchStripMenuAction"));
 #endif
 		// [[BPR-0650]]. Home first: the way back to the landing and the queue
-		// from any review, checked while Home shows.
+		// from any review, checked while Home shows. [[BPR-1535]]: Command-Shift-H
+		// (Ctrl+Shift+H), as Safari's and Finder's Home; Command-0 is Actual Size.
 		HomeAction = new QAction{ QStringLiteral("&Home"), this };
 		HomeAction->setObjectName(QStringLiteral("workbenchHomeAction"));
 		HomeAction->setCheckable(true);
-		HomeAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+0") });
+		HomeAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+H") });
 		HomeAction->setShortcutContext(Qt::WindowShortcut);
 		HomeAction->setIconText(QStringLiteral("Home"));
 		HomeAction->setToolTip(QStringLiteral(
@@ -14273,11 +14274,10 @@ namespace bpr::qt {
 		});
 		// [[BPR-1336]]. The comparison's zoom. Command-= and Command-+ (Ctrl+=
 		// and Ctrl++) zoom in and Command-minus zooms out, as every browser and
-		// editor does. Actual Size cannot take Command-0: that is Home, and
-		// Plain inside the label menu. Command-Option-0 (Ctrl+Alt+0) keeps the
-		// 0 and takes the modifier pair the comparison control already uses for
-		// its own commands; the label menu matches Command-0 exactly, so it
-		// never chooses Plain.
+		// editor does. [[BPR-1535]]: Actual Size is Command-0 (Ctrl+0), which
+		// was Home's until the owner moved Home to Command-Shift-H; it replaces
+		// Command-Option-0 rather than adding to it. Inside the open label menu
+		// Command-0 is still Plain: the popup claims it before the window.
 		ViewMenu->addSeparator();
 		const auto zoomAction = [this](const QString& aText, const QString& aName, const QList<QKeySequence>& aKeys, const core::code_zoom_step aStep) {
 			auto* const action = new QAction{ aText, this };
@@ -14292,7 +14292,7 @@ namespace bpr::qt {
 		};
 		ZoomInAction     = zoomAction(tr("Zoom In"), QStringLiteral("zoomInCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }, core::code_zoom_step::in);
 		ZoomOutAction    = zoomAction(tr("Zoom Out"), QStringLiteral("zoomOutCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+-") } }, core::code_zoom_step::out);
-		ActualSizeAction = zoomAction(tr("Actual Size"), QStringLiteral("actualSizeCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+Alt+0") } }, core::code_zoom_step::actual_size);
+		ActualSizeAction = zoomAction(tr("Actual Size"), QStringLiteral("actualSizeCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+0") } }, core::code_zoom_step::actual_size);
 		apply_code_zoom();
 #if defined(Q_OS_WIN)
 		qApp->installEventFilter(new typed_text_yield{ this });

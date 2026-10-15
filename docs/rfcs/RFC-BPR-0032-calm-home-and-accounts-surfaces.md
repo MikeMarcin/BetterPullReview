@@ -197,7 +197,8 @@ enterprise server as a bordered one, the two ways in RFC-BPR-0018 requires
 without opening Settings; and the status bar "Not signed in. Public pull
 requests open read-only." No list, no panels, no filters. Home over an open
 review keeps its return: one shaded row above the bar, "Reviewing
-NVIDIA/stdexec#1846 …, file 9 of 12" at the left and Back to the review (⌘0)
+NVIDIA/stdexec#1846 …, file 9 of 12" at the left and Back to the review (⌘⇧H;
+⌘0 until the owner's amendment of 2026-10-15, [[BPR-1535]])
 as the filled button at the right; Home is unchanged beneath it.
 
 **Dif on Home (owner direction, 2026-09-15).** The owner asked for Dif to

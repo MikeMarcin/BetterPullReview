@@ -8,6 +8,7 @@
 // owner to try the zoom.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_keys.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -243,13 +244,23 @@ int main(int aArgc, char** aArgv)
 			 "⌘-scroll one notch toward the reader zooms out one step");
 	expect(std::abs(lineTop() - before) <= surface->line_rect(line.Side, line.Line).height(), "and the reader's line still stays where it was");
 
-	// Actual Size.
+	// Actual Size, by its key as the window system delivers it. [[BPR-1535]]:
+	// ⌘0 (Ctrl+0) is Actual Size, not Home, and ⌘⌥0 is no longer bound.
+	window.activateWindow();
+	wait_for([&] { return window.isActiveWindow(); }, "the window is active for its keys");
+	auto actualSizes = 0;
+	QObject::connect(window.actual_size_action(), &QAction::triggered, &window, [&actualSizes] { ++actualSizes; });
 	writes = application->status().AppearanceDurableWrites;
-	window.actual_size_action()->trigger();
+	tests::window_system_key(window, Qt::Key_0, Qt::ControlModifier | Qt::AltModifier);
+	expect(actualSizes == 0 && zoomedTo(1.1) && !window.showing_home(), "⌘⌥0 is no longer Actual Size, nor Home");
+	tests::window_system_key(window, Qt::Key_0, Qt::ControlModifier);
+	expect(actualSizes == 1, "⌘0 is Actual Size, once");
 	wait_for([&] { return zoomedTo(1.0) && application->status().AppearanceDurableWrites > writes && !surface->geometry_pending(); },
-			 "Actual Size returns both panes to Code size");
-	expect(std::abs(lineTop() - before) <= surface->line_rect(line.Side, line.Line).height() && !window.actual_size_action()->isEnabled(),
-		   "the line is back where it started and Actual Size has nothing left to do");
+			 "⌘0 (Actual Size) returns both panes to Code size");
+	expect(std::abs(lineTop() - before) <= surface->line_rect(line.Side, line.Line).height() && !window.actual_size_action()->isEnabled() && !window.showing_home(),
+		   "the line is back where it started, Actual Size has nothing left to do, and ⌘0 did not show Home");
+	tests::window_system_key(window, Qt::Key_H, Qt::ControlModifier | Qt::ShiftModifier);
+	wait_for([&] { return window.showing_home(); }, "⌘⇧H (Ctrl+Shift+H) shows Home over the open review");
 
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "shutdown drains");

@@ -563,7 +563,7 @@ namespace bpr::qt {
 				"Actual Size (%3) change it; drawers keep Code size.")
 				.arg(QKeySequence{ QStringLiteral("Ctrl+=") }.toString(QKeySequence::NativeText),
 					 QKeySequence{ QStringLiteral("Ctrl+-") }.toString(QKeySequence::NativeText),
-					 QKeySequence{ QStringLiteral("Ctrl+Alt+0") }.toString(QKeySequence::NativeText)),
+					 QKeySequence{ QStringLiteral("Ctrl+0") }.toString(QKeySequence::NativeText)),
 			CodeZoom);
 
 		CodeWeight = new QSpinBox{ typeRows };

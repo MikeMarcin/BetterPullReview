@@ -238,8 +238,9 @@ Consumers: the inline composition page and reply drafts
     one (BPR-1083 v004).
 
   Once a label is chosen, the same three decorations also sit beside the chip
-  as toggles. ⌘0 is the window's Home shortcut, so it is a key of the open menu
-  only and never a window shortcut (derived).
+  as toggles. ⌘0 is the window's Actual Size shortcut (Home's until
+  [[BPR-1535]]), so it is a key of the open menu only and never a window
+  shortcut (derived).
 - **Decorations combine** (owner, `decorations-v003`: "multiple decorators
   can be applied to a comment. like (non-blocking, if-minor)"). Each toggle
   writes or takes out its own decoration and keeps every other one exactly as

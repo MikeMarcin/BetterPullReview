@@ -344,7 +344,8 @@ design rounds.
   separate feed.
 - AC-06 Home is the whole centre while nothing is open, with none of the
   review chrome, and the strip then shows only Home, account and settings;
-  a Home button (⌘0) at the strip's left returns to Home from any review
+  a Home button (⌘⇧H; ⌘0 until the owner's amendment of 2026-10-15,
+  [[BPR-1535]]) at the strip's left returns to Home from any review
   (owner decision, 2026-09-07: Home is a view with its button, not a fifth
   modality); it shows the grouped action list from the queue and ledger
   projections; with no account it funnels to sign-in, and with no pull

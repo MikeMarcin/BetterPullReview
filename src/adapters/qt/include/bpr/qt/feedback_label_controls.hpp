@@ -164,8 +164,8 @@ namespace bpr::qt {
 	/// takes the other out, and if-minor goes with either. Custom decorations
 	/// written in the comment show as toggles too, and a field takes a new
 	/// one, as in `security`, which is written as typed.
-	/// \details A popup, so ⌘0 reaches it before Home's window shortcut and is
-	/// a key of the open menu only (contract, derived). Arrow keys move through
+	/// \details A popup, so ⌘0 reaches it before Actual Size's window shortcut
+	/// and is a key of the open menu only (contract, derived). Arrow keys move through
 	/// the grid; Return or Space chooses; Esc closes. Focus returns to the body
 	/// with the caret after the prefix when it closes.
 	class feedback_label_menu final : public QFrame
