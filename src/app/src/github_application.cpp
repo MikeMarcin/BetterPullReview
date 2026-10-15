@@ -6781,6 +6781,7 @@ namespace bpr::app {
 			core::request_generation                      Generation;
 			std::optional<core::document_tab_id>          Tab;
 			std::optional<core::window_review_position>   View;
+			bool                                          RestoreReading = true;
 		};
 		std::optional<pending_review_navigation> PendingReviewNavigation;
 		std::optional<pending_review_navigation> ReviewNavigationFocus;
@@ -6823,7 +6824,14 @@ namespace bpr::app {
 			// reading position it saw: a selection made just before the press
 			// reaches the tab a lane turn later, and the stale position would
 			// never be on screen again, holding the press forever.
-			if (active && !tab_view_presented(active->View)) {
+			// Ordinary file navigation needs the accepted file order, not source
+			// material or a matching line selection. A terminal source failure
+			// must not trap its arrows while the tree can still choose a file.
+			// Entry from another modality still restores the exact reading first.
+			const auto fileOrderReady = !pending.RestoreReading && active
+				&& WorkbenchHost->selected() == active->View.File
+				&& EpochHost->state().AcceptedComparison == std::optional{ active->View.Comparison };
+			if (active && !fileOrderReady && !tab_view_presented(active->View)) {
 				// An unavailable exact view keeps its normal explanation and never
 				// lends another comparison to the retained navigation command.
 				if (active->State == core::document_tab_view_state::unavailable) {
@@ -6849,11 +6857,14 @@ namespace bpr::app {
 			if (!aCommand || Closing || !TabHost || !WorkbenchHost || !EpochHost || !LastAcceptedHandoff) {
 				return;
 			}
-			const auto* active      = TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
-			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt };
+			const auto restoreReading = TabModality != core::workbench_modality::review
+				|| (*aCommand != core::workbench_command_id::previous_file && *aCommand != core::workbench_command_id::next_file);
 			// Start the ordinary modality/tab driver before interpreting the
-			// command. Its completion resumes only the bound exact view.
+			// command, and reflect a preceding tree choice before binding it.
+			// Otherwise that queued reflection cancels this later press as stale.
 			advance_tab_presentation();
+			const auto* active      = TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
+			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt, restoreReading };
 			continue_review_navigation();
 		}
 		void finish_tab_load(const core::document_tab_view_outcome aOutcome)

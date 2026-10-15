@@ -1084,6 +1084,13 @@ order/bounds and entry alone opens nothing. Keyboard entry focuses the visible
 comparison when present or the originating arrow when empty/unavailable;
 editable multi-line input keeps its native shortcut handling.
 
+Once Review is on the active tab's exact comparison and selected file,
+Previous/Next file use its accepted file order even when that file's source is
+unavailable. A preceding tree choice becomes the starting file for an arrow
+pressed before its load settles. Source failure cannot strand ordinary file
+navigation; change navigation still needs the file's comparison material
+([[BPR-1517]]).
+
 Every tooltip in the application shows directly below the control it names,
 left edges aligned and four pixels apart, or directly above it where below
 would leave the screen, moved left only to stay on the screen
