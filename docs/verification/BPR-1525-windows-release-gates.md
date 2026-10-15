@@ -251,3 +251,22 @@ there is no shared attempt cache. Mac provider falls from 8.96 to 3.13 s and
 the complete capability course passes in 4.58 s, including cumulative byte/value
 refusals, missing/unexpected aliases, duplicate parts, GitHub/GHES fact equality
 and malformed Unicode/envelope checks. Native concurrency acceptance is pending.
+
+Windows c35c92e79 passes provider at 7.75 s in the normal jobs=4 subset,
+capability checks at 12.03 s, manifest at 7.53 s and child at 0.19 s.
+The shared painter passes at 0.24 s. Workbench still exceeds 120 s, and no
+acceptance is inferred from the carried diagnostic markers in that test object.
+MSBuild had reused an object because Copy-Item preserved the restored source's
+older timestamp. Subsequent restores touch source files and verify compilation;
+r13 recompiles both the production painter and test before restoring its binary.
+
+The keyboard component profile on c35c92e79 takes 52.38 s: text 25.49 s,
+gutter 6.53 s and whitespace 0.81 s. Several setters unconditionally invalidate
+whole viewports and gutters even when boundary/color/anchor values do not
+change. They now invalidate on change; selection-dependent whitespace
+invalidates the visible old/new selected-row difference. Unified gutter
+selection explicitly invalidates when its own state changes, so it no longer
+relies on an unrelated repeated color assignment. Text band invalidation
+continues through Qt, whose [extra-selection implementation](https://raw.githubusercontent.com/qt/qtbase/v6.11.2/src/widgets/widgets/qwidgettextcontrol.cpp)
+tracks changed selections. All complete Mac workbench scales pass after this
+change (14.46/13.85/15.43 s); Windows acceptance remains pending.

@@ -487,15 +487,22 @@ namespace bpr::qt {
 			void set_row_colors(const QColor& aRemoved, const QColor& aAdded);
 			void set_unified_selection(std::optional<core::line_span> aBase, std::optional<core::line_span> aHead)
 			{
-				SelectedBase = aBase;
-				SelectedHead = aHead;
+				if (SelectedBase == aBase && SelectedHead == aHead) {
+					return;
+				}
+				const auto previous = selected_rows_region();
+				SelectedBase        = aBase;
+				SelectedHead        = aHead;
+				viewport()->update(previous.xored(selected_rows_region()));
+				update_gutter();
 			}
 			/// \brief [[BPR-1107]]. The lines this side's selection washes.
 			void set_selected_lines(std::optional<core::line_span> aLines)
 			{
 				if (SelectedLines != aLines) {
-					SelectedLines = aLines;
-					viewport()->update();
+					const auto previous = selected_rows_region();
+					SelectedLines       = aLines;
+					viewport()->update(previous.xored(selected_rows_region()));
 				}
 			}
 			/// \brief [[BPR-1107]]. When this pane draws white space.
@@ -545,20 +552,26 @@ namespace bpr::qt {
 			/// and only the search may be allowed to follow the viewport.
 			void set_group_boundaries(std::vector<std::uint32_t> aBoundaries)
 			{
-				Boundaries = std::move(aBoundaries);
-				viewport()->update();
+				if (Boundaries != aBoundaries) {
+					Boundaries = std::move(aBoundaries);
+					viewport()->update();
+				}
 			}
 
 			void set_boundary_rule_color(const QColor& aColor)
 			{
-				RuleColor = aColor;
-				viewport()->update();
+				if (RuleColor != aColor) {
+					RuleColor = aColor;
+					viewport()->update();
+				}
 			}
 
 			void set_conversation_anchor(std::optional<std::uint32_t> aLine)
 			{
-				ConversationAnchor = aLine;
-				viewport()->update();
+				if (ConversationAnchor != aLine) {
+					ConversationAnchor = aLine;
+					viewport()->update();
+				}
 			}
 
 			/// \brief One line's row in viewport coordinates, or empty.
@@ -1106,6 +1119,25 @@ namespace bpr::qt {
 				}
 			}
 
+			/// \brief The visible rows whose selected state can affect white space.
+			/// \details [[BPR-1525]]. A keyboard selection changes a few rows,
+			/// so invalidate their old/new difference rather than force a full
+			/// viewport paint. Qt invalidates the text bands independently.
+			[[nodiscard]] auto selected_rows_region() const -> QRegion
+			{
+				auto region = QRegion{ };
+				for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
+					const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
+					if (geometry.top() > viewport()->height()) {
+						break;
+					}
+					if (block.isVisible() && selected_block(block.blockNumber())) {
+						region += QRect{ 0, qFloor(geometry.top()), viewport()->width(), qCeil(geometry.bottom()) - qFloor(geometry.top()) };
+					}
+				}
+				return region;
+			}
+
 			/// \brief Whether one block lies under the pane's selection wash.
 			[[nodiscard]] auto selected_block(const int aBlock) const -> bool
 			{
@@ -1513,9 +1545,11 @@ namespace bpr::qt {
 
 		void source_pane::set_row_colors(const QColor& aRemoved, const QColor& aAdded)
 		{
-			RemovedColor = aRemoved;
-			AddedColor   = aAdded;
-			Gutter->update();
+			if (RemovedColor != aRemoved || AddedColor != aAdded) {
+				RemovedColor = aRemoved;
+				AddedColor   = aAdded;
+				Gutter->update();
+			}
 		}
 
 		source_pane::source_pane(QWidget* const aParent)
@@ -1633,9 +1667,11 @@ namespace bpr::qt {
 			const QColor& aBackground,
 			const QColor& aText)
 		{
-			GutterBackground = aBackground;
-			GutterText       = aText;
-			Gutter->update();
+			if (GutterBackground != aBackground || GutterText != aText) {
+				GutterBackground = aBackground;
+				GutterText       = aText;
+				Gutter->update();
+			}
 		}
 
 		void source_pane::resizeEvent(QResizeEvent* const aEvent)
