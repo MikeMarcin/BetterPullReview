@@ -365,3 +365,33 @@ three complete workbench scales, all four native geometry scales and core
 appearance policy (9/9). That Mac functional run overlaps strict tidy, so its
 durations are not performance evidence. Windows normal performance acceptance
 and Ubuntu affected-path verification remain pending.
+
+### Whitespace endpoint projection is the remaining long-line cost
+
+Normal r23 at 5e5f14790 still times out all three workbench scales at 120 s.
+The isolated original line-details syntax course under r24 finishes in 9.39 s:
+48 whitespace calls consume 6.91 s, whereas 26,616 prefix conversions consume
+only 50 ms. The proposed ASCII prefix conversion shortcut was therefore
+rejected before commit. A temporary per-draw cache guard was also removed:
+Qt's cursor queries already retain their data between queries, so that was
+not a demonstrated repair mechanism.
+
+The actual waste is querying endpoints for every whitespace mark far beyond
+the horizontal viewport. The revised shared painter asks Qt's two viewport
+edge hit tests to bound projection in an unwrapped LTR ASCII row, retaining
+one adjacent character at each edge for partially visible spaces/tabs.
+The core still classifies the full row; every projected endpoint still comes
+from the same native cursor query. Wrapped, RTL, Unicode and control-bearing
+text retain the full existing path. No text, mark or format assertion changes.
+A new oracle compares visible pixels with projecting all native endpoints at
+both ends and the middle of a long tabbed row, and proves Unicode uses the
+full fallback. Mac shared-painter and all three complete workbench scales pass
+(4/4); native Windows acceptance remains pending.
+
+The required full core-only preset built and ran 276 courses: 272 pass, including
+both architecture checks. Four setup failures are retained. Three lacked the
+ignored declared MASK deployment; MASK register restored locked links and
+local generated roles without tracked declarations or upgrades. One nested
+configure tried downloading pinned LibArchive from an unwarmed local cache
+inside network containment. Its normal rerun uses the same prepared pinned
+cache already used by dev; containment and source assertions stay unchanged.

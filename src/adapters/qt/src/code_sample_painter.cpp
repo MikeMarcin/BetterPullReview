@@ -610,7 +610,28 @@ namespace bpr::qt {
 		auto       marks = std::vector<white_space_mark>{ };
 		auto       row   = QRectF{ };
 		auto       at    = QTextCursor{ aBlock };
-		for (auto index = std::size_t{ 0U }; index < drawn.size(); ++index) {
+		auto       first = std::size_t{ 0U };
+		auto       last  = drawn.size();
+		// [[BPR-1525]]. Project the visible part of an unwrapped LTR ASCII
+		// line rather than query every offscreen mark in a long source row.
+		// Qt owns both edge hit tests and every retained endpoint. Include an
+		// adjacent character at each edge for a partially visible tab/space.
+		const auto simple = aEditor.lineWrapMode() == QPlainTextEdit::NoWrap
+			&& aEditor.layoutDirection() == Qt::LeftToRight
+			&& aBlock.blockFormat().layoutDirection() != Qt::RightToLeft
+			&& aEditor.document()->defaultTextOption().textDirection() != Qt::RightToLeft
+			&& std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter == QLatin1Char{ '\t' } || (aCharacter.unicode() >= 0x20U && aCharacter.unicode() <= 0x7EU); });
+		if (simple && !aEditor.viewport()->rect().isEmpty()) {
+			const auto visible = aEditor.viewport()->rect();
+			const auto middle  = std::clamp(aEditor.cursorRect(at).center().y(), visible.top(), visible.bottom());
+			const auto begin   = aEditor.cursorForPosition(QPoint{ visible.left(), middle });
+			const auto end     = aEditor.cursorForPosition(QPoint{ visible.right(), middle });
+			if (begin.block() == aBlock && end.block() == aBlock && begin.position() <= end.position()) {
+				first = static_cast<std::size_t>(std::max(0, begin.position() - aBlock.position() - 1));
+				last  = std::min(last, static_cast<std::size_t>(end.position() - aBlock.position() + 1));
+			}
+		}
+		for (auto index = first; index < last; ++index) {
 			if (!drawn[index]) {
 				continue;
 			}

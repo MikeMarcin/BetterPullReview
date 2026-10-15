@@ -21,6 +21,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QRectF>
+#include <QScrollBar>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextLayout>
@@ -674,6 +675,60 @@ namespace {
 		editor.hide();
 	}
 
+	void test_long_editor_white_space_matches_full_native_projection()
+	{
+		for (const auto unicode : { false, true }) {
+			auto editor = QPlainTextEdit{ };
+			editor.setLineWrapMode(QPlainTextEdit::NoWrap);
+			editor.resize(320, 80);
+			auto text = QString{ };
+			for (auto word = 0; word < 200; ++word) {
+				text += word % 3 == 0 ? QStringLiteral("token\t") : QStringLiteral("token ");
+			}
+			if (unicode) {
+				text.prepend(QString::fromUtf8("na\xc3\xafve "));
+			}
+			editor.setPlainText(text);
+			editor.show();
+			QApplication::processEvents();
+			const auto block = editor.document()->firstBlock();
+			for (const auto position : { 0, editor.horizontalScrollBar()->maximum() / 2, editor.horizontalScrollBar()->maximum() }) {
+				editor.horizontalScrollBar()->setValue(position);
+				QApplication::processEvents();
+				auto expected = QImage{ editor.viewport()->size(), QImage::Format_ARGB32 };
+				expected.fill(Qt::transparent);
+				auto actual = expected;
+				auto marks  = std::vector<qt::white_space_mark>{ };
+				auto row    = QRectF{ };
+				auto cursor = QTextCursor{ block };
+				for (auto index = 0; index < text.size(); ++index) {
+					if (text.at(index) != QLatin1Char{ ' ' } && text.at(index) != QLatin1Char{ '\t' }) {
+						continue;
+					}
+					cursor.setPosition(index);
+					const auto begin = editor.cursorRect(cursor);
+					cursor.setPosition(index + 1);
+					if (row.isNull()) {
+						row = begin;
+					}
+					marks.push_back({ .Left = static_cast<qreal>(begin.left()), .Right = static_cast<qreal>(editor.cursorRect(cursor).left()), .Tab = text.at(index) == QLatin1Char{ '\t' } });
+				}
+				const auto ink = QColor{ 255, 255, 255 };
+				{
+					auto painter = QPainter{ &expected };
+					static_cast<void>(qt::paint_white_space(painter, row, marks, ink));
+				}
+				{
+					auto       painter = QPainter{ &actual };
+					const auto count   = qt::paint_white_space_of_block(painter, editor, block, core::white_space_drawing::all, false, ink);
+					expect(unicode ? count == marks.size() : count > 0U && count < marks.size() / 2U,
+						   "ASCII projection is viewport bounded; Unicode keeps the full native fallback");
+				}
+				expect(actual == expected, "visible whitespace pixels match projecting every native endpoint at both ends and the middle");
+			}
+		}
+	}
+
 	void test_the_gutter_paints_the_numbers_it_was_given()
 	{
 		auto image = QImage{ 40, 90, QImage::Format_ARGB32 };
@@ -731,6 +786,7 @@ auto main(int argc, char** argv) -> int
 	test_white_space_is_dots_and_lines_to_the_stop();
 	test_the_owners_example_draws_a_tab_as_a_line_alone();
 	test_each_choice_draws_the_white_space_it_names();
+	test_long_editor_white_space_matches_full_native_projection();
 	test_the_gutter_paints_the_numbers_it_was_given();
 	std::cout << "code-sample-painter-tests:pass\n";
 	return EXIT_SUCCESS;
