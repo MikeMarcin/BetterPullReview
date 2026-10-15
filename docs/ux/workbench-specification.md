@@ -47,7 +47,8 @@ in order, the title row, the review bar and, while it is open, the Updates
 line's timeline, with no scroll area and no separate title bar. The **title row** carries the window, the pull
 request and the modality: Home, the repositories and files toggles and the pull
 request's name at its left; the modality at its right beside refresh, the
-comments toggle (which carries the count of threads with new comments), the
+comments toggle (which carries the current file's count of threads with new
+comments), the
 hide-drawers icon, account and settings; on Windows the application menu and
 the caption buttons.
 
@@ -107,7 +108,9 @@ different thing. Threads is added and
 Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
 Threads takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Threads from Overview, Review
-or Discuss, as does the finder button at the top of the Comments drawer. It puts the finder of
+or Discuss. The Threads tab provides the same entry; the redundant finder button
+at the top of the Comments drawer was removed at the owner's request ([[BPR-1510]],
+2026-10-14). It puts the finder of
 [prototype v2](../design/BPR-1290-inline-drawer-v2/index.html) in the main
 pane, for navigation only: one row per thread on a file, grouped by
 file, with its line, its first post's label mark, its first words, an avatar
@@ -205,8 +208,18 @@ native reader menu.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
-before the change arrows, and private progress as an icon whose tooltip names the file's
-state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
+before the change arrows, **Accept** as a named one-click file action, and
+private progress as an icon whose tooltip names the file's state. Accept uses
+the selected exact file material and becomes **Revoke acceptance** after the
+saved receipt arrives. It is disabled while no comparison is selected, private
+progress is unavailable, or the file is excluded. The adjacent state menu keeps
+Seen, Read, acceptance and exclusion actions; use Include there before accepting
+an excluded file. **Command+Shift+A** on macOS (**Ctrl+Shift+A** elsewhere)
+accepts the current file without opening the menu ([[BPR-1515]]). The menu and
+Accept tooltip show the key. It works outside editable text fields and never
+revokes an accepted file; use Revoke acceptance explicitly. Opening or seeing
+a file does not accept it. At the bar's right
+are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
@@ -324,6 +337,12 @@ comparison fails that course, whose failure line names every row stacked with
 the comparison, folded and open ([[BPR-1036]]).
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
+
+Files and Search form the file drawer's header, using the same compact native
+document tabs as Comments and Notes ([[BPR-1509]]). The drawer keeps its
+accessible name without a separate visible heading. Switching pages retains
+the file selection, Files filter and Search query/results; native tab focus,
+arrow navigation and disabled states remain available.
 
 **Hide and show every drawer** ([[BPR-1295]]). One checkable window command,
 Hide Drawers, on `Ctrl+B` (⌘B on macOS) and an icon immediately right of the
@@ -1043,6 +1062,18 @@ platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a sec
 names the bound, and the status tip carries that line. The stop-versus-wrap
 wrap policy, used only by a fixture probe, still wraps inside the comparison.
 
+A clicked source line is the origin for Previous/Next change ([[BPR-1518]]).
+Inside a change, either direction steps from that change. On an unchanged line,
+Next chooses the nearest following change and Previous the nearest preceding
+change in the same file and exact comparison. The clicked side is resolved in
+the canonical alignment, so insertions, deletions and unequal line counts cannot
+borrow the other side's numeric line. Before the first change Previous keeps the
+clicked line; after the last change Next keeps it. Those bounds preserve both
+panes' visible positions and show the ordinary bound message. A later click
+replaces an earlier change-navigation origin. With no source selection, Next
+still enters at the first change and Previous at the last; the fixture-only
+wrap policy remains explicit.
+
 An exact tab view that must load retains at most the latest navigation press,
 bound to that PR, active tab and exact pair. Review shows immediately. The step
 runs once after that view returns; a later file, tab, comparison, modality, Home
@@ -1052,6 +1083,13 @@ and unsent work survive entry. With no tab, navigation uses its ordinary file
 order/bounds and entry alone opens nothing. Keyboard entry focuses the visible
 comparison when present or the originating arrow when empty/unavailable;
 editable multi-line input keeps its native shortcut handling.
+
+Once Review is on the active tab's exact comparison and selected file,
+Previous/Next file use its accepted file order even when that file's source is
+unavailable. A preceding tree choice becomes the starting file for an arrow
+pressed before its load settles. Source failure cannot strand ordinary file
+navigation; change navigation still needs the file's comparison material
+([[BPR-1517]]).
 
 Every tooltip in the application shows directly below the control it names,
 left edges aligned and four pixels apart, or directly above it where below
@@ -1708,8 +1746,13 @@ The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
 **Comments**, then **Notes** ([[BPR-1204]]). It opens on Comments. The
 Comments tab holds this file's threads exactly as described below; its filters
 and Next new comment sit at the right of the tab row; the tab carries the count
-of threads with new comments as an accent pill and says it to accessibility
-("Comments, 2 threads with new comments"). The Notes tab holds private ledger notes, AI tools, side chat replies and the
+of threads with new comments in the current file as an accent pill and says it
+to accessibility ("Comments, 2 threads with new comments in this file"). Both
+this pill and the title-row badge are absent without a selected file or when
+that file has no unread threads, even if another file does ([[BPR-1511]]). The
+count follows the accepted unread policy regardless of the drawer's filters.
+Next new comment continues through unread threads across the pull request.
+The Notes tab holds private ledger notes, AI tools, side chat replies and the
 finding queue. It stays available with no agent configured. Its introductory
 sentence says: "Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."
 One note or selected reply is copied to a local draft at Comment's target; the

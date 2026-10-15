@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -1646,6 +1647,52 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	void test_first_save_rebinds_only_the_runtime_placeholder()
+	{
+		qt::review_draft_editor                            editor({ }, { });
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor.set_revisioned_dispatch([&](auto command) { commands.push_back(std::move(command)); });
+		auto placeholder     = core::revisioned_review_draft{ a_draft(""), 1, core::review_draft_scope_id{ 9 } };
+		placeholder.Draft.Id = core::review_draft_id{ std::numeric_limits<std::uint64_t>::max() };
+		editor.present(placeholder);
+		editor.body_editor()->setPlainText(QStringLiteral("first"));
+		expect(commands.size() == 1, "first keystroke requests one real save");
+		const auto first = commands.front();
+		editor.body_editor()->setPlainText(QStringLiteral("first plus text typed while saving"));
+		auto accepted       = placeholder;
+		accepted.Draft.Id   = core::review_draft_id{ 42 };
+		accepted.Draft.Body = "first";
+		accepted.Revision   = 2;
+		editor.acknowledge_materialized(first, accepted);
+		expect(editor.body_editor()->toPlainText() == QStringLiteral("first plus text typed while saving") && commands.size() == 2 && commands.back().Command.Id == accepted.Draft.Id && commands.back().ExpectedRevision == 2, "text typed during first save continues on the committed identity without being overwritten");
+		accepted.Draft.Body = commands.back().Command.Body;
+		accepted.Revision   = 3;
+		editor.acknowledge(commands.back(), accepted);
+		expect(editor.shown_draft()->Id == accepted.Draft.Id && editor.shown_draft()->Body == accepted.Draft.Body && !editor.rejected_candidate(), "exact final text is acknowledged under the durable draft");
+		placeholder.Draft.Id          = core::review_draft_id{ std::numeric_limits<std::uint64_t>::max() - 1U };
+		placeholder.Draft.Anchor.Line = 10;
+		editor.present(placeholder);
+		editor.body_editor()->setPlainText(QStringLiteral("saving while navigating"));
+		const auto moving = commands.back();
+		editor.body_editor()->setPlainText(QStringLiteral("saving while navigating with later text"));
+		auto different              = placeholder;
+		different.Draft.Id          = core::review_draft_id{ 90 };
+		different.Draft.Anchor.Line = 11;
+		editor.present(qt::review_draft_editor_clear_reason::selection_cleared);
+		editor.present(different);
+		auto committed       = placeholder;
+		committed.Draft.Id   = core::review_draft_id{ 43 };
+		committed.Draft.Body = moving.Command.Body;
+		committed.Revision   = 2;
+		editor.acknowledge_materialized(moving, committed);
+		expect(editor.body_text() == "saving while navigating with later text" && editor.rejected_candidate()->Command.Id == committed.Draft.Id, "navigation retains later first-save text under its original committed identity");
+		editor.present(committed);
+		editor.reapply_draft_action()->trigger();
+		expect(commands.back().Command.Id == committed.Draft.Id && commands.back().Command.Body == "saving while navigating with later text" && commands.back().ExpectedRevision == 2, "return and explicit Reapply target the original durable draft with the exact later text");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -1655,6 +1702,7 @@ auto main(int argc, char** argv) -> int
 	test_a_crlf_body_keeps_its_line_endings();
 	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
+	test_first_save_rebinds_only_the_runtime_placeholder();
 
 	test_publishing_emits_an_intent_and_changes_nothing();
 	test_typing_emits_a_semantic_edit_and_waits_for_projection();

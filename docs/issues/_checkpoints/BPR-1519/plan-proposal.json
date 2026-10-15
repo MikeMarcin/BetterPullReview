@@ -1,0 +1,20 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1519-navigation-label-spacing",
+  "scope": {"issues": ["BPR-1519"]},
+  "milestones": [
+    {
+      "id": "navigation-label-spacing",
+      "outcome": "File and Changes text sits beside its navigation controls at supported widths and scales while the existing control geometry and behavior are preserved.",
+      "work": [{"issue": "BPR-1519"}],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: File and Change labels sit close enough to their corresponding navigation controls to read as clear groups, without the current excessive gap.",
+        "AC2: Both groups retain consistent spacing and alignment at normal and narrow supported window widths and supported display scaling, without overlap or clipped text.",
+        "AC3: Navigation, focus order, accessible label relationships and existing control hit targets remain correct.",
+        "AC4: Verify the actual offscreen rendered navigation area at representative widths/scales and exercise its existing controls."
+      ],
+      "boundary": "A local Qt presentation correction with measured rendered spacing, focused navigation/focus verification, documentation, and an explicit coordinator integration handoff."
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "assignment": "BPR-1520 /root/bpr1520",
+  "mandate_revision": "owner-2026-10-14-recovery-retention-r2",
+  "scope": "exclusive bpr1520-review-note-loss worktree; no main/allocation authority",
+  "branch": "fix/bpr-1520-review-note-loss",
+  "baseline": "9f2ebc10a",
+  "claim": "1d01a06b5199870f313b68f44a15ee813afe4450",
+  "source_candidate": "7522d5986c8f9f1a7083457e442dac04dfb9ad3e",
+  "changed_paths": [
+    "docs/architecture/review-ledger.md",
+    "docs/architecture/review-round-trip.md",
+    "docs/development/storage-and-diagnostics.md",
+    "docs/issues/20-ready/BPR-1520-review-publish-failure-loses-notes.md",
+    "docs/issues/30-in-progress/BPR-1520-review-publish-failure-loses-notes.md",
+    "docs/rfcs/plans/bpr-1520-review-note-preservation/MILESTONES.md",
+    "docs/rfcs/plans/bpr-1520-review-note-preservation/milestone-plan.json",
+    "docs/rfcs/plans/bpr-1520-review-note-preservation/source.json",
+    "docs/ux/private-review-workflow.md",
+    "src/adapters/qt/include/bpr/qt/private_review_panel.hpp",
+    "src/adapters/qt/include/bpr/qt/review_draft_editor.hpp",
+    "src/adapters/qt/include/bpr/qt/review_submission_editor.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/private_review_panel.cpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/adapters/qt/src/review_submission_editor.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/sqlite/src/private_review_database.hpp",
+    "src/adapters/sqlite/src/private_review_store.cpp",
+    "src/adapters/sqlite/src/review_ledger_database.cpp",
+    "src/adapters/sqlite/src/review_ledger_database.hpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/private_review_workflow.cpp",
+    "src/app/src/private_review_workflow.hpp",
+    "src/application/include/bpr/application/private_review_projection.hpp",
+    "src/application/include/bpr/application/private_review_store.hpp",
+    "src/application/include/bpr/application/review_composition_application_host.hpp",
+    "src/application/src/review_composition_application_host.cpp",
+    "src/application/src/shared_draft_application_host.cpp",
+    "src/core/include/bpr/core/revisioned_review_draft.hpp",
+    "src/core/src/revisioned_review_draft.cpp",
+    "tests/adapters_qt/private_review_panel_tests.cpp",
+    "tests/adapters_qt/review_draft_editor_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/end_to_end/label_publication_recovery_tests.cpp",
+    "tests/sqlite_contract/private_review_host_tests.cpp",
+    "tests/sqlite_contract/private_review_storage_tests.cpp",
+    "tests/sqlite_contract/review_ledger_legacy_fixture.hpp",
+    "tests/sqlite_contract/review_ledger_storage_tests.cpp"
+  ],
+  "diagnosis": [
+    "Old lifetime64-row quota included incidental blanks and published/discarded records per complete private scope.",
+    "Current-head restore retained but hid earlier-head text.",
+    "Whole-review settlement previously scanned only the current-head shared cache; durable old-head records could remain publishing after server confirmation.",
+    "Owner independently recovered comments; exact original Publish error/trigger remains unconfirmed."
+  ],
+  "implementation": [
+    "Runtime-only line-selection placeholders; atomic first real edit with safe identity remap and coalescing.",
+    "Schema9 preserving existing rows/bindings/frontiers/lineage;64 active and4096 retained drafts within64MiB payload.",
+    "Saved comments viewer with original authority, explicit never-edited-empty cleanup and text-retaining local discard.",
+    "Scope/revision-bound recovery; core exact original held-comment correlation; durable settlement and held-key discovery across retained heads through existing GET-only recovery."
+  ],
+  "verification": {
+    "focused": "9/9 passed, including both architecture gates, core/shared host, SQLite storage/host, Qt panel/editor.",
+    "public": "3/3 passed: application_label_publication_recovery19.85s; application_start_review_contract; application_review_round_trip_composition_contract.",
+    "core_only": "core-only build and core_revisioned_review_draft passed.",
+    "documentation": "Post-finish DOCUMENTATION_OK; scoped board validation valid;67 documentation script tests passed.",
+    "format": "clang-format22.1.8 dry-run on all29 changed C++ files passed.",
+    "review": "Complete changed-source self-review; required frontend-design skill loaded; offscreen render inspected. No independent/human acceptance is claimed or required by these card criteria.",
+    "mutation_branch_sha256": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df (unchanged)",
+    "render": "Exact source candidate regenerated the synthetic dialog/window renders; both PNG hashes match the inspected images."
+  },
+  "evidence_logs": {
+    "/tmp/bpr1520-final-public-tests.log": {
+      "sha256": "030df3af87a60d23ccc159cfa20edb2f63a40cc865e37a9b0d767d4bd2f14782",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-focused-tests.log": {
+      "sha256": "e50717bdfa6af19268dcb66003ebbb906249274fad9b6432def18571ac8c0105",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-core-test.log": {
+      "sha256": "074638a73e377b92a8fdd7094df7dfe02d0ffdfb78aa76a9fa98e1b9e8c58a3a",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-exact-final-build.log": {
+      "sha256": "492a004020776f713f19594e34e25b99ac22a2cd124ffe0018ea11211ef98191",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-core-build.log": {
+      "sha256": "839ba86a211161372735ff7a5b5f242db6b49220cf410843c3c2d1c23d328893",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-format.log": {
+      "sha256": "d556bc33e510d2a704597866584cd34ece13f2a50277bea705a0ade62fce01bd",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-docs.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-doc-tests.log": {
+      "sha256": "f91937e027f76134fa13076c5468e151878a41de971b88d2477cb8ed37474f6d",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-pinned-digests.log": {
+      "sha256": "431726fce3931524f86207a3520f7d9ab8da094231c71be4486f2972a64f4a3f",
+      "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-configure.log": {
+      "sha256": "6aae83c891b17bcbff81cd4aca644595da5bd9af69634459bf44413d0de06771",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-core-configure.log": {
+      "sha256": "c7c835d55b1509e15d3a69615a7b52f0faf1dc919379f5499087975b73ad9dde",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-final-build.log": {
+      "sha256": "42662e1cac5d82de25dac0a0d7a74cc83539e65aec524d721dfeb906ccbb5aa5",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-capacity-course.log": {
+      "sha256": "9b347ec675e0a2c2dc293dc5050f8732ec1c43cc980b88a239cfb4c40b542750",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    }
+  },
+  "artifacts": {
+    "/Users/jaeger/.codex/worktrees/bpr1520-review-note-loss/BetterPullReview/build/dev/bpr1520-evidence/recovery-dialog.png": {
+      "sha256": "e797c3bbe5096415622c12b3126bbdce41ec8e7b28f6781aced3ebd74dc900c6",
+      "kind": "offscreen synthetic native Qt render",
+      "inspection": "readable; controls and original revision visible, no clipping"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1520-review-note-loss/BetterPullReview/build/dev/bpr1520-evidence/recovery-window.png": {
+      "sha256": "4641b1985bac9fe5aea101541119c6e383bf748d21a0392828ad19df678ccd36",
+      "kind": "offscreen synthetic native Qt render",
+      "inspection": "readable; controls and original revision visible, no clipping"
+    }
+  },
+  "commands": {
+    "running": [],
+    "review_server": null,
+    "stopped": "All task-owned builds and tests finished; no process was stopped by pattern.",
+    "configure": [
+      "cmake",
+      "--preset",
+      "dev",
+      "-DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache",
+      "-DCMAKE_CXX_FLAGS_DEBUG=-O0 -g0",
+      "-DCMAKE_C_FLAGS_DEBUG=-O0 -g0"
+    ],
+    "focused": [
+      "ctest",
+      "--preset",
+      "dev",
+      "--output-on-failure",
+      "-R",
+      "^(application_private_review_host|sqlite_private_review_storage|sqlite_review_ledger_storage|qt_private_review_panel|qt_review_draft_editor|application_shared_draft_application_host|core_revisioned_review_draft|architecture_boundar(y_contract|ies))$"
+    ],
+    "public": [
+      "ctest",
+      "--preset",
+      "dev",
+      "--output-on-failure",
+      "-R",
+      "^(application_label_publication_recovery|application_start_review_contract|application_review_round_trip_composition_contract)$"
+    ],
+    "core": [
+      [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--parallel",
+        "4",
+        "--target",
+        "test_better_pull_review_revisioned_review_draft_tests"
+      ],
+      [
+        "ctest",
+        "--preset",
+        "core-only",
+        "--output-on-failure",
+        "-R",
+        "^core_revisioned_review_draft$"
+      ]
+    ],
+    "docs": [
+      [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ]
+    ],
+    "build": [
+      "cmake",
+      "--build",
+      "--preset",
+      "dev",
+      "--parallel",
+      "4",
+      "--target",
+      "test_label_publication_recovery",
+      "test_private_review_host",
+      "test_private_review_panel",
+      "test_private_review_storage",
+      "test_better_pull_review_sqlite_review_ledger_tests",
+      "test_better_pull_review_qt_review_draft_editor_tests",
+      "test_better_pull_review_shared_draft_application_host_tests",
+      "test_better_pull_review_revisioned_review_draft_tests",
+      "app_better_pull_review"
+    ]
+  },
+  "ownership": {
+    "writers": "Only this leaf wrote this isolated branch; no subagents. Other coordinator worktrees preserved.",
+    "protected_candidate": "Keep this source worktree and its task-owned dev build/evidence until coordinator integration. This is an automated dev candidate, not an attended frozen build.",
+    "safety": "No owner profile, real review, desktop, browser profile or credentials inspected/modified; no live GitHub calls."
+  },
+  "pending": [
+    "Coordinator main integration, including combined app-manifest reseal if other source changes are integrated."
+  ],
+  "next_action": "Coordinator integrates claim1d01a06b5, source7522d5986 and canonical finish1a51aed1e plus this final checkpoint commit, preserving current main owner amendments. Recheck combined composition pins and focused integration after resolving any overlap.",
+  "canonical_finish": "1a51aed1e89a61aada16147acc09ceeadc8d200a",
+  "upkeep_status": "complete; canonical Done with passing AC1-AC8",
+  "tracker": {
+    "lane": "60-done",
+    "card": "docs/issues/60-done/BPR-1520-review-publish-failure-loses-notes.md",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5",
+      "AC6",
+      "AC7",
+      "AC8"
+    ],
+    "plan_binding": "docs/issues/_checkpoints/BPR-1520/final-plan-binding.json"
+  },
+  "uncertainties": [
+    "Original owner Publish error and exact incident trigger remain unknown; reproduced mechanisms are not forensic equivalence.",
+    "Owner reported actual content recovery; agent did not independently inspect the owner profile.",
+    "Windows/Linux native runtime evidence is not claimed."
+  ],
+  "final_definition_fingerprint": "sha256:f0ef546650c62171b8b313971a0c97dc90dc8585a06f4a56024702a74fe9f84f",
+  "final_obligation_fingerprint": "sha256:6e113f1fd3e3f1f4f3f4aa17c29154432462573e5584432c8df9a2c6472bd5bc"
+}

@@ -298,7 +298,9 @@ namespace bpr::qt {
 		void present(const core::revisioned_review_draft& aDraft);
 		void present_conflict(const core::revisioned_draft_outcome& aOutcome);
 		/// Acknowledges only the exact command the host accepted, including no-op edits.
-		void               acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted);
+		void acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted);
+		/// Replaces only the exact empty runtime placeholder after its first edit commits.
+		void               acknowledge_materialized(const core::revisioned_review_draft_command&, const core::revisioned_review_draft&);
 		void               acknowledge_published_body(const core::revisioned_review_draft& aPublished);
 		[[nodiscard]] auto reload_draft_action() const noexcept -> QAction*;
 		[[nodiscard]] auto reapply_draft_action() const noexcept -> QAction*;

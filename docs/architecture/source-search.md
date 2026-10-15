@@ -346,6 +346,8 @@ only numeric file-group indexes. Ordered progress uses bounded row insertions;
 it never resets the model or copies all preview/path strings. Data conversion
 is lazy and preview-bounded. A selected/focused result row survives later batches.
 File rows use native UI font; occurrence previews use configured source font.
+File groups retain native disclosure controls. Match rows start at the viewport's
+left content inset, with fixed L/R slots before the line-number and preview columns.
 Scope, status, limits, skipped sides and wrap share one accessible description
 and polite announcement. Palette roles and native style remain inherited.
 

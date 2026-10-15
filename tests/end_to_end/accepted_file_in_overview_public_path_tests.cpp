@@ -197,7 +197,21 @@ try {
 	window.next_file_action()->trigger();
 	wait_for([&] { return !current_path(window).isEmpty() && accept->isEnabled() && !accept->isChecked(); }, "the first file opens and offers Accept");
 	const auto first = current_path(window);
+	// [[BPR-1506]]. Opening the file is enough for Seen, without claiming Read.
+	wait_for([&] { return access::review_ledger_settled(*application) && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: seen"); },
+			 "opening the first file automatically persists and presents Seen");
+	render(window, QStringLiteral("review-automatic-seen"));
 	expect(!read->isChecked(), "the first file is not read");
+	read->trigger();
+	wait_for([&] { return read->isChecked() && access::review_ledger_settled(*application); }, "the reader explicitly marks the file Read");
+	read->trigger();
+	wait_for([&] { return access::review_ledger_settled(*application) && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: unread"); },
+			 "explicit Mark unread is retained while the file stays open");
+	window.choose_modality(qt::review_modality::overview);
+	wait_for([&] { return window.showing_overview(); }, "the reader leaves the comparison");
+	window.choose_modality(qt::review_modality::review);
+	wait_for([&] { return current_path(window) == first && access::review_ledger_settled(*application) && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: seen"); },
+			 "opening the comparison again automatically records Seen");
 	with_progress_menu(window, [&] { window.review_controls_button()->showMenu(); }, [&](QMenu& aMenu) { click_action(aMenu, accept); }, "the private progress control opens its menu");
 	wait_for([&] { return accept->isChecked() && accept->text() == QStringLiteral("Revoke &acceptance"); }, "the control's Accept accepts the first file");
 	expect(!read->isChecked(), "accepting the first file does not mark it read");

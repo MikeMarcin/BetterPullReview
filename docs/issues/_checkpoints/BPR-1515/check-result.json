@@ -1,0 +1,1 @@
+{"action": "stop", "detail": "BPR-1515 all acceptance passes, canonical finish closes scoped bookkeeping; coordinator integrates closeout and may retire leaf.", "engineering_acceptance": "not-evaluated"}

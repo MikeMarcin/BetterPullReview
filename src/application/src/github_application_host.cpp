@@ -719,7 +719,7 @@ namespace bpr::application {
 			}
 			try {
 				dispatch_core(
-					core::activate_host_profile_intent{ .Profile = aProfile });
+					core::github_session_revalidation_event{ .Profile = aProfile });
 			} catch (...) {
 				NextEnrollment.reset();
 				NextEnrollmentProvenance = github_credential_provenance::manual;
@@ -924,7 +924,7 @@ namespace bpr::application {
 			NextEnrollment.reset();
 			NextResumeProfile = aProfile;
 			try {
-				dispatch_core(core::activate_host_profile_intent{
+				dispatch_core(core::github_session_revalidation_event{
 					.Profile = aProfile,
 				});
 			} catch (...) {
@@ -4848,6 +4848,22 @@ namespace bpr::application {
 		-> const core::github_state&
 	{
 		return Implementation->State;
+	}
+
+	auto github_application_host::pending_session_presentation() const -> std::optional<github_presentation_update>
+	{
+		const auto& current = Implementation->State;
+		if (Implementation->Closing || !current.PendingSession) {
+			return std::nullopt;
+		}
+		return github_presentation_update{ .Transition = github_transition_projection{
+											   .Changed      = core::github_changed_domain::identity | core::github_changed_domain::capabilities | core::github_changed_domain::pull_request | core::github_changed_domain::status | core::github_changed_domain::commands,
+											   .Commands     = core::github_commands(current),
+											   .Status       = core::github_status_delta{ .Status = core::github_status::establishing_session },
+											   .Identity     = core::github_identity_delta{ .Profile = current.ActiveProfile, .Host = current.Host, .Account = current.Account, .Generation = current.IdentityGeneration },
+											   .Capabilities = core::github_capability_delta{ .Capabilities = current.Capabilities, .Revision = current.CapabilityRevision },
+											   .PullRequest  = core::pull_request_summary_delta{ .Summary = std::nullopt },
+										   } };
 	}
 
 	auto github_application_host::accepted_session() const noexcept

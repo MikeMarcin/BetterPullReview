@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVISIONED_REVIEW_DRAFT_HPP
 #include "bpr/core/private_review.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/review_submission.hpp"
 #include <cstddef>
 #include <optional>
 #include <string_view>
@@ -17,6 +18,8 @@ namespace bpr::core {
 		std::optional<review_composition_link> Composition                                              = { };
 		auto                                   operator==(const revisioned_review_draft&) const -> bool = default;
 	};
+	/// \brief An automatically created placeholder with no accepted user edit or publication.
+	[[nodiscard]] auto unused_review_draft(const revisioned_review_draft&) noexcept -> bool;
 	struct revisioned_review_draft_command
 	{
 		review_draft_command       Command;
@@ -63,6 +66,8 @@ namespace bpr::core {
 	[[nodiscard]] auto promote_private_text(std::string_view                              aText,
 											const std::optional<revisioned_review_draft>& aTarget)
 		-> std::optional<revisioned_review_draft_command>;
+	/// Settles only the original held comment; a changed head never retargets its text.
+	[[nodiscard]] auto settle_held_review_draft(const revisioned_review_draft&, std::string_view aKey, bool aPublished, const review_submission_proposal* aProposal) -> std::optional<revisioned_review_draft_command>;
 	[[nodiscard]] auto apply(const revisioned_review_draft& aDraft, const revisioned_review_draft_command& aCommand) -> revisioned_draft_outcome;
 }
 #endif

@@ -54,6 +54,17 @@ replacing the workbench authority or its selected comparison. When selected
 material changes, the core reopens its receipt and the same-process refresh
 returns that file to the actionable order without detaching the rendered diff.
 
+The review bar's named Accept button ([[BPR-1507]]) presents the same acceptance
+`QAction` as the private-progress menu. Its command, enablement, checked state
+and inverse label come from the accepted receipt projection. The direct click
+adds no policy, automatic acceptance or persistence path; the state icon and
+alternate actions remain in the adjacent menu. Its Accept command has
+Command+Shift+A on macOS and Ctrl+Shift+A elsewhere ([[BPR-1515]]), shown in
+the menu and direct button's tooltip. The binding is absent when the projected
+command is Revoke acceptance or an editable text field has focus; key repeat
+is disabled. The key therefore uses the same exact-material eligibility and
+never turns a repeated Accept into Revoke.
+
 If the SQLite store cannot open, the host answers every operation with that
 typed opening failure. GitHub content, epoch selection, and diff rendering
 continue, while the receipt actions are disabled and the workbench states that
@@ -187,7 +198,7 @@ coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening supported versions 3 through 7 compares every non-internal `sqlite_schema`
+such check. Opening supported versions 3 through 9 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.
@@ -262,7 +273,13 @@ bind the scope/incarnation and catalog generation or thread version; stale
 cursors refuse. Revision pages use a tested scope/thread/order index and no
 OFFSET scan. Run detail requests hold at most 16 runs/256 KiB; source requests
 hold at most 256 exact references. Publication and dependency pages have at
-most 64 entries. The bounded draft collection has at most 64 records.
+most 64 entries. The bounded draft collection retains at most 4,096 records, with at most 64 active authored drafts. Empty revision-one placeholders from older builds do not consume the active allowance; published and discarded records remain historical evidence. The existing 64 MiB private-payload budget still applies.
+
+Schema 9 rebuilds only the scope-counter table, copying every counter, binding, generation and allocation frontier while widening its retained-draft bound. It leaves all draft bytes, composition references and publication lineage in place. Browsing a source line creates one runtime-only empty selection per window consumer and writes no record or durable identity. The first edit creates the normal draft and applies that edit in one transaction before its projection can publish.
+
+An untouched sibling selection at the same complete runtime scope, exact anchor and reply target follows that committed identity. A sibling with its own candidate or save in flight keeps its own identity and acknowledgement; simultaneous authors retain separate saved comments rather than overwriting either body. Other anchors and authorities do not follow the first save.
+
+There is no automatic expiry of authored text or publication history. Explicit cleanup removes only empty, never-edited revision-one ordinary placeholders, checks for publication references and rechecks eligibility transactionally. A racing accepted edit refuses the whole cleanup; a retained allocation frontier prevents a late restore from resurrecting removed placeholders. Written, intentionally cleared, composed, reply, pending and uncertain material is preserved.
 
 Per scope, the store admits 4,096 threads, 65,536 turn revisions, 65,536 runs,
 65,536 findings, 4,096 compositions, 65,536 candidate revisions and 65,536
@@ -372,6 +389,16 @@ has none.
 The read progression is `unread → seen → read`. A weaker claim is absorbed
 rather than treated as a regression — marking a read file seen leaves it read —
 but it stays legal and reports no change. Only an explicit mark-unread reopens.
+
+Opening a pull-request file records Seen automatically after its exact selected
+comparison is successfully presented and its material receipt is observed
+([[BPR-1506]]). The completion rechecks the file, comparison and request generation
+before submitting the ordinary core-decided durable command. Failed or superseded
+loading records nothing; preparing nearby files in the background records nothing.
+Material loaded under Home or Overview stays unread until the comparison is shown
+in Review. An explicit Mark unread stays until the next open.
+The accepted projection follows persistence. Reopening an already Seen or Read
+material needs no write, and opening never accepts or verifies a file.
 
 Every command carries the material it was issued against, so a command formed
 while the reader was looking at one comparison cannot be applied to the
@@ -530,3 +557,7 @@ including after a head advance, without another POST. Missing, ambiguous or
 mismatched viewer, PR, journal, body or comment identity leaves the join pending.
 Purge and lineage retention still obey the existing
 producer-quiescence and dependency rules.
+
+The Saved comments viewer can explicitly discard a still-unpublished draft, including one on an earlier head. This changes its local state and frees an active slot while retaining its exact text in history. The command checks the listed revision and cannot discard an uncertain publishing draft or a confirmed server comment.
+
+Saved-comment recovery actions carry the full private scope and the selected draft revision. A head update can retire an editable projection while the same scoped history remains inspectable; that update does not silently swallow a confirmed local discard. An account, PR, profile or private-incarnation change refuses the action.

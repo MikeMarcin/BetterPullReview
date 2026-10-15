@@ -1,0 +1,70 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Actual QLabel raster text ends8.8\u201310logical pixels before its first arrow at1280/900; old left alignment measures95\u201396and fails the12pixel bound. Full-window renders inspected.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+          "build/bpr1519-evidence/qt-scale-100.log",
+          "build/bpr1519-evidence/qt-scale-125.log",
+          "build/bpr1519-evidence/qt-scale-200.log",
+          "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Empty and selected File/Changes counters pass at1280/900and device scales1/1.25/2; existing large-font/floor/yield/digit-boundary geometry tests pass without overlap, clipping or changed hit targets.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+          "build/bpr1519-evidence/qt-scale-100.log",
+          "build/bpr1519-evidence/qt-scale-125.log",
+          "build/bpr1519-evidence/qt-scale-200.log",
+          "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Existing semantic navigation actions, exact order, accessible identities/descriptions, unique shortcuts and walked focus order pass at all3scales. Combined public navigation also passes.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+          "build/bpr1519-evidence/qt-scale-100.log",
+          "build/bpr1519-evidence/qt-scale-125.log",
+          "build/bpr1519-evidence/qt-scale-200.log",
+          "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+        ]
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Six local title-row/focus rows pass on exact source0c23b902a; full-window offscreen renders inspected. Coordinator actual Git/cache composition at integrated mainfce3377fb: application_review_navigation_entry32.28s, application_diff_workbench_public_path4.44s, integrated title-row3.85s; combined6/6passed.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1519/checkpoint.json",
+          "build/bpr1519-evidence/qt-scale-100.log",
+          "build/bpr1519-evidence/qt-scale-125.log",
+          "build/bpr1519-evidence/qt-scale-200.log",
+          "/tmp/bpr-coordinator-hotkey-layout-tests.log"
+        ]
+      }
+    }
+  ]
+}

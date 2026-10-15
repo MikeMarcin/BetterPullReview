@@ -292,6 +292,17 @@ namespace bpr::core {
 									   change_navigation_policy       aPolicy)
 		-> change_navigation_result;
 
+	/// \brief Navigates from an exact source line in this immutable comparison.
+	/// \details A changed line steps from its group. An unchanged line chooses the
+	/// nearest group on the requested side of its alignment segment, including
+	/// one-sided changes at its boundaries. An unchanged line at a stop bound
+	/// carries no target; wrap remains explicit. Invalid/stale lines fail closed.
+	[[nodiscard]] auto navigate_change(const diff_semantic_index&  aIndex,
+									   source_line_ref             aCurrent,
+									   change_navigation_direction aDirection,
+									   change_navigation_policy    aPolicy)
+		-> change_navigation_result;
+
 	enum class semantic_selection_kind : std::uint8_t {
 		line,
 		group,

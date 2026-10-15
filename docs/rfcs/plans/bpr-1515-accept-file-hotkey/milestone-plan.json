@@ -1,0 +1,31 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1515-accept-file-hotkey",
+  "scope": {
+    "issues": [
+      "BPR-1515"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "accept-file-hotkey",
+      "outcome": "Accept the current eligible exact file material with a discoverable keyboard shortcut that never revokes acceptance or consumes text editing input.",
+      "work": [
+        {
+          "issue": "BPR-1515"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: An eligible current file can be Accepted with a keyboard shortcut, without opening the file action menu.",
+        "AC2: The shortcut is discoverable in the existing action/menu or shortcut presentation and does not collide with existing bindings or steal normal text editing input.",
+        "AC3: No-current-file, excluded/unavailable, stale authority and other ineligible states follow the existing Accept action policy. Repeated presses must not inadvertently revoke acceptance unless the established shortcut contract explicitly calls for a toggle.",
+        "AC4: Verify actual key delivery through the composed window, matching current file/epoch acceptance and focused shortcut collision/eligibility cases.",
+        "All acceptance criteria have direct evidence, documentation and explicit commits; any explicitly required human, native or independent criterion stays pending until supplied."
+      ],
+      "boundary": "BPR-1515 only; preserve BPR-1507 canonical action and all unrelated work. Return quiescent handoff to coordinator."
+    }
+  ],
+  "unplanned_work": []
+}

@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "9d87846a9eb309b9e7916e45e28a48ce9ffe01df",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Direct offscreen --review-state-icon passes actual QWindowSystemInterface key delivery to the existing QAction, with the exact projected current file and material and no opened menu."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "9d87846a9eb309b9e7916e45e28a48ce9ffe01df",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The retained menu action and button tooltip show the native key; all assembled QAction/QShortcut bindings were checked for collisions. Editable QLineEdit/QPlainTextEdit/QTextEdit focus removes the binding, and ordinary Select All remains functional. Light/dark menu sheet inspected."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "9d87846a9eb309b9e7916e45e28a48ce9ffe01df",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The focused key test covers no file, excluded, explicitly disabled projection, authority clearing/replacement, replacement file/material and unavailable ledger. Repeated presses after accepted projection dispatch no Revoke; auto-repeat is disabled. Explicit button Revoke remains available."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "fce3377fb9da2e54d0bd1529ed2a29839c1f005b",
+      "evidence": {
+        "kind": "command",
+        "detail": "Coordinator built app_better_pull_review successfully and ran six focused CTest rows on stable combined product fce3377fb (only metadata changed after, at5a105579c). application_review_ledger_composition_contract passed7.76s and explicitly requires REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK for actual window-system Accept key, durable receipt and repeat safety. application_diff_workbench_public_path passed4.44s; implementer inspected its full-window split-diff render through Git/cache actors. review-state1.08s, title3.85s, roundtrip3.23s and navigation-entry32.28s also passed. Total6/6,52.67s; coordinator log /tmp/bpr-coordinator-hotkey-layout-tests.log."
+      }
+    }
+  ]
+}

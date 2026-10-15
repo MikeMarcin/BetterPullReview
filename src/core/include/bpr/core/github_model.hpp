@@ -183,6 +183,14 @@ namespace bpr::core {
 		auto operator<=>(const activate_host_profile_intent&) const = default;
 	};
 
+	/// \brief The host has new or resumed credential material requiring session validation.
+	/// \details Unlike a repeated connection gesture, this may replace validation already in progress.
+	struct github_session_revalidation_event
+	{
+		host_profile_id Profile;
+		auto            operator<=>(const github_session_revalidation_event&) const = default;
+	};
+
 	/// \brief Describes the open pull request intent record.
 	struct open_pull_request_intent
 	{
@@ -287,7 +295,8 @@ namespace bpr::core {
 		github_session_cancelled_event,
 		pull_request_loaded_event,
 		pull_request_load_failed_event,
-		pull_request_load_cancelled_event>;
+		pull_request_load_cancelled_event,
+		github_session_revalidation_event>;
 
 	/// \brief Describes the github identity scope record.
 	struct github_identity_scope

@@ -95,8 +95,14 @@ subscriptions. Saved preferences belong to the current BPR profile.
 | Modality rules | Open on Overview; Continue enters Read | These two choices |
 | Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
 | Drawers | Drawer controls Hidden | Drawer-control preference |
+| Comparison | Line details Shown; center ribbon width 28 px | Both comparison preferences |
 | Comment labels | Label helper off; Label marks Icons (or Letters, the two-letter shortcodes; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These four choices |
 | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
+
+**Center ribbon width** sets the space connecting the two source panes, in
+logical pixels (16–256). It defaults to 28 px, half the former fixed 56 px.
+The accepted value updates every window of the profile and survives restart;
+Comparison’s Reset restores 28 px and shows Line details.
 
 Comment labels ([[BPR-1088]]). **Label helper** turns on the comment
 editor's label chip completion and its leading `:shortcodes:` in every window

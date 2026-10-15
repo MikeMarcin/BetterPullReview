@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1521-sibling-first-save",
+  "scope": {
+    "issues": [
+      "BPR-1521"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "share-first-save",
+      "outcome": "An untouched exact-authority sibling follows a first saved inline comment without overwriting independently authored text.",
+      "work": [
+        {
+          "issue": "BPR-1521",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Original composed failure reproduced; exact durable identity and bidirectional content sharing pass.",
+        "Same-anchor concurrent first saves retain both authored bodies and identities; unrelated anchors and authority remain untouched.",
+        "Existing publication recovery and restart checks pass; source review, commands and integration handoff are recorded."
+      ],
+      "boundary": "Only BPR-1521 integration correction; no owner data or remote effects."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

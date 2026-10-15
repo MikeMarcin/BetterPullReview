@@ -1,0 +1,31 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1507-one-click-file-accept",
+  "scope": {
+    "issues": [
+      "BPR-1507"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "one-click-file-accept",
+      "outcome": "Make explicit private file acceptance one click away while preserving exact material authority and alternate receipt actions.",
+      "work": [
+        {
+          "issue": "BPR-1507"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Eligible files explicitly Accept with one click from the normal control.",
+        "AC2: Current state and action are clear; alternate actions remain available.",
+        "AC3: Existing exact file/epoch eligibility and durable receipt semantics remain; Seen and opening never implicitly Accept.",
+        "AC4: Offscreen rendered control and composed one-click path verify available, unavailable and stale states.",
+        "All AC1\u2013AC4 have direct evidence; any explicitly required human, native or independent criterion remains pending until actually supplied."
+      ],
+      "boundary": "Return BPR-1507 only to coordinator with explicit commits, evidence, candidate review identity and command ownership."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

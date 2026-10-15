@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1517-file-navigation",
+  "scope": {
+    "rfcs": [],
+    "issues": [
+      "BPR-1517"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "navigation-stall",
+      "outcome": "Diagnose and repair stalled previous/next file admission through the composed workbench while preserving exact comparison and stale-context cancellation.",
+      "work": [
+        {
+          "issue": "BPR-1517"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1\u2013AC4 have direct diagnosis, composed selected-file and visible-material evidence, and focused regression checks.",
+        "Source, documentation, acceptance and command ownership agree; any unresolved owner-trigger uncertainty stays explicit."
+      ],
+      "boundary": "BPR-1517 only; no new human/native acceptance gate. Coordinator integrates."
+    }
+  ],
+  "unplanned_work": []
+}

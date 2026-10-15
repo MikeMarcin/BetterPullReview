@@ -1,6 +1,8 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 
+#include "bpr/application/workbench_runtime_ports.hpp"
+
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/line_details_pane.hpp"
@@ -1641,7 +1643,17 @@ namespace bpr::qt {
 			if (!PlacingOrigin) {
 				ViewportArea = viewport()->geometry();
 			}
-			QPlainTextEdit::resizeEvent(aEvent);
+			if (lineWrapMode() == QPlainTextEdit::NoWrap) {
+				// [[BPR-1516]]. Native width reflow forgets the longest line until
+				// it is laid out again, hiding and restoring the horizontal bar.
+				// Unwrapped lines keep their geometry at every width. Deliver the
+				// height change only; Qt still adjusts both bars from the actual
+				// viewport, without discarding its measured natural line widths.
+				auto heightChange = QResizeEvent{ aEvent->size(), QSize{ aEvent->size().width(), aEvent->oldSize().height() } };
+				QPlainTextEdit::resizeEvent(&heightChange);
+			} else {
+				QPlainTextEdit::resizeEvent(aEvent);
+			}
 			if (!PlacingOrigin) {
 				set_within_line_offset(RetainedOffset);
 			}
@@ -3610,6 +3622,13 @@ namespace bpr::qt {
 		return Detail;
 	}
 
+	void diff_workbench::set_center_ribbon_width(const std::uint32_t aWidth)
+	{
+		if (aWidth >= application::minimum_center_ribbon_width && aWidth <= application::maximum_center_ribbon_width) {
+			LinkMap->set_logical_width(static_cast<int>(aWidth));
+		}
+	}
+
 	void diff_workbench::set_line_details_visible(const bool aVisible)
 	{
 		if (!Detail->isHidden() == aVisible) {
@@ -4479,9 +4498,10 @@ namespace bpr::qt {
 			return;
 		}
 		if (!PendingMeasurement) {
-			for (auto* source : { Left, Right }) {
-				pane(source)->set_within_line_offset(0.0);
-			}
+			// [[BPR-1516]]. Document boundaries do not depend on the viewport
+			// origin. Keep its fractional placement through every measurement
+			// turn; clearing it here shows a whole-row frame on each divider move
+			// before the shared controller can apply the rebuilt axis.
 			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
 				.Result = CurrentResult,
 				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount, LeftHeights },

@@ -94,7 +94,7 @@ namespace bpr::qt {
 
 	struct diff_link_map_configuration
 	{
-		int   LogicalWidth      = 56;
+		int   LogicalWidth      = 28;
 		qreal ControlFraction   = 0.43;
 		qreal NearVisibleMargin = 64.0;
 		qreal MoveMarkerExtent  = 5.0;
@@ -146,6 +146,9 @@ namespace bpr::qt {
 			Qt::Orientation             aOrientation,
 			QSplitter&                  aParent,
 			diff_link_map_configuration aConfiguration = { });
+
+		/// \brief Updates the logical divider width, retaining ribbon identities.
+		void set_logical_width(int aWidth);
 
 		/// \brief Replaces retained measured geometry and exact move relations.
 		void set_geometry(

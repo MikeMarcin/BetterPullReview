@@ -1,4 +1,5 @@
 #include "../../src/adapters/sqlite/src/private_review_codec.hpp"
+#include "../../src/adapters/sqlite/src/private_review_database.hpp"
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
 #include "../core/private_review_fixture.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
@@ -502,6 +503,37 @@ namespace {
 		w.Revisions            = { proposal->Revision };
 		return w;
 	}
+	void retained_draft_schema_migration()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "retained-draft-migration" };
+		const auto                           config   = configuration(scratch.path());
+		auto                                 store    = open(config);
+		auto                                 seed     = create(*store);
+		auto                                 composed = compose(*store, seed.Revision);
+		expect(store->commit(composed.Write).has_value(), "migration fixture retains authored draft and exact composition source");
+		const auto before   = store->list_drafts()->front();
+		const auto frontier = *store->frontier();
+		store.reset();
+		{
+			auto raw = detail::review_ledger_database::open(ledger_path(config), { });
+			expect(raw.has_value(), "test-owned schema9 ledger opens for canonical schema8 fixture");
+			std::string_view old;
+			for (const auto& table : detail::PrivateSchemaTables) {
+				if (table.Name == "private_scope_state") {
+					old = table.Sql;
+				}
+			}
+			for (const auto sql : { std::string_view{ "BEGIN IMMEDIATE" }, std::string_view{ "ALTER TABLE private_scope_state RENAME TO private_scope_state_v9" }, old, std::string_view{ "INSERT INTO private_scope_state SELECT * FROM private_scope_state_v9" }, std::string_view{ "DROP TABLE private_scope_state_v9" }, std::string_view{ "UPDATE ledger_meta SET schema_format=8" }, std::string_view{ "PRAGMA user_version=8" }, std::string_view{ "COMMIT" } }) {
+				expect(detail::execute(raw->handle(), sql, { }).has_value(), "canonical old constraint fixture is restored without touching draft bytes");
+			}
+		}
+		store            = open(config);
+		const auto after = store->list_drafts()->front();
+		expect(after.Binding == before.Binding && after.Draft == before.Draft && store->frontier()->Scope == frontier.Scope && store->frontier()->NextIdentity == frontier.NextIdentity, "schema8 to9 preserves authored bytes, linkage, authority, incarnation and allocation frontier");
+		auto       raw     = detail::review_ledger_database::open(ledger_path(config), { });
+		const auto version = detail::scalar_integer(raw->handle(), "PRAGMA user_version");
+		expect(raw && version && *version == 9, "retention migration publishes exact schema9");
+	}
 	void quota_boundaries()
 	{
 		tests::sqlite_contract::scratch_root scratch{ "private-quotas" };
@@ -531,7 +563,7 @@ namespace {
 		auto composed = compose(*store, first.Revision);
 		check("compositions", 4096, composed.Write);
 		check("candidates", 65536, composed.Write);
-		check("drafts", 64, composed.Write);
+		check("drafts", maximum_retained_private_drafts, composed.Write);
 		expect(store->commit(composed.Write).has_value(), "counter refusals left source and prepared composition usable");
 		auto                       id = store->frontier()->NextIdentity;
 		private_publication_record publication{ .Id = review_publication_lineage_id{ id }, .Draft = composed.Draft.Draft.Draft.Id, .DraftRevision = 1, .Composition = composed.Draft.Draft.Composition, .Target = { composed.Draft.Binding, composed.Draft.Draft.Draft.Anchor }, .Actor = github_account_id{ 3 }, .ApprovedProseDigest = private_digest(composed.Draft.Draft.Draft.Body), .WireBodyDigest = private_digest(composed.Draft.Draft.Draft.Body), .LogicalPublication = "quota", .Representation = "native", .ServerComment = { }, .ReconciledIdentity = { } };
@@ -805,6 +837,7 @@ auto main() -> int
 	exact_copy_and_late_draft_terminal();
 	draft_lineage_and_conflicts();
 	migration_bytes();
+	retained_draft_schema_migration();
 	quota_boundaries();
 	findings_and_run_retention();
 	full_thread_byte_budget();

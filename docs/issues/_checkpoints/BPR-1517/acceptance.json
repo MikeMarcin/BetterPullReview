@@ -1,0 +1,58 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Two representative composed failures recorded at exact revisions; arrow admission, tree reflection and source terminals traced. Original owner trigger remains explicitly unknown.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+          "docs/issues/_checkpoints/BPR-1517/final-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Both file arrows reach exact adjacent selected/tab/material identity after terminal and in-flight unavailable source, immediate tree selection, filtering and same-head epoch refresh; older-pair entry and no-changes cases remain covered.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+          "docs/issues/_checkpoints/BPR-1517/final-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Offered adjacent arrows admit ordinary file navigation without unavailable-source deadlock. Core first/last/no-file bounds, always-enabled active arrows and stale-context cancellation are preserved by the composed course and host tests.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+          "docs/issues/_checkpoints/BPR-1517/final-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "a08c7fcb8e1b2b069fd82445053c2ab06e4318e5",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real composed QAction/tree course asserts exact selected file, active tab, accepted comparison and current rendered material, through installed Git/cache; unavailable and recovered full-window renders inspected.",
+        "refs": [
+          "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+          "docs/issues/_checkpoints/BPR-1517/final-verification.json"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "run_id": "bpr1517-r1",
+  "segment_id": "implementation",
+  "mandate_revision": "bpr1517-owner-testing-2026-10-14",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr1517-file-navigation",
+    "plan_path": "docs/rfcs/plans/bpr1517-file-navigation/milestone-plan.json",
+    "milestone_id": "navigation-stall",
+    "definition_fingerprint": "sha256:c13bb7383f594a4a046a0d3f1af71dbc515cb2e229ec14931ae479078c9eac24",
+    "obligations": [
+      {
+        "id": "BPR-1517:*",
+        "source": "BPR-1517",
+        "selector": null,
+        "source_fingerprint": "sha256:40515c94aa0e291345420d05d4368fd32b5f981e8d7c9e080cbf16593371a2ac"
+      }
+    ],
+    "obligation_fingerprint": "sha256:a283765ae54c900a0b9be073e05746d7305f51e733588b2b342bab49e396f419",
+    "exit_criteria": [
+      {
+        "id": "navigation-stall:exit:1",
+        "text": "AC1\u2013AC4 have direct diagnosis, composed selected-file and visible-material evidence, and focused regression checks."
+      },
+      {
+        "id": "navigation-stall:exit:2",
+        "text": "Source, documentation, acceptance and command ownership agree; any unresolved owner-trigger uncertainty stays explicit."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "navigation-stall",
+  "disposition": "milestone-complete",
+  "candidate_revision": "b0a35c648e6b41467426de92da1d4161e84b2cdc",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1517/continuation.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/BPR-1517/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+    "docs/issues/_checkpoints/BPR-1517/final-verification.json",
+    "docs/issues/_checkpoints/BPR-1517/documentation.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1517:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1517/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+        "docs/issues/_checkpoints/BPR-1517/final-verification.json",
+        "docs/issues/_checkpoints/BPR-1517/documentation.json"
+      ]
+    },
+    {
+      "id": "navigation-stall:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1517/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+        "docs/issues/_checkpoints/BPR-1517/final-verification.json",
+        "docs/issues/_checkpoints/BPR-1517/documentation.json"
+      ]
+    },
+    {
+      "id": "navigation-stall:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1517/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1517/diagnosis.json",
+        "docs/issues/_checkpoints/BPR-1517/final-verification.json",
+        "docs/issues/_checkpoints/BPR-1517/documentation.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-1517 AC1\u2013AC4 and both milestone exits accepted, canonical finish completed; return scoped source and evidence to coordinator for integration."
+  },
+  "ownership": "quiescent"
+}

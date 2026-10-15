@@ -90,6 +90,7 @@ class QMenuBar;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
+class QSpinBox;
 class QStackedWidget;
 class QTabBar;
 class QTimer;
@@ -490,8 +491,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
 		/// from it back to the modality it was entered from.
 		[[nodiscard]] auto show_threads_action() const noexcept -> QAction*;
-		/// \brief [[BPR-1293]]. The finder button at the top of the Comments drawer.
-		[[nodiscard]] auto threads_finder_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1293]]. [[BPR-1087]]'s conversations per label, for
 		/// the finder's label filter.
 		void set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels);
@@ -529,6 +528,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]] v002. Where a confirmed Delete of a pending
 		/// comment on Finish your review goes: the composition deletes that
 		/// draft at the revision the page listed. Nothing is published.
+		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
@@ -658,7 +658,7 @@ namespace bpr::qt {
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
 		/// thread's line blue, and "next new comment" walks the unread threads
 		/// in file order. [[BPR-1129]]: the title row's comments toggle carries
-		/// their count.
+		/// the selected file's count. Next new comment remains review-wide.
 		void present_read_state(std::vector<thread_read_state> aState);
 		/// \brief [[BPR-1326]]. My unpublished drafts as they are saved. Each
 		/// on the shown comparison is a dashed note at its line with its
@@ -1693,6 +1693,7 @@ namespace bpr::qt {
 		void               dispatch_file_selection(const QModelIndex& aIndex);
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
+		void               update_accept_file_shortcut();
 		void               classify_selected_conversation();
 		void               navigate_defect(int aDirection);
 		void               update_defect_surface();
@@ -1994,6 +1995,7 @@ namespace bpr::qt {
 		QAction*                                                     ToggleDrawersAction  = nullptr;
 		QObject*                                                     EditorKeyYield       = nullptr;
 		QAction*                                                     ReviewDetailsAction  = nullptr;
+		QToolButton*                                                 AcceptFileButton     = nullptr;
 		QToolButton*                                                 ReviewControlsButton = nullptr;
 		QMenu*                                                       ReviewControlsMenu   = nullptr;
 		QWidget*                                                     ToolbarSpacer        = nullptr;
@@ -2012,10 +2014,9 @@ namespace bpr::qt {
 		QWidget*                                     ComparisonPage         = nullptr;
 		QWidget*                                     DiscussPage            = nullptr;
 		/// [[BPR-1293]]. Threads' page and its finder.
-		QWidget*             ThreadsPage         = nullptr;
-		conversation_finder* Finder              = nullptr;
-		QAction*             ShowThreadsAction   = nullptr;
-		QToolButton*         ThreadsFinderButton = nullptr;
+		QWidget*             ThreadsPage       = nullptr;
+		conversation_finder* Finder            = nullptr;
+		QAction*             ShowThreadsAction = nullptr;
 		/// The modality Threads was entered from, and where focus was.
 		std::optional<review_modality> ThreadsReturn;
 		QPointer<QWidget>              ThreadsReturnFocus;
@@ -2069,6 +2070,7 @@ namespace bpr::qt {
 			bool                         Suggestion = false;
 		};
 		std::optional<pending_line_comment>  PendingLineComment;
+		QString                              CommentDraftUnavailable;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;
 		QAction*                             SuggestChangeAction = nullptr;
@@ -2247,6 +2249,7 @@ namespace bpr::qt {
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
 		QCheckBox*                     LabelHelperSwitch    = nullptr;
+		QSpinBox*                      CenterRibbonWidth    = nullptr;
 		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
 		QLabel*                        LabelColumnsRecovery = nullptr;
 		QToolButton*                   MarkColoursLink      = nullptr;

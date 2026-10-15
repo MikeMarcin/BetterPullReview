@@ -1,3 +1,41 @@
+# Combined BPR-1506/1515 fixture correction: identify the inverse Accept
+# gesture from the persisted Accepted receipt, not the old ordinal that
+# included a manual Seen press. Production paths and mutation pin unchanged.
+# Final testing-note integration through bcb2eed79. BPR-1506 submits the
+# existing Seen command only after exact visible Review material admission,
+# with generation, tab and authority rechecks. Hidden/stale loading cannot mark
+# a receipt; explicit unread remains until reopening. No new publication grant,
+# provider route or production mutation branch change. Earlier integration
+# review notes below remain bound to their respective changes.
+# BPR-1517/1518 integration reseal: ordinary file navigation retains the
+# exact accepted order through source failure, while entry navigation still
+# restores reading. Cursor-relative change navigation uses the accepted semantic
+# index and current source line. No new provider, grant or mutation authority.
+# BPR-1515 integration reseal over95041e84d: only test-build fixture key
+# delivery replaces the existing Accept gesture; repeated Accept proves no
+# revoke and the explicit button still exercises the inverse. No production
+# composition, grant, provider or mutation-branch change.
+# BPR-1521 scoped self-review over 3c24b9ec8: the only new production
+# manifest change is the shared draft subscription in github_application.cpp.
+# An unused runtime placeholder follows a committed active draft only at the
+# exact scope/anchor/reply, with no candidate or save pending and matching
+# displayed selection. Authored concurrent first saves retain their identities.
+# Existing durable-before-projection and first-save acknowledgements are kept;
+# no publication, provider, credential, grant or mutation branch change.
+# Testing-note integration reseal, baseline583eb4689 through e8884475d.
+# BPR-1507 changes only the fixture acceptance presenter; BPR-1514 projects
+# pending startup and gates competing setup intents through core policy.
+# Existing publication grants/target checks and mutation branch are unchanged.
+# Main P0 public recovery/restart contracts passed before these integrations;
+# combined composition and UI checks are recorded in the coordinator checkpoint.
+# BPR-1520 r2 self-review: baseline9f2ebc10a through this product slice.
+# No intervening pinned-scope commits. Changed manifest paths are
+# github_application.cpp, private_review_workflow.cpp and .hpp: runtime-only
+# line selection, atomic first-save acknowledgement, scoped saved-history actions,
+# and exact original held-comment settlement after head advance. Store restoration
+# discovers retained held keys for the existing read-only lookup. No new remote
+# grant or provider route; actor/PR/head/content checks remain. The production
+# mutation-branch pin is unchanged. Review and composed evidence are on BPR-1520.
 # BPR-0573 r3 storage compatibility merge: reviewed 829291bec plus main89f23eeec.
 # Main's schema5 recovery, durable draft/lineage and tour semantics are preserved.
 # Against main, github_application.cpp changes only the exact approved PR2 target
@@ -1468,7 +1506,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b0ee8a065c5f781915965391d72aa74f6b66776ceae49e811c12d07211cc3d19"
+		"d062fedec7d30c825020c3fb9272e488d4ac28c72395ec488fa1fd1e44aa1cd1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1722,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cd5edf4f66e9a0833c27e31662d59562d3e6abdc6830ae81049d078862363f4a"
+        "af25236f14fa48c57167b215ab94f23ec6e846d5b3540d7436f336f1a1f69510"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

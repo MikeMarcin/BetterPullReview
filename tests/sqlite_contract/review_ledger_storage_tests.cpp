@@ -2585,7 +2585,7 @@ namespace {
 			expect(migrated.has_value(), "a schema 7 ledger migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
 			const auto table   = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_path");
-			expect(version && *version == 8 && table && *table == 0, "schema 8 adds an empty note path table");
+			expect(version && *version == review_ledger_schema_version && table && *table == 0, "migration preserves schema8 note paths under the current schema");
 			const auto state = migrated->load_private(scope);
 			expect(state && state->Notes == std::vector{ old, whole } && !state->Notes.front().FilePath,
 				   "schema 7 notes keep text, revision and attachment, with no path");

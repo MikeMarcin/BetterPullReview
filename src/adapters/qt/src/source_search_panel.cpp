@@ -56,6 +56,29 @@ namespace bpr::qt {
 			return result;
 		}
 		auto plural(std::size_t aCount, const QString& aOne, const QString& aMany) -> QString { return (aCount == 1U ? aOne : aMany).arg(aCount); }
+
+		/// \brief File rows retain native disclosure; match rows use the full viewport.
+		class source_search_result_tree final : public QTreeView
+		{
+		public:
+			using QTreeView::QTreeView;
+			auto visualRect(const QModelIndex& aIndex) const -> QRect override
+			{
+				auto area = QTreeView::visualRect(aIndex);
+				if (!area.isEmpty() && !aIndex.data(source_search_file_role).toBool()) {
+					area.setLeft(0);
+				}
+				return area;
+			}
+
+		protected:
+			void drawBranches(QPainter* aPainter, const QRect& aArea, const QModelIndex& aIndex) const override
+			{
+				if (aIndex.data(source_search_file_role).toBool()) {
+					QTreeView::drawBranches(aPainter, aArea, aIndex);
+				}
+			}
+		};
 	}
 	/// Immutable host records are shared; only numeric file groups are retained.
 	/// Bounded preview text is converted to QString when a visible row asks for it.
@@ -339,6 +362,9 @@ namespace bpr::qt {
 		{
 			auto option = aOption;
 			initStyleOption(&option, aIndex);
+			if (!aIndex.data(source_search_file_role).toBool()) {
+				option.rect.setLeft(0);
+			}
 			// The code font reaches the snippet through FontRole; tags, names
 			// and column geometry measure the view's own font.
 			option.font = aOption.font;
@@ -667,7 +693,7 @@ namespace bpr::qt {
 		connect(SkippedToggle, &QToolButton::toggled, this, [this](bool aShown) {Skipped->setVisible(aShown);SkippedToggle->setArrowType(aShown?Qt::DownArrow:Qt::RightArrow); });
 		connect(Retry, &QToolButton::clicked, this, [this] {if(Dispatch){Dispatch(source_find_gesture::selection);} });
 
-		Tree = new QTreeView{ this };
+		Tree = new source_search_result_tree{ this };
 		Tree->setObjectName(QStringLiteral("sourceSearchResults"));
 		Tree->setAccessibleName(tr("Search results by file, source side, line and column"));
 		Tree->setHeaderHidden(true);

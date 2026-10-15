@@ -1,0 +1,148 @@
+{
+  "run_id": "bpr1514-cli-loading",
+  "segment_id": "initial",
+  "mandate_revision": "owner-testing-note-2026-10-14",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "cli-loading",
+  "binding": {
+    "plan_id": "bpr1514-cli-loading",
+    "plan_path": "docs/rfcs/plans/bpr1514-cli-loading/milestone-plan.json",
+    "milestone_id": "cli-loading",
+    "definition_fingerprint": "sha256:b495b5e29c5ac7de1d229193d1bd3b25822256c0e261865050409fc138ff0bd0",
+    "obligations": [
+      {
+        "id": "BPR-1514:AC1",
+        "source": "BPR-1514",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
+      },
+      {
+        "id": "BPR-1514:AC2",
+        "source": "BPR-1514",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
+      },
+      {
+        "id": "BPR-1514:AC3",
+        "source": "BPR-1514",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
+      },
+      {
+        "id": "BPR-1514:AC4",
+        "source": "BPR-1514",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
+      },
+      {
+        "id": "BPR-1514:AC5",
+        "source": "BPR-1514",
+        "selector": "AC5",
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
+      }
+    ],
+    "obligation_fingerprint": "sha256:9d8b8ac74e6ea453f6961d1e9baec0224592f33daf7cb0a0165aa37402081db7",
+    "exit_criteria": [
+      {
+        "id": "cli-loading:exit:1",
+        "text": "Controlled delayed composed startup demonstrates loading, rejected reentry, success, failure/retry and cancellation with stale completion refusal."
+      },
+      {
+        "id": "cli-loading:exit:2",
+        "text": "Offscreen loading pixels, focused policy/host/composition and documentation gates pass; durable checkpoint records exact candidate and command state."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "3ab1dc8e475d16077c63f846fe2f02f7108e1f20",
+  "handoff_ref": "docs/issues/_checkpoints/bpr1514-cli-loading/handoff.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1514:AC1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "BPR-1514:AC2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "BPR-1514:AC3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "BPR-1514:AC4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "BPR-1514:AC5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "cli-loading:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    },
+    {
+      "id": "cli-loading:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-1514 is canonically Done with all five criteria and both milestone exits passing. Source evidence is unchanged; return the accepted bounded milestone for coordinator integration."
+  },
+  "ownership": "quiescent"
+}

@@ -169,6 +169,20 @@ namespace bpr::qt {
 			setAccessibleDescription(reviewing);
 			break;
 		}
+		case landing_state::connecting:
+			Title->setText(QStringLiteral("Connecting to GitHub…"));
+			Body->setText(QStringLiteral("Checking your connection before loading your account."));
+			Primary->setText({ });
+			Primary->setAccessibleName({ });
+			Primary->setAccessibleDescription({ });
+			Secondary->setText({ });
+			Secondary->setAccessibleName({ });
+			Secondary->setAccessibleDescription({ });
+			Tertiary->setText({ });
+			Tertiary->setAccessibleName({ });
+			Tertiary->setAccessibleDescription({ });
+			setAccessibleDescription(Title->text() + QStringLiteral(" ") + Body->text());
+			break;
 		case landing_state::choose_pull_request:
 			// Nothing is offered; the hidden buttons carry no stale names a
 			// reader or a selector could find.
@@ -197,8 +211,9 @@ namespace bpr::qt {
 
 	void workbench_landing::apply_arrangement()
 	{
-		const auto card = State == landing_state::sign_in;
-		const auto row  = State == landing_state::back_to_review;
+		const auto signingIn = State == landing_state::sign_in;
+		const auto card      = signingIn || State == landing_state::connecting;
+		const auto row       = State == landing_state::back_to_review;
 		// The card and the row hold the same button in different places: under
 		// the sentence on the card, at the right of the row.
 		Header->removeWidget(Primary);
@@ -222,9 +237,9 @@ namespace bpr::qt {
 		Title->setVisible(!row);
 		setSizePolicy(row ? QSizePolicy::Maximum : QSizePolicy::Expanding, QSizePolicy::Fixed);
 		Body->setVisible(card);
-		Primary->setVisible(card || row);
-		Secondary->setVisible(card && GithubCliAvailable);
-		Tertiary->setVisible(card);
+		Primary->setVisible(signingIn || row);
+		Secondary->setVisible(signingIn && GithubCliAvailable);
+		Tertiary->setVisible(signingIn);
 		Shortcut->setVisible(row);
 		if (card) {
 			Content->setContentsMargins(
@@ -375,7 +390,7 @@ namespace bpr::qt {
 		auto       painter = QPainter{ this };
 		const auto mid     = palette().color(QPalette::Active, QPalette::Mid);
 		// Only the card is drawn; beside the bar the way back is its button.
-		if (State != landing_state::sign_in) {
+		if (State != landing_state::sign_in && State != landing_state::connecting) {
 			return;
 		}
 		// A card on the window's ground: Base inside a Mid rule, one 8-point radius.

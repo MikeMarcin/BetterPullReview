@@ -369,6 +369,25 @@ namespace {
 		auto  harness = live_harness{ leftText, rightText };
 		auto& map     = *harness.Map;
 
+		for (const auto logicalWidth : { 16, 28, 56, 256 }) {
+			map.set_logical_width(logicalWidth);
+			QApplication::processEvents();
+			expect(map.width() == logicalWidth && map.sizeHint().width() == logicalWidth, "the supported width reaches the live splitter handle");
+			const auto link      = link_of_kind(map, core::alignment_kind::replacement);
+			const auto point     = point_inside(link);
+			const auto paneSizes = harness.Splitter.sizes();
+			send_mouse(map, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+			send_mouse(map, QEvent::MouseMove, point + QPointF{ static_cast<qreal>(QApplication::startDragDistance() + 20), 0.0 }, Qt::NoButton, Qt::LeftButton);
+			send_mouse(map, QEvent::MouseButtonRelease, point + QPointF{ static_cast<qreal>(QApplication::startDragDistance() + 20), 0.0 }, Qt::LeftButton, Qt::NoButton);
+			QApplication::processEvents();
+			expect(harness.Splitter.sizes() != paneSizes, "the ribbon still drags the actual splitter at every supported width sample");
+		}
+		map.set_logical_width(28);
+		map.set_logical_width(15);
+		map.set_logical_width(257);
+		QApplication::processEvents();
+		expect(map.width() == 28, "unsupported divider widths leave the accepted width unchanged");
+
 		const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
 		if (!expectedScale.isEmpty()) {
 			const auto scale = expectedScale.toDouble();

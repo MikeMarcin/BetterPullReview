@@ -2459,6 +2459,146 @@ namespace {
 			   "after code zoom, fractional text and ribbons retain their exact common origin");
 	}
 
+	/// \brief [[BPR-1516]]. Observe every painted row, including measurement turns.
+	class divider_paint_observer final : public QObject
+	{
+	public:
+		qt::diff_workbench&              Workbench;
+		std::uint32_t                    LeftLine;
+		std::uint32_t                    RightLine;
+		std::vector<std::pair<int, int>> Rows;
+
+		divider_paint_observer(qt::diff_workbench& aWorkbench, const std::uint32_t aLeft, const std::uint32_t aRight)
+			: Workbench{ aWorkbench }
+			, LeftLine{ aLeft }
+			, RightLine{ aRight }
+		{
+			Workbench.left_pane()->viewport()->installEventFilter(this);
+			Workbench.right_pane()->viewport()->installEventFilter(this);
+		}
+
+		void observe()
+		{
+			Rows.emplace_back(Workbench.line_rect(core::diff_side::left, LeftLine).top(),
+							  Workbench.line_rect(core::diff_side::right, RightLine).top());
+		}
+
+	protected:
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
+		{
+			if (aEvent->type() == QEvent::Paint) {
+				observe();
+			}
+			return QObject::eventFilter(aWatched, aEvent);
+		}
+	};
+
+	void test_divider_drag_keeps_fractional_viewport()
+	{
+		for (const auto& [lines, longSource] : std::array{ std::pair{ 200U, false }, std::pair{ 200U, true }, std::pair{ 2'000U, true } }) {
+			auto [leftText, rightText] = large_comparison_text(lines, 8U);
+			// Unequal sides and long source lines; the shipped source readers
+			// intentionally do not wrap, so divider width cannot change rows.
+			leftText.insert(0, "earlier-only\n");
+			rightText.insert(0, "later-only-a\nlater-only-b\n");
+			const auto longLine = std::string(250U, 'x') + '\n';
+			if (longSource) {
+				leftText += longLine;
+				rightText += longLine;
+			}
+			const auto diff      = computed(leftText, rightText, { }, 74U);
+			auto       workbench = qt::diff_workbench{ };
+			workbench.resize(1'200, 760);
+			workbench.show();
+			const auto selectedContext = context(diff, 174U, 174U);
+			workbench.set_loading(selectedContext);
+			workbench.publish(qt::test::prepare_publication({ .Context = selectedContext, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(workbench);
+			expect(workbench.select_conversation_line(core::diff_side::right, 62U), "divider retains an explicit source selection");
+			auto textSelection = QTextCursor{ workbench.right_pane()->document()->findBlockByNumber(62) };
+			textSelection.setPosition(workbench.right_pane()->document()->findBlockByNumber(65).position(), QTextCursor::KeepAnchor);
+			workbench.right_pane()->setTextCursor(textSelection);
+			settle_geometry(workbench);
+			auto* const controller = workbench.scroll_controller();
+			const auto  measured   = qt::measure_plain_text_pane(*workbench.right_pane(), diff.Alignment.RightLineCount);
+			expect(measured && controller->reveal_pane_origin(core::diff_side::right, measured->Boundaries[60U] + 5.0), "divider starts five pixels inside a source row");
+			settle_geometry(workbench);
+			const auto topLine = [](QPlainTextEdit& aSource) {
+				const auto visible = aSource.viewport()->visibleRegion().intersected(aSource.viewport()->mask()).boundingRect();
+				return static_cast<std::uint32_t>(aSource.cursorForPosition(visible.topLeft()).blockNumber());
+			};
+			const auto leftLine  = topLine(*workbench.left_pane());
+			const auto rightLine = topLine(*workbench.right_pane());
+			const auto hitPoint  = workbench.right_pane()->viewport()->visibleRegion().intersected(workbench.right_pane()->viewport()->mask()).boundingRect().topLeft() + QPoint{ 40, 10 };
+			const auto hitLine   = workbench.right_pane()->cursorForPosition(hitPoint).blockNumber();
+			auto       observer  = divider_paint_observer{ workbench, leftLine, rightLine };
+			observer.observe();
+			const auto render = [&](const QString& aStep) {
+				const auto destination = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+				if (!destination.isEmpty()) {
+					expect(workbench.grab().save(destination + QStringLiteral("-divider-%1-%2-%3.png").arg(lines).arg(longSource ? QStringLiteral("long") : QStringLiteral("short")).arg(aStep)), "the actual divider course renders its source panes");
+				}
+			};
+			render(QStringLiteral("before"));
+			const auto  initialRows = observer.Rows.front();
+			const auto  selection   = workbench.selection();
+			const auto  position    = controller->position();
+			const auto  cursor      = workbench.right_pane()->textCursor();
+			const auto  before      = workbench.statistics();
+			auto* const handle      = workbench.link_map();
+			auto* const splitter    = qobject_cast<QSplitter*>(handle->parentWidget());
+			expect(splitter != nullptr, "the actual center handle belongs to the comparison splitter");
+			const auto sizes = splitter->sizes();
+			const auto start = handle->mapToGlobal(handle->rect().center());
+			const auto send  = [handle](const QEvent::Type aType, const QPoint aGlobal, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
+				auto event = QMouseEvent{ aType, QPointF{ handle->mapFromGlobal(aGlobal) }, QPointF{ aGlobal }, aButton, aButtons, Qt::NoModifier };
+				QCoreApplication::sendEvent(handle, &event);
+			};
+			send(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+			for (const auto direction : { 1, -1 }) {
+				for (auto step = 1; step <= 20; ++step) {
+					const auto offset = direction == 1 ? step * 6 : (20 - step) * 6;
+					send(QEvent::MouseMove, start + QPoint{ offset, 0 }, Qt::NoButton, Qt::LeftButton);
+					observer.observe();
+					// Render before the queued rebuild and during its bounded turns:
+					// a final settled screenshot alone misses the vertical shake.
+					auto timer = QElapsedTimer{ };
+					timer.start();
+					do {
+						static_cast<void>(workbench.grab());
+						QApplication::processEvents();
+						observer.observe();
+					} while (workbench.geometry_pending() && timer.elapsed() < 5'000);
+					expect(!workbench.geometry_pending(), "divider measurement settles within the local deadline");
+				}
+				render(direction == 1 ? QStringLiteral("wide") : QStringLiteral("reversed"));
+			}
+			send(QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+			settle_geometry(workbench);
+			auto displacement = 0;
+			auto rowChanges   = 0U;
+			auto previousRows = initialRows;
+			for (const auto& row : observer.Rows) {
+				displacement = std::max({ displacement, std::abs(row.first - initialRows.first), std::abs(row.second - initialRows.second) });
+				rowChanges += row != previousRows ? 1U : 0U;
+				previousRows = row;
+			}
+			std::cout << "divider-drag platform=" << QGuiApplication::platformName().toStdString() << " arch=" << QSysInfo::currentCpuArchitecture().toStdString()
+					  << " qt=" << qVersion() << " scale=" << workbench.devicePixelRatioF() << " left_lines=" << diff.Alignment.LeftLineCount << " right_lines=" << diff.Alignment.RightLineCount
+					  << " samples=" << observer.Rows.size() << " displacement=" << displacement << " row_changes=" << rowChanges << " rebuilds=" << workbench.statistics().GeometryRebuilds - before.GeometryRebuilds << '\n';
+			expect(splitter->sizes() == sizes && workbench.statistics().GeometryRebuilds > before.GeometryRebuilds, "continuous reversed pointer drags resize the panes and return to the initial widths");
+			expect(displacement == 0, "horizontal divider dragging retains every painted vertical row position");
+			expect(close(controller->position(), position) && workbench.selection() == selection
+					   && workbench.right_pane()->textCursor().position() == cursor.position() && workbench.right_pane()->textCursor().anchor() == cursor.anchor(),
+				   "divider dragging retains shared comparison position and source selection");
+			expect(workbench.right_pane()->cursorForPosition(hitPoint).blockNumber() == hitLine, "native hit testing retains the same source line after reversed divider drags");
+			expect((workbench.left_pane()->horizontalScrollBar()->maximum() > 0) == longSource
+					   && (workbench.right_pane()->horizontalScrollBar()->maximum() > 0) == longSource,
+				   "unwrapped width changes retain accurate native horizontal ranges for short and long files");
+			expect(check_ribbons(workbench, diff).Mismatched == 0U, "resized unequal panes retain exact ribbon correspondence");
+		}
+	}
+
 	void test_scale_and_high_frequency_evidence()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -5411,6 +5551,10 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
+	test_divider_drag_keeps_fractional_viewport();
+	if (argc > 1 && std::string_view{ argv[1] } == "--divider-resize-only") {
+		return EXIT_SUCCESS;
+	}
 	test_fractional_native_viewport();
 	test_fractional_unified_and_keyboard_viewports();
 	test_keyboard_minimal_reveal();

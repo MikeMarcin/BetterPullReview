@@ -128,11 +128,11 @@ namespace bpr::core {
 					? workbench_reason_code::invalid_change_selection
 					: workbench_reason_code::no_changes;
 			}
-			if (!cursor.Group.has_value()) {
+			if (!cursor.Group.has_value() && !cursor.AtUnchangedLine) {
 				// Change navigation enters a nonempty order from either end.
 				return workbench_reason_code::none;
 			}
-			if (cursor.Ordinal == 0U) {
+			if (cursor.Group && cursor.Ordinal == 0U) {
 				return workbench_reason_code::invalid_change_selection;
 			}
 
@@ -726,6 +726,11 @@ namespace bpr::core {
 		}
 		if (aCursor.Group.has_value() && !aCursor.Group->valid()) {
 			return false;
+		}
+		if (aCursor.AtUnchangedLine) {
+			return !aCursor.Group
+				&& aCursor.PreviousAvailable == (aCursor.Ordinal > 0U)
+				&& aCursor.NextAvailable == (aCursor.Ordinal < aCursor.ChangeCount);
 		}
 		if (!aCursor.Group.has_value() && aCursor.Ordinal != 0U) {
 			return false;

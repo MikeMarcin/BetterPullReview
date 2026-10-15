@@ -1197,6 +1197,16 @@ endif()
 target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
     "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
+foreach(bpr_ribbon_scale IN ITEMS 1.0 1.25 2.0)
+    bpr_add_network_isolated_test(
+        NAME qt_center_ribbon_width_scale_${bpr_ribbon_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --center-ribbon-width)
+    set_tests_properties(qt_center_ribbon_width_scale_${bpr_ribbon_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_ribbon_scale}"
+        PASS_REGULAR_EXPRESSION "center-ribbon-width:pass"
+        TIMEOUT 90)
+endforeach()
+
 bpr_add_network_isolated_test(
     NAME qt_shared_snapshot_navigation
     COMMAND test_better_pull_review_qt_workbench_window_tests --shared-snapshot-navigation
@@ -2038,3 +2048,15 @@ foreach(bpr_source_search_panel_scale IN ITEMS 1 2)
             TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1511]]. File selection, unread updates and authority replacement on the composed window.
+bpr_add_network_isolated_test(
+    NAME qt_current_file_unread_badge
+    COMMAND test_better_pull_review_qt_workbench_window_tests --current-file-unread-badge
+)
+set_tests_properties(qt_current_file_unread_badge PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/current-file-unread-badge.png"
+    PASS_REGULAR_EXPRESSION "current-file-unread-badge:pass"
+    RUN_SERIAL TRUE
+    TIMEOUT 90
+)

@@ -1004,6 +1004,8 @@ file representation adds only its canonical visible permalink.
 
 ### Durable workbench drafts (RFC-BPR-0023 M8)
 
+A source-line selection first opens one empty runtime placeholder per window consumer. It is not a durable ID, a recovery record or publication authority. Browsing lines writes nothing. The first edit is applied through the existing core reducer and committed with the newly allocated durable draft in one transaction. A refused first save keeps the editor text with an explicit retry; publication remains unavailable until an accepted durable revision exists. Text typed while that save is pending continues on the acknowledged identity.
+
 The workbench serializes private draft persistence before adopting its projection
 into the shared in-process draft owner. Each incoming gesture must still name the
 current runtime scope, draft and revision. A text edit awaiting acknowledgement
@@ -1020,6 +1022,8 @@ journal. A request retired before delivery to the mutation host is compensated
 on its original storage context. A successful terminal adopts the committed
 receipt before requesting ordinary shared conversation synchronization.
 
+
+The **Saved comments** action on Finish review reads the exact account/PR store independently of current-head placement. Earlier-comparison text remains read-only and names its original head; using it on current code requires an explicit copy and new comment gesture. An uncertain publication is labelled separately and directs the reviewer to Check status before reusing its text. This inspection never rebinds an anchor or admits a remote write.
 
 ### Conventional Comments header edits (RFC-BPR-0048, BPR-1082)
 
@@ -1092,3 +1096,5 @@ width. Changed notice content invalidates editor/footer/card measurements; nativ
 layout requests notify the existing drawer height callback. This updates preferred
 height without rebuilding the card or model, moving focus, or changing the locked
 publication state.
+
+Whole-review reconciliation settles retained comments from the complete durable account/PR scope, including earlier heads absent from the editable projection. Core requires the original held key, draft identity and revision, head, path, side, range and exact body; the host also checks the proposal actor and target against the store scope. Restore discovers held review keys before filtering the current head, so a restart can retry a failed local settlement through the existing read-only publication lookup. No new publication grant is created.

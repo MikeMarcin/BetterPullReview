@@ -1,0 +1,24 @@
+{
+  "schema": "bpr1520.owner-mandate-amendment.v1",
+  "revision": "owner-2026-10-14-recovery-retention-r2",
+  "source": "Owner report and instruction relayed by coordinator: comments recovered with SQLite browser; eliminate needless blank rows and retain authored/publication history under bounded lifetime policy.",
+  "previous_plan_sha256": "6e78032f5406cb04e4b42c3ac8fe732026da8ea70d38f3675e9030d347821fd2",
+  "current_plan_sha256": "ed802be1e79dc53b4724b8aaa91819c071aff5f81b46a252d322f87d5c9ff05c",
+  "preserved_obligations": [
+    "AC1",
+    "AC2",
+    "AC3",
+    "AC4",
+    "AC5",
+    "AC6",
+    "AC7"
+  ],
+  "added_obligations": [
+    "AC8"
+  ],
+  "refinement_check": {
+    "state": "invalid",
+    "diagnostic": "amendment must preserve every obligation; reconcile changed requirements separately"
+  },
+  "reconciliation": "This is an explicit owner scope amendment, not a refinement that purports to leave requirements unchanged. AC1\u2013AC7 and their exits are preserved; AC8 and one retention exit are added under mandate r2."
+}

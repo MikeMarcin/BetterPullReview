@@ -71,6 +71,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -898,12 +899,12 @@ namespace {
 
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair and its position, the
-		// change pair and its position, private progress, a spacer, Compose
+		// change pair and its position, Accept, private progress, a spacer, Compose
 		// review and Comment.
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 15
+			return ordered.size() == 16
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -914,13 +915,14 @@ namespace {
 				&& named(ordered, 7, "workbenchStripChangePositionAction")
 				&& ordered[8] == navigation[2]
 				&& ordered[9] == navigation[3]
-				&& named(ordered, 10, "workbenchReviewControlsAction")
-				&& named(ordered, 11, "reviewBarSpacerAction")
+				&& named(ordered, 10, "workbenchAcceptFileAction")
+				&& named(ordered, 11, "workbenchReviewControlsAction")
+				&& named(ordered, 12, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
-				&& ordered[12] == window.review_chip_action()
-				&& ordered[13] == window.compose_review_action()
-				&& ordered[14] == window.comment_action();
+				&& ordered[13] == window.review_chip_action()
+				&& ordered[14] == window.compose_review_action()
+				&& ordered[15] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -5721,6 +5723,90 @@ namespace {
 		return computed_comparison(left, right);
 	}
 
+	/// \brief [[BPR-1519]]. Measures the last strong text pixel, excluding the rail below it.
+	[[nodiscard]] auto navigation_label_ink_right(QLabel& aLabel) -> qreal
+	{
+		const auto raster   = aLabel.grab().toImage();
+		const auto scale    = raster.devicePixelRatio();
+		const auto ink      = aLabel.palette().color(QPalette::WindowText);
+		const auto paper    = aLabel.palette().color(QPalette::Window);
+		const auto distance = [](const QColor& aLeft, const QColor& aRight) {
+			return std::abs(aLeft.red() - aRight.red()) + std::abs(aLeft.green() - aRight.green()) + std::abs(aLeft.blue() - aRight.blue());
+		};
+		for (auto x = raster.width() - 1; x >= 0; --x) {
+			for (auto y = qRound(2 * scale); y < qRound((aLabel.height() - 4) * scale); ++y) {
+				const auto pixel = raster.pixelColor(x, y);
+				if (distance(pixel, ink) < distance(pixel, paper)) {
+					return static_cast<qreal>(x + 1) / scale;
+				}
+			}
+		}
+		expect(false, "the navigation label raster contains visible text");
+		return 0.0;
+	}
+
+	/// \brief [[BPR-1519]]. Actual label ink stays beside the arrows inside their stable slots.
+	void test_navigation_label_spacing()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		if (const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expected.isEmpty()) {
+			expect(std::abs(window.devicePixelRatioF() - expected.toDouble()) < 0.001, "navigation labels render at the expected scale");
+		}
+		const auto emptyLabels = std::array{ window.file_position_label(), window.change_position_label() };
+		const auto arrows      = navigation_actions(window);
+		for (auto index = std::size_t{ 0 }; index < emptyLabels.size(); ++index) {
+			auto* const label   = emptyLabels[index];
+			const auto  aligned = label->alignment();
+			label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+			const auto oldGap = window.review_bar()->widgetForAction(arrows[index * 2])->x() - label->x() - navigation_label_ink_right(*label);
+			expect(oldGap > 12.0, "negative control: left-aligned text in the reserved counter slot fails the spacing bound");
+			std::cout << "navigation-label-spacing old_gap=" << oldGap << " group=" << index << '\n';
+			label->setAlignment(aligned);
+		}
+		const auto diff = separated_changes(11U);
+		for (const auto available : { 1'280, platform_floor_width() }) {
+			window.resize(available, 820);
+			process_events();
+			for (const auto selected : { false, true }) {
+				if (selected) {
+					publish_positioned_review_bar(window);
+					auto* const surface = window.comparison_surface();
+					surface->set_loading(request_context(diff));
+					surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(diff), .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+					expect(surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop), "selected spacing state opens a real change");
+					window.publish(every_primary_command_offered());
+				} else {
+					window.comparison_surface()->clear();
+					window.publish(application::workbench_projection{ .Selection = core::workbench_selection_delta{ } });
+				}
+				process_events();
+				auto       gaps    = std::array<qreal, 2>{ };
+				const auto labels  = std::array{ window.file_position_label(), window.change_position_label() };
+				const auto actions = navigation_actions(window);
+				for (auto index = std::size_t{ 0 }; index < labels.size(); ++index) {
+					auto* const label = labels[index];
+					auto* const arrow = window.review_bar()->widgetForAction(actions[index * 2]);
+					gaps[index]       = arrow->x() - label->x() - navigation_label_ink_right(*label);
+					expect(gaps[index] >= 4.0 && gaps[index] <= 12.0, "rendered navigation text ends within twelve logical pixels of its first arrow");
+					expect(label->isVisible() && label->text().startsWith(index == 0 ? QStringLiteral("File") : QStringLiteral("Changes"))
+							   && !label->text().contains(QChar{ 0x2026 }) && !label->geometry().intersects(arrow->geometry()),
+						   "both navigation names remain whole and separate from their controls");
+					expect(label->focusPolicy() == Qt::NoFocus && !label->accessibleName().isEmpty() && !label->accessibleDescription().isEmpty(),
+						   "navigation labels retain their noninteractive accessible identity");
+				}
+				expect(std::abs(gaps[0] - gaps[1]) <= 2.0, "File and Changes use consistent rendered spacing");
+				std::cout << "navigation-label-spacing width=" << window.width() << " scale=" << window.devicePixelRatioF()
+						  << " selected=" << selected << " file_gap=" << gaps[0] << " changes_gap=" << gaps[1] << '\n';
+				save_render(window, QStringLiteral("navigation-labels-%1-%2").arg(selected ? QStringLiteral("selected") : QStringLiteral("empty")).arg(available));
+			}
+		}
+		window.hide();
+	}
+
 	/// \brief [[BPR-1385]]. Text changes must not move the controls under the pointer.
 	void test_review_bar_geometry_is_stable_while_working()
 	{
@@ -7353,6 +7439,7 @@ namespace {
 			barStop(window.next_file_action()),
 			barStop(window.previous_change_action()),
 			barStop(window.next_change_action()),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
@@ -7507,6 +7594,161 @@ namespace {
 		expect(window.status_text().contains(
 				   QStringLiteral("Private review progress is unavailable.")),
 			   "a store-open obstruction is visible in text while the workbench remains live");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1507]]. One normal click uses the exact command the menu uses.
+	void test_file_accept_is_one_click_and_keeps_projected_eligibility()
+	{
+		qt::workbench_window window;
+		auto                 dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const button = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		expect(button != nullptr && button->defaultAction() == window.accept_action()
+				   && button->menu() == nullptr && !button->isEnabled(),
+			   "the named direct button presents the existing acceptance action, disabled without exact material");
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		receipt.Read = core::file_read_state::seen;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(dispatched.empty() && button->isEnabled() && !button->isChecked()
+				   && button->text().contains(QStringLiteral("Accept"))
+				   && button->accessibleName() == QStringLiteral("Accept file"),
+			   "showing a seen file offers explicit Accept and emits no acceptance itself");
+		save_render(window, QStringLiteral("file-accept"));
+		send_click(*button, button->rect().center());
+		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
+				   && !button->isChecked() && !window.review_controls_menu()->isVisible(),
+			   "one mouse click dispatches exact acceptance without a menu and waits for persistence before changing state");
+		receipt.Accepted = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(button->isChecked() && button->isEnabled() && button->text().contains(QStringLiteral("Revoke"))
+				   && button->accessibleName() == QStringLiteral("Revoke file acceptance")
+				   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: accepted"),
+			   "the committed receipt shows accepted with its explicit inverse action and the same state icon");
+		receipt.Accepted = false;
+		receipt.Excluded = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		button->click();
+		expect(!button->isEnabled() && button->toolTip().contains(QStringLiteral("Include this file"))
+				   && dispatched.size() == 1U && window.review_controls_button()->isEnabled()
+				   && window.exclude_action()->isEnabled() && window.exclude_action()->text().contains(QStringLiteral("Include")),
+			   "excluded material cannot Accept and keeps Include available through the existing state menu");
+		window.clear_review_ledger();
+		button->click();
+		expect(!button->isEnabled() && dispatched.size() == 1U, "a loading file cannot dispatch the preceding file's acceptance");
+		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		button->click();
+		expect(dispatched.size() == 2U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material,
+			   "the next click uses the replacement file and epoch material exclusively");
+		window.clear_review_ledger(true);
+		button->click();
+		expect(!button->isEnabled() && dispatched.size() == 2U && button->toolTip().contains(QStringLiteral("unavailable")),
+			   "an unavailable ledger disables one-click acceptance without dispatching");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1515]]. Accept's key reaches the retained action, and never its inverse.
+	void test_file_accept_shortcut_is_accept_only_and_yields_to_editors()
+	{
+		qt::workbench_window window;
+		auto                 dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const action  = window.accept_action();
+		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		const auto  binding = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
+		const auto  press   = [&] { window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier); };
+		button->setFocus();
+		press();
+		expect(dispatched.empty() && !action->isEnabled(), "no current material offers no acceptance key");
+
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		button->setFocus();
+		process_events();
+		expect(action->shortcut() == binding && action->shortcutContext() == Qt::WindowShortcut && !action->autoRepeat()
+				   && action->isShortcutVisibleInContextMenu() && window.review_controls_menu()->actions().contains(action)
+				   && button->toolTip().contains(binding.toString(QKeySequence::NativeText)),
+			   "the existing Accept menu item and direct button expose the platform key without key repeat");
+		for (auto* const other : window.findChildren<QAction*>()) {
+			if (other != action) {
+				expect(!other->shortcuts().contains(binding), "no assembled action collides with Accept file");
+			}
+		}
+		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+			expect(!shortcut->keys().contains(binding), "no widget shortcut collides with Accept file");
+		}
+		save_render(window, QStringLiteral("file-accept-shortcut"));
+		press();
+		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
+				   && !window.review_controls_menu()->isVisible(),
+			   "actual window-system key delivery accepts exactly the current file without a menu");
+		receipt = core::apply(receipt, dispatched.back()).Receipt;
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		press();
+		expect(action->isEnabled() && action->shortcut().isEmpty() && dispatched.size() == 1U && button->isChecked(),
+			   "after acceptance repeated presses cannot dispatch the explicit Revoke action");
+		button->click();
+		expect(dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "Revoke remains available by deliberate button or menu gesture");
+		receipt          = core::apply(receipt, dispatched.back()).Receipt;
+		receipt.Excluded = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		expect(dispatched.size() == 2U && !action->isEnabled(), "excluded material preserves the canonical Accept refusal");
+		receipt.Excluded           = false;
+		auto refused               = application::project_file_receipt_actions(receipt);
+		refused.Actions[2].Enabled = false;
+		window.publish(refused);
+		press();
+		expect(dispatched.size() == 2U && !action->isEnabled(), "an explicit disabled projection keeps its refusal through key delivery and focus");
+		window.publish(application::project_file_receipt_actions(receipt));
+
+		// All editable fields keep the key, including native menu equivalents.
+		QLineEdit      line{ &window };
+		QPlainTextEdit plain{ &window };
+		QTextEdit      rich{ &window };
+		for (auto* const editor : std::array<QWidget*, 3>{ &line, &plain, &rich }) {
+			editor->show();
+			editor->setFocus();
+			process_events();
+			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "editable single and multi-line fields keep Accept's key");
+			press();
+			expect(dispatched.size() == 2U, "typing in a field cannot Accept a file");
+		}
+		line.setText(QStringLiteral("keep text editing"));
+		line.setFocus();
+		process_events();
+		window_key(window, Qt::Key_A, Qt::ControlModifier);
+		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
+		button->setFocus();
+		process_events();
+		expect(action->shortcut() == binding, "leaving an editor restores the discoverable Accept key");
+
+		window.clear_review_ledger();
+		press();
+		expect(dispatched.size() == 2U, "authority replacement clears the old file's key eligibility");
+		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		press();
+		expect(dispatched.size() == 3U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material
+				   && dispatched.back().Kind == core::file_receipt_command_kind::accept,
+			   "the restored key targets only the replacement file and epoch material");
+		window.clear_review_ledger(true);
+		press();
+		expect(dispatched.size() == 3U && !action->isEnabled(), "an unavailable ledger cannot Accept through its key");
 		window.hide();
 	}
 
@@ -7738,10 +7980,11 @@ namespace {
 			window.publish(both_files_enabled());
 			process_events();
 			auto* const button = window.review_controls_button();
+			auto* const accept = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
 			auto        crops  = std::vector<QImage>{ };
 			const auto  crop   = [&] {
 				const auto bar  = button->parentWidget()->grab().toImage();
-				const auto at   = button->geometry();
+				const auto at   = button->geometry().united(accept->geometry());
 				const auto dpr  = bar.devicePixelRatio();
 				const auto area = QRect{ at.left() - 8, 0, at.width() + 16, button->parentWidget()->height() };
 				auto       part = bar.copy(QRectF{ area.left() * dpr, area.top() * dpr, area.width() * dpr, area.height() * dpr }.toRect());
@@ -9839,9 +10082,10 @@ namespace {
 		qt::workbench_window window;
 		window.resize(1'280, 560);
 		window.show();
-		auto opened    = both_files_enabled();
-		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
-									   core::workbench_drawer_state::expanded);
+		auto opened      = both_files_enabled();
+		opened.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = core::file_identity_of("src/file.cpp") } };
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::collapsed,
+										 core::workbench_drawer_state::expanded);
 		window.publish(opened);
 		process_events();
 		auto text = std::string{ };
@@ -10110,6 +10354,142 @@ namespace {
 		expect(!strip->isEnabled() && badge().isEmpty() && commentsToggle->sizeHint().width() < countedWidth
 				   && kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::thread },
 			   "an empty read state withdraws the count, its room on the toggle, and the blue marks");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1511]]. File badges follow accepted selection, while Next new stays review-wide.
+	void test_unread_badge_follows_only_the_current_file()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		window.set_conversation_endpoint_placement(false, true);
+		const auto first      = core::file_identity_of("src/first.cpp");
+		const auto second     = core::file_identity_of("src/second.cpp");
+		const auto clean      = core::file_identity_of("src/clean.cpp");
+		auto       selected   = std::vector<core::file_identity>{ };
+		auto       generation = std::uint64_t{ 1U };
+		const auto select     = [&window, &generation](const std::optional<core::file_identity> aFile) {
+			window.publish(application::workbench_projection{
+				.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ generation } },
+				.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = aFile, .ActionableCount = 3U } },
+			});
+		};
+		window.set_dispatch([&](const core::workbench_interaction_intent& aIntent) {
+			if (const auto* file = std::get_if<core::select_workbench_file_intent>(&aIntent)) {
+				selected.push_back(file->File);
+				select(file->File);
+			}
+		});
+		auto opened  = both_files_enabled();
+		opened.Files = std::vector<application::workbench_file_projection>{
+			{ .File = first, .Path = "src/first.cpp" },
+			{ .File = second, .Path = "src/second.cpp" },
+			{ .File = clean, .Path = "src/clean.cpp" },
+		};
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		auto       pr        = application::github_pull_request_projection{ };
+		const auto addThread = [&pr](const std::string& aId, const std::string& aPath, const bool aResolved) {
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id                 = aId,
+				.Kind               = application::github_conversation_kind::review_thread,
+				.Path               = aPath,
+				.Line               = 1U,
+				.DiffSide           = application::github_conversation_diff_side::right,
+				.AnchorAvailability = application::github_conversation_anchor_availability::current,
+				.Resolved           = aResolved,
+			});
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id          = aId + "-post",
+				.ParentId    = aId,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = "reviewer",
+				.Body        = "A new comment on " + aPath,
+				.Path        = aPath,
+			});
+		};
+		addThread("first-a", "src/first.cpp", false);
+		addThread("first-b", "src/first.cpp", true);
+		addThread("second-a", "src/second.cpp", false);
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		window.present_read_state({
+			{ .Thread = "first-a", .UnreadPosts = { "first-a-post", "first-a-reply" } },
+			{ .Thread = "first-b", .UnreadPosts = { "first-b-post" } },
+			{ .Thread = "second-a", .UnreadPosts = { "second-a-post" } },
+		});
+		auto* const toggle      = qobject_cast<QToolButton*>(window.primary_toolbar()->widgetForAction(window.conversations_drawer_toggle_action()));
+		const auto  badge       = [&] { return toggle->property(qt::strip_style::badge_property).toString(); };
+		const auto  expectCount = [&](const QString& aCount, const std::string_view aReason) {
+			expect(badge() == aCount && window.comments_count_text() == aCount, aReason);
+		};
+		expectCount({ }, "no file selected has no badge despite three unread threads in the review");
+		auto* const files = window.files_drawer()->contents_view();
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(first));
+		process_events();
+		expect(selected == std::vector{ first }, "the file gesture traverses semantic selection before the badge updates");
+		expectCount(QStringLiteral("2"), "the first file counts unread threads, including resolved, rather than unread posts or the whole review");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(true);
+		process_events();
+		expectCount(QStringLiteral("2"), "hiding resolved threads does not change the file's unread policy or badge count");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(false);
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(second));
+		process_events();
+		expectCount(QStringLiteral("1"), "switching file immediately replaces the badge with that file's count");
+		expect(toggle->accessibleDescription().contains(QStringLiteral("One thread with new comments in this file"))
+				   && window.tray_tabs()->accessibleTabName(0).contains(QStringLiteral("one thread with new comments in this file")),
+			   "both accessible badges state the current-file scope");
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(clean));
+		process_events();
+		expectCount({ }, "a file without unread comments has no badge while other files remain unread");
+		expect(window.next_new_comment_action()->isEnabled()
+				   && window.next_new_comment_action()->toolTip().contains(QStringLiteral("3 threads")),
+			   "Next new comment retains the pull-request-wide unread count and navigation");
+		select(second);
+		window.set_conversation_read_dispatch([&window](const std::string& aThread) { window.update_read_state(aThread, { }); });
+		window.conversation_panel()->cards()->open_thread("second-a");
+		process_events();
+		auto* const read = window.conversation_panel()->cards()->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMarkRead"));
+		expect(read != nullptr && read->isEnabled(), "the current file's unread thread offers Mark read");
+		read->click();
+		expectCount({ }, "Mark read traverses the read dispatch and withdraws the current-file badge");
+		expect(window.next_new_comment_action()->isEnabled(), "other files' unread threads retain review-wide navigation");
+		window.update_read_state("second-a", { "second-a-post" });
+		expectCount(QStringLiteral("1"), "a new unread update restores the selected file's badge");
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, second)));
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		save_render(window, QStringLiteral("current-file-unread"));
+		select(clean);
+		static_cast<void>(publish_fixture(window, computed_comparison("unchanged\n", "unchanged\n", 0U, clean)));
+		expectCount({ }, "the rendered clean file has neither badge while other files remain unread");
+		save_render(window, QStringLiteral("current-file-clean"));
+		select(second);
+		select(std::nullopt);
+		expectCount({ }, "an explicitly empty file selection suppresses the badge even while a prior diff is retained");
+		select(second);
+		generation = 2U;
+		window.publish(application::workbench_projection{
+			.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ 2U } },
+			.Selection = core::workbench_selection_delta{ },
+			.Files     = std::vector<application::workbench_file_projection>{ },
+		});
+		expect(window.conversation_panel()->anchor_file() == std::optional{ second }, "the refresh gap retains only the drawer's visual anchor");
+		expectCount({ }, "the refresh gap has no semantic current file and clears the badge synchronously");
+		select(second);
+		std::erase_if(pr.Conversations, [](const auto& aNode) { return aNode.Path == "src/second.cpp"; });
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		expectCount({ }, "refreshing away the selected file's thread removes its cached count");
+		addThread("second-a", "src/second.cpp", false);
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		expectCount(QStringLiteral("1"), "an accepted conversation refresh rebuilds the file count under the existing read state");
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
+		expectCount({ }, "authority invalidation removes the badge and all cached unread counts");
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		window.present_read_state({ { .Thread = "second-a", .UnreadPosts = { "second-a-post" } } });
+		expectCount({ }, "replacement authority cannot reuse the previous authority's file selection");
+		select(second);
+		expectCount(QStringLiteral("1"), "the replacement authority's selected file receives its own unread count");
 		window.hide();
 	}
 
@@ -10611,6 +10991,61 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1512]]. Settings edits wait for accepted publication and resize the real ribbon.
+	void test_center_ribbon_width_settings_and_rendering()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		window.choose_modality(qt::review_modality::review);
+		window.publish(application::workbench_projection{ .Drawers = core::workbench_drawer_delta{ .Files = core::workbench_drawer_state::expanded, .Conversations = core::workbench_drawer_state::expanded, .Repositories = core::workbench_drawer_state::collapsed } });
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto  diff                 = computed_comparison(leftText, rightText, 0U, core::file_identity_of("src/file.cpp"));
+		auto* const surface              = publish_fixture(window, diff);
+		auto* const map                  = surface->link_map();
+		auto* const control              = window.findChild<QSpinBox*>(QStringLiteral("centerRibbonWidth"));
+		expect(control != nullptr && control->accessibleName() == QStringLiteral("Center ribbon width")
+				   && control->accessibleDescription().contains(QStringLiteral("logical pixels"))
+				   && control->minimum() == 16 && control->maximum() == 256 && control->suffix() == QStringLiteral(" px"),
+			   "the real Settings control names its logical-pixel unit and supported bounds");
+		expect(control->value() == 28 && map->width() == 28 && map->sizeHint().width() == 28,
+			   "a new workbench uses exactly half the former 56-pixel center ribbon");
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const auto& aSettings) { records.push_back(aSettings); });
+		for (const auto logicalWidth : { 16, 28, 56, 256 }) {
+			const auto previousWidth = map->width();
+			control->setValue(logicalWidth);
+			expect(!records.empty() && records.back().CenterRibbonWidth == static_cast<std::uint32_t>(logicalWidth)
+					   && map->width() == previousWidth,
+				   "an edit dispatches the whole record without resizing before durable acceptance");
+			window.publish(application::workbench_projection{ .Behaviour = records.back() });
+			settle_geometry(*surface, "center ribbon width");
+			std::cout << "ribbon-width:" << logicalWidth << ",actual:" << map->width() << ",panes:" << surface->left_pane()->width() << "," << surface->right_pane()->width() << '\n';
+			expect(map->width() == logicalWidth && map->sizeHint().width() == logicalWidth
+					   && surface->left_pane()->width() > 100 && surface->right_pane()->width() > 100,
+				   "the accepted width reaches the real divider and leaves both source panes usable");
+			expect(!map->visible_links().empty(), "ribbons remain attached after width changes");
+			const auto link  = map->visible_links().front();
+			const auto point = QPointF{ logicalWidth / 2.0, (link.LeftTop + link.LeftBottom + link.RightTop + link.RightBottom) / 4.0 };
+			expect(map->hit_test(point) == link.Identity, "the painted ribbon retains exact hit identity at every supported width sample");
+			save_render(window, QStringLiteral("ribbon-%1").arg(logicalWidth));
+		}
+		window.open_settings(qt::settings_page::reviews_and_queue);
+		process_events();
+		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings Reviews and queue");
+		window.findChild<QToolButton*>(QStringLiteral("resetComparisonBehaviour"))->click();
+		expect(records.back().CenterRibbonWidth == 28U, "Comparison Reset restores the new 28-pixel default");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(control->value() == 28 && map->width() == 28, "accepted Reset reaches both Settings and the divider");
+		if (const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !renderPath.isEmpty()) {
+			expect(window.settings()->grab().save(QFileInfo{ renderPath }.path() + QStringLiteral("/ribbon-settings.png")), "the real Settings window renders");
+		}
+		window.settings()->hide();
+		window.hide();
+	}
+
 	// [[BPR-0721]]. With the drawer controls hidden, the default, a collapsed
 	// drawer leaves the splitter entirely and an expanded one has no Hide
 	// button; with them shown, the rail is the 18-pixel column and nothing
@@ -10633,9 +11068,11 @@ namespace {
 		auto* const files    = window.files_drawer();
 		auto* const comments = window.conversations_drawer();
 		auto* const heading  = files->findChild<QLabel*>(QStringLiteral("workbenchFilesDrawerHeading"));
-		expect(heading != nullptr && heading->isVisible() && !files->collapse_button()->isVisible()
+		auto* const tabs     = window.findChild<QTabWidget*>(QStringLiteral("fileSearchTabs"));
+		expect(heading != nullptr && !heading->isVisible() && tabs != nullptr && tabs->isVisible()
+				   && files->accessibleName() == QStringLiteral("Files drawer") && !files->collapse_button()->isVisible()
 				   && !files->controls_shown(),
-			   "an expanded drawer keeps its heading and, by default, has no Hide button");
+			   "Files/Search is the expanded drawer's header; its accessible name remains and Hide is absent by default");
 
 		auto collapsed    = application::workbench_projection{ };
 		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
@@ -10664,16 +11101,16 @@ namespace {
 			   "with the controls shown the collapsed drawer is exactly its rail, with nothing above it");
 		window.publish(opened);
 		process_events();
-		expect(files->isVisible() && files->width() == 320 && heading->isVisible()
+		expect(files->isVisible() && files->width() == 320 && !heading->isVisible() && tabs->isVisible()
 				   && files->collapse_button()->isVisible() && !files->rail()->isVisible(),
-			   "expanded with the controls shown, the Hide button is back beside the heading");
+			   "expanded with the controls shown, Hide returns and the Files/Search header stays visible");
 
 		auto hidden      = application::workbench_projection{ };
 		hidden.Behaviour = application::review_behaviour_settings{ };
 		window.publish(hidden);
 		process_events();
-		expect(files->width() == 320 && !files->collapse_button()->isVisible() && heading->isVisible(),
-			   "hiding the controls again takes only the Hide button from an expanded drawer");
+		expect(files->width() == 320 && !files->collapse_button()->isVisible() && !heading->isVisible() && tabs->isVisible(),
+			   "hiding the controls again keeps the Files/Search header and drawer width");
 		window.hide();
 	}
 
@@ -12067,7 +12504,7 @@ namespace {
 	}
 
 	/// [[BPR-1293]]. Threads through the real core: Command-J, Ctrl+4,
-	/// the strip and the drawer's finder button go there from Overview, Review
+	/// and the strip go there from Overview, Review
 	/// and Discuss with the search focused; the drawers are hidden there and no
 	/// drawer state changes on the way in or out; Command-B is disabled; Esc on
 	/// an empty search and Command-J go back where it was entered from; and a
@@ -12231,15 +12668,9 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 
-		// The drawer's finder button.
-		auto* const button = window.threads_finder_button();
-		expect(button != nullptr && button->isVisible() && button->focusPolicy() == Qt::StrongFocus && !button->icon().isNull()
-				   && button->toolTip() == QStringLiteral("Find a thread in the pull request (%1)").arg(action->shortcut().toString(QKeySequence::NativeText))
-				   && button->accessibleName() == QStringLiteral("Find a thread in the pull request"),
-			   "the Comments drawer carries the finder button, named, with its key in its tooltip");
-		button->click();
-		process_events();
-		expect(window.current_modality() == qt::review_modality::threads && finder->search_field()->hasFocus(), "the finder button goes to Threads");
+		expect(window.findChild<QToolButton*>(QStringLiteral("workbenchThreadsFinderButton")) == nullptr,
+			   "the Comments header has no redundant Threads finder button");
+		save_render(window, QStringLiteral("comments-without-finder-button"));
 
 		// A pick: Review on the conversation's file, Comments opened by hand,
 		// the thread in place at the picked post once the file shows.
@@ -14917,6 +15348,19 @@ void test_native_geometry_fits_current_displays_and_observes_only_after_restore(
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--current-file-unread-badge"))) {
+		test_unread_badge_follows_only_the_current_file();
+		test_read_state_reaches_the_gutter_and_the_strip();
+		test_the_right_tray_holds_comments_and_notes_tabs();
+		std::cout << "current-file-unread-badge:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--center-ribbon-width"))) {
+		test_center_ribbon_width_settings_and_rendering();
+		test_line_details_view_menu_and_settings_follow_the_projection();
+		std::cout << "center-ribbon-width:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
 		// [[BPR-1074]]. The one window a launch puts on the desktop.
 		test_building_the_window_shows_no_window_of_its_own();
@@ -14938,6 +15382,8 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
+		test_file_accept_is_one_click_and_keeps_projected_eligibility();
+		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
 		test_review_state_icon_shows_the_decided_mark();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";
@@ -14973,6 +15419,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
+		test_navigation_label_spacing();
 		test_compact_icon_row_preserves_exact_order_and_edges();
 		test_title_row_settles_on_content_publication();
 		test_open_on_github_beside_the_title();
@@ -15070,6 +15517,7 @@ auto main(int argc, char** argv) -> int
 	test_strip_modalities_positions_and_account();
 	test_title_row_settles_on_content_publication();
 	test_strip_identity_stays_at_every_width();
+	test_navigation_label_spacing();
 	test_review_bar_geometry_is_stable_while_working();
 	test_the_review_bar_yields_dates_then_words();
 	test_the_floor_follows_the_review_bar();
@@ -15111,6 +15559,7 @@ auto main(int argc, char** argv) -> int
 	test_review_state_icon_shows_the_decided_mark();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
+	test_unread_badge_follows_only_the_current_file();
 	test_the_right_tray_holds_comments_and_notes_tabs();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();

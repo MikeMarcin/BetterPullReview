@@ -353,6 +353,43 @@ int main(int aArgc, char** aArgv)
 	}
 	render(window, QStringLiteral("05-unavailable-exact-material"));
 
+	// Once Review has returned to its exact pair, a source failure must not
+	// trap the file arrows: the tree can still choose either adjacent file.
+	for (const auto command : { 0U, 1U }) {
+		window.files_drawer()->contents_view()->setCurrentIndex(window.files_drawer()->contents()->index_for_file(missingFile));
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == missingFile && identity.ActiveTab && identity.ActiveTab->View.File == missingFile && !identity.TabPending && !window.comparison_surface()->current_result(); }, "tree returns to unavailable file on exact older pair");
+		expect(actions[command]->isEnabled() && actions[command]->statusTip() == (command == 0U ? QStringLiteral("Select the previous actionable file.") : QStringLiteral("Select the next actionable file.")), "adjacent file arrow is offered without a bound despite unavailable source");
+		actions[command]->trigger();
+		const auto adjacent = order[command == 0U ? 1U : 3U];
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == adjacent && identity.ActiveTab && identity.ActiveTab->View.File == adjacent && identity.AcceptedComparison == oldPair && shown(window, adjacent) && !identity.TabPending; }, "ordinary Review file arrow escapes unavailable source on the exact pair");
+	}
+	for (const auto command : { 0U, 1U }) {
+		window.files_drawer()->contents_view()->setCurrentIndex(window.files_drawer()->contents()->index_for_file(missingFile));
+		expect(access::epoch_refresh_identity(*application).SelectedFile == missingFile, "tree chooses unavailable file before its source terminal");
+		actions[command]->trigger();
+		const auto adjacent = order[command == 0U ? 1U : 3U];
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == adjacent && identity.ActiveTab && identity.ActiveTab->View.File == adjacent && identity.AcceptedComparison == oldPair && shown(window, adjacent) && !identity.TabPending; }, "source failure arriving after ordinary file press cannot discard the queued step");
+	}
+	for (const auto command : { 1U, 0U }) {
+		window.files_drawer()->contents_view()->setCurrentIndex(window.files_drawer()->contents()->index_for_file(order[4]));
+		expect(access::epoch_refresh_identity(*application).SelectedFile == order[4], "tree gesture chooses the file before queued tab reflection");
+		actions[command]->trigger();
+		const auto adjacent = order[command == 0U ? 3U : 5U];
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == adjacent && identity.ActiveTab && identity.ActiveTab->View.File == adjacent && identity.AcceptedComparison == oldPair && shown(window, adjacent) && !identity.TabPending; }, "file arrow pressed during tree load steps from the newly chosen file exactly once");
+	}
+	window.files_filter()->setText(QStringLiteral("renderer"));
+	window.next_file_action()->trigger();
+	wait_for([&] { return access::epoch_refresh_identity(*application).SelectedFile == order[4] && shown(window, order[4]) && !access::epoch_refresh_identity(*application).TabPending; }, "file navigation follows accepted order after filtering the tree");
+	window.previous_file_action()->trigger();
+	wait_for([&] { return access::epoch_refresh_identity(*application).SelectedFile == order[3] && shown(window, order[3]) && !access::epoch_refresh_identity(*application).TabPending; }, "previous file can reach an accepted file hidden by the tree filter");
+	window.files_filter()->clear();
+	const auto epochUpdates = controls->statistics().PublishedUpdates;
+	controls->refresh_action()->trigger();
+	wait_for([&] { return controls->statistics().PublishedUpdates > epochUpdates && controls->status() == core::epoch_status::ready && shown(window, order[3]) && !access::epoch_refresh_identity(*application).TabPending; }, "same-head epoch refresh restores the chosen file");
+	window.next_file_action()->trigger();
+	wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.SelectedFile == order[4] && identity.AcceptedComparison == oldPair && shown(window, order[4]) && !identity.TabPending; }, "file navigation remains admitted after same-head refresh");
+	render(window, QStringLiteral("06-file-navigation-recovery"));
+
 	open(*application, order[4]);
 	window.choose_modality(qt::review_modality::overview);
 	wait_for([&] { return access::epoch_refresh_identity(*application).AcceptedComparison != oldPair; }, "replacement case begins in newer Overview");

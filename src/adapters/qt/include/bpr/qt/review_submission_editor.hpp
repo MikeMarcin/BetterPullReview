@@ -156,6 +156,9 @@ namespace bpr::qt {
 		void               set_attention_colour(const QColor& aColour);
 		[[nodiscard]] auto attention_colour() const -> QColor;
 
+		/// Inspect all retained inline comments, including earlier revisions.
+		void set_saved_comments_reveal(std::function<void()>);
+
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 
@@ -169,6 +172,7 @@ namespace bpr::qt {
 		void                                                        confirm_delete(const core::review_submission_comment& aComment);
 		void                                                        emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
 		void                                                        emit_operation(review_submission_editor_operation aOperation);
+		std::function<void()>                                       SavedCommentsReveal;
 		QString                                                     LastAnnouncement;
 		review_submission_editor_dispatch                           Dispatch;
 		std::optional<core::review_submission_draft>                Draft;

@@ -32,12 +32,18 @@ namespace bpr::application {
 	public:
 		[[nodiscard]] auto scope() const noexcept -> const core::private_review_scope& { return Scope; }
 		[[nodiscard]] auto records() const noexcept -> std::span<const private_draft_record> { return Records; }
+		[[nodiscard]] auto held_reviews() const noexcept -> std::span<const std::string> { return HeldReviews; }
+		[[nodiscard]] auto removed_unused() const noexcept -> std::span<const core::review_draft_id> { return RemovedUnused; }
+		[[nodiscard]] auto unused_retirement_frontier() const noexcept -> std::uint64_t { return UnusedBefore; }
 
 	private:
 		friend class review_composition_application_host;
 		friend class private_publication_application_host;
-		core::private_review_scope        Scope;
-		std::vector<private_draft_record> Records;
+		core::private_review_scope         Scope;
+		std::vector<private_draft_record>  Records;
+		std::vector<core::review_draft_id> RemovedUnused;
+		std::vector<std::string>           HeldReviews;
+		std::uint64_t                      UnusedBefore = 0;
 	};
 	struct review_composition_split
 	{
@@ -66,6 +72,8 @@ namespace bpr::application {
 		[[nodiscard]] auto allocate_draft(const core::private_composition_target&, const core::diff_semantic_index&, std::string aBody = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Ordinary replies may use either exact side; they carry no composition acceptance.
 		[[nodiscard]] auto allocate_reply(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::string aThread) -> private_run_result<durable_draft_commit>;
+		/// \brief Explicitly frees only never-edited empty placeholders; retains all authored and publishing records.
+		[[nodiscard]] auto clear_unused_drafts() -> private_run_result<durable_draft_commit>;
 		[[nodiscard]] auto restore(std::optional<core::git_commit_oid> aHead = { }, std::optional<core::review_draft_id> aDraft = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief [[BPR-1374]]. The draft choosing a line opens: the saved one
 		/// `core::reopen_draft_at` picks under this exact binding, or a new
@@ -73,7 +81,9 @@ namespace bpr::application {
 		/// \details The commit carries only the draft opened. A saved reply is
 		/// opened again by its thread's Reply, so a reply written before a
 		/// Refresh or a restart is the one shown, not a new empty one.
-		[[nodiscard]] auto select_draft(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::optional<std::string> aReplyThread = { }) -> private_run_result<durable_draft_commit>;
+		[[nodiscard]] auto select_draft(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::optional<std::string> aReplyThread = { }, bool aAllocate = true) -> private_run_result<durable_draft_commit>;
+		/// Persist the first real edit of a runtime-only empty selection, in one transaction.
+		[[nodiscard]] auto materialize_draft(const core::private_review_binding&, const core::diff_semantic_index&, const core::revisioned_review_draft&, const core::revisioned_review_draft_command&) -> private_run_result<durable_draft_commit>;
 		/// \brief Uses the existing draft reducer; linked edits atomically retain a reviewer successor.
 		[[nodiscard]] auto change_draft(const core::revisioned_review_draft_command&) -> private_run_result<durable_draft_commit>;
 		/// \brief [[BPR-1345]]. Applies every command through the same draft
@@ -81,6 +91,9 @@ namespace bpr::application {
 		/// Submit holds its pending drafts this way, and its answer completes
 		/// or releases them. Linked prose edits are refused here.
 		[[nodiscard]] auto change_drafts(std::span<const core::revisioned_review_draft_command>) -> private_run_result<durable_draft_commit>;
+
+		/// Reconciles held comments across all retained heads in this exact store scope.
+		[[nodiscard]] auto settle_review(std::string_view aKey, bool aPublished, const std::optional<core::review_submission_proposal>&) -> private_run_result<durable_draft_commit>;
 
 	private:
 		private_review_store_port& Store;

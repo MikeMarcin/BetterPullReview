@@ -45,12 +45,10 @@ namespace bpr::core {
 						replacement = selected;
 					}
 				} else {
-					const auto current    = replacement
-						? replacement->Group
-						: std::optional<change_group_id>{ };
-					const auto navigation = navigate_change(
-						aIndex, current, aValue.Direction, aValue.Policy);
-					if (navigation.Group.has_value()) {
+					const auto navigation = replacement && !replacement->Group
+						? navigate_change(aIndex, replacement->PreferredLine, aValue.Direction, aValue.Policy)
+						: navigate_change(aIndex, replacement ? replacement->Group : std::optional<change_group_id>{ }, aValue.Direction, aValue.Policy);
+					if (navigation.Group && (navigation.Outcome == change_navigation_outcome::selected || navigation.Outcome == change_navigation_outcome::wrapped)) {
 						replacement = select_group(aIndex, *navigation.Group);
 					}
 				}

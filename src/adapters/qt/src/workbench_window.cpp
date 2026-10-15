@@ -1460,6 +1460,9 @@ namespace bpr::qt {
 					  QStringLiteral("&Accept"),
 					  QStringLiteral("toggleSelectedFileAcceptanceAction"),
 					  QStringLiteral("Change private acceptance for the selected exact file material."));
+		ReceiptActions[2]->setShortcutContext(Qt::WindowShortcut);
+		ReceiptActions[2]->setAutoRepeat(false);
+		ReceiptActions[2]->setShortcutVisibleInContextMenu(true);
 		receiptAction(3U,
 					  QStringLiteral("E&xclude"),
 					  QStringLiteral("toggleSelectedFileExclusionAction"),
@@ -1724,6 +1727,8 @@ namespace bpr::qt {
 			QStringLiteral("workbenchStripFilePosition"),
 			QStringLiteral("File position"),
 			QStringLiteral("The selected file's position among the actionable files"));
+		// [[BPR-1519]]. Keep each label beside its arrows inside the stable counter slot.
+		FilePositionLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		FilePositionAction = rowWidget(
 			ReviewBar, FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
 		ReviewBar->addAction(Navigation[0].Action);
@@ -1733,11 +1738,19 @@ namespace bpr::qt {
 			QStringLiteral("workbenchStripChangePosition"),
 			QStringLiteral("Change position"),
 			QStringLiteral("The selected change's position among the comparison's changes"));
+		ChangePositionLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		ChangePositionAction = rowWidget(
 			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		ReviewBar->addAction(Navigation[2].Action);
 		ReviewBar->addAction(Navigation[3].Action);
 		ReviewBar->set_navigation_rails(FilePositionAction, Navigation[1].Action, ChangePositionAction, Navigation[3].Action);
+		// [[BPR-1507]]. The normal file control exposes the existing exact
+		// acceptance action directly; its state menu keeps every alternative.
+		AcceptFileButton = new QToolButton{ ReviewBar };
+		AcceptFileButton->setObjectName(QStringLiteral("workbenchAcceptFileButton"));
+		AcceptFileButton->setDefaultAction(ReceiptActions[2]);
+		AcceptFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
 		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
@@ -2771,6 +2784,7 @@ namespace bpr::qt {
 		privateTabs->setObjectName(QStringLiteral("privateConversationTabs"));
 		privateTabs->setAccessibleName(tr("Private history and agent tools"));
 		PrivateReview = new private_review_panel{ notesPage };
+		ReviewSubmissionEditor->set_saved_comments_reveal([this] { PrivateReview->show_saved_comments(); });
 		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
 		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
 		notesPageLayout->addWidget(privateTabs, 1);
@@ -2819,20 +2833,6 @@ namespace bpr::qt {
 		auto* const commentsToolsRow = new QHBoxLayout{ CommentsTools };
 		commentsToolsRow->setContentsMargins(0, 0, 0, 0);
 		commentsToolsRow->setSpacing(1);
-		// [[BPR-1293]]. The finder button, as the prototype draws it at the
-		// top of the drawer: it goes to Threads.
-		ThreadsFinderButton = new QToolButton{ CommentsTools };
-		ThreadsFinderButton->setObjectName(QStringLiteral("workbenchThreadsFinderButton"));
-		ThreadsFinderButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		ThreadsFinderButton->setAutoRaise(true);
-		ThreadsFinderButton->setIconSize(QSize{ 16, 16 });
-		ThreadsFinderButton->setFocusPolicy(Qt::StrongFocus);
-		ThreadsFinderButton->setIcon(conversation_icon(conversation_glyph::finder, palette()));
-		ThreadsFinderButton->setAccessibleName(QStringLiteral("Find a thread in the pull request"));
-		ThreadsFinderButton->setToolTip(QStringLiteral("Find a thread in the pull request (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText)));
-		ThreadsFinderButton->setAccessibleDescription(ThreadsFinderButton->toolTip());
-		connect(ThreadsFinderButton, &QToolButton::clicked, this, [this] { toggle_threads(); });
-		commentsToolsRow->addWidget(ThreadsFinderButton);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);
@@ -3066,7 +3066,8 @@ namespace bpr::qt {
 				}
 				if (HomeOpenAction != nullptr) {
 					HomeOpenAction->setEnabled(
-						!HomeOpenBar->text().trimmed().isEmpty());
+						!HomeOpenBar->text().trimmed().isEmpty()
+						&& (SessionPanel == nullptr || SessionPanel->status() != core::github_status::establishing_session));
 				}
 			});
 			HomeOpenAction->setEnabled(false);
@@ -3557,6 +3558,12 @@ namespace bpr::qt {
 			FileSearchTabs = new QTabWidget;
 			FileSearchTabs->setObjectName(QStringLiteral("fileSearchTabs"));
 			FileSearchTabs->setAccessibleName(tr("Files and Search"));
+			// [[BPR-1509]]. The tabs are the drawer's header, as in Comments/Notes.
+			FileSearchTabs->setDocumentMode(true);
+			FileSearchTabs->tabBar()->setExpanding(false);
+			FileSearchTabs->tabBar()->setDrawBase(true);
+			FileSearchTabs->tabBar()->setFocusPolicy(Qt::StrongFocus);
+			Drawers[0].Panel->set_heading_shown(false);
 			FileSearchTabs->addTab(filesSurface, tr("Files"));
 			SearchPanel          = new source_search_panel{ FileSearchTabs };
 			SearchPanel->Changed = [this] { update_source_find_actions(); };
@@ -6052,6 +6059,7 @@ namespace bpr::qt {
 			}
 			apply_label_helper();
 			apply_line_details();
+			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
 			// them now, once each.
@@ -7677,13 +7685,20 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
-		// [[BPR-1134]]. The Comments tab carries the same count.
+		// A refresh may retain the drawer's visual anchor without a selected
+		// file. Only standalone diff presentation falls back to that anchor.
+		const auto file       = LastWorkbenchContext.has_value()
+			? (Cursor.has_value() ? Cursor->File : std::nullopt)
+			: (HasGithubPullRequest ? std::nullopt : conversation_anchor_file());
+		const auto fileUnread = file.has_value() ? ConversationPanel->cards()->unread_thread_count(*file) : 0U;
+		// [[BPR-1511]]. The file-context badges count this file; navigation
+		// continues to walk unread threads across the pull request.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
-			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(unread.size());
+			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(fileUnread);
 			TrayTabs->setAccessibleTabName(
 				tray_comments_tab,
-				unread.empty() ? tr("Comments")
-							   : tr("Comments, %1 with new comments").arg(unread.size() == 1U ? tr("one thread") : tr("%1 threads").arg(unread.size())));
+				fileUnread == 0U ? tr("Comments")
+								 : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
 		}
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
@@ -7692,10 +7707,10 @@ namespace bpr::qt {
 		// post newer than what I have read, and says it to accessibility.
 		if (auto* const toggle = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(Drawers[1].Toggle));
 			toggle != nullptr) {
-			set_strip_badge(*toggle, unread.empty() ? QString{ } : QString::number(unread.size()));
-			const auto counted = unread.empty()
+			set_strip_badge(*toggle, fileUnread == 0U ? QString{ } : QString::number(fileUnread));
+			const auto counted = fileUnread == 0U
 				? Drawers[1].Toggle->toolTip()
-				: QStringLiteral("%1 %2 with new comments.").arg(Drawers[1].Toggle->toolTip()).arg(unread.size() == 1U ? QStringLiteral("One thread") : QStringLiteral("%1 threads").arg(unread.size()));
+				: QStringLiteral("%1 %2 with new comments in this file.").arg(Drawers[1].Toggle->toolTip()).arg(fileUnread == 1U ? QStringLiteral("One thread") : QStringLiteral("%1 threads").arg(fileUnread));
 			toggle->setAccessibleDescription(counted);
 		}
 	}
@@ -7805,6 +7820,9 @@ namespace bpr::qt {
 			&& (!ReviewEditor->body_editor()->isReadOnly() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
 			&& ReviewEditor->shown_draft() && selection
 			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
+		if (aDraftRequired && !draftReady && !CommentDraftUnavailable.isEmpty()) {
+			return say(CommentDraftUnavailable, tr("Open Saved comments to recover"));
+		}
 		if (aDraftRequired && !draftReady) {
 			return say(tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."), tr("No draft available"));
 		}
@@ -8658,6 +8676,11 @@ namespace bpr::qt {
 		return DeleteDraftConfirmation.data();
 	}
 
+	void workbench_window::set_comment_draft_unavailable(QString aReason)
+	{
+		CommentDraftUnavailable = std::move(aReason);
+		update_comment_target();
+	}
 	void workbench_window::set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
 	{
 		PendingCommentDeleteDispatch = std::move(aDispatch);
@@ -9156,6 +9179,18 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
 			});
+		CenterRibbonWidth = new QSpinBox{ BehaviourEditor };
+		CenterRibbonWidth->setObjectName(QStringLiteral("centerRibbonWidth"));
+		CenterRibbonWidth->setAccessibleName(QStringLiteral("Center ribbon width"));
+		CenterRibbonWidth->setAccessibleDescription(QStringLiteral("Width between the two source panes, in logical pixels"));
+		CenterRibbonWidth->setRange(static_cast<int>(application::minimum_center_ribbon_width), static_cast<int>(application::maximum_center_ribbon_width));
+		CenterRibbonWidth->setSuffix(QStringLiteral(" px"));
+		CenterRibbonWidth->setKeyboardTracking(false);
+		connect(CenterRibbonWidth, &QSpinBox::valueChanged, this, [this] {
+			if (!ApplyingBehaviour) {
+				dispatch_behaviour_from_controls();
+			}
+		});
 		// [[BPR-1334]]. The owner, 2026-10-08: "an optional on by default view
 		// page below the side by side". The same choice as View > Line Details.
 		addGroup(
@@ -9167,9 +9202,11 @@ namespace bpr::qt {
 					 QStringLiteral("lineDetails"),
 					 { { QStringLiteral("Shown"), QStringLiteral("lineDetailsShown") },
 					   { QStringLiteral("Hidden"), QStringLiteral("lineDetailsHidden") } } },
+				row{ 0U, QStringLiteral("Center ribbon width"), QStringLiteral("centerRibbonWidth"), { }, nullptr, CenterRibbonWidth },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.LineDetails = application::review_behaviour_settings{ }.LineDetails;
+				aNext.LineDetails       = application::review_behaviour_settings{ }.LineDetails;
+				aNext.CenterRibbonWidth = application::default_center_ribbon_width;
 			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
@@ -9422,6 +9459,9 @@ namespace bpr::qt {
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
+		if (CenterRibbonWidth != nullptr) {
+			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
+		}
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
 		}
@@ -9448,16 +9488,17 @@ namespace bpr::qt {
 			return 0U;
 		};
 		return application::review_behaviour_settings{
-			.OpenModality     = static_cast<application::review_open_modality>(chosen(0U)),
-			.MarkRead         = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
-			.ReturnComparison = static_cast<application::review_return_comparison>(chosen(3U)),
-			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
-			.DrawerControls   = static_cast<application::review_drawer_controls>(chosen(5U)),
-			.FeedbackMarks    = static_cast<application::review_feedback_marks>(chosen(6U)),
-			.LabelHelper      = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
-			.OverviewCounts   = static_cast<application::review_overview_counts>(chosen(7U)),
-			.LabelColumns     = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
-			.LineDetails      = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
+			.OpenModality      = static_cast<application::review_open_modality>(chosen(0U)),
+			.MarkRead          = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
+			.ReturnComparison  = static_cast<application::review_return_comparison>(chosen(3U)),
+			.CommentsFilter    = static_cast<application::review_comments_filter>(chosen(4U)),
+			.DrawerControls    = static_cast<application::review_drawer_controls>(chosen(5U)),
+			.FeedbackMarks     = static_cast<application::review_feedback_marks>(chosen(6U)),
+			.LabelHelper       = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
+			.OverviewCounts    = static_cast<application::review_overview_counts>(chosen(7U)),
+			.LabelColumns      = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
+			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
+			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 		};
 	}
 
@@ -9591,10 +9632,14 @@ namespace bpr::qt {
 				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: QString{ });
 		HomeLanding->set_state(
-			(HasGithubPullRequest || HasCachedOverview) ? landing_state::back_to_review
-				: account                               ? landing_state::choose_pull_request
-														: landing_state::sign_in);
+			status == core::github_status::establishing_session ? landing_state::connecting
+				: (HasGithubPullRequest || HasCachedOverview)   ? landing_state::back_to_review
+				: account                                       ? landing_state::choose_pull_request
+																: landing_state::sign_in);
 		place_home_landing();
+		if (HomeOpenAction != nullptr && HomeOpenBar != nullptr) {
+			HomeOpenAction->setEnabled(status != core::github_status::establishing_session && !HomeOpenBar->text().trimmed().isEmpty());
+		}
 		// [[BPR-0775]]. Signed out, the bar reads a public pull request without
 		// an account and says so; with an account it names any pull request.
 		if (HomeOpenBar != nullptr) {
@@ -10034,6 +10079,9 @@ namespace bpr::qt {
 
 	void workbench_window::begin_github_cli_from_home()
 	{
+		if (SessionPanel != nullptr && !SessionPanel->connect_enabled()) {
+			return;
+		}
 		open_sign_in({ }, true);
 		if (GithubCliDiscoveryDispatch && GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
 			GithubCliDiscoveryDispatch();
@@ -11729,9 +11777,7 @@ namespace bpr::qt {
 			shown.DeviceSignIn  = holdsSignIn && deviceFlow && flowHere;
 			// Sign in is shown only while its way in is admitted: the device
 			// flow's begin for a host with one, otherwise Connect.
-			shown.SignInAdmitted = card->offers_device_sign_in()
-				? DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()
-				: admitted;
+			shown.SignInAdmitted = admitted && (!card->offers_device_sign_in() || (DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()));
 			const auto signedIn  = shown.State == server_card_state::connected && shown.Session.has_value();
 			if (holdsSignIn && deviceSigning && !signedIn) {
 				shown.State = server_card_state::signing_in;
@@ -12803,11 +12849,6 @@ namespace bpr::qt {
 		return ShowThreadsAction;
 	}
 
-	auto workbench_window::threads_finder_button() const noexcept -> QToolButton*
-	{
-		return ThreadsFinderButton;
-	}
-
 	void workbench_window::set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels)
 	{
 		if (Finder != nullptr) {
@@ -12845,6 +12886,9 @@ namespace bpr::qt {
 
 	void workbench_window::open_from_home_bar()
 	{
+		if (SessionPanel != nullptr && SessionPanel->status() == core::github_status::establishing_session) {
+			return;
+		}
 		if (HomeOpenBar && SetupDestinationDispatch) {
 			if (SignInDialog && SignInDialog->isVisible()) {
 				SignInDialog->reject();
@@ -13360,6 +13404,7 @@ namespace bpr::qt {
 			append(barPresenter(Navigation[1].Action));
 			append(barPresenter(Navigation[2].Action));
 			append(barPresenter(Navigation[3].Action));
+			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));
@@ -14195,10 +14240,6 @@ namespace bpr::qt {
 			const auto tip = QStringLiteral("Find a thread in the pull request (%1)").arg(ShowThreadsAction->shortcut().toString(QKeySequence::NativeText));
 			ShowThreadsAction->setToolTip(tip);
 			ShowThreadsAction->setStatusTip(tip);
-			if (ThreadsFinderButton != nullptr) {
-				ThreadsFinderButton->setToolTip(tip);
-				ThreadsFinderButton->setAccessibleDescription(tip);
-			}
 		}
 		addAction(ShowThreadsAction);
 		ViewMenu->addAction(ShowThreadsAction);
@@ -14207,6 +14248,7 @@ namespace bpr::qt {
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
 			update_source_find_actions();
+			update_accept_file_shortcut();
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
 			}
@@ -14521,7 +14563,7 @@ namespace bpr::qt {
 
 	void workbench_window::open_sign_in(std::string aHostname, const bool aCliOnly)
 	{
-		if (!AccountsPanel) {
+		if (!AccountsPanel || (SessionPanel != nullptr && !SessionPanel->connect_enabled())) {
 			return;
 		}
 		if (!SignInDialog) {
@@ -15091,6 +15133,7 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+		ReviewBar->adopt_button(AcceptFileButton);
 		ReviewBar->adopt_button(ReviewControlsButton);
 		update_compose_mark();
 		if (auto* const button = qobject_cast<QToolButton*>(
@@ -15293,10 +15336,31 @@ namespace bpr::qt {
 		apply_drawers_toggle();
 		apply_updates_line();
 		update_receipt_actions();
+		update_new_comment_group();
 		// Last, and deliberately. The mode is not a second opinion about a
 		// command's legality; it is the answer that stands once the core's
 		// projections have had theirs.
 		apply_public_preview_availability();
+	}
+
+	void workbench_window::update_accept_file_shortcut()
+	{
+		// [[BPR-1515]]. Accept's retained action becomes Revoke after
+		// persistence, without this binding. Removing it while editing also
+		// yields native menu equivalents without changing receipt eligibility.
+		auto* const       action  = ReceiptActions[2];
+		const auto* const focused = QApplication::focusWidget();
+		const auto* const line    = qobject_cast<const QLineEdit*>(focused);
+		const auto        editing = focused != nullptr && isAncestorOf(focused)
+			&& (editable_multi_line(focused) || (line != nullptr && !line->isReadOnly()));
+		const auto accepts = !Receipt || Receipt->Actions[2].Command.Kind == core::file_receipt_command_kind::accept;
+		action->setShortcut(accepts && !editing ? QKeySequence{ QStringLiteral("Ctrl+Shift+A") } : QKeySequence{ });
+		const auto key = action->shortcut().toString(QKeySequence::NativeText);
+		action->setToolTip(key.isEmpty() ? action->statusTip()
+										 : QStringLiteral("Accept file (%1)\n%2").arg(key, action->statusTip()));
+		if (AcceptFileButton != nullptr) {
+			AcceptFileButton->setAccessibleDescription(action->toolTip());
+		}
 	}
 
 	void workbench_window::update_receipt_actions()
@@ -15342,7 +15406,7 @@ namespace bpr::qt {
 				return QStringLiteral("Private progress");
 			}();
 			action->setText(label);
-			action->setIconText(label);
+			action->setIconText(QString{ label }.remove(QLatin1Char{ '&' }));
 			const auto checked = Receipt.has_value()
 				&& (index == 0U
 						? Receipt->Receipt.Read != core::file_read_state::unread
@@ -15354,8 +15418,21 @@ namespace bpr::qt {
 			describe_action(
 				action,
 				projected != nullptr && projected->Enabled && !LedgerUnavailable,
-				QStringLiteral("Update private progress for the selected exact file material."),
-				disabled);
+				index == 2U
+					? kind == core::file_receipt_command_kind::revoke_acceptance
+						? QStringLiteral("Revoke private acceptance for this file.")
+						: QStringLiteral("Accept this file privately.")
+					: QStringLiteral("Update private progress for the selected exact file material."),
+				index == 2U && Receipt.has_value() && Receipt->Receipt.Excluded && !LedgerUnavailable
+					? QStringLiteral("Include this file from Private progress before accepting it.")
+					: disabled);
+		}
+		update_accept_file_shortcut();
+		if (AcceptFileButton != nullptr) {
+			AcceptFileButton->setAccessibleName(ReceiptActions[2]->isChecked()
+													? QStringLiteral("Revoke file acceptance")
+													: QStringLiteral("Accept file"));
+			AcceptFileButton->setAccessibleDescription(ReceiptActions[2]->toolTip());
 		}
 		// [[BPR-1129]] [[BPR-1331]]. The review bar's progress button shows the
 		// selected file's mark, the one the core decided, as its icon, and says

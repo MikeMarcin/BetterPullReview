@@ -324,6 +324,21 @@ try {
 		QApplication::processEvents();
 		const auto quietList = listTop();
 		const auto quietBar  = barTop();
+		// [[BPR-1505]]. The public Home row's changes, age and comments
+		// stay aligned while its opening action appears and disappears.
+		const auto rowFacts = [&](const char* aIdentity = served_name) {
+			const auto found  = row_of(*window, aIdentity);
+			auto       option = QStyleOptionViewItem{ };
+			option.initFrom(found.View);
+			option.rect   = found.View->visualRect(found.Index);
+			option.font   = found.View->font();
+			option.widget = found.View;
+			return window->home_list()->row_delegate()->facts_rect(option, found.Index);
+		};
+		const auto quietFacts = rowFacts();
+		expect(!quietFacts.isEmpty(), "the composed Home row has change facts to align");
+		const auto factsAligned = [&] { return rowFacts().left() == quietFacts.left() && rowFacts().right() == quietFacts.right(); };
+		renders(QStringLiteral("row-idle"));
 
 		// ---- a single click only selects ([[BPR-1364]]) -------------------
 		const auto row          = row_of(*window, served_name);
@@ -349,6 +364,7 @@ try {
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
 		QApplication::processEvents();
 		expect(listTop() == quietList && barTop() == quietBar, "a row opening moves neither the bar nor the list");
+		expect(factsAligned(), "opening keeps the Home row's facts aligned");
 		renders(QStringLiteral("row-opening"));
 
 		// A second double-click is the same request.
@@ -362,6 +378,7 @@ try {
 		auto* const action = window->home_list()->open_action();
 		expect(action->isVisible() && action->text() == QStringLiteral("Cancel") && action->accessibleName() == QStringLiteral("Cancel opening %1").arg(QString::fromUtf8(served_name)),
 			   "the row offers Cancel, named for its pull request");
+		expect(factsAligned() && action->geometry().right() < rowFacts().left(), "Cancel is left of the changes and history, which keep their alignment");
 		expect(row_lines(*window, row_of(*window, served_name)).contains(QStringLiteral("Opening #17: asking GitHub for the pull request…")),
 			   "the row names the step it is on");
 		expect(std::ranges::any_of(announcements, [](const QString& aText) { return aText.startsWith(QStringLiteral("Opening octo-org/review-repository#17: ")) && aText.endsWith(QStringLiteral("Cancel is available.")); }),
@@ -374,15 +391,20 @@ try {
 		wait_for([&] { return !window->home_open().has_value() && delay->Cancelled.load() > cancelledBefore; }, "Cancel stops the read on the wire and Home is quiet again");
 		expect(window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_cancelled, "a cancelled opening stays on Home");
 		expect(!action->isVisible() && window->home_list()->row_delegate()->open().Phase == qt::home_row_open_phase::none, "the row is itself again");
+		expect(factsAligned(), "cancelling keeps the Home row's facts aligned");
 		expect(!row_lines(*window, row_of(*window, served_name)).contains(QStringLiteral("Opening")), "the row says why it is listed again");
 
 		// ---- a failure on its row, and Retry -------------------------------
-		const auto failingRow = row_of(*window, failing_name);
+		const auto failingRow   = row_of(*window, failing_name);
+		const auto failingFacts = rowFacts(failing_name);
 		double_click(failingRow);
 		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->open_view() == failingRow.View, "the failing row is opening at once");
 		wait_for([&] { return phase(*window) == core::home_open_phase::failed; }, "the failing read fails after its wait", { }, 15000);
 		QApplication::processEvents();
 		expect(window->showing_home() && action->isVisible() && action->text() == QStringLiteral("Retry"), "the failed row offers Retry");
+		const auto retryFacts = rowFacts(failing_name);
+		expect(retryFacts.left() == failingFacts.left() && retryFacts.right() == failingFacts.right() && action->geometry().right() < retryFacts.left(),
+			   "Retry is left of the failed row's facts and keeps their alignment");
 		std::cerr << "failed row: " << row_lines(*window, row_of(*window, failing_name)).toStdString() << " reason=" << static_cast<int>(window->home_open()->State->Reason) << " delayed=" << delay->Delayed.load() << " failed=" << delay->Failed.load() << " recording=" << app::detail::github_application_fixture_access::evidence(*owner).RecordingFailure << '\n';
 		expect(row_lines(*window, row_of(*window, failing_name)).contains(QStringLiteral("Couldn't open #4001. The GitHub host could not be reached.")),
 			   "the failed row says why, in its own words");

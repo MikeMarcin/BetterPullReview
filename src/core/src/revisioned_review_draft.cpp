@@ -2,6 +2,31 @@
 #include <algorithm>
 #include <limits>
 namespace bpr::core {
+	auto unused_review_draft(const revisioned_review_draft& aDraft) noexcept -> bool
+	{
+		return aDraft.Revision == 1 && aDraft.Draft.State == review_draft_state::drafting && aDraft.Draft.Body.empty() && !aDraft.Draft.ReplyToThread && !aDraft.Draft.InReview && !aDraft.Composition;
+	}
+	auto settle_held_review_draft(const revisioned_review_draft& aSaved, std::string_view aKey, bool aPublished, const review_submission_proposal* aProposal) -> std::optional<revisioned_review_draft_command>
+	{
+		const auto& draft = aSaved.Draft;
+		if (!held_by_review(draft) || draft.InReview->Submission != aKey || (aPublished && !aProposal)) {
+			return std::nullopt;
+		}
+		if (aProposal) {
+			const auto carried = std::ranges::find(aProposal->Comments, draft.Id, &review_submission_comment::Draft);
+			if (carried == aProposal->Comments.end() || carried->DraftRevision == std::numeric_limits<std::uint64_t>::max() || aSaved.Revision != carried->DraftRevision + 1U || draft.Body != carried->Body || draft.InReview->Head != aProposal->Target.ExpectedHead || draft.InReview->Path != carried->Path || draft.Anchor.Side != carried->Side || draft.Anchor.Line != carried->Line || draft.StartLine != carried->StartLine) {
+				return std::nullopt;
+			}
+		}
+		auto command = revisioned_review_draft_command{ { draft.Id, aPublished ? review_draft_command_kind::complete_publish : review_draft_command_kind::fail_publish, { } }, aSaved.Revision, false, { }, aSaved.Scope };
+		if (!aPublished) {
+			auto mark = *draft.InReview;
+			mark.Submission.clear();
+			command.ChangePending = true;
+			command.Pending       = std::move(mark);
+		}
+		return command;
+	}
 	namespace {
 		auto valid_link(const review_composition_link& aLink, std::string_view aBody) -> bool
 		{

@@ -73,6 +73,7 @@
 	#include <QPainter>
 	#include <QStatusBar>
 	#include <glaze/json.hpp>
+	#include <qpa/qwindowsysteminterface.h>
 #endif
 
 // [[BPR-1179]]. BPR_AGENT_INTEGRATIONS and BPR_LOCAL_AUTOMATION are defined
@@ -147,6 +148,7 @@
 #include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
+#include "bpr/core/github_transition.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
@@ -6779,6 +6781,7 @@ namespace bpr::app {
 			core::request_generation                      Generation;
 			std::optional<core::document_tab_id>          Tab;
 			std::optional<core::window_review_position>   View;
+			bool                                          RestoreReading = true;
 		};
 		std::optional<pending_review_navigation> PendingReviewNavigation;
 		std::optional<pending_review_navigation> ReviewNavigationFocus;
@@ -6821,7 +6824,14 @@ namespace bpr::app {
 			// reading position it saw: a selection made just before the press
 			// reaches the tab a lane turn later, and the stale position would
 			// never be on screen again, holding the press forever.
-			if (active && !tab_view_presented(active->View)) {
+			// Ordinary file navigation needs the accepted file order, not source
+			// material or a matching line selection. A terminal source failure
+			// must not trap its arrows while the tree can still choose a file.
+			// Entry from another modality still restores the exact reading first.
+			const auto fileOrderReady = !pending.RestoreReading && active
+				&& WorkbenchHost->selected() == active->View.File
+				&& EpochHost->state().AcceptedComparison == std::optional{ active->View.Comparison };
+			if (active && !fileOrderReady && !tab_view_presented(active->View)) {
 				// An unavailable exact view keeps its normal explanation and never
 				// lends another comparison to the retained navigation command.
 				if (active->State == core::document_tab_view_state::unavailable) {
@@ -6847,11 +6857,14 @@ namespace bpr::app {
 			if (!aCommand || Closing || !TabHost || !WorkbenchHost || !EpochHost || !LastAcceptedHandoff) {
 				return;
 			}
-			const auto* active      = TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
-			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt };
+			const auto restoreReading = TabModality != core::workbench_modality::review
+				|| (*aCommand != core::workbench_command_id::previous_file && *aCommand != core::workbench_command_id::next_file);
 			// Start the ordinary modality/tab driver before interpreting the
-			// command. Its completion resumes only the bound exact view.
+			// command, and reflect a preceding tree choice before binding it.
+			// Otherwise that queued reflection cancels this later press as stale.
 			advance_tab_presentation();
+			const auto* active      = TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
+			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt, restoreReading };
 			continue_review_navigation();
 		}
 		void finish_tab_load(const core::document_tab_view_outcome aOutcome)
@@ -6864,7 +6877,10 @@ namespace bpr::app {
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
 			TabHost->complete(request->Request, aOutcome);
-			if (aOutcome == core::document_tab_view_outcome::unavailable) {
+			// A failed reading restoration refuses entry navigation. An ordinary
+			// file press can still use the now-settled exact file order below.
+			if (aOutcome == core::document_tab_view_outcome::unavailable
+				&& (!PendingReviewNavigation || PendingReviewNavigation->RestoreReading)) {
 				const auto command = PendingReviewNavigation ? std::optional{ PendingReviewNavigation->Command } : std::nullopt;
 				cancel_review_navigation();
 				if (command) {
@@ -6874,6 +6890,9 @@ namespace bpr::app {
 			if (aOutcome == core::document_tab_view_outcome::ready) {
 				finish_review_navigation_focus();
 				resume_reply();
+				if (SelectedDiffPublication && ReviewLedgerHost) {
+					mark_presented_file_seen(*SelectedDiffPublication, ReviewLedgerHost->retained());
+				}
 			}
 			continue_review_navigation();
 		}
@@ -6938,6 +6957,9 @@ namespace bpr::app {
 			}
 			observe_tab_changes();
 			continue_review_navigation();
+			if (SelectedDiffPublication && ReviewLedgerHost) {
+				mark_presented_file_seen(*SelectedDiffPublication, ReviewLedgerHost->retained());
+			}
 		}
 		void drive_tab()
 		{
@@ -7405,6 +7427,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// session presents it now, as its siblings did when it was accepted.
 			if (const auto adopted = WindowRead->adopted_presentation()) {
 				Window->publish(*adopted);
+			} else if (const auto pending = Host->pending_session_presentation()) {
+				Window->publish(*pending);
 			}
 			WorkbenchHost->restore();
 			AppearanceHost->restore();
@@ -7471,6 +7495,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
 			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
 				if (Closing || !SetupDestination) {
+					return;
+				}
+				if (!std::holds_alternative<application::cancel_setup_destination>(aIntent)
+					&& Host && !core::github_connection_setup_available(Host->state())) {
 					return;
 				}
 				std::visit([this](const auto& aValue) {
@@ -9070,6 +9098,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (const auto* const begin
 				= std::get_if<core::begin_device_authorization_intent>(
 					&aGesture)) {
+				if (Host == nullptr || !core::github_connection_setup_available(Host->state())) {
+					return;
+				}
 				if (GithubCliDiscoveryPending) {
 					retire_cli_discovery();
 				}
@@ -9183,6 +9214,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// dispatches; nothing here knows how the flow works.
 		void begin_public_preview_sign_in(const core::host_profile_id aProfile)
 		{
+			if (Host == nullptr || !core::github_connection_setup_available(Host->state())) {
+				return;
+			}
 			cancel_restoration(true);
 			++PublicPreviewSignInRequests;
 			if (Closing || DeviceHost == nullptr || aProfile.value() == 0U) {
@@ -9274,6 +9308,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+				AutoSeenPresentedRequest.reset();
 				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
@@ -9284,6 +9319,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1132]]. A modality change decides whether the comparison
 			// shows the active tab's pair or the window's.
 			if (std::holds_alternative<core::set_workbench_modality_intent>(aIntent)) {
+				AutoSeenPresentedRequest.reset();
 				schedule_tab_presentation();
 			}
 #if defined(BPR_BUILD_TESTING)
@@ -11361,30 +11397,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto published = aPublication == application::review_submission_publication::published;
-			auto       commands  = std::vector<core::revisioned_review_draft_command>{ };
+			if (PrivateReview) {
+				PrivateReview->settle_review_comments(aKey, published, aRequest ? std::optional{ aRequest->Proposal } : std::nullopt);
+				return;
+			}
+			auto commands = std::vector<core::revisioned_review_draft_command>{ };
 			for (const auto& saved : SharedDrafts->recovery_snapshot()) {
-				const auto& draft = saved.Draft;
-				if (!core::held_by_review(draft) || draft.InReview->Submission != aKey) {
-					continue;
+				if (auto command = core::settle_held_review_draft(saved, aKey, published, aRequest ? &aRequest->Proposal : nullptr)) {
+					commands.push_back(std::move(*command));
 				}
-				const auto carried = aRequest ? std::ranges::find(aRequest->Proposal.Comments, draft.Id, &core::review_submission_comment::Draft) : decltype(aRequest->Proposal.Comments.cend()){ };
-				const auto exact   = aRequest && carried != aRequest->Proposal.Comments.cend() && saved.Revision == carried->DraftRevision + 1U && draft.Body == carried->Body;
-				if (published && !exact) {
-					// Published, but not as this draft now reads: it is not
-					// marked published, and stays held for its owner to see.
-					continue;
-				}
-				auto command             = core::revisioned_review_draft_command{ };
-				command.Command          = core::review_draft_command{ .Id = draft.Id, .Kind = published ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish };
-				command.ExpectedRevision = saved.Revision;
-				command.Scope            = saved.Scope;
-				if (!published) {
-					auto mark = *draft.InReview;
-					mark.Submission.clear();
-					command.ChangePending = true;
-					command.Pending       = std::move(mark);
-				}
-				commands.push_back(std::move(command));
 			}
 			change_review_drafts(std::move(commands), [](bool) { });
 		}
@@ -11509,7 +11530,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SharedDrafts  = owner->Host;
 			auto attached = SharedDrafts->attach(SharedDrafts->authority(), DraftWindow,
 												 [this](const core::revisioned_review_draft& aAccepted) {
-													 if (!Closing && ReviewDraft && ReviewDraft->Id == aAccepted.Draft.Id) {
+													 // [[BPR-1521]]. A sibling's first save replaces only
+													 // our untouched selection at this exact anchor. A local
+													 // candidate keeps its own first-save acknowledgement.
+													 const auto* editor    = Window ? Window->review_editor() : nullptr;
+													 const auto  untouched = ReviewDraft && ReviewDraft->Id.value() > core::maximum_private_identity
+														 && core::unused_review_draft({ *ReviewDraft, ReviewDraftRevision, DraftScope })
+														 && aAccepted.Scope == DraftScope && aAccepted.Draft.Id.value() <= core::maximum_private_identity
+														 && aAccepted.Draft.Anchor == ReviewDraft->Anchor && aAccepted.Draft.ReplyToThread == ReviewDraft->ReplyToThread
+														 && (aAccepted.Draft.State == core::review_draft_state::drafting || aAccepted.Draft.State == core::review_draft_state::publishing)
+														 && !PrivateDraftCommandPending && editor && !editor->rejected_candidate() && editor->shown_draft() == ReviewDraft;
+													 if (!Closing && ReviewDraft && (ReviewDraft->Id == aAccepted.Draft.Id || untouched)) {
 														 accept_shared_draft(aAccepted);
 													 } else {
 														 present_saved_drafts();
@@ -12235,6 +12266,53 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					settle(false);
 					return;
 				}
+				if (ReviewDraft->Id.value() > core::maximum_private_identity) {
+					if (aCommand.Kind == core::review_draft_command_kind::discard && PrivateDraftCommandPending) {
+						Window->review_editor()->present_publication_refusal(QStringLiteral("Your comment is still being saved. Delete it after saving completes."));
+						settle(false);
+						return;
+					}
+					if (aCommand.Kind == core::review_draft_command_kind::discard) {
+						adopt_review_selection(SelectedSemanticSelection, qt::review_draft_editor_clear_reason::selection_cleared);
+						settle(true);
+						return;
+					}
+					if (aCommand.Kind != core::review_draft_command_kind::edit || PrivateDraftCommandPending) {
+						settle(false);
+						return;
+					}
+					PrivateDraftCommandPending = true;
+					const auto owner           = SharedDrafts;
+					const auto placeholder     = core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope };
+					PrivateReview->materialize_draft(placeholder, aRevisionedCommand, [this, owner, placeholder, aRevisionedCommand, settled = std::move(aSettled)](auto aCommit) {
+						PrivateDraftCommandPending = false;
+						const auto accepted        = !Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit);
+						if (accepted && !aCommit->records().empty()) {
+							present_saved_drafts();
+							const auto saved = owner->read(DraftConsumer, aCommit->records().front().Draft.Draft.Id);
+							if (saved.Accepted) {
+								const auto shown = ReviewDraft && ReviewDraft->Id == placeholder.Draft.Id;
+								if (shown) {
+									ReviewDraft         = saved.Accepted->Draft;
+									ReviewDraftRevision = saved.Accepted->Revision;
+								}
+								Window->review_editor()->acknowledge_materialized(aRevisionedCommand, *saved.Accepted);
+								if (shown && !Window->review_editor()->rejected_candidate()) {
+									accept_shared_draft(*saved.Accepted);
+								}
+							}
+						} else if (!Closing && owner == SharedDrafts && ReviewDraft && ReviewDraft->Id == placeholder.Draft.Id) {
+							Window->review_editor()->present_conflict({ .Accepted = placeholder, .Refusal = core::revisioned_draft_refusal::conflict });
+							Window->review_editor()->present_publication_refusal(!aCommit && aCommit.error().Store == application::private_store_failure::quota
+																					 ? QStringLiteral("Your text has not been saved: the comment storage limit was reached. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then choose Reapply my text. Your text is kept here.")
+																					 : QStringLiteral("Your text has not been saved. It is kept here; choose Reapply my text to retry before leaving this comment."));
+						}
+						if (settled) {
+							settled(accepted);
+						}
+					});
+					return;
+				}
 				if (aCommand.Kind == core::review_draft_command_kind::begin_publish && ReviewDraft->State == core::review_draft_state::publishing) {
 					auto finished = false;
 					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
@@ -12389,6 +12467,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const std::optional<core::semantic_selection>& aSelection,
 			const qt::review_draft_editor_clear_reason     aReason)
 		{
+			Window->set_comment_draft_unavailable({ });
 			SelectedSemanticSelection = aSelection;
 			PendingPrivateReply.reset();
 			ReviewDraft.reset();
@@ -12482,7 +12561,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto cursor = core::workbench_change_cursor{
 				.ChangeCount = static_cast<std::uint32_t>(groups.size()),
 			};
-			if (!aSelection.has_value() || !aSelection->Group.has_value()) {
+			if (aSelection && !aSelection->Group) {
+				const auto index = comparison->current_semantic_index();
+				const auto next  = index ? core::navigate_change(*index, aSelection->PreferredLine,
+																 core::change_navigation_direction::next, core::change_navigation_policy::stop)
+										 : core::change_navigation_result{ };
+				if (next.Outcome == core::change_navigation_outcome::invalid_selection) {
+					WorkbenchHost->observe_change_navigation(selected.Request, std::nullopt);
+					return;
+				}
+				cursor.AtUnchangedLine   = true;
+				cursor.Ordinal           = next.Index.value_or(cursor.ChangeCount);
+				cursor.PreviousAvailable = cursor.Ordinal > 0U;
+				cursor.NextAvailable     = cursor.Ordinal < cursor.ChangeCount;
+			} else if (!aSelection) {
 				cursor.PreviousAvailable = !groups.empty();
 				cursor.NextAvailable     = !groups.empty();
 			} else {
@@ -12572,6 +12664,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						return;
 					}
 					if (!adopted) {
+						if (!aCommit && aCommit.error().Store == application::private_store_failure::quota) {
+							const auto reason = QStringLiteral("Comment storage is full. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then select the line again. Written comments and pending publications are kept.");
+							Window->review_editor()->present_publication_refusal(reason);
+							Window->set_comment_draft_unavailable(reason);
+							return;
+						}
 						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
 							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
 							begin_review_reply(reply->second);
@@ -12778,7 +12876,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
 				PrivateDraftsReady = true;
 				const auto owner   = SharedDrafts;
-				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){present_saved_drafts();if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}resume_reply();}else{PrivateDraftsReady=false;} });
+				PrivateReview->restore([this, owner](auto aCommit) {
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					if (aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						present_saved_drafts();
+						if (ReviewSubmission) {
+							ReviewSubmission->resolve_held(std::vector<std::string>{ aCommit->held_reviews().begin(), aCommit->held_reviews().end() });
+						}
+						if (SelectedSemanticSelection) {
+							present_review_draft(*SelectedSemanticSelection);
+						}
+						resume_reply();
+					} else {
+						PrivateDraftsReady = false;
+					}
+				});
 			}
 		}
 		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
@@ -12787,6 +12901,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			present_saved_drafts();
+			if (ReviewDraft && std::ranges::find(aCommit.removed_unused(), ReviewDraft->Id) != aCommit.removed_unused().end()) {
+				adopt_review_selection(SelectedSemanticSelection, qt::review_draft_editor_clear_reason::selection_cleared);
+			} else if (!aCommit.removed_unused().empty() && SelectedSemanticSelection) {
+				Window->set_comment_draft_unavailable({ });
+				present_review_draft(*SelectedSemanticSelection);
+			}
 			if (aOpen && !aCommit.records().empty()) {
 				const auto& value = aCommit.records().front().Draft;
 				const auto  read  = SharedDrafts->read(DraftConsumer, value.Draft.Id);
@@ -12950,6 +13070,48 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				== aInvalidation.IdentityGeneration;
 		}
 
+		/// \brief Records Seen only while the successfully presented file is still current.
+		void mark_presented_file_seen(
+			const application::workbench_selected_diff_publication& aPublication,
+			const core::file_receipt&                               aReceipt)
+		{
+			const auto* const surface = Window == nullptr ? nullptr : Window->comparison_surface();
+			if (Closing || Window == nullptr || ReviewLedgerHost == nullptr || WorkbenchHost == nullptr
+				|| Window->showing_home() || Window->current_modality() != qt::review_modality::review
+				|| WorkbenchHost->state().Modality != core::workbench_modality::review
+				|| TabLoad || TabDriver || PendingRestoration || ReadingRestoration
+				|| AutoSeenPresentedRequest == std::optional{ aPublication.Request }
+				|| !SelectedDiffPublication || SelectedDiffPublication->Request != aPublication.Request
+				|| SelectedDiffRequest != std::optional{ aPublication.Request }
+				|| SelectedDiffPublication->Key != aPublication.Key
+				|| EpochHost == nullptr || EpochHost->context(aPublication.Request.WorkbenchAuthority) != std::optional{ aPublication.Request.Diff }
+				|| WorkbenchHost->generation() != aPublication.Request.Context.Generation
+				|| WorkbenchHost->selected() != std::optional{ aPublication.Request.File.File }
+				|| surface == nullptr || !surface->isVisibleTo(Window.get()) || !surface->current_result()
+				|| !surface->current_context() || surface->current_context()->Key != aPublication.Key
+				|| surface->current_result()->Alignment.Key != aPublication.Key
+				|| aReceipt.File != aPublication.Request.File.File
+				|| aReceipt.Material != core::file_material(aPublication.Key)) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable || ReviewLedgerAuthority != std::optional{ aPublication.Request.WorkbenchAuthority }) {
+					return;
+				}
+			}
+			AutoSeenPresentedRequest = aPublication.Request;
+			const auto command       = core::file_receipt_command{
+				.File     = aReceipt.File,
+				.Material = aReceipt.Material,
+				.Kind     = core::file_receipt_command_kind::mark_seen,
+			};
+			// The core absorbs Seen after Read and preserves Accept and Exclude.
+			if (core::apply(aReceipt, command).Changed) {
+				dispatch_receipt(command);
+			}
+		}
+
 		void observe_selected_material(
 			const application::diff_publication& aPublication)
 		{
@@ -12991,7 +13153,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.File     = SelectedDiffPublication->Request.File.File,
 					.Material = material,
 				},
-				ledger_answer([this](const std::expected<core::file_receipt, application::ledger_store_failure>&) {
+				ledger_answer([this, presented = *SelectedDiffPublication](const std::expected<core::file_receipt, application::ledger_store_failure>& aReceipt) {
+					if (aReceipt) {
+						mark_presented_file_seen(presented, *aReceipt);
+					}
 					if (SelectedSemanticSelection.has_value()) {
 						present_review_draft(*SelectedSemanticSelection);
 					}
@@ -14177,8 +14342,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void discover_github_cli_accounts(const bool aConnectSingle = true)
 		{
 #if defined(__APPLE__)
-			if (Closing || GithubCliDiscoveryPending || Window == nullptr
-				|| !Profile->cli_read_offered_here()) {
+			if (Closing || GithubCliDiscoveryPending || Window == nullptr || Host == nullptr
+				|| !core::github_connection_setup_available(Host->state()) || !Profile->cli_read_offered_here()) {
 				return;
 			}
 			GithubCliDiscoveryPending      = true;
@@ -14246,6 +14411,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					try {
 						lane->post([this, weak, discoveryGeneration, requestedHost, aConnectSingle, discovered = std::move(accounts), failure]() mutable {
 							if (weak.expired() || Closing || Window == nullptr || GithubCliDiscoveryGeneration != discoveryGeneration) {
+								return;
+							}
+							if (!core::github_connection_setup_available(Host->state())) {
+								retire_cli_discovery();
 								return;
 							}
 							GithubCliDiscoveryPending = false;
@@ -14761,6 +14930,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void dispatch_intent(application::github_intent aIntent)
 		{
+			if (std::holds_alternative<core::activate_host_profile_intent>(aIntent)
+				&& (Closing || Host == nullptr || !core::github_connection_setup_available(Host->state()))) {
+				return;
+			}
 			if (GithubCliDiscoveryPending) {
 				retire_cli_discovery();
 			}
@@ -16532,6 +16705,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
+			AutoSeenPresentedRequest.reset();
 			ReviewSourceMaterial.reset();
 			// [[BPR-1387]]. Clearing a displayed source removes its permalink
 			// placement. Initial PR setup has no source and already published
@@ -18044,6 +18218,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			enum class phase {
 				awaiting_observation,
+				awaiting_hidden_diff,
 				awaiting_diff,
 				awaiting_gestures,
 				awaiting_private_records,
@@ -18053,10 +18228,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				failed,
 			};
 
-			phase Phase = phase::awaiting_observation;
+			phase                        Phase = phase::awaiting_observation;
+			detail::course_modality_step Overview{ .Modality = qt::review_modality::overview };
+			detail::course_modality_step Review{ .Modality = qt::review_modality::review,
+												 .Needs    = {.Comparison  = true,
+															  .FilesDrawer = true } };
 			/// [[BPR-1211]]. The seed course's gestures, one per quiescent
 			/// ledger, and the private writes it then makes.
-			std::size_t                                       Gesture = 0U;
+			std::size_t                                       Gesture     = 0U;
+			bool                                              SeenOnEntry = false;
 			application::review_ledger_host_statistics        GesturesBefore;
 			std::optional<application::local_note_record>     AcceptedNote;
 			std::optional<application::durable_defect_record> PrivateDefect;
@@ -18714,6 +18894,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Host)&                         Host                     = Profile->Host;
 		std::optional<application::workbench_selected_diff_request>     SelectedDiffRequest;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
+		/// One automatic receipt attempt for each successfully opened selection.
+		std::optional<application::workbench_selected_diff_request> AutoSeenPresentedRequest;
 		/// [[BPR-1212]]. The last question asked about the selected comparison's
 		/// base numbering, and its answer once the epoch host gave one.
 		struct base_numbering_state
@@ -26011,17 +26193,48 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Evidence.ReadStateObserved
 				= ledger != nullptr && ledger->statistics().ConversationLoads >= 1U;
 			probe.InitialStatistics = ledger->statistics();
-			auto* const view        = window->files_drawer()->contents_view();
+			const auto modality     = enter_course_modality(aApplication, probe.Overview);
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
+			auto* const view = window->files_drawer()->contents_view();
 			if (!probe.Evidence.ExactAuthority || !probe.Evidence.HostComposed
 				|| !probe.Evidence.PublicPathAvailable || view == nullptr
 				|| view->model() == nullptr || view->model()->rowCount() == 0) {
 				return fail();
 			}
 			view->setCurrentIndex(view->model()->index(0, 0));
+			return advance(state_type::phase::awaiting_hidden_diff);
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_hidden_diff) {
+			const auto* surface = window->comparison_surface();
+			if (!surface->current_result() || !implementation->SelectedDiffPublication || !ledger->is_quiescent()) {
+				return wait("REVIEW_LEDGER_HIDDEN_DIFF_STALLED", ledgerFacts);
+			}
+			// Loading a selected file underneath Overview must not claim it was viewed.
+			probe.SeenOnEntry = ledger->retained().Read == core::file_read_state::seen;
+			if (!window->showing_overview() || surface->isVisibleTo(window)
+				|| ledger->statistics().Commands != 0U
+				|| (aCourse != review_ledger_composition_probe::unavailable
+					&& ledger->retained().Read != core::file_read_state::unread
+					&& !(aCourse == review_ledger_composition_probe::reopen && probe.SeenOnEntry))) {
+				return fail();
+			}
 			return advance(state_type::phase::awaiting_diff);
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_diff) {
+			const auto modality = enter_course_modality(aApplication, probe.Review);
+			if (modality == detail::course_modality_result::failed) {
+				return fail();
+			}
+			if (modality == detail::course_modality_result::pending) {
+				return result::pending;
+			}
 			const auto* const comparison = window->comparison_surface();
 			if (comparison == nullptr || comparison->current_result() == nullptr
 				|| !implementation->LastSelectedDiff.has_value() || !ledger->is_quiescent()) {
@@ -26060,12 +26273,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						&& retained.Material == material));
 			probe.Evidence.ExpectedPreGesturePersistence
 				= aCourse == review_ledger_composition_probe::seed
-				? statistics.PersistenceRequests == 0U
-					&& statistics.Completions == 0U
-				: aCourse == review_ledger_composition_probe::reopen
-				? statistics.Commands == 0U
+				? statistics.Commands == 1U
 					&& statistics.PersistenceRequests == 1U
 					&& statistics.Completions == 1U
+				: aCourse == review_ledger_composition_probe::reopen
+				? statistics.Commands == (probe.SeenOnEntry ? 0U : 1U)
+					&& statistics.PersistenceRequests == (probe.SeenOnEntry ? 0U : 2U)
+					&& statistics.Completions == (probe.SeenOnEntry ? 0U : 2U)
 				: statistics.Commands == 0U
 					&& statistics.PersistenceRequests == 0U
 					&& statistics.Completions == 0U
@@ -26103,6 +26317,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = state_type::phase::passed;
 				return result::passed;
 			}
+			// [[BPR-1506]]. The ordinary file gesture made Seen durable before
+			// any receipt action. A late receipt for another file, material or
+			// request generation must not submit a command, even if unread.
+			const auto durable = ledger->cached_receipt(probe.File);
+			if (retained.Read != core::file_read_state::seen || retained.Accepted || retained.Excluded
+				|| window->seen_action()->isEnabled() || progressMark() != "Private progress: seen"
+				|| !durable || !*durable || **durable != retained) {
+				return fail();
+			}
+			auto unread = retained;
+			unread.Read = core::file_read_state::unread;
+			implementation->AutoSeenPresentedRequest.reset();
+			auto stale                       = selected;
+			stale.Request.Context.Generation = core::request_generation{ selected.Request.Context.Generation.value() + 1U };
+			implementation->mark_presented_file_seen(stale, unread);
+			stale                   = selected;
+			stale.Request.File.File = core::file_identity_of("not-the-presented-file.cpp");
+			implementation->mark_presented_file_seen(stale, unread);
+			auto wrongMaterial     = unread;
+			wrongMaterial.Material = core::file_material_id{ };
+			implementation->mark_presented_file_seen(selected, wrongMaterial);
+			implementation->observe_selected_material(application::diff_publication{ .Context = *comparison->current_context() });
+			implementation->mark_presented_file_seen(selected, retained);
+			if (ledger->outstanding() != 0U || ledger->statistics().Commands != statistics.Commands) {
+				return fail();
+			}
+
 			const auto* const defectThread = implementation->accepted_thread(
 				review_ledger_probe_thread_identity());
 			if (defectThread == nullptr
@@ -26122,12 +26363,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto receipt      = ledger->retained();
 				const auto privateState = ledger->private_observation();
 				probe.Evidence.GestureSequence
-					= ledger->statistics().Commands == 0U;
+					= ledger->statistics().Commands == (probe.SeenOnEntry ? 0U : 1U);
 				probe.Evidence.DurableReceipt
 					= probe.Evidence.ReceiptLoadedOnEntry
 					&& receipt.File == probe.File
 					&& receipt.Material == probe.Material
-					&& receipt.Read == core::file_read_state::unread
+					&& receipt.Read == core::file_read_state::seen
 					&& !receipt.Accepted && !receipt.Excluded;
 				probe.Evidence.ProgressMark = progressMark();
 				const auto priorHead        = implementation->Fixture != nullptr
@@ -26166,7 +26407,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							  probe.File,
 							  storedComparison,
 							  *defectThread)
-						&& ledger->statistics().PrivateWrites == 1U;
+						&& ledger->statistics().PrivateWrites == (probe.SeenOnEntry ? 0U : 1U);
 				}
 				implementation->ReviewLedgerRoundTripPassed
 					= probe.Evidence.DurableReceipt;
@@ -26187,7 +26428,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			}
 			const auto actions = std::array{
-				window->seen_action(),
 				window->read_action(),
 				window->accept_action(),
 				window->accept_action(),
@@ -26201,7 +26441,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return fail();
 				}
 				++probe.Gesture;
-				action->trigger();
+				if (action == window->accept_action()) {
+					// [[BPR-1507]]. Exercise the normal one-click presenter through
+					// the same exact command, durable host and published receipt.
+					auto* const button = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+					if (button == nullptr || !button->isVisible() || !button->isEnabled()
+						|| button->defaultAction() != action || button->menu() != nullptr) {
+						return fail();
+					}
+					// [[BPR-1515]]. Accept uses the actual composed window's key;
+					// the inverse stays a deliberate one-click gesture.
+					window->activateWindow();
+					button->setFocus();
+					QCoreApplication::processEvents();
+					const auto acceptKey = [window] {
+	#if defined(Q_OS_MACOS)
+						if (QWindowSystemInterface::handleShortcutEvent(window->windowHandle(), 0UL, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier, 0U, 0U, 0U)) {
+							QCoreApplication::processEvents();
+							return;
+						}
+	#endif
+						for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+							QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+								window->windowHandle(), type, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier);
+							QCoreApplication::processEvents();
+						}
+					};
+					if (ledger->retained().Accepted) {
+						const auto commands = ledger->statistics().Commands;
+						acceptKey();
+						acceptKey();
+						if (ledger->statistics().Commands != commands || !ledger->retained().Accepted || !action->shortcut().isEmpty()) {
+							return fail();
+						}
+						QTextStream{ stdout } << "REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK\n";
+						button->click();
+					} else {
+						if (action->shortcut() != QKeySequence{ QStringLiteral("Ctrl+Shift+A") }) {
+							return fail();
+						}
+						acceptKey();
+					}
+				} else {
+					action->trigger();
+				}
 				return result::pending;
 			}
 			const auto  after   = ledger->statistics();

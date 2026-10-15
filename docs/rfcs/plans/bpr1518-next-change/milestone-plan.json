@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1518-next-change",
+  "scope": {
+    "rfcs": [],
+    "issues": [
+      "BPR-1518"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "cursor-relative-change",
+      "outcome": "Next and Previous Change use the exact clicked semantic source position and preserve bounded navigation in the composed workbench.",
+      "work": [
+        {
+          "issue": "BPR-1518"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1\u2013AC4 pass through actual source-line clicks followed by composed actions, with exact hunk/source and visible-position assertions on both sides and replacement contexts.",
+        "Core line navigation and bounded command projections agree for before-first, inside-hunk, between-hunk and after-last origins while retaining existing group and fixture wrap behavior.",
+        "Focused tests, format, architecture and documentation checks pass; the issue, owning UX contract and durable checkpoint record the exact candidate and command state."
+      ],
+      "boundary": "BPR-1518 only. No human/native/independent criterion added. Coordinator owns integration with parallel BPR-1516/1517/1519 changes."
+    }
+  ],
+  "unplanned_work": []
+}

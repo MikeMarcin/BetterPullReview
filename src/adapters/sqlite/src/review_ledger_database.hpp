@@ -24,7 +24,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// source-line coordinate correction. The value is deliberately not "1": a
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
-	inline constexpr std::int64_t review_ledger_schema_version = 8;
+	inline constexpr std::int64_t review_ledger_schema_version = 9;
 
 	/// \brief Classifies a valid defect write at the SQLite authority boundary.
 	enum class defect_store_outcome : std::uint8_t {

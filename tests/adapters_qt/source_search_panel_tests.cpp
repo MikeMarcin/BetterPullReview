@@ -12,8 +12,10 @@
 #include <QFontDatabase>
 #include <QImage>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -107,6 +109,32 @@ namespace {
 		expect(aPanel.grab().save(root + QStringLiteral("/") + aName + QStringLiteral("-") + scale + QStringLiteral("x.png")), "panel render saved");
 	}
 
+	void click(QWidget& aWidget, const QPoint& aPoint)
+	{
+		const auto  local  = QPointF{ aPoint };
+		const auto  global = QPointF{ aWidget.mapToGlobal(aPoint) };
+		QMouseEvent press{ QEvent::MouseButtonPress, local, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, local, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &press);
+		QApplication::sendEvent(&aWidget, &release);
+		QApplication::processEvents();
+	}
+
+	auto painted_left_edge(QTreeView& aTree, const QModelIndex& aIndex, const QColor& aFill) -> int
+	{
+		const auto image = aTree.viewport()->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto area  = aTree.visualRect(aIndex);
+		for (int x = 0; x < image.width(); ++x) {
+			for (int y = static_cast<int>(area.top() * ratio); y < static_cast<int>((area.bottom() + 1) * ratio); ++y) {
+				if (image.pixelColor(x, y) == aFill) {
+					return static_cast<int>(x / ratio);
+				}
+			}
+		}
+		return -1;
+	}
+
 	/// The run of pixels painted in the wash along one scan line of the row.
 	auto painted_wash(QTreeView& aTree, const QModelIndex& aIndex, const QColor& aWash) -> std::pair<int, int>
 	{
@@ -196,9 +224,11 @@ int main(int aArgc, char** aArgv)
 	const auto aligned = [&](const char* aWhere) {
 		const auto rows = leaves(*model);
 		const auto one  = panel.match_columns(rows.front());
+		expect(one.Tags.left() == 4, "side markers start at the viewport's left content inset");
 		expect(one.Number.width() > 0 && one.Snippet.left() > one.Number.right(), "match columns are laid out");
 		for (const auto& leaf : rows) {
 			const auto columns = panel.match_columns(leaf);
+			expect(tree->visualRect(leaf).left() == 0, "match item geometry includes the side marker hit area");
 			std::cout << "COLUMNS " << aWhere << " sides=" << leaf.data(qt::source_search_sides_role).toInt() << " tags=" << columns.Tags.left() << "+" << columns.Tags.width() << " number=" << columns.Number.left() << "+" << columns.Number.width() << " snippet=" << columns.Snippet.left() << '\n';
 			expect(columns.Tags.left() == one.Tags.left() && columns.Tags.width() == one.Tags.width(), "side-tag column is fixed");
 			expect(columns.Number.left() == one.Number.left() && columns.Number.right() == one.Number.right(), "line-number column is fixed");
@@ -207,6 +237,28 @@ int main(int aArgc, char** aArgv)
 		expect(panel.match_columns(model->index(0, 0)).Number.isNull(), "file rows have no match columns");
 	};
 	aligned("narrow");
+	const auto second = model->index(1, 0, modified);
+	const auto tags   = panel.match_columns(first).Tags;
+	expect(std::abs(painted_left_edge(*tree, first, light.color(core::appearance_role::diff_intraline_removed_background)) - tags.left()) <= 1, "left marker is painted at the viewport edge");
+	expect(std::abs(painted_left_edge(*tree, second, light.color(core::appearance_role::diff_intraline_added_background)) - (tags.left() + (tags.width() - 2) / 2 + 2)) <= 1, "right marker retains its fixed slot at the viewport edge");
+	auto selected  = std::vector<std::uint32_t>{ };
+	auto activated = std::vector<std::uint32_t>{ };
+	panel.Select   = [&](auto aIndex) { selected.push_back(aIndex); };
+	panel.Activate = [&](auto aIndex) { activated.push_back(aIndex); };
+	click(*tree->viewport(), QPoint{ tags.left() + 2, tree->visualRect(first).center().y() });
+	expect(tree->currentIndex() == first && !activated.empty() && activated.back() == 0U, "clicking the left marker activates its result");
+	click(*tree->viewport(), QPoint{ tags.right() - 2, tree->visualRect(second).center().y() });
+	expect(tree->currentIndex() == second && !selected.empty() && selected.back() == 1U && activated.back() == 1U, "clicking the right marker selects and activates its result");
+	QKeyEvent previous{ QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier };
+	QApplication::sendEvent(tree, &previous);
+	expect(tree->currentIndex() == first && selected.back() == 0U, "keyboard navigation preserves result order");
+	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+	QApplication::sendEvent(tree, &enter);
+	expect(activated.back() == 0U, "Enter activates the keyboard-selected result");
+	click(*tree->viewport(), QPoint{ tree->indentation() / 2, tree->visualRect(modified).center().y() });
+	expect(!tree->isExpanded(modified), "native file disclosure still collapses its results");
+	click(*tree->viewport(), QPoint{ tree->indentation() / 2, tree->visualRect(modified).center().y() });
+	expect(tree->isExpanded(modified), "native file disclosure still expands its results");
 	expect(model->index(0, 0, renamed).data(qt::source_search_line_role).toString() == QStringLiteral("1"), "rename row line");
 	render(panel, QStringLiteral("panel-light-narrow"));
 	panel.resize(520, 560);

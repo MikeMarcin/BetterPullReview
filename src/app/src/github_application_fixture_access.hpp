@@ -261,6 +261,8 @@ namespace bpr::app::detail {
 		bool ModifiedMissingEndpointCourse = false;
 		/// Test-owned gate before catalogue reads; absent from production builds.
 		std::function<void(std::stop_token)> BeforeFilesPage;
+		/// BPR-1514: controls the remembered connection validation on the fixture transport.
+		std::function<void(std::stop_token)> BeforeViewerIdentity;
 		/// [[BPR-0922]]. Refuses exactly the first valid smart-Git acquisition.
 		/// The next application course is served normally, making the boundary
 		/// and the supported path independently observable.

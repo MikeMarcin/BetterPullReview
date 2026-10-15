@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1510-remove-cmd-j",
+  "scope": {
+    "issues": [
+      "BPR-1510"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "remove-button",
+      "outcome": "The Comments header loses its redundant Threads finder button while Threads and Cmd+J retain their behavior.",
+      "work": [
+        {
+          "issue": "BPR-1510"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: The redundant Cmd+J button is absent and its former space leaves no awkward layout gap.",
+        "AC2: Threads tab retains behavior.",
+        "AC3: Cmd+J, focus and accessibility remain usable.",
+        "AC4: Actual offscreen rendering and composed Threads/keyboard actions verified."
+      ],
+      "boundary": "BPR-1510 only; coordinator integrates; preserve sibling changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

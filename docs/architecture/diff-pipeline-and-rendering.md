@@ -513,6 +513,16 @@ A block the record cannot hold, or one measured natively, carries a key no
 format list hashes to and is measured again. Replacing a pane's text empties
 its record and frees its storage.
 
+An unwrapped horizontal resize retains the native block layouts and their
+natural widths ([[BPR-1516]]). The source pane delivers only the height change
+to the native editor's resize handler, which still adjusts both scrollbars from
+the actual viewport. This avoids a width reflow temporarily forgetting the
+longest line, hiding its horizontal scrollbar and changing the synchronization
+rail before the longest line is laid out again. Wrapped native layout keeps its
+ordinary resize path. Remeasurement also retains the pane's fractional origin
+through every bounded turn; only the shared controller applies the rebuilt
+axis. It never displays an intermediate whole-row position to measure boundaries.
+
 ## 10. Complexity targets
 
 Let `B` be retained source bytes, `R` the total retained semantic record count

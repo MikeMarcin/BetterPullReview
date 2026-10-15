@@ -26,14 +26,21 @@
 //
 // No live GitHub, credential or model.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/private_review_store.hpp"
+#include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_header_edit.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/destructive_question.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "drawer_single_comment.hpp"
@@ -42,13 +49,17 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
+#include <QDialog>
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QToolButton>
 
 #include <algorithm>
 #include <cstdlib>
@@ -66,6 +77,7 @@ namespace {
 	using e2e::draft_publish;
 	using e2e::send_single;
 	using e2e::single_offered;
+	std::optional<QString> RecoveryRender;
 
 	auto wait_until(const std::function<bool()>& aCondition, const qint64 aTimeoutMs = 20000) -> bool
 	{
@@ -127,25 +139,33 @@ namespace {
 
 	struct composed
 	{
-		QTemporaryDir                            Temporary;
-		std::unique_ptr<app::github_application> Application;
+		QTemporaryDir                                                 Temporary;
+		std::unique_ptr<app::github_application>                      Application;
+		std::shared_ptr<app::detail::review_submission_fixture_state> Server = std::make_shared<app::detail::review_submission_fixture_state>();
+		std::shared_ptr<app::detail::github_fixture_vault_state>      Vault  = app::detail::make_shared_github_fixture_vault();
 	};
 
 	/// The recorded GitHub.com pull request, signed in natively, with review.cpp
 	/// on screen and a new comment open in the drawer holding \p aBody.
-	void open_draft(composed& aComposed, const bool aLoseFirst, const std::string& aBody)
+	void open_review(composed& aComposed, const bool aLoseFirst, const app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, const std::string_view aPath = "review.cpp", const app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single)
 	{
 		expect(aComposed.Temporary.isValid(), "private temporary application root");
 		auto options                          = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot           = e2e::private_data_root(aComposed.Temporary);
 		options.IndependentWindowReads        = true;
+		options.RepeatReadSessions            = true;
+		options.SharedDeviceVault             = aComposed.Vault;
+		options.ReviewSubmissionServer        = aComposed.Server;
+		options.EpochPhase                    = aPhase;
 		options.LoseFirstReviewMutationResult = aLoseFirst;
 		expect(options.ApplicationDataRoot.has_value(), "private desktop test root under the canonical storage policy");
 		auto terminal = false;
-		auto startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+		auto startup  = github_application_fixture_access::start(aFixture, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				aComposed.Application = std::move(*aResult);
+			} else {
+				std::cerr << "BPR1520 fixture startup failure=" << static_cast<int>(aResult.error()) << " source=" << app::startup_failure_source() << std::endl;
 			}
 		});
 		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
@@ -159,11 +179,16 @@ namespace {
 		if (!window.showing_home()) {
 			window.home_action()->trigger();
 		}
-		window.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
+		window.home_open_bar()->setText(aFixture == app::detail::github_public_path_fixture::inline_drawer_v1 ? QStringLiteral("https://github.com/bpr-fixtures/inline-drawer/pull/22") : QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
 		window.home_open_action()->trigger();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens through the native session");
-		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*aComposed.Application, "review.cpp") == app::detail::fixture_file_reveal_result::shown; },
+		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*aComposed.Application, aPath) == app::detail::fixture_file_reveal_result::shown; },
 				 "review.cpp is shown in Review");
+	}
+	void open_draft(composed& aComposed, const bool aLoseFirst, const std::string& aBody, const app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, const std::string_view aPath = "review.cpp")
+	{
+		open_review(aComposed, aLoseFirst, aFixture, aPath);
+		auto& window = aComposed.Application->window();
 		wait_for([&] {
 			const auto seeded = github_application_fixture_access::seed_attended_comment_draft(*aComposed.Application, core::diff_side::right, aBody);
 			expect(seeded != app::detail::fixture_file_reveal_result::failed, "a new comment can be written on a head line");
@@ -171,7 +196,7 @@ namespace {
 		},
 				 "a new inline draft holds its text");
 		auto* const editor = window.review_editor();
-		wait_for([&] { return accepted_body(*editor) == aBody; }, "the draft's owner accepted the text");
+		wait_for([&] { return accepted_body(*editor) == aBody && !editor->rejected_candidate(); }, "the draft's owner accepted the text and settled pending edits");
 		auto* const cards = window.conversation_panel()->cards();
 		wait_for([&] { return cards->writing_draft() && single_offered(*cards); }, "the new comment is written in the drawer");
 	}
@@ -339,6 +364,199 @@ namespace {
 		shut_down(composed);
 	}
 
+	auto saved_comments(qt::workbench_window& aWindow) -> QDialog*
+	{
+		aWindow.open_review_composition();
+		auto* button = aWindow.review_submission_editor_view()->findChild<QToolButton*>(QStringLiteral("wholeReviewSavedComments"));
+		expect(button != nullptr, "Finish review offers Saved comments");
+		button->click();
+		auto* dialog = aWindow.private_review()->findChild<QDialog*>(QStringLiteral("savedComments"));
+		expect(dialog != nullptr && dialog->isVisible(), "Saved comments opens through the product action");
+		return dialog;
+	}
+	auto inspect_saved(QDialog& aDialog, const core::review_draft_id aDraft, const std::string& aBody) -> bool
+	{
+		auto*      choices  = aDialog.findChild<QComboBox*>(QStringLiteral("savedCommentChoices"));
+		const auto selected = choices->findData(QVariant::fromValue<qulonglong>(aDraft.value()));
+		if (selected < 0) {
+			return false;
+		}
+		choices->setCurrentIndex(selected);
+		auto* text = aDialog.findChild<QPlainTextEdit*>(QStringLiteral("savedCommentBody"));
+		return text->isReadOnly() && text->toPlainText() == QString::fromStdString(aBody);
+	}
+	void reopen_target(qt::workbench_window& aWindow, const int aNumber)
+	{
+		aWindow.home_action()->trigger();
+		aWindow.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/%1").arg(aNumber));
+		aWindow.home_open_action()->trigger();
+		wait_for([&] { return aWindow.session_panel()->status() == core::github_status::pull_request_ready; }, "navigation opens the chosen review");
+	}
+	void run_review_failure_navigation(const bool aUnknown)
+	{
+		auto       composed = ::composed{ };
+		const auto body     = std::string{ "issue: BPR-1520 exact retained inline comment α" };
+		open_draft(composed, false, body);
+		auto&      window       = composed.Application->window();
+		auto*      editor       = window.review_editor();
+		const auto original     = *editor->shown_draft();
+		const auto originalHead = github_application_fixture_access::accepted_head(*composed.Application);
+		auto*      review       = window.conversation_panel()->cards()->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		expect(review && review->isEnabled(), "inline comment offers Start a review");
+		review->click();
+		wait_for([&] { return editor->shown_draft() && core::pending_in_review(*editor->shown_draft()); }, "comment is held in the local review");
+		window.open_review_composition();
+		auto* summary = window.review_submission_editor_view();
+		wait_for([&] { return summary->shown_draft() && summary->shown_draft()->Comments.size() == 1 && summary->submit_action()->isEnabled(); }, "review carries the exact inline draft");
+		{
+			const auto lock                   = std::scoped_lock{ composed.Server->Mutex };
+			composed.Server->RefuseNextReview = !aUnknown;
+			composed.Server->LoseNextReview   = aUnknown;
+		}
+		summary->submit_action()->trigger();
+		wait_for([&] { return aUnknown ? summary->reconcile_action()->isEnabled() : summary->submit_action()->isEnabled(); }, "failed publication exposes its recovery controls");
+		const auto progress = github_application_fixture_access::window_read_progress(*composed.Application).Snapshot;
+		window.github_refresh_action()->trigger();
+		wait_for([&] { return github_application_fixture_access::window_read_progress(*composed.Application).Snapshot != progress && window.session_panel()->status() == core::github_status::pull_request_ready; }, "refresh after failed publication completes");
+		reopen_target(window, 18);
+		reopen_target(window, 17);
+		wait_for([&] { return github_application_fixture_access::reveal_fixture_file(*composed.Application, "review.cpp") == app::detail::fixture_file_reveal_result::shown; }, "return shows the original review");
+		auto* saved = saved_comments(window);
+		wait_for([&] { return inspect_saved(*saved, original.Id, body); }, "exact comment text remains inspectable after failure, refresh and PR switch/return");
+		saved->close();
+		shut_down(composed);
+		composed.Application.reset();
+		open_review(composed, false, app::detail::github_public_path_fixture::github_com, "review.cpp", app::detail::github_epoch_fixture_phase::reuse);
+		auto& restarted = composed.Application->window();
+		saved           = saved_comments(restarted);
+		wait_for([&] { return inspect_saved(*saved, original.Id, body); }, "exact original comment identity and body survive application reconstruction");
+		expect(saved->findChild<QLabel*>(QStringLiteral("savedCommentAuthority"))->text().contains(QString::fromStdString(originalHead)), "saved comment identifies its original head");
+		expect(github_application_fixture_access::accepted_head(*composed.Application) != originalHead, "controlled restart advances the head before recovery");
+		if (!aUnknown) {
+			expect(saved->findChild<QLabel*>(QStringLiteral("savedCommentAuthority"))->text().contains(QStringLiteral("Earlier comparison")), "old-head content is retained with an explicit copy-and-check path");
+			auto* discard = saved->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"));
+			expect(discard && discard->isEnabled(), "old unpublished draft can be explicitly retired without deleting its text");
+			discard->click();
+			auto* question = saved->findChild<QDialog*>(QStringLiteral("discardSavedDraft"));
+			expect(question != nullptr, "retiring retained text asks explicitly");
+			auto confirmed = false;
+			QObject::connect(question, &QDialog::accepted, saved, [&] { confirmed = true; });
+			question->findChild<QAbstractButton*>(QStringLiteral("discardSavedDraftConfirm"))->click();
+			expect(confirmed, "explicit discard confirmation dispatches its accepted gesture");
+			const auto discarded = wait_until([&] { return inspect_saved(*saved, original.Id, body) && saved->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->currentText().contains(QStringLiteral("Discarded")); });
+			if (!discarded) {
+				std::cerr << "BPR_1520:discard-refused status=" << restarted.findChild<QLabel*>(QStringLiteral("privateReviewStatus"))->text().toStdString() << " choice=" << saved->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->currentText().toStdString() << '\n';
+			}
+			expect(discarded, "retired old-head draft remains readable and frees active capacity");
+		}
+		saved->close();
+		if (!aUnknown) {
+			restarted.close_review_composition();
+			expect(restarted.comparison_surface()->select_conversation_line(core::diff_side::right, 29), "choose current-head code after rejected old-head review");
+			wait_for([&] { return restarted.comment_action()->isEnabled(); }, "stale saved material does not prevent a new eligible comment");
+			restarted.comment_action()->trigger();
+			auto* current = restarted.conversation_panel()->cards()->draft_editor();
+			expect(current && !current->isReadOnly(), "current-head comment editor opens after restart");
+			current->setPlainText(QStringLiteral("BPR-1520 explicit new comment on the current head"));
+			wait_for([&] { return accepted_body(*restarted.review_editor()) == "BPR-1520 explicit new comment on the current head"; }, "new comment persists without rebinding the old content");
+		}
+		if (aUnknown) {
+			{
+				const auto lock                  = std::scoped_lock{ composed.Server->Mutex };
+				composed.Server->HideReviewReads = false;
+			}
+			auto* restored = restarted.review_submission_editor_view();
+			wait_for([&] { return restored->reconcile_action()->isEnabled(); }, "restart discovers uncertain review");
+			restored->reconcile_action()->trigger();
+			wait_for([&] { return restored->confirmed_submissions() == 1; }, "read-only reconciliation confirms the original review");
+			auto* confirmed = saved_comments(restarted);
+			wait_for([&] { return inspect_saved(*confirmed, original.Id, body) && confirmed->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->currentText().contains(QStringLiteral("Published")); }, "confirmed publication is distinct from retained unpublished material");
+			expect(!confirmed->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"))->isEnabled(), "a confirmed server comment cannot be discarded through local draft recovery");
+			confirmed->close();
+		}
+		{
+			const auto lock = std::scoped_lock{ composed.Server->Mutex };
+			expect(composed.Server->ReviewPosts.size() == 1, "failure, refresh, navigation, restart and reconciliation never duplicate the POST");
+		}
+		std::cout << "BPR_1520:" << (aUnknown ? "uncertain" : "rejected") << ":navigation-restart:pass\n"
+				  << std::flush;
+		shut_down(composed);
+	}
+	void run_draft_capacity_recovery()
+	{
+		auto       composed = ::composed{ };
+		const auto body     = std::string{ "issue: BPR-1520 keep my written comment" };
+		open_draft(composed, false, body);
+		auto&      window   = composed.Application->window();
+		const auto original = *window.review_editor()->shown_draft();
+		for (auto count = 0U; count < 200U; ++count) {
+			const auto line = 20U + count % 90U;
+			expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, line), "select another current-head source line");
+			const auto selected = wait_until([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Line == line; });
+			if (!selected) {
+				std::cerr << "BPR_1520:selection count=" << count << " line=" << line << " shown=" << (window.review_editor()->shown_draft() ? int(window.review_editor()->shown_draft()->Anchor.Line) : -1) << " status=" << window.review_editor()->mutation_status_text().toStdString() << '\n';
+			}
+			expect(selected, "a selected line has its runtime placeholder");
+		}
+		auto* dialog = saved_comments(window);
+		wait_for([&] { return inspect_saved(*dialog, original.Id, body) && dialog->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->count() == 1; }, "two hundred line selections create no database drafts beyond written content");
+		expect(!dialog->findChild<QPushButton*>(QStringLiteral("savedCommentsFreeUnused"))->isEnabled(), "runtime placeholders never need storage cleanup");
+		dialog->close();
+		window.close_review_composition();
+		window.comment_action()->trigger();
+		auto* field = window.conversation_panel()->cards()->draft_editor();
+		expect(field != nullptr && !field->isReadOnly(), "comment creation remains usable beyond64 line selections");
+		const auto release = github_application_fixture_access::hold_private_review_effects(*composed.Application);
+		struct held_save
+		{
+			std::function<void()> Release;
+			~held_save() { Release(); }
+		} held{ release };
+		field->setPlainText(QStringLiteral("First partial text"));
+		field->setPlainText(QStringLiteral("BPR-1520 new comment after recovery"));
+		window.review_editor()->publish_action()->trigger();
+		expect(github_application_fixture_access::review_mutation_evidence(*composed.Application).Submissions == 0, "a Publish gesture during first save sends nothing");
+		release();
+		wait_for([&] { return accepted_body(*window.review_editor()) == "BPR-1520 new comment after recovery" && !window.review_editor()->rejected_candidate(); }, "first real edit is durably accepted");
+		settle();
+		expect(github_application_fixture_access::review_mutation_evidence(*composed.Application).Submissions == 0, "saving completion never replays the earlier Publish gesture");
+		const auto newId = window.review_editor()->shown_draft()->Id;
+		const auto index = window.comparison_surface()->current_semantic_index();
+		const auto root  = *e2e::private_data_root(composed.Temporary);
+		shut_down(composed);
+		composed.Application.reset();
+		// Upgrade fixture: rows an older application created merely by
+		// browsing. All effects stay in this course's owner-private root.
+		{
+			auto opened = adapters::sqlite::make_private_review_store({ { root, "github.com", "1001", "octo-org/review-repository", 17 }, core::bpr_profile_id{ 1 }, core::git_host_id{ 1 }, core::github_account_id{ 1001 }, core::repository_id{ 2001 }, core::pull_request_id{ 3001 } });
+			expect(opened.has_value(), "test-owned retained store opens for legacy placeholder setup");
+			const auto record = *(*opened)->load_draft(original.Id);
+			const auto target = core::make_composition_target(record.Binding, record.Draft.Draft.Anchor, *index);
+			expect(target.has_value(), "legacy placeholder uses the original sealed comparison");
+			application::review_composition_application_host host(**opened);
+			expect(host.allocate_draft(*target, *index).has_value() && host.allocate_draft(*target, *index).has_value(), "two synthetic legacy empty rows are retained for explicit cleanup");
+		}
+		open_review(composed, false);
+		auto& restarted = composed.Application->window();
+		dialog          = saved_comments(restarted);
+		wait_for([&] { return dialog->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->count() == 4 && inspect_saved(*dialog, original.Id, body); }, "restart retains written content and legacy placeholders");
+		expect(inspect_saved(*dialog, newId, "BPR-1520 new comment after recovery"), "first-edit materialization survives restart exactly");
+		dialog->findChild<QPushButton*>(QStringLiteral("savedCommentsFreeUnused"))->click();
+		auto* question = dialog->findChild<QDialog*>(QStringLiteral("clearUnusedDrafts"));
+		expect(question != nullptr, "freeing legacy placeholders asks explicitly");
+		question->findChild<QAbstractButton*>(QStringLiteral("clearUnusedDraftsConfirm"))->click();
+		wait_for([&] { return dialog->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->count() == 2 && inspect_saved(*dialog, original.Id, body); }, "explicit cleanup removes only legacy unedited empties");
+		expect(inspect_saved(*dialog, newId, "BPR-1520 new comment after recovery"), "cleanup preserves the other exact authored body");
+		expect(inspect_saved(*dialog, original.Id, body), "inspect original content for recovery render");
+		if (RecoveryRender) {
+			expect(dialog->grab().save(*RecoveryRender + QStringLiteral("-dialog.png")), "saved comments dialog evidence");
+			expect(restarted.grab().save(*RecoveryRender + QStringLiteral("-window.png")), "full production window evidence");
+		}
+		dialog->close();
+		std::cout << "BPR_1520:lazy-drafts-legacy-cleanup-restart:pass\n"
+				  << std::flush;
+		shut_down(composed);
+	}
 	void run_relabel_before_publish()
 	{
 		auto       composed = ::composed{ };
@@ -410,12 +628,22 @@ namespace {
 int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
-	const auto   only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
+	if (aArgc > 2) {
+		RecoveryRender = QString::fromLocal8Bit(aArgv[2]);
+	}
+	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
 	if (only.empty() || only == "lost-relabel-retried") {
 		run_lost_relabel_retried();
 	}
 	if (only.empty() || only == "lost-refreshed-retried") {
 		run_lost_refreshed_retried();
+	}
+	if (only.empty() || only == "review-note-recovery") {
+		run_review_failure_navigation(false);
+		run_review_failure_navigation(true);
+	}
+	if (only.empty() || only == "review-note-recovery" || only == "draft-capacity-recovery") {
+		run_draft_capacity_recovery();
 	}
 	if (only.empty() || only == "relabel-before-publish") {
 		run_relabel_before_publish();

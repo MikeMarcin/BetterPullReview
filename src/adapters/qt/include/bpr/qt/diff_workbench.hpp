@@ -396,7 +396,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_details() const noexcept -> line_details_pane*;
 		/// \brief [[BPR-1334]]. Shows or hides Line details. Presentation
 		/// only: the preference is the profile's and arrives from the host.
-		void               set_line_details_visible(bool aVisible);
+		void set_line_details_visible(bool aVisible);
+		/// \brief Applies the profile's accepted center-ribbon width in logical pixels.
+		void               set_center_ribbon_width(std::uint32_t aWidth);
 		[[nodiscard]] auto line_details_visible() const noexcept -> bool;
 		/// \brief [[BPR-1334]]. This window's preferred strip height in
 		/// logical pixels; empty is the default.

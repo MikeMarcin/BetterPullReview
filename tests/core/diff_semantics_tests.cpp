@@ -460,6 +460,47 @@ namespace {
 			"indexed move projection exactly matches the fail-closed wrapper");
 	}
 
+	void test_change_navigation_from_source_line()
+	{
+		const auto diff  = run("prefix\nold\nmiddle a\nmiddle b\nremove\nbetween\nold last\nsuffix\n",
+							   "prefix\nnew\nextra one\nextra two\nmiddle a\nmiddle b\nbetween\nnew last\nsuffix\n");
+		const auto index = build_diff_semantic_index(std::make_shared<const computed_file_diff>(diff));
+		expect(index && diff.Alignment.Groups.size() == 3U, "cursor fixture has replacement, deletion and final replacement");
+		const auto& groups = diff.Alignment.Groups;
+		const auto  check  = [&](const diff_side aSide, const std::uint32_t aLine,
+								 const std::optional<std::size_t> aPrevious, const std::optional<std::size_t> aNext) {
+			const auto source = line(diff, aSide, aLine);
+			for (const auto direction : { change_navigation_direction::previous, change_navigation_direction::next }) {
+				const auto target = direction == change_navigation_direction::next ? aNext : aPrevious;
+				const auto result = navigate_change(*index, source, direction, change_navigation_policy::stop);
+				expect(result.Group == (target ? std::optional{ groups[*target].Id } : map_line(*index, source).Group)
+						   && result.Outcome == (target ? change_navigation_outcome::selected : direction == change_navigation_direction::next ? change_navigation_outcome::at_end
+																																			   : change_navigation_outcome::at_start),
+					   "source navigation chooses the adjacent change on the exact source side");
+				auto       state    = diff_interaction_state{ .Selection = select_line(*index, source) };
+				const auto original = state.Selection;
+				static_cast<void>(transition(state, *index, navigate_diff_change_intent{ direction, change_navigation_policy::stop }));
+				expect(target ? state.Selection == select_group(*index, groups[*target].Id) : state.Selection == original,
+					   "line-origin transition selects the exact canonical group or preserves its bounded line");
+			}
+		};
+		for (const auto side : { diff_side::left, diff_side::right }) {
+			check(side, 0U, std::nullopt, 0U);
+			check(side, 1U, std::nullopt, 1U);
+			check(side, side == diff_side::left ? 2U : 4U, 0U, 1U);
+			check(side, side == diff_side::left ? 5U : 6U, 1U, 2U);
+			check(side, side == diff_side::left ? 7U : 8U, 2U, std::nullopt);
+		}
+		expect(navigate_change(*index, line(diff, diff_side::left, 0U), change_navigation_direction::previous, change_navigation_policy::wrap).Group == groups.back().Id
+				   && navigate_change(*index, line(diff, diff_side::right, 8U), change_navigation_direction::next, change_navigation_policy::wrap).Group == groups.front().Id,
+			   "explicit fixture wrap remains symmetric at source bounds");
+		auto stale       = line(diff, diff_side::right, 4U);
+		stale.Comparison = opaque<file_comparison_digest>(81U);
+		expect(navigate_change(*index, stale, change_navigation_direction::next, change_navigation_policy::stop).Outcome == change_navigation_outcome::invalid_selection
+				   && navigate_change(*index, line(diff, diff_side::right, 99U), change_navigation_direction::previous, change_navigation_policy::stop).Outcome == change_navigation_outcome::invalid_selection,
+			   "stale and out-of-range source origins fail closed");
+	}
+
 	auto test_compact_interaction_transition() -> void
 	{
 		const auto diff = run(
@@ -887,6 +928,7 @@ int main()
 	test_selection_reconciliation();
 	test_unavailable_and_fail_closed();
 	test_move_relation_stays_secondary();
+	test_change_navigation_from_source_line();
 	test_compact_interaction_transition();
 	test_indexed_semantics_at_scale();
 	test_generated_properties();

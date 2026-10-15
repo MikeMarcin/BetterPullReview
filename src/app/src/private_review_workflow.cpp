@@ -387,8 +387,9 @@ namespace bpr::app {
 				}
 			}
 			projection.IncludeArchived = aContext.IncludeArchived;
+			projection.SavedScope      = aContext.Scope;
 			for (const auto& draft : take(aContext.Store->list_drafts())) {
-				projection.Drafts.push_back({ draft.Draft.Draft.Id, draft.Draft.Draft.Anchor, draft.Draft.Draft.State });
+				projection.Drafts.push_back({ draft.Draft.Draft.Id, draft.Draft.Draft.Anchor, draft.Draft.Draft.State, std::string{ core::canonical_hex(draft.Binding.Revision.HeadOid).view() }, draft.Draft.Draft.InReview ? draft.Draft.Draft.InReview->Path : std::string{ }, draft.Draft.Draft.Body, draft.Binding == binding, core::unused_review_draft(draft.Draft), draft.Draft.Revision });
 			}
 			output.Conversation = std::move(projection);
 			if (aContext.Composing) {
@@ -432,7 +433,12 @@ namespace bpr::app {
 	}
 	void private_review_workflow::dispatch(application::private_conversation_intent aIntent)
 	{
-		if (Closing || aIntent.Generation != Generation || !Binding) {
+		const auto savedAction = aIntent.Action == application::private_conversation_action::discard_saved_draft || aIntent.Action == application::private_conversation_action::clear_unused_drafts;
+		const auto admitted    = savedAction ? Current && aIntent.SavedScope && *aIntent.SavedScope == Current->Scope : aIntent.Generation == Generation;
+		if (Closing || !admitted || !Binding) {
+			if (!Closing && savedAction) {
+				Panel.show_status(QStringLiteral("The review scope changed. Reopen Saved comments with its original account and pull request."));
+			}
 			return;
 		}
 		const auto binding = *Binding;
@@ -443,6 +449,19 @@ namespace bpr::app {
 			using enum application::private_conversation_action;
 			result output;
 			switch (intent.Action) {
+			case discard_saved_draft: {
+				require(intent.Draft.has_value());
+				const auto record = take(aContext.Store->load_draft(*intent.Draft));
+				require(record.Draft.Revision == intent.ExpectedVersion && record.Draft.Draft.State == core::review_draft_state::drafting);
+				auto committed = accepted(application::review_composition_application_host(*aContext.Store).change_draft({ { *intent.Draft, core::review_draft_command_kind::discard, { } }, intent.ExpectedVersion, false, { }, core::review_draft_scope_id{ 1 } }));
+				if (record.Binding.Revision.HeadOid == binding.Revision.HeadOid) {
+					output.Drafts = std::move(committed);
+				}
+				break;
+			}
+			case clear_unused_drafts:
+				output.Drafts = accepted(application::review_composition_application_host(*aContext.Store).clear_unused_drafts());
+				break;
 			case inspect_finding: {
 				require(intent.Revision.has_value());
 				const auto finding   = take(aContext.Store->load_finding(intent.Revision->Source));
@@ -463,7 +482,7 @@ namespace bpr::app {
 			case open_draft: {
 				require(intent.Draft.has_value());
 				auto record = take(aContext.Store->load_draft(*intent.Draft));
-				require(index && record.Binding == binding && core::make_composition_target(binding, record.Draft.Draft.Anchor, *index).has_value(), core::private_review_refusal::invalid_target);
+				require(!core::unused_review_draft(record.Draft) && index && record.Binding == binding && core::make_composition_target(binding, record.Draft.Draft.Anchor, *index).has_value(), core::private_review_refusal::invalid_target);
 				output.Drafts    = accepted(application::review_composition_application_host(*aContext.Store).restore(binding.Revision.HeadOid, intent.Draft));
 				output.OpenDraft = true;
 				break;
@@ -711,7 +730,7 @@ namespace bpr::app {
 			// as core::reopen_draft_at decides, or makes one.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
-			output.Drafts  = accepted(host.select_draft(binding, aLine, *index));
+			output.Drafts  = accepted(host.select_draft(binding, aLine, *index, { }, false));
 			output.Refresh = false;
 			return output;
 		},
@@ -730,6 +749,21 @@ namespace bpr::app {
 			application::review_composition_application_host host(*aContext.Store);
 			output.Drafts  = accepted(host.select_draft(binding, aLine, *index, thread));
 			output.Refresh = false;
+			return output;
+		},
+			 std::move(aCompletion));
+	}
+	void private_review_workflow::materialize_draft(core::revisioned_review_draft aPlaceholder, core::revisioned_review_draft_command aCommand, draft_completion aCompletion)
+	{
+		if (!Binding || !Index) {
+			if (aCompletion) {
+				aCompletion(std::unexpected(application::private_run_error{ .Policy = core::private_review_refusal::invalid_target }));
+			}
+			return;
+		}
+		post([binding = *Binding, index = Index, placeholder = std::move(aPlaceholder), command = std::move(aCommand)](context& aContext) {
+			result output;
+			output.Drafts = accepted(application::review_composition_application_host(*aContext.Store).materialize_draft(binding, *index, placeholder, command));
 			return output;
 		},
 			 std::move(aCompletion));
@@ -757,6 +791,19 @@ namespace bpr::app {
 			return output;
 		},
 			 std::move(aCompletion));
+	}
+	void private_review_workflow::settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal> aProposal)
+	{
+		if (!Binding) {
+			return;
+		}
+		post([key = std::move(aKey), aPublished, proposal = std::move(aProposal), head = Binding->Revision.HeadOid](context& aContext) {
+			result                                           output;
+			application::review_composition_application_host host(*aContext.Store);
+			accepted(host.settle_review(key, aPublished, proposal));
+			output.Drafts = accepted(host.restore(head));
+			return output;
+		});
 	}
 	void private_review_workflow::record_workshop_press(core::review_draft_id aDraft, press_completion aCompletion)
 	{

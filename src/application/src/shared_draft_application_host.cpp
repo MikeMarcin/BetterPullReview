@@ -8,10 +8,11 @@ namespace bpr::application {
 	{
 		struct consumer
 		{
-			shared_draft_consumer    Id;
-			core::bpr_window_context Window;
-			publication              Publish;
-			bool                     Active = true;
+			shared_draft_consumer                        Id;
+			core::bpr_window_context                     Window;
+			publication                                  Publish;
+			bool                                         Active      = true;
+			std::optional<core::revisioned_review_draft> Placeholder = { };
 		};
 		shared_draft_authority                     Authority;
 		core::review_draft_scope_id                Scope;
@@ -19,9 +20,11 @@ namespace bpr::application {
 		std::vector<std::shared_ptr<consumer>>     Consumers    = { };
 		std::vector<core::revisioned_review_draft> Drafts       = { };
 		std::uint64_t                              NextConsumer = 1, NextDraft = 1;
-		std::vector<core::review_draft_id>         Durable      = { };
-		std::optional<core::private_review_scope>  DurableScope = { };
-		bool                                       Closing      = false;
+		std::vector<core::review_draft_id>         Durable         = { };
+		std::optional<core::private_review_scope>  DurableScope    = { };
+		bool                                       Closing         = false;
+		std::uint64_t                              NextPlaceholder = std::numeric_limits<std::uint64_t>::max();
+		std::uint64_t                              UnusedBefore    = 0;
 		auto                                       admitted(shared_draft_consumer aConsumer) const -> bool
 		{
 			return !Closing && std::ranges::any_of(Consumers, [&](const auto& aEntry) { return aEntry->Active && aEntry->Id == aConsumer && Contexts.current(aEntry->Window); });
@@ -156,11 +159,22 @@ namespace bpr::application {
 			return { .Failure = shared_draft_failure::retired };
 		}
 		const auto found = std::ranges::find_if(Implementation->Drafts, [&](const auto& aRecord) {
-			return aRecord.Draft.Anchor == aAnchor && aRecord.Draft.ReplyToThread == aReply
+			return (!Implementation->DurableScope || !core::unused_review_draft(aRecord)) && aRecord.Draft.Anchor == aAnchor && aRecord.Draft.ReplyToThread == aReply
 				&& (aRecord.Draft.State == core::review_draft_state::drafting || aRecord.Draft.State == core::review_draft_state::publishing);
 		});
 		if (found != Implementation->Drafts.end()) {
 			return { *found };
+		}
+		if (Implementation->DurableScope && !aReply) {
+			auto& host = *Implementation;
+			if (!aAnchor.Comparison.valid() || aAnchor.Side > core::diff_side::right || host.NextPlaceholder <= core::maximum_private_identity) {
+				return { .Failure = shared_draft_failure::policy };
+			}
+			const auto consumer = std::ranges::find_if(host.Consumers, [&](const auto& value) { return value->Id == aConsumer; });
+			if (!(*consumer)->Placeholder || (*consumer)->Placeholder->Draft.Anchor != aAnchor) {
+				(*consumer)->Placeholder = core::revisioned_review_draft{ { core::review_draft_id{ host.NextPlaceholder-- }, aAnchor, { }, core::review_draft_state::drafting, { } }, 1, host.Scope };
+			}
+			return { *(*consumer)->Placeholder };
 		}
 		return allocate(aConsumer, aAnchor, { }, std::move(aReply));
 	}
@@ -170,6 +184,10 @@ namespace bpr::application {
 		if (!Implementation->admitted(aConsumer)) {
 			return { .Failure = shared_draft_failure::retired };
 		}
+		const auto consumer = std::ranges::find_if(Implementation->Consumers, [&](const auto& value) { return value->Id == aConsumer; });
+		if ((*consumer)->Placeholder && (*consumer)->Placeholder->Draft.Id == aDraft) {
+			return { *(*consumer)->Placeholder };
+		}
 		const auto* record = Implementation->find(aDraft);
 		return record ? shared_draft_result{ *record } : shared_draft_result{ .Failure = shared_draft_failure::unknown_draft };
 	}
@@ -177,6 +195,10 @@ namespace bpr::application {
 	{
 		if (!Implementation->admitted(aConsumer)) {
 			return { .Failure = shared_draft_failure::retired };
+		}
+		const auto consumer = std::ranges::find_if(Implementation->Consumers, [&](const auto& value) { return value->Id == aConsumer; });
+		if ((*consumer)->Placeholder && (*consumer)->Placeholder->Draft.Id == aCommand.Command.Id) {
+			return { *(*consumer)->Placeholder, shared_draft_failure::durable_required };
 		}
 		if (aCommand.Command.Kind == core::review_draft_command_kind::complete_publish || aCommand.Command.Kind == core::review_draft_command_kind::fail_publish) {
 			return { .Failure = shared_draft_failure::policy };
@@ -207,15 +229,29 @@ namespace bpr::application {
 		if (!core::valid_private_scope(durableScope) || durableScope.Profile != host.Authority.BprProfile || durableScope.Host != host.Authority.Target.Host || durableScope.Account != host.Authority.Account || durableScope.Repository != host.Authority.Target.Repository || durableScope.PullRequest != host.Authority.Target.PullRequest || (host.DurableScope && *host.DurableScope != durableScope)) {
 			return std::unexpected(shared_draft_failure::invalid_authority);
 		}
-		auto                                       drafts  = host.Drafts;
-		auto                                       durable = host.Durable;
-		auto                                       next    = host.NextDraft;
+		auto                                       drafts       = host.Drafts;
+		auto                                       durable      = host.Durable;
+		auto                                       next         = host.NextDraft;
+		const auto                                 unusedBefore = std::max(host.UnusedBefore, aCommit.unused_retirement_frontier());
 		std::vector<core::revisioned_review_draft> changed;
+		for (const auto id : aCommit.removed_unused()) {
+			const auto found = std::ranges::find_if(drafts, [&](const auto& value) { return value.Draft.Id == id; });
+			if (found != drafts.end()) {
+				if (!core::unused_review_draft(*found) || std::ranges::find(durable, id) == durable.end()) {
+					return std::unexpected(shared_draft_failure::conflict);
+				}
+				drafts.erase(found);
+				std::erase(durable, id);
+			}
+		}
 		for (const auto& record : aCommit.records()) {
 			const auto& binding = record.Binding;
 			const auto& scope   = binding.Scope;
 			if (scope != durableScope || scope.Profile != host.Authority.BprProfile || scope.Host != host.Authority.Target.Host || scope.Account != host.Authority.Account || scope.Repository != host.Authority.Target.Repository || scope.PullRequest != host.Authority.Target.PullRequest || binding.HostAuthority != host.Authority.HostAuthority || binding.Revision.HeadOid != host.Authority.Target.ExpectedHead || record.Draft.Scope.value() != 0 || record.Draft.Draft.Id.value() == 0 || record.Draft.Revision == 0) {
 				return std::unexpected(shared_draft_failure::invalid_authority);
+			}
+			if (core::unused_review_draft(record.Draft) && record.Draft.Draft.Id.value() < unusedBefore) {
+				continue;
 			}
 			auto value  = record.Draft;
 			value.Scope = host.Scope;
@@ -229,7 +265,7 @@ namespace bpr::application {
 				}
 				*found = value;
 			} else {
-				if (drafts.size() >= maximum_shared_drafts) {
+				if (drafts.size() >= maximum_retained_private_drafts) {
 					return std::unexpected(shared_draft_failure::capacity);
 				}
 				drafts.push_back(value);
@@ -242,6 +278,7 @@ namespace bpr::application {
 		host.Drafts       = std::move(drafts);
 		host.Durable      = std::move(durable);
 		host.NextDraft    = next;
+		host.UnusedBefore = unusedBefore;
 		for (const auto& draft : changed) {
 			host.publish(draft);
 		}

@@ -196,8 +196,8 @@ namespace bpr::qt {
 				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
 				// [[BPR-1357]]. The row a pull request is being opened from says
-				// so in place of why it is listed, behind a mark, and its action
-				// place holds Cancel or Retry instead of the hover action.
+				// so in place of why it is listed, behind a mark, and offers
+				// Cancel or Retry while its hover action is hidden.
 				const auto* const open = aOpen != nullptr && aOpen->Phase != home_row_open_phase::none && !aOpen->Identity.isEmpty()
 						&& identity == aOpen->Identity
 					? aOpen
@@ -236,13 +236,14 @@ namespace bpr::qt {
 					Second += reason;
 				}
 
-				SideFont                = secondary_font(aOption.font);
-				const auto sideMetrics  = QFontMetrics{ SideFont };
-				SideLineHeight          = sideMetrics.height();
-				const auto actionExtent = Opening ? action_size(aOption, OpenAction) : row_action_size(aOption, aIndex);
-				SideWidth               = std::max({ sideMetrics.horizontalAdvance(Time),
-													 sideMetrics.horizontalAdvance(Progress),
-													 actionExtent.width() });
+				SideFont                    = secondary_font(aOption.font);
+				const auto sideMetrics      = QFontMetrics{ SideFont };
+				SideLineHeight              = sideMetrics.height();
+				const auto actionExtent     = row_action_size(aOption, aIndex);
+				const auto openActionExtent = Opening ? action_size(aOption, OpenAction) : QSize{ };
+				SideWidth                   = std::max({ sideMetrics.horizontalAdvance(Time),
+														 sideMetrics.horizontalAdvance(Progress),
+														 actionExtent.width() });
 				// [[BPR-0783]]. The account chip: a round initial tile and the
 				// login, at the row's right before the time.
 				const auto chipExtent = home_chip_size(SideFont, Chip);
@@ -274,14 +275,18 @@ namespace bpr::qt {
 				// [[BPR-1407]]. The facts sit beside the side column, which keeps
 				// the hover action's place, so the action never covers a figure
 				// and the column's right edge is the same on every row.
-				FactsLeft            = SideLeft - (SideWidth > 0 && FactsWidth > 0 ? home_row_delegate::column_gap : 0) - FactsWidth;
-				ChipLeft             = FactsLeft - ((SideWidth > 0 || FactsWidth > 0) && ChipWidth > 0 ? home_row_delegate::column_gap : 0) - ChipWidth;
-				TagLeft              = ChipLeft - ((SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
-				const auto textRight = SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0 || TagWidth > 0 ? TagLeft - home_row_delegate::column_gap : right;
-				TextWidth            = std::max(1, textRight - TextLeft);
-				DraftWidth           = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.horizontalAdvance(Draft) + tag_pad_x * 2;
-				DraftHeight          = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.height() + tag_pad_y * 2;
-				FirstIndent          = DraftWidth > 0 ? DraftWidth + open_mark_gap : 0;
+				FactsLeft = SideLeft - (SideWidth > 0 && FactsWidth > 0 ? home_row_delegate::column_gap : 0) - FactsWidth;
+				ChipLeft  = FactsLeft - ((SideWidth > 0 || FactsWidth > 0) && ChipWidth > 0 ? home_row_delegate::column_gap : 0) - ChipWidth;
+				TagLeft   = ChipLeft - ((SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
+				// [[BPR-1505]]. Cancel/Retry precede the stable trailing columns;
+				// their changing width must not move the changes, history or tags.
+				const auto hasTrailing = SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0 || TagWidth > 0;
+				OpenActionLeft         = TagLeft - (hasTrailing && openActionExtent.width() > 0 ? home_row_delegate::column_gap : 0) - openActionExtent.width();
+				const auto textRight   = hasTrailing || openActionExtent.width() > 0 ? OpenActionLeft - home_row_delegate::column_gap : right;
+				TextWidth              = std::max(1, textRight - TextLeft);
+				DraftWidth             = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.horizontalAdvance(Draft) + tag_pad_x * 2;
+				DraftHeight            = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.height() + tag_pad_y * 2;
+				FirstIndent            = DraftWidth > 0 ? DraftWidth + open_mark_gap : 0;
 
 				auto leadFormat   = QTextLayout::FormatRange{ };
 				leadFormat.start  = 0;
@@ -320,7 +325,7 @@ namespace bpr::qt {
 					+ (secondExtent > 0 ? home_row_delegate::line_gap + secondExtent : 0);
 				const auto sideLines = (Time.isEmpty() ? 0 : 1) + (Progress.isEmpty() ? 0 : 1);
 				const auto side      = (home_row_delegate::vertical_padding * 2)
-					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), ChipHeight, TagHeight });
+					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), openActionExtent.height(), ChipHeight, TagHeight });
 				RowHeight   = std::max({ home_row_delegate::minimum_row_height, content, side });
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
@@ -424,6 +429,7 @@ namespace bpr::qt {
 			int         TagWidth       = 0;
 			int         TagHeight      = 0;
 			int         TagLeft        = 0;
+			int         OpenActionLeft = 0;
 			int         FirstHeight    = 0;
 			int         SecondHeight   = 0;
 			int         RowHeight      = 0;
@@ -898,7 +904,7 @@ namespace bpr::qt {
 		initStyleOption(&option, aIndex);
 		const auto       size = action_size(option, Open.Action);
 		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
-		return QRect{ option.rect.left() + layout.Width - inset - size.width(),
+		return QRect{ option.rect.left() + layout.OpenActionLeft,
 					  option.rect.top() + ((layout.RowHeight - size.height()) / 2),
 					  size.width(),
 					  size.height() };

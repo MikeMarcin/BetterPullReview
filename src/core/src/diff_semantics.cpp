@@ -694,6 +694,48 @@ namespace bpr::core {
 			: change_navigation_result{ };
 	}
 
+	auto navigate_change(const diff_semantic_index&        aIndex,
+						 const source_line_ref             aCurrent,
+						 const change_navigation_direction aDirection,
+						 const change_navigation_policy    aPolicy) -> change_navigation_result
+	{
+		const auto mapping = map_line(aIndex, aCurrent);
+		if (mapping.Kind == line_mapping_kind::unavailable || !mapping.Segment
+			|| (aDirection != change_navigation_direction::previous && aDirection != change_navigation_direction::next)
+			|| (aPolicy != change_navigation_policy::stop && aPolicy != change_navigation_policy::wrap)) {
+			return { };
+		}
+		if (mapping.Group) {
+			return navigate_change(aIndex, mapping.Group, aDirection, aPolicy);
+		}
+		const auto& groups = aIndex.diff().Alignment.Groups;
+		if (groups.empty()) {
+			return { .Outcome = change_navigation_outcome::no_changes };
+		}
+		const auto segment = aIndex.segment_index(*mapping.Segment);
+		if (!segment) {
+			return { };
+		}
+		// Segment order is shared by both documents; source line numbers are not.
+		const auto next    = std::ranges::upper_bound(groups, *segment,
+													  std::ranges::less{ },
+													  [](const change_group& aGroup) { return aGroup.Members.Begin; });
+		const auto before  = static_cast<std::size_t>(std::ranges::distance(groups.begin(), next));
+		const auto forward = aDirection == change_navigation_direction::next;
+		const auto bounded = forward ? next == groups.end() : before == 0U;
+		if (bounded && aPolicy == change_navigation_policy::stop) {
+			return { .Outcome = forward ? change_navigation_outcome::at_end : change_navigation_outcome::at_start };
+		}
+		const auto target = bounded ? (forward ? 0U : groups.size() - 1U)
+			: forward               ? before
+									: before - 1U;
+		return {
+			.Outcome = bounded ? change_navigation_outcome::wrapped : change_navigation_outcome::selected,
+			.Group   = groups[target].Id,
+			.Index   = static_cast<std::uint32_t>(target),
+		};
+	}
+
 	auto select_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
 		-> std::optional<semantic_selection>
 	{

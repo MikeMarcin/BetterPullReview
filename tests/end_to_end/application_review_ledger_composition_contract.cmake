@@ -95,6 +95,12 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence e
             )
         endif()
     endforeach()
+    if(course STREQUAL "seed")
+        string(FIND "${probe_output}" "REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK" accept_shortcut)
+        if(accept_shortcut EQUAL -1)
+            message(FATAL_ERROR "review-ledger seed omitted actual Accept-key/repeat evidence\n${probe_output}")
+        endif()
+    endif()
     string(FIND "${probe_output}" "REVIEW_LEDGER_COMPOSITION_${course_marker}_FAILED" failed)
     if(NOT failed EQUAL -1)
         message(FATAL_ERROR
@@ -110,11 +116,14 @@ endfunction()
 bpr_private_data_root(BPR_ROOT)
 bpr_prepare_private_root("${BPR_ROOT}")
 # [[BPR-1331]]. The private progress button says accepted after the gestures,
-# and unread when the changed file is opened on the pushed head.
+# and Seen automatically when the changed file is opened on the pushed head.
 bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011
     "REVIEW_LEDGER_PROGRESS_MARK:Private progress: accepted\n")
 bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011
-    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: unread\n")
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: seen\n")
+# A second process at the same material loads automatic Seen without a write.
+bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: seen\n")
 
 set(bpr_unavailable_root "${BPR_ROOT}-unavailable")
 bpr_prepare_private_root("${bpr_unavailable_root}")

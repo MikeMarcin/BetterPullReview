@@ -868,6 +868,54 @@ namespace bpr::qt {
 		}
 		render_draft(aAccepted.Draft);
 	}
+	void review_draft_editor::acknowledge_materialized(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted)
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Accepted || state.Accepted->Draft.Id != aCommand.Command.Id || state.Accepted->Scope != aCommand.Scope || aAccepted.Scope != aCommand.Scope || state.Accepted->Draft.Anchor != aAccepted.Draft.Anchor || !state.Candidate || state.Candidate->Command.Id != aCommand.Command.Id) {
+			return;
+		}
+		const auto old              = aCommand.Command.Id;
+		auto       command          = aCommand;
+		command.Command.Id          = aAccepted.Draft.Id;
+		state.Accepted->Draft.Id    = aAccepted.Draft.Id;
+		state.Candidate->Command.Id = aAccepted.Draft.Id;
+		if (Members.ShownDraft && Members.ShownDraft->Id == old) {
+			Members.ShownDraft->Id = aAccepted.Draft.Id;
+		}
+		if (state.PendingRange && state.PendingRange->first == old) {
+			state.PendingRange->first = aAccepted.Draft.Id;
+		}
+		if (state.PendingMark && state.PendingMark->first == old) {
+			state.PendingMark->first = aAccepted.Draft.Id;
+		}
+		if (!state.Selected || state.Replacement) {
+			state.Accepted                    = aAccepted;
+			state.Candidate->ExpectedRevision = aAccepted.Revision;
+			state.Candidate->Command.Body     = body_text();
+			settle_in_flight();
+			if (body_text() == aAccepted.Draft.Body && !state.PendingRange && !state.PendingMark) {
+				state.Candidate.reset();
+				state.Conflict = false;
+				if (state.Replacement) {
+					const auto selected = std::exchange(state.Replacement, std::nullopt);
+					present(*selected);
+				}
+			}
+			return;
+		}
+		if (state.Candidate->Command == command.Command) {
+			acknowledge(command, aAccepted);
+		} else {
+			// A later keystroke reached the editor while the first save was
+			// pending. Continue its ordinary edit on the committed identity.
+			state.Accepted = aAccepted;
+			state.Candidate.reset();
+			state.Conflict = false;
+			settle_in_flight();
+			Members.ShownDraft = aAccepted.Draft;
+			emit_draft(core::review_draft_command_kind::edit);
+		}
+	}
 	void review_draft_editor::acknowledge_published_body(const core::revisioned_review_draft& aPublished)
 	{
 		auto& state = Members.Revisioned;

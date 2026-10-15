@@ -291,6 +291,9 @@ namespace bpr::application {
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
+		/// \brief Replays current validation to a window attached after it began.
+		/// \details Contains no accepted account or reading authority; absent after its terminal.
+		[[nodiscard]] auto pending_session_presentation() const -> std::optional<github_presentation_update>;
 		[[nodiscard]] auto accepted_session() const noexcept
 			-> const std::optional<github_session_read_model>&;
 		/// \brief [[BPR-0990]]. The accepted session's exact read authority.

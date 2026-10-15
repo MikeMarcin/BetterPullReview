@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_public_path_fixture.hpp"
 #include "../../src/app/src/system_browser_opener.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -18,6 +19,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QShortcut>
 #include <QTemporaryDir>
@@ -239,6 +241,27 @@ namespace {
 		files->selectionModel()->setCurrentIndex(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		auto* surface = window.comparison_surface();
 		wait_for([&] { return surface->current_result() && surface->current_context() && surface->selection() && !surface->geometry_pending(); }, "real drawer selection renders exact comparison");
+		// [[BPR-1510]]. The assembled workbench keeps both remaining entries
+		// to Threads after the redundant Comments-header button is removed.
+		expect(window.findChild<QToolButton*>(QStringLiteral("workbenchThreadsFinderButton")) == nullptr,
+			   "the composed Comments header has no redundant Threads finder button");
+		window.activateWindow();
+		surface->right_pane()->setFocus(Qt::OtherFocusReason);
+		wait_for([&] { return surface->right_pane()->hasFocus(); }, "the composed course starts with code focus");
+		auto* const threads = window.show_threads_action();
+		expect(threads != nullptr && threads->isEnabled() && threads->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") },
+			   "the composed window retains its enabled Command-J action");
+		threads->trigger();
+		wait_for([&] { return window.current_modality() == qt::review_modality::threads && window.finder()->search_field()->hasFocus(); },
+				 "Command-J's action enters Threads with search focused through the real host");
+		threads->trigger();
+		wait_for([&] { return window.current_modality() == qt::review_modality::review && surface->right_pane()->hasFocus(); },
+				 "Command-J's action returns to Review with code focus restored");
+		window.modality()->action(qt::review_modality::threads)->trigger();
+		wait_for([&] { return window.current_modality() == qt::review_modality::threads && window.finder()->search_field()->hasFocus(); },
+				 "the composed Threads tab still enters the finder with search focused");
+		threads->trigger();
+		wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Threads returns to the composed comparison");
 		expect(surface->select_conversation_line(core::diff_side::right, 3U), "save an exact semantic reading line");
 		const auto savedKey       = surface->current_context()->Key;
 		const auto savedSelection = surface->selection();

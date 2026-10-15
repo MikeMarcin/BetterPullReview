@@ -1,0 +1,143 @@
+{
+  "assignment": "BPR-1519 /root/bpr1519",
+  "mandate_revision": "owner-2026-10-14-label-spacing-r1",
+  "scope": "exclusive bpr1519-label-spacing worktree; coordinator integrates; no main or allocation authority",
+  "branch": "fix/bpr-1519-label-spacing",
+  "baseline": "583eb468974b81d050574841f22491c7462da999",
+  "plan_commit": "c0a0bb30f",
+  "claim_commit": "64a0aca9af0f1d173483796c104097ffb72037fb",
+  "candidate_revision": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+  "changed_paths": [
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "design": {
+    "skill": "frontend-design:frontend-design loaded before UX edits",
+    "palette_and_type": "Retain the workbench's inherited native QPalette roles and application font.",
+    "layout": "Right-align File and Changes within their existing fixed counter slots; preserve toolbar spacing, order, rails and arrow geometry.",
+    "brief_review": "The correction follows the owner's explicit suggestion to move the labels right. Existing workbench tokens suffice; no broader redesign is needed."
+  },
+  "verification": {
+    "preflight": "ready / ready_pinned; host loading not verified by MASK",
+    "documentation_initial": "DOCUMENTATION_OK",
+    "format": "clang-format22.1.8 dry-run passed on both touched C++ files",
+    "diff_check": "passed",
+    "qt": "6/6 passed: title-row and focus-order at scales1.0/1.25/2.0, serial,21.9s total.",
+    "public": {
+      "source_candidate": "0c23b902aa98ea4f1106a117ac6177f89f8cf263",
+      "integrated_main_product": "fce3377fb",
+      "metadata_only_successor": "5a105579c",
+      "report": "Coordinator actual combined dev build returned0 and6/6tests passed. Locally inspected passing test log.",
+      "navigation": "application_review_navigation_entry32.28s",
+      "diff_public": "application_diff_workbench_public_path4.44s",
+      "title_row": "qt_workbench_title_row_scale_1003.85s",
+      "batch": "52.67s",
+      "log": "/tmp/bpr-coordinator-hotkey-layout-tests.log",
+      "log_sha256": "842a7ad2775f5ce9a82479f5fdbc9ac43ebc4e291c2e6845bb09408025468ede"
+    },
+    "rendered_gaps": "8.8\u201310 logical pixels at1280/900; old-left-alignment negative control95\u201396 logical pixels.",
+    "inspection": "Full-window synthetic offscreen renders inspected:100wide selected/narrow empty,125narrow selected,200wide selected. Navigation labels whole and beside arrows; no overlap or clipping.",
+    "context": {
+      "platform": "macOS26.6.2",
+      "architecture": "arm64",
+      "Qt": "6.11.2",
+      "input": "offscreen Qt navigation actions, walked focus, raster pixels",
+      "fixture": "132-line synthetic comparison,11separated groups",
+      "bounded_work": "existing stable counter slots; no semantic recomputation added",
+      "elapsed": "6tests21.9s; no performance guarantee"
+    },
+    "documentation_final": "Post-finish DOCUMENTATION_OK",
+    "board_final": "Scoped validation valid; no errors",
+    "self_review": "Complete review of the bounded3-line product change and raster test; native palette/font, arrow geometry and translation preserved. No additional API or effect path.",
+    "limitations": "Offscreen macOS evidence at1/1.25/2; no native Windows/Linux or independent/human review claim. No separate native/human gate is required by this card."
+  },
+  "commands": {
+    "completed": [
+      "MASK registration preview and reviewed apply",
+      "workflow preflight",
+      "plan preparation/adoption/binding",
+      "claim",
+      "dev configure with shared CPM and -O0 -g0",
+      "Focused Qt-only build session94950 returned0",
+      "Serial six-row Qt test batch session16165 returned0",
+      "Coordinator combined build/public test batch complete;6/6passed at integrated productfce3377fb",
+      "Acceptance-driven finish b840720f5; first repeated --paths spelling was refused without mutation; one explicit list succeeded",
+      "Post-finish documentation and scoped board validation complete"
+    ],
+    "running": [],
+    "earlier_refusal": "An initial build launched before configure had completed refused for a missing CMakeCache. The build was restarted after configure returned0.",
+    "configure": [
+      "cmake",
+      "--preset",
+      "dev",
+      "-DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache",
+      "-DCMAKE_CXX_FLAGS_DEBUG=-O0 -g0",
+      "-DCMAKE_C_FLAGS_DEBUG=-O0 -g0"
+    ],
+    "focused": [
+      "ctest",
+      "--preset",
+      "dev",
+      "--output-on-failure",
+      "-V",
+      "-R",
+      "^qt_workbench_(title_row|focus_order)_scale_(100|125|200)$"
+    ],
+    "render_prefix": "BPR_QT_RENDER_PATH=<absolute source root>/build/bpr1519-evidence/workbench-<100|125|200>.png; three serial per-scale invocations",
+    "review_server": null
+  },
+  "ownership": {
+    "writers": "This leaf only; other worktrees own Accept hotkey, file navigation, change cursor and divider.",
+    "protected_candidate": "No attended candidate or review server. Keep this isolated source/build until coordinator consumes the handoff.",
+    "safety": "No owner desktop/profile/browser data or credentials touched; no live GitHub calls."
+  },
+  "pending": [
+    "Coordinator integrates closeout b840720f5 plus final checkpoint commit. Do not re-integrate already consumed plan/claim/source or metadata-only4338b0554."
+  ],
+  "next_action": "Coordinator cherry-picks only the closeout commits returned in the final handoff; no further BPR-1519 engineering or human decision remains.",
+  "evidence": {
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/qt-scale-100.log": {
+      "sha256": "15164a765aa2a067b65cc3e93dde08fce362b4390e6a9ffff920a7347839cbf0",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/qt-scale-125.log": {
+      "sha256": "e8abfe2b822305367e54b02f4867f29f2a93b1c0d00dd6f11cff33d024bc2632",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/qt-scale-200.log": {
+      "sha256": "125a7d0f7d709208daf2146080349b103d1b569912656bec43ec8b8ecf0ed3e2",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/workbench-100-navigation-labels-selected-1280.png": {
+      "sha256": "b084534cb84f81785132cdad61eaaaa8d6f49e42da76226bae804c2a2a794a09",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/workbench-100-navigation-labels-empty-900.png": {
+      "sha256": "88c1799ffd3b1aef04d43ce31ac45962c9ca8680fb7aed986e1914e47794e468",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/workbench-125-navigation-labels-selected-900.png": {
+      "sha256": "6a26201be23d3045c44d4ddf5019be454631ee76e31aa8806c01eb45accee8d5",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/workbench-200-navigation-labels-selected-1280.png": {
+      "sha256": "f477f8852f09ef05dd473da04eaaa211d15aa7e7d37e1f63a0302d3caeaf1032",
+      "kind": "synthetic offscreen evidence; local only"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/documentation-post-finish.log": {
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027",
+      "kind": "local gate evidence"
+    },
+    "/Users/jaeger/.codex/worktrees/bpr1519-label-spacing/BetterPullReview/build/bpr1519-evidence/board-post-finish.json": {
+      "sha256": "a939b034f4319fedba104ed638c99b5477fd42413fce1652d96caec824e3b817",
+      "kind": "local gate evidence"
+    }
+  },
+  "authorized_import": {
+    "coordinator_commit": "5a105579c",
+    "local_cherry_pick": "4338b0554",
+    "scope": "BPR-1521 card, NEXT_ID1522, allocation receipt only. Coordinator already owns original; do not integrate duplicate."
+  },
+  "canonical_finish": "b840720f5b85cbc7a283363316f006b760316b17",
+  "upkeep_status": "Done; accepted AC1\u2013AC4. Post-finish DOCUMENTATION_OK and scoped board validation valid."
+}
