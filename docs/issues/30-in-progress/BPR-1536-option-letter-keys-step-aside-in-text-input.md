@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1536"
 title: "Option-letter window and menu keys step aside in text input on macOS (Option-R types ®)"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
