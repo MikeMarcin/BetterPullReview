@@ -73,3 +73,15 @@ already require immediate selected-theme projection. This repairs that
 projection and changes presentation role selection only; no core, host,
 persistence, provider, security, typography, layout or command contract changes.
 No RFC acceptance or historical evidence is rewritten.
+
+Review reconciliation, 2026-10-14.
+
+The owner rejected candidate `BPR-1513-dark-banners-v001` (session
+`5983d1b8…`, event 5, handed back at event 6) and left no note, so no
+adjustment was requested. The system appearance is Dark, which rules out
+light native controls under the dark profile palette. An offscreen render with
+the macOS style shows the same subdued headers, but cannot draw native controls.
+Rather than guess at v002, a fresh short session asks one named-alternatives
+question about what to change. AC1 and AC4 stay pending, and the v001 source and
+frozen build stay protected until v002 supersedes them. Details are in
+[the handoff](../_checkpoints/BPR-1513/handoff.json).

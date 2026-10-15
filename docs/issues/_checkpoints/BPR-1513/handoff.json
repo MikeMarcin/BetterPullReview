@@ -28,7 +28,7 @@
     "platform": "Darwin arm64; Qt6.11.2; QT_QPA_PLATFORM=offscreen; no native appearance integration claim"
   },
   "pending": [
-    "AC1 owner visual judgement for the exact frozen candidate; AC4 human portion. AC2/AC3 and all unattended engineering are complete."
+    "AC1/AC4 owner visual judgement: v001 rejected without a note; the follow-up session's answer selects the v002 adjustment, then freeze v002 and open a fresh short session."
   ],
   "commands": {
     "freeze": "finished exit0; launcher-check child exited",
@@ -40,7 +40,7 @@
     },
     "repository_writer": "released at handoff; candidate source paths protected"
   },
-  "next_action": "Coordinator presents complete loopback URL and owns wait after4 for handed-back. Reconcile session and cursor; use a fresh implementer for any engineering after hand-back. Keep source candidate and frozen root protected.",
+  "next_action": "Read follow-up session 3a8fe1ec\u2026 status --after 3. Implement the selected adjustment on branch bpr1513-dark-appearance-banners (frontend-design loaded first), verify, freeze v002 with scripts/freeze_attended_build.py, and present it in a fresh short session. Release v001 protections only after v002 supersedes them.",
   "scope_notes": "No live GitHub calls or owner desktop driving/capture; source3 only; frontend-design loaded before UX edits.",
   "frozen": {
     "root": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o",
@@ -53,17 +53,22 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1513-v001-8somlzhu",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "5983d1b81b558df9fa361c2cc29e7caf",
-    "event_cursor": 4,
+    "event_cursor": 6,
     "candidate": "BPR-1513-dark-banners-v001",
     "fingerprint": "fc8c02470612dd67e6717a67eb1dc7d5a15691da5b8fab2e414fbd2b64508e79",
     "revision": "59cefd86f83c9a7ed2a586a06739ac774d98dfb0",
     "phase": "ready",
     "protected": true,
-    "decision": null,
-    "server_base_url": "http://127.0.0.1:54305/",
+    "decision": {
+      "outcome": "reject",
+      "note": "",
+      "decision_id": "723a381d-85ea-464f-9df6-88f612056f59",
+      "saved_at": "2026-10-15T02:39:32Z",
+      "handed_back_event": 6
+    },
+    "server_base_url": "http://127.0.0.1:51163/ (coordinator-started, pid 23842; obsolete port 54305/pid 44077 superseded)",
     "complete_url": "Obtain from the private session serve attach output; never commit the loopback bearer token.",
-    "server_pid": 44077,
-    "server_tool_session": 9896,
+    "server_pid": 23842,
     "driver": "coordinator /root; implementer does not interpret the verdict",
     "wait_argv": [
       "python3",
@@ -82,5 +87,21 @@
       "--timeout",
       "43200"
     ]
+  },
+  "reconciliation_2026_10_14": {
+    "reconciled_by": "rfc-implementer takeover",
+    "consumed_cursor": 6,
+    "finding": "v001 rejected with an empty note, so no adjustment was requested. System appearance is Dark, which rules out light native controls under the dark profile palette. An offscreen render with the macOS style (QT_STYLE_OVERRIDE=macos) shows the same #1C2026 headers but cannot draw native controls, so the owner's native view cannot be reproduced without the desktop.",
+    "action": "No v002 built yet. Fresh short session asks one named-alternatives question about what to change; v001 build and source stay protected.",
+    "follow_up_session": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1513-reason-thDsw0",
+      "session": "3a8fe1ec5b0489344ce745afec648f24",
+      "candidate": "BPR-1513-dark-banners-v001-reason",
+      "fingerprint": "a0410a44cc8d406fab3621a7bccd372c803f3d9967321e83c1dd6e5adca645f7",
+      "event_cursor": 3,
+      "server_pid": 27189,
+      "server_base_url": "http://127.0.0.1:52195/",
+      "complete_url": "Printed in the private serve log beside the state directory; never commit the bearer token."
+    }
   }
 }
