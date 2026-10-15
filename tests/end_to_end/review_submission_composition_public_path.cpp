@@ -557,8 +557,8 @@ auto main(int argc, char** argv) -> int
 				std::scoped_lock lock{ server->Mutex };
 				return server->Submissions;
 			};
-			const auto chip          = [&] { return composer.preflight_button()->toolTip(); };
-			const auto refresh_until = [&](const QString& aWords, const char* aWhy) {
+			const auto chip         = [&] { return composer.preflight_button()->toolTip(); };
+			const auto refreshUntil = [&](const QString& aWords, const char* aWhy) {
 				course.github_refresh_action()->trigger();
 				if (!e2e::wait_until_plain([&] { return chip() == aWords; }, e2e::default_queue_budget)) {
 					std::cerr << "review-submission-composition: the chip says \"" << chip().toStdString() << "\" (" << course.github_status_text() << ")\n";
@@ -576,8 +576,8 @@ auto main(int argc, char** argv) -> int
 
 			access::stage_server_root(*application, "PRRT_fixture_1", "issue (blocking): Please preserve snapshot identity across refreshes.", std::nullopt);
 			access::stage_server_root(*application, "PRRT_fixture_2", "issue (blocking): Another reviewer's blocker.", std::nullopt, std::pair{ std::string{ "U_fixture_author" }, std::string{ "octo-author" } });
-			refresh_until(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"),
-						  "my labelled root is mine; another reviewer's blocker is counted apart, never as mine");
+			refreshUntil(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"),
+						 "my labelled root is mine; another reviewer's blocker is counted apart, never as mine");
 			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::comment && composer.shown_draft()->State == state::drafting,
 				   "a label read from GitHub submits nothing and chooses no decision");
 			composer.choose_disposition(core::review_disposition::approve);
@@ -595,14 +595,14 @@ auto main(int argc, char** argv) -> int
 			QApplication::processEvents();
 
 			access::stage_server_root(*application, "PRRT_fixture_1", std::nullopt, true);
-			refresh_until(QStringLiteral("Yours on GitHub: 0 open blocking\nOthers: 1 open blocking (not yours)"), "resolving my last blocker clears it");
+			refreshUntil(QStringLiteral("Yours on GitHub: 0 open blocking\nOthers: 1 open blocking (not yours)"), "resolving my last blocker clears it");
 			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::approve && composer.shown_draft()->State == state::drafting && approve->icon().isNull(),
 				   "the last resolution approves nothing and leaves my explicit choice as it was");
 			access::stage_server_root(*application, "PRRT_fixture_3", "todo: Keep the second current-head anchor exact.", std::nullopt);
-			refresh_until(QStringLiteral("Yours on GitHub: 0 open blocking\n1 todo, not marked blocking\nOthers: 1 open blocking (not yours)"),
-						  "an undecorated todo is guidance, never a blocker");
+			refreshUntil(QStringLiteral("Yours on GitHub: 0 open blocking\n1 todo, not marked blocking\nOthers: 1 open blocking (not yours)"),
+						 "an undecorated todo is guidance, never a blocker");
 			access::stage_server_root(*application, "PRRT_fixture_3", "todo (blocking): Keep the second current-head anchor exact.", std::nullopt);
-			refresh_until(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"), "a label edit to blocking is mine again");
+			refreshUntil(QStringLiteral("Yours on GitHub: 1 open blocking\nOthers: 1 open blocking (not yours)"), "a label edit to blocking is mine again");
 			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::approve && !approve->icon().isNull(),
 				   "a label change requests no changes and submits nothing");
 
