@@ -1705,6 +1705,14 @@ namespace bpr::qt {
 
 		void source_pane::paint_text(QPaintEvent* const aEvent)
 		{
+			// The custom path changes only the text selection's wash order.
+			// With no text selection, Qt can paint the same bands and syntax
+			// directly, avoiding their per-block recomposition on every key
+			// and scroll frame ([[BPR-1525]]).
+			if (!textCursor().hasSelection()) {
+				QPlainTextEdit::paintEvent(aEvent);
+				return;
+			}
 			auto       painter      = QPainter{ viewport() };
 			auto       offset       = contentOffset();
 			auto       exposed      = aEvent->rect();

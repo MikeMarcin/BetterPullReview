@@ -1872,6 +1872,15 @@ namespace {
 							 cancelled,
 							 exhausted,
 							 retry_after };
+		// This matrix changes only the failing part. Prepare the nine exact
+		// canonical responses once; every attempt still receives its own copy.
+		// Re-reading and splitting the whole schema for every physical request
+		// dominated the native gate without exercising provider behavior.
+		const auto canonical = supported_capability_response();
+		auto       parts     = std::array<capability_probe_response, 9U>{ };
+		for (auto index = std::size_t{ 0U }; index < parts.size(); ++index) {
+			parts[index] = capability_part_response(canonical, static_cast<std::uint8_t>(index));
+		}
 		for (const auto mode : { failure::envelope, failure::part, failure::correlation, failure::cancelled, failure::exhausted, failure::retry_after }) {
 			for (const auto stopPart : std::array<std::uint8_t, 3>{ 0U, 4U, 8U }) {
 				provider_fixture fixture{ application::github_authentication_transport::native_https };
@@ -1880,12 +1889,12 @@ namespace {
 				fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
 					expect(aWire.Correlation.Part == next && aWire.Wire.Part == next && aWire.Correlation.Session == request.Context, "parts remain ordered in the exact logical request");
 					++next;
-					auto response    = capability_part_response(supported_capability_response(), aWire.Correlation.Part);
+					auto response    = parts.at(aWire.Correlation.Part);
 					auto correlation = aWire.Correlation;
 					if (aWire.Correlation.Part == stopPart) {
 						switch (mode) {
 						case failure::envelope:    response.Body = R"({"errors":[{"type":"FORBIDDEN"}]})"; break;
-						case failure::part:        response = capability_part_response(supported_capability_response(), static_cast<std::uint8_t>((stopPart + 1U) % 9U)); break;
+						case failure::part:        response = parts.at((stopPart + 1U) % parts.size()); break;
 						case failure::correlation: correlation.Part = static_cast<std::uint8_t>((stopPart + 1U) % 9U); break;
 						case failure::cancelled:   fixture.Provider->cancel_capabilities(request); break;
 						case failure::exhausted:   response.RateLimitHeaders[1].Value = "0"; break;
@@ -1913,7 +1922,7 @@ namespace {
 				next                                 = 0U;
 				fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
 					expect(aWire.Correlation.Part == next++, "fresh attempt restarts canonical plan without stale partials");
-					return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = capability_part_response(supported_capability_response(), aWire.Correlation.Part) };
+					return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = parts.at(aWire.Correlation.Part) };
 				};
 				auto retry    = request;
 				retry.Attempt = application::github_provider_attempt{ static_cast<std::uint8_t>(request.Attempt.value() + 1U) };
