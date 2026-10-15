@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1521"
+  ],
+  "reserve_for": "testing-notes-coordinator",
+  "purpose": "Follow-up multiwindow draft materialization regression from BPR-1520 integration",
+  "created": "2026-10-15T02:04:18.511365+00:00",
+  "base": "fce3377fb9da2e54d0bd1529ed2a29839c1f005b"
+}
