@@ -76,3 +76,38 @@ the new reverse control and previous forward control. The production mutation
 branch remains unchanged. Fresh strict checks pass all eight selected translation units; full format 22
 and architecture checks also pass. Native Windows/Ubuntu acceptance and complete
 final common-source release reruns remain pending.
+
+## Windows 0.2.2 follow-up after Mac boundary c233c7683
+
+The exact frozen Mac slice and its evidence remain unchanged. Native Windows
+row902 shows lawful local-cycle caption elision with the exact canonical
+tooltip and refused browser action. The corrected oracle requires that full
+tooltip, the exact title or its nonempty lawful prefix plus ellipsis, and the
+Local cycle badge. All previous width/Home/new-PR/browser controls remain.
+All nine normal native courses pass728.19s. A deliberate production change
+that discards the cycle on same-PR refresh fails the exact contract4.02s, then
+restored normal source passes42.13s. The first control compile failure is
+retained as a failed attempt, not negative acceptance.
+
+The eighteen affected native application courses pass12 and fail6 in599.51s.
+The remaining six are UIforETW later probe phase, label authoring later phase33,
+three submission scales and navigation lifetime. Original reply phase19 now
+passes; label later has no runtime draft at line3. Both held-origin directions,
+scaling and three Find scales pass. No full release approval is inferred.
+
+The navigation failure has direct clock evidence: the original post-render
+clock waited2607ms after the message was already455ms old, observing it at
+3063ms after legitimate3000ms expiry. The correction binds a latched clock to
+the first exact message emitted for the originating bounded gesture. All
+inputs, image capture and2600/3600ms checks remain. No product timer changes.
+It still awaits actual corrected native verification.
+
+The current application-source delta is only bounded test-build failure facts:
+UIforETW phase/gesture/geometry/navigation state and label selected-file/tab/
+chosen/material state. Submission adds read-only exact file/tab/comparison
+observations when its unchanged immediate Files gesture fails. No wait,
+sleep, threshold, semantic assertion or production policy is changed by these
+diagnostics. The full application and manifest pins are resealed from actual
+native print-only digests after format22; print mode verifies nothing. The
+production mutation-branch digest remains unchanged. All actual causes and
+acceptance remain pending until their normal native courses demonstrate them.

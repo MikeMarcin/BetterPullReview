@@ -1,0 +1,15 @@
+{
+  "schema": "bpr.native-followup-observation.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "release_target": "Windows0.2.2",
+  "reviewed_base": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+  "full_application": "6b2b845b6b127c7e0f7d79e064133d3aa944f9b7db25b8db317256bc5a26d051",
+  "production_app_manifest": "1ae2dbd85704dc21fb5104f46d43119979e33df72bb23c654d8c3488f2ced5bb",
+  "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df",
+  "digest_command": "cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=C:/Users/mikem/bpr-v021 -P tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+  "digest_mode": "print-only; exit0; does not verify any contract",
+  "changed_source_scope": "test-build failure observations only, no production mutation/grant/provider branch change",
+  "native_next": "Corrected navigation, UIforETW phase/label/submission diagnosis, exact round-trip pins, then current complete-workbench performance baseline/profile; all serializedPC",
+  "acceptance": "pending; source was formatted with native clang-format22.1.8, not yet built/tested"
+}

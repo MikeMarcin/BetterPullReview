@@ -1,3 +1,10 @@
+# BPR-1527 Windows0.2.2 scoped review after Mac boundary c233c7683:
+# github_application.cpp changes only test-build failure observations for
+# the already-scoped UIforETW probe and label authoring. No new source body,
+# credential, grant, provider or publication branch is executed or admitted.
+# Exact native print-only digests were observed after format22; that mode
+# verifies nothing. Self-review/checkpoint retain the pending native checks.
+# The production mutation-branch digest below is unchanged.
 # BPR-1526 scoped self-review over 8f0d25418: c3009b2b0 is the only
 # committed production-app manifest change, plus nine behavior-preserving
 # local/parameter naming repairs in this upkeep slice. The first-save workshop
@@ -1515,7 +1522,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0270dc3430834c86a71bb87be230973cdefb2e14476dcec4223daecf47c5a30b"
+		"6b2b845b6b127c7e0f7d79e064133d3aa944f9b7db25b8db317256bc5a26d051"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1738,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "275ebd5fb8bf6f33d4bf02a505953c0350eaea9b1be0b43c400fd6eb1411dd4c"
+        "1ae2dbd85704dc21fb5104f46d43119979e33df72bb23c654d8c3488f2ced5bb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

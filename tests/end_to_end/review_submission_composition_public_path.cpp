@@ -635,8 +635,8 @@ auto main(int argc, char** argv) -> int
 			course.choose_modality(qt::review_modality::review);
 			auto* const files = course.files_drawer()->contents_view();
 			wait([&] { return files->model()->rowCount() > 0; }, "a file to comment on");
-			const auto selections = course.statistics().FileSelections;
-			const auto desiredFile = course.files_drawer()->contents()->file_at(files->model()->index(0, 0));
+			const auto selections        = course.statistics().FileSelections;
+			const auto desiredFile       = course.files_drawer()->contents()->file_at(files->model()->index(0, 0));
 			const auto beforeFileGesture = access::epoch_refresh_identity(*application);
 			files->setCurrentIndex(files->model()->index(0, 0));
 			wait([&] { return course.statistics().FileSelections > selections; }, "the file is selected");
@@ -645,7 +645,7 @@ auto main(int argc, char** argv) -> int
 				const auto& context      = surface->current_context();
 				const auto& result       = surface->current_result();
 				const auto  selectedFile = course.files_drawer()->contents()->file_at(files->currentIndex());
-				const auto current = access::epoch_refresh_identity(*application);
+				const auto  current      = access::epoch_refresh_identity(*application);
 				std::cerr << "review-submission-selection row=" << files->currentIndex().row()
 						  << " context=" << context.has_value() << " result=" << static_cast<bool>(result)
 						  << " semantic=" << static_cast<bool>(surface->current_semantic_index())
