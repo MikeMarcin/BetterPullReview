@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1557"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Updates line: left handle on the pull request base anchor by default",
+  "created": "2026-10-16T15:38:22.591024+00:00",
+  "base": "ef396b8ebd48a0cb9fe48f3230fd9d8e858aaa63"
+}

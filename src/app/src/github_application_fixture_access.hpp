@@ -929,6 +929,10 @@ namespace bpr::app::detail {
 		refused,
 		uncertain,
 		again,
+		/// [[BPR-1541]]. `uncertain` over a kept data root, stopped once the
+		/// unknown review shows why; `restored` reopens that root.
+		kept,
+		restored,
 	};
 
 	enum class start_review_probe_result {
@@ -1009,6 +1013,17 @@ namespace bpr::app::detail {
 		/// Check status found the review and marked the draft published,
 		/// with one review sent.
 		bool Reconciled = false;
+		// [[BPR-1541]].
+		/// The unknown review's page said why under its status, as part of
+		/// the status's description, with no identity.
+		bool ReasonShown = false;
+		/// Check status's next answer replaced the line with its own reason.
+		bool ReasonReplaced = false;
+		/// Once confirmed, no reason was shown.
+		bool ReasonCleared = false;
+		/// After a restart, the restored review showed the reason its record
+		/// kept before Check status answered.
+		bool ReasonRestored = false;
 
 		auto operator<=>(const start_review_probe_evidence&) const = default;
 	};

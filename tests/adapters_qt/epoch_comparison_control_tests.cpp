@@ -1,4 +1,5 @@
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -12,6 +13,7 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QHelpEvent>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -38,6 +40,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1231,6 +1234,169 @@ namespace {
 		delete before;
 	}
 
+	/// \brief [[BPR-1553]]. The owner (2026-10-16): "It used to have a left
+	/// and right head you could move to choose which versions you were
+	/// comparing but I cannot find those at all anymore." On a review read
+	/// with selected objects (every review within the read limits since
+	/// 0bfcbaa9a) an update GitHub recorded is chosen by importing it, and the
+	/// occurrence history grants that. The next catalogue projection, which
+	/// does not carry the grant, took it back, so the GitHub-recorded updates
+	/// were not stops and both handles sat on the one update seen here, at
+	/// the line's end. In each built-in theme both handles are painted, each
+	/// drags onto a GitHub-recorded update, the keys step there too, and the
+	/// imported pair moves the handles and the span between them.
+	auto test_github_recorded_updates_stay_reachable_by_both_handles() -> void
+	{
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		for (const auto& [name, mode] : modes) {
+			const auto                             theme = std::string{ name };
+			std::vector<application::epoch_intent> intents;
+			qt::epoch_comparison_control           control{
+				[&intents](application::epoch_intent aIntent) {
+					intents.push_back(std::move(aIntent));
+				},
+			};
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(control);
+			control.resize(700, 80);
+			control.show();
+			QApplication::processEvents();
+			auto* const line = control.line();
+
+			// Two force pushes GitHub recorded, neither imported, then the
+			// update this install observed, which is the current one.
+			const auto                     current = epoch_row(12, '1', '2');
+			core::epoch_occurrence_history history;
+			history.Incomplete  = true;
+			history.Occurrences = {
+				{ .Id                  = identity<core::epoch_occurrence_id>(8),
+				  .Evidence            = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 100, .Head = commit('3') },
+				  .DateSource          = core::epoch_occurrence_date_source::github_event,
+				  .DateUtcMilliseconds = 1'700'000'000'000,
+				  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+				{ .Id                  = identity<core::epoch_occurrence_id>(9),
+				  .Evidence            = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 101, .Head = commit('4') },
+				  .DateSource          = core::epoch_occurrence_date_source::github_event,
+				  .DateUtcMilliseconds = 1'700'000'100'000,
+				  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+				{ .Id                  = identity<core::epoch_occurrence_id>(10),
+				  .Evidence            = { .Kind = core::epoch_occurrence_kind::observed_head, .Head = current.Head },
+				  .LocalEpoch          = current.Id,
+				  .HistoricalBase      = current.Base,
+				  .DateSource          = core::epoch_occurrence_date_source::commit_date,
+				  .DateUtcMilliseconds = 1'700'000'200'000,
+				  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+			};
+			auto granted                           = loaded_catalog_update({ current });
+			granted.Catalog->OccurrenceHistory     = history;
+			granted.Catalog->CurrentEpoch          = current;
+			granted.Catalog->AllowOccurrenceImport = true;
+			control.publish(granted);
+			control.publish(comparison_update(
+				core::named_selection(core::named_comparison::whole_pr),
+				{
+					.Left  = anchor(current, core::comparison_anchor_kind::epoch_base),
+					.Right = anchor(current, core::comparison_anchor_kind::epoch_head),
+				}));
+			// The host's next catalogue projection: the accepted epoch's page,
+			// which says nothing about occurrences or their import.
+			control.publish(loaded_catalog_update({ current }));
+			QApplication::processEvents();
+			expect(line->isVisible() && line->selection_offered() && line->update_count() == 3U
+					   && line->left_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_base }
+					   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head },
+				   theme + ": the whole-PR pair puts both handles on the update seen here");
+
+			// Both handles are painted in the theme's accent, away from the
+			// node and the track: the left one's left side, the right one's
+			// right side, on the line's top rows.
+			const auto image  = line->grab().toImage();
+			const auto ratio  = image.devicePixelRatio();
+			const auto accent = line->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto ground = line->palette().color(QPalette::Active, QPalette::Window);
+			const auto inked  = [&](const double aX) {
+				auto best = std::numeric_limits<int>::max();
+				// Half-pixel steps over the handle's top rows and its side.
+				for (auto row = 4; row <= 10; ++row) {
+					for (auto column = -3; column <= 3; ++column) {
+						const auto x     = aX + (0.5 * column);
+						const auto y     = 0.5 * row;
+						const auto pixel = image.pixelColor(static_cast<int>(std::lround(x * ratio)), static_cast<int>(std::lround(y * ratio)));
+						best             = std::min(best, std::abs(pixel.red() - accent.red()) + std::abs(pixel.green() - accent.green()) + std::abs(pixel.blue() - accent.blue()));
+					}
+				}
+				return best;
+			};
+			const auto separation = std::abs(accent.red() - ground.red()) + std::abs(accent.green() - ground.green()) + std::abs(accent.blue() - ground.blue());
+			const auto leftEdge   = static_cast<double>(line->stop_position(*line->left_stop()).x()) - 3.5;
+			const auto rightEdge  = static_cast<double>(line->stop_position(*line->right_stop()).x()) + 3.5;
+			const auto emptyEdge  = static_cast<double>(line->node_centre(0U).x() + line->node_centre(1U).x()) / 2.0;
+			expect(separation >= 60 && inked(leftEdge) * 3 < separation && inked(rightEdge) * 3 < separation && inked(emptyEdge) * 3 >= separation * 2,
+				   theme + ": both handles are painted in the accent, which stands off the line's ground");
+
+			const auto drag = [line](const QPoint& aFrom, const QPoint& aTo) {
+				auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aFrom }, QPointF{ line->mapToGlobal(aFrom) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &press);
+				auto move = QMouseEvent{ QEvent::MouseMove, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &move);
+				auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &release);
+			};
+			const auto imported = [&intents](const core::comparison_side aSide, const core::epoch_occurrence_id aOccurrence) {
+				const auto* const chosen = intents.size() == 1U ? std::get_if<core::select_epoch_occurrence_intent>(&intents.back()) : nullptr;
+				return chosen != nullptr && chosen->Side == aSide && chosen->Occurrence == aOccurrence && chosen->ExpectedCatalog == catalog();
+			};
+			intents.clear();
+			drag(line->stop_position(*line->right_stop()), line->node_centre(1U));
+			expect(imported(core::comparison_side::right, history.Occurrences[1].Id),
+				   theme + ": the right handle drags onto the newer GitHub-recorded update, which is imported to the right");
+			intents.clear();
+			drag(line->stop_position(*line->left_stop()), line->node_centre(0U));
+			expect(imported(core::comparison_side::left, history.Occurrences[0].Id),
+				   theme + ": the left handle drags onto the older GitHub-recorded update, which is imported to the left");
+			line->setFocus(Qt::OtherFocusReason);
+			intents.clear();
+			auto shiftLeft = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::ShiftModifier };
+			QApplication::sendEvent(line, &shiftLeft);
+			expect(imported(core::comparison_side::right, history.Occurrences[1].Id),
+				   theme + ": Shift+Left steps the right handle onto the GitHub-recorded update before it");
+
+			// The import lands: the older update is an epoch of this install,
+			// and the core's pair puts the handles on it and the current one.
+			auto earlier                          = epoch_row(11, '5', '3', core::epoch_primary_cause::explicit_historical_import);
+			earlier.Cause.Origin                  = core::epoch_origin::explicit_historical_import;
+			earlier.Cause.Base                    = core::epoch_base_transition::not_applicable;
+			earlier.Cause.Head                    = core::epoch_head_transition::not_applicable;
+			history.Occurrences[0].LocalEpoch     = earlier.Id;
+			auto landed                           = loaded_catalog_update({ current, earlier });
+			landed.Catalog->OccurrenceHistory     = history;
+			landed.Catalog->CurrentEpoch          = current;
+			landed.Catalog->AllowOccurrenceImport = true;
+			control.publish(landed);
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(earlier, core::comparison_anchor_kind::epoch_head).Identity,
+										 anchor(current, core::comparison_anchor_kind::epoch_head).Identity),
+				{
+					.Left  = anchor(earlier, core::comparison_anchor_kind::epoch_head),
+					.Right = anchor(current, core::comparison_anchor_kind::epoch_head),
+				}));
+			QApplication::processEvents();
+			const auto spanned = line->grab().toImage();
+			const auto middle  = QPoint{ line->node_centre(1U).x() + 12, line->node_centre(1U).y() };
+			const auto bar     = spanned.pixelColor(static_cast<int>(std::lround(middle.x() * ratio)), static_cast<int>(std::lround(middle.y() * ratio)));
+			expect(line->left_stop() == qt::epoch_line_stop{ .Update = 0U, .Kind = core::comparison_anchor_kind::epoch_head }
+					   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head }
+					   && (std::abs(bar.red() - accent.red()) + std::abs(bar.green() - accent.green()) + std::abs(bar.blue() - accent.blue())) * 3 < separation,
+				   theme + ": the imported pair moves the handles apart, with the accent span between them");
+		}
+	}
+
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
 	{
 		std::vector<application::epoch_intent> intents;
@@ -2155,6 +2321,7 @@ auto main(int argc, char** argv) -> int
 	test_occurrence_evidence_and_unavailable_gestures();
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	test_epoch_line_handles_on_one_node_drag_apart_and_keep_the_keyboard();
+	test_github_recorded_updates_stay_reachable_by_both_handles();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	test_epoch_line_menu_goes_with_its_window();
 	test_the_comparing_button_moves_to_the_review_bar();

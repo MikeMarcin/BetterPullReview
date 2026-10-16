@@ -1493,6 +1493,24 @@ namespace {
 			}
 		}
 		expect(covered.size() == core::review_submission_unknown_reason_count, "every reason is reached by a case");
+		// [[BPR-1541]]. A later session reads the kept reason back for the
+		// page, and none once the review is confirmed.
+		{
+			temporary_directory root;
+			const auto          selected = busy_cases().back();
+			const auto          server   = busy_server_for(selected);
+			server->Visible              = false;
+			auto first                   = application::review_submission_result{ };
+			{
+				review_submission_session session{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+				first = session.submit_and_reconcile(server->Request);
+			}
+			review_submission_session later{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+			expect(first.Unknown && later.last_unknown(server->Request.IdempotencyKey) == first.Unknown && !later.last_unknown("another-key"), "a restarted session reads the kept reason back by key");
+			server->Visible = true;
+			expect(later.reconcile(server->Request).Publication == application::review_submission_publication::published && !later.last_unknown(server->Request.IdempotencyKey),
+				   "and none once Check status confirms the review");
+		}
 		// The counts say what was found.
 		{
 			temporary_directory root;

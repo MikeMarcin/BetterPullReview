@@ -68,6 +68,15 @@ namespace bpr::application {
 		/// under it. Read only: it never authorizes a POST.
 		/// \details Admission precedes every transmission, so no admitted
 		/// request is proof that nothing under this key was sent.
+		/// \brief [[BPR-1541]]. Why the unresolved attempt under `aKey` was
+		/// last left unknown, as its record keeps it; none when nothing is
+		/// kept. Read only.
+		[[nodiscard]] virtual auto last_unknown(const std::string& aKey, std::stop_token aStop = { }) -> std::optional<core::review_submission_unknown_diagnosis>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aStop);
+			return std::nullopt;
+		}
 		[[nodiscard]] virtual auto admitted(const std::string& aKey, std::stop_token aStop = { })
 			-> std::expected<std::optional<review_submission_request>, review_mutation_failure>
 		{

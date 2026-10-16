@@ -88,6 +88,38 @@ namespace bpr::core {
 		auto operator<=>(const review_submission_unknown_diagnosis&) const = default;
 	};
 
+	/// \brief [[BPR-1541]]. Which count, if any, the reviewer is told with a
+	/// reason.
+	enum class review_submission_unknown_count : std::uint8_t {
+		none,
+		/// "2 of 3 comments matched": the new review holds as many comments as
+		/// this one carried, and only some match.
+		matched_of_carried,
+		/// "it holds 2 comments, not 3": the new review holds another number.
+		held_of_carried,
+	};
+
+	/// \brief [[BPR-1541]]. What the compose page says about an unknown
+	/// review: the line to show, chosen by the core, with only the numbers
+	/// that line uses. Qt words it.
+	struct review_submission_unknown_notice
+	{
+		review_submission_unknown_reason Reason = review_submission_unknown_reason::review_not_listed;
+		review_submission_unknown_count  Count  = review_submission_unknown_count::none;
+		std::uint16_t                    Value  = 0U;
+		std::uint16_t                    Of     = 0U;
+		/// For `http_status`: 4 when GitHub refused the read, 5 when its
+		/// server failed, otherwise 0.
+		std::uint8_t StatusClass = 0U;
+
+		auto operator<=>(const review_submission_unknown_notice&) const = default;
+	};
+	/// \brief [[BPR-1541]]. The line for a valid diagnosis: its reason, the
+	/// comment counts only for `comments_mismatch` that carried comments, and
+	/// the status class only for `http_status` when it is 4 or 5. Nothing
+	/// else in the diagnosis reaches the page.
+	[[nodiscard]] auto notice(const review_submission_unknown_diagnosis& aDiagnosis) noexcept -> review_submission_unknown_notice;
+
 	/// \brief The stable lower-case name of a reason, empty for a value
 	/// outside the set.
 	[[nodiscard]] auto name(review_submission_unknown_reason aReason) noexcept -> std::string_view;

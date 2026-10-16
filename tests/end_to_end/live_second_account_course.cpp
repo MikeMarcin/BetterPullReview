@@ -14,8 +14,16 @@
 //       author and a path observer rule in turn through the queue controls.
 //   --course reader --root DIR --pull N
 //       Opens MikeMarcin/BPR-Test#N and stays a while, asking for nothing.
+//   --course epoch --root DIR --pull N
+//       Opens MikeMarcin/BPR-Test#N in Review and drags each handle of the
+//       Updates line onto the oldest update, saying where the handles are and
+//       which updates they can take, and rendering the line into DIR
+//       ([[BPR-1553]]). Run it again on the same DIR after a push to see the
+//       line of a review this install has seen before.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
@@ -25,14 +33,19 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QCoreApplication>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QThread>
 #include <QTimer>
+#include <QToolButton>
+#include <QWindow>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -123,9 +136,9 @@ namespace {
 				fail("unknown argument " + key.toStdString());
 			}
 		}
-		if ((result.Course != "observer" && result.Course != "reader") || result.Root.empty() || result.Pull <= 0
+		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch") || result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
-			fail("usage: --course observer|reader --root DIR --pull N [--author LOGIN --path PREFIX]");
+			fail("usage: --course observer|reader|epoch --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -142,7 +155,9 @@ namespace {
 		require([&] {
 			return aWindow.github_status_text() == "GitHub account connected."
 				|| std::ranges::any_of(aWindow.server_cards(), [](qt::server_card* aCard) {
-					   return aCard->hostname() == "github.com" && aCard->cli_option() != nullptr && aCard->cli_offer_button() != nullptr && aCard->cli_offer_button()->isVisible();
+					   return aCard->hostname() == "github.com"
+						   && ((aCard->cli_option() != nullptr && aCard->cli_offer_button() != nullptr && aCard->cli_offer_button()->isVisible())
+							   || (aCard->cli_accounts() != nullptr && aCard->cli_accounts()->isVisible()));
 				   });
 		},
 				"GitHub CLI discovery");
@@ -159,6 +174,24 @@ namespace {
 				}
 			}
 			say("cli-offers:" + std::to_string(offered));
+			// [[BPR-1373]]. With more than one gh account the card lists each
+			// in its own row instead of one offer; the course uses the row of
+			// the account gh has active, as the header says.
+			for (auto* card : aWindow.server_cards()) {
+				if (offered != 0 || card->hostname() != "github.com" || card->cli_accounts() == nullptr) {
+					continue;
+				}
+				for (auto* const row : card->cli_accounts()->findChildren<QWidget*>(QStringLiteral("serverCardCliAccount"))) {
+					auto* const sentence = row->findChild<QLabel*>(QStringLiteral("serverCardCliAccountSentence"));
+					auto* const choose   = row->findChild<QPushButton*>(QStringLiteral("serverCardCliAccountUse"));
+					if (sentence != nullptr && choose != nullptr && row->isVisibleTo(card) && sentence->text().contains(QStringLiteral("gh's active account"))) {
+						say("cli-account:" + text(row->property("login").toString()));
+						choose->click();
+						offered = 1;
+						break;
+					}
+				}
+			}
 		}
 		require([&] { return aWindow.github_status_text() == "GitHub account connected."; }, "GitHub account connected");
 		std::string login;
@@ -197,6 +230,104 @@ namespace {
 		wait_for([] { return false; }, "a reader's dwell (expected)", std::chrono::seconds{ 20 });
 		dump(aWindow);
 		checkpoint(aOptions.Root, "read", "{\"status\":\"" + aWindow.github_status_text() + "\"}");
+	}
+
+	/// Drags through the window, as a pointer is delivered, so whatever sits
+	/// over the widget gets the events first.
+	void window_drag(QWidget& aWidget, const QPoint& aFrom, const QPoint& aTo)
+	{
+		auto* const top    = aWidget.window();
+		auto* const target = top != nullptr ? top->windowHandle() : nullptr;
+		if (target == nullptr) {
+			fail("the window has no native handle to deliver a drag to");
+		}
+		const auto send = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
+			const auto local = QPointF{ aWidget.mapTo(top, aAt) };
+			auto       event = QMouseEvent{ aType, local, local, QPointF{ aWidget.mapToGlobal(aAt) }, aButton, aButtons, Qt::NoModifier };
+			QCoreApplication::sendEvent(target, &event);
+		};
+		send(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
+		send(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
+		for (auto step = 1; step <= 4; ++step) {
+			send(QEvent::MouseMove, aFrom + ((aTo - aFrom) * step) / 4, Qt::NoButton, Qt::LeftButton);
+		}
+		send(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
+	}
+
+	/// Says what the Updates line shows: its nodes, where each handle is, which
+	/// nodes a handle can be put on (the node menu's Compare actions), and a
+	/// render of the window and the line into the root.
+	void epoch_dump(qt::workbench_window& aWindow, const std::filesystem::path& aRoot, const std::string& aTag)
+	{
+		auto* const control = aWindow.epoch_selectors();
+		auto* const line    = control->line();
+		const auto  stop    = [](const std::optional<qt::epoch_line_stop>& aStop) {
+			return aStop ? std::string{ aStop->Kind == core::comparison_anchor_kind::epoch_base ? "base" : "head" } + std::to_string(aStop->Update) : std::string{ "none" };
+		};
+		std::string labels;
+		for (std::size_t i = 0; i < line->update_count(); ++i) {
+			labels += text(line->label_text(i)) + " {" + text(line->node_tooltip(i)) + "} | ";
+		}
+		say("epoch:" + aTag + " visible=" + (line->isVisible() ? "1" : "0") + " controlVisible=" + (control->isVisible() ? "1" : "0") + " size=" + std::to_string(line->width()) + "x" + std::to_string(line->height())
+			+ " updates=" + std::to_string(line->update_count()) + " offered=" + (line->selection_offered() ? "1" : "0") + " left=" + stop(line->left_stop()) + " right=" + stop(line->right_stop())
+			+ " readiness=" + text(control->readiness_text()) + " statement=" + text(line->statement()) + " status=" + text(control->status_text()) + " labels=" + labels);
+		for (std::size_t i = 0; i < line->update_count(); ++i) {
+			const auto at        = line->node_centre(i);
+			auto       menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, at, line->mapToGlobal(at) };
+			QCoreApplication::sendEvent(line, &menuEvent);
+			for (auto* const menu : line->findChildren<QMenu*>(QStringLiteral("epochLineMenu"))) {
+				std::string states;
+				for (auto* const action : menu->actions()) {
+					if (!action->text().isEmpty()) {
+						states += text(action->text()) + "=" + (action->isEnabled() ? "1" : "0") + ";";
+					}
+				}
+				auto said = "epoch:" + aTag;
+				said.append(" node").append(std::to_string(i)).append(" menu ").append(states);
+				say(said);
+				menu->close();
+				delete menu;
+			}
+		}
+		say("epoch:" + aTag + " comparing=" + (control->comparing_button() ? text(control->comparing_button()->text()) : std::string{ "-" }));
+		aWindow.grab().save(QString::fromStdString((aRoot / ("window-" + aTag + ".png")).string()));
+		line->grab().save(QString::fromStdString((aRoot / ("line-" + aTag + ".png")).string()));
+	}
+
+	/// [[BPR-1553]]. Opens the pull request, opens the Updates line from the
+	/// review bar if it is folded, moves to Review, and drags the right and
+	/// then the left handle onto the oldest update, saying what the line shows
+	/// before and after each drag. Nothing here writes to GitHub; a drag onto
+	/// an update GitHub recorded imports its head into this run's own cache.
+	void epoch_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 820);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 15 });
+		epoch_dump(aWindow, aOptions.Root, "overview");
+		if (!aWindow.epoch_selectors()->line()->isVisible()) {
+			if (auto* const disclosure = aWindow.findChild<QToolButton*>(QStringLiteral("reviewBarUpdates")); disclosure != nullptr) {
+				disclosure->click();
+			}
+		}
+		wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 5 });
+		epoch_dump(aWindow, aOptions.Root, "overview-open");
+		aWindow.choose_modality(qt::review_modality::review);
+		wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 20 });
+		epoch_dump(aWindow, aOptions.Root, "review");
+		auto* const line = aWindow.epoch_selectors()->line();
+		if (line->right_stop()) {
+			window_drag(*line, line->stop_position(*line->right_stop()), line->node_centre(0U));
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 15 });
+			epoch_dump(aWindow, aOptions.Root, "review-right-dragged");
+		}
+		if (line->left_stop()) {
+			window_drag(*line, line->stop_position(*line->left_stop()), line->node_centre(0U));
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 15 });
+			epoch_dump(aWindow, aOptions.Root, "review-left-dragged");
+		}
+		dump(aWindow);
 	}
 
 	void observer_course(const options& aOptions, qt::workbench_window& aWindow)
@@ -288,6 +419,8 @@ try {
 	say("login:" + login);
 	if (chosen.Course == "observer") {
 		observer_course(chosen, *window);
+	} else if (chosen.Course == "epoch") {
+		epoch_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

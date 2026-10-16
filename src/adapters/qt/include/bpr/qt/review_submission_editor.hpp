@@ -3,6 +3,7 @@
 
 #include "bpr/core/review_preflight.hpp"
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/review_submission_unknown.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QColor>
@@ -60,7 +61,14 @@ namespace bpr::qt {
 		std::map<std::string, review_submission_preflight_reference> References;
 		/// What a Submit pressed now would prepare.
 		std::optional<core::review_prepared_decision> Prepared;
+		/// [[BPR-1541]]. Why a submitted review is still unknown, as the last
+		/// Check status or the attempt's record left it; none otherwise.
+		std::optional<core::review_submission_unknown_notice> Unknown;
 	};
+	/// \brief [[BPR-1541]]. The line the page shows under "Review status is
+	/// unknown": what happened and what to do, in the reviewer's words, with
+	/// only the counts the notice carries.
+	[[nodiscard]] auto review_submission_unknown_text(const core::review_submission_unknown_notice& aNotice) -> QString;
 	/// \brief [[BPR-1085]]. The words the preflight chip says, one item a line.
 	[[nodiscard]] auto review_preflight_summary(const std::optional<core::review_preflight>& aPreflight) -> QString;
 	/// \brief Presents a PR-level review independently of selected source lines.
@@ -101,6 +109,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto discard_button() const noexcept -> danger_tool_button*;
 		[[nodiscard]] auto reconcile_action() const noexcept -> QAction*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1541]]. Why the review is still unknown, under the
+		/// status; hidden when there is no reason.
+		[[nodiscard]] auto unknown_reason_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1541]] v002. The panel a review awaiting GitHub's
+		/// confirmation is shown in, under the title: its mark, its title,
+		/// why, what is safe, and Check status. Hidden otherwise.
+		[[nodiscard]] auto waiting_panel() const noexcept -> QWidget*;
+		[[nodiscard]] auto waiting_title_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto waiting_assurance_label() const noexcept -> QLabel*;
+		/// \brief Check status's button, in the panel.
+		[[nodiscard]] auto reconcile_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
 		/// the review carries line comments, else "Compose review".
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
@@ -163,6 +182,12 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		/// [[BPR-1541]] v002. Draws the waiting panel's mark and quieter words
+		/// in the current theme and attention colour.
+		void restyle_waiting();
+
+	protected:
+	private:
 		void                                                        present_preflight(const review_submission_editor_projection& aProjection);
 		void                                                        present_pending();
 		void                                                        present_verdicts();
@@ -193,6 +218,12 @@ namespace bpr::qt {
 		QMenu*                                                      PreflightMenu   = nullptr;
 		QTextEdit*                                                  Target          = nullptr;
 		QLabel*                                                     Status          = nullptr;
+		QLabel*                                                     UnknownReason   = nullptr;
+		QWidget*                                                    Waiting         = nullptr;
+		QLabel*                                                     WaitingMark     = nullptr;
+		QLabel*                                                     WaitingTitle    = nullptr;
+		QLabel*                                                     WaitingFallback = nullptr;
+		QLabel*                                                     WaitingAssure   = nullptr;
 		QLabel*                                                     DraftState      = nullptr;
 		QLabel*                                                     Title           = nullptr;
 		QLabel*                                                     Purpose         = nullptr;
