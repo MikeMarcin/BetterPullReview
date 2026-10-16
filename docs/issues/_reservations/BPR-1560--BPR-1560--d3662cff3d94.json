@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1560"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Whole PR diff equals GitHub Files changed: merge-base comparison basis (owner bug 2026-10-16)",
+  "created": "2026-10-16T16:32:50.945452+00:00",
+  "base": "1c6904c04774bee4571b0791b468793d7cc7658c"
+}
