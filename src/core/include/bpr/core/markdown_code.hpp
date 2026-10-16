@@ -21,7 +21,7 @@
 namespace bpr::core {
 	/// \brief Bounds of the fence scan. A body past them keeps its first
 	/// blocks; the rest stay plain.
-	inline constexpr std::size_t markdown_code_blocks_per_body = 128U;
+	inline constexpr std::size_t markdown_code_blocks_per_body = 512U;
 	inline constexpr std::size_t markdown_code_container_depth = 16U;
 	/// \brief The most bytes of one block's text that is classified.
 	inline constexpr std::size_t markdown_code_classified_bytes = 65'536U;

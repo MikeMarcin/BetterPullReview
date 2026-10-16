@@ -78,7 +78,7 @@ namespace {
 		expect(shorter.size() == 1U && shorter[0].Lines == std::vector<std::string>{ "```", "still code" }, "a shorter fence does not close");
 
 		auto many = std::string{ };
-		for (auto index = 0; index < 300; ++index) {
+		for (auto index = 0; index < 600; ++index) {
 			many += "```\nx\n```\n";
 		}
 		expect(scan_markdown_fenced_code(many).size() == markdown_code_blocks_per_body, "blocks per body bounded");
@@ -141,8 +141,8 @@ namespace {
 		auto       expected = std::vector<std::string>{ };
 		const auto blocks   = std::regex{ R"re(<div class="highlight highlight-source-diff"[^>]*><pre class="notranslate">([\s\S]*?)</pre></div>)re" };
 		for (auto it = std::sregex_iterator{ html.begin(), html.end(), blocks }; it != std::sregex_iterator{ }; ++it) {
-			auto       text = (*it)[1].str();
-			auto       line = std::string{ };
+			auto       text  = (*it)[1].str();
+			auto       line  = std::string{ };
 			const auto flush = [&] {
 				expected.push_back(line);
 				line.clear();

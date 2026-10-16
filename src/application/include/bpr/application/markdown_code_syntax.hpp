@@ -65,7 +65,7 @@ namespace bpr::application {
 	struct markdown_code_syntax_limits
 	{
 		/// Texts waiting to be classified; the oldest gives way.
-		std::size_t Waiting = 64U;
+		std::size_t Waiting = 256U;
 		/// Classified texts retained, by text and definition.
 		std::size_t Cached = 128U;
 	};
@@ -87,8 +87,8 @@ namespace bpr::application {
 		auto operator=(const markdown_code_syntax_host&) -> markdown_code_syntax_host& = delete;
 
 		/// \brief Asks for each block's spans; a cached text answers at once.
-		void request(const std::vector<markdown_code_syntax_request>& aRequests);
-		void shutdown();
+		void               request(const std::vector<markdown_code_syntax_request>& aRequests);
+		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		/// \brief Texts the classifier was asked about.
 		[[nodiscard]] auto classifications() const noexcept -> std::size_t;

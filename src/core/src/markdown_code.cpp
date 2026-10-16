@@ -408,7 +408,7 @@ namespace bpr::core {
 		/// `^\d+(,\d+)*(a|d|c)\d+(,\d+)*$`
 		[[nodiscard]] auto normal_range(const std::string_view aLine) noexcept -> bool
 		{
-			auto at = std::size_t{ 0U };
+			auto       at      = std::size_t{ 0U };
 			const auto numbers = [&] {
 				if (!digits(aLine, at)) {
 					return false;
@@ -492,7 +492,7 @@ namespace bpr::core {
 			const auto left  = tokens(aRemoved.Text);
 			const auto right = tokens(aAdded.Text);
 			const auto same  = [&](const std::pair<std::size_t, std::size_t> aLeft, const std::pair<std::size_t, std::size_t> aRight) {
-                return std::string_view{ aRemoved.Text }.substr(aLeft.first, aLeft.second - aLeft.first)
+				return std::string_view{ aRemoved.Text }.substr(aLeft.first, aLeft.second - aLeft.first)
 					== std::string_view{ aAdded.Text }.substr(aRight.first, aRight.second - aRight.first);
 			};
 			auto prefix = std::size_t{ 0U };
@@ -527,10 +527,10 @@ namespace bpr::core {
 
 	auto scan_markdown_fenced_code(const std::string_view aBody) -> std::vector<markdown_fenced_code>
 	{
-		auto blocks     = std::vector<markdown_fenced_code>{ };
-		auto containers = std::vector<container>{ };
-		auto fence      = std::optional<fence_state>{ };
-		const auto close = [&](const bool aClosed) {
+		auto       blocks     = std::vector<markdown_fenced_code>{ };
+		auto       containers = std::vector<container>{ };
+		auto       fence      = std::optional<fence_state>{ };
+		const auto close      = [&](const bool aClosed) {
 			blocks.back().Closed = aClosed;
 			fence.reset();
 		};
@@ -593,9 +593,9 @@ namespace bpr::core {
 					}
 				}
 				if (const auto opening = fence_opening(line); opening && blocks.size() < markdown_code_blocks_per_body) {
-					fence        = opening->first;
-					fence->Depth = containers.size();
-					auto block   = markdown_fenced_code{ };
+					fence         = opening->first;
+					fence->Depth  = containers.size();
+					auto block    = markdown_fenced_code{ };
 					block.Ordinal = static_cast<std::uint32_t>(blocks.size());
 					block.Info    = std::string{ opening->second };
 					blocks.push_back(std::move(block));

@@ -5,6 +5,7 @@
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
@@ -2763,6 +2764,26 @@ namespace bpr::app {
 	/// The retained values are comparisons, never classifications: this class
 	/// holds no span, decides no role, and would be useless to anything that
 	/// wanted to skip the classifier.
+	/// \brief [[BPR-1562]]. Serves the Markdown readers' code texts, held
+	/// by the reader's classification host while classified, to its own
+	/// packaged classifier. No repository, no file: the texts are in memory.
+	class markdown_code_blob_source final : public adapters::syntax::blob_source
+	{
+	public:
+		explicit markdown_code_blob_source(const application::markdown_code_texts& aTexts)
+			: Texts{ aTexts }
+		{
+		}
+
+		[[nodiscard]] auto blob_bytes(const core::git_blob_oid& aBlob) -> std::optional<std::string> override
+		{
+			return Texts.bytes(aBlob);
+		}
+
+	private:
+		const application::markdown_code_texts& Texts;
+	};
+
 	class composition_blob_source final : public adapters::syntax::blob_source
 	{
 	public:
@@ -8751,6 +8772,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				adapters::syntax::packaged_syntax_classifier>(
 				*SyntaxDefinitions,
 				*SyntaxBlobs);
+			// [[BPR-1562]]. The readers' fenced code, classified by the same
+			// definitions on the same effect lane through a host of its own.
+			MarkdownCodeBlobs      = std::make_unique<markdown_code_blob_source>(MarkdownCodeTexts);
+			MarkdownCodeClassifier = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *MarkdownCodeBlobs);
+			MarkdownCode           = std::make_unique<application::markdown_code_syntax_host>(
+				*MarkdownCodeClassifier, MarkdownCodeTexts, AppearanceEffects, DecisionLane,
+				[this](const std::string_view aSelector) -> std::optional<application::syntax_definition_version> {
+					auto definition = SyntaxDefinitions->definition_for_path(aSelector);
+					if (definition.Name == adapters::syntax::plain_text_definition_name) {
+						return std::nullopt;
+					}
+					return definition;
+				},
+				[this](const application::markdown_code_syntax_publication& aSpans) {
+					if (!Closing && Window != nullptr) {
+						Window->apply_markdown_code_syntax(aSpans);
+					}
+				});
+			Window->set_markdown_code_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) {
+				if (!Closing && MarkdownCode) {
+					MarkdownCode->request(aRequests);
+				}
+			});
 
 			AppearanceProjections.set_span_sink(
 				[this](const application::token_span_publication& aSpans) {
@@ -18086,6 +18130,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
 			}
+			if (MarkdownCode) {
+				MarkdownCode->shutdown();
+			}
 			if (ReviewMutationHost) {
 				ReviewMutationHost->shutdown();
 			}
@@ -18144,6 +18191,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
+				|| (MarkdownCode && !MarkdownCode->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
@@ -19222,14 +19270,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t PreparedRemoteBlobs              = 0U;
 		std::size_t PreparedRemoteBatches            = 0U;
 #endif
-		std::unique_ptr<application::workbench_settings_port>           SessionWorkbenchSettings;
-		profile_window_layout_port*                                     DurableWindowLayout       = nullptr;
-		window_retirement                                               Retirement                = window_retirement::forced;
-		bool                                                            LayoutEraseStarted        = false;
-		bool                                                            LayoutEraseComplete       = false;
-		std::shared_ptr<std::atomic_bool>                               LayoutEraseDeliveryFailed = std::make_shared<std::atomic_bool>(false);
-		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
-		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
+		std::unique_ptr<application::workbench_settings_port>     SessionWorkbenchSettings;
+		profile_window_layout_port*                               DurableWindowLayout       = nullptr;
+		window_retirement                                         Retirement                = window_retirement::forced;
+		bool                                                      LayoutEraseStarted        = false;
+		bool                                                      LayoutEraseComplete       = false;
+		std::shared_ptr<std::atomic_bool>                         LayoutEraseDeliveryFailed = std::make_shared<std::atomic_bool>(false);
+		std::unique_ptr<application::workbench_application_host>  WorkbenchHost;
+		std::unique_ptr<application::appearance_application_host> AppearanceHost;
+		/// [[BPR-1562]]. The readers' fenced code: its own texts, classifier
+		/// and host over the shared definitions and the appearance effect
+		/// lane, so it never waits behind or reorders the panes' work.
+		application::markdown_code_texts                                MarkdownCodeTexts;
+		std::unique_ptr<markdown_code_blob_source>                      MarkdownCodeBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   MarkdownCodeClassifier;
+		std::unique_ptr<application::markdown_code_syntax_host>         MarkdownCode;
 		std::uint64_t                                                   MotionSubscription       = 0U;
 		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;

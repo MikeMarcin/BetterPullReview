@@ -82,9 +82,9 @@ namespace bpr::application {
 				++Refused;
 				return;
 			}
-			const auto key       = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
-			const auto add_to    = [&aRequest](wanted& aWanted) {
-                if (std::ranges::find(aWanted.Selectors, aRequest.Selector) == aWanted.Selectors.end()) {
+			const auto key    = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
+			const auto add_to = [&aRequest](wanted& aWanted) {
+				if (std::ranges::find(aWanted.Selectors, aRequest.Selector) == aWanted.Selectors.end()) {
 					aWanted.Selectors.push_back(aRequest.Selector);
 				}
 			};
@@ -153,9 +153,9 @@ namespace bpr::application {
 		syntax_classification_application_host Host;
 		std::optional<wanted>                  Classifying;
 		std::deque<wanted>                     Waiting;
-		std::size_t                            Refused         = 0U;
-		bool                                   Closing         = false;
-		bool                                   Submitting      = false;
+		std::size_t                            Refused    = 0U;
+		bool                                   Closing    = false;
+		bool                                   Submitting = false;
 	};
 
 	markdown_code_syntax_host::markdown_code_syntax_host(syntax_classification_port& aClassifier, markdown_code_texts& aTexts, effect_executor& aEffects, decision_executor& aDecisions,

@@ -60,8 +60,8 @@ namespace {
 		auto classify(const application::syntax_classification_request& aRequest, std::stop_token /*aStop*/) -> application::syntax_classification override
 		{
 			++Calls;
-			auto answer = application::syntax_classification{ .Context = aRequest.Context, .Key = aRequest.Key };
-			const auto text = Texts.bytes(aRequest.Key.Blob);
+			auto       answer = application::syntax_classification{ .Context = aRequest.Context, .Key = aRequest.Key };
+			const auto text   = Texts.bytes(aRequest.Key.Blob);
 			if (!text || Fail) {
 				answer.Status = application::syntax_classification_status::unavailable;
 				return answer;
@@ -106,13 +106,13 @@ namespace {
 
 	void classifies_once()
 	{
-		auto texts       = application::markdown_code_texts{ };
-		auto classifier  = fake_classifier{ texts };
-		auto effects     = manual_executor{ };
-		auto decisions   = manual_executor{ };
-		auto published   = std::vector<application::markdown_code_syntax_publication>{ };
-		auto host        = application::markdown_code_syntax_host{ classifier, texts, effects, decisions, definition_for,
-                                                                [&](const application::markdown_code_syntax_publication& aPublication) { published.push_back(aPublication); } };
+		auto texts      = application::markdown_code_texts{ };
+		auto classifier = fake_classifier{ texts };
+		auto effects    = manual_executor{ };
+		auto decisions  = manual_executor{ };
+		auto published  = std::vector<application::markdown_code_syntax_publication>{ };
+		auto host       = application::markdown_code_syntax_host{ classifier, texts, effects, decisions, definition_for,
+																  [&](const application::markdown_code_syntax_publication& aPublication) { published.push_back(aPublication); } };
 		host.request({ request("code.cpp", "int a;\nint b;"), request("code.py", "x = 1"), request("code.cpp", "int a;\nint b;"), request("code.txt", "plain") });
 		expect(host.refused() == 1U, "plain text is never classified");
 		expect(published.empty(), "nothing arrives before the effect lane runs");
@@ -145,8 +145,8 @@ namespace {
 		auto decisions  = manual_executor{ };
 		auto published  = std::vector<application::markdown_code_syntax_publication>{ };
 		auto host       = application::markdown_code_syntax_host{ classifier, texts, effects, decisions, definition_for,
-                                                               [&](const application::markdown_code_syntax_publication& aPublication) { published.push_back(aPublication); },
-                                                               application::markdown_code_syntax_limits{ .Waiting = 3U, .Cached = 4U } };
+																  [&](const application::markdown_code_syntax_publication& aPublication) { published.push_back(aPublication); },
+																  application::markdown_code_syntax_limits{ .Waiting = 3U, .Cached = 4U } };
 		host.request({ request("code.cpp", std::string(core::markdown_code_classified_bytes + 1U, 'x')) });
 		expect(host.refused() == 1U && effects.Tasks.empty(), "a block over the limit stays plain");
 
