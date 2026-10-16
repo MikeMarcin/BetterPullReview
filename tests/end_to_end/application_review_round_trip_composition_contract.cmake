@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8c0e3fcf5d15155bb426563ff0a9c8770f94c76c7254577409c8be68e6e5771f"
+		"0ff0c083d03af2b76a79bb4c1a2c728d6c1bd13a0c4c2301fd0894b639b5ec54"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "684590282ac266c3ef011ffcf92bf9dcf121d57983e412dfc60181fc4eed021f"
+        "376c5056f105f968e2a238bdf71da018a442313f310ef7e32aa9eceeb8936e5a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2562,8 +2562,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # docs/issues/_checkpoints/BPR-1527/review-origin-correction.json. No capability,
 # grant, publication, inventory or production mutation-branch change.
 
-# [[BPR-1537]] reseal over 6747ca029 (the last matching pins); no other
-# pinned-scope commit in between. The constructed intraline-v1 fixture joins
+# [[BPR-1537]] reseal over 6747ca029 (the last matching pins), recomputed on
+# the tree that merges main at fbe406db8. The one other pinned-scope commit in
+# between is [[BPR-1539]]'s 6ea8f221f, which changed github_application.cpp
+# without resealing: document tabs record the pull request they were opened
+# in and start again when another one is accepted, and a press refused for an
+# unavailable exact view says so on the status bar. Reviewed here: tab and
+# navigation state only, no grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path. The constructed intraline-v1 fixture joins
 # the test-build fixture enum (github_application_fixture_access.hpp), the
 # host-profile table (github_application.cpp), the served-fixture table
 # (github_public_path_fixture.cpp) and the --github-fixture names (main.cpp),
