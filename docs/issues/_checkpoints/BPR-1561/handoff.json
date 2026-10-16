@@ -1,0 +1,51 @@
+{
+  "assignment": "BPR-1561 / linux-cpack-fixture-repair",
+  "owner": "/root/ubuntu_readiness_fixture",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "branch": "main",
+  "mandate_revision": "ubuntu-readiness-20261016-unversioned-r1",
+  "mandate": "Unversioned readiness for the next coordinated release; repair only the tiny native Linux CPack fixture regression.",
+  "strategy": "coordinator-implementer recipe_revision 2; binding.json preserves resolver selection and fingerprints.",
+  "entry_revision": "bd04bf3df2133ed699931014c28260e7799ce551",
+  "commits": {
+    "allocation_plan": "edeb43b4a",
+    "claim": "30a41e678e9f6e04c0cdf5bd0ccf38e887523105",
+    "source_candidate": "53f391c1617fe6c5866537c960708b7deebaa9a0",
+    "completion": "issue_board.py finish commit containing this checkpoint"
+  },
+  "candidate": {
+    "path": "tests/scripts/package_runtime_tests.py",
+    "sha256": "ec369e426decff35b03f0f9da60521ebf2048f3dc786086d82fb618953ce3a96"
+  },
+  "changed_paths": [
+    "tests/scripts/package_runtime_tests.py",
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1561--BPR-1561--32d31ecb043c.json",
+    "docs/issues/60-done/BPR-1561-restore-native-linux-cpack-baseline-fixture.md",
+    "docs/rfcs/plans/bpr1561-linux-cpack-fixture/milestone-plan.json",
+    "docs/rfcs/plans/bpr1561-linux-cpack-fixture/MILESTONES.md",
+    "docs/issues/_checkpoints/BPR-1561/binding.json",
+    "docs/issues/_checkpoints/BPR-1561/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1561/verification.json",
+    "docs/issues/_checkpoints/BPR-1561/handoff.json"
+  ],
+  "verification": "verification.json records exact commands, native receipt, regression control and explicit limits.",
+  "pending_in_slice": [],
+  "wider_pending": [
+    "RFC-BPR-0038 and BPR-0961/BPR-0962 native desktop/vault/package/trust/security/legal/crash/privacy qualification remain open.",
+    "No version, release build, production package/install, unlock/sign/enrollment, tag/push/publication or desktop control authorized."
+  ],
+  "commands": {
+    "active": [],
+    "completed": [
+      "Local package_runtime_tests.py",
+      "Local documentation gate",
+      "Local67 documentation tests",
+      "Source byte comparison and git diff --check"
+    ],
+    "remote": "Coordinator owns all remote operations; temporary verification worktree removed; original producer unchanged."
+  },
+  "ownership": "This leaf releases its source/card/plan/checkpoint paths after explicit helper finish. Coordinator retains Linux release skill guide, final readiness report and raw ignored session evidence. No protected candidate touched.",
+  "review_handoff": null,
+  "next_action": "Coordinator records final slice commit, updates its Ubuntu readiness report and runs its final documentation gate; continue only within unversioned readiness mandate."
+}

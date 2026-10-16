@@ -1,0 +1,36 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "53f391c1617fe6c5866537c960708b7deebaa9a0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exactly one fixture line declares better_pull_review_xdiff SHARED. Byte comparison verifies every existing assertion and production Install.cmake remain unchanged.",
+        "path": "docs/issues/_checkpoints/BPR-1561/verification.json"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "53f391c1617fe6c5866537c960708b7deebaa9a0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Exact file ec369e426decff35b03f0f9da60521ebf2048f3dc786086d82fb618953ce3a96 in aa629+patch Ubuntu26.04 WSL snapshot passes all21 package runtime cases,0skips,0.858s through existing network sandbox. Unmodified original fixture fails at missing xdiff target. Relevant inputs byte-identical to main.",
+        "path": ".mask/sessions/ubuntu-preparation-20261016/ubuntu-readiness-20261016-repair/receipt.json"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "53f391c1617fe6c5866537c960708b7deebaa9a0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Mac package runtime20 checked/1native-only skip;67 documentation tests and DOCUMENTATION_OK pass. Source committed. Helper finishes issue/upkeep with explicit paths; task-owned commands stopped and coordinator confirms remote cleanup. Wider RFC0038/BPR0961/BPR0962 gates remain open.",
+        "path": "docs/issues/_checkpoints/BPR-1561/verification.json"
+      }
+    }
+  ]
+}
