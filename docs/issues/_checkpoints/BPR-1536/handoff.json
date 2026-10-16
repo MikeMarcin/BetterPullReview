@@ -43,20 +43,21 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1536-v001-a1MODa",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "6b0c2511ffb1e73c98b891f2543a9094",
-    "event_cursor": 4,
+    "event_cursor": 8,
     "candidates": {
       "BPR-1536-option-keys-v001": "883a941bfeac305f57f5d2ed7ba4b171c1869ae518ae2c773adbb6e5e1325fd6"
     },
-    "phase": "ready",
-    "protected": true,
+    "phase": "decided",
+    "protected": false,
     "decisions": null,
-    "server_pid": 44711,
+    "server_pid": null,
     "server_port": 65507,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), d0c379b8-f776-4eae-a4c0-966cfacf5761"
   },
-  "pending": [
-    "AC4 human: owner Accept/Reject of candidate BPR-1536-option-keys-v001",
-    "Merge only after BPR-1531 is accepted and merged"
-  ],
-  "next_action": "On hand-back after cursor 4: with Accept and BPR-1531 accepted, merge bpr-alt-a-accept then bpr-1536-option-keys into main (rebase onto main; BPR-1532/1535 also edit workbench_window.cpp keys), finish Done, remove both frozen roots, stop both servers. Reject: v002 on this branch."
+  "pending": [],
+  "next_action": "None: accepted, merged to main after BPR-1531 and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "verification": "15/15 focused and shared window/menu rows pass; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
 }

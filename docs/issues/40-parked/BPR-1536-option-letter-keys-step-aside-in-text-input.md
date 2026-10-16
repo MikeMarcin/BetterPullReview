@@ -142,3 +142,26 @@ course checks on the actions, and by the owner's look.
 Next: on hand-back after cursor 4, an Accept (with [[BPR-1531]] accepted)
 merges `bpr-1536-option-keys` after `bpr-alt-a-accept` and finishes the
 card; a Reject's note becomes v002 on this branch.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:37:54Z: Accept**, no note (decision
+`d0c379b8-f776-4eae-a4c0-966cfacf5761`, event 7 of session
+`6b0c2511ffb1e73c98b891f2543a9094`), on candidate
+`BPR-1536-option-keys-v001` at `c8af02480`, fingerprint `883a941b…`. The
+session was handed back at event 8 with nothing pending; event cursor
+consumed: 8.
+
+BPR-1531 landed first. `main` (through `f4c7d3249`) merged into
+`bpr-1536-option-keys` at `379a11d4d` without conflicts. On the merged tree
+(`dev`, Debug): `qt_option_keys_typing`, `qt_review_state_icon`,
+`qt_workbench_focus_order_scale_100`,
+`application_review_ledger_composition_contract`,
+`application_source_find`, `application_source_pr_find`,
+`architecture_boundaries`, `qt_workbench_window_scale_{100,125,200}`,
+`application_diff_zoom_public_path`, `qt_profile_management_window`,
+`qt_files_tree`, `qt_home_list_scale_100` and `qt_appearance_profile` pass
+15/15; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 44711) was stopped, the candidate's protection
+released and the frozen root removed.
