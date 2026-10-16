@@ -30,6 +30,8 @@ Transform Entity::getComponent<Transform>() // T04 explicit specialization
 	return { };
 }
 
+enum class Colour { Red, Green };
+
 void calls(Entity& entity, Entity* pointer)
 {
 	auto a = getComponent<Type>(); // T10 free call
@@ -46,6 +48,7 @@ void calls(Entity& entity, Entity* pointer)
 	auto l = std::make_unique<Widget>(); // T21 standard library call
 	auto m = static_cast<Base*>(pointer); // T22 cast
 	auto n = std::function<Result(Argument)>{ }; // T23 function type
+	auto o = make<Colour::Red>(); // T24 known enumerator argument
 }
 
 Foo<Bar> x; // T30 instantiation type

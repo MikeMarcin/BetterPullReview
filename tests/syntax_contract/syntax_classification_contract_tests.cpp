@@ -1218,6 +1218,8 @@ namespace {
 			   "the grammar's role for a std:: name is kept and its argument is a type");
 		expect(is("T22", "Base", type), "a cast's target type is a type");
 		expect(is("T23", "Result", type), "a function type's result is a type, not a call");
+		expect(is("T24", "Colour", type) && is("T24", "Red", role::syntax_enum_member),
+			   "a known enumerator argument keeps the refinement's enumerator role");
 
 		expect(is("T00", "Component", type) && is("T00", "getComponent", function),
 			   "a namespace-scope template declaration names its type and function");
