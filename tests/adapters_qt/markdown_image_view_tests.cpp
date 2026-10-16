@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMimeData>
 #include <QScrollBar>
 #include <QTextBlock>
@@ -189,6 +190,15 @@ namespace {
 			return cursor.charFormat().anchorHref();
 		};
 		expect(anchorOf(0U) == QString::fromUtf8(attachment) && anchorOf(2U) == QStringLiteral("https://ci.example/run"), "image objects carry their link destination");
+
+		// Tab reaches the first image as a link and says what it is and where it goes.
+		view.rendered_view()->setFocus(Qt::TabFocusReason);
+		auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(view.rendered_view(), &tab);
+		settle();
+		const auto description = view.rendered_view()->accessibleDescription();
+		expect(description.startsWith(QStringLiteral("[Image: Before the change")) && description.contains(QString::fromUtf8(attachment)),
+			   "Tab on an image announces its alternative text and destination");
 
 		// Animation moves frames while visible.
 		const auto    frameBefore = store->images()[7].Frame;
