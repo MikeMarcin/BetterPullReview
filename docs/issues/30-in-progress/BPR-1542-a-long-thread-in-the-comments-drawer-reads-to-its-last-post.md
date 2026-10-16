@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1542"
 title: "A long thread in the Comments drawer reads to its last post, as in Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
