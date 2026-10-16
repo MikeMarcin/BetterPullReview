@@ -13921,6 +13921,18 @@ namespace bpr::qt {
 		ReviewNavigationDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::refuse_review_navigation(const core::workbench_command_id aCommand)
+	{
+		if (showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+			return;
+		}
+		// A refused press says so for as long as a bound does: an arrow that
+		// silently does nothing reads as broken.
+		statusBar()->showMessage(QStringLiteral("This tab's file is unavailable. Choose another file or comparison."),
+								 bounded_navigation_message_ms);
+		focus_review_navigation(aCommand);
+	}
+
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
 	{
 		if (showing_home() || showing_local_cycle()) {

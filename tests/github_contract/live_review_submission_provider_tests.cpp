@@ -1,6 +1,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "github_review_list_shapes.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
 #if defined(__APPLE__)
@@ -29,6 +30,7 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::github::detail;
 	using bpr::tests::expect;
+	namespace github_shapes = bpr::tests::github_shapes;
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		auto bytes = std::array<std::uint8_t, 32>{ };
@@ -948,6 +950,300 @@ namespace {
 			expect(result.Publication != application::review_submission_publication::definitely_not_published, "a 422 is no refusal when a new exact review is listed after it");
 		}
 	}
+	// [[BPR-1538]]. A pull request with many review comments, as GitHub and a
+	// GitHub Enterprise Server list them: complete objects of about 3.5 KB
+	// and 62 JSON values each, 100 to a page, the next page named by the
+	// repository's number. The owner's approval with comments landed on a real
+	// pull request and stayed "Review status is unknown" on every Check
+	// status: the session could not read a page of the comment collection, so
+	// it could never confirm that the new review held exactly its comments.
+	struct busy_server final : github_mutation_wire_transport
+	{
+		github_shapes::pull                    Pull;
+		std::string                            Prefix;
+		application::review_submission_request Request;
+		github_shapes::user                    Me{ .Id = 22U, .NodeId = "MDQ6VXNlcjIy", .Login = "fixture-reviewer" };
+		github_shapes::user                    Other{ .Id = 23U, .NodeId = "MDQ6VXNlcjIz", .Login = "another-reviewer" };
+		std::vector<github_shapes::review>     Reviews;
+		std::vector<github_shapes::comment>    Comments;
+		std::vector<github_shapes::review>     Landed;
+		std::vector<github_shapes::comment>    LandedComments;
+		std::size_t                            Posts = 0U, Pages = 0U;
+		/// The POST creates the review; GitHub answers it with a gateway
+		/// timeout, as it answered a 50-comment review on #70.
+		bool Lands = true, Answer504 = true;
+		/// Whether the review it created is listed yet.
+		bool Visible = true;
+		/// [[BPR-1538]]. A push after the review: the head moves, one comment
+		/// moves five lines down and one is left outdated.
+		bool Pushed = false;
+		/// The landed review holds one comment with other words.
+		bool AlterOne = false;
+
+		[[nodiscard]] auto head() const -> std::string { return std::string{ core::canonical_hex(Request.Proposal.Target.ExpectedHead).view() }; }
+		[[nodiscard]] auto moved() const -> std::string { return std::string{ core::canonical_hex(commit(0x33U)).view() }; }
+		[[nodiscard]] auto listed_comments() const -> std::vector<github_shapes::comment>
+		{
+			auto all = Comments;
+			if (Visible) {
+				for (auto value : LandedComments) {
+					if (Pushed) {
+						value.Commit = moved();
+						if (value.Side == "LEFT") {
+							value.Line.reset();
+						} else {
+							value.Line = *value.Line + 5U;
+							if (value.StartLine) {
+								value.StartLine = *value.StartLine + 5U;
+							}
+						}
+					}
+					all.push_back(value);
+				}
+			}
+			return all;
+		}
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			const bpr::tests::exit_on_failure insideTheSession;
+			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
+			const auto& wire    = aRequest.Wire;
+			const auto  pull    = Prefix + "/repos/MikeMarcin/BPR-Test/pulls/1";
+			const auto  ok      = [](std::string aBody, std::vector<http_header> aHeaders = { }) { return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(aHeaders), .Body = std::move(aBody) } }; };
+			const auto  pageKey = pull + "/comments?per_page=100&page=";
+			if (wire.Method == http_method::get && wire.Path == Prefix + "/user") {
+				return viewer_response();
+			}
+			if (wire.Method == http_method::get && wire.Path == pull) {
+				return target_response(target().RepositoryDatabaseId, Pushed ? commit(0x33U) : Request.Proposal.Target.ExpectedHead);
+			}
+			if (wire.Method == http_method::get && wire.Path == pull + "/reviews?per_page=100") {
+				auto all = Reviews;
+				if (Visible) {
+					all.insert(all.end(), Landed.begin(), Landed.end());
+				}
+				auto text = std::vector<std::string>{ };
+				for (const auto& value : all) {
+					text.push_back(github_shapes::review_json(Pull, value));
+				}
+				return ok(list(text));
+			}
+			if (wire.Method == http_method::get && wire.Path.starts_with(pageKey)) {
+				++Pages;
+				const auto page = static_cast<std::uint32_t>(std::stoul(wire.Path.substr(pageKey.size())));
+				const auto all  = listed_comments();
+				const auto last = std::max<std::size_t>(1U, (all.size() + 99U) / 100U);
+				auto       text = std::vector<std::string>{ };
+				for (auto index = (page - 1U) * 100U; index < std::min<std::size_t>(all.size(), page * 100U); ++index) {
+					text.push_back(github_shapes::comment_json(Pull, all[index]));
+				}
+				auto links = std::vector<std::string>{ };
+				if (page > 1U) {
+					links.push_back("<" + Pull.comments_page(page - 1U) + ">; rel=\"prev\"");
+				}
+				if (page < last) {
+					links.push_back("<" + Pull.comments_page(page + 1U) + ">; rel=\"next\"");
+					links.push_back("<" + Pull.comments_page(static_cast<std::uint32_t>(last)) + ">; rel=\"last\"");
+				}
+				if (page > 1U) {
+					links.push_back("<" + Pull.comments_page(1U) + ">; rel=\"first\"");
+				}
+				auto headers = std::vector<http_header>{ };
+				if (!links.empty()) {
+					auto value = links.front();
+					for (auto index = std::size_t{ 1U }; index < links.size(); ++index) {
+						value += ", " + links[index];
+					}
+					headers.push_back({ .Name = "Link", .Value = std::move(value) });
+				}
+				return ok(list(text), std::move(headers));
+			}
+			if (wire.Method == http_method::post && wire.Path == pull + "/reviews") {
+				expect(static_cast<bool>(aWitness) && aWitness(), "the POST is witnessed first");
+				++Posts;
+				if (Lands) {
+					Landed.push_back({ .Id = 900U, .Author = Me, .Body = Request.Proposal.Body, .State = "APPROVED", .Commit = head() });
+					auto id = std::uint64_t{ 9'001U };
+					for (const auto& sent : Request.Proposal.Comments) {
+						auto value              = github_shapes::comment{ };
+						value.Id                = id++;
+						value.Review            = 900U;
+						value.Path              = sent.Path;
+						value.Body              = sent.Body;
+						value.Author            = Me;
+						value.Commit            = head();
+						value.OriginalCommit    = head();
+						value.Line              = sent.Line + 1U;
+						value.OriginalLine      = sent.Line + 1U;
+						value.StartLine         = sent.StartLine ? std::optional{ *sent.StartLine + 1U } : std::nullopt;
+						value.OriginalStartLine = value.StartLine;
+						value.Side              = sent.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+						LandedComments.push_back(value);
+					}
+					if (AlterOne) {
+						LandedComments.back().Body += " (edited)";
+					}
+				}
+				if (Answer504) {
+					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 504U };
+				}
+				return ok(github_shapes::review_json(Pull, Landed.back()));
+			}
+			std::cerr << "FAILED: unscripted request " << wire.Path << '\n';
+			bpr::tests::fail();
+		}
+	};
+	struct busy_case
+	{
+		std::string_view                            Name;
+		application::review_mutation_target_binding Target;
+		github_shapes::server                       Server;
+		std::string                                 Prefix;
+	};
+	[[nodiscard]] auto busy_cases() -> std::vector<busy_case>
+	{
+		auto enterprise           = target();
+		enterprise.Hostname       = application::github_canonical_hostname{ "ghe.example.invalid" };
+		enterprise.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		return { { .Name = "github.com", .Target = target(), .Server = github_shapes::github_com(), .Prefix = "" },
+				 { .Name = "GitHub Enterprise Server", .Target = enterprise, .Server = github_shapes::enterprise("ghe.example.invalid"), .Prefix = "/api/v3" } };
+	}
+	[[nodiscard]] auto busy_configuration(const busy_case& aCase, const core::git_commit_oid& aHead) -> live_review_mutation_configuration
+	{
+		auto value                                       = configuration();
+		value.Target                                     = aCase.Target;
+		value.Target.Semantic.ExpectedHead               = aHead;
+		value.CredentialContext.Authority.Hostname       = aCase.Target.Hostname;
+		value.CredentialContext.Authority.ServerContract = aCase.Target.ServerContract;
+		return value;
+	}
+	[[nodiscard]] auto busy_server_for(const busy_case& aCase) -> std::unique_ptr<busy_server>
+	{
+		auto server                = std::make_unique<busy_server>();
+		server->Pull               = { .Server = aCase.Server, .Owner = "MikeMarcin", .Name = "BPR-Test", .RepositoryId = target().RepositoryDatabaseId, .Number = 1U };
+		server->Prefix             = aCase.Prefix;
+		auto changed               = core::review_submission_comment{ };
+		changed.Draft              = core::review_draft_id{ 7U };
+		changed.DraftRevision      = 2U;
+		changed.Path               = "src/many.txt";
+		changed.Line               = 149U;
+		changed.Body               = "question: Is this the bound we want?";
+		auto range                 = changed;
+		range.Draft                = core::review_draft_id{ 8U };
+		range.Line                 = 162U;
+		range.StartLine            = 160U;
+		range.Body                 = "nit: these three lines could be one.";
+		auto removed               = changed;
+		removed.Draft              = core::review_draft_id{ 9U };
+		removed.Path               = "src/base.txt";
+		removed.Side               = core::diff_side::left;
+		removed.Line               = 4U;
+		removed.Body               = "praise: good riddance.";
+		auto value                 = request();
+		value.IdempotencyKey       = "busy-approval";
+		value.LiveBinding          = application::review_submission_live_binding{ .Target = aCase.Target, .ActingIdentity = identity() };
+		value.Proposal.Target      = aCase.Target.Semantic;
+		value.Proposal.Body        = { };
+		value.Proposal.Disposition = core::review_disposition::approve;
+		value.Proposal.Comments    = { changed, range, removed };
+		server->Request            = value;
+		// Two earlier reviews by another reviewer: 130 comments and a reply,
+		// so the collection is two pages and the first is about 450 KB.
+		for (auto review = std::uint64_t{ 500U }; review < 502U; ++review) {
+			server->Reviews.push_back({ .Id = review, .Author = server->Other, .Body = "An earlier review.", .Commit = server->head() });
+		}
+		for (auto index = std::uint32_t{ 0U }; index < 130U; ++index) {
+			auto noise           = github_shapes::comment{ };
+			noise.Id             = 1'000U + index;
+			noise.Review         = index < 65U ? 500U : 501U;
+			noise.Path           = "src/many.txt";
+			noise.Body           = "An earlier comment on this line, long enough to look like a real one.";
+			noise.Author         = server->Other;
+			noise.Commit         = server->head();
+			noise.OriginalCommit = server->head();
+			noise.Line           = index + 1U;
+			noise.OriginalLine   = index + 1U;
+			if (index == 129U) {
+				noise.InReplyTo = 1'000U;
+			}
+			server->Comments.push_back(noise);
+		}
+		return server;
+	}
+	[[nodiscard]] auto busy_storage(const busy_case& aCase, const std::filesystem::path& aRoot) -> std::unique_ptr<application::review_submission_recovery_port>
+	{
+		auto value = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aRoot, .Host = std::string{ aCase.Target.Hostname.value() }, .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 });
+		expect(value.has_value(), "submission store opens");
+		return std::move(*value);
+	}
+	void test_a_review_with_comments_reconciles_on_a_busy_pull_request()
+	{
+		using publication = application::review_submission_publication;
+		for (const auto& selected : busy_cases()) {
+			const auto label = std::string{ selected.Name } + ": ";
+			{
+				// The page is as large as GitHub's: the fixture would not
+				// show the bound otherwise.
+				const auto  server = busy_server_for(selected);
+				const auto  page   = server->perform_review_mutation({ .Context = configuration().CredentialContext, .Wire = *compile_review_comment_collection_request(selected.Target, selected.Target.ServerContract, 1U) }, { }, { });
+				const auto& body   = std::get<github_mutation_wire_success>(page).Response.Body;
+				expect(body.size() > maximum_review_mutation_response_bytes, label + "a page of 100 real comments is larger than the ordinary response bound");
+			}
+			{
+				// Approve with three comments; GitHub creates it and answers
+				// the POST with a gateway timeout.
+				temporary_directory       root;
+				const auto                server = busy_server_for(selected);
+				review_submission_session session{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+				const auto                result = session.submit_and_reconcile(server->Request);
+				expect(result.Publication == publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == 900U && server->Posts == 1U && server->Pages == 2U,
+					   label + "the approval GitHub holds with exactly its comments is confirmed, reading both pages of the collection");
+				expect(session.pending() && session.pending()->empty(), label + "and nothing is left to reconcile");
+			}
+			{
+				// Not yet listed when the answer is read; then the author
+				// pushes. Check status in a later session finds it.
+				temporary_directory root;
+				const auto          server = busy_server_for(selected);
+				server->Visible            = false;
+				{
+					review_submission_session session{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+					const auto                result = session.submit_and_reconcile(server->Request);
+					expect(result.Publication == publication::indeterminate && server->Posts == 1U, label + "a review not yet listed after a timeout is unknown");
+				}
+				server->Visible = true;
+				server->Pushed  = true;
+				review_submission_session later{ *server, busy_configuration(selected, commit(0x33U)), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+				const auto                pending = later.pending();
+				expect(pending && pending->size() == 1U && pending->front() == server->Request, label + "the unknown attempt is restored as it was sent");
+				const auto result = later.reconcile(server->Request);
+				expect(result.Publication == publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == 900U && server->Posts == 1U,
+					   label + "Check status confirms it by where its comments were written, after a push moved one and outdated another");
+				expect(later.pending() && later.pending()->empty(), label + "and the confirmed attempt is no longer restored");
+			}
+			{
+				// The POST never landed: Check status stays unknown and sends
+				// nothing.
+				temporary_directory root;
+				const auto          server = busy_server_for(selected);
+				server->Lands              = false;
+				review_submission_session session{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+				expect(session.submit_and_reconcile(server->Request).Publication == publication::indeterminate, label + "a timeout with no review is unknown");
+				expect(session.reconcile(server->Request).Publication == publication::indeterminate && server->Posts == 1U, label + "and Check status keeps it unknown without sending again");
+				expect(session.pending() && session.pending()->size() == 1U, label + "and the attempt is kept");
+			}
+			{
+				// A review of mine whose comments are not exactly these is not
+				// this one, on a busy pull request too.
+				temporary_directory root;
+				const auto          server = busy_server_for(selected);
+				server->AlterOne           = true;
+				review_submission_session session{ *server, busy_configuration(selected, server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+				const auto                result = session.submit_and_reconcile(server->Request);
+				expect(result.Publication == publication::indeterminate && server->Posts == 1U && server->Pages == 2U, label + "a review holding other comments is not confirmed");
+			}
+		}
+	}
 	// [[BPR-1345]]. The live probe's two halves, run by hand against
 	// responses a probe of MikeMarcin/BPR-Test saved to a scratch folder:
 	// `--compile-live DIR` writes the exact review bodies BPR sends, and
@@ -1146,6 +1442,160 @@ namespace {
 		}
 		std::cout << "replay-live:pass\n";
 	}
+	// [[BPR-1538]]. The BPR-1538 probe's two halves: an approval with three
+	// comments on MikeMarcin/BPR-Test#70, which already held 100 review
+	// comments. `--compile-busy-live DIR` writes the exact body BPR sends;
+	// `--replay-busy-live DIR` runs the production session over GitHub's own
+	// answers, headers included, saved by the probe. Not registered as a row.
+	[[nodiscard]] auto busy_live_request(const live_probe& aProbe) -> application::review_submission_request
+	{
+		auto changed               = core::review_submission_comment{ };
+		changed.Draft              = core::review_draft_id{ 1U };
+		changed.DraftRevision      = 2U;
+		changed.Path               = "bpr-1538-probe/many.txt";
+		changed.Line               = 149U;
+		changed.Body               = "BPR-1538 live probe: one added line.";
+		auto range                 = changed;
+		range.Draft                = core::review_draft_id{ 2U };
+		range.Line                 = 162U;
+		range.StartLine            = 160U;
+		range.Body                 = "BPR-1538 live probe: a range of added lines.";
+		auto removed               = changed;
+		removed.Draft              = core::review_draft_id{ 3U };
+		removed.Path               = "bpr-1538-probe/base.txt";
+		removed.Side               = core::diff_side::left;
+		removed.Line               = 4U;
+		removed.Body               = "BPR-1538 live probe: a removed base line.";
+		auto value                 = aProbe.request({ changed, range, removed }, "busy-live-probe");
+		value.Proposal.Disposition = core::review_disposition::approve;
+		return value;
+	}
+	void compile_busy_live(const std::filesystem::path& aFolder)
+	{
+		const live_probe probe{ aFolder };
+		const auto       request = busy_live_request(probe);
+		auto             input   = review_submission_request{ .Target = request.LiveBinding->Target, .ActingIdentity = request.LiveBinding->ActingIdentity, .Disposition = request.Proposal.Disposition, .Body = request.Proposal.Body, .Comments = request.Proposal.Comments };
+		const auto       wire    = compile_review_submission_request(input);
+		expect(wire.has_value(), "the probe's review compiles");
+		probe.write("review-body.json", wire->Body);
+		std::cout << "compile-busy-live:pass\n";
+	}
+	/// Replays the probe's saved answers. A `.headers` file beside an answer
+	/// holds its response headers, one `Name: Value` per line.
+	struct busy_replay final : github_mutation_wire_transport
+	{
+		const live_probe& Probe;
+		/// The review list after the POST, and whether it is served yet;
+		/// whether GitHub's answer to the POST is lost to a gateway timeout.
+		bool Listed = true, Sent = false, Lose = false;
+		/// Whether the author has pushed: GitHub's answers after the push.
+		bool        Pushed = false;
+		std::size_t Posts = 0U, Pages = 0U;
+		explicit busy_replay(const live_probe& aProbe)
+			: Probe{ aProbe }
+		{ }
+		[[nodiscard]] auto answer(const char* aName) const -> github_mutation_wire_completion
+		{
+			auto               headers = std::vector<http_header>{ };
+			std::istringstream lines{ Probe.file((std::string{ aName } + ".headers").c_str()) };
+			for (std::string line; std::getline(lines, line);) {
+				if (const auto colon = line.find(": "); colon != std::string::npos) {
+					headers.push_back({ .Name = line.substr(0U, colon), .Value = line.substr(colon + 2U) });
+				}
+			}
+			return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(headers), .Body = Probe.file((std::string{ aName } + ".json").c_str()) } };
+		}
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			const bpr::tests::exit_on_failure insideTheSession;
+			const auto&                       wire = aRequest.Wire;
+			const auto                        pull = "/repos/MikeMarcin/BPR-Test/pulls/" + Probe.text("number");
+			if (wire.Method == http_method::get && wire.Path == "/user") {
+				return answer("user");
+			}
+			if (wire.Method == http_method::get && wire.Path == pull) {
+				return answer(Pushed ? "pushed-pull" : "pull");
+			}
+			if (wire.Method == http_method::get && wire.Path == pull + "/reviews?per_page=100") {
+				return answer(Pushed ? "pushed-reviews" : Sent && Listed ? "reviews-after"
+																		 : "reviews-before");
+			}
+			for (const auto page : { 1U, 2U }) {
+				if (wire.Method == http_method::get && wire.Path == pull + "/comments?per_page=100&page=" + std::to_string(page)) {
+					++Pages;
+					return answer(page == 1U ? (Pushed ? "pushed-comments-1" : "comments-1") : (Pushed ? "pushed-comments-2" : "comments-2"));
+				}
+			}
+			if (wire.Method == http_method::post && wire.Path == pull + "/reviews") {
+				expect(aWitness && aWitness(), "the replayed POST is witnessed first");
+				expect(wire.Body == Probe.file("review-body.json"), "the body replayed is the body the probe sent live");
+				++Posts;
+				Sent = true;
+				if (Lose || Probe.file("review-post.status") != "200") {
+					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 504U };
+				}
+				return answer("review-post");
+			}
+			std::cerr << "FAILED: unreplayed request " << wire.Path << '\n';
+			bpr::tests::fail();
+		}
+	};
+	void replay_busy_live(const std::filesystem::path& aFolder)
+	{
+		using publication = application::review_submission_publication;
+		const live_probe probe{ aFolder };
+		const auto       request                          = busy_live_request(probe);
+		auto             configuration                    = ::configuration();
+		configuration.Target                              = probe.binding().Target;
+		configuration.ActingIdentity                      = probe.binding().ActingIdentity;
+		configuration.CredentialContext.Authority.Account = configuration.ActingIdentity.Account;
+		{
+			temporary_directory       root;
+			busy_replay               wire{ probe };
+			review_submission_session session{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+			const auto                result = session.submit_and_reconcile(request);
+			expect(result.Publication == publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == probe.number("review_id") && wire.Posts == 1U && wire.Pages == 2U,
+				   "GitHub's own answers confirm the approval with its comments on a pull request with 100 earlier comments, reading both pages");
+		}
+		{
+			temporary_directory root;
+			busy_replay         wire{ probe };
+			wire.Listed = false;
+			wire.Lose   = true;
+			{
+				review_submission_session session{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+				expect(session.submit_and_reconcile(request).Publication == publication::indeterminate, "a review not yet listed after a lost answer is unknown");
+			}
+			wire.Listed = true;
+			review_submission_session later{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+			const auto                result = later.reconcile(request);
+			expect(result.Publication == publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == probe.number("review_id") && wire.Posts == 1U,
+				   "Check status confirms it from GitHub's answers without sending again");
+			expect(later.pending() && later.pending()->empty(), "and the attempt is no longer restored");
+		}
+		{
+			// The author pushed after the review: GitHub moved its comments
+			// to the new head and five lines down. Check status runs where
+			// the window now observes that head.
+			temporary_directory root;
+			busy_replay         wire{ probe };
+			wire.Listed = false;
+			wire.Lose   = true;
+			{
+				review_submission_session session{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+				expect(session.submit_and_reconcile(request).Publication == publication::indeterminate, "a review not yet listed after a lost answer is unknown");
+			}
+			wire.Pushed                        = true;
+			auto moved                         = configuration;
+			moved.Target.Semantic.ExpectedHead = *core::parse_git_commit_oid(probe.text("pushed_head"));
+			review_submission_session later{ wire, moved, std::make_shared<lease>(), probe.store(root.Path) };
+			const auto                result = later.reconcile(request);
+			expect(result.Publication == publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == probe.number("review_id") && wire.Posts == 1U,
+				   "after the push, Check status confirms it by where its comments were written");
+			expect(later.pending() && later.pending()->empty(), "and the attempt is no longer restored");
+		}
+		std::cout << "replay-busy-live:pass\n";
+	}
 	struct row
 	{
 		std::string_view Name;
@@ -1158,6 +1608,7 @@ namespace {
 		row{ "uncertainty_and_cancellation", &test_uncertainty_and_cancellation },
 		row{ "historical_recovery", &test_historical_recovery },
 		row{ "review_carries_its_comments_exactly", &test_a_review_carries_its_comments_exactly },
+		row{ "review_with_comments_reconciles_on_a_busy_pull_request", &test_a_review_with_comments_reconciles_on_a_busy_pull_request },
 	};
 }
 auto main(int aArgc, char** aArgv) -> int
@@ -1198,6 +1649,10 @@ try {
 			compile_live(aArgv[2]);
 		} else if (phase == "--replay-live") {
 			replay_live(aArgv[2]);
+		} else if (phase == "--compile-busy-live") {
+			compile_busy_live(aArgv[2]);
+		} else if (phase == "--replay-busy-live") {
+			replay_busy_live(aArgv[2]);
 		} else if (phase.starts_with("--kill-")) {
 			kill_publication(phase, aArgv[2]);
 		} else if (phase.starts_with("--recover-killed-")) {
