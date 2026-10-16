@@ -1,0 +1,33 @@
+{
+ "assignment": "BPR-1542",
+ "mandate": "Owner report 2026-10-16: \"I had an odd experience with a particularly long comment thread where the review tab drawer view wouldn't let me scroll any further down and I couldn't read the rest of the thread except by going to Discuss.\" Detail: the Comments drawer, reached from Threads.",
+ "governing_rfc": "RFC-BPR-0028 (BPR-1290's inline Comments drawer, BPR-1293's Threads)",
+ "changed_paths": [
+  "src/adapters/qt/src/diff_workbench.cpp",
+  "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+  "tests/adapters_qt/composed_github_tests.cpp",
+  "tests/adapters_qt/CMakeLists.txt",
+  "docs/ux/workbench-specification.md"
+ ],
+ "root_cause": "diff_workbench::line_rect, the drawer's only line geometry, used QPlainTextEdit::blockBoundingGeometry, which Qt computes exactly only within about one viewport above (two below) the first visible block and otherwise answers with a stand-in near where its walk stopped; a long thread's line scrolled a drawer's height above the code stopped moving while the code scrolled on, so the thread's foot never came into the drawer.",
+ "fix": "line_rect uses exact_row_rect (BPR-1476's keyboard_row_rect, renamed): measured axis line origins in two panes, row stride in one.",
+ "commits": {
+  "allocation_on_main": "e8b3b1cb7",
+  "card": "f305b8e39",
+  "claim": "6cfb1a499",
+  "fix": "032d0e0c9"
+ },
+ "branch": "bpr-1542-long-thread-drawer",
+ "source_root": "/Users/jaeger/.codex/worktrees/bpr1542-long-thread/BetterPullReview",
+ "baseline": "da290965b (main)",
+ "verification": {
+  "new": "qt_composed_long_thread_scale_{100,125,200} pass",
+  "negative_controls": "in-course Qt stand-in locator stalls; unfixed diff_workbench.cpp fails exact placement and stalls at notch 23 (foot 8387 -> 8399, code 6946/100000); one-pane-only unfixed stalls at notch 24",
+  "regression": "30/30 focused Qt and application tests; 9/9 composition contracts, no reseal",
+  "format": "clang-format 22.1.8 clean on touched C++",
+  "tidy": "tidy.py --warnings-as-errors clean on diff_workbench.cpp and composed_github_tests.cpp",
+  "documentation": "DOCUMENTATION_OK"
+ },
+ "pending": [],
+ "next_action": "None after merge to main."
+}

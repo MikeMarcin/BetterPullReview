@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1542"
 title: "A long thread in the Comments drawer reads to its last post, as in Discuss"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-16","owner_note":"I had an odd experience with a particularly long comment thread where the review tab drawer view wouldn't let me scroll any further down and I couldn't read the rest of the thread except by going to Discuss.","owner_detail":"It was the Comments drawer, reached from Threads: a thread opened from Threads into Review with the drawer showing it.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1293","BPR-0648","BPR-1476"],"reservation":"docs/issues/_reservations/BPR-1542--BPR-1542--5f66449df3ce.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"032d0e0c9","evidence":{"kind":"command","detail":"qt_composed_long_thread_scale_{100,125,200}: a 24-post thread entered Review -> Threads -> pick reads to its foot by wheel, every notch moving the foot up, the thread hanging at its line; widths 280 and 760, code zooms 200% and 70%, one pane, after six posts arrive."}},{"criterion":"AC2","outcome":"pass","revision":"032d0e0c9","evidence":{"kind":"command","detail":"Same course: a Threads pick of the last post brings it into the drawer; Tab reaches the last post with each reached part in view."}},{"criterion":"AC3","outcome":"pass","revision":"032d0e0c9","evidence":{"kind":"command","detail":"In-course control with Qt's stand-in stalls; unfixed diff_workbench.cpp fails exact placement and stalls at notch 23 (foot 8387 -> 8399, code 6946 of 100000); one-pane-only unfixed stalls at notch 24."}},{"criterion":"AC4","outcome":"pass","revision":"032d0e0c9","evidence":{"kind":"command","detail":"30/30 focused Qt/application tests incl. qt_composed_github_scale_*, qt_composed_inline_drawer_scale_*, qt_diff_workbench_scale_*, qt_workbench_window_scale_*; 9/9 composition contracts (no reseal); clang-format 22 and tidy clean; DOCUMENTATION_OK."}}]
 ---
 
 # BPR-1542: A long thread in the Comments drawer reads to its last post, as in Discuss
@@ -77,3 +78,23 @@ went from 8387 to 8399 pixels below the drawer's top while the code stood at
 (renamed `exact_row_rect`, shared with the keyboard reveal), in two panes and
 one. The drawer, its scroll handling and Discuss are unchanged. No core, host,
 provider or `src/app` change.
+
+## Evidence
+
+Fix `032d0e0c9` on branch `bpr-1542-long-thread-drawer` (worktree
+`/Users/jaeger/.codex/worktrees/bpr1542-long-thread/BetterPullReview`), on
+`main` at `da290965b`. Changed: `src/adapters/qt/src/diff_workbench.cpp`,
+`src/adapters/qt/include/bpr/qt/diff_workbench.hpp`,
+`tests/adapters_qt/composed_github_tests.cpp` (`--long-thread`),
+`tests/adapters_qt/CMakeLists.txt` (`qt_composed_long_thread_scale_{100,125,200}`),
+`docs/ux/workbench-specification.md`. No `src/app` change.
+
+| Acceptance | Evidence | Result |
+|---|---|---|
+| AC1 | `qt_composed_long_thread_scale_{100,125,200}`: a 24-post thread (paragraphs, an eight-line fenced block wider than the drawer, a list) on line 150 of a 3,000-line file, more than four drawers tall, entered Review → Threads → pick. Every wheel notch moves its foot up until it shows; on entry the foot shows with the code short of its end and no notes overflow (in one pane, short of its end); the thread hangs at its line − 4 less any overflow a pick's reveal took; repeated at drawer widths 280 and 760, at code zooms 200% and 70% (row height checked to change), in one pane, and after six posts are published into the open thread. A line 2,350 rows below the view is placed at exactly 2,350 row heights. | pass |
+| AC2 | Same course: a Threads pick of the last post brings it into the drawer within its reveal; Tab from the drawer reaches the last post with every reached part of the thread in view. | pass |
+| AC3 | In-course control: Qt's stand-in put back through the drawer's locator, the foot stops while the code scrolls and never shows. Against the unfixed `diff_workbench.cpp`: fails "a line far below the code's view is placed exactly"; with that assertion skipped, at notch 23 the foot goes 8387 → 8399 with the code at 6946 of 100000 (all three scales); with only the one-pane path unfixed, "in one pane" fails at notch 24 (foot 8010 → 8010, code row 224 of 2999). | pass |
+| AC4 | 30/30: `qt_composed_github_scale_{100,125,200}`, `qt_composed_inline_drawer_scale_{100,125,200}`, `qt_composed_long_thread_scale_*`, `qt_composed_resident_drawer_filters`, `qt_conversation_cards_view`, `qt_conversation_finder_scale_*`, `qt_diff_workbench_scale_*` (BPR-1476's keyboard reveal), `qt_workbench_window_scale_*`, `qt_workbench_conversation_reveal`, `qt_workbench_line_draft`, `qt_feedback_label_threads`, `qt_github_conversation_panel`, `application_diff_workbench_public_path`, `application_diff_zoom_public_path`, `application_review_navigation_entry`, `application_thread_words_public_path`, `application_threaded_reply_contract`, `application_active_changed_scaling`; the nine composition contracts 9/9 (no reseal needed); clang-format 22.1.8 clean on the touched C++; `tidy.py --warnings-as-errors` clean on `diff_workbench.cpp` and `composed_github_tests.cpp`; `DOCUMENTATION_OK`. | pass |
+
+No human acceptance is required: every criterion is a measured behaviour of
+the composed window, and the drawer's look is unchanged.
