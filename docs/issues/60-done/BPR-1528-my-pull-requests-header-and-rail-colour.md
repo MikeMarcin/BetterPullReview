@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1528"
 title: "Give Home's My pull requests section its own header and rail colour"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-15","owner_note":"Can we add a header and rail color for my reviews on the home","governing_rfc":"RFC-BPR-0066","related_cards":["BPR-1388","BPR-0776","BPR-0783"],"reservation":"docs/issues/_reservations/BPR-1528--BPR-1528--cdb07d8484c2.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"command","detail":"qt_home_list_scale_{100,125,200}: test_my_pull_requests_has_its_own_header_and_rail probes the plum header tint and rail pixels and the Repository-grouped band tone; negative control with the neutral mapping fails."}},{"criterion":"AC2","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"command","detail":"qt_appearance_profile: four distinct Home tones per variant, plum at 5.65/5.27 Light, 7.41/6.40 Dark, 10.84 HC Light, 10.53 HC Dark on base/surface; profile tone follows resolved variant."}},{"criterion":"AC3","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"observation","detail":"Authored row keeps its amber state; application_personal_discovery_public_path and application_home_waiting_public_path pass; composed renders in all four modes change only the My pull requests panel."}},{"criterion":"AC4","outcome":"pending","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in fresh session c752a6404866ca55ac7600c163aec391, candidate BPR-1528-mine-colour-v001, fingerprint c64bd48ed0f200e40b5de4a8233f8139100d2f4707016d46b4cb537a9ccfb141, cursor 3; frozen root bpr1528-mine-colour-v001.7cmsoidr."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"command","detail":"qt_home_list_scale_{100,125,200}: test_my_pull_requests_has_its_own_header_and_rail probes the plum header tint and rail pixels and the Repository-grouped band tone; negative control with the neutral mapping fails."}},{"criterion":"AC2","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"command","detail":"qt_appearance_profile: four distinct Home tones per variant, plum at 5.65/5.27 Light, 7.41/6.40 Dark, 10.84 HC Light, 10.53 HC Dark on base/surface; profile tone follows resolved variant."}},{"criterion":"AC3","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"observation","detail":"Authored row keeps its amber state; application_personal_discovery_public_path and application_home_waiting_public_path pass; composed renders in all four modes change only the My pull requests panel."}},{"criterion":"AC4","outcome":"pass","revision":"4773c9ceac11259944168313df0daa9e57e2a0cd","evidence":{"kind":"observation","detail":"Owner Accept, no note, in attended session c752a6404866ca55ac7600c163aec391, decision 5492dc69-d79d-4c0a-9def-708766971283 (2026-10-16T01:33:31Z, event 4), on candidate BPR-1528-mine-colour-v001 fingerprint c64bd48e, frozen root bpr1528-mine-colour-v001.7cmsoidr. Merged tree b2da33635: focused rows 6/6 pass."}}]
 ---
 
 # BPR-1528: Give Home's My pull requests section its own header and rail colour
@@ -96,3 +95,21 @@ was driven or captured; all renders were offscreen.
 
 Next: on hand-back after cursor 3, an Accept merges the branch, records AC4
 and finishes the card; a Reject's note becomes candidate v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:33:31Z: Accept**, no note (decision
+`5492dc69-d79d-4c0a-9def-708766971283`, event 4 of session
+`c752a6404866ca55ac7600c163aec391`), on candidate
+`BPR-1528-mine-colour-v001` at `4773c9cea`, fingerprint `c64bd48e…`. Event
+cursor consumed: 4.
+
+`main` at `0b37d5438` merged into the branch at `b2da33635` without
+conflicts. On the merged tree (`dev`, Debug): `qt_appearance_profile`,
+`qt_home_list_scale_{100,125,200}`,
+`application_personal_discovery_public_path` and
+`application_home_waiting_public_path` pass 6/6; clang-format 22.1.8
+`--dry-run -Werror` over the six touched C++ files is clean; the
+documentation gate prints `DOCUMENTATION_OK`. The review server (pid 7416)
+was stopped, the candidate's protection released and the frozen root
+removed.

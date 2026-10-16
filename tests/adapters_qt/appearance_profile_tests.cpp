@@ -2663,13 +2663,15 @@ namespace {
 	}
 
 	// [[BPR-0776]]. Home's state colours are the reason word's ink, so each reads
-	// as small text on the base and the surface of every built-in variant.
+	// as small text on the base and the surface of every built-in variant;
+	// [[BPR-1528]] My pull requests' header and rail tone holds the same floor.
 	void test_attention_colours_read_as_text_in_every_variant()
 	{
 		const auto tones = std::array{
 			qt::attention_tone::needs_me,
 			qt::attention_tone::waiting_on_others,
 			qt::attention_tone::following,
+			qt::attention_tone::my_pull_requests,
 		};
 		for (const auto variant : { core::appearance_variant::light,
 									core::appearance_variant::dark,
@@ -2690,7 +2692,7 @@ namespace {
 				expect(colour.isValid() && colour.alpha() == 255, "every Home state colour is opaque");
 				expect(onBase >= 4.5 && onSurface >= 4.5,
 					   "every Home state colour reads as small text on its variant's base and surface");
-				expect(std::ranges::find(seen, colour) == seen.end(), "the three states never share a colour");
+				expect(std::ranges::find(seen, colour) == seen.end(), "no two Home sections share a colour");
 				seen.push_back(colour);
 			}
 		}

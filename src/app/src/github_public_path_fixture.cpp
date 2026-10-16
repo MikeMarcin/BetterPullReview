@@ -677,6 +677,28 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "line-details-v1/objects.pack" },
 				};
+			// [[BPR-1537]]. Constructed by `scripts/build_intraline_fixture.py`:
+			// five files of everyday changed lines, one head.
+			case github_public_path_fixture::intraline_v1:
+				return {
+					.ContractDirectory   = "intraline-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 37U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "intraline",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "a3f915b5baa6b05b2ffc1ac6502b218b5d16bec7",
+					.HeadOneOid          = "d7e2f04de93e5e51097627e58093a42b68de36ce",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "intraline-v1/objects.pack" },
+				};
 			}
 			return { };
 		}

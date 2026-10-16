@@ -790,9 +790,11 @@ namespace {
 
 	auto test_computed_result_validator() -> void
 	{
+		// [[BPR-1537]] Two changed words, each starting with a multibyte
+		// scalar, kept apart by an unchanged " and ".
 		const auto valid = text_result(
-			run(std::string_view{ "caf\xC3\xA9 \xF0\x9F\x98\x80 tail\n" },
-				std::string_view{ "caf\xC3\xA8 \xF0\x9F\x98\x83 tail\n" }),
+			run(std::string_view{ "\xC3\xA9lan and \xF0\x9F\x98\x80 tail\n" },
+				std::string_view{ "\xC3\xA8lan and \xF0\x9F\x98\x83 tail\n" }),
 			"validator fixture computes");
 		expect(valid.Intraline.size() >= 2U,
 			   "validator fixture contains separate multibyte edits");

@@ -8,10 +8,12 @@
 /// the preview both go through them. These courses hold that boundary: each one
 /// fails if the shared answer stops agreeing with the answer the panes relied on.
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QColor>
 #include <QFont>
@@ -23,10 +25,13 @@
 #include <QRectF>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QTextLayout>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -839,6 +844,93 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief [[BPR-1533]], [[BPR-1534]]. The text selection one helper draws
+	/// for the comparison panes and Line details: the solid fill over every
+	/// selected character, each run in its own colour made readable on it.
+	void test_a_text_selection_keeps_each_runs_colour_on_a_solid_fill()
+	{
+		auto document = QTextDocument{ };
+		auto cursor   = QTextCursor{ &document };
+		auto note     = QTextCharFormat{ };
+		note.setForeground(QColor{ 0x80, 0x80, 0x80 });
+		cursor.insertText(QStringLiteral("int value = name;"));
+		cursor.insertText(QStringLiteral(" #"), note);
+		document.documentLayout();
+		const auto block = document.firstBlock();
+		// `int` a faint type colour that cannot read on the fill, `name` a
+		// readable function colour; the rest is normal text and a note.
+		const auto faint    = QColor{ 0x9D, 0xB8, 0xE8 };
+		const auto readable = QColor{ 0x00, 0x00, 0x00 };
+		auto       tokens   = QList<QTextLayout::FormatRange>{ };
+		auto       type     = QTextLayout::FormatRange{ };
+		type.start          = 0;
+		type.length         = 3;
+		type.format.setForeground(faint);
+		auto function   = QTextLayout::FormatRange{ };
+		function.start  = 12;
+		function.length = 4;
+		function.format.setForeground(readable);
+		tokens.push_back(type);
+		tokens.push_back(function);
+		static_cast<void>(qt::apply_syntax_format_ranges(document, block, tokens));
+		const auto selection = qt::code_text_selection{
+			.Fill    = QColor{ 0x7F, 0xB0, 0xE8 },
+			.Normal  = QColor{ 0x1F, 0x23, 0x28 },
+			.Variant = core::appearance_variant::light,
+		};
+		const auto ink = [&selection](const QColor& aColour) {
+			return qt::to_presentation_color(core::readable_selection_ink(
+				qt::to_appearance_color(aColour), qt::to_appearance_color(selection.Fill), selection.Variant));
+		};
+
+		// From inside `int` to the line break, which the fill covers.
+		auto ranges = QList<QTextLayout::FormatRange>{ };
+		qt::append_text_selection_ranges(ranges, block, 1, block.length(), selection);
+		struct expected
+		{
+			int    Start;
+			int    Length;
+			QColor Ink;
+		};
+		const auto wanted = std::array{
+			expected{ 1, 2, ink(faint) },
+			expected{ 3, 9, ink(selection.Normal) },
+			expected{ 12, 4, ink(readable) },
+			expected{ 16, 1, ink(selection.Normal) },
+			expected{ 17, 2, ink(QColor{ 0x80, 0x80, 0x80 }) },
+			expected{ 19, 1, ink(selection.Normal) },
+		};
+		expect(ranges.size() == static_cast<qsizetype>(wanted.size()), "one range per run of one colour, the line break included");
+		for (std::size_t index = 0U; index < wanted.size() && index < static_cast<std::size_t>(ranges.size()); ++index) {
+			const auto& range = ranges[static_cast<qsizetype>(index)];
+			expect(range.start == wanted[index].Start && range.length == wanted[index].Length, "each run covers exactly its characters");
+			expect(range.format.background().color() == selection.Fill, "every run is filled solid in the selection colour");
+			expect(range.format.foreground().color() == wanted[index].Ink, "every run is drawn in its own colour's selection ink");
+			expect(core::contrast_ratio_hundredths(qt::to_appearance_color(range.format.foreground().color()), qt::to_appearance_color(selection.Fill))
+					   >= core::minimum_contrast_hundredths(core::contrast_kind::text, selection.Variant),
+				   "every run reads at the text floor on the selection");
+			expect(!range.format.hasProperty(QTextFormat::FullWidthSelection), "a selection is not full width unless the style asks");
+		}
+		expect(ink(readable) == readable && ink(faint) != faint, "a readable colour is kept exactly and a faint one moves");
+
+		// Adjacent runs of one ink are one range; a full-width style carries.
+		auto plain     = QList<QTextLayout::FormatRange>{ };
+		auto wide      = selection;
+		wide.FullWidth = true;
+		qt::append_text_selection_ranges(plain, block, 4, 9, wide);
+		expect(plain.size() == 1 && plain.front().start == 4 && plain.front().length == 5
+				   && plain.front().format.boolProperty(QTextFormat::FullWidthSelection),
+			   "normal text is one range, and the style's full width carries");
+
+		// Nothing to draw: an empty range, or no fill.
+		auto none = QList<QTextLayout::FormatRange>{ };
+		qt::append_text_selection_ranges(none, block, 5, 5, selection);
+		qt::append_text_selection_ranges(none, block, 0, 4, qt::code_text_selection{ });
+		expect(none.isEmpty(), "an empty selection, or one with no fill, draws nothing");
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -849,6 +941,7 @@ auto main(int argc, char** argv) -> int
 	test_format_ranges_colour_only_what_was_classified();
 	test_formats_are_written_only_where_they_differ();
 	test_bands_and_the_selection_wash();
+	test_a_text_selection_keeps_each_runs_colour_on_a_solid_fill();
 	test_the_accepted_samples_exercise_what_the_criteria_name();
 	test_a_sample_becomes_a_document_and_a_classification();
 	test_painting_a_sample_directly_uses_the_supplied_palette();

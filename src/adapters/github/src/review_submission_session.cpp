@@ -13,6 +13,26 @@ namespace bpr::adapters::github::detail {
 			return { .Target = aRequest.LiveBinding->Target, .ActingIdentity = aRequest.LiveBinding->ActingIdentity, .Disposition = aRequest.Proposal.Disposition, .Body = aRequest.Proposal.Body, .Comments = aRequest.Proposal.Comments };
 		}
 		auto result(const application::review_submission_request& aRequest, application::review_submission_publication aPublication = application::review_submission_publication::indeterminate, application::review_mutation_failure aFailure = application::review_mutation_failure::unavailable) -> application::review_submission_result { return { .Request = aRequest, .Publication = aPublication, .Failure = aFailure }; }
+		/// [[BPR-1538]]. Where a listed comment was written at `aHead`, or
+		/// none when it was written at another commit.
+		struct written_place
+		{
+			std::uint32_t                Line = 0U;
+			std::optional<std::uint32_t> StartLine;
+		};
+		auto written_at(const review_comment_collection_entry& aComment, const std::string_view aHead) -> std::optional<written_place>
+		{
+			if (aComment.OriginalLine) {
+				if (aComment.OriginalCommitId != aHead) {
+					return std::nullopt;
+				}
+				return written_place{ .Line = *aComment.OriginalLine, .StartLine = aComment.OriginalStartLine };
+			}
+			if (aComment.CommitId != aHead || !aComment.Line) {
+				return std::nullopt;
+			}
+			return written_place{ .Line = *aComment.Line, .StartLine = aComment.StartLine };
+		}
 		auto receipt(const review_submission_observation& aReview) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aReview.ReviewDatabaseId }, .ReviewNodeId = aReview.ReviewNodeId, .Target = aReview.Target.Semantic, .ActingAccount = aReview.Author.Account, .Disposition = aReview.Disposition }; }
 	}
 	review_submission_session::review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery)
@@ -120,7 +140,7 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected(review_mutation_contract_failure::invalid_status);
 			}
 			bytes += success->Response.Body.size();
-			if (bytes > maximum_review_mutation_response_bytes * maximum_review_comment_collection_pages) {
+			if (bytes > maximum_review_mutation_list_response_bytes * maximum_review_comment_collection_pages) {
 				return std::unexpected(review_mutation_contract_failure::response_limit);
 			}
 			auto parsed = parse_review_comment_collection(success->Response, Configuration.Target, page);
@@ -148,13 +168,20 @@ namespace bpr::adapters::github::detail {
 		if (!listed) {
 			return false;
 		}
-		const auto head      = core::canonical_hex(Configuration.Target.Semantic.ExpectedHead);
+		// [[BPR-1538]]. Held to the head the review was written on, not the
+		// head this session observes now: after a push GitHub moves a
+		// comment's `commit_id` and `line`, or leaves the comment outdated
+		// with no line, so Check status could never match it. Where the
+		// comment was written (`original_commit_id`, `original_line`,
+		// `original_start_line`) does not move. A server that names no
+		// original line is held to the current position at that head.
+		const auto head      = core::canonical_hex(aRequest.Proposal.Target.ExpectedHead);
 		auto       unmatched = std::vector<const review_comment_collection_entry*>{ };
 		for (const auto& comment : *listed) {
 			if (comment.Review != aReview.value()) {
 				continue;
 			}
-			if (comment.Reply || !comment.OnLine || !comment.Line || comment.CommitId != head.view() || comment.Author != Configuration.ActingIdentity.DatabaseId
+			if (comment.Reply || !comment.OnLine || !written_at(comment, head.view()) || comment.Author != Configuration.ActingIdentity.DatabaseId
 				|| comment.Login != Configuration.ActingIdentity.Login) {
 				return false;
 			}
@@ -164,8 +191,9 @@ namespace bpr::adapters::github::detail {
 			return false;
 		}
 		for (const auto& sent : aRequest.Proposal.Comments) {
-			const auto found = std::ranges::find_if(unmatched, [&sent](const review_comment_collection_entry* aComment) {
-				return aComment->Path == sent.Path && aComment->Side == sent.Side && aComment->Line == std::optional{ sent.Line } && aComment->StartLine == sent.StartLine
+			const auto found = std::ranges::find_if(unmatched, [&sent, &head](const review_comment_collection_entry* aComment) {
+				const auto written = written_at(*aComment, head.view());
+				return written && aComment->Path == sent.Path && aComment->Side == sent.Side && written->Line == sent.Line && written->StartLine == sent.StartLine
 					&& (!aComment->StartSide || aComment->StartSide == std::optional{ sent.Side }) && aComment->Body == sent.Body;
 			});
 			if (found == unmatched.end()) {

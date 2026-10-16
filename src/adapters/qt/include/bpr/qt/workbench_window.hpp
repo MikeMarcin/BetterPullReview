@@ -918,7 +918,11 @@ namespace bpr::qt {
 		/// \brief Applies one navigation command after the host has restored Review's exact context.
 		void perform_review_navigation(core::workbench_command_id aCommand);
 		/// \brief Focuses visible Review content or the originating navigation control.
-		void               focus_review_navigation(core::workbench_command_id aCommand);
+		void focus_review_navigation(core::workbench_command_id aCommand);
+		/// \brief [[BPR-1539]]. Says that a retained navigation press took no
+		/// step because the active tab's exact view is unavailable, then focuses
+		/// as `focus_review_navigation` does.
+		void               refuse_review_navigation(core::workbench_command_id aCommand);
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto seen_action() const noexcept -> QAction*;
