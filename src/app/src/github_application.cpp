@@ -528,7 +528,9 @@ namespace bpr::app {
 				|| aHandoff.Repository.value() != designated_review_repository_id
 				|| aHandoff.PullRequest.value() != designated_review_pull_request_id
 				|| aHandoff.Number.value() != designated_review_number
-				|| application::recorded_base(aHandoff) != *expectedBase || aHandoff.Head != *expectedHead
+				// [[BPR-1560]]. The designated pull request's merge base is
+				// its recorded base; both must be that one commit.
+				|| application::recorded_base(aHandoff) != *expectedBase || aHandoff.Base != *expectedBase || aHandoff.Head != *expectedHead
 				|| aHandoff.BaseRef.view() != designated_review_base_full_ref
 				|| aSnapshot.Profile != aHandoff.Profile
 				|| aSnapshot.Host != aHandoff.Host
@@ -31326,11 +31328,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.Owner = std::string{ designated_review_owner },
 			.Name  = std::string{ designated_review_name },
 		};
-		handoff.PullRequest = core::pull_request_id{ designated_review_pull_request_id };
-		handoff.Number      = core::pull_request_number{ designated_review_number };
-		handoff.BaseRef     = *baseRef;
-		handoff.Base        = *base;
-		handoff.Head        = *head;
+		handoff.PullRequest  = core::pull_request_id{ designated_review_pull_request_id };
+		handoff.Number       = core::pull_request_number{ designated_review_number };
+		handoff.BaseRef      = *baseRef;
+		handoff.Base         = *base;
+		handoff.RecordedBase = *base;
+		handoff.Head         = *head;
 
 		snapshot.Profile = handoff.Profile;
 		snapshot.Host    = handoff.Host;

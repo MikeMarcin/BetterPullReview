@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fc35d33a25a4d970c82c29421b53e9ee871bad511aad290333db0a99e8b9f58d"
+		"9abbd75827979a6b29b85d77ec4f3a96469d95401a07644ae045c48273e54c20"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "78559ef1554ac45bd79e996123842305ac8a40ee6fbd9bfa1f5b388fb5732509"
+        "8a563d3abbd01f416f67191e1b4c22a88133889bd3a05465896a4ee976ae4de7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2588,3 +2588,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # after the diff. Presentation delivery only: no grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # mutation pin unchanged; no new src/app source. Self-review on BPR-1558.
+
+# [[BPR-1560]] reseal over main at ec097d8dc. Whole PR compares from the merge
+# base GitHub names, so github_application.cpp and tour_remote.cpp change in
+# production: the mutation target binding keeps GitHub's recorded base as
+# `BaseOid` (the staleness check against GitHub is unchanged) and carries the
+# merge base as `ComparisonBaseOid` only when it differs, so a LEFT line is
+# numbered in the merge base GitHub numbers LEFT lines in; the designated
+# selection requires both to be its one constant base; the observed selection
+# compares the snapshot with the recorded base; BPR-1212 numbering answers
+# "same" without the cache for a left side that is the named merge base. No
+# grant, credential, transport, provider or mutation-branch pin changes; the
+# publication path's LEFT source check is the deliberate change. The full
+# application and production-manifest digests are refreshed. Reviewed by the
+# owner's cross-review (Fable, Astra) before landing.
