@@ -877,7 +877,8 @@ namespace bpr::qt::detail {
 				aFormat.setAnchorNames({ reference_name(aMark.Number, aMark.Reference) });
 				aFormat.setVerticalAlignment(QTextCharFormat::AlignSuperScript);
 				aFormat.setProperty(markdown_internal_target_property, QStringLiteral("fnback-%1-%2").arg(aMark.Number).arg(aMark.Reference));
-				return marked_text{ .Text = QString::number(aMark.Number) };
+				// GitHub's stylesheet brackets the raised number: "[1]".
+				return marked_text{ .Text = QLatin1Char{ '[' } + QString::number(aMark.Number) + QLatin1Char{ ']' } };
 			});
 			present_marks(aDocument, back_mark, [](const parsed_mark& aMark, QTextCharFormat& aFormat) {
 				aFormat.setAnchor(true);

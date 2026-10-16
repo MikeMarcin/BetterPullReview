@@ -82,6 +82,15 @@ namespace {
 		return found;
 	}
 
+	/// GitHub draws a footnote reference's number in brackets.
+	auto bracketed(QStringList aNumbers) -> QStringList
+	{
+		for (auto& number : aNumbers) {
+			number = QLatin1Char{ '[' } + number + QLatin1Char{ ']' };
+		}
+		return aNumbers;
+	}
+
 	/// GitHub's visible words: tags dropped, entities read, whitespace folded.
 	auto reference_text(const QString& aHtml) -> QString
 	{
@@ -348,7 +357,7 @@ namespace {
 			}
 		}
 		std::cout << "footnotes: references=" << references.join(QLatin1Char{ ',' }).toStdString() << " backs=" << backs.join(QLatin1Char{ ',' }).toStdString() << '\n';
-		expect(references == matches(github, QStringLiteral(R"(data-footnote-ref="" [^>]*>(\d+)</a>)")), "the references are numbered as GitHub numbers them");
+		expect(references == bracketed(matches(github, QStringLiteral(R"(data-footnote-ref="" [^>]*>(\d+)</a>)"))), "the references are numbered as GitHub numbers them, bracketed as its stylesheet draws them");
 		expect(backs.size() == matches(github, QStringLiteral("data-footnote-backref=\"\" ")).size() && backs.value(1) == QStringLiteral("↩2"), "one back reference for each reference, the second numbered");
 		auto items = std::vector<QTextBlock>{ };
 		for (auto block = document.begin(); block.isValid(); block = block.next()) {
@@ -384,14 +393,14 @@ namespace {
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
 		const auto first = reader->textCursor().selectionStart();
-		expect(reader->textCursor().selectedText() == QStringLiteral("1"), "Tab reaches the first reference");
+		expect(reader->textCursor().selectedText() == QStringLiteral("[1]"), "Tab reaches the first reference");
 		key(*reader, Qt::Key_Return);
 		expect(reader->textCursor().selectedText() == QStringLiteral("↩") && reader->textCursor().block().blockFormat().boolProperty(footnote_property), "Enter moves to the footnote's back reference");
 		key(*reader, Qt::Key_Return);
-		expect(reader->textCursor().selectionStart() == first && reader->textCursor().selectedText() == QStringLiteral("1"), "Enter on the back reference returns to the reference");
+		expect(reader->textCursor().selectionStart() == first && reader->textCursor().selectedText() == QStringLiteral("[1]"), "Enter on the back reference returns to the reference");
 		key(*reader, Qt::Key_Tab);
 		key(*reader, Qt::Key_Tab);
-		expect(reader->textCursor().selectedText() == QStringLiteral("1"), "Tab reaches the second reference to footnote 1");
+		expect(reader->textCursor().selectedText() == QStringLiteral("[1]"), "Tab reaches the second reference to footnote 1");
 		key(*reader, Qt::Key_Return);
 		expect(reader->textCursor().selectedText() == QStringLiteral("↩2"), "the second reference moves to the second back reference");
 		// The pointer: press and release on the first reference.
@@ -440,7 +449,7 @@ namespace {
 				references.push_back(link.Text);
 			}
 		}
-		expect(references == matches(github, QStringLiteral(R"(data-footnote-ref="" [^>]*>(\d+)</a>)")), "the template's footnotes");
+		expect(references == bracketed(matches(github, QStringLiteral(R"(data-footnote-ref="" [^>]*>(\d+)</a>)"))), "the template's footnotes");
 		expect(reserved_marks(document) == 0, "no mark reaches the reader");
 	}
 
