@@ -20,7 +20,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <vector>
 
 class QPainter;
 class QPalette;
@@ -75,17 +74,10 @@ namespace bpr::qt {
 	/// \brief The compiled glyph of one label, in its accepted element order.
 	[[nodiscard]] auto feedback_label_glyph(core::feedback_label aLabel) -> std::span<const feedback_glyph_element>;
 
-	/// \brief The label's two-letter shortcode, as in `qu` for `:qu:`
-	/// (owner, BPR-1079 v2).
-	[[nodiscard]] auto feedback_shortcode(core::feedback_label aLabel) noexcept -> std::string_view;
-	/// \brief The label a two-letter code names, exactly and in lowercase.
-	[[nodiscard]] auto find_feedback_shortcode(std::string_view aCode) noexcept -> std::optional<core::feedback_label>;
-	/// \brief Completion for a typed code fragment: codes that start with it
-	/// first, then labels whose name starts with it, each once, in catalog
-	/// order. An empty fragment, a colon alone, offers all twelve in catalog
-	/// order (owner, `shortcodes-v002`: "just typing : should be enough to
-	/// open suggestions").
-	[[nodiscard]] auto feedback_shortcode_matches(std::string_view aFragment) -> std::vector<core::feedback_label>;
+	/// \brief The two letters a Letters mark draws for a label, as in `qu`
+	/// for question (owner, BPR-1079 v2). They were also typed codes until
+	/// [[BPR-1565]] removed them (owner, 2026-10-16).
+	[[nodiscard]] auto feedback_label_letters(core::feedback_label aLabel) noexcept -> std::string_view;
 
 	/// \brief The appearance role that tints a label's mark.
 	[[nodiscard]] auto feedback_label_role(core::feedback_label aLabel) noexcept -> core::appearance_role;
@@ -100,8 +92,8 @@ namespace bpr::qt {
 	enum class feedback_mark_style : std::uint8_t {
 		/// BPR-1080's twelve accepted glyphs. The default.
 		icons,
-		/// The label's two-letter shortcode (`pr`, `ni`, ... `qb`), in the same
-		/// mark: the same tints, blocking fill, size and names.
+		/// The label's two letters (`pr`, `ni`, ... `qb`), in the same mark:
+		/// the same tints, blocking fill, size and names.
 		letters,
 	};
 

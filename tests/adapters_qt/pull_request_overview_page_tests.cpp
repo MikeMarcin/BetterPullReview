@@ -1858,14 +1858,15 @@ namespace {
 		expect(resets == 0, "no count, chip or mode change resets the model");
 		expect(page.body_view()->geometry() == bodyBefore, "the description keeps its geometry");
 
-		// The Label key lists all twelve marks with their codes; Escape closes it.
+		// The Label key lists all twelve marks by name; Escape closes it. Since
+		// [[BPR-1565]] it shows no `:xx:` code.
 		page.show_label_key();
 		settle();
 		auto* const key  = page.label_key();
 		auto* const list = key != nullptr ? key->findChild<QListWidget*>(QStringLiteral("overviewLabelKeyList")) : nullptr;
-		expect(key != nullptr && key->isVisible() && list != nullptr && list->count() == 1 + 12 + 1 + 2 + 4 + 1 + 1 + 4 && list->item(4)->text().contains(QStringLiteral(":is:"))
-				   && list->item(4)->data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("issue, shortcode is")),
-			   "the Label key names every mark and its shortcode, the state marks and the keys");
+		expect(key != nullptr && key->isVisible() && list != nullptr && list->count() == 1 + 12 + 1 + 2 + 4 + 1 + 1 + 4 && list->item(4)->text() == QStringLiteral("issue")
+				   && list->item(4)->data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("issue: ")),
+			   "the Label key names every mark, the state marks and the keys, with no code");
 		expect(list->item(14)->text() == QStringLiteral("Other labels") && list->item(21)->text() == QStringLiteral("Keys")
 				   && list->item(22)->text().startsWith(QStringLiteral("Tab: from a row onto its chips")),
 			   "the Label key calls the bubble with dots Other labels, and names the keys that reach a chip");

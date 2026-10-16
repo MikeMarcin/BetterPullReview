@@ -1253,12 +1253,12 @@ namespace {
 		QApplication::processEvents();
 	}
 
-	/// \brief [[BPR-1290]], after the owner's v003 Reject (": chortcodes arent
-	/// working in the reply comments"). The reply written in place has the
-	/// composer's own label helper ([[BPR-1083]]): a lone `:` opens the
-	/// completion, `:qu:` becomes `question: `, ⌘L opens the label menu, and
-	/// all of it follows the draft editor's switch.
-	auto test_reply_in_place_has_the_composers_label_helper() -> void
+	/// \brief [[BPR-1290]]. The reply written in place has the composer's own
+	/// label controls ([[BPR-1083]]): the chip, and ⌘L opening the label menu.
+	/// [[BPR-1565]] removed the `:xx:` codes (owner, 2026-10-16), which the
+	/// owner's v003 Reject (": chortcodes arent working in the reply
+	/// comments") had brought here; a typed code now stays as typed.
+	auto test_reply_in_place_has_the_composers_label_controls() -> void
 	{
 		qt::conversation_cards_view view;
 		view.resize(320, 700);
@@ -1277,57 +1277,21 @@ namespace {
 		expect(labels->chip()->isVisible() && labels->chip()->accessibleName() == QStringLiteral("Label: Plain comment"),
 			   "the reply's chip is the composer's chip and starts plain");
 		expect(!labels->blocking_toggle()->isVisible(), "the drawer leaves the decoration toggles in the chip's menu");
+		view.present_reply(qt::thread_reply_presentation{ .Thread = "t10", .Body = QString{ }, .Publishable = true });
 
-		// Negative control: before the draft editor's reply says the helper
-		// is on, a colon is only a colon and a code stays as typed.
-		view.present_reply(qt::thread_reply_presentation{ .Thread = "t10", .Body = QString{ }, .Publishable = true, .LabelHelper = false });
-		type(*editor, QLatin1Char{ ':' });
-		expect(!labels->completion()->isVisible(), "negative control: with the helper off a lone colon opens nothing");
-		for (const auto character : QStringLiteral("qu:")) {
+		// Negative control for the removed codes: `:qu:` stays as typed.
+		for (const auto character : QStringLiteral(":qu:")) {
 			type(*editor, character);
 		}
 		QApplication::processEvents();
-		expect(editor->toPlainText() == QStringLiteral(":qu:") && labels->statistics().Shortcodes == 0U,
-			   "negative control: with the helper off :qu: stays as typed");
+		expect(editor->toPlainText() == QStringLiteral(":qu:") && !labels->state().Label.has_value() && labels->statistics().Edits == 0U,
+			   "negative control: a reply's :qu: stays as typed, with no label");
+		expect(!typed.empty() && typed.back() == QStringLiteral(":qu:"), "and the draft editor is given exactly that text");
 		editor->clear();
 		QApplication::processEvents();
-
-		// The draft editor's helper on: the reply follows it.
-		view.present_reply(qt::thread_reply_presentation{ .Thread = "t10", .Body = QString{ }, .Publishable = true, .LabelHelper = true });
-		expect(labels->helper(), "the reply takes the draft editor's helper switch");
-		type(*editor, QLatin1Char{ ':' });
-		expect(labels->completion()->isVisible() && labels->completion()->count() == 12, "a lone colon opens the completion with every label");
-		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
-		QApplication::sendEvent(editor, &escape);
-		QApplication::processEvents();
-		expect(!labels->completion()->isVisible() && view.reply_editor() == editor && editor->hasFocus() && editor->toPlainText() == QStringLiteral(":"),
-			   "Esc closes the completion first; the reply keeps its text and focus");
-		editor->clear();
-		QApplication::processEvents();
-		type(*editor, QLatin1Char{ ':' });
-		type(*editor, QLatin1Char{ 'q' });
-		expect(labels->completion()->isVisible() && labels->completion_labels().front() == core::feedback_label::question, "letters narrow the completion");
-		type(*editor, QLatin1Char{ 'u' });
-		type(*editor, QLatin1Char{ ':' });
-		QApplication::processEvents();
-		expect(editor->toPlainText() == QStringLiteral("question: ") && labels->statistics().Shortcodes == 1U,
-			   "a reply with :qu: becomes question:");
-		expect(labels->chip()->accessibleName() == QStringLiteral("Label: question"), "the chip names the label the code chose");
-		expect(!typed.empty() && typed.back() == QStringLiteral("question: "), "the replaced text goes to the draft editor");
 		for (const auto character : QStringLiteral("why")) {
 			type(*editor, character);
 		}
-		expect(editor->toPlainText() == QStringLiteral("question: why"), "typing goes on after the label");
-
-		// A code in front of a label replaces it; it never adds a second one.
-		auto start = editor->textCursor();
-		start.setPosition(0);
-		editor->setTextCursor(start);
-		for (const auto character : QStringLiteral(":is:")) {
-			type(*editor, character);
-		}
-		QApplication::processEvents();
-		expect(editor->toPlainText() == QStringLiteral("issue: why"), "a code before a label replaces that label");
 
 		// ⌘L opens the label menu from the reply.
 		auto command = QKeyEvent{ QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier };
@@ -1337,12 +1301,8 @@ namespace {
 		labels->menu()->label_button(core::feedback_label::suggestion)->click();
 		QApplication::processEvents();
 		expect(editor->toPlainText() == QStringLiteral("suggestion: why") && !labels->menu()->isVisible(), "the menu changes the reply's label");
-
-		// Negative control: a code pasted is not typed, so it stays.
-		editor->setPlainText(QStringLiteral(":qu: pasted"));
-		QApplication::processEvents();
-		expect(editor->toPlainText() == QStringLiteral(":qu: pasted") && !labels->completion()->isVisible(),
-			   "negative control: a pasted code is not replaced");
+		expect(labels->chip()->accessibleName() == QStringLiteral("Label: suggestion"), "the chip names the label chosen");
+		expect(!typed.empty() && typed.back() == QStringLiteral("suggestion: why"), "the labelled text goes to the draft editor");
 		view.hide();
 	}
 
@@ -1870,7 +1830,7 @@ auto main(int argc, char** argv) -> int
 	test_start_a_review_in_the_composer();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
-	test_reply_in_place_has_the_composers_label_helper();
+	test_reply_in_place_has_the_composers_label_controls();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
 	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();

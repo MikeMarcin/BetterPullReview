@@ -128,7 +128,7 @@ namespace bpr::adapters::sqlite::detail {
 				  "writing_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_stop AS BLOB)) <= 8192),"
 				  // [[BPR-1083]]. How label marks are drawn, schema version
 				  // 12: zero is the pictorial icons, the default (owner,
-				  // 2026-10-05), one the two-letter shortcode marks.
+				  // 2026-10-05), one the two-letter marks.
 				  "feedback_marks INTEGER NOT NULL DEFAULT 0 CHECK(feedback_marks BETWEEN 0 AND 1),"
 				  // [[BPR-1088]]. Schema version 13, each defaulted so a
 				  // migrated row keeps what it had: the label helper off,

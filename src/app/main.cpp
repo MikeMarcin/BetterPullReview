@@ -4942,7 +4942,7 @@ namespace {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
 				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReviewEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
-				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
+				   << evidence.CodeStaysLiteral << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
 				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
@@ -8938,8 +8938,9 @@ auto main(int argc, char** argv) -> int
 			= launch.has("--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
 			= launch.has("--public-preview-unfetchable-first-head-course");
-		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
-		// the helper, and reads the pull request again after publishing.
+		// [[BPR-1083]]. The label-authoring course types `:qu:` with the helper
+		// on, to show it stays text ([[BPR-1565]]), and reads the pull request
+		// again after publishing.
 		const auto labelAuthoringProbe    = launch.has("--label-authoring-probe");
 		fixtureOptions.LabelHelper        = launch.has("--label-helper") || labelAuthoringProbe;
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;

@@ -160,8 +160,9 @@ namespace bpr::qt {
 		bool                                                       DispatchingWorkshopAcceptance = false;
 		/// [[BPR-1083]]. An edit is with the draft owner and unanswered; a
 		/// change made meanwhile waits for its answer (`Deferred`) and then
-		/// goes on the accepted revision, so a label shortcode replaced the
-		/// moment its closing colon is typed is not refused as stale.
+		/// goes on the accepted revision, so a label chosen right after typing
+		/// is not refused as stale (found with the `:xx:` codes [[BPR-1565]]
+		/// removed).
 		bool InFlight = false;
 		bool Deferred = false;
 		/// [[BPR-1212]]. The draft and the first line its next edit sets
@@ -236,9 +237,9 @@ namespace bpr::qt {
 		/// operation with no control here fails the test that names all six.
 		std::array<QAction*, core::workshop_operation_count> WorkshopOperations{ };
 
-		/// [[BPR-1083]]. The label chip, its menu, the decoration toggles and
-		/// the leading shortcodes. They edit `Body`'s text and nothing else, so
-		/// a label leaves this widget the way typed text does.
+		/// [[BPR-1083]]. The label chip, its menu and the decoration toggles.
+		/// They edit `Body`'s text and nothing else, so a label leaves this
+		/// widget the way typed text does.
 		feedback_label_controls* Labels = nullptr;
 
 		std::optional<core::review_comment_draft> ShownDraft;
@@ -352,15 +353,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1298]]. The editor's text with the loaded body's own
 		/// line endings, so a CRLF body keeps its CRs.
 		[[nodiscard]] auto body_text() const -> std::string;
-		/// \brief [[BPR-1083]]. The label chip, menu, toggles and shortcodes.
+		/// \brief [[BPR-1083]]. The label chip, menu and toggles.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
 		/// \brief The label tints of the theme on screen and the mark style.
-		void set_label_marks(const feedback_mark_theme& aTheme);
-		/// \brief The label helper (completion and shortcode replacement), off
-		/// by default; the Settings section that owns it is BPR-1088. The
-		/// drawer's in-place reply to this editor's draft follows it
-		/// ([[BPR-1290]]).
-		void               set_label_helper(bool aEnabled);
+		void               set_label_marks(const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto target_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
 		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;

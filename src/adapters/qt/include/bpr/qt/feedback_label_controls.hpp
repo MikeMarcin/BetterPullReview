@@ -23,15 +23,15 @@
 
 class QLabel;
 class QLineEdit;
-class QListWidget;
 class QPlainTextEdit;
 class QToolButton;
 
 /// \file
 /// \brief [[BPR-1083]]. The selected authoring controls of a comment editor:
-/// the label chip and its menu, the decoration toggles and the leading
-/// `:xx:` shortcodes (owner, BPR-1079 authoring A and v2; RFC-BPR-0048 R09,
-/// R10).
+/// the label chip and its menu and the decoration toggles (owner, BPR-1079
+/// authoring A and v2; RFC-BPR-0048 R09, R10). The leading `:xx:` codes and
+/// their completion were removed by [[BPR-1565]] (owner, 2026-10-16): a code
+/// typed now stays the text it is.
 /// \details Every change is one edit of the editor's own text, decided by
 /// `core::decide_feedback_composition_edit` against the exact text on screen
 /// and applied as one undoable step. The editor's existing typed-edit path
@@ -70,7 +70,6 @@ namespace bpr::qt {
 	{
 		std::uint64_t Edits                                                       = 0U;
 		std::uint64_t Refusals                                                    = 0U;
-		std::uint64_t Shortcodes                                                  = 0U;
 		std::uint64_t MenuOpens                                                   = 0U;
 		auto          operator<=>(const feedback_label_control_statistics&) const = default;
 	};
@@ -88,11 +87,6 @@ namespace bpr::qt {
 		/// \brief The tints of the theme on screen and the mark style.
 		void               set_theme(const feedback_mark_theme& aTheme);
 		[[nodiscard]] auto theme() const noexcept -> const feedback_mark_theme&;
-		/// \brief The label helper: completion and shortcode replacement. Off
-		/// by default (owner, Settings v1); a label typed in full counts
-		/// either way.
-		void               set_helper(bool aEnabled);
-		[[nodiscard]] auto helper() const noexcept -> bool;
 		/// \brief Whether the blocking, non-blocking and if-minor toggles sit
 		/// beside the chip (the default). Off, they stay in the chip's menu
 		/// under "Adds" and the chip's mark still shows them: the drawer's
@@ -118,8 +112,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto non_blocking_toggle() const noexcept -> QToolButton*;
 		[[nodiscard]] auto if_minor_toggle() const noexcept -> QToolButton*;
 		[[nodiscard]] auto menu() const noexcept -> feedback_label_menu*;
-		[[nodiscard]] auto completion() const noexcept -> QListWidget*;
-		[[nodiscard]] auto completion_labels() const -> std::vector<core::feedback_label>;
 		[[nodiscard]] auto last_refusal() const noexcept -> std::optional<core::feedback_edit_refusal>;
 		[[nodiscard]] auto statistics() const noexcept -> feedback_label_control_statistics;
 
@@ -128,12 +120,7 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
-		void on_contents_change(int aPosition, int aRemoved, int aAdded);
 		void on_text_changed();
-		void replace_code(qsizetype aCodeLength, core::feedback_label aLabel);
-		void show_completion(const std::vector<core::feedback_label>& aLabels);
-		void hide_completion();
-		void take_completion();
 		void toggle_decoration(const QString& aToken, bool aWritten);
 		void refresh_icons();
 		void place_caret_after_prefix();
@@ -144,13 +131,9 @@ namespace bpr::qt {
 		QToolButton*                               NonBlocking = nullptr;
 		QToolButton*                               IfMinor     = nullptr;
 		feedback_label_menu*                       Menu        = nullptr;
-		QListWidget*                               Completion  = nullptr;
 		feedback_mark_theme                        Theme;
-		bool                                       Helper    = false;
-		bool                                       Toggles   = true;
-		bool                                       Editing   = false;
-		bool                                       Typed     = false;
-		bool                                       Dismissed = false;
+		bool                                       Toggles = true;
+		bool                                       Editing = false;
 		feedback_composition_state                 State;
 		std::optional<core::feedback_edit_refusal> Refusal;
 		std::function<void(const QString&)>        StatusSink;
@@ -158,7 +141,7 @@ namespace bpr::qt {
 	};
 
 	/// \brief The label menu: Plain comment (⌘0), the 3×4 grid of the twelve
-	/// marks with names and codes, and the decorations under "Adds".
+	/// marks with their names, and the decorations under "Adds".
 	/// \details The decorations combine ([[BPR-1083]] v004, after the owner's
 	/// `decorations-v003`): blocking and non-blocking are one weight, so each
 	/// takes the other out, and if-minor goes with either. Custom decorations

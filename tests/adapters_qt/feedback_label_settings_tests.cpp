@@ -2,7 +2,9 @@
 /// \brief [[BPR-1088]]. Proves Reviews & queue › Comment labels as the owner
 /// accepted it (BPR-1079 selected design, Settings; RFC-BPR-0049 R20, R28;
 /// RFC-BPR-0048's remembered authoring preference): the label helper, off by
-/// default, reaching the comment editor only once published; the Overview's
+/// default and following only what is published (since [[BPR-1565]] it sends
+/// the Review feedback guidance with a workshop request and no longer touches
+/// the comment editor); the Overview's
 /// starting count; the Overview chips, ticked and put in order; the Mark
 /// colours link; a Reset scoped to this section; what a load left out of the
 /// stored chips; and every row following the published record, so a refused
@@ -127,9 +129,9 @@ namespace {
 		expect(label("labelHelperLabel")->text() == QStringLiteral("Label helper") && label("overviewCountsLabel")->text() == QStringLiteral("Overview counts")
 				   && label("markColoursLabel")->text() == QStringLiteral("Mark colours") && label("labelColumnsLabel")->text() == QStringLiteral("Overview chips"),
 			   "the row names are the design's");
-		expect(info->consequence() == QStringLiteral("The label chip and :shortcodes: while writing. Off: write labels yourself; they still count."),
-			   "the helper's info glyph says the design's sentence");
-		expect(!helper->isChecked() && !f.Window.review_editor()->label_controls()->helper(), "the helper is off by default, and so is the editor's");
+		expect(info->consequence() == QStringLiteral("Sends the Review feedback guidance with each comment workshop request. Off: requests go without it. Labels count either way."),
+			   "the helper's info glyph says what it does since the codes were removed, with no :shortcodes:");
+		expect(!helper->isChecked(), "the helper is off by default");
 		expect(open->isChecked() && !all->isChecked(), "Overview counts start on Open");
 		expect(link->text() == QStringLiteral("Appearance › Colours ›") && link->toolTip() == QStringLiteral("Opens Appearance with the filter set to Label"), "Mark colours is the design's link");
 		expect(reset->toolTip() == QStringLiteral("Reset comment labels") && reset->accessibleName() == QStringLiteral("Reset comment labels"), "the section's Reset says what it resets");
@@ -145,28 +147,26 @@ namespace {
 		save_render(*page, "comment-labels-default");
 	}
 
-	/// \brief The switch asks the host; the editor follows only what is published.
-	void test_the_helper_switch_reaches_the_editor_once_published()
+	/// \brief The switch asks the host and shows only what is published.
+	void test_the_helper_switch_follows_the_published_record()
 	{
 		fixture f;
 		f.publish({ });
-		auto* const helper   = f.Window.label_helper_switch();
-		auto* const controls = f.Window.review_editor()->label_controls();
+		auto* const helper = f.Window.label_helper_switch();
 		helper->click();
 		expect(!f.Records.empty() && f.Records.back().LabelHelper == application::review_label_helper::on, "turning the switch on dispatches the whole record with the helper on");
 		auto expected        = application::review_behaviour_settings{ };
 		expected.LabelHelper = application::review_label_helper::on;
 		expect(f.Records.back() == expected, "and nothing else changed in it");
-		expect(!controls->helper(), "the editor waits for the host to accept it");
 		f.publish(f.Records.back());
-		expect(controls->helper() && helper->isChecked(), "the published choice turns the editor's helper on");
+		expect(helper->isChecked() && f.Window.behaviour().LabelHelper == application::review_label_helper::on, "the published choice is the window's");
 		f.publish({ });
-		expect(!controls->helper() && !helper->isChecked(), "published off turns it off again, so every window of the profile follows");
+		expect(!helper->isChecked() && f.Window.behaviour().LabelHelper == application::review_label_helper::off, "published off turns it off again, so every window of the profile follows");
 
 		// Another window of the same profile is handed the same publication.
 		fixture other;
 		other.publish(expected);
-		expect(other.Window.review_editor()->label_controls()->helper() && other.Window.label_helper_switch()->isChecked(), "a second window follows the same published record");
+		expect(other.Window.label_helper_switch()->isChecked(), "a second window follows the same published record");
 	}
 
 	/// \brief A refused or failed save is answered by the held record, which the
@@ -190,7 +190,6 @@ namespace {
 		expect(!f.Window.label_helper_switch()->isChecked() && f.find("overviewCountsOpen")->isChecked() && f.Window.label_columns_editor()->columns() == held.LabelColumns
 				   && f.Window.label_columns_editor()->item_of(core::feedback_label::question)->checkState() == Qt::Unchecked,
 			   "the held record, republished after a refusal or a failed write, puts every row back");
-		expect(!f.Window.review_editor()->label_controls()->helper(), "and the editor never saw the unsaved helper");
 	}
 
 	/// \brief Ticking, ordering and unticking the Overview chips.
@@ -373,7 +372,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_section_offers_every_row_with_safe_defaults();
-	test_the_helper_switch_reaches_the_editor_once_published();
+	test_the_helper_switch_follows_the_published_record();
 	test_every_row_reverts_to_the_published_record();
 	test_the_overview_chips_are_ticked_and_ordered();
 	test_reset_covers_this_section_only();

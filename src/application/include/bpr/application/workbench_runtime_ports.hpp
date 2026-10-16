@@ -571,19 +571,22 @@ namespace bpr::application {
 	/// \details The owner, 2026-10-05: "i think settings should also have a
 	/// toggle to switch between the icons and the shortcode icons, because i
 	/// liked both of them." Icons, the default, are BPR-1080's twelve glyphs;
-	/// letters are the label's two-letter shortcode in the same mark, with the
+	/// letters are the label's two letters (`qu` for question) in the same mark, with the
 	/// same tints, blocking fill, size and names. Presentation only.
 	enum class review_feedback_marks : std::uint8_t {
 		icons,
 		letters,
 	};
 
-	/// \brief Whether the comment editor offers the label helper ([[BPR-1088]]).
+	/// \brief The profile's label helper ([[BPR-1088]]).
 	///
-	/// \details The helper is the label chip's completion and the leading
-	/// `:xx:` shortcodes (RFC-BPR-0048's convention-assisted composition).
-	/// Off by default (owner, BPR-1079 Settings v1): a label typed out in
-	/// full is recognized and counted either way.
+	/// \details Until [[BPR-1565]] it also turned on the comment editor's
+	/// leading `:xx:` codes and their completion; the owner removed those on
+	/// 2026-10-16 (RFC-BPR-0048 owner amendment 1). It now decides only
+	/// whether a comment workshop request carries the Review feedback
+	/// guidance ([[BPR-1091]]). Off by default (owner, BPR-1079 Settings v1):
+	/// a label typed out in full, or chosen with the chip, is recognized and
+	/// counted either way.
 	enum class review_label_helper : std::uint8_t {
 		off,
 		on,

@@ -53,7 +53,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Eleven added the writing hooks' overrides to the profile row.
 	///
 	/// Twelve since [[BPR-1083]]: how label marks are drawn, icons or the
-	/// two-letter shortcode marks, in the profile row. A migrated row reads
+	/// two-letter marks, in the profile row. A migrated row reads
 	/// icons, the default.
 	///
 	/// Thirteen since [[BPR-1088]]: the comment editor's label helper, the
