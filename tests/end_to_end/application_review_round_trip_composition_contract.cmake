@@ -2577,3 +2577,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
+
+# [[BPR-1543]] reseal over 63ba6d66a (the last matching pins) on the branch
+# tree based on main at 58dcf7e4d. The constructed markdown-parity-v1 fixture
+# joins the test-build fixture enum (github_application_fixture_access.hpp),
+# the host-profile table (github_application.cpp), the served-fixture table
+# (github_public_path_fixture.cpp, sharing overview-labels-v1's descriptor with
+# its own contract directory) and the --github-fixture names (main.cpp),
+# exactly as intraline-v1 did for BPR-1537. Test builds only: no grant,
+# target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1543.
