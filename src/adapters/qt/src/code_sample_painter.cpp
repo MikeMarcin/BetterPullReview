@@ -300,6 +300,15 @@ namespace bpr::qt {
 		}
 	}
 
+	auto code_text_selection_fill(const QColor& aSelection, const QColor& aCanvas, const core::appearance_variant aVariant) -> QColor
+	{
+		if (!aSelection.isValid() || !aCanvas.isValid()) {
+			return aSelection;
+		}
+		return to_presentation_color(core::composited(to_appearance_color(aSelection), to_appearance_color(aCanvas),
+													  core::text_selection_fill_alpha(aVariant)));
+	}
+
 	void append_text_selection_ranges(
 		QList<QTextLayout::FormatRange>& aRanges,
 		const QTextBlock&                aBlock,

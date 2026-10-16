@@ -1178,10 +1178,13 @@ namespace bpr::qt {
 			/// intraline emphasis, which hid it: on the selected line it was
 			/// the line's own wash again, 1.19:1 in Dark, and on a changed run
 			/// the emphasis covered it (the owner, 2026-10-15: "quite hard to
-			/// see a selected block"). Now it is the top layer, solid in the
-			/// pane's `Highlight`, with each glyph in its own colour made
-			/// readable on it (`append_text_selection_ranges`), as Line details
-			/// and Review Cycles' code view draw theirs. Only public and
+			/// see a selected block"). Now it is the top layer, an opaque
+			/// fill of the pane's `Highlight` (`code_text_selection_fill`:
+			/// full strength, mixed toward the canvas in Light, which the
+			/// owner found "slightly overdone" at full strength), with each
+			/// glyph in its own colour made readable on it
+			/// (`append_text_selection_ranges`), as Line details draws its
+			/// selection. Only public and
 			/// protected `QPlainTextEdit` members are used; the panes are
 			/// read-only and draw no caret, placeholder or preedit, which Qt's
 			/// paint also skips for them.
@@ -1846,7 +1849,7 @@ namespace bpr::qt {
 				}
 			}
 			const auto selectionInk = code_text_selection{
-				.Fill      = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight),
+				.Fill      = code_text_selection_fill(palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight), palette().color(QPalette::Base), SelectionVariant),
 				.Normal    = SelectionNormal.isValid() ? SelectionNormal : context.palette.text().color(),
 				.Variant   = SelectionVariant,
 				.FullWidth = fullWidth,

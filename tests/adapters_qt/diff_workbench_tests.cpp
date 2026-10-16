@@ -3394,9 +3394,10 @@ namespace {
 		process_events();
 		const auto [washGround, washInk] = sample(comment);
 		const auto highlightedText       = pane->palette().color(QPalette::Active, QPalette::HighlightedText);
-		const auto highlight             = pane->palette().color(QPalette::Active, QPalette::Highlight);
+		const auto highlight             = qt::code_text_selection_fill(pane->palette().color(QPalette::Active, QPalette::Highlight),
+																		pane->palette().color(QPalette::Base), profile.variant());
 		expect(distance(washGround, highlight) <= 6 && distance(washGround, plainGround) > 60,
-			   "the selection is the solid accent, not a wash");
+			   "the selection is the solid selection fill, not a wash");
 		const auto readable = qt::to_presentation_color(core::readable_selection_ink(
 			qt::to_appearance_color(profile.color(core::appearance_role::syntax_comment)), qt::to_appearance_color(highlight), profile.variant()));
 		expect(distance(washInk, readable) < 90 && distance(washInk, readable) < distance(washInk, highlightedText),
@@ -3566,8 +3567,8 @@ namespace {
 			if (!render.isEmpty()) {
 				expect(workbench.grab().save(render + QStringLiteral("-bpr1534-%1.png").arg(QLatin1StringView{ modeName })), name + ": capture Line details");
 			}
-			const auto fill = profile.color(role::code_selection_background);
-			expect(colour_distance(sample.Fill, fill) <= 4.0, name + ": the selection is the theme's solid selection colour");
+			const auto fill = qt::code_text_selection_fill(profile.color(role::code_selection_background), profile.color(role::code_background), profile.variant());
+			expect(colour_distance(sample.Fill, fill) <= 4.0, name + ": the selection is the theme's selection fill");
 			std::cout << "BPR-1534 " << name << ": fill " << sample.Fill.name().toStdString() << " ground " << sample.Ground.name().toStdString()
 					  << " ratio " << luminance_ratio(sample.Fill, sample.Ground) << " distance " << colour_distance(sample.Fill, sample.Ground) << '\n';
 
@@ -3775,12 +3776,11 @@ namespace {
 	/// unchanged, a removed, an added and a changed line, each the selected
 	/// line (a double click selects its line first), in the four built-in
 	/// variants, with the pane focused and not. The fill under the word must
-	/// be the theme's solid selection colour, the one Line details paints,
-	/// and stand apart from the ground beside it: v002's wash measured 22 to
-	/// 37 sRGB units from it, and none at all inside a change, where the
-	/// intraline emphasis covered it. The nearest case now is a word inside a
-	/// change in Light, about 48 units from the selected row's deeper
-	/// emphasis ([[BPR-0323]]).
+	/// be the theme's selection fill, the one Line details paints (in Light
+	/// a lighter mix of the selection colour, [[BPR-1533]] v002), and stand
+	/// apart from the ground beside it: [[BPR-1212]] v002's wash measured 22
+	/// to 37 sRGB units from it, and none at all inside a change, where the
+	/// intraline emphasis covered it.
 	auto test_a_text_selection_reads_on_every_line_kind() -> void
 	{
 		const auto diff  = computed(selection_left, selection_right, { }, 48U);
@@ -3834,7 +3834,16 @@ namespace {
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
 			}));
 			settle_geometry(workbench);
-			const auto selection = profile.color(core::appearance_role::code_selection_background);
+			// [[BPR-1533]] v002: the theme's selection, mixed toward the canvas
+			// in Light only ("slightly overdone on the light").
+			const auto full      = profile.color(core::appearance_role::code_selection_background);
+			const auto selection = qt::code_text_selection_fill(full, profile.color(core::appearance_role::code_background), profile.variant());
+			if (mode == core::appearance_mode::light) {
+				expect(luminance_ratio(selection, full) >= 1.2 && colour_distance(selection, full) >= 30.0,
+					   std::string{ modeName } + ": the light selection is a lighter mix of the theme's selection colour");
+			} else {
+				expect(selection == full, std::string{ modeName } + ": the selection is the theme's selection colour at full strength");
+			}
 			for (const auto& each : looks) {
 				const auto name = std::string{ modeName } + " " + each.Name;
 				expect(workbench.select_conversation_line(each.Side, each.Line), name + ": the line selects");
@@ -3856,8 +3865,8 @@ namespace {
 						  << focused.Ground.name().toStdString() << " ratio " << luminance_ratio(focused.Fill, focused.Ground)
 						  << " distance " << colour_distance(focused.Fill, focused.Ground) << "; unfocused fill "
 						  << unfocused.Fill.name().toStdString() << '\n';
-				expect(colour_distance(focused.Fill, selection) <= 4.0, name + ": the selection is the theme's solid selection colour");
-				expect(colour_distance(unfocused.Fill, selection) <= 4.0, name + ": unfocused, the selection keeps the same colour");
+				expect(colour_distance(focused.Fill, selection) <= 4.0, name + ": the selection is the theme's selection fill");
+				expect(colour_distance(unfocused.Fill, selection) <= 4.0, name + ": unfocused, the selection keeps the same fill");
 				expect(colour_distance(focused.Fill, focused.Ground) >= 40.0,
 					   name + ": the selection stands clearly apart from the line it sits in");
 			}

@@ -212,9 +212,8 @@ namespace bpr::qt {
 
 	/// \brief How a code surface draws a text selection ([[BPR-1533]], [[BPR-1534]]).
 	///
-	/// \details `Fill` is the pane's `QPalette::Highlight`, which
-	/// `appearance_profile` derives from `code_selection_background`, laid
-	/// solid; `Normal` is the ink of text no token colours (`syntax_normal`);
+	/// \details `Fill` is opaque, from `code_text_selection_fill`; `Normal`
+	/// is the ink of text no token colours (`syntax_normal`);
 	/// `Variant` decides the text floor each ink is held to. `FullWidth` is
 	/// the style's choice (macOS's) that a selection past a line's end runs
 	/// to the pane's edge.
@@ -225,6 +224,16 @@ namespace bpr::qt {
 		core::appearance_variant Variant   = core::appearance_variant::light;
 		bool                     FullWidth = false;
 	};
+
+	/// \brief The opaque colour a code pane fills a text selection with.
+	///
+	/// \details `aSelection` is the pane's `QPalette::Highlight`, which
+	/// `appearance_profile` derives from `code_selection_background`, and
+	/// `aCanvas` its `QPalette::Base`, the code background. The selection is
+	/// laid over the canvas at `core::text_selection_fill_alpha` of the
+	/// variant: full strength except in light ([[BPR-1533]] v002).
+	[[nodiscard]] auto code_text_selection_fill(const QColor& aSelection, const QColor& aCanvas, core::appearance_variant aVariant)
+		-> QColor;
 
 	/// \brief Appends the ranges that draw characters `aFrom` to `aTo` of one
 	/// block as selected: the solid fill, each glyph in its own colour.

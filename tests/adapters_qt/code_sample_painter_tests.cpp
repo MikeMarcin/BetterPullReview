@@ -923,6 +923,15 @@ namespace {
 				   && plain.front().format.boolProperty(QTextFormat::FullWidthSelection),
 			   "normal text is one range, and the style's full width carries");
 
+		// [[BPR-1533]] v002. The fill: full strength, mixed toward the canvas
+		// in light only.
+		const auto light = qt::code_text_selection_fill(QColor{ 0x7F, 0xB0, 0xE8 }, QColor{ 0xFF, 0xFF, 0xFF }, core::appearance_variant::light);
+		expect(light == QColor{ 0x9F, 0xC4, 0xEE }, "light mixes the selection three parts to one with the canvas");
+		for (const auto variant : { core::appearance_variant::dark, core::appearance_variant::high_contrast_light, core::appearance_variant::high_contrast_dark }) {
+			expect(qt::code_text_selection_fill(QColor{ 0x28, 0x51, 0x8C }, QColor{ 0x0D, 0x11, 0x17 }, variant) == QColor{ 0x28, 0x51, 0x8C },
+				   "every other variant fills at full strength");
+		}
+
 		// Nothing to draw: an empty range, or no fill.
 		auto none = QList<QTextLayout::FormatRange>{ };
 		qt::append_text_selection_ranges(none, block, 5, 5, selection);

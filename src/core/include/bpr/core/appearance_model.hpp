@@ -375,6 +375,24 @@ namespace bpr::core {
 	/// \brief Reports whether the supplied variant is a high-contrast variant.
 	[[nodiscard]] auto high_contrast(appearance_variant aVariant) noexcept -> bool;
 
+	/// \brief The opacity a code pane fills a text selection at, laid over
+	/// the code canvas into one opaque colour ([[BPR-1533]] v002).
+	///
+	/// \details The comparison panes and Line details fill a selection in
+	/// `code_selection_background`, above every band and emphasis. In the
+	/// light variant the full colour read as "slightly overdone" (the owner,
+	/// rejecting v001), so it is mixed three parts to one with the canvas:
+	/// the built-in light selection `#7FB0E8` becomes `#9FC4EE`, still at
+	/// least 56 sRGB units from every ground it can sit beside, including the
+	/// selected line's wash. Dark, which the owner did not fault, and the
+	/// high-contrast variants, which keep their strongest marks, fill at full
+	/// strength. Glyph ink is chosen against the resulting colour
+	/// (`readable_selection_ink`), so the text floor holds at any value.
+	[[nodiscard]] constexpr auto text_selection_fill_alpha(const appearance_variant aVariant) noexcept -> std::uint8_t
+	{
+		return aVariant == appearance_variant::light ? std::uint8_t{ 191U } : std::uint8_t{ 255U };
+	}
+
 	enum class os_color_scheme : std::uint8_t {
 		unknown,
 		light,

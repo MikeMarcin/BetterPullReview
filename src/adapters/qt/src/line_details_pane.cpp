@@ -513,7 +513,7 @@ namespace bpr::qt {
 		}
 		const auto& normal    = Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)];
 		const auto  selection = code_text_selection{
-			.Fill      = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight),
+			.Fill      = code_text_selection_fill(palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight), palette().color(QPalette::Base), Colors.Variant),
 			.Normal    = Colors.Supplied && normal.isValid() ? normal : context.palette.text().color(),
 			.Variant   = Colors.Variant,
 			.FullWidth = fullWidth,

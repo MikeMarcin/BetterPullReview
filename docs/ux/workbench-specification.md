@@ -1501,13 +1501,16 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   line wears the current-line band and extended lines the pane's text
   selection. A text selection is the top layer: it is filled solid in the
   theme's selection colour over the line's band, the selected line's wash and
-  the intraline emphasis, as Line details and every text box in the window
-  fill one, and each selected glyph keeps its syntax colour, moved only as far
+  the intraline emphasis, as Line details fills one, and each selected glyph
+  keeps its syntax colour, moved only as far
   as it must to read on the fill at the variant's text floor ([[BPR-1212]]
   v002; the owner, on v001: "are we meant to lose all syntax highlighting when
   we select something?"; [[BPR-1533]], replacing v002's translucent wash, which
   the owner found "quite hard to see", and which the emphasis hid inside a
-  change). A move is announced once, politely ("Line
+  change). In the light variant the colour is mixed three parts to one with
+  the code background, because at full strength the owner found it "slightly
+  overdone on the light" ([[BPR-1533]] v002); Dark and both high-contrast
+  variants use it at full strength. A move is announced once, politely ("Line
   12 of the later version selected", "Lines 9 to 13 selected"). In one pane
   the same keys move by rows, and each end keeps its row's side.
 - Return comments on the selected lines and Shift+Return suggests a change to
