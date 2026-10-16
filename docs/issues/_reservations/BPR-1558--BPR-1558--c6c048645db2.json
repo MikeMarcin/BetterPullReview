@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1558"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Right comparison pane stays unhighlighted: classification coalesced into a departed read",
+  "created": "2026-10-16T16:20:02.305247+00:00",
+  "base": "15f0bff176897fa329ba6d455d2aab503eff5270"
+}
