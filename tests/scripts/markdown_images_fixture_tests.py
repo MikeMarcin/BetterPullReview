@@ -14,11 +14,12 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 SOURCE = "tests/fixtures/github/contracts/v1/nested-folders-v1"
 CONTRACT = "tests/fixtures/github/contracts/v1/markdown-images-v1"
 IMAGES = "tests/fixtures/github/markdown-images/v1/markdown-images-v1"
@@ -31,8 +32,8 @@ def files(root: Path) -> dict[str, bytes]:
 
 class MarkdownImagesFixtureTests(unittest.TestCase):
     def test_builder_regenerates_the_committed_tree(self) -> None:
-        scratch = Path(tempfile.mkdtemp(prefix="bpr-markdown-images-"))
-        try:
+        with contained_temporary_directory(prefix="bpr-markdown-images-") as root:
+            scratch = Path(root)
             shutil.copytree(ROOT / SOURCE, scratch / SOURCE)
             result = subprocess.run([sys.executable, "-I", str(ROOT / "scripts/build_markdown_images_fixture.py"), str(scratch)],
                                     capture_output=True, text=True, check=False)
@@ -41,8 +42,6 @@ class MarkdownImagesFixtureTests(unittest.TestCase):
             for relative in (CONTRACT, IMAGES):
                 with self.subTest(tree=relative):
                     self.assertEqual(files(scratch / relative), files(ROOT / relative))
-        finally:
-            shutil.rmtree(scratch)
 
     def test_served_tree_is_consistent(self) -> None:
         bodies = json.loads((ROOT / IMAGES / "bodies.json").read_text(encoding="utf-8"))
