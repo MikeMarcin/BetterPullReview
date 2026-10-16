@@ -1460,6 +1460,9 @@ namespace bpr::application {
 		}
 		void cancel()
 		{
+			if (Images) {
+				Images->reset();
+			}
 			forget_cached_source();
 			CacheReadStop.request_stop();
 			if (!PendingProvider) {
@@ -1488,6 +1491,91 @@ namespace bpr::application {
 			AcceptedCapabilityEvidence.reset();
 			Session.reset();
 		}
+		/// RFC-BPR-0084. A body identity's GraphQL node in the accepted snapshot:
+		/// empty for a current body without one, absent for a body that is not current.
+		auto markdown_body_node(const std::string_view aBody) const -> std::optional<std::string>
+		{
+			if (!AcceptedSnapshot) {
+				return std::nullopt;
+			}
+			if (aBody.empty()) {
+				return std::string{ AcceptedSnapshot->PullRequest.Node.value() };
+			}
+			if (!MarkdownBodies.contains(std::string{ aBody })) {
+				return std::nullopt;
+			}
+			for (const auto prefix : { std::string_view{ "review:" }, std::string_view{ "review-comment:" }, std::string_view{ "issue-comment:" } }) {
+				if (aBody.starts_with(prefix)) {
+					return std::string{ aBody.substr(prefix.size()) };
+				}
+			}
+			return std::string{ };
+		}
+
+		auto markdown_image_facts() const -> markdown_image_window_facts
+		{
+			auto facts    = markdown_image_window_facts{ };
+			facts.Context = markdown_identity();
+			if (!facts.Context || !AcceptedSnapshot || !Session || !AcceptedSession || !AcceptedProfileAuthority) {
+				return facts;
+			}
+			const auto& snapshot  = *AcceptedSnapshot;
+			const auto& authority = *AcceptedProfileAuthority;
+			facts.Scope           = std::to_string(Policy.window().Window.value()) + ":" + std::to_string(Policy.window().Generation.value()) + ":"
+				+ std::to_string(Session->ApplicationSession.value()) + ":" + std::to_string(State.IdentityGeneration.value()) + ":"
+				+ std::to_string(snapshot.Account.value()) + ":" + std::to_string(snapshot.PullRequest.PullRequest.value());
+			const auto authenticated = AcceptedSession->Mode == core::github_access_mode::authenticated && AccountTransport != nullptr;
+			facts.Available          = authenticated;
+			facts.Policy             = {
+				.Contract            = authority.ServerContract == github_server_contract::github_com_2022_11_28 ? core::markdown_image_host_contract::github_com : core::markdown_image_host_contract::ghes,
+				.Hostname            = std::string{ authority.Hostname.value() },
+				.CredentialAvailable = authority.Authentication == github_authentication_transport::native_https,
+			};
+			facts.Account = snapshot.Account.value();
+			if (authenticated) {
+				auto request    = markdown_image_resolution_request{ };
+				request.Context = core::pull_request_request_context{
+					.Request             = core::request_id{ 0 },
+					.ApplicationSession  = Session->ApplicationSession,
+					.Profile             = snapshot.Profile,
+					.Host                = snapshot.Host,
+					.Account             = snapshot.Account,
+					.Repository          = { .Owner = snapshot.Repository.Owner, .Name = snapshot.Repository.Name },
+					.Number              = snapshot.PullRequest.Number,
+					.ExpectedRepository  = snapshot.Repository.Repository,
+					.ExpectedPullRequest = snapshot.PullRequest.PullRequest,
+					.Capabilities        = State.CapabilityRevision,
+					.IdentityGeneration  = State.IdentityGeneration,
+					.Generation          = State.PullRequestGeneration,
+				};
+				request.ProfileAuthority      = authority;
+				request.Viewer                = AcceptedSession->Viewer;
+				request.AccountTransport      = AccountTransport;
+				request.AuthenticationSession = Session->ApplicationSession;
+				facts.Resolution              = std::move(request);
+			}
+			return facts;
+		}
+
+		void attach_images(markdown_image_service* aService, markdown_image_resolution_port* aResolution)
+		{
+			if (aService == nullptr) {
+				return;
+			}
+			Images = std::make_unique<markdown_image_window>(
+				DecisionLane, aService, aResolution, [this] { return markdown_image_facts(); }, [this](const std::string_view aBody) { return markdown_body_node(aBody); },
+				[this](std::vector<markdown_image_projection> aImages) {
+					if (!Publish || Closing || SuppressPublication) {
+						return;
+					}
+					try {
+						Publish({ Policy.window(), { }, { }, { }, github_presentation_update{ .Images = std::move(aImages) } });
+					} catch (...) {
+						ProjectionDeliveryFailed = true;
+					}
+				});
+		}
+
 		auto markdown_identity() const -> std::optional<core::markdown_context>
 		{
 			if (Closing || !AcceptedSnapshot || !Session || MarkdownRevision == 0 || MarkdownExhausted) {
@@ -1561,6 +1649,7 @@ namespace bpr::application {
 		std::uint64_t                                     MarkdownRevision  = 0;
 		bool                                              MarkdownExhausted = false;
 		std::unordered_set<std::string>                   MarkdownBodies;
+		std::unique_ptr<markdown_image_window>            Images;
 		bool                                              SuppressPublication = false;
 		core::github_window_read                          Policy;
 		const core::github_state&                         State;
@@ -1620,10 +1709,11 @@ namespace bpr::application {
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
 													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources, std::shared_ptr<github_read_admission> aAdmission,
-													 const body_digest_port* aBodyDigests)
+													 const body_digest_port* aBodyDigests, markdown_image_service* aImages, markdown_image_resolution_port* aImageResolution)
 		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects, aSources, std::move(aAdmission)) }
 	{
 		Implementation->BodyDigests = aBodyDigests;
+		Implementation->attach_images(aImages, aImageResolution);
 	}
 	github_window_read_host::~github_window_read_host()
 	{
@@ -1688,6 +1778,12 @@ namespace bpr::application {
 		}
 	}
 	void github_window_read_host::read_cached_source(std::string aPath) { Implementation->read_cached_source(std::move(aPath)); }
+	void github_window_read_host::request_markdown_images(const core::markdown_image_intent& aIntent)
+	{
+		if (!Implementation->Closing && Implementation->Images) {
+			Implementation->Images->request(aIntent);
+		}
+	}
 	void github_window_read_host::cancel() { Implementation->cancel(); }
 	void github_window_read_host::share_snapshot(
 		const std::span<const std::shared_ptr<github_window_read_host>> aWindows,
@@ -1724,6 +1820,9 @@ namespace bpr::application {
 	{
 		Implementation->Closing = true;
 		Implementation->release();
+		if (Implementation->Images) {
+			Implementation->Images->shutdown();
+		}
 	}
 	auto github_window_read_host::state() const noexcept -> const core::github_state& { return Implementation->State; }
 	auto github_window_read_host::window() const noexcept -> core::bpr_window_context { return Implementation->Policy.window(); }
@@ -1742,7 +1841,7 @@ namespace bpr::application {
 	auto github_window_read_host::accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>& { return Implementation->AcceptedSnapshot; }
 	auto github_window_read_host::mutation_transport() const noexcept -> review_mutation_transport { return Implementation->ReviewMutationTransport; }
 	auto github_window_read_host::rate_limits() const noexcept -> const github_rate_limit_state& { return Implementation->RateLimits; }
-	auto github_window_read_host::is_quiescent() const noexcept -> bool { return Implementation->Outstanding == 0; }
+	auto github_window_read_host::is_quiescent() const noexcept -> bool { return Implementation->Outstanding == 0 && (!Implementation->Images || Implementation->Images->quiescent()); }
 	auto github_window_read_host::projection_delivery_failed() const noexcept -> bool { return Implementation->ProjectionDeliveryFailed; }
 	auto github_window_read_host::epoch_handoff_delivery_failed() const noexcept -> bool { return Implementation->EpochHandoffDeliveryFailed; }
 	auto github_window_read_host::epoch_handoff_unavailable() const noexcept -> bool { return Implementation->EpochHandoffUnavailable; }
