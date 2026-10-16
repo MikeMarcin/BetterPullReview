@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"owner decision 2026-10-15 on BPR-1540's open question (relayed by the coordinator): the compose page should show a short plain-language reason under 'Review status is unknown'","governing_rfc":"RFC-BPR-0008","related_cards":["BPR-1540","BPR-1538","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1541--BPR-1541--c23556c64e37.json","design_skill":"frontend-design:frontend-design"}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"qt_review_submission_editor_scale_{100,125,200}: each of 20 reasons shows its own distinct line, equal to the status's accessible description, short, wrapped, no identity; counts singular/plural; 4xx/5xx/other distinct; status text colour with >= 4.5:1 in four themes."}},{"criterion":"AC2","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"application_start_review_contract kept/restored courses: the restarted window shows the kept network line while Check status is held ('Checking the original review'); host and provider rows carry and read the kept reason by key."}},{"criterion":"AC3","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"uncertain course: a 503 Check status replaces the line, a confirming Check status clears it; Qt rows: no line while drafting or without a reason."}},{"criterion":"AC4","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"Negative controls: restored course fails at restored-reason-not-shown without the kept reason; Qt row fails without the accessible description; Qt and host rows' own controls."}},{"criterion":"AC5","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"clang-format 22.1.8 passes; tidy clean on changed lines; verify_documentation OK; round-trip composition contract resealed on the branch tree (5996b22d.../740e0bc3...) and both composition contracts pass; reseal again on merge."}},{"criterion":"AC6","outcome":"pending","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in session 2aad932f341313c448a9e890b46139d5, candidate BPR-1541-reason-line-v001, fingerprint dd7b3d83d9e89afd2c807495c0ac0c29ab51dcf0110bf56da2b92844ab657815, cursor 4; frozen root /Users/jaeger/bpr-1541-unknown-reason-v001.tc7b6nl5 (executable 1d4eb8904f69...), with a 20-line Light/Dark sheet."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"qt_review_submission_editor_scale_{100,125,200}: each of 20 reasons shows its own distinct line, equal to the status's accessible description, short, wrapped, no identity; counts singular/plural; 4xx/5xx/other distinct; status text colour with >= 4.5:1 in four themes. v002: every reason's line sits in the waiting panel; qt rows also assert the panel's placement, title, assurance, Check status inside it, accessible name/description, fallback and checking states, and 4.5:1 words on its amber-tinted ground in four themes."}},{"criterion":"AC2","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"application_start_review_contract kept/restored courses: the restarted window shows the kept network line while Check status is held ('Checking the original review'); host and provider rows carry and read the kept reason by key."}},{"criterion":"AC3","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"uncertain course: a 503 Check status replaces the line, a confirming Check status clears it; Qt rows: no line while drafting or without a reason."}},{"criterion":"AC4","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"Negative controls: restored course fails at restored-reason-not-shown without the kept reason; Qt row fails without the accessible description; Qt and host rows' own controls."}},{"criterion":"AC5","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"clang-format 22.1.8 passes; tidy clean on changed lines; verify_documentation OK; round-trip composition contract resealed on the branch tree (5996b22d.../740e0bc3...) and both composition contracts pass; reseal again on merge."}},{"criterion":"AC6","outcome":"pending","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"freeform","detail":"v001 rejected at cursor 7 in session 2aad932f341313c448a9e890b46139d5 (\"This is pretty darned ugly, can we do better frontend ux design\"). v002 Accept/Reject pending in session 639b1472456536d8c47dcbda99a91f2d, candidate BPR-1541-waiting-panel-v002, fingerprint 2c7c21c0fb98f42c52ac8409d60c976897287c82389d3a0778369f465a60d74d, cursor 4; frozen root /Users/jaeger/bpr-1541-unknown-reason-v002.zsswbcu0 (executable ea77596e3b5d...), with before/v001/v002 Light/Dark renders, window renders and the 20-line v002 sheet."}}]
 ---
 
 # BPR-1541: Say why a review's status is unknown, on the compose page
@@ -177,3 +177,63 @@ resealed again on the merged tree. macOS, Debug without debug information.
   open showing its network line. Session `2aad932f341313c448a9e890b46139d5`
   asks one Accept/Reject question, candidate `BPR-1541-reason-line-v001`, with
   a render sheet of all 20 lines in Light and Dark. The answer is pending.
+
+## v002 (after the owner's v001 Reject)
+
+The owner rejected v001 on 2026-10-16: "This is pretty darned ugly, can we do
+better frontend ux design". The `frontend-design` skill was loaded again, and
+v002 redesigns the whole block a review shows while it waits.
+
+**One calm panel.** It sits directly under the page's title and holds:
+
+- the page's own "unknown" mark, a ring with a question mark, in the theme's
+  attention amber;
+- a plain DemiBold title: "We couldn't confirm this review", or "Waiting for
+  GitHub to confirm this review…" while GitHub is being asked;
+- the reason line, or "GitHub didn't say whether it arrived." when none is
+  known;
+- what is safe, said more quietly: "Nothing will be sent twice. Your review
+  may already be on GitHub.";
+- Check status as the panel's own button, in the highlight's tint.
+
+**Colour.** All of it comes from the theme. The panel's ground leans 5%
+toward the attention amber and keeps the page's hairline edge. Home's amber
+rail is the only accent. Nothing is red.
+
+**What steps aside while it waits.**
+
+- The status sentence, which the panel replaces. Its text and accessible
+  description are kept for v001's checks.
+- The "Submission is in progress…" line.
+- Discard.
+- An empty summary field, which is no longer offered to write in.
+
+The verdicts stay disabled.
+
+**Accessibility.** The panel's accessible name is its title. Its description
+is the reason plus what is safe, and the page's announcement says both.
+
+The 20 reason lines are unchanged.
+
+**Evidence for v002**, candidate `8ef3e435a`:
+
+- `qt_review_submission_editor_scale_{100,125,200}` cover the panel: its
+  placement under the title and above the draft, its title, assurance and
+  fallback, Check status inside it, the checking state and the hidden state.
+  They check what steps aside, the accessible name and description, and that
+  an empty summary is hidden. In all four themes they check an amber accent
+  (hue 20–65), 4.5:1 words on the panel's ground, and 4.5:1 Check status text
+  on its tint.
+- Negative control: with the panel never shown, the row fails.
+- `application_start_review_contract`: all seven courses pass.
+- `application_review_round_trip_composition_contract` resealed for this
+  tree (full `ceb537d5…`, manifest `9a5627b5…`). It and
+  `application_composition_contract` pass.
+- clang-format 22 check passes, tidy is clean on changed lines, and the
+  documentation gate passes.
+
+v002 is frozen at `/Users/jaeger/bpr-1541-unknown-reason-v002.zsswbcu0` and
+asked in session `639b1472456536d8c47dcbda99a91f2d` with one Accept/Reject
+question. The question carries before / v001 / v002 renders in Light and Dark,
+the window in Light and Dark, and the 20-line v002 sheet. The v001 host was
+stopped, its candidate released, and its frozen root removed.

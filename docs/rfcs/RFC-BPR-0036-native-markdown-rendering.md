@@ -145,3 +145,46 @@ Tests use synthetic public/private-host fixtures, never copied private PR bodies
 Capture and inspect representative native layouts; record actual target/platform
 results rather than treating a helper test as proof of the full reader. Closeout
 requires criterion evidence and eligible dependencies in canonical RFC order.
+
+## Owner amendment 1 — 2026-10-16: GitHub parity
+
+The owner decided on 2026-10-16 to close the gaps between this reader and
+GitHub's rendering of pull request descriptions and comments, including a
+sanitised subset of raw HTML. This changes the requirements above where they
+conflict; it does not reopen the original acceptance, which stays
+Auto-Verified for its scope.
+
+**What changes.** "Do not claim complete GitHub visual parity" and "raw HTML is
+escaped or omitted" give way, for the constructs below, to GitHub's behaviour
+as observed through its Markdown API in gfm mode. Footnote presentation, which
+the [reader design](../architecture/native-markdown.md) excluded, is now in
+scope. Images stay with [RFC-BPR-0084](RFC-BPR-0084-inline-markdown-images.md),
+which supersedes this RFC's image rules for image references only; this
+amendment leaves `<img>` and `<picture>` to it.
+
+| Card | Constructs |
+|---|---|
+| [[BPR-1543]] | HTML comments hidden; each single newline of a paragraph a line break; `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and `[!CAUTION]` alerts; footnotes with in-body references and back references. Discovered while comparing: Qt's dialect draws `_text_` as underline where GitHub draws emphasis. |
+| [[BPR-1544]] | `<details>`/`<summary>` as a collapsible section, closed by default and keyboard operable; GitHub's sanitised HTML subset (`br`, `sub`, `sup`, `kbd`, `b`, `strong`, `i`, `em`, `u`, `s`, `del`, `code`, `pre`, `p`/`div` with `align`, `a href`, `hr`, `blockquote`, lists, headings, tables); emoji shortcodes from a generated static table. |
+
+**What is kept.** Every original criterion holds. In particular AC-03: no
+script, style, event attribute, form, frame or embedded browser; no resource
+load from HTML; an HTML link is an ordinary untrusted destination admitted only
+through the host path. Source, copy and publication keep the original bytes
+(AC-02). The preview budgets in the reader design are measured on the original
+body and still bound the work (AC-05). Code, fenced or indented, and inline
+code spans are never rewritten. HTML outside the subset stays literal text or
+is dropped as the reader design documents.
+
+### Amendment acceptance
+
+These criteria belong to the amendment's cards, not to the original closeout.
+
+- AM1-01: A body's HTML comments, single or multi-line, are hidden in the rendered view and kept in code and in source; an unclosed comment block hides what follows it, as on GitHub.
+- AM1-02: A single newline inside a paragraph, list item, quote or footnote renders as a line break in the same block; code, tables, headings and the code-tab repair are unchanged.
+- AM1-03: The five alert kinds render as a block with a coloured left bar and an icon-less coloured title, readable at 4.5:1 (7:1 in high contrast) in all four themes; a marker with text on its line, or inside a list, stays a plain quote.
+- AM1-04: Footnote references render as raised numbers in GitHub's order; a footnotes section closes the body with back references; reference and back reference move to each other inside the body by Enter or click without an application link gesture.
+- AM1-05: `<details>` renders closed with its summary visible, opens and closes from the keyboard and pointer, and is announced as a collapsible control.
+- AM1-06: The listed HTML subset renders with its meaning; any other tag or attribute is shown literally or dropped as documented; hostile HTML loads nothing, runs nothing and gives no link outside host admission.
+- AM1-07: GitHub's common emoji shortcodes render as their emoji from a generated static table; unknown or coded shortcodes stay literal.
+- AM1-08: Each visible construct is accepted by the owner on a frozen build beside GitHub's rendering in Light and Dark, one question per construct; the reader design documents the dialect, fallbacks and limits.

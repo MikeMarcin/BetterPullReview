@@ -212,6 +212,30 @@ foreach(bpr_inline_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1542]]. A thread far taller than the Comments drawer, opened from
+# Threads, reads to its last post by wheel, Threads' pick and Tab, at the
+# drawer's narrowest and widest, at two code zooms and after it grows, at each
+# of the three scales.
+foreach(bpr_long_thread_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_long_thread_whole "${bpr_long_thread_scale} / 100")
+    math(EXPR bpr_long_thread_fraction "${bpr_long_thread_scale} % 100")
+    if(bpr_long_thread_fraction LESS 10)
+        set(bpr_long_thread_fraction "0${bpr_long_thread_fraction}")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_composed_long_thread_scale_${bpr_long_thread_scale}
+        COMMAND test_better_pull_review_qt_github_tests --long-thread
+    )
+    set_tests_properties(
+        qt_composed_long_thread_scale_${bpr_long_thread_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_long_thread_whole}.${bpr_long_thread_fraction};BPR_EXPECTED_QT_SCALE=${bpr_long_thread_whole}.${bpr_long_thread_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-long-thread-${bpr_long_thread_scale}.png"
+            PASS_REGULAR_EXPRESSION "long-thread:pass"
+            RUN_SERIAL TRUE
+            TIMEOUT 120
+    )
+endforeach()
+
 # [[BPR-0981]]. RFC-BPR-0025 AC-02 through the composed window, alone.
 bpr_add_network_isolated_test(
     NAME qt_composed_resident_drawer_filters

@@ -3518,16 +3518,20 @@ namespace bpr::qt {
 
 	auto diff_workbench::line_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect
 	{
+		// [[BPR-1542]]. The open thread hangs from this rect while the code
+		// scrolls under it, so it must be exact however far the line has
+		// gone: Qt's own block geometry stops about a viewport above the top
+		// row, and the thread stopped with it.
 		if (OnePaneEnabled) {
 			const auto index = unified_row_for(aSide, aLine);
 			if (!CurrentResult || !index) {
 				return { };
 			}
-			const auto row = pane(Unified)->line_row_rect(*index);
+			const auto row = exact_row_rect(Unified, *index);
 			return QRect{ Unified->viewport()->mapTo(this, row.topLeft()), row.size() };
 		}
-		auto* const source = pane(aSide == core::diff_side::left ? Left : Right);
-		const auto  row    = source->line_row_rect(aLine);
+		auto* const source = aSide == core::diff_side::left ? Left : Right;
+		const auto  row    = exact_row_rect(source, aLine);
 		if (row.isEmpty()) {
 			return { };
 		}
@@ -4054,7 +4058,7 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
-		const auto row     = keyboard_row_rect(aPane, next);
+		const auto row     = exact_row_rect(aPane, next);
 		const auto visible = aPane->viewport()->visibleRegion().intersected(aPane->viewport()->mask()).boundingRect();
 		if (!select_line(side, next, true)) {
 			return false;
@@ -4130,7 +4134,7 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
-		const auto  row      = keyboard_row_rect(Unified, next);
+		const auto  row      = exact_row_rect(Unified, next);
 		const auto  visible  = Unified->viewport()->visibleRegion().intersected(Unified->viewport()->mask()).boundingRect();
 		const auto& identity = rows[next];
 		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
@@ -4207,7 +4211,7 @@ namespace bpr::qt {
 		static_cast<void>(Controller->reveal_pane_origin(side, current + delta));
 	}
 
-	auto diff_workbench::keyboard_row_rect(QPlainTextEdit* const aPane, const std::uint32_t aRow) const -> QRect
+	auto diff_workbench::exact_row_rect(QPlainTextEdit* const aPane, const std::uint32_t aRow) const -> QRect
 	{
 		// Qt places a block by walking from the first visible one and stops
 		// about two viewport heights below it, or one above, answering the

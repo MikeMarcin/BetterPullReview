@@ -73,6 +73,7 @@
 #include <QWidget>
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 
@@ -87,6 +88,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -3827,6 +3829,396 @@ namespace {
 		QApplication::setFont(originalFont);
 		QApplication::setPalette(original);
 		QApplication::processEvents();
+		window.hide();
+	}
+
+	/// \brief [[BPR-1542]]. A thread far taller than the Comments drawer reads
+	/// to its last post beside the code, as Discuss reads it.
+	///
+	/// \details The owner, 2026-10-16: "I had an odd experience with a
+	/// particularly long comment thread where the review tab drawer view
+	/// wouldn't let me scroll any further down and I couldn't read the rest of
+	/// the thread except by going to Discuss." They had opened it from
+	/// Threads. The open thread hangs from its line and a wheel over the
+	/// drawer scrolls the code, so the thread rises only as fast as its line
+	/// does. Qt places a text block exactly only within about a viewport of
+	/// the top line; past that it returns a stand-in pinned near the reach,
+	/// so once the line had scrolled a viewport above the code the thread
+	/// stopped while the code went on, and the rest of it never came up until
+	/// the file ran out. This drives the composed window over a 3,000-line
+	/// file with a 24-post thread of long paragraphs and code blocks, entered
+	/// from Threads, and asserts every wheel notch moves the thread's foot up
+	/// until it shows, at the drawer's narrowest and widest, at two code
+	/// zooms, after the thread grows, from the Threads pick of its last post
+	/// and from the keyboard. The negative control puts Qt's stand-in back
+	/// and shows the foot stops.
+	auto test_inline_drawer_reads_a_long_thread_to_its_foot() -> void
+	{
+		const auto opaque = []<typename Identity>(const std::uint8_t aSeed) {
+			auto bytes    = std::array<std::uint8_t, 32U>{ };
+			bytes.front() = aSeed;
+			bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
+			return Identity{ bytes };
+		};
+		const auto blob = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (std::size_t index = 0U; index < 20U; ++index) {
+				bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+			}
+			return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+		};
+		const auto options = core::diff_options{ };
+		const auto digest  = core::options_digest(options);
+		expect(digest.has_value(), "long-thread fixture options normalize");
+		const auto scope                                   = opaque.template operator()<core::pull_request_authority_scope_id>(41U);
+		const auto incarnation                             = opaque.template operator()<core::epoch_catalog_incarnation_id>(42U);
+		const auto                               authority = core::pull_request_authority{
+			.Profile         = core::host_profile_id{ 10U },
+			.ProfileRevision = core::github_profile_revision{ 20U },
+			.Host            = core::git_host_id{ 30U },
+			.HostAuthority   = opaque.template operator()<core::host_authority_fingerprint>(43U),
+			.Account         = core::github_account_id{ 40U },
+			.Viewer          = core::github_viewer_actor_id{ 50U },
+			.Repository      = core::repository_id{ 101U },
+			.Cache           = opaque.template operator()<core::repository_cache_scope_id>(44U),
+			.PullRequest     = core::pull_request_id{ 202U },
+			.Number          = core::pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		const auto key = core::file_comparison_key{
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_base, .Epoch = core::epoch_ordinal{ 1 } },
+			.RightAnchor = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_head, .Epoch = core::epoch_ordinal{ 2 } },
+			.LeftBlob    = blob(71U),
+			.RightBlob   = blob(101U),
+			.File        = core::file_identity_of("src/review.cpp"),
+			.Options     = *digest,
+			.Algorithm   = core::supported_diff_algorithm_revision,
+		};
+		// A long file, so the code always has room to scroll: the thread must
+		// rise with its line, never wait for the file to run out.
+		constexpr auto lines     = 3'000U;
+		constexpr auto threadAt  = 150U;
+		auto           leftText  = std::string{ };
+		auto           rightText = std::string{ };
+		for (auto line = 1U; line <= lines; ++line) {
+			const auto text = "\tauto value_" + std::to_string(line) + " = compute(" + std::to_string(line % 17U) + ");\n";
+			rightText += text;
+			if (line % 97U != 0U) {
+				leftText += text;
+			}
+		}
+		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
+		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
+		const auto result = bpr::tests::product_file_diff({
+			.Key        = key,
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(result.Reason == core::diff_reason_code::none && result.Result.has_value(), "the long comparison computes");
+
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'440, 900);
+		window.show();
+		QApplication::processEvents();
+		if (const auto expectedScale = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expectedScale.isEmpty()) {
+			auto       parsed = false;
+			const auto scale  = expectedScale.toDouble(&parsed);
+			expect(parsed && std::abs(window.devicePixelRatioF() - scale) < 0.02, "the long thread is read at the requested scale");
+		}
+		publish_session_ready(window);
+
+		// One long thread: wrapped paragraphs, a fenced block with a line wider
+		// than the drawer, a list. A short thread far below it.
+		using kind      = application::github_conversation_kind;
+		const auto body = [](const int aPost) {
+			auto text = "Post " + std::to_string(aPost) + ". "
+				+ std::string{ "The cache is warmed on the first pass and read on the second, but the second pass starts before "
+							   "the first has published its index, so every lookup walks the whole file instead. " }
+				+ "Here is what I measured:\n\n```cpp\n";
+			for (auto line = 0; line < 8; ++line) {
+				text += "const auto measured_" + std::to_string(line) + " = index.lookup(path, line_" + std::to_string(line)
+					+ ", options.with_context(3).with_whitespace(ignore::trailing)); // " + std::string(40U, 'x') + "\n";
+			}
+			text += "```\n\n- the first pass\n- the second pass\n- the publication between them\n\n"
+					"So the order matters more than the index itself, and the fix is to wait for the publication.";
+			return text;
+		};
+		const auto thread    = std::string{ "review-thread:t" } + std::to_string(threadAt);
+		auto       nodes     = std::vector<application::github_conversation_projection>{ };
+		const auto addThread = [&nodes](const std::string& aId, const std::uint32_t aLine) {
+			auto root = conversation(aId, kind::review_thread);
+			root.AuthorLogin.clear();
+			root.Line               = aLine;
+			root.DiffSide           = application::github_conversation_diff_side::right;
+			root.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			nodes.push_back(root);
+		};
+		const auto addPost = [&nodes, &body](const std::uint32_t aLine, const int aOrdinal, const std::string& aParent) {
+			auto node        = conversation("review-comment:long" + std::to_string(aOrdinal), kind::review_comment, body(aOrdinal), aParent);
+			node.AuthorLogin = aOrdinal % 2 == 0 ? "reviewer" : "tbutler";
+			node.Line        = aLine;
+			node.DiffSide    = application::github_conversation_diff_side::right;
+			nodes.push_back(node);
+		};
+		addThread(thread, threadAt);
+		constexpr auto posts = 24;
+		for (auto post = 1; post <= posts; ++post) {
+			addPost(threadAt, post, post == 1 ? thread : std::string{ "review-comment:long1" });
+		}
+		addThread("review-thread:t2900", 2'900U);
+		{
+			auto far        = conversation("review-comment:far", kind::review_comment, "nitpick: a short thread far below.", std::string{ "review-thread:t2900" });
+			far.AuthorLogin = "jiayin";
+			far.Line        = 2'900U;
+			far.DiffSide    = application::github_conversation_diff_side::right;
+			nodes.push_back(far);
+		}
+		const auto publishThreads = [&window, &nodes] {
+			auto pullRequest            = pull_request_projection();
+			pullRequest.Conversations   = nodes;
+			pullRequest.MarkdownContext = core::markdown_context{ .Snapshot = core::provider_snapshot_id{ 5U }, .Revision = 1U };
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Commands = enabled_commands(),
+					.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+				},
+				.PullRequest = std::move(pullRequest),
+			});
+		};
+		publishThreads();
+		auto* const surface = window.comparison_surface();
+		const auto  context = core::diff_request_context{
+			.Request            = core::request_id{ 9U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		surface->set_loading(context);
+		surface->publish(qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*result.Result),
+		}));
+		window.set_conversation_endpoint_placement(true, true);
+		// The comparison remeasures after a font or width change on later
+		// turns of the event loop; wait for it, bounded.
+		const auto settle = [surface] {
+			QApplication::processEvents();
+			auto deadline = QDeadlineTimer{ 2'000 };
+			while (surface->geometry_pending() && !deadline.hasExpired()) {
+				QApplication::processEvents(QEventLoop::AllEvents, 10);
+			}
+			QApplication::processEvents();
+		};
+		settle();
+
+		auto* const cards = window.conversation_panel()->cards();
+		auto* const bar   = surface->shared_scrollbar();
+		const auto  lineY = [&window, surface, cards](const std::uint32_t aOneBased) {
+			const auto rect = surface->line_rect(core::diff_side::right, aOneBased - 1U);
+			return cards->viewport()->mapFrom(&window, surface->mapTo(&window, rect.topLeft())).y();
+		};
+		// The open thread's last post, and where its foot is in the drawer.
+		const auto lastPost = [cards]() -> QWidget* {
+			auto* const open = cards->open_card();
+			if (open == nullptr) {
+				return nullptr;
+			}
+			auto       list = open->findChildren<QWidget*>(QStringLiteral("threadPost"));
+			const auto last = std::ranges::max_element(list, { }, [](const QWidget* aPost) { return aPost->geometry().bottom(); });
+			return last == list.end() ? nullptr : *last;
+		};
+		const auto foot = [cards, &lastPost] {
+			auto* const post = lastPost();
+			return post == nullptr ? std::numeric_limits<int>::min() : post->mapTo(cards->viewport(), QPoint{ 0, post->height() }).y();
+		};
+		const auto footShows = [cards, &foot] {
+			const auto at = foot();
+			return at > 0 && at <= cards->viewport()->height();
+		};
+		const auto wheel = [cards, &settle](const int aAngle) {
+			const auto centre = QPointF{ cards->viewport()->rect().center() };
+			auto       event  = QWheelEvent{ centre, cards->viewport()->mapToGlobal(centre), QPoint{ 0, 0 }, QPoint{ 0, aAngle }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(cards->viewport(), &event);
+			settle();
+		};
+		// Wheels toward the thread's foot until it shows. Every notch must
+		// move it: a notch that scrolls the code and leaves the thread where
+		// it was is the defect.
+		const auto reachFoot = [&](const std::string& aHow) {
+			auto previous = foot();
+			auto notches  = 0;
+			for (; notches < 1'500 && !footShows(); ++notches) {
+				const auto down = previous > cards->viewport()->height();
+				wheel(down ? -120 : 120);
+				const auto now = foot();
+				expect(down ? now < previous : now > previous,
+					   aHow + ": every wheel notch moves the thread's foot toward the drawer (notch " + std::to_string(notches) + ", foot "
+						   + std::to_string(previous) + " then " + std::to_string(now) + ", code " + std::to_string(surface->shared_scrollbar()->value())
+						   + " of " + std::to_string(surface->shared_scrollbar()->maximum()) + ")");
+				previous = now;
+			}
+			expect(footShows(), aHow + ": the thread's last post comes into the drawer");
+			// Less what the notes' own overflow took: a pick's reveal may
+			// take some of it.
+			expect(cards->open_card() != nullptr && cards->open_card()->geometry().top() == lineY(threadAt) - 4 - cards->overflow(),
+				   aHow + ": the thread still hangs exactly from its line (top " + std::to_string(cards->open_card() != nullptr ? cards->open_card()->geometry().top() : 0) + ", line "
+					   + std::to_string(lineY(threadAt)) + ", overflow " + std::to_string(cards->overflow()) + ")");
+			return notches;
+		};
+
+		// As the owner went: Review, Threads (⌘J), then the thread's pick
+		// into Review.
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		settle();
+		const auto fromThreads = [&window, &settle, &thread](const std::string& aPost) {
+			window.show_threads_action()->trigger();
+			settle();
+			expect(window.finder() != nullptr && window.finder()->isVisible(), "Threads shows the pull request's threads");
+			const auto opened = window.open_thread_from_threads(thread, aPost, core::workbench_thread_destination::review);
+			settle();
+			return opened;
+		};
+		expect(fromThreads("review-comment:long1"), "the thread opens from Threads into Review");
+		settle();
+		expect(cards->open_thread_id() == thread && cards->open_card() != nullptr && cards->open_card()->isVisible()
+				   && cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost")).size() == posts,
+			   "Threads opens the long thread in place in the Comments drawer with all of its posts");
+		const auto height = cards->viewport()->height();
+		expect(cards->open_card()->height() > 4 * height, "the thread is more than four drawers tall, so its foot is far below");
+
+		// The line locator is exact far from the code's view: rows are evenly
+		// spaced however far off they are.
+		const auto row = lineY(threadAt + 1U) - lineY(threadAt);
+		expect(row > 0 && lineY(2'500U) - lineY(threadAt) == static_cast<int>(2'500U - threadAt) * row,
+			   "a line far below the code's view is placed exactly, not where Qt stops looking");
+
+		const auto first = reachFoot("from Threads at the default width");
+		expect(first > 0 && bar->value() < bar->maximum() && cards->overflow() == 0,
+			   "the code scrolled under the thread and still had room: the foot came with its line, not from the file running out");
+		expect(lineY(threadAt) < -2 * height, "the thread's line is now far above the code's view, past where Qt stops placing it");
+		capture_layout_state(window, QStringLiteral("long-thread-foot"));
+
+		// The drawer at its narrowest and widest: the thread rewraps and its
+		// foot is still reachable.
+		window.resize(1'900, 900);
+		settle();
+		for (const auto width : { 280U, 760U }) {
+			auto layout   = application::workbench_projection{ };
+			layout.Layout = application::workbench_layout_delta{ .FilesWidth = 240U, .ConversationsWidth = width };
+			window.publish(layout);
+			settle();
+			expect(window.conversations_drawer()->width() == static_cast<int>(width), "the Comments drawer takes the width " + std::to_string(width));
+			static_cast<void>(reachFoot("at drawer width " + std::to_string(width)));
+			capture_layout_state(window, QStringLiteral("long-thread-foot-%1").arg(width));
+		}
+
+		// Two code zooms, applied as the appearance profile applies an
+		// accepted zoom to the comparison: the line moves on a new row height.
+		const auto unzoomed = lineY(threadAt + 1U) - lineY(threadAt);
+		const auto codeFont = surface->right_pane()->font();
+		for (const auto zoom : { 200U, 70U }) {
+			auto font = codeFont;
+			font.setPointSizeF(codeFont.pointSizeF() * static_cast<double>(zoom) / 100.0);
+			const auto panes = surface->findChildren<QPlainTextEdit*>();
+			surface->setFont(font);
+			for (auto* const pane : panes) {
+				pane->setFont(font);
+			}
+			auto typography = qt::code_typography_event{ surface->right_pane()->tabStopDistance() };
+			QCoreApplication::sendEvent(surface, &typography);
+			settle();
+			const auto zoomed = lineY(threadAt + 1U) - lineY(threadAt);
+			expect(zoom > 100U ? zoomed > unzoomed : zoomed < unzoomed, "the code zoom " + std::to_string(zoom) + "% changes the row height");
+			static_cast<void>(reachFoot("at code zoom " + std::to_string(zoom) + "%"));
+		}
+
+		// The thread grows while it is open: the new posts are reachable too.
+		for (auto post = posts + 1; post <= posts + 6; ++post) {
+			addPost(threadAt, post, "review-comment:long1");
+		}
+		publishThreads();
+		settle();
+		expect(cards->open_card() != nullptr && cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost")).size() == posts + 6,
+			   "the open thread takes the six new posts");
+		static_cast<void>(reachFoot("after the thread grew"));
+
+		// Threads' pick of the last post brings that post into the drawer.
+		const auto lastId = std::string{ "review-comment:long" } + std::to_string(posts + 6);
+		wheel(120);
+		expect(fromThreads(lastId), "Threads opens the thread at its last post");
+		auto deadline = QDeadlineTimer{ 5'000 };
+		while (!deadline.hasExpired() && !footShows()) {
+			QApplication::processEvents(QEventLoop::AllEvents, 20);
+		}
+		settle();
+		expect(footShows(), "a pick of the last post in Threads brings it into the Comments drawer");
+
+		// The keyboard: Tab reads the thread post by post, each brought into
+		// view, to the last.
+		expect(fromThreads("review-comment:long1"), "Threads reopens the thread at its first post");
+		settle();
+		cards->setFocus(Qt::TabFocusReason);
+		settle();
+		auto* const closing = lastPost();
+		auto        tabs    = 0;
+		for (; tabs < 2'000 && (QApplication::focusWidget() == nullptr || !closing->isAncestorOf(QApplication::focusWidget())); ++tabs) {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+			QApplication::sendEvent(QApplication::focusWidget() != nullptr ? QApplication::focusWidget() : cards, &press);
+			settle();
+			if (auto* const focused = QApplication::focusWidget(); focused != nullptr && cards->open_card() != nullptr && cards->open_card()->isAncestorOf(focused)) {
+				const auto top = focused->mapTo(cards->viewport(), QPoint{ 0, 0 }).y();
+				expect(top < cards->viewport()->height() && top + focused->height() > 0,
+					   "Tab brings each part of the thread it reaches into the drawer (tab " + std::to_string(tabs) + ")");
+			}
+		}
+		expect(QApplication::focusWidget() != nullptr && closing->isAncestorOf(QApplication::focusWidget()), "Tab reaches the thread's last post");
+
+		// One pane: the thread hangs from its row in the unified view, and
+		// rises with it too.
+		auto onePane    = application::workbench_projection{ };
+		onePane.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::enabled };
+		window.publish(onePane);
+		settle();
+		expect(surface->one_pane_enabled(), "the comparison shows one pane");
+		expect(fromThreads("review-comment:long1"), "Threads opens the thread in the one-pane view");
+		static_cast<void>(reachFoot("in one pane"));
+		expect(surface->shared_scrollbar()->value() < surface->shared_scrollbar()->maximum(), "one pane: the foot came with its row, while the code still had room");
+		onePane.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::disabled };
+		window.publish(onePane);
+		settle();
+		expect(!surface->one_pane_enabled(), "the comparison shows two panes again");
+
+		// Negative control: Qt's stand-in for a block beyond its reach, put
+		// back. Once the line passes a drawer's height above the code, the
+		// thread stops while the code goes on, and the foot never comes.
+		cards->set_line_locator([&window, surface, cards](const core::diff_side aSide, const std::uint32_t aLine) -> std::optional<int> {
+			const auto rect = surface->line_rect(aSide, aLine - 1U);
+			if (rect.isEmpty()) {
+				return std::nullopt;
+			}
+			const auto y = cards->viewport()->mapFrom(&window, surface->mapTo(&window, rect.topLeft())).y();
+			return std::max(y, -cards->viewport()->height() - rect.height());
+		});
+		expect(fromThreads("review-comment:long1"), "Threads reopens the thread for the control");
+		settle();
+		auto stalled  = false;
+		auto previous = foot();
+		for (auto notch = 0; notch < 400 && !footShows() && !stalled; ++notch) {
+			wheel(-120);
+			stalled  = foot() == previous && bar->value() < bar->maximum();
+			previous = foot();
+		}
+		expect(stalled && !footShows(), "negative control: with Qt's stand-in the thread stops while the code scrolls, and its foot never shows");
 		window.hide();
 	}
 
@@ -8960,6 +9352,13 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--inline-drawer"))) {
 		test_inline_drawer_follows_the_code_and_opens_threads_in_place();
 		std::cout << "inline-drawer:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1542]]. A thread taller than the Comments drawer, read to its
+	// foot beside the code, alone, at each scale.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--long-thread"))) {
+		test_inline_drawer_reads_a_long_thread_to_its_foot();
+		std::cout << "long-thread:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--resident-drawer-filters"))) {
