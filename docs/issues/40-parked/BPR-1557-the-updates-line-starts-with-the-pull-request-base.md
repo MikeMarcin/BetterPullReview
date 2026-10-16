@@ -258,3 +258,37 @@ they stand out."
   the bright colour. The profile defines no link or attention colour (Qt's
   defaults `#0000ff`/`#ff00ff` in every theme), so the hue comes from the
   accent; amber stays "my last review"'s.
+
+v002's host is stopped and its candidate released (session event 6); its
+Reject stays recorded. Its frozen root is removed.
+
+## Attended review v003 (pending)
+
+- Session `a21a5f421907f2e4677c02fbd90cd5d8`, fresh state
+  `/Users/jaeger/.mask/bpr-1557-base-anchor-v003-20261016/attended-review`,
+  checkout `.claude/worktrees/bpr-1557-base-anchor`, event cursor 3.
+- Candidate `BPR-1557-base-anchor-v003` (revision `frozen-f9960205e-v003`,
+  fingerprint `48e847b32393…`), criterion `BPR-1557:owner`: the handles are
+  easy to see at a glance in Light and Dark, the left on the pull request's
+  base and the right on the newest update. Inline 2x offscreen renders: Dark
+  before, v002 and v003 for one and three updates; High Contrast Dark v002 and
+  v003; Dark v003 with keyboard focus; Light v003 (v002 unchanged).
+- Frozen root `/Users/jaeger/bpr1557-base-anchor-v003.p9r7n2if` from
+  `f9960205e` (fixture `conventional-comments-v1`, file
+  `src/engine/renderer.cpp`, `--next-push`); executable SHA-256
+  `681160b575f35dfe57340e2785a908136e605d31505109d950748b695a11a3ee`; its own
+  check showed the file on head `b20cb443…` and the pushed head `cd24836c…`.
+- Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v003.p9r7n2if/launch.py`
+  (`--next-push` for the second update).
+- Verification on `f9960205e`: `qt_epoch_comparison_scale_{100,125,200}` with
+  the v003 checks (dark: brackets at least 7:1 off the ground and the track and
+  far from the selection colour, the ring in that colour; light: v002's outline
+  rule and the accent face), negative control (v002's colours forced on a dark
+  ground fail); `qt_workbench_window_scale_{100,125,200}`, `core_update_line`,
+  `core_epoch_policy`, `application_epoch_host`, the workbench and round-trip
+  composition contracts and the anonymous preview, ordinary-update-recreated
+  and update-line public paths pass (14/14); clang-format 22 and tidy clean.
+
+Next: read the decision (`status --after 3`). Accept: merge main into the
+branch, reseal the round-trip composition digest on the merged tree, rerun the
+focused rows and finish. Reject: its note shapes v004.
