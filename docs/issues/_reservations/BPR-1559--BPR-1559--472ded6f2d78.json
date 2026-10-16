@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1559"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "C++ template function calls and template arguments are uncoloured",
+  "created": "2026-10-16T16:21:56.649310+00:00",
+  "base": "fe524b215a00900c0416e5d2227386900fe2b692"
+}
