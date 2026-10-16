@@ -28,6 +28,7 @@ add_library(
         src/document_tabs.cpp
         src/epoch_model.cpp
         src/epoch_transition.cpp
+        src/update_line.cpp
         src/github_model.cpp
         src/github_transition.cpp
         src/github_window_read.cpp

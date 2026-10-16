@@ -3,6 +3,7 @@
 
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/update_line.hpp"
 
 #include <QPoint>
 #include <QString>
@@ -30,14 +31,9 @@ namespace bpr::qt {
 		core::comparison_side,
 		core::comparison_anchor_identity)>;
 
-	/// \brief One stop a handle can rest on: an update's base or head.
-	struct epoch_line_stop
-	{
-		std::size_t                  Update = 0U;
-		core::comparison_anchor_kind Kind   = core::comparison_anchor_kind::epoch_head;
-
-		auto operator<=>(const epoch_line_stop&) const = default;
-	};
+	/// \brief One place a handle can rest on: the pull request's base, or an
+	/// update's base or head. The core decides the places ([[BPR-1557]]).
+	using epoch_line_stop = core::update_line_place;
 
 	/// \brief RFC-BPR-0028's epoch line: one node per update, two handles.
 	///
@@ -56,8 +52,14 @@ namespace bpr::qt {
 	/// head commit, drag either handle, and -- because dense histories make
 	/// precise mouse selection hard -- Left and Right step the left handle
 	/// one stop at a time while the line has focus, Shift+Left and
-	/// Shift+Right step the right handle. The left handle's stops begin with
-	/// the oldest update's base, so the whole pull request is reachable.
+	/// Shift+Right step the right handle.
+	///
+	/// [[BPR-1557]]. The line starts with the pull request's base, the anchor
+	/// Whole PR compares from, which the core publishes with each resolution.
+	/// It has no update of its own, so it is a post at the track's start, the
+	/// left handle's first stop and, for Whole PR, where the left handle sits,
+	/// with the right handle on the newest update and the span between them.
+	/// Its click, menu and keys compare from it, as a node's do.
 	///
 	/// [[BPR-1130]]. RFC-BPR-0052 takes the permanent caption away: the
 	/// history statement ("Known updates · display order is not push order")
@@ -97,6 +99,15 @@ namespace bpr::qt {
 		/// \brief Names current loading or refusal when there are no update nodes.
 		void               set_empty_status(QString aStatus);
 		[[nodiscard]] auto empty_status() const -> QString;
+		/// \brief [[BPR-1557]]. Adopts the pull request's base the core
+		/// published, and when this install first saw it, if known.
+		void set_pull_request_base(std::optional<core::comparison_anchor>         aBase,
+								   std::optional<core::observed_utc_milliseconds> aObservedAt = std::nullopt);
+		/// \brief Whether the line starts with the pull request's base.
+		[[nodiscard]] auto has_pull_request_base() const noexcept -> bool;
+		/// \brief [[BPR-1557]]. What the base says under its post, and its tooltip.
+		[[nodiscard]] auto base_label() const -> QString;
+		[[nodiscard]] auto base_tooltip() const -> QString;
 		/// \brief Adopts the compared anchors the core published.
 		void set_selection(
 			std::optional<core::comparison_anchor_identity> aLeft,
@@ -131,8 +142,9 @@ namespace bpr::qt {
 			const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>;
 		[[nodiscard]] auto label_shown(std::size_t aUpdate) const -> bool;
 		[[nodiscard]] auto node_tooltip(std::size_t aUpdate) const -> QString;
+		/// \brief The exact anchor a place stands for, when it is retained.
 		[[nodiscard]] auto identity_of(const epoch_line_stop& aStop) const
-			-> core::comparison_anchor_identity;
+			-> std::optional<core::comparison_anchor_identity>;
 		/// \brief The handle the arrow keys move without Shift.
 		[[nodiscard]] auto active_side() const noexcept -> core::comparison_side;
 
@@ -153,12 +165,23 @@ namespace bpr::qt {
 		/// \brief Where the track starts: past the mark when there is one.
 		[[nodiscard]] auto left_inset() const noexcept -> int;
 		[[nodiscard]] auto node_x(std::size_t aUpdate) const -> int;
+		[[nodiscard]] auto base_x() const -> int;
 		[[nodiscard]] auto update_at(const QPoint& aPoint) const -> std::optional<std::size_t>;
+		[[nodiscard]] auto base_at(const QPoint& aPoint) const -> bool;
+		[[nodiscard]] auto facts() const -> core::update_line_facts;
+		/// \brief The update's place among the line's labelled slots, the
+		/// base first when the line has one.
+		[[nodiscard]] auto slot_of(std::size_t aUpdate) const noexcept -> std::size_t;
+		[[nodiscard]] auto handle_text(const std::optional<epoch_line_stop>& aStop) const -> QString;
+		/// \brief Where a label centred on `aCentre` is drawn in the dates' row.
+		[[nodiscard]] auto label_rect(const QString& aText, int aCentre) const -> QRect;
+		/// \brief Which updates' labels are drawn, by the labels' own extents.
+		[[nodiscard]] auto shown_labels() const -> std::vector<bool>;
+		void               refresh_name();
+		void               adopt_line_updates();
 		[[nodiscard]] auto handle_at(const QPoint& aPoint) const -> std::optional<core::comparison_side>;
 		[[nodiscard]] auto nearest_stop(core::comparison_side aSide, int aX) const
 			-> std::optional<epoch_line_stop>;
-		[[nodiscard]] auto stops_for(core::comparison_side aSide) const
-			-> std::vector<epoch_line_stop>;
 		[[nodiscard]] auto stop_for(const core::comparison_anchor_identity& aIdentity) const
 			-> std::optional<epoch_line_stop>;
 		void choose(core::comparison_side aSide, const epoch_line_stop& aStop);
@@ -175,7 +198,11 @@ namespace bpr::qt {
 			bool                                     HasBase = false;
 			std::optional<core::epoch_occurrence_id> ImportOccurrence;
 		};
-		std::vector<line_row>                                                 Updates;
+		std::vector<line_row> Updates;
+		/// [[BPR-1557]]. What the core's line decisions read, kept with `Updates`.
+		std::vector<core::update_line_update>                                 LineUpdates;
+		std::optional<core::comparison_anchor>                                PullRequestBase;
+		std::optional<core::observed_utc_milliseconds>                        BaseObservedAt;
 		QString                                                               HistoryText;
 		bool                                                                  Marked      = false;
 		QString                                                               EmptyStatus = QStringLiteral("No updates loaded.");

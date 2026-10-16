@@ -950,6 +950,19 @@ namespace bpr::core {
 			return completion_match::current;
 		}
 
+		/// \brief [[BPR-1557]]. What Whole PR compares from, whatever is
+		/// selected: the latest live epoch's base, as `select_pair` resolves it.
+		[[nodiscard]] auto pull_request_base(
+			const pull_request_authority& aAuthority,
+			const comparison_candidates&  aCandidates) noexcept -> std::optional<comparison_anchor>
+		{
+			if (!aCandidates.LatestLive || !live(*aCandidates.LatestLive)
+				|| !valid_summary(aAuthority, aCandidates.Catalog, *aCandidates.LatestLive)) {
+				return std::nullopt;
+			}
+			return epoch_anchor(*aCandidates.LatestLive, comparison_anchor_kind::epoch_base);
+		}
+
 		[[nodiscard]] auto select_pair(
 			const pull_request_authority& aAuthority,
 			const comparison_selection&   aSelection,
@@ -1608,6 +1621,7 @@ namespace bpr::core {
 				.Pair             = resolution.Pair,
 				.Revision         = aState.AcceptedComparisonRevision,
 				.AvailableForDiff = resolution.Pair.has_value() && available_for_diff(*resolution.Pair),
+				.PullRequestBase  = pull_request_base(*aState.Authority, aEvent.Candidates),
 			};
 			output.Changed = epoch_changed_domain::comparison;
 			set_status(

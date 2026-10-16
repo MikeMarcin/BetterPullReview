@@ -1487,6 +1487,10 @@ namespace bpr::core {
 		std::optional<comparison_pair> Pair;
 		comparison_revision            Revision;
 		bool                           AvailableForDiff = false;
+		/// [[BPR-1557]]. The anchor Whole PR compares from, whatever the
+		/// selection: the latest live epoch's base. The Updates line starts
+		/// with it. Absent until a resolution has a live epoch.
+		std::optional<comparison_anchor> PullRequestBase;
 
 		auto operator<=>(const comparison_resolution_delta&) const = default;
 	};

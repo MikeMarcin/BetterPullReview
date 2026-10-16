@@ -172,19 +172,22 @@ namespace bpr::qt {
 		std::optional<core::git_commit_oid>                     LastReviewCommit;
 		std::optional<core::comparison_selection>               Selection;
 		std::optional<application::epoch_comparison_projection> Comparison;
-		std::optional<core::epoch_history_cursor>               Continuation;
-		std::optional<core::epoch_history_navigation>           HistoryNavigation;
-		std::optional<core::epoch_history_page_phase>           HistoryPhase;
-		core::epoch_reason_code                                 HistoryReason    = core::epoch_reason_code::none;
-		core::epoch_reason_code                                 DiagnosticReason = core::epoch_reason_code::none;
-		QLabel*                                                 LineSummary      = nullptr;
-		core::epoch_status                                      Status           = core::epoch_status::inactive;
-		std::array<core::epoch_command_projection, 6>           Commands{ };
-		bool                                                    HasCommands        = false;
-		bool                                                    ApplyingProjection = false;
-		bool                                                    HistoryWindowStale = false;
-		QString                                                 LastAnnouncement;
-		epoch_comparison_control_statistics                     Statistics;
+		/// [[BPR-1557]]. The pull request's base from the latest resolution,
+		/// kept while a new selection resolves so the line does not lose it.
+		std::optional<core::comparison_anchor>        PullRequestBase;
+		std::optional<core::epoch_history_cursor>     Continuation;
+		std::optional<core::epoch_history_navigation> HistoryNavigation;
+		std::optional<core::epoch_history_page_phase> HistoryPhase;
+		core::epoch_reason_code                       HistoryReason    = core::epoch_reason_code::none;
+		core::epoch_reason_code                       DiagnosticReason = core::epoch_reason_code::none;
+		QLabel*                                       LineSummary      = nullptr;
+		core::epoch_status                            Status           = core::epoch_status::inactive;
+		std::array<core::epoch_command_projection, 6> Commands{ };
+		bool                                          HasCommands        = false;
+		bool                                          ApplyingProjection = false;
+		bool                                          HistoryWindowStale = false;
+		QString                                       LastAnnouncement;
+		epoch_comparison_control_statistics           Statistics;
 
 		/// [[BPR-1340]]. Where focus went when the readiness line took the
 		/// focused Updates line's place, so the line can have it back.

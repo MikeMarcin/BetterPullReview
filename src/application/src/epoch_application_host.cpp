@@ -3557,6 +3557,7 @@ namespace bpr::application {
 					.Revision         = aOutput.Comparison->Revision,
 					.AvailableForDiff = aOutput.Comparison->AvailableForDiff,
 					.Reason           = reason,
+					.PullRequestBase  = aOutput.Comparison->PullRequestBase,
 				};
 			}
 			update.Transition = std::move(transition);

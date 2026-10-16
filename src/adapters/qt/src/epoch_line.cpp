@@ -36,8 +36,13 @@ namespace bpr::qt {
 		constexpr int base_offset   = 7;
 		constexpr int label_top     = 18;
 		constexpr int hit_radius    = 7;
-		constexpr int label_min_gap = 44;
+		/// The least room between two labels in the dates' row.
+		constexpr int label_spacing = 4;
 		constexpr int label_height  = 12;
+		/// [[BPR-1557]]. The pull request's base: a post, not a round node,
+		/// because it is where the line starts rather than an update.
+		constexpr qreal base_post_width  = 3.0;
+		constexpr qreal base_post_height = 9.0;
 		/// [[BPR-1130]]. Room the mark takes before the track, and its gap.
 		constexpr int mark_gap = 6;
 
@@ -114,6 +119,9 @@ namespace bpr::qt {
 		// statement the caption used to carry, below the line
 		// ([[BPR-1354]]: no longer at the pointer).
 		anchor_tooltips(*this, [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+			if (base_at(aPosition)) {
+				return anchored_tooltip_target{ .Anchor = QRect{ base_x() - hit_radius, 0, (2 * hit_radius) + 1, label_top + label_height }, .Text = base_tooltip() };
+			}
 			if (const auto hit = update_at(aPosition); hit) {
 				return anchored_tooltip_target{ .Anchor = QRect{ node_x(*hit) - hit_radius, 0, (2 * hit_radius) + 1, label_top + label_height }, .Text = node_tooltip(*hit) };
 			}
@@ -186,11 +194,106 @@ namespace bpr::qt {
 		}
 		HistoryText = QStringLiteral("Incomplete history — local records only");
 		Marked      = true;
+		adopt_line_updates();
 		setAccessibleDescription(statement());
 		setToolTip(statement());
 		Dragging.reset();
 		DragStop.reset();
+		refresh_name();
 		update();
+	}
+
+	void epoch_line::adopt_line_updates()
+	{
+		LineUpdates.clear();
+		LineUpdates.reserve(Updates.size());
+		for (const auto& row : Updates) {
+			LineUpdates.push_back({ .Epoch = row.Id, .Importable = row.ImportOccurrence.has_value(), .HasBase = row.HasBase });
+		}
+	}
+
+	auto epoch_line::facts() const -> core::update_line_facts
+	{
+		return core::update_line_facts{
+			.PullRequestBase = PullRequestBase ? std::optional{ PullRequestBase->Identity } : std::nullopt,
+			.Updates         = LineUpdates,
+		};
+	}
+
+	void epoch_line::set_pull_request_base(std::optional<core::comparison_anchor>         aBase,
+										   std::optional<core::observed_utc_milliseconds> aObservedAt)
+	{
+		if (PullRequestBase == aBase && BaseObservedAt == aObservedAt) {
+			return;
+		}
+		PullRequestBase = std::move(aBase);
+		BaseObservedAt  = aObservedAt;
+		Dragging.reset();
+		DragStop.reset();
+		refresh_name();
+		update();
+	}
+
+	auto epoch_line::has_pull_request_base() const noexcept -> bool
+	{
+		return PullRequestBase.has_value();
+	}
+
+	auto epoch_line::base_label() const -> QString
+	{
+		return PullRequestBase ? QStringLiteral("Base") : QString{ };
+	}
+
+	auto epoch_line::base_tooltip() const -> QString
+	{
+		if (!PullRequestBase) {
+			return QString{ };
+		}
+		auto text = QStringLiteral("Base of the pull request: commit %1 on the base branch, as GitHub recorded it")
+						.arg(short_oid(PullRequestBase->Commit));
+		if (BaseObservedAt) {
+			text.append(QStringLiteral(" (seen here %1)")
+							.arg(QLocale{ }.toString(QDateTime::fromMSecsSinceEpoch(BaseObservedAt->value(), QTimeZone::UTC).toLocalTime(), QLocale::ShortFormat)));
+		}
+		text.append(QStringLiteral(". Whole PR compares from here."));
+		if (PullRequestBase->Availability != core::anchor_availability::available) {
+			text.append(QStringLiteral(" Its commit is not available here."));
+		}
+		return text;
+	}
+
+	auto epoch_line::handle_text(const std::optional<epoch_line_stop>& aStop) const -> QString
+	{
+		if (!aStop) {
+			return QStringLiteral("nothing");
+		}
+		switch (aStop->Kind) {
+		case core::update_line_place_kind::pull_request_base:
+			return PullRequestBase
+				? QStringLiteral("the pull request base %1").arg(short_oid(PullRequestBase->Commit).left(7))
+				: QStringLiteral("the pull request base");
+		case core::update_line_place_kind::update_base:
+			return QStringLiteral("the base of update %1 of %2").arg(aStop->Update + 1U).arg(Updates.size());
+		case core::update_line_place_kind::update_head:
+			return aStop->Update < Updates.size()
+				? QStringLiteral("update %1 of %2, %3").arg(aStop->Update + 1U).arg(Updates.size()).arg(Updates[aStop->Update].Label)
+				: QStringLiteral("an update");
+		}
+		return QString{ };
+	}
+
+	void epoch_line::refresh_name()
+	{
+		// [[BPR-1557]]. A screen reader hears where the two handles are, the
+		// base by name and short commit, since the line draws them only.
+		const auto left  = left_stop();
+		const auto right = right_stop();
+		const auto name  = Updates.empty() || (!left && !right)
+			? QStringLiteral("Updates line")
+			: QStringLiteral("Updates line: from %1 to %2").arg(handle_text(left), handle_text(right));
+		if (accessibleName() != name) {
+			setAccessibleName(name);
+		}
 	}
 
 	void epoch_line::set_occurrences(const core::epoch_occurrence_history&                   aHistory,
@@ -255,10 +358,12 @@ namespace bpr::qt {
 		// snapshot is incomplete history; an unresolved local record is one
 		// that could not be matched.
 		Marked = aHistory.Incomplete || provisional || aHistory.Ambiguous || aHistory.UnresolvedLegacy;
+		adopt_line_updates();
 		setAccessibleDescription(statement());
 		setToolTip(statement());
 		Dragging.reset();
 		DragStop.reset();
+		refresh_name();
 		update();
 	}
 
@@ -273,6 +378,7 @@ namespace bpr::qt {
 	{
 		Left  = std::move(aLeft);
 		Right = std::move(aRight);
+		refresh_name();
 		update();
 	}
 
@@ -339,6 +445,14 @@ namespace bpr::qt {
 	auto epoch_line::node_x(const std::size_t aUpdate) const -> int
 	{
 		const auto span = std::max(1, width() - left_inset() - side_padding);
+		// [[BPR-1557]]. The base takes the track's start, and the updates
+		// share the rest evenly: one update sits at the far end, apart from it.
+		if (PullRequestBase && !Updates.empty()) {
+			return left_inset()
+				+ static_cast<int>(std::lround(
+					static_cast<double>(span) * static_cast<double>(aUpdate + 1U)
+					/ static_cast<double>(Updates.size())));
+		}
 		if (Updates.size() <= 1U) {
 			return left_inset() + span / 2;
 		}
@@ -348,6 +462,16 @@ namespace bpr::qt {
 				/ static_cast<double>(Updates.size() - 1U)));
 	}
 
+	auto epoch_line::base_x() const -> int
+	{
+		return left_inset();
+	}
+
+	auto epoch_line::slot_of(const std::size_t aUpdate) const noexcept -> std::size_t
+	{
+		return PullRequestBase ? aUpdate + 1U : aUpdate;
+	}
+
 	auto epoch_line::node_centre(const std::size_t aUpdate) const -> QPoint
 	{
 		return QPoint{ node_x(aUpdate), node_y };
@@ -355,10 +479,15 @@ namespace bpr::qt {
 
 	auto epoch_line::stop_position(const epoch_line_stop& aStop) const -> QPoint
 	{
-		const auto x = aStop.Kind == core::comparison_anchor_kind::epoch_base
-			? node_x(aStop.Update) - base_offset
-			: node_x(aStop.Update);
-		return QPoint{ x, node_y };
+		switch (aStop.Kind) {
+		case core::update_line_place_kind::pull_request_base:
+			return QPoint{ base_x(), node_y };
+		case core::update_line_place_kind::update_base:
+			return QPoint{ node_x(aStop.Update) - base_offset, node_y };
+		case core::update_line_place_kind::update_head:
+			break;
+		}
+		return QPoint{ node_x(aStop.Update), node_y };
 	}
 
 	auto epoch_line::label_text(const std::size_t aUpdate) const -> QString
@@ -371,54 +500,84 @@ namespace bpr::qt {
 
 	auto epoch_line::selection_dates() const -> std::optional<std::pair<QString, QString>>
 	{
-		const auto left  = left_stop();
-		const auto right = right_stop();
-		if (!left || !right || left->Update >= Updates.size() || right->Update >= Updates.size()
-			|| Updates[left->Update].Date.isEmpty() || Updates[right->Update].Date.isEmpty()) {
-			return std::nullopt;
-		}
-		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
+		return Left && Right ? dates_of(*Left, *Right) : std::nullopt;
 	}
 
 	auto epoch_line::dates_of(
 		const core::comparison_anchor_identity& aLeft,
 		const core::comparison_anchor_identity& aRight) const -> std::optional<std::pair<QString, QString>>
 	{
-		const auto left  = stop_for(aLeft);
-		const auto right = stop_for(aRight);
-		if (!left || !right || left->Update >= Updates.size() || right->Update >= Updates.size()
-			|| Updates[left->Update].Date.isEmpty() || Updates[right->Update].Date.isEmpty()) {
+		// An update's date; the base's is its epoch's update's date, as the
+		// whole PR's left side always was, or the day it was seen here.
+		const auto date = [this](const core::comparison_anchor_identity& aAnchor) -> QString {
+			const auto place = stop_for(aAnchor);
+			if (!place) {
+				return QString{ };
+			}
+			if (place->Kind != core::update_line_place_kind::pull_request_base) {
+				return place->Update < Updates.size() ? Updates[place->Update].Date : QString{ };
+			}
+			for (const auto& row : Updates) {
+				if (row.Id && row.Id->Authority == aAnchor.Authority && row.Id->Incarnation == aAnchor.Incarnation && row.Id->Ordinal == aAnchor.Epoch) {
+					return row.Date;
+				}
+			}
+			return BaseObservedAt ? QLocale{ }.toString(QDateTime::fromMSecsSinceEpoch(BaseObservedAt->value(), QTimeZone::UTC).toLocalTime().date(), QStringLiteral("MMM d")) : QString{ };
+		};
+		const auto left  = date(aLeft);
+		const auto right = date(aRight);
+		if (left.isEmpty() || right.isEmpty()) {
 			return std::nullopt;
 		}
-		return std::pair{ Updates[left->Update].Date, Updates[right->Update].Date };
+		return std::pair{ left, right };
+	}
+
+	auto epoch_line::label_rect(const QString& aText, const int aCentre) const -> QRect
+	{
+		const auto advance = fontMetrics().horizontalAdvance(aText);
+		return QRect{ std::clamp(aCentre - advance / 2, 0, std::max(0, width() - advance - 2)), label_top, advance + 2, label_height + 2 };
+	}
+
+	auto epoch_line::shown_labels() const -> std::vector<bool>
+	{
+		// Dense histories keep the labels that carry meaning -- the base, the
+		// newest update, the handles', my last review -- and show the rest,
+		// oldest first, only where a label has room ([[BPR-1557]]: by the
+		// labels' own extents, so the base's slot never crowds them).
+		auto       shown   = std::vector<bool>(Updates.size(), false);
+		auto       taken   = std::vector<QRect>{ };
+		const auto room    = [](const QRect& aLabel) { return aLabel.adjusted(-label_spacing, 0, label_spacing, 0); };
+		const auto left    = left_stop();
+		const auto right   = right_stop();
+		const auto reviews = last_review_update();
+		const auto holding = [](const std::optional<epoch_line_stop>& aStop, const std::size_t aUpdate) {
+			return aStop && aStop->Kind != core::update_line_place_kind::pull_request_base && aStop->Update == aUpdate;
+		};
+		if (PullRequestBase && !Updates.empty()) {
+			taken.push_back(room(label_rect(base_label(), base_x())));
+		}
+		for (std::size_t index = 0U; index < Updates.size(); ++index) {
+			if (index + 1U == Updates.size() || (index == 0U && !PullRequestBase) || holding(left, index) || holding(right, index) || reviews == index) {
+				shown[index] = true;
+				taken.push_back(room(label_rect(Updates[index].Label, node_x(index))));
+			}
+		}
+		for (std::size_t index = 0U; index < Updates.size(); ++index) {
+			if (shown[index]) {
+				continue;
+			}
+			const auto label = room(label_rect(Updates[index].Label, node_x(index)));
+			if (std::ranges::none_of(taken, [&label](const QRect& aTaken) { return aTaken.intersects(label); })) {
+				shown[index] = true;
+				taken.push_back(label);
+			}
+		}
+		return shown;
 	}
 
 	auto epoch_line::label_shown(const std::size_t aUpdate) const -> bool
 	{
-		// Dense histories keep the labels that carry meaning -- the ends, the
-		// handles, my last review -- and thin the rest to what fits.
-		if (aUpdate >= Updates.size()) {
-			return false;
-		}
-		if (Updates.size() <= 1U) {
-			return true;
-		}
-		const auto gap = static_cast<double>(std::max(1, width() - left_inset() - side_padding))
-			/ static_cast<double>(Updates.size() - 1U);
-		if (gap >= label_min_gap) {
-			return true;
-		}
-		const auto left  = left_stop();
-		const auto right = right_stop();
-		if (aUpdate == 0U || aUpdate + 1U == Updates.size()
-			|| (left && left->Update == aUpdate)
-			|| (right && right->Update == aUpdate)
-			|| last_review_update() == aUpdate) {
-			return true;
-		}
-		const auto every = static_cast<std::size_t>(
-			std::ceil(static_cast<double>(label_min_gap) / gap));
-		return every > 0U && aUpdate % every == 0U;
+		return aUpdate < Updates.size() && shown_labels()[aUpdate];
 	}
 
 	auto epoch_line::node_tooltip(const std::size_t aUpdate) const -> QString
@@ -437,15 +596,9 @@ namespace bpr::qt {
 	}
 
 	auto epoch_line::identity_of(const epoch_line_stop& aStop) const
-		-> core::comparison_anchor_identity
+		-> std::optional<core::comparison_anchor_identity>
 	{
-		const auto& id = Updates.at(aStop.Update).Id.value();
-		return core::comparison_anchor_identity{
-			.Authority   = id.Authority,
-			.Incarnation = id.Incarnation,
-			.Kind        = aStop.Kind,
-			.Epoch       = id.Ordinal,
-		};
+		return core::update_line_anchor(facts(), aStop);
 	}
 
 	auto epoch_line::active_side() const noexcept -> core::comparison_side
@@ -466,39 +619,7 @@ namespace bpr::qt {
 	auto epoch_line::stop_for(const core::comparison_anchor_identity& aIdentity) const
 		-> std::optional<epoch_line_stop>
 	{
-		if (aIdentity.Kind != core::comparison_anchor_kind::epoch_base
-			&& aIdentity.Kind != core::comparison_anchor_kind::epoch_head) {
-			return std::nullopt;
-		}
-		for (std::size_t index = 0U; index < Updates.size(); ++index) {
-			const auto& id = Updates[index].Id;
-			if (id && id->Authority == aIdentity.Authority
-				&& id->Incarnation == aIdentity.Incarnation
-				&& id->Ordinal == aIdentity.Epoch) {
-				return epoch_line_stop{ .Update = index, .Kind = aIdentity.Kind };
-			}
-		}
-		return std::nullopt;
-	}
-
-	auto epoch_line::stops_for(const core::comparison_side aSide) const
-		-> std::vector<epoch_line_stop>
-	{
-		auto stops = std::vector<epoch_line_stop>{ };
-		if (Updates.empty()) {
-			return stops;
-		}
-		// The left handle can rest before the oldest update, on its base, so
-		// the whole pull request is one step away from its first head.
-		if (aSide == core::comparison_side::left && Updates.front().Id && Updates.front().HasBase) {
-			stops.push_back({ .Update = 0U, .Kind = core::comparison_anchor_kind::epoch_base });
-		}
-		for (std::size_t index = 0U; index < Updates.size(); ++index) {
-			if (Updates[index].Id || Updates[index].ImportOccurrence) {
-				stops.push_back({ .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
-			}
-		}
-		return stops;
+		return core::place_on_update_line(facts(), aIdentity);
 	}
 
 	auto epoch_line::nearest_stop(const core::comparison_side aSide, const int aX) const
@@ -506,7 +627,7 @@ namespace bpr::qt {
 	{
 		auto best     = std::optional<epoch_line_stop>{ };
 		auto distance = 0;
-		for (const auto& stop : stops_for(aSide)) {
+		for (const auto& stop : core::update_line_stops(facts(), aSide)) {
 			const auto d = std::abs(stop_position(stop).x() - aX);
 			if (!best || d < distance) {
 				best     = stop;
@@ -527,6 +648,20 @@ namespace bpr::qt {
 			}
 		}
 		return std::nullopt;
+	}
+
+	auto epoch_line::base_at(const QPoint& aPoint) const -> bool
+	{
+		if (!PullRequestBase || Updates.empty() || aPoint.y() > label_top + label_height) {
+			return false;
+		}
+		const auto distance = std::abs(base_x() - aPoint.x());
+		if (distance > hit_radius) {
+			return false;
+		}
+		// Where the base and the oldest update are close, the nearer one is hit.
+		const auto update = update_at(aPoint);
+		return !update || distance <= std::abs(node_x(*update) - aPoint.x());
 	}
 
 	auto epoch_line::handle_at(const QPoint& aPoint) const
@@ -563,46 +698,30 @@ namespace bpr::qt {
 
 	void epoch_line::choose(const core::comparison_side aSide, const epoch_line_stop& aStop)
 	{
-		if (!Offered || aStop.Update >= Updates.size()
-			|| (aStop.Kind == core::comparison_anchor_kind::epoch_base && !Updates[aStop.Update].HasBase)) {
+		if (!Offered || (aStop.Kind != core::update_line_place_kind::pull_request_base && aStop.Update >= Updates.size())) {
 			return;
 		}
-		ActiveSide      = aSide;
-		const auto& row = Updates[aStop.Update];
-		if (row.Id && Dispatch) {
-			Dispatch(aSide, identity_of(aStop));
-		} else if (row.ImportOccurrence && OccurrenceDispatch && aStop.Kind == core::comparison_anchor_kind::epoch_head) {
-			OccurrenceDispatch(aSide, *row.ImportOccurrence);
+		if (const auto identity = identity_of(aStop); identity) {
+			ActiveSide = aSide;
+			if (Dispatch) {
+				Dispatch(aSide, *identity);
+			}
+			return;
+		}
+		if (aStop.Kind == core::update_line_place_kind::update_head && Updates[aStop.Update].ImportOccurrence) {
+			ActiveSide = aSide;
+			if (OccurrenceDispatch) {
+				OccurrenceDispatch(aSide, *Updates[aStop.Update].ImportOccurrence);
+			}
 		}
 	}
 
 	void epoch_line::step(const core::comparison_side aSide, const int aDirection)
 	{
-		const auto stops = stops_for(aSide);
-		if (stops.empty()) {
-			return;
-		}
 		const auto current = aSide == core::comparison_side::left ? left_stop() : right_stop();
-		auto       index   = std::optional<std::size_t>{ };
-		if (current) {
-			const auto found = std::ranges::find(stops, *current);
-			if (found != stops.end()) {
-				index = static_cast<std::size_t>(std::distance(stops.begin(), found));
-			}
+		if (const auto next = core::step_on_update_line(facts(), aSide, current, aDirection); next) {
+			choose(aSide, *next);
 		}
-		auto next = std::size_t{ 0U };
-		if (index) {
-			if (aDirection < 0 && *index == 0U) {
-				return;
-			}
-			if (aDirection > 0 && *index + 1U >= stops.size()) {
-				return;
-			}
-			next = aDirection < 0 ? *index - 1U : *index + 1U;
-		} else {
-			next = aDirection < 0 ? 0U : stops.size() - 1U;
-		}
-		choose(aSide, stops[next]);
 	}
 
 	void epoch_line::paintEvent(QPaintEvent* const aEvent)
@@ -648,24 +767,40 @@ namespace bpr::qt {
 				QRect{ std::min(from, to), node_y - 1, std::abs(to - from), 3 }, accent);
 		}
 
+		// [[BPR-1557]]. The pull request's base: a post where the track
+		// starts, filled in the faint ink, in the accent while the left
+		// handle holds it, and named "Base" in the dates' row.
+		const auto onBase   = left && left->Kind == core::update_line_place_kind::pull_request_base;
+		const auto drawPost = [&](const QColor& aColour) {
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(aColour);
+			painter.drawRoundedRect(QRectF{ static_cast<qreal>(base_x()) - (base_post_width / 2.0),
+											static_cast<qreal>(node_y) - (base_post_height / 2.0),
+											base_post_width,
+											base_post_height },
+									1.0,
+									1.0);
+		};
+		if (PullRequestBase) {
+			drawPost(onBase ? accent : faint);
+			painter.setPen(onBase ? ink : faint);
+			painter.drawText(label_rect(base_label(), base_x()), Qt::AlignLeft | Qt::AlignTop, base_label());
+		}
+
 		// Nodes and their labels.
-		const auto metrics = painter.fontMetrics();
+		const auto labelled = shown_labels();
 		for (std::size_t index = 0U; index < Updates.size(); ++index) {
-			const auto centre   = node_centre(index);
-			const auto selected = (left && left->Update == index
-								   && left->Kind == core::comparison_anchor_kind::epoch_head)
-				|| (right && right->Update == index);
+			const auto centre = node_centre(index);
+			const auto holds  = [index](const std::optional<epoch_line_stop>& aStop) {
+				return aStop && aStop->Kind == core::update_line_place_kind::update_head && aStop->Update == index;
+			};
+			const auto selected = holds(left) || holds(right);
 			painter.setPen(QPen{ selected ? accent : faint, 1.5 });
 			painter.setBrush(selected ? accent : surface);
 			painter.drawEllipse(centre, node_radius, node_radius);
-			if (label_shown(index)) {
-				const auto text  = label_text(index);
-				const auto width = metrics.horizontalAdvance(text);
+			if (labelled[index]) {
 				painter.setPen(selected ? ink : faint);
-				painter.drawText(
-					QRect{ std::clamp(centre.x() - width / 2, 0, std::max(0, this->width() - width - 2)), label_top, width + 2, label_height + 2 },
-					Qt::AlignLeft | Qt::AlignTop,
-					text);
+				painter.drawText(label_rect(Updates[index].Label, centre.x()), Qt::AlignLeft | Qt::AlignTop, Updates[index].Label);
 			}
 		}
 
@@ -693,6 +828,11 @@ namespace bpr::qt {
 		};
 		drawHandle(left);
 		drawHandle(right);
+		// The handle's face would hide the post it holds; the post shows
+		// through, in the accent, so the bracket reads as holding the base.
+		if (PullRequestBase && onBase) {
+			drawPost(accent);
+		}
 
 		if (hasFocus()) {
 			painter.setPen(QPen{ accent, 1.0 });
@@ -720,10 +860,18 @@ namespace bpr::qt {
 				aEvent->accept();
 				return;
 			}
+			if (base_at(point)) {
+				// The base is compared from; the right handle never takes it.
+				if ((aEvent->modifiers() & Qt::ControlModifier) == 0) {
+					choose(core::comparison_side::left, { .Kind = core::update_line_place_kind::pull_request_base });
+				}
+				aEvent->accept();
+				return;
+			}
 			if (const auto hit = update_at(point); hit) {
 				const auto toHere = (aEvent->modifiers() & Qt::ControlModifier) != 0;
 				choose(toHere ? core::comparison_side::right : core::comparison_side::left,
-					   { .Update = *hit, .Kind = core::comparison_anchor_kind::epoch_head });
+					   { .Kind = core::update_line_place_kind::update_head, .Update = *hit });
 				aEvent->accept();
 				return;
 			}
@@ -784,6 +932,31 @@ namespace bpr::qt {
 
 	void epoch_line::contextMenuEvent(QContextMenuEvent* const aEvent)
 	{
+		if (base_at(aEvent->pos())) {
+			// [[BPR-1557]]. The base's menu: compare from it, or copy its commit.
+			auto* const menu = new QMenu{ this };
+			menu->setObjectName(QStringLiteral("epochLineBaseMenu"));
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			auto* const from = menu->addAction(QStringLiteral("Compare from here"));
+			from->setObjectName(QStringLiteral("compareFromBaseAction"));
+			from->setEnabled(Offered);
+			menu->addSeparator();
+			auto* const copy = menu->addAction(QStringLiteral("Copy base commit"));
+			copy->setObjectName(QStringLiteral("copyBaseCommitAction"));
+			connect(from, &QAction::triggered, this, [this] {
+				choose(core::comparison_side::left, { .Kind = core::update_line_place_kind::pull_request_base });
+			});
+			connect(copy, &QAction::triggered, this, [this] {
+				if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr && PullRequestBase) {
+					const auto canonical = core::canonical_hex(PullRequestBase->Commit);
+					const auto view      = canonical.view();
+					clipboard->setText(QString::fromLatin1(view.data(), static_cast<qsizetype>(view.size())));
+				}
+			});
+			menu->popup(aEvent->globalPos());
+			aEvent->accept();
+			return;
+		}
 		const auto hit = update_at(aEvent->pos());
 		if (!hit) {
 			aEvent->ignore();
@@ -814,18 +987,14 @@ namespace bpr::qt {
 		to->setEnabled(Offered && (Updates[index].Id || Updates[index].ImportOccurrence));
 		alone->setEnabled(Offered && Updates[index].Id.has_value() && Updates[index].HasBase);
 		connect(from, &QAction::triggered, this, [this, index] {
-			choose(core::comparison_side::left,
-				   { .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
+			choose(core::comparison_side::left, { .Kind = core::update_line_place_kind::update_head, .Update = index });
 		});
 		connect(to, &QAction::triggered, this, [this, index] {
-			choose(core::comparison_side::right,
-				   { .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
+			choose(core::comparison_side::right, { .Kind = core::update_line_place_kind::update_head, .Update = index });
 		});
 		connect(alone, &QAction::triggered, this, [this, index] {
-			choose(core::comparison_side::left,
-				   { .Update = index, .Kind = core::comparison_anchor_kind::epoch_base });
-			choose(core::comparison_side::right,
-				   { .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
+			choose(core::comparison_side::left, { .Kind = core::update_line_place_kind::update_base, .Update = index });
+			choose(core::comparison_side::right, { .Kind = core::update_line_place_kind::update_head, .Update = index });
 		});
 		connect(copy, &QAction::triggered, this, [this, index] {
 			if (auto* const clipboard = QApplication::clipboard();
