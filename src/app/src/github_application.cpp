@@ -1081,6 +1081,15 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed inline images",
 				};
+			case detail::github_public_path_fixture::markdown_parity_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Markdown parity",
+				};
 			case detail::github_public_path_fixture::conversations_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },

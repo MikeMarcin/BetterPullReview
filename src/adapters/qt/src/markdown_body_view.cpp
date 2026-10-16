@@ -1,6 +1,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include "markdown_document.hpp"
+#include "markdown_github.hpp"
 #include "markdown_images.hpp"
 
 #include "bpr/application/github_projection.hpp"
@@ -20,8 +21,10 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
 #include <QStyle>
@@ -38,6 +41,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -305,12 +309,14 @@ namespace bpr::qt {
 			for (auto block = document()->begin(); block.isValid(); block = block.next()) {
 				for (auto it = block.begin(); !it.atEnd(); ++it) {
 					const auto fragment = it.fragment();
-					const auto target   = fragment.charFormat().anchorHref();
+					const auto format   = fragment.charFormat();
+					const auto target   = format.anchorHref();
+					const auto internal = format.stringProperty(detail::markdown_internal_target_property);
 					if (!target.isEmpty()) {
-						if (!Links.empty() && Links.back().End == fragment.position() && Links.back().Target == target) {
+						if (!Links.empty() && Links.back().End == fragment.position() && Links.back().Target == target && Links.back().Internal == internal) {
 							Links.back().End += fragment.length();
 						} else {
-							Links.push_back({ fragment.position(), fragment.position() + fragment.length(), target });
+							Links.push_back({ fragment.position(), fragment.position() + fragment.length(), target, internal, format.anchorNames() });
 						}
 					}
 				}
@@ -355,8 +361,12 @@ namespace bpr::qt {
 		{
 			QTextEdit::mouseReleaseEvent(aEvent);
 			const auto target = anchorAt(aEvent->position().toPoint());
-			if (aEvent->button() == Qt::LeftButton && !Pressed.isEmpty() && Pressed == target && !textCursor().hasSelection() && Activate) {
-				Activate(target);
+			if (aEvent->button() == Qt::LeftButton && !Pressed.isEmpty() && Pressed == target && !textCursor().hasSelection()) {
+				if (const auto* hit = link_at(aEvent->position().toPoint()); hit != nullptr && !hit->Internal.isEmpty()) {
+					jump_to(hit->Internal);
+				} else if (Activate) {
+					Activate(target);
+				}
 			}
 			Pressed.clear();
 		}
@@ -373,6 +383,15 @@ namespace bpr::qt {
 
 		void keyPressEvent(QKeyEvent* aEvent) override
 		{
+			if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+				// [[BPR-1543]]. A footnote link moves within the body; only
+				// presentation sets its target, never an authored link.
+				if (const auto internal = textCursor().charFormat().stringProperty(detail::markdown_internal_target_property); !internal.isEmpty()) {
+					jump_to(internal);
+					aEvent->accept();
+					return;
+				}
+			}
 			if ((aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && Activate) {
 				const auto target = textCursor().charFormat().anchorHref();
 				if (!target.isEmpty()) {
@@ -388,23 +407,7 @@ namespace bpr::qt {
 		{
 			const auto next = FocusedLink < 0 ? (aNext ? 0 : static_cast<int>(Links.size()) - 1) : FocusedLink + (aNext ? 1 : -1);
 			if (next >= 0 && next < static_cast<int>(Links.size())) {
-				FocusedLink        = next;
-				const auto& link   = Links[static_cast<std::size_t>(next)];
-				auto        cursor = textCursor();
-				cursor.setPosition(link.Start);
-				cursor.setPosition(link.End, QTextCursor::KeepAnchor);
-				setTextCursor(cursor);
-				ensureCursorVisible();
-				// An image link is announced by its alternative text, then where it goes.
-				const auto image = ImageLabel && link.End - link.Start == 1 ? ImageLabel(link.Start) : QString{ };
-				setAccessibleDescription(image.isEmpty() ? QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally.")
-														 : image + QStringLiteral(". ") + link.Target);
-				if (Describe) {
-					Describe(link.Target);
-				}
-				if (LinkFocused) {
-					LinkFocused(link.Target);
-				}
+				focus_link(next);
 				return true;
 			}
 			FocusedLink      = -1;
@@ -417,13 +420,106 @@ namespace bpr::qt {
 			return moved || !hasFocus();
 		}
 
+	public:
+		/// [[BPR-1543]]. Each alert's blocks and colour, for its bar.
+		struct alert_bar
+		{
+			int    First = 0;
+			int    Last  = 0;
+			QColor Colour;
+		};
+		std::vector<alert_bar> AlertBars;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override
+		{
+			QTextEdit::paintEvent(aEvent);
+			if (AlertBars.empty()) {
+				return;
+			}
+			auto        painter = QPainter{ viewport() };
+			auto* const blocks  = document()->documentLayout();
+			const auto  offset  = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
+			const auto  left    = document()->documentMargin();
+			for (const auto& bar : AlertBars) {
+				auto top    = std::numeric_limits<qreal>::max();
+				auto bottom = std::numeric_limits<qreal>::lowest();
+				for (auto block = document()->findBlockByNumber(bar.First); block.isValid() && block.blockNumber() <= bar.Last; block = block.next()) {
+					const auto bounds = blocks->blockBoundingRect(block);
+					top               = std::min(top, bounds.top());
+					bottom            = std::max(bottom, bounds.bottom());
+				}
+				if (top < bottom) {
+					painter.fillRect(QRectF{ left, top, detail::markdown_alert_bar_width, bottom - top }.translated(offset), bar.Colour);
+				}
+			}
+		}
+
 	private:
 		struct link
 		{
-			int     Start;
-			int     End;
-			QString Target;
+			int         Start;
+			int         End;
+			QString     Target;
+			QString     Internal;
+			QStringList Names;
 		};
+
+		[[nodiscard]] auto link_at(const QPoint& aPosition) const -> const link*
+		{
+			const auto contents = QPointF{ aPosition } + QPointF{ static_cast<qreal>(horizontalScrollBar()->value()), static_cast<qreal>(verticalScrollBar()->value()) };
+			const auto at       = document()->documentLayout()->hitTest(contents, Qt::ExactHit);
+			const auto found    = std::ranges::find_if(Links, [at](const link& aLink) { return at >= aLink.Start && at < aLink.End; });
+			return found == Links.end() ? nullptr : &*found;
+		}
+
+		void focus_link(const int aIndex)
+		{
+			FocusedLink        = aIndex;
+			const auto& link   = Links[static_cast<std::size_t>(aIndex)];
+			auto        cursor = textCursor();
+			cursor.setPosition(link.Start);
+			cursor.setPosition(link.End, QTextCursor::KeepAnchor);
+			setTextCursor(cursor);
+			ensureCursorVisible();
+			// An image link is announced by its alternative text, then where it goes.
+			const auto image = ImageLabel && link.End - link.Start == 1 ? ImageLabel(link.Start) : QString{ };
+			setAccessibleDescription(image.isEmpty() ? QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally.")
+													 : image + QStringLiteral(". ") + link.Target);
+			if (Describe) {
+				Describe(link.Target);
+			}
+			if (LinkFocused) {
+				LinkFocused(link.Target);
+			}
+		}
+
+		/// Selects the link a footnote link names and brings it into view,
+		/// so Enter there leads back.
+		void jump_to(const QString& aName)
+		{
+			const auto found = std::ranges::find_if(Links, [&aName](const link& aLink) { return aLink.Names.contains(aName); });
+			if (found == Links.end()) {
+				return;
+			}
+			if (!hasFocus()) {
+				setFocus(Qt::OtherFocusReason);
+			}
+			focus_link(static_cast<int>(found - Links.begin()));
+			if (!InPlace) {
+				return;
+			}
+			// In place the reader does not scroll; whatever holds it does.
+			const auto target = cursorRect();
+			for (auto* holder = parentWidget(); holder != nullptr; holder = holder->parentWidget()) {
+				if (auto* area = qobject_cast<QScrollArea*>(holder); area != nullptr && area->widget() != nullptr && area->widget()->isAncestorOf(this)) {
+					const auto point = viewport()->mapTo(area->widget(), target.center());
+					area->ensureVisible(point.x(), point.y(), 0, target.height() * 2);
+					return;
+				}
+			}
+		}
+
 		std::vector<link> Links;
 		int               FocusedLink = -1;
 		QString           Pressed;
@@ -810,10 +906,17 @@ namespace bpr::qt {
 		auto* document    = Rendered->document();
 		document->setLayoutEnabled(false);
 		document->clear();
+		Rendered->AlertBars.clear();
 		if (RenderedAvailable) {
 			const auto source = QString::fromUtf8(shown.data(), static_cast<qsizetype>(shown.size()));
-			document->setMarkdown(source, markdown_features);
-			if (restore_code_tabs(*document, source)) {
+			// [[BPR-1543]]. GitHub's comments, line breaks, alerts and
+			// footnotes; the import and its tab repair read the prepared text.
+			// Presentation runs before images are placed, which find them in
+			// the presented document and name them by ordinal.
+			const auto prepared = detail::prepare_github_markdown(source);
+			document->setMarkdown(prepared.Text, markdown_features);
+			if (restore_code_tabs(*document, prepared.Text)) {
+				detail::present_github_markdown(*document, prepared);
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
 				if (ImageDispatch && ImagesShown) {
@@ -910,10 +1013,11 @@ namespace bpr::qt {
 			chars.setFontWeight(QFont::DemiBold);
 			return chars;
 		};
-		// In place on a dark panel, a palette's default link blue is too dark
-		// to read; it keeps its hue at a readable lightness.
+		// On a dark panel, a palette's default link blue is too dark to read;
+		// it keeps its hue at a readable lightness. [[BPR-1543]]: the
+		// overview too, where a footnote's raised number is a link.
 		auto link = palette().color(QPalette::Active, QPalette::Link);
-		if (InPlace && palette().color(QPalette::Active, QPalette::Base).lightness() < 128 && link.lightness() < 165) {
+		if (palette().color(QPalette::Active, QPalette::Base).lightness() < 128 && link.lightness() < 165) {
 			link = QColor::fromHsl(link.hslHue() < 0 ? 210 : link.hslHue(), std::min(link.hslSaturation(), 200), 175);
 		}
 		for (auto block = document->begin(); block.isValid(); block = block.next()) {
@@ -925,6 +1029,7 @@ namespace bpr::qt {
 				cursor.setBlockFormat(format);
 			}
 			if (code || format.intProperty(QTextFormat::BlockQuoteLevel) > 0) {
+				// An alert's quote fill is cleared again by its own style below.
 				format.setBackground(palette().window());
 				format.setNonBreakableLines(code);
 				cursor.setBlockFormat(format);
@@ -999,6 +1104,14 @@ namespace bpr::qt {
 				cursor.setCharFormat(fragment.Format);
 			}
 		}
+		// [[BPR-1543]]. Alerts and footnotes, and each alert's bar.
+		const auto github = detail::markdown_github_style_of(palette(), font());
+		detail::style_github_markdown(*document, github);
+		Rendered->AlertBars.clear();
+		for (const auto& extent : detail::markdown_alert_extents(*document)) {
+			Rendered->AlertBars.push_back({ .First = extent.First, .Last = extent.Last, .Colour = github.Alerts[static_cast<std::size_t>(static_cast<int>(extent.Alert) - 1)] });
+		}
+		Rendered->viewport()->update();
 		Source->setFont(CodeFont);
 		if (TabStopDistance > 0) {
 			Source->setTabStopDistance(TabStopDistance);

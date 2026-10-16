@@ -1,0 +1,34 @@
+[
+	{
+		"body": "Visible before the comment.\n<!-- a single-line comment that GitHub hides -->\nVisible after the comment.\n\n<!--\nA multi-line template comment.\n\nIt spans a blank line and holds a list:\n- first\n- second\n-->\n\nInline <!-- hidden words --> text keeps its neighbours.\n\nInline code keeps it: `<!-- literal in code -->`\n\n```html\n<!-- literal in a fenced block -->\n<p>markup</p>\n```\n\n    <!-- literal in an indented block -->\n\nAn unclosed inline <!-- stays as written\n\nFinal visible line.\n",
+		"node_id": "IC_mp_1",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "First line of a paragraph\nsecond line of the same paragraph\n_emphasis that ends a line_\nthird line ends with **strong**\nand the paragraph ends here.\n\n- A list item\n  that wraps onto a second line\n- Another item\n\n> A quoted line\n> and its next line\n\n| Column | Value |\n| --- | --- |\n| one | 1 |\n| two | 2 |\n\n```text\ncode line one\ncode line two\n```\n\nA code span `that crosses\na line` stays one span.\n\nTwo trailing spaces  \nalso break here.\n\nHeading\n-------\n\nFinal line.\n",
+		"node_id": "IC_mp_2",
+		"user": {
+			"login": "jiayin",
+			"node_id": "U_fixture_jiayin"
+		}
+	},
+	{
+		"body": "> [!NOTE]\n> Useful information that users should know, even when skimming content.\n\n> [!TIP]\n> Helpful advice for doing things better or more easily.\n\n> [!IMPORTANT]\n> Key information users need to know to achieve their goal.\n\n> [!WARNING]\n> Urgent info that needs immediate user attention to avoid problems.\n\n> [!CAUTION]\n> Advises about risks or negative outcomes of certain actions.\n\n> [!NOTE]\n> An alert with more inside.\n>\n> - a list item\n> - another item\n>\n> ```sh\n> make check\n> ```\n\n> A plain quote after the alerts stays a plain quote.\n\n> [!NOTE] Text on the marker line is not an alert.\n\n- > [!TIP]\n  > An alert inside a list is a plain quote.\n",
+		"node_id": "IC_mp_3",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "Here is a simple footnote[^1]. With some additional text after it.\n\nA footnote can also have a name[^note] and be referenced twice[^1].\n\nA reference with no definition[^missing] stays as written, and so does one in code: `[^1]`.\n\n[^1]: My reference.\n[^note]: Every new line should be prefixed with 2 spaces.\n    This allows you to have a footnote with multiple lines.\n[^unused]: Nothing refers to this one, so it is not shown.\n",
+		"node_id": "IC_mp_4",
+		"user": {
+			"login": "jiayin",
+			"node_id": "U_fixture_jiayin"
+		}
+	}
+]

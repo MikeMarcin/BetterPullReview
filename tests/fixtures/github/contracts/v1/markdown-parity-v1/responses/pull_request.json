@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "<!--\nThanks for opening a pull request! Please fill in each section below.\nLines inside this comment are hidden when the description is rendered.\n\n- Link the issue this fixes.\n- Describe how you tested the change.\n-->\n\n## Summary\n\nMoves the cache writer onto the serialized lane.\nThe reader no longer races the writer during a refresh,\nand a cancelled refresh leaves the previous snapshot in place.\n\n<!-- Reviewers: the interesting part is in cache_writer.cpp. -->\n\n## Related issues\n\nFixes #1234\nFollows up on the design in #1200[^design].\n\n## How was this tested?\n\n- [x] Unit tests for the writer lane\n- [x] Ran the refresh course 50 times\n- [ ] Tested on Windows\n\n```sh\nctest --preset dev -R cache_writer\n# <!-- this comment is part of the code and stays -->\n```\n\n> [!NOTE]\n> The on-disk format is unchanged.\n> Existing caches keep working after the upgrade.\n\n> [!WARNING]\n> Downgrading after this change discards the pending queue.\n\n## Checklist\n\n- [x] I have read the `<!-- contributing -->` guide\n- [x] Documentation is updated[^docs]\n\n[^design]: The lane design was agreed in the March architecture review.\n[^docs]: See docs/architecture/cache.md.\n",
+	"changed_files": 17,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "nested-folders",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_21",
+	"number": 21,
+	"state": "open",
+	"title": "Move the cache writer onto the serialized lane",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

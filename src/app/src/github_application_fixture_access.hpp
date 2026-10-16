@@ -94,6 +94,10 @@ namespace bpr::app::detail {
 		/// two pull request comments hold GitHub's image forms, served with
 		/// GitHub's rendering and the images it serves, for judging inline images.
 		markdown_images_v1,
+		/// [[BPR-1543]]. The nested-folders pull request whose description
+		/// and four pull request comments are the GitHub-parity Markdown
+		/// fixtures, for judging comments, line breaks, alerts and footnotes.
+		markdown_parity_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
