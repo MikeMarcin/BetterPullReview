@@ -236,6 +236,10 @@ namespace {
 			semantic.BaseOid = "2222222222222222222222222222222222222222";
 			semantic.HeadOid = "1111111111111111111111111111111111111111";
 			break;
+		case read_operation::resolve_body_images:
+			semantic.PullRequestNumber = context.Number.value();
+			semantic.Nodes             = { "PR_kwDOA" };
+			break;
 		}
 		return semantic;
 	}
@@ -330,8 +334,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 12U && refused == 8U
-				   && all_read_operations.size() == 20U
+		expect(admitted == 12U && refused == 9U
+				   && all_read_operations.size() == 21U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

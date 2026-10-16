@@ -90,6 +90,10 @@ namespace bpr::app::detail {
 		/// arguments, strings, operators, spacing, numbers, rewritten lines
 		/// and prose, non-Latin text), for judging intraline emphasis.
 		intraline_v1,
+		/// RFC-BPR-0084. The nested-folders pull request whose description and
+		/// two pull request comments hold GitHub's image forms, served with
+		/// GitHub's rendering and the images it serves, for judging inline images.
+		markdown_images_v1,
 		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
 		/// base branch moved on, reverting nothing of the pull request's but
 		/// landing its `b.txt` change separately. GitHub's Files changed is
@@ -509,12 +513,15 @@ namespace bpr::app::detail {
 		bool        SecretRetained             = false;
 		int         RecordingFailure           = -1;
 		int         AccountReadCount           = 0;
-		int         LastReadOperation          = -1;
-		int         SmartAcquireCount          = 0;
-		int         SmartAcquireRefusalCount   = 0;
-		int         SmartDiscoveryCount        = 0;
-		int         SmartLsRefsCount           = 0;
-		int         SmartFetchCount            = 0;
+		/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
+		std::size_t MarkdownImageResolutions = 0U;
+		std::size_t MarkdownImageFetches     = 0U;
+		int         LastReadOperation        = -1;
+		int         SmartAcquireCount        = 0;
+		int         SmartAcquireRefusalCount = 0;
+		int         SmartDiscoveryCount      = 0;
+		int         SmartLsRefsCount         = 0;
+		int         SmartFetchCount          = 0;
 		std::string BaseOid;
 		std::string HeadOneOid;
 		std::string HeadTwoOid;
@@ -1517,6 +1524,11 @@ namespace bpr::app::detail {
 		/// while one is in flight.
 		static void               hold_review_mutation_terminals(github_application& aApplication, bool aHold);
 		[[nodiscard]] static auto held_review_mutation_terminals(const github_application& aApplication) -> std::size_t;
+		/// \brief [[BPR-1558]]. Holds, or releases, every syntax classifier
+		/// blob read at its start, as a slow read would hold it. A departure
+		/// from the comparison still ends a held read, as it ends a real one.
+		static void               hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

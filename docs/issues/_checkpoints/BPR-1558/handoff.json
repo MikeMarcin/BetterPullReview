@@ -1,0 +1,41 @@
+{
+ "assignment": "BPR-1558",
+ "mandate": "Owner report 2026-10-16 on the installed 0.2.x app (possibly GHES): the right side of a diff did not syntax highlight until the reviewer switched off and back to the file. Find the race, fix the root cause so both sides always end highlighted, test with a negative control, run the full dev ctest once, reseal, and merge.",
+ "governing_rfc": "RFC-BPR-0006",
+ "root_cause": "adopt_classification handed a classification publication to the first side whose blob matched. When both sides are one blob (pure rename or move, or a file two compared updates share) classify_comparison asks twice, the host coalesces the second request, and the one publication coloured only the left pane; when it answered after the diff was shown the display-time cache read had nothing to give, so the right pane stayed plain until the file was opened again. Latent since ae6da0b54 (BPR-0185, 2026-08-07); not a recent regression.",
+ "fix": "adopt_classification adopts the spans on every side whose blob they name. Hardening: clear_diff_selection retires the appearance host's in-flight classifications (new appearance_application_host::cancel_classifications) beside the blob bindings and reads it already stops, so a later request for the same blob is submitted afresh rather than coalesced onto a stopped read.",
+ "changed_paths": [
+  "src/app/src/github_application.cpp",
+  "src/app/src/github_application_fixture_access.hpp",
+  "src/application/include/bpr/application/appearance_application_host.hpp",
+  "src/application/src/appearance_application_host.cpp",
+  "tests/application/appearance_application_host_tests.cpp",
+  "tests/end_to_end/syntax_delivery_public_path_tests.cpp",
+  "tests/end_to_end/CMakeLists.txt",
+  "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+  "scripts/verify_test_network_isolation.py",
+  "docs/architecture/system-architecture.md",
+  "docs/verification/RFC-BPR-0006.md",
+  "docs/issues/60-done/BPR-1558-both-comparison-panes-take-their-classification.md"
+ ],
+ "commits": {
+  "allocation_on_main": "fe524b215",
+  "fix": "6d93bc68e",
+  "merge_main_1": "69cb27719",
+  "reseal": "995060409",
+  "windows_pin": "0da3f6309",
+  "merge_main_2": "82f34e520"
+ },
+ "branch": "bpr-1558-syntax-departure",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1558-syntax-departure",
+ "verification": {
+  "negative_control": "application_syntax_delivery with only the previous adopt_classification restored fails at 'identical-sides: the right pane carries its classification'",
+  "full_ctest": "740 rows in disk-bounded batches on 0da3f6309's tests: 723 passed; every other row rerun or explained on the card (batching artifacts pass on rerun; load-sensitive rows pass serially; application_large_review_launch fails identically on the merge base)",
+  "merged_tree": "13 focused syntax, composition and inventory rows and application_composition_contract pass on 82f34e520",
+  "format": "clang-format 22.1.8",
+  "tidy": "clean on the four changed translation units",
+  "documentation": "DOCUMENTATION_OK; verifier 67 tests OK"
+ },
+ "pending": [],
+ "next_action": "None after merge to main. The installed 0.2.x keeps the defect until a release carries the fix."
+}

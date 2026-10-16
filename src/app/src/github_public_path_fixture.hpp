@@ -47,6 +47,11 @@ namespace bpr::app::detail {
 		[[nodiscard]] auto transport_factory() const noexcept
 			-> std::shared_ptr<
 				adapters::github::detail::github_wire_transport_factory_port>;
+		/// \brief RFC-BPR-0084. Serves body images from the fixture pack's
+		/// `images` table by served address; any other address fails, so a
+		/// fixture run never fetches from the network.
+		[[nodiscard]] auto markdown_image_media_factory() const
+			-> adapters::github::detail::github_provider::media_transport_factory;
 		[[nodiscard]] auto credential_vault() const noexcept
 			-> application::github_credential_vault_port&;
 		[[nodiscard]] auto take_enrollment_credential()

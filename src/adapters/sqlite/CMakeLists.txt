@@ -9,6 +9,7 @@ add_library(
         src/release_update_recovery_store.cpp
         src/window_review_restoration_store.cpp
         src/cached_review_overview_store.cpp
+        src/markdown_image_disk_cache.cpp
         src/catalog_database.cpp
         src/sqlite_connection.cpp
         src/review_ledger_database.cpp

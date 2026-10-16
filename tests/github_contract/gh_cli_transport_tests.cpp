@@ -367,6 +367,10 @@ namespace {
 		case read_operation::get_merge_base:
 			request.BaseOid = "1111111111111111111111111111111111111111";
 			break;
+		case read_operation::resolve_body_images:
+			request.PullRequestNumber = 17U;
+			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
+			break;
 		}
 		if (aOperation == read_operation::list_checks || aOperation == read_operation::get_merge_base) {
 			request.HeadOid = "0123456789abcdef0123456789abcdef01234567";
@@ -715,6 +719,8 @@ namespace {
 		auto           operations = std::vector<read_operation>{ read_operation_catalog.begin(), read_operation_catalog.end() };
 		operations.insert(operations.end(), discovery.begin(), discovery.end());
 		operations.insert(operations.end(), { read_operation::get_merge_assessment, read_operation::list_review_requests, read_operation::list_branch_rules, read_operation::get_branch_protection });
+		// RFC-BPR-0084. A configured CLI session resolves body images through the same closed GraphQL shape.
+		operations.push_back(read_operation::resolve_body_images);
 		for (const auto* profile : { &*cloud, &*enterprise }) {
 			for (const auto operation : operations) {
 				const auto request    = wire_request_for(*profile, operation);

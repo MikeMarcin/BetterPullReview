@@ -42,8 +42,10 @@ namespace bpr::adapters::github::detail {
 		get_merge_assessment,
 		list_branch_rules,
 		get_branch_protection,
+		/// RFC-BPR-0084. GitHub's rendered HTML of the accepted pull request's bodies.
+		resolve_body_images,
 		/// [[BPR-1560]]. The merge base GitHub names for the pull request's
-		/// recorded base and head (REST compare, `merge_base_commit`): the
+		/// head and its base branch (REST compare, `merge_base_commit`): the
 		/// commit GitHub's Files changed compares from.
 		get_merge_base,
 	};
@@ -80,8 +82,8 @@ namespace bpr::adapters::github::detail {
 	/// lookups work from this array so a compiled operation cannot be unknown
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
-	/// to the snapshot's own base and head.
-	inline constexpr std::array<read_operation, 20> all_read_operations{
+	/// to the snapshot's own head.
+	inline constexpr std::array<read_operation, 21> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -101,6 +103,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::get_merge_assessment,
 		read_operation::list_branch_rules,
 		read_operation::get_branch_protection,
+		read_operation::resolve_body_images,
 		read_operation::get_merge_base,
 	};
 
@@ -126,7 +129,8 @@ namespace bpr::adapters::github::detail {
 	/// \brief The closed set of authenticated compiled GraphQL read operations.
 	[[nodiscard]] constexpr auto graphql_read(const read_operation aOperation) noexcept -> bool
 	{
-		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment;
+		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment
+			|| aOperation == read_operation::resolve_body_images;
 	}
 
 	enum class http_method : std::uint8_t {
@@ -190,6 +194,8 @@ namespace bpr::adapters::github::detail {
 		std::string                                BranchRef, ReviewCursor;
 		std::uint32_t                              Page = 1;
 		std::optional<github_graphql_page_request> GraphqlPage;
+		/// RFC-BPR-0084. The body nodes `resolve_body_images` asks for; empty otherwise.
+		std::vector<std::string> Nodes;
 
 		auto operator==(const semantic_read_request&) const -> bool = default;
 	};

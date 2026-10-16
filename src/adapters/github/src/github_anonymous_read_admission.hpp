@@ -78,6 +78,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_requested_reviewers:
 		case read_operation::list_review_requests:
 		case read_operation::get_merge_assessment:
+		case read_operation::resolve_body_images:
 		case read_operation::list_branch_rules:
 		case read_operation::get_branch_protection:
 			return false;

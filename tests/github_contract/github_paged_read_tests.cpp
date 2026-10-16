@@ -1509,6 +1509,7 @@ namespace {
 				case read_operation::search_personal_pull_requests:
 				case read_operation::list_requested_reviewers:
 				case read_operation::get_merge_base:
+				case read_operation::resolve_body_images:
 					break;
 				}
 				return success_response(fixture_json(fixture_object{ }));

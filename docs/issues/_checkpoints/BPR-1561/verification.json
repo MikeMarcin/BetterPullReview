@@ -1,0 +1,85 @@
+{
+  "schema": "bpr.fixture-repair-verification.v1",
+  "issue": "BPR-1561",
+  "source_revision": "53f391c1617fe6c5866537c960708b7deebaa9a0",
+  "candidate": {
+    "path": "tests/scripts/package_runtime_tests.py",
+    "sha256": "ec369e426decff35b03f0f9da60521ebf2048f3dc786086d82fb618953ce3a96",
+    "diff": "One add_library(better_pull_review_xdiff SHARED fixture.cpp) line; all other bytes unchanged."
+  },
+  "local": [
+    {
+      "command": [
+        "python3",
+        "tests/scripts/package_runtime_tests.py"
+      ],
+      "exit_code": 0,
+      "tests": 21,
+      "passed": 20,
+      "skipped": 1,
+      "skip": "Linux CPack definition requires native producer; macOS cannot establish this result."
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "exit_code": 0,
+      "tests": 67,
+      "passed": 67
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "Byte comparison against HEAD before source commit",
+      "result": "Removing only the new add_library line reproduces the original entire test file, including every assertion."
+    }
+  ],
+  "native": {
+    "performed_by": "/root coordinator; this leaf issued no remote command",
+    "platform": "Ubuntu 26.04 x86_64 under WSL2; glibc 2.43",
+    "base_source": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+    "file_sha256": "ec369e426decff35b03f0f9da60521ebf2048f3dc786086d82fb618953ce3a96",
+    "command": [
+      "/home/mmarcin/bpr-v021/build/dev/better_pull_review_network_sandbox",
+      "/home/mmarcin/.local/bin/python3",
+      "/home/mmarcin/bpr-ubuntu-readiness-pnbMVP/source/tests/scripts/package_runtime_tests.py"
+    ],
+    "exit_code": 0,
+    "tests": 21,
+    "passed": 21,
+    "skipped": 0,
+    "elapsed_seconds": 0.858,
+    "receipt_timestamp_utc": "2026-10-16T17:17:38.887613+00:00",
+    "raw_evidence": [
+      ".mask/sessions/ubuntu-preparation-20261016/ubuntu-readiness-20261016-repair/receipt.json",
+      ".mask/sessions/ubuntu-preparation-20261016/ubuntu-readiness-20261016-repair/package-runtime.log",
+      ".mask/sessions/ubuntu-preparation-20261016/ubuntu-readiness-20261016-repair/candidate.patch"
+    ],
+    "regression_control": "The unmodified original aa629 producer failed under the same network sandbox at Install.cmake set_target_properties/install because better_pull_review_xdiff did not exist. Initial contracts.xml/contracts.log retain the raw failure.",
+    "unchanged_inputs": "git diff aa6294c50 HEAD is empty for package_runtime.py, Install.cmake, contained_temporary_support.py, skip_report.py and the original fixture; the exact patch is the only affected-source difference.",
+    "cleanup": "Coordinator restored and removed its temporary worktree; original /home/mmarcin/bpr-v021 stayed clean at aa6294c50."
+  },
+  "self_review": "The fixture now declares the production graph target with the required SHARED type. It reuses the existing configure-only source file. No target guard, assertion, generator selection, packaging policy, runtime or product source changed.",
+  "semantic_documentation_impact": "no-impact: existing product and release behavior is unchanged; this record and the issue document only test readiness.",
+  "limits": [
+    "No application compilation or production packaging/installation was performed.",
+    "Fixture success does not satisfy RFC-BPR-0038, BPR-0961 or BPR-0962 native desktop/vault, independent trust, licensing, vulnerability, crash/privacy or distribution obligations."
+  ]
+}

@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ceb537d50476734e71379c7e4ea6e7b66651c70e4461339aa9adf6d1518abf4b"
+		"fc35d33a25a4d970c82c29421b53e9ee871bad511aad290333db0a99e8b9f58d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9a5627b5f40069000de9519b1c52cf7b21d3de132a311675f20a0f80659e4139"
+        "78559ef1554ac45bd79e996123842305ac8a40ee6fbd9bfa1f5b388fb5732509"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2577,3 +2577,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
+
+# [[BPR-1558]] reseal over main 1e5c35b7f, whose own pins match its tree.
+# github_application.cpp hands one syntax classification to every comparison
+# side whose blob it names (a pure rename's two panes share one classification),
+# and clear_diff_selection retires the appearance host's in-flight
+# classifications beside the classifier blob bindings it already dropped. A
+# tests-on hold in the composition blob source and two fixture accessors
+# (github_application_fixture_access.hpp) let a course order classification
+# after the diff. Presentation delivery only: no grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1558.

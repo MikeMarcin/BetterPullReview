@@ -1,3 +1,4 @@
+#include "../../src/adapters/qt/src/markdown_images.hpp"
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
@@ -15,6 +16,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_refusal.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -661,6 +663,164 @@ namespace {
 			   "a website root edit parses one body and tallies again exactly the pull request, the file and its two folders");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-feedback course quiescence");
+	}
+
+	// RFC-BPR-0084. markdown-images-v1 through the real composition: the
+	// description's and the comments' images are resolved through GitHub's
+	// rendering, fetched from the fixture's served images, decoded off the
+	// GUI lane and drawn inline; the SVG and the missing image keep their
+	// placeholders. With BPR_SETUP_ARTIFACT_ROOT set, each theme is captured.
+	void run_markdown_images_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated markdown-images course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private markdown-images course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::markdown_images_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "markdown-images course startup");
+		expect(owner != nullptr, "markdown-images course application");
+		auto& window = owner->window();
+		window.resize(1400, 1000);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "markdown-images course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const body  = window.overview_page()->body_view();
+		const auto  state = [](const qt::markdown_body_view& aView, const std::size_t aIndex) {
+			return aView.image_store()->images()[aIndex].State;
+		};
+		const auto settled = [](const qt::markdown_body_view& aView) {
+			const auto& images = aView.image_store()->images();
+			return !images.empty() && std::ranges::none_of(images, [](const auto& aImage) { return aImage.State == core::markdown_image_state::loading; });
+		};
+		wait_for([&] { return body->isVisible() && settled(*body); }, "every description image has an answer", [&] {
+			for (const auto& image : body->image_store()->images()) {
+				std::cerr << "image " << image.Ordinal << " " << image.Source.toStdString() << " state=" << static_cast<int>(image.State) << '\n';
+			} });
+		const auto& images = body->image_store()->images();
+		expect(images.size() == 10U, "ten description images; the <img> in code is not one");
+		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
+			expect(state(*body, index) == core::markdown_image_state::loaded && images[index].Image != nullptr, "attachments, proxied, linked, animated and themed images load");
+		}
+		expect(images[0].Image->Width == 1252U && images[1].Image->Width == 1253U && images[1].Hints.Width.has_value(), "the uploads keep their sizes and width hint");
+		expect(images[5].Link == QStringLiteral("https://images.example.invalid/flower"), "the linked photograph keeps its link");
+		expect(images[6].Image->Frames.size() == 8U, "the animated GIF keeps its frames");
+		expect(images[7].Source.endsWith(window.palette().color(QPalette::Base).lightness() < 128 ? QStringLiteral("theme-dark.png") : QStringLiteral("theme-light.png")),
+			   "the <picture> shows the source for the reader's scheme");
+		// RFC-BPR-0084 owner amendment 1: the SVG badge rasterizes at twice
+		// its size, and the WebP photograph decodes through qwebp.
+		expect(state(*body, 8U) == core::markdown_image_state::loaded && images[8].Image->Width == 90U && images[8].Image->Height == 20U && images[8].Image->Scale == 2U,
+			   "the SVG badge shows at its own size, drawn at twice the density");
+		expect(state(*body, 9U) == core::markdown_image_state::loaded && images[9].Image->Width == 240U && images[9].Image->Height == 120U, "the WebP photograph shows");
+		const auto text = body->rendered_view()->toPlainText();
+		expect(!text.contains(QStringLiteral("[Image:")), "no description image is a placeholder");
+		expect(text.contains(QStringLiteral("<img src=\"not-an-image.png\">")), "an <img> in code stays text");
+		capture(window, QStringLiteral("markdown-images-overview.png"));
+
+		// The pull request comments read in place in Discuss.
+		window.choose_modality(qt::review_modality::discuss);
+		auto* const cards = window.conversation_panel()->cards();
+		const auto  post  = [&](const char* aId) -> qt::markdown_body_view* {
+			auto* const open = cards->open_card();
+			if (open == nullptr) {
+				return nullptr;
+			}
+			for (auto* const widget : open->findChildren<QWidget*>()) {
+				auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget);
+				if (reader != nullptr && reader->original_body().find(aId) != std::string::npos) {
+					return reader;
+				}
+			}
+			return nullptr;
+		};
+		cards->open_thread("issue-comment:IC_mi_1");
+		wait_for([&] { return post("Narrow layout") != nullptr && settled(*post("Narrow layout")); }, "the first comment's image has an answer");
+		expect(state(*post("Narrow layout"), 0U) == core::markdown_image_state::loaded, "a comment's attachment loads");
+		capture(window, QStringLiteral("markdown-images-comment-1.png"));
+		cards->open_thread("issue-comment:IC_mi_2");
+		wait_for([&] { return post("Spinner while it loads") != nullptr && settled(*post("Spinner while it loads")); }, "the second comment's images have answers");
+		expect(state(*post("Spinner while it loads"), 0U) == core::markdown_image_state::loaded && state(*post("Spinner while it loads"), 1U) == core::markdown_image_state::failed,
+			   "a comment's GIF loads and the gone image fails to its placeholder");
+		expect(post("Spinner while it loads")->rendered_view()->toPlainText().contains(QStringLiteral("[Image: Missing image — open image link]")), "the gone image keeps the original placeholder");
+		capture(window, QStringLiteral("markdown-images-comment-2.png"));
+
+		// Reopening a comment answers from the cache within the same turns.
+		cards->open_thread("issue-comment:IC_mi_1");
+		wait_for([&] { return post("Narrow layout") != nullptr && settled(*post("Narrow layout")); }, "the reopened comment's image is answered from the cache");
+		expect(state(*post("Narrow layout"), 0U) == core::markdown_image_state::loaded, "the reopened comment's attachment shows again");
+		const auto first = github_application_fixture_access::evidence(*owner);
+		expect(first.MarkdownImageResolutions >= 1U && first.MarkdownImageFetches >= 12U, "the first run resolved and fetched its images");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images course quiescence");
+		owner.reset();
+
+		// RFC-BPR-0084 AC06. A restart on the same profile shows what decoded
+		// from the disk cache, and asks GitHub for nothing.
+		terminal     = false;
+		auto restart = github_application_fixture_access::start(app::detail::github_public_path_fixture::markdown_images_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && restart && restart->is_quiescent(); }, "markdown-images restart");
+		expect(owner != nullptr, "markdown-images restarted application");
+		auto& again = owner->window();
+		again.resize(1400, 1000);
+		again.show();
+		again.github_connect_action()->trigger();
+		wait_for([&] { return again.github_status_text() == "GitHub account connected." && again.github_open_action()->isEnabled(); }, "markdown-images restart connection");
+		submit(again, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const reread = again.overview_page()->body_view();
+		wait_for([&] { return reread->isVisible() && settled(*reread); }, "every description image has an answer after the restart");
+		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U }) {
+			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
+		}
+		const auto second = github_application_fixture_access::evidence(*owner);
+		expect(second.MarkdownImageFetches == 0U && second.MarkdownImageResolutions == 0U, "after the restart nothing is resolved or fetched");
+
+		// RFC-BPR-0084 Q3. Don't load, chosen in Settings, reaches the open
+		// window: every image is its placeholder and nothing is asked for.
+		const auto option = [&again](const char* aName) {
+			auto* const found = again.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Images preference is in Settings");
+			return found;
+		};
+		option("markdownImagesOff")->click();
+		wait_for([&] { return !reread->images_shown(); }, "Don't load reaches the description");
+		expect(reread->rendered_view()->toPlainText().contains(QStringLiteral("[Image: The summary before the change — open image link]")), "the description's images are placeholders");
+		again.choose_modality(qt::review_modality::discuss);
+		auto* const againCards = again.conversation_panel()->cards();
+		againCards->open_thread("issue-comment:IC_mi_2");
+		wait_for([&] {
+			auto* const open = againCards->open_card();
+			if (open == nullptr) {
+				return false;
+			}
+			for (auto* const widget : open->findChildren<QWidget*>()) {
+				auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget);
+				if (reader != nullptr && reader->original_body().find("Spinner while it loads") != std::string::npos) {
+					return !reader->images_shown() && reader->rendered_view()->toPlainText().contains(QStringLiteral("[Image: Loading spinner — open image link]"));
+				}
+			}
+			return false;
+		},
+				 "a comment opened with Don't load shows placeholders");
+		const auto off = github_application_fixture_access::evidence(*owner);
+		expect(off.MarkdownImageFetches == 0U && off.MarkdownImageResolutions == 0U, "Don't load asks GitHub for nothing, even for a comment never seen since the restart");
+		option("markdownImagesLoad")->click();
+		again.choose_modality(qt::review_modality::overview);
+		wait_for([&] { return reread->images_shown() && settled(*reread) && state(*reread, 0U) == core::markdown_image_state::loaded; }, "Load shows the images again");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images restart quiescence");
 	}
 
 	// [[BPR-1089]]. The owner's Overview look opens overview-labels-v1: 34
@@ -2416,6 +2576,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-feedback")) {
 		run_overview_feedback_course();
 		std::cout << "overview-feedback-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--markdown-images")) {
+		run_markdown_images_course();
+		std::cout << "markdown-images-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-labels")) {

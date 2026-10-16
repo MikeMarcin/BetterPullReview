@@ -614,6 +614,16 @@ namespace bpr::application {
 		hidden,
 	};
 
+	/// \brief RFC-BPR-0084 Q3. Whether images in pull request descriptions and
+	/// comments load (owner, 2026-10-16: a "Load images in descriptions and
+	/// comments" preference, on by default). Load is zero, so a stored profile
+	/// older than the preference loads them. Off, each image is its accessible
+	/// placeholder and nothing is fetched.
+	enum class review_markdown_images : std::uint8_t {
+		load,
+		off,
+	};
+
 	/// \brief What reading the stored label columns left out ([[BPR-1088]]).
 	///
 	/// \details A load observation, never a preference: no store writes it,
@@ -668,6 +678,8 @@ namespace bpr::application {
 		review_line_details LineDetails = review_line_details::shown;
 		/// [[BPR-1512]]. Logical pixels; half the previous fixed 56-pixel divider.
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
+		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
+		review_markdown_images MarkdownImages = review_markdown_images::load;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -705,6 +717,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_overview_counts::all)
 			&& static_cast<std::uint8_t>(aSettings.LineDetails)
 			<= static_cast<std::uint8_t>(review_line_details::hidden)
+			&& static_cast<std::uint8_t>(aSettings.MarkdownImages)
+			<= static_cast<std::uint8_t>(review_markdown_images::off)
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();

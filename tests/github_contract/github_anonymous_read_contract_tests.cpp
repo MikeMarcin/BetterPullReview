@@ -369,7 +369,8 @@ namespace {
 				|| operation == read_operation::list_review_requests
 				|| operation == read_operation::get_merge_assessment
 				|| operation == read_operation::list_branch_rules
-				|| operation == read_operation::get_branch_protection) {
+				|| operation == read_operation::get_branch_protection
+				|| operation == read_operation::resolve_body_images) {
 				expect(!onGithub.has_value()
 						   && onGithub.error()
 							   == anonymous_read_refusal::graphql_surface_unavailable,
@@ -379,8 +380,8 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 12U && all_read_operations.size() == 20U,
-			   "twelve of twenty operations admit anonymous REST reads");
+		expect(eligible == 12U && all_read_operations.size() == 21U,
+			   "twelve of twenty-one operations admit anonymous REST reads");
 		expect(anonymous_read_operations.size() + 3U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
@@ -442,6 +443,10 @@ namespace {
 				break;
 			case read_operation::list_requested_reviewers:
 				semantic.PullRequestNumber = 17U;
+				break;
+			case read_operation::resolve_body_images:
+				semantic.PullRequestNumber = 17U;
+				semantic.Nodes             = { "PR_kwDOA" };
 				break;
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:

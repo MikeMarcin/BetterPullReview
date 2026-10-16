@@ -176,11 +176,21 @@ namespace bpr::adapters::github::detail {
 			core::github_session_request_context Context;
 		};
 
+		/// \brief RFC-BPR-0084. A deliberate credential-free image authority.
+		///
+		/// \details Satisfies only the image surface and every API, capability,
+		/// mutation, device, publication and smart request refuses it. Like the
+		/// other credential-free alternatives it has no material field.
+		struct media_request
+		{
+		};
+
 		using credential_binding = std::variant<bootstrap_credential,
 												account_credential,
 												credential_free_request,
 												anonymous_read_request,
-												anonymous_smart_request>;
+												anonymous_smart_request,
+												media_request>;
 
 		enum class native_request_surface : std::uint8_t {
 			rest_read,
@@ -191,6 +201,9 @@ namespace bpr::adapters::github::detail {
 			/// [[BPR-1175]]. The publication catalog: REST reads and writes of
 			/// Git objects, a new branch and a pull request.
 			publication,
+			/// RFC-BPR-0084. One image of a rendered body, at an address the
+			/// core admitted, following only redirects the core admits.
+			markdown_image,
 		};
 
 		struct native_request
@@ -211,6 +224,11 @@ namespace bpr::adapters::github::detail {
 			// The one status that is success. Only a review mutation's
 			// exchange names another ([[BPR-1018]]).
 			int SuccessfulStatus = 200;
+			// RFC-BPR-0084. The image surface's current admitted hop and the
+			// policy every redirect is judged by; its own total deadline.
+			core::markdown_image_hop                 ImageHop;
+			core::markdown_image_fetch_policy        ImagePolicy;
+			std::optional<std::chrono::milliseconds> Deadline;
 		};
 
 		struct hop_cancelled
@@ -234,6 +252,8 @@ namespace bpr::adapters::github::detail {
 			std::vector<http_header>        Headers;
 			page_completeness               Completeness = page_completeness::unknown;
 			application::diagnostic_summary CapabilitySummary{ };
+			/// RFC-BPR-0084. The image surface's declared content type.
+			std::string ContentType;
 		};
 
 		struct hop_capability_failure
@@ -1383,7 +1403,9 @@ namespace bpr::adapters::github::detail {
 					&& aState.Operation->Request.Surface
 						!= native_request_surface::rest_read
 					&& aState.Operation->Request.Surface
-						!= native_request_surface::publication)
+						!= native_request_surface::publication
+					&& aState.Operation->Request.Surface
+						!= native_request_surface::markdown_image)
 				|| (aState.RetryAfter.has_value()
 					&& !parse_retry_after(aState.RetryAfter).has_value())
 				|| (aState.RateLimitLimit.has_value()
@@ -1408,14 +1430,9 @@ namespace bpr::adapters::github::detail {
 			const auto redirectStatus = aState.Status == 301 || aState.Status == 302
 				|| aState.Status == 303 || aState.Status == 307
 				|| aState.Status == 308;
-			if ((rateTupleCount != 0U && rateTupleCount != 4U)
-				|| (rateTupleCount == 0U
-					&& aState.Operation->Request.RequireRateLimitHeaders
-					&& !redirectStatus)
-				|| (rateTupleCount == 4U
-					&& *aState.RateLimitResource
-						!= rate_limit_resource_name(
-							aState.Operation->Request.RateLimitResource))) {
+			// An image host is not GitHub's API: its rate headers, if any, are not ours to read.
+			const auto image = aState.Operation->Request.Surface == native_request_surface::markdown_image;
+			if (!image && ((rateTupleCount != 0U && rateTupleCount != 4U) || (rateTupleCount == 0U && aState.Operation->Request.RequireRateLimitHeaders && !redirectStatus) || (rateTupleCount == 4U && *aState.RateLimitResource != rate_limit_resource_name(aState.Operation->Request.RateLimitResource)))) {
 				if (!aState.Malformed) {
 					aState.CapabilityDetail = rateTupleCount == 0U
 						? application::github_capability_diagnostic::transport_missing_rate_tuple
@@ -1431,7 +1448,7 @@ namespace bpr::adapters::github::detail {
 			const auto rateRemaining = aState.RateLimitRemaining.has_value()
 				? strict_decimal(*aState.RateLimitRemaining)
 				: std::optional<std::uint64_t>{ };
-			if (rateLimit.has_value() && rateRemaining.has_value()
+			if (!image && rateLimit.has_value() && rateRemaining.has_value()
 				&& *rateRemaining > *rateLimit) {
 				aState.Malformed = true;
 			}
@@ -2195,6 +2212,16 @@ namespace bpr::adapters::github::detail {
 		{
 		}
 
+		implementation(
+			const validated_github_host_profile& aProfile,
+			media_request                        aCredential,
+			transport_policy                     aPolicy)
+			: Profile{ aProfile }
+			, Credential{ aCredential }
+			, Policy{ std::move(aPolicy) }
+		{
+		}
+
 		implementation(const implementation&)                    = delete;
 		auto operator=(const implementation&) -> implementation& = delete;
 
@@ -2452,6 +2479,44 @@ namespace bpr::adapters::github::detail {
 				return github_publication_wire_cancelled{ .Transmission = transmission };
 			}
 			return github_publication_wire_error{ .Transmission = transmission };
+		}
+
+		[[nodiscard]] auto perform_markdown_image(
+			const application::markdown_image_fetch_request& aRequest,
+			const std::stop_token                            aStop) -> application::markdown_image_fetch_result
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected{ core::markdown_image_state::failed };
+			}
+			// The first hop is re-admitted here, so a request the core would
+			// refuse never reaches the wire whoever built it.
+			const auto first = core::admit_markdown_image_fetch(aRequest.First.Address, aRequest.Policy);
+			if (!first || first->Credential != aRequest.First.Credential || aRequest.MaximumBytes > core::markdown_image_encoded_bytes) {
+				return std::unexpected{ first ? core::markdown_image_state::blocked : first.error() };
+			}
+			native_request native;
+			native.Surface                 = native_request_surface::markdown_image;
+			native.RateLimitResource       = application::github_rate_limit_resource::core;
+			native.RequireRateLimitHeaders = false;
+			native.Method                  = http_method::get;
+			native.ResponseLimit           = aRequest.MaximumBytes;
+			native.ImageHop                = *first;
+			native.ImagePolicy             = aRequest.Policy;
+			native.Deadline                = std::chrono::milliseconds{ aRequest.DeadlineMs };
+			LastImageRefusal.reset();
+			const auto result = perform_validated(aRequest, std::move(native), aStop);
+			if (const auto* success = std::get_if<hop_success>(&result)) {
+				return application::markdown_image_fetched{ .Bytes = success->Body, .ContentType = success->ContentType };
+			}
+			if (const auto* error = std::get_if<application::github_provider_error>(&result)) {
+				if (error->Failure == application::github_provider_failure::response_limit) {
+					return std::unexpected{ core::markdown_image_state::too_large };
+				}
+				if (error->Failure == application::github_provider_failure::redirect && LastImageRefusal) {
+					return std::unexpected{ *LastImageRefusal };
+				}
+			}
+			return std::unexpected{ core::markdown_image_state::failed };
 		}
 
 		[[nodiscard]] auto perform_device_authorization(
@@ -2771,10 +2836,11 @@ namespace bpr::adapters::github::detail {
 			}
 
 			std::shared_ptr<operation_state> state;
+			const auto                       budget = aNative.Deadline ? std::min(*aNative.Deadline, Policy.TotalTimeout) : Policy.TotalTimeout;
 			try {
 				state = std::make_shared<operation_state>(
 					std::move(aNative), aStop,
-					std::chrono::steady_clock::now() + Policy.TotalTimeout,
+					std::chrono::steady_clock::now() + budget,
 					std::move(aWitness));
 			} catch (...) {
 				discard_bootstrap();
@@ -2985,7 +3051,10 @@ namespace bpr::adapters::github::detail {
 							},
 							aRequest.Correlation.Parent);
 					} else if constexpr (
-						std::same_as<credential_type, anonymous_smart_request>) {
+						std::same_as<credential_type, anonymous_smart_request>
+						|| std::same_as<credential_type, media_request>) {
+						// RFC-BPR-0084: body images are the whole of the media
+						// binding, which answers no GitHub read at all.
 						// The Git smart surface is the whole of what this
 						// binding names. It answers no REST read at all — not
 						// the eligible anonymous ones, which are the other
@@ -3147,6 +3216,19 @@ namespace bpr::adapters::github::detail {
 					   credential->Context.Authority, Profile);
 		}
 
+		/// RFC-BPR-0084. The media binding, or a GHES account binding for its own host's images.
+		[[nodiscard]] auto credential_matches(
+			const application::markdown_image_fetch_request& aRequest) const noexcept -> bool
+		{
+			if (std::holds_alternative<media_request>(Credential)) {
+				return true;
+			}
+			return std::holds_alternative<account_credential>(Credential)
+				&& Profile.server_contract() == application::github_server_contract::ghes_3_18_2022_11_28
+				&& aRequest.Policy.Contract == core::markdown_image_host_contract::ghes
+				&& aRequest.Policy.Hostname == Profile.hostname();
+		}
+
 		[[nodiscard]] auto credential_matches(
 			const device_authorization_wire_request&) const noexcept -> bool
 		{
@@ -3208,7 +3290,8 @@ namespace bpr::adapters::github::detail {
 		{
 			return !std::holds_alternative<credential_free_request>(Credential)
 				&& !std::holds_alternative<anonymous_read_request>(Credential)
-				&& !std::holds_alternative<anonymous_smart_request>(Credential);
+				&& !std::holds_alternative<anonymous_smart_request>(Credential)
+				&& !std::holds_alternative<media_request>(Credential);
 		}
 
 		/// \brief Reports whether this binding may lease the Git smart surface.
@@ -3238,7 +3321,8 @@ namespace bpr::adapters::github::detail {
 					if constexpr (
 						std::same_as<credential_type, credential_free_request>
 						|| std::same_as<credential_type, anonymous_read_request>
-						|| std::same_as<credential_type, anonymous_smart_request>) {
+						|| std::same_as<credential_type, anonymous_smart_request>
+						|| std::same_as<credential_type, media_request>) {
 						return { };
 					} else {
 						return aCredential.Material.bytes();
@@ -3335,10 +3419,63 @@ namespace bpr::adapters::github::detail {
 			return configuration;
 		}
 
+		/// RFC-BPR-0084. The profile's own GHES host or its `media.` host:
+		/// the only places an image request may carry the credential.
+		[[nodiscard]] auto image_credential_origin(const native_request& aWire, const QUrl& aUrl) const -> bool
+		{
+			const auto hostname = std::string{ Profile.hostname() };
+			const auto host     = aUrl.host(QUrl::FullyEncoded).toLower().toStdString();
+			return Profile.server_contract() == application::github_server_contract::ghes_3_18_2022_11_28
+				&& aWire.ImagePolicy.Contract == core::markdown_image_host_contract::ghes && aWire.ImagePolicy.Hostname == hostname
+				&& aUrl.scheme() == QStringLiteral("https") && (aUrl.port() == -1 || aUrl.port() == 443)
+				&& (host == hostname || host == "media." + hostname);
+		}
+
+		[[nodiscard]] auto make_image_request(
+			const native_request& aWire, const QUrl& aUrl)
+			-> std::optional<QNetworkRequest>
+		{
+			auto request = QNetworkRequest{ aUrl };
+			request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+			request.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute, QNetworkRequest::Manual);
+			request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+			request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2DirectAttribute, false);
+			request.setAttribute(QNetworkRequest::Http2CleartextAllowedAttribute, false);
+			request.setMaximumRedirectsAllowed(0);
+			request.setDecompressedSafetyCheckThreshold(0);
+			request.setRawHeader("Accept", "image/png,image/jpeg,image/gif");
+			request.setRawHeader("User-Agent", "BetterPullReview/0.1");
+			request.setRawHeader("Accept-Encoding", "identity");
+			request.setRawHeader("Accept-Language", "*");
+			// The core marks a hop credentialed only for a GHES credential
+			// origin and drops the mark for good once a hop leaves one; this
+			// re-checks the exact destination before the header exists.
+			if (aWire.ImageHop.Credential && carries_authorization() && image_credential_origin(aWire, aUrl)) {
+				QByteArray                  authorization{ "Bearer " };
+				const qbytearray_wipe_guard authorizationGuard{ authorization };
+				const auto                  credential = credential_bytes();
+				authorization.append(reinterpret_cast<const char*>(credential.data()), static_cast<qsizetype>(credential.size()));
+				request.setRawHeader("Authorization", authorization);
+			}
+			const auto tls = ssl_configuration();
+			if (!tls.has_value()) {
+				return std::nullopt;
+			}
+			request.setSslConfiguration(*tls);
+			return request;
+		}
+
 		[[nodiscard]] auto make_request(
 			const native_request& aWire, const QUrl& aUrl)
 			-> std::optional<QNetworkRequest>
 		{
+			if (aWire.Surface == native_request_surface::markdown_image) {
+				return make_image_request(aWire, aUrl);
+			}
 			auto request = QNetworkRequest{ aUrl };
 			request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
 								 QNetworkRequest::ManualRedirectPolicy);
@@ -3494,10 +3631,10 @@ namespace bpr::adapters::github::detail {
 					application::github_provider_failure::unavailable);
 			}
 
-			const auto responseBodyLimit = std::min(
-				Policy.ResponseBodyLimit,
-				aOperation->Request.ResponseLimit);
-			hop_state state{ aOperation, responseBodyLimit };
+			const auto responseBodyLimit = aOperation->Request.Surface == native_request_surface::markdown_image
+				? std::min(aOperation->Request.ResponseLimit, core::markdown_image_encoded_bytes)
+				: std::min(Policy.ResponseBodyLimit, aOperation->Request.ResponseLimit);
+			hop_state  state{ aOperation, responseBodyLimit };
 			try {
 				state.Body.reserve(responseBodyLimit + 1U);
 			} catch (...) {
@@ -3704,6 +3841,18 @@ namespace bpr::adapters::github::detail {
 				result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;
 				return result;
 			}
+			if (aOperation->Request.Surface == native_request_surface::markdown_image) {
+				if (state.ContentLength.has_value() && *state.ContentLength != state.Body.size()) {
+					return provider_error(application::github_provider_failure::malformed_response);
+				}
+				return hop_success{
+					.Status       = state.Status,
+					.Body         = std::move(state.Body),
+					.Headers      = { },
+					.Completeness = page_completeness::complete,
+					.ContentType  = state.ContentType.value_or(std::string{ }),
+				};
+			}
 			if (
 				!state.ContentType.has_value()
 				|| !json_media_type(*state.ContentType)) {
@@ -3784,12 +3933,59 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 
+		/// RFC-BPR-0084. Follows an image's hops while the core admits them.
+		[[nodiscard]] auto execute_markdown_image(
+			const std::shared_ptr<operation_state>& aOperation) -> hop_result
+		{
+			std::vector<std::string> visited;
+			for (;;) {
+				if (cancellation_result(aOperation)) {
+					return hop_cancelled{ };
+				}
+				if (!remaining_before_deadline(aOperation->Deadline).has_value()) {
+					return provider_error(application::github_provider_failure::timeout);
+				}
+				const auto& hop     = aOperation->Request.ImageHop;
+				const auto  encoded = QByteArray{ hop.Address.data(), static_cast<qsizetype>(hop.Address.size()) };
+				const auto  url     = QUrl::fromEncoded(encoded, QUrl::StrictMode);
+				if (!url.isValid() || url.scheme() != QStringLiteral("https") || url.host().isEmpty() || !url.userInfo().isEmpty()) {
+					LastImageRefusal = core::markdown_image_state::blocked;
+					return provider_error(application::github_provider_failure::redirect);
+				}
+				if (std::ranges::find(visited, hop.Address) != visited.end()) {
+					return provider_error(application::github_provider_failure::redirect);
+				}
+				visited.push_back(hop.Address);
+				const auto candidates = proxy_candidates(url);
+				if (cancellation_result(aOperation)) {
+					return hop_cancelled{ };
+				}
+				if (!candidates.has_value() || candidates->empty()) {
+					return provider_error(application::github_provider_failure::network);
+				}
+				auto        result   = execute_with_proxy_candidates(aOperation, url, *candidates);
+				const auto* redirect = std::get_if<hop_redirect>(&result);
+				if (redirect == nullptr) {
+					return result;
+				}
+				auto next = core::admit_markdown_image_redirect(hop, redirect->Target, aOperation->Request.ImagePolicy);
+				if (!next) {
+					LastImageRefusal = next.error();
+					return provider_error(application::github_provider_failure::redirect);
+				}
+				aOperation->Request.ImageHop = std::move(*next);
+			}
+		}
+
 		[[nodiscard]] auto
 		execute(const std::shared_ptr<operation_state>& aOperation) -> hop_result
 		{
 			if (aOperation->Request.Surface
 				== native_request_surface::device_authorization) {
 				return execute_device_authorization(aOperation);
+			}
+			if (aOperation->Request.Surface == native_request_surface::markdown_image) {
+				return execute_markdown_image(aOperation);
 			}
 
 			const auto initial = build_url(Profile, aOperation->Request);
@@ -4116,14 +4312,17 @@ namespace bpr::adapters::github::detail {
 
 		validated_github_host_profile Profile;
 		credential_binding            Credential;
-		transport_policy              Policy;
-		QThread                       Thread;
-		QObject*                      Dispatcher     = nullptr;
-		QNetworkAccessManager*        Manager        = nullptr;
-		hop_state*                    ActiveHop      = nullptr;
-		smart_hop_state*              ActiveSmartHop = nullptr;
-		std::atomic_bool              Closing        = false;
-		std::atomic_flag              Busy           = ATOMIC_FLAG_INIT;
+		/// RFC-BPR-0084. Why the last image fetch refused a hop; written on the
+		/// worker before the operation completes, read after it, one at a time.
+		std::optional<core::markdown_image_state> LastImageRefusal;
+		transport_policy                          Policy;
+		QThread                                   Thread;
+		QObject*                                  Dispatcher     = nullptr;
+		QNetworkAccessManager*                    Manager        = nullptr;
+		hop_state*                                ActiveHop      = nullptr;
+		smart_hop_state*                          ActiveSmartHop = nullptr;
+		std::atomic_bool                          Closing        = false;
+		std::atomic_flag                          Busy           = ATOMIC_FLAG_INIT;
 	};
 
 	namespace {
@@ -4172,7 +4371,12 @@ namespace bpr::adapters::github::detail {
 			transport_policy                     aPolicy) noexcept
 			-> native_https_transport_factory_result
 		{
-			if (!profile_policy_valid(aProfile)) {
+			// RFC-BPR-0084. The media binding sends no credential, so it needs
+			// only the system proxy and trust, whichever transport the
+			// profile authenticates through.
+			const auto media = std::same_as<Credential, media_request>;
+			if (media ? !(aProfile.proxy_mode() == application::github_proxy_mode::system && aProfile.trust_mode() == application::github_trust_mode::system)
+					  : !profile_policy_valid(aProfile)) {
 				return std::unexpected{
 					aProfile.authentication_transport()
 							!= application::github_authentication_transport::
@@ -4338,6 +4542,28 @@ namespace bpr::adapters::github::detail {
 				application::github_provider_failure::unavailable);
 		}
 		return Implementation->perform_device_authorization(aRequest, aStop);
+	}
+
+	auto native_https_transport::perform_markdown_image(
+		const application::markdown_image_fetch_request& aRequest,
+		const std::stop_token                            aStop)
+		-> application::markdown_image_fetch_result
+	{
+		if (Implementation == nullptr) {
+			return std::unexpected{ core::markdown_image_state::failed };
+		}
+		try {
+			return Implementation->perform_markdown_image(aRequest, aStop);
+		} catch (...) {
+			return std::unexpected{ core::markdown_image_state::failed };
+		}
+	}
+
+	auto make_native_https_media_transport(
+		const validated_github_host_profile& aProfile) noexcept
+		-> native_https_transport_factory_result
+	{
+		return make_transport(aProfile, media_request{ }, make_production_policy());
 	}
 
 	auto make_native_https_bootstrap_transport(
@@ -4544,6 +4770,17 @@ namespace bpr::adapters::github::detail {
 				.Material = std::move(aCredential.Credential),
 			},
 			make_test_policy(aConfiguration));
+	}
+
+	auto make_native_https_media_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result
+	{
+		if (!valid_test_configuration(aConfiguration)) {
+			return std::unexpected{ native_https_configuration_failure::invalid_test_configuration };
+		}
+		return make_transport(aProfile, media_request{ }, make_test_policy(aConfiguration));
 	}
 
 	auto make_native_https_credential_free_transport_for_test(

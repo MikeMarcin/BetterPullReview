@@ -89,6 +89,7 @@ that fuzz it. "Selector" is the first input byte modulo the target's case count.
 | `admit_markdown_link` (`core/markdown_navigation.cpp`): credential, scheme, authority and path checks | A link destination in a provider body, and the observed host and repository | `core_markdown_navigation` | `fuzz_markdown`, selectors 0 and 1 |
 | `map_tour_markdown`, `map_tour_stop`, `edit_tour_markdown`, `insert_tour_brief`, `tour_markdown_label`, `render_tour_index`, `render_tour_stop` (`core/review_tour_markdown.cpp`) | A pull request description or tour stop someone else wrote | `core_review_tour_markdown`, `application_review_tour_publication_*` | `fuzz_markdown`, selector 2 |
 | `qt::markdown_body_view::set_body`: `rendering_limit`, fence and tab repair, image placeholders around Qt's reader (`adapters/qt/markdown_body_view.cpp`) | A provider body | `qt_markdown_body_1_0`, `_1_25`, `_2_0` | `fuzz_markdown_view` |
+| RFC-BPR-0084: `scan_html_images`, `markdown_linked_images`, `served_markdown_images`, `admit_markdown_image_source`, `match_served_markdown_image`, `admit_markdown_image_fetch`, `admit_markdown_image_redirect` (`core/markdown_image.cpp`) | Image markup in a provider body; GitHub's rendered `bodyHTML`; a redirect location | `core_markdown_image`, `github_markdown_image_resolution` | `fuzz_markdown`, selector 3 |
 | `render_round_markdown` (`core/review_cycle_round_markdown.cpp`) | An admitted round | `core_review_cycle_round_markdown` | `fuzz_review_cycle`, selector 3, on admission |
 
 ### Settings
@@ -190,7 +191,7 @@ in this graph.
 | Corpus | Seeds | Where they come from |
 |---|---|---|
 | `diff` | 12 | Hand-made pairs: identical, replaced, CRLF against LF, whitespace, NUL bytes, BOM, invalid UTF-8, a moved block, absent sides, the material path |
-| `markdown` | 22 | Hostile and ordinary link destinations; review Markdown from `docs/rfcs/assets/bpr-review-cycles-v1/examples` and `bpr-review-tour-v1/examples`; one regression seed |
+| `markdown` | 26 | Hostile and ordinary link destinations; review Markdown from `docs/rfcs/assets/bpr-review-cycles-v1/examples` and `bpr-review-tour-v1/examples`; one regression seed; three image-markup and served-HTML seeds and one SVG badge seed (RFC-BPR-0084) |
 | `markdown_view` | 11 | Tables, fences with tabs, images, deep nesting, HTML, the tour examples; one regression seed |
 | `settings_theme` | 15 | The draft branch's five theme documents; cell rewrites of text, integers, NULL, blobs and invalid UTF-8 for both stores |
 | `github_api` | 95 | The recorded github.com contract responses (`tests/fixtures/github/contracts/v1/github-com`); capability fixtures, with and without rate-limit headers; the RFC-BPR-0017 signed-out captures; the draft branch's GraphQL documents; device-flow, mutation, staged-review and publication bodies shaped as the contract tests write them; `gh api --include` output; the eleven pages of `github_paged_read`'s success course, captured in request order from an uncommitted dump of its fixture transport, and the signed-out variant; timeline and discovery pages; one regression seed |
@@ -320,6 +321,30 @@ checked-in seeds. 2026-10-01T19:40:10Z to 19:55:11Z.
 | Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
 |---|---|---|---|---|---|---|---|
 | `fuzz_github_api` | 970305 | 2,134,878 | 2,369 | 7,774 | 1,055 | cov 24,505, ft 59,727, 6,788 units | clean |
+
+### RFC-BPR-0084: `fuzz_markdown` selector 3, 5 minutes
+
+Selector 3 reads its payload as a body's image markup (`scan_html_images`,
+`markdown_linked_images`) and as GitHub's rendered HTML
+(`served_markdown_images`), and admits what it finds as a source, a served
+match, a first hop and a redirect under a GitHub.com and a GHES policy. It
+requires ordered disjoint spans that start at a tag and never decode longer
+than their markup, linked images whose link is in the input, HTTPS for every
+admitted hop, no GitHub.com credential, and a credential that never reappears
+after a hop drops it. Three seeds (`markdown/image-upload`,
+`image-linked-picture`, `image-served-html`) start the family; selectors 0 to
+2 keep their meaning (`% 4` instead of `% 3`; no seed began with 3).
+On 2026-10-16, seed 840084, from the checked-in corpus: 2,034,317 executions in
+301 s (6,758 exec/s), 22,713 new units, peak RSS 692 MB, clean.
+
+Owner amendment 1 adds SVG admission to the same selector: every payload is
+also offered to `admit_markdown_svg`, which must refuse anything without an
+`svg` root as unsupported and never admit a document holding a script, an
+entity declaration, `@import`, an external `url()` or an `http`/`file` `href`.
+One seed (`markdown/image-svg-badge`) holds a badge with fragment references
+and one external image. On 2026-10-16, seed 840085, from the checked-in corpus:
+2,611,624 executions in 301 s (8,676 exec/s), 26,074 new units, peak RSS
+701 MB, clean.
 
 ### What the campaigns do not show
 

@@ -1,0 +1,49 @@
+{
+ "assignment": "RFC-BPR-0084 (BPR-1545..BPR-1550)",
+ "mandate": "Owner decision 2026-10-16: \"we should show images the same way GitHub does\" (mandate inline-markdown-images-r1).",
+ "governing_rfc": "docs/rfcs/RFC-BPR-0084-inline-markdown-images.md (RFC base 94699fd51)",
+ "branch": "bpr-markdown-images",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-markdown-images",
+ "candidate_revision": "1ffe0cfa88acaf34fde4100d061058265dff6736",
+ "merged_to_main": false,
+ "cards": {
+  "BPR-1545": "Done",
+  "BPR-1546": "Done",
+  "BPR-1547": "Done",
+  "BPR-1548": "Done",
+  "BPR-1549": "Done",
+  "BPR-1550": "Done",
+  "BPR-1554": "Done",
+  "BPR-1555": "Done",
+  "BPR-1556": "Done"
+ },
+ "attended_review": {
+  "session": "8a5e3c244f674294366fd8796da2897e",
+  "state": "/Users/jaeger/.mask/attended-review/owner-review-20261016-bpr1550-markdown-images-v001/state",
+  "manifest": "/Users/jaeger/.mask/attended-review/owner-review-20261016-bpr1550-markdown-images-v001/manifest.json",
+  "ready_cursor": 12,
+  "candidates": {
+   "BPR-1550-images-like-github": "9ca1d135c8d1a208fd5dc9dcd778a4e632d72a8ce32beaae96422d16bf60894d",
+   "RFC-BPR-0084-Q1-svg": "75c9d958564674edfa2d9456032c17951bf4f116a13785850e006638860bc101",
+   "RFC-BPR-0084-Q2-webp": "33400563b885c37b0e88a85fc994cc3a8537cd659ff792bba02587a7e475347a",
+   "RFC-BPR-0084-Q3-setting": "44d66c4dce1abeb128f455728a941b2469fd79ea5c64f4896c65658b90e85616"
+  },
+  "frozen_root": "/Users/jaeger/bpr1550-markdown-images-v001.a4um1yyg",
+  "executable_sha256": "38cc21d927ad97acff869a5336caf3791e01ab409edc26e21b27953a54d4e061",
+  "launch": "python3 /Users/jaeger/bpr1550-markdown-images-v001.a4um1yyg/launch.py",
+  "outcome": "all four candidates accepted, no notes; handed back at cursor 17; server stopped; resume-development --all; frozen root removed"
+ },
+ "live_course": {
+  "target": "https://github.com/MikeMarcin/BPR-Test/pull/73",
+  "comment": "IC_kwDOTyvof88AAAABcinjAA",
+  "rate_limit_remaining": "4998 -> 4993",
+  "driver": "tests/scripts/markdown_image_live_course.py"
+ },
+ "known_failures_not_from_this_work": {
+  "rfc0016_production_identity_security": "fails only in a worktree that holds the untracked .agents symlink the documentation gate needs"
+ },
+ "pending": [
+  "Land on main (fast-forward) and let BPR-1543 reconcile: expected conflicts in markdown_body_view.cpp, native-markdown.md, BPR-0970 fuzz doc, src/adapters/qt/CMakeLists.txt, src/app fixture files and composition digests"
+ ],
+ "next_action": "None after landing on main."
+}
