@@ -10998,12 +10998,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				return;
 			}
-			auto factory = [configuration, binding, lease = std::move(acceptedLease)]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
+			// [[BPR-1540]]. Why a submission stays unknown reaches the diagnostics log.
+			auto factory = [configuration, binding, lease = std::move(acceptedLease), log = DiagnosticLog]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> {
 				auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
 				if (!store) {
 					return std::unexpected(application::review_mutation_failure::unavailable);
 				}
-				auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store));
+				auto provider = adapters::github::make_live_review_submission_provider(lease, binding.Target, binding.ActingIdentity, std::move(*store), log);
 				if (!provider) {
 					return std::unexpected(provider.error());
 				}

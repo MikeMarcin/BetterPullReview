@@ -119,6 +119,10 @@ namespace bpr::application {
 		} else if (aRecord.Transmission != review_mutation_recovery_transmission::baseline_incomplete) {
 			return false;
 		}
+		// [[BPR-1540]]. Only an unresolved attempt is unknown.
+		if (aRecord.LastUnknown && (aRecord.State != review_mutation_recovery_state::unresolved || !core::valid(*aRecord.LastUnknown))) {
+			return false;
+		}
 		if (aRecord.State == review_mutation_recovery_state::unresolved) {
 			return !aRecord.Receipt;
 		}

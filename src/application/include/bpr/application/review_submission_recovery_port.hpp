@@ -4,6 +4,7 @@
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/review_submission_contract.hpp"
 #include "bpr/application/staged_review_publication.hpp"
+#include "bpr/core/review_submission_unknown.hpp"
 
 namespace bpr::application {
 	inline constexpr std::size_t maximum_review_submission_baseline_reviews = 100U;
@@ -18,7 +19,10 @@ namespace bpr::application {
 		review_mutation_recovery_transmission          Transmission = review_mutation_recovery_transmission::baseline_incomplete;
 		review_mutation_recovery_state                 State        = review_mutation_recovery_state::unresolved;
 		std::optional<review_submission_receipt>       Receipt;
-		auto                                           operator<=>(const review_submission_recovery_record&) const = default;
+		/// [[BPR-1540]]. Why the last reconciliation of this unresolved
+		/// attempt left it unknown; none once it is resolved.
+		std::optional<core::review_submission_unknown_diagnosis> LastUnknown;
+		auto                                                     operator<=>(const review_submission_recovery_record&) const = default;
 	};
 	struct review_submission_recovery_admission
 	{
@@ -75,6 +79,17 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
 
 		[[nodiscard]] virtual auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const review_submission_receipt& aReceipt) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
+		/// \brief [[BPR-1540]]. Records, with the unresolved attempt admitted
+		/// with this exact fingerprint, why its outcome is still unknown,
+		/// replacing the reason recorded before. Counts and enums only.
+		[[nodiscard]] virtual auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis)
+			-> std::expected<void, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aFingerprint);
+			static_cast<void>(aDiagnosis);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
 		/// \brief [[BPR-1345]]. Removes the unresolved attempt admitted with
 		/// this exact fingerprint once it is definitely not published: never
 		/// sent, or refused by GitHub. A resolved attempt is never removed; a

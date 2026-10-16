@@ -1738,20 +1738,37 @@ namespace bpr::adapters::github::detail {
 					// `https://api.github.com/repositories/1328277631/pulls/70/comments?per_page=100&page=2`
 					// on MikeMarcin/BPR-Test#70, under `/api/v3` on GHES. Only
 					// this repository's number names the same list.
-					const auto                   byName   = std::string{ rest_prefix(aTarget.ServerContract) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name) + "/";
-					const auto                   path     = std::string{ aWirePath.substr(0, aWirePath.find('?')) };
-					const auto                   byNumber = path.starts_with(byName)
+					const auto byName   = std::string{ rest_prefix(aTarget.ServerContract) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name) + "/";
+					const auto path     = std::string{ aWirePath.substr(0, aWirePath.find('?')) };
+					const auto byNumber = path.starts_with(byName)
 						? std::optional{ staged_api_origin(aTarget) + std::string{ rest_prefix(aTarget.ServerContract) } + "/repositories/" + std::to_string(aTarget.RepositoryDatabaseId) + "/" + path.substr(byName.size()) }
 						: std::nullopt;
-					std::optional<std::uint32_t> page;
-					for (std::uint32_t number = 1; number <= aMaximum; ++number) {
-						const auto namesPage = [&url, number](const std::string& aPrefix) {
-							return url == aPrefix + staged_page_suffix(number) || url == aPrefix + "?page=" + std::to_string(number) + "&per_page=100";
-						};
-						if (namesPage(prefix) || (byNumber && aTarget.RepositoryDatabaseId != 0U && namesPage(*byNumber))) {
-							page = number;
-							break;
+					// [[BPR-1540]]. The page a link names, read from it: a list
+					// longer than the bound names its last page past it.
+					const auto namedPage = [&url](const std::string& aPrefix) -> std::optional<std::uint32_t> {
+						if (!url.starts_with(aPrefix)) {
+							return std::nullopt;
 						}
+						const auto rest = url.substr(aPrefix.size());
+						for (const auto& [lead, tail] : std::array<std::pair<std::string_view, std::string_view>, 2>{ { { "?per_page=100&page=", "" }, { "?page=", "&per_page=100" } } }) {
+							if (!rest.starts_with(lead) || !rest.ends_with(tail) || rest.size() <= lead.size() + tail.size()) {
+								continue;
+							}
+							const auto digits = rest.substr(lead.size(), rest.size() - lead.size() - tail.size());
+							auto       number = std::uint32_t{ 0U };
+							const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+							if (parsed.ec == std::errc{ } && parsed.ptr == digits.data() + digits.size() && digits.front() != '0' && number <= 1'000'000U) {
+								return number;
+							}
+						}
+						return std::nullopt;
+					};
+					auto page = namedPage(prefix);
+					if (!page && byNumber && aTarget.RepositoryDatabaseId != 0U) {
+						page = namedPage(*byNumber);
+					}
+					if (page && relation != "last" && *page > aMaximum) {
+						page.reset();
 					}
 					if (!page) {
 						return std::nullopt;
@@ -2914,9 +2931,15 @@ namespace bpr::adapters::github::detail {
 		}
 		// [[BPR-1367]]. Every page is read; a collection longer than the
 		// bounded number of pages is refused, never read in part.
-		const auto next = paged_next(aResponse, aTarget, wire->Path, aPage, maximum_review_comment_collection_pages, true);
+		// [[BPR-1540]]. Read one page past the bound so that a list longer
+		// than the bound is told apart from a next link that is not this
+		// list's, and both from a body that is not GitHub's list.
+		const auto next = paged_next(aResponse, aTarget, wire->Path, aPage, maximum_review_comment_collection_pages + 1U, true);
 		if (!next) {
-			return failed(review_mutation_contract_failure::malformed_response);
+			return failed(review_mutation_contract_failure::unexpected_headers);
+		}
+		if (*next && aPage >= maximum_review_comment_collection_pages) {
+			return failed(review_mutation_contract_failure::collection_limit);
 		}
 		auto comments = std::optional<std::vector<comment_response_json>>{ };
 		if (!aResponse.Body.empty() && json_preflight{ aResponse.Body, list_preflight_limits }.run()) {

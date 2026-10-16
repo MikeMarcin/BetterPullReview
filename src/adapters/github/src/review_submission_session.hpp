@@ -8,7 +8,10 @@ namespace bpr::adapters::github::detail {
 	class review_submission_session final
 	{
 	public:
-		review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery);
+		/// `aLog`, when given, receives one counts-only event for each
+		/// submission or Check status left unknown ([[BPR-1540]]).
+		review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery,
+								  std::shared_ptr<application::diagnostic_log_port> aLog = { });
 		[[nodiscard]] auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>;
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
@@ -22,6 +25,15 @@ namespace bpr::adapters::github::detail {
 
 	private:
 		[[nodiscard]] auto execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
+		[[nodiscard]] auto run(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
+		/// \brief [[BPR-1540]]. Keeps the first reason this run could not go
+		/// on, with its counts; later ones are consequences.
+		void note(core::review_submission_unknown_reason aReason, std::uint8_t aHttpClass = 0U);
+		/// \brief [[BPR-1540]]. Notes why a read's answer could not be used.
+		void note_completion(const github_mutation_wire_completion& aCompletion);
+		/// \brief [[BPR-1540]]. Fills, keeps with the attempt and logs why an
+		/// indeterminate result is unknown.
+		void               explain(application::review_submission_result& aResult);
 		[[nodiscard]] auto perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
 		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
@@ -30,6 +42,13 @@ namespace bpr::adapters::github::detail {
 		/// \brief [[BPR-1345]]. Whether the review GitHub lists as new holds
 		/// exactly the line comments the request carried.
 		[[nodiscard]] auto carries_exactly(const application::review_submission_request& aRequest, application::review_database_id aReview, std::stop_token aStop) -> bool;
+		/// \brief [[BPR-1540]]. Why the run under way may be unknown, and
+		/// what GitHub answered its POST.
+		std::optional<core::review_submission_unknown_diagnosis> Why;
+		core::review_submission_post_answer                      PostAnswer      = core::review_submission_post_answer::not_sent;
+		std::uint8_t                                             PostStatusClass = 0U;
+		std::uint16_t                                            Pages           = 0U;
+		std::uint16_t                                            Candidates      = 0U;
 		/// \brief [[BPR-1367]]. Every page of the pull request's review comment
 		/// collection, at most `maximum_review_comment_collection_pages`.
 		[[nodiscard]] auto observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
@@ -58,6 +77,7 @@ namespace bpr::adapters::github::detail {
 		const live_review_mutation_configuration                      Configuration;
 		application::review_mutation_transport                        Lease;
 		std::unique_ptr<application::review_submission_recovery_port> Recovery;
+		std::shared_ptr<application::diagnostic_log_port>             Log;
 		std::mutex                                                    Mutex;
 	};
 }

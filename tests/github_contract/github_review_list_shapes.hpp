@@ -84,6 +84,8 @@ namespace bpr::tests::github_shapes {
 		std::optional<std::uint64_t> InReplyTo;
 		/// The diff hunk's lines up to the comment's line.
 		std::uint32_t HunkLines = 20U;
+		/// [[BPR-1540]]. A server that names no original position.
+		bool OmitOriginal = false;
 	};
 
 	[[nodiscard]] inline auto number_or_null(const std::optional<std::uint32_t> aValue) -> std::string
@@ -102,13 +104,13 @@ namespace bpr::tests::github_shapes {
 		const auto html   = aPull.web() + "#discussion_r" + id;
 		const auto start  = aComment.StartLine || aComment.OriginalStartLine ? "\"" + aComment.Side + "\"" : std::string{ "null" };
 		auto       result = "{\"url\":\"" + self + "\",\"pull_request_review_id\":" + std::to_string(aComment.Review) + ",\"id\":" + id + ",\"node_id\":\"PRRC_kwDOTyvof8" + id
-			+ "\",\"diff_hunk\":\"" + hunk + "\",\"path\":\"" + aComment.Path + "\",\"commit_id\":\"" + aComment.Commit + "\",\"original_commit_id\":\"" + aComment.OriginalCommit
-			+ "\",\"user\":" + user_json(aPull.Server, aComment.Author) + ",\"body\":\"" + aComment.Body
+			+ "\",\"diff_hunk\":\"" + hunk + "\",\"path\":\"" + aComment.Path + "\",\"commit_id\":\"" + aComment.Commit
+			+ (aComment.OmitOriginal ? std::string{ } : "\",\"original_commit_id\":\"" + aComment.OriginalCommit) + "\",\"user\":" + user_json(aPull.Server, aComment.Author) + ",\"body\":\"" + aComment.Body
 			+ "\",\"created_at\":\"2026-10-15T23:13:42Z\",\"updated_at\":\"2026-10-15T23:13:42Z\",\"html_url\":\"" + html + "\",\"pull_request_url\":\"" + aPull.api()
 			+ "\",\"_links\":{\"self\":{\"href\":\"" + self + "\"},\"html\":{\"href\":\"" + html + "\"},\"pull_request\":{\"href\":\"" + aPull.api() + "\"}},\"reactions\":{\"url\":\"" + self
 			+ "/reactions\",\"total_count\":0,\"+1\":0,\"-1\":0,\"laugh\":0,\"hooray\":0,\"confused\":0,\"heart\":0,\"rocket\":0,\"eyes\":0},\"start_line\":" + number_or_null(aComment.StartLine)
-			+ ",\"original_start_line\":" + number_or_null(aComment.OriginalStartLine) + ",\"start_side\":" + start + ",\"line\":" + number_or_null(aComment.Line)
-			+ ",\"original_line\":" + std::to_string(aComment.OriginalLine) + ",\"side\":\"" + aComment.Side + "\",\"author_association\":\"CONTRIBUTOR\",\"original_position\":"
+			+ (aComment.OmitOriginal ? std::string{ } : ",\"original_start_line\":" + number_or_null(aComment.OriginalStartLine)) + ",\"start_side\":" + start + ",\"line\":" + number_or_null(aComment.Line)
+			+ (aComment.OmitOriginal ? std::string{ } : ",\"original_line\":" + std::to_string(aComment.OriginalLine)) + ",\"side\":\"" + aComment.Side + "\",\"author_association\":\"CONTRIBUTOR\",\"original_position\":"
 			+ std::to_string(aComment.OriginalLine) + ",\"position\":" + (aComment.Line ? std::to_string(*aComment.Line) : std::string{ "null" }) + ",\"subject_type\":\"line\"";
 		if (aComment.InReplyTo) {
 			result += ",\"in_reply_to_id\":" + std::to_string(*aComment.InReplyTo);
