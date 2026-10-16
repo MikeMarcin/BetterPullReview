@@ -510,7 +510,7 @@ namespace {
 		expect(f.text() == ":Fix it." && !any_list_shown(), "a colon alone at the start opens nothing");
 		key(f.body(), Qt::Key_Tab);
 		settle();
-		expect(f.text().starts_with(":") && !f.controls()->state().Label.has_value(), "and Tab takes no label");
+		expect(f.text().starts_with(':') && !f.controls()->state().Label.has_value(), "and Tab takes no label");
 
 		for (const auto* const code : { ":qu:", ":is:", ":su:", ":ni:", ":pr:", ":zz:", ":+1:" }) {
 			f.body()->setPlainText(QStringLiteral("Fix it."));
