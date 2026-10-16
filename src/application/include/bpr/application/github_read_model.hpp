@@ -787,11 +787,15 @@ namespace bpr::application {
 		bool                             ReviewRequestActorsObserved = false;
 		github_merge_observation         Merge;
 		github_branch_policy_observation BranchPolicy;
-		/// [[BPR-1560]]. The merge base GitHub's compare named for exactly
-		/// `PullRequest.BaseOid` and `PullRequest.HeadOid`: the commit GitHub's
-		/// Files changed, and so every file row above, compares from. Present
-		/// exactly when `MergeBaseAvailability` is `available`.
+		/// [[BPR-1560]]. The merge base GitHub's compare named for
+		/// `MergeBaseTipOid` and exactly `PullRequest.HeadOid`: the commit
+		/// GitHub's Files changed, and so every file row above, compares from.
+		/// `MergeBaseTipOid` is the base branch tip GitHub resolved in that same
+		/// answer for an open pull request, or `PullRequest.BaseOid` for a
+		/// closed one. Both present exactly when `MergeBaseAvailability` is
+		/// `available`.
 		std::optional<commit_oid>      MergeBaseOid;
+		std::optional<commit_oid>      MergeBaseTipOid;
 		github_merge_base_availability MergeBaseAvailability = github_merge_base_availability::unavailable;
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
@@ -2201,13 +2205,14 @@ namespace bpr::application {
 			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::failed) {
 			return detail::validation(github_read_validation_error::invalid_enum);
 		}
-		if ((aSnapshot.MergeBaseAvailability == github_merge_base_availability::available) != aSnapshot.MergeBaseOid.has_value()) {
+		if ((aSnapshot.MergeBaseAvailability == github_merge_base_availability::available) != aSnapshot.MergeBaseOid.has_value()
+			|| aSnapshot.MergeBaseOid.has_value() != aSnapshot.MergeBaseTipOid.has_value()) {
 			return detail::validation(github_read_validation_error::invalid_relationship);
 		}
-		if (aSnapshot.MergeBaseOid
-			&& (!detail::hexadecimal_oid(aSnapshot.MergeBaseOid->value())
-				|| aSnapshot.MergeBaseOid->value().size() != aSnapshot.PullRequest.BaseOid.value().size())) {
-			return detail::validation(github_read_validation_error::invalid_commit_oid);
+		for (const auto* const oid : { &aSnapshot.MergeBaseOid, &aSnapshot.MergeBaseTipOid }) {
+			if (*oid && (!detail::hexadecimal_oid((*oid)->value()) || (*oid)->value().size() != aSnapshot.PullRequest.HeadOid.value().size())) {
+				return detail::validation(github_read_validation_error::invalid_commit_oid);
+			}
 		}
 		if (aSnapshot.SearchAvailability != github_search_availability::available && !aSnapshot.SearchResults.empty()) {
 			return detail::validation(github_read_validation_error::relationship_search_availability);

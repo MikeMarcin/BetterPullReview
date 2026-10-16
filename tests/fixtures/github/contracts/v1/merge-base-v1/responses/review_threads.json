@@ -1,0 +1,44 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_merge-base",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "a.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "b.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "new.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "shared.txt",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/merge-base:1560:files",
+						"hasNextPage": false
+					},
+					"totalCount": 4
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_1560",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

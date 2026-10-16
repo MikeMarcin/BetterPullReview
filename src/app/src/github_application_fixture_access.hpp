@@ -90,6 +90,11 @@ namespace bpr::app::detail {
 		/// arguments, strings, operators, spacing, numbers, rewritten lines
 		/// and prose, non-Latin text), for judging intraline emphasis.
 		intraline_v1,
+		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
+		/// base branch moved on, reverting nothing of the pull request's but
+		/// landing its `b.txt` change separately. GitHub's Files changed is
+		/// the merge base's comparison; see `scripts/build_merge_base_fixture.py`.
+		merge_base_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

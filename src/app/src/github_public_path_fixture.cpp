@@ -707,6 +707,27 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "intraline-v1/objects.pack" },
 				};
+			case github_public_path_fixture::merge_base_v1:
+				return {
+					.ContractDirectory   = "merge-base-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 1560U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "merge-base",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "9d3efe9d01b29bc7790bf3de912fb18adfa722a2",
+					.HeadOneOid          = "cb35c8ba3be373811e10e241d0c9417abdaa5444",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "merge-base-v1/objects.pack" },
+					.MergeBaseOid        = "cde0ff87f86343772d79af44761f472b818db1a5",
+				};
 			}
 			return { };
 		}
@@ -2864,7 +2885,10 @@ namespace bpr::app::detail {
 							.Owner = std::string{ fixture.Owner },
 							.Name  = std::string{ fixture.Name },
 						}
-					|| aContext.BaseRef.view() != fixture.BaseRef || base != fixture.BaseOid || !acceptedHead) {
+					|| aContext.BaseRef.view() != fixture.BaseRef
+					// [[BPR-1560]]. The comparison base is the merge base when
+					// GitHub names one apart from the recorded base.
+					|| (base != fixture.BaseOid && (fixture.MergeBaseOid.empty() || base != fixture.MergeBaseOid)) || !acceptedHead) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
 							invalid_request } };

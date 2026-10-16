@@ -259,9 +259,25 @@ comparison_anchor
 ```
 
 The friendly `Branch base` label resolves to the latest live epoch's accepted
-base-tip anchor. It is not a computed merge base. A review anchor remains
-semantically distinct from an epoch head even when both resolve to the same
-OID.
+base anchor. [[BPR-1560]]: a live epoch's base is the merge base GitHub names,
+through its compare API, for the pull request's current head and its base
+branch's current tip (the recorded base `base.sha` for a closed pull request):
+the commit GitHub's Files changed compares from, and so the left side of every
+file row the review lists. The recorded base is not compared from. GitHub keeps
+it ahead of the merge base whenever the base branch moved before the pull
+request opened or before a force push; a two-dot comparison from it reverts the
+base branch's own changes and hides the pull request's changes the base branch
+already carries. The application never computes this merge base itself and
+never substitutes the recorded base: when GitHub names none, the accepted
+revision carries the recorded base under `comparison_base_basis::recorded_base`
+so updates stay comparable with each other, and Whole PR resolves with its
+base unavailable and the reason `merge_base_unavailable`. A merge from the base
+branch, a rebase or a squash onto another base commit moves the merge base and
+so appends an epoch whose cause is a base change; an ordinary push does not.
+Catalogues written before [[BPR-1560]] hold the recorded base on their earlier
+epochs; their next live observation appends one base-change epoch. A review
+anchor remains semantically distinct from an epoch head even when both resolve
+to the same OID.
 
 ## Typed transition path
 

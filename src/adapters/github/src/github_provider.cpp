@@ -249,10 +249,12 @@ namespace bpr::adapters::github::detail {
 			/// [[BPR-1373]]. The account each pinned CLI profile first signed in
 			/// as in this run, by profile and login, under `Mutex`.
 			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
-			/// [[BPR-1560]]. Merge bases GitHub named, by host, repository and
-			/// the exact recorded base and head they answer, under `Mutex`. A
-			/// pair's merge base never changes, so a poll that finds the same
-			/// pair asks nothing; only answers are kept, never failures.
+			/// [[BPR-1560]]. Merge bases GitHub named for a closed pull request,
+			/// by host, profile, repository and the exact recorded base and head
+			/// they answer, under `Mutex`. An exact pair's merge base never
+			/// changes, so a poll that finds the same pair asks nothing; only
+			/// answers are kept, never failures. An open pull request's basis is
+			/// its branch, which moves, so it is asked on every read.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
 			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
 			bool                                                                     Closing = false;
@@ -2437,23 +2439,28 @@ namespace bpr::adapters::github::detail {
 						// merge base of the base branch and the head, not from the
 						// base commit GitHub records for the pull request, which
 						// may lag or lead. An open pull request asks for its
-						// current head against the base branch's current tip; a
-						// closed one, whose branch may have moved on or taken the
-						// head, against the recorded base. A failure leaves the
-						// merge base unavailable; it never erases the accepted
-						// live read and is never replaced by any base.
+						// current head against the base branch, and the answer
+						// names the tip GitHub resolved, so that tip and its merge
+						// base come from one response and nothing is kept under a
+						// branch name that can move. A closed pull request, whose
+						// branch may have moved on or taken the head, asks against
+						// its recorded base; that answer is an exact pair and is
+						// remembered. A failure leaves the merge base unavailable;
+						// it never erases the accepted live read and is never
+						// replaced by any base.
 						{
+							const auto open  = result->PullRequest.State == application::github_pull_request_state::open;
 							const auto basis = github_merge_base_basis{
-								.BaseRef = result->PullRequest.State == application::github_pull_request_state::open ? result->PullRequest.BaseRef : std::string{ },
+								.BaseRef = open ? result->PullRequest.BaseRef : std::string{ },
 								.BaseOid = std::string{ result->PullRequest.BaseOid.value() },
 							};
 							const auto key = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(),
-														 basis.BaseRef + "\n" + basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
-							auto known = std::optional<std::string>{ };
-							{
+														 basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
+							auto known = std::optional<std::pair<std::string, std::string>>{ };
+							if (!open) {
 								std::scoped_lock lock{ state->Mutex };
 								if (const auto found = state->MergeBases.find(key); found != state->MergeBases.end()) {
-									known = found->second;
+									known = std::pair{ found->second, basis.BaseOid };
 								}
 							}
 							if (!known) {
@@ -2461,16 +2468,18 @@ namespace bpr::adapters::github::detail {
 																				basis, result->PullRequest.HeadOid.value(),
 																				job->Stop.get_token(), { }, state->ReadAuthority, &observer);
 								if (mergeBase) {
-									known = std::move(mergeBase->MergeBaseOid);
+									known = std::pair{ mergeBase->MergeBaseOid, mergeBase->BaseCommitOid };
 									if (mergeBase->RateLimits.Core) {
 										result->RateLimits.Core = mergeBase->RateLimits.Core;
 									}
-									constexpr auto maximumRemembered = std::size_t{ 256U };
-									std::scoped_lock lock{ state->Mutex };
-									if (state->MergeBases.size() >= maximumRemembered) {
-										state->MergeBases.clear();
+									if (!open) {
+										constexpr auto   maximumRemembered = std::size_t{ 256U };
+										std::scoped_lock lock{ state->Mutex };
+										if (state->MergeBases.size() >= maximumRemembered) {
+											state->MergeBases.clear();
+										}
+										state->MergeBases.emplace(key, known->first);
 									}
-									state->MergeBases.emplace(key, *known);
 								} else if (std::holds_alternative<github_paged_read_cancelled>(mergeBase.error())) {
 									cancelled();
 									return;
@@ -2479,7 +2488,8 @@ namespace bpr::adapters::github::detail {
 								}
 							}
 							if (known) {
-								result->MergeBaseOid          = application::commit_oid{ *known };
+								result->MergeBaseOid          = application::commit_oid{ known->first };
+								result->MergeBaseTipOid       = application::commit_oid{ known->second };
 								result->MergeBaseAvailability = application::github_merge_base_availability::available;
 							} else {
 								result->MergeBaseAvailability = application::github_merge_base_availability::failed;

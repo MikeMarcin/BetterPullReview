@@ -4315,6 +4315,20 @@ if(APPLE)
     set_tests_properties(application_remembered_connection_restart PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "remembered-connection-restart-tests:pass")
 endif()
 
+# [[BPR-1560]]: Whole PR is GitHub's Files changed when the recorded base is
+# ahead of the merge base, and says it cannot be when GitHub names none.
+bpr_add_executable(test_merge_base_public_path merge_base_public_path_tests.cpp)
+target_link_libraries(test_merge_base_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_merge_base_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_merge_base_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_merge_base_public_path)
+bpr_enable_warnings(test_merge_base_public_path)
+bpr_add_network_isolated_test(NAME application_merge_base_public_path WINDOWS_UNCONTAINED
+    COMMAND test_merge_base_public_path)
+set_tests_properties(application_merge_base_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_MERGE_BASE_RENDER_ROOT=${PROJECT_BINARY_DIR}/merge-base-renders"
+    TIMEOUT 180 PASS_REGULAR_EXPRESSION "MERGE_BASE_PUBLIC_PATH_OK")
+
 # RFC-BPR-0074: real command, window-system keys and Git-backed selected diffs.
 bpr_add_executable(test_header_source_public_path header_source_navigation_public_path_tests.cpp)
 target_link_libraries(test_header_source_public_path PRIVATE BetterPullReview::Composition)

@@ -103,7 +103,9 @@ namespace bpr::application {
 		auto left                         = aLeft;
 		left.Target.Semantic.ExpectedHead = aRight.Target.Semantic.ExpectedHead;
 		left.Target.BaseOid               = aRight.Target.BaseOid;
-		left.Target.BaseRef               = aRight.Target.BaseRef;
+		// [[BPR-1560]]. The merge base moves with the base the same way.
+		left.Target.ComparisonBaseOid = aRight.Target.ComparisonBaseOid;
+		left.Target.BaseRef           = aRight.Target.BaseRef;
 		left.Target.HeadRef               = aRight.Target.HeadRef;
 		left.Target.Open                  = aRight.Target.Open;
 		return left == aRight;

@@ -88,12 +88,21 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--pull", type=int, required=True)
     parser.add_argument("--expect-mismatch", action="store_true")
+    parser.add_argument("--interdiff-from", help="the previous update's head: checks parity-interdiff.jsonl against it")
     arguments = parser.parse_args()
 
     shown = [json.loads(line) for line in (arguments.root / "parity.jsonl").read_text().splitlines() if line.strip()]
     pull = gh(f"repos/{REPOSITORY}/pulls/{arguments.pull}")
     base, head = pull["base"]["sha"], pull["head"]["sha"]
-    merge_base = gh(f"repos/{REPOSITORY}/compare/{base}...{head}?per_page=1&page=2")["merge_base_commit"]["sha"]
+    # GitHub's own basis: an open pull request's base branch against its head
+    # (the branch tip GitHub resolves), a closed one's recorded base. The
+    # expected blobs come from that merge base; the expected lines from
+    # GitHub's patches, which are independent of it.
+    basis = pull["base"]["ref"] if pull["state"] == "open" else base
+    compared = gh(f"repos/{REPOSITORY}/compare/{basis.replace('/', '%2F')}...{head}?per_page=1&page=2")
+    merge_base = compared["merge_base_commit"]["sha"]
+    against_recorded = gh(f"repos/{REPOSITORY}/compare/{base}...{head}?per_page=1&page=2")["merge_base_commit"]["sha"]
+    print(f"github: tip={compared['base_commit']['sha']} merge_base(tip)={merge_base} merge_base(base.sha)={against_recorded}")
     files = gh(f"repos/{REPOSITORY}/pulls/{arguments.pull}/files?per_page=100", paginate=True)
     left_tree, right_tree = tree_blobs(merge_base), tree_blobs(head)
     print(f"github: base.sha={base} merge_base={merge_base} head={head} files={len(files)}")
@@ -113,11 +122,13 @@ def main() -> int:
         right = right_tree.get(path) if entry["status"] != "removed" else None
         removed, added = patch_lines(entry.get("patch"))
         facts = []
+        if app.get("status") != entry["status"] or app.get("previous") != entry.get("previous_filename"):
+            facts.append(f"status {app.get('status')} (from {app.get('previous')}) != github {entry['status']} (from {entry.get('previous_filename')})")
         if app["left_blob"] != left:
             facts.append(f"left blob {app['left_blob']} != merge base {left}")
         if app["right_blob"] != right:
             facts.append(f"right blob {app['right_blob']} != head {right}")
-        if app["left_blob"] is not None and app["left_blob"] == app["right_blob"]:
+        if app["left_blob"] is not None and app["left_blob"] == app["right_blob"] and entry["changes"] != 0:
             facts.append("both sides show the same blob: no change shown")
         if "patch" in entry and app["removed"] != removed:
             facts.append(f"removed lines {app['removed']} != github {removed}")
@@ -128,6 +139,43 @@ def main() -> int:
         for fact in facts:
             print(f"      {fact}")
             differences.append(f"{path}: {fact}")
+    interdiff = arguments.root / "parity-interdiff.jsonl"
+    if arguments.interdiff_from:
+        if not interdiff.exists():
+            print(f"interdiff: none shown from {arguments.interdiff_from}")
+            differences.append(f"no interdiff was shown from the previous update {arguments.interdiff_from}")
+        else:
+            earlier = tree_blobs(arguments.interdiff_from)
+            seen = set()
+            for line in interdiff.read_text().splitlines():
+                entry = json.loads(line)
+                seen.add(entry["path"])
+                record = next((item for item in files if item["filename"] == entry["path"]), None)
+                previous = record.get("previous_filename", entry["path"]) if record else entry["path"]
+                left = earlier.get(entry["path"], earlier.get(previous))
+                right = right_tree.get(entry["path"])
+                facts = []
+                if entry.get("state") == "unavailable":
+                    facts.append("the interdiff was not shown")
+                elif entry.get("state") == "absent-both":
+                    if left is not None or right is not None:
+                        facts.append(f"said absent from both updates, but earlier={left} head={right}")
+                    print(f"  INTERDIFF {'MATCH' if not facts else 'DIFFERS'} {entry['path']} absent from both updates")
+                    for fact in facts:
+                        print(f"      {fact}")
+                        differences.append(f"interdiff {entry['path']}: {fact}")
+                    continue
+                if entry["left_blob"] != left:
+                    facts.append(f"left blob {entry['left_blob']} != previous update {left}")
+                if entry["right_blob"] != right:
+                    facts.append(f"right blob {entry['right_blob']} != head {right}")
+                print(f"  INTERDIFF {'MATCH' if not facts else 'DIFFERS'} {entry['path']} +{len(entry.get('added', []))} -{len(entry.get('removed', []))}")
+                for fact in facts:
+                    print(f"      {fact}")
+                    differences.append(f"interdiff {entry['path']}: {fact}")
+            missing = sorted(set(expected_paths) - seen)
+            if missing:
+                differences.append(f"interdiff did not visit {missing}")
     if arguments.expect_mismatch:
         print("negative control:", "reproduced the mismatch" if differences else "NO mismatch (control failed)")
         return 0 if differences else 1

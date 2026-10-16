@@ -36,6 +36,8 @@
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
+#include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/core/diff_compute.hpp"
@@ -47,6 +49,7 @@
 #include <QCoreApplication>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -56,6 +59,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QWindow>
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -423,7 +428,7 @@ namespace {
 		std::vector<std::string> visited;
 		for (std::size_t index = 0U; index < files.size(); ++index) {
 			if (index == 0U) {
-				if (!wait_for(settled, "the first file's comparison", std::chrono::seconds{ 120 })) {
+				if (!wait_for(settled, "the first file's comparison (opens it next)", std::chrono::seconds{ 15 })) {
 					if (auto* const open = surface->idle_open_first_button(); open != nullptr && open->isVisible()) {
 						open->click();
 					}
@@ -448,16 +453,70 @@ namespace {
 			const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
 				return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
 			};
-			const auto line = "{\"path\":" + json_text(path) + ",\"left_blob\":" + blob(context.Key.LeftBlob) + ",\"right_blob\":" + blob(context.Key.RightBlob)
+			constexpr auto operations = std::array<std::string_view, 7U>{ "added", "modified", "removed", "renamed", "copied", "changed", "unchanged" };
+			const auto     row        = std::ranges::find(files, path, &application::overview_file_row::Path);
+			const auto     operation  = static_cast<std::size_t>(row->Operation);
+			const auto     line       = "{\"path\":" + json_text(path) + ",\"status\":" + json_text(operation < operations.size() ? operations[operation] : "unknown")
+				+ ",\"previous\":" + (row->PreviousPath ? json_text(*row->PreviousPath) : std::string{ "null" }) + ",\"left_blob\":" + blob(context.Key.LeftBlob) + ",\"right_blob\":" + blob(context.Key.RightBlob)
 				+ ",\"content\":" + std::to_string(static_cast<int>(result.Alignment.Content)) + ",\"removed\":" + changed_lines(result, core::diff_side::left)
-				+ ",\"added\":" + changed_lines(result, core::diff_side::right) + "}";
-			out << line << '\n';
+				+ ",\"added\":" + changed_lines(result, core::diff_side::right) + ",\"threads\":[";
+			auto threads = std::string{ };
+			for (const auto& tick : surface->thread_ticks()) {
+				threads += (threads.empty() ? "" : ",") + std::string{ "[" } + json_text(tick.Side == core::diff_side::left ? "LEFT" : "RIGHT") + "," + std::to_string(tick.Line) + ","
+					+ json_text(text(tick.Description)) + "]";
+			}
+			out << line << threads << "]}" << '\n';
 			say("parity:file " + path);
 			visited.push_back(path);
 		}
 		out.flush();
 		say("parity:files=" + std::to_string(visited.size()) + " of " + std::to_string(files.size()));
 		epoch_dump(aWindow, aOptions.Root, "parity");
+		// The interdiff from the previous update, when there is one: every
+		// file's two blobs, or the state the comparison says it is in.
+		auto* const previous = aWindow.epoch_selectors()->previous_upload_action();
+		say("parity:previous-upload enabled=" + std::string{ previous != nullptr && previous->isEnabled() ? "1" : "0" });
+		if (previous != nullptr && previous->isEnabled()) {
+			previous->trigger();
+			const auto interdiff = [&] {
+				return settled() && surface->current_context()->Key.LeftAnchor.Kind == core::comparison_anchor_kind::epoch_head;
+			};
+			const auto absent = [&] { return surface->status_text().contains(QStringLiteral("absent from both revisions")); };
+			const auto ready  = wait_for([&] { return aWindow.epoch_selectors()->status_text() == QStringLiteral("Review history is ready.") && (interdiff() || absent()); },
+										 "the interdiff (may be unavailable)", std::chrono::seconds{ 60 });
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 2 });
+			say("parity:interdiff shown=" + std::string{ ready ? "1" : "0" } + " comparing="
+				+ (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+				+ " status=" + text(aWindow.epoch_selectors()->status_text()) + " surface=" + text(surface->status_text()));
+			std::ofstream between{ aOptions.Root / "parity-interdiff.jsonl" };
+			for (std::size_t index = 0U; ready && index < files.size(); ++index) {
+				// Each file is chosen in Files, as a reviewer does; a file the
+				// two updates both lack is its own state, not a comparison.
+				const auto& path = files[index].Path;
+				const auto  row  = aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(path));
+				aWindow.files_drawer()->contents_view()->setCurrentIndex(row);
+				const auto shownHere = [&] { return interdiff() && path_of() == path; };
+				const auto absentHere = [&] {
+					return absent() && surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(path);
+				};
+				if (!wait_for([&] { return shownHere() || absentHere(); }, "the file's interdiff", std::chrono::seconds{ 60 })) {
+					between << "{\"path\":" << json_text(path) << ",\"state\":\"unavailable\"}\n";
+					continue;
+				}
+				if (!shownHere()) {
+					between << "{\"path\":" << json_text(path) << ",\"state\":\"absent-both\"}\n";
+					continue;
+				}
+				const auto& context = *surface->current_context();
+				const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
+                    return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
+				};
+				between << "{\"path\":" << json_text(path) << ",\"state\":\"shown\",\"left_blob\":" << blob(context.Key.LeftBlob) << ",\"right_blob\":" << blob(context.Key.RightBlob)
+						<< ",\"removed\":" << changed_lines(*surface->current_result(), core::diff_side::left)
+						<< ",\"added\":" << changed_lines(*surface->current_result(), core::diff_side::right) << "}\n";
+			}
+			epoch_dump(aWindow, aOptions.Root, "parity-interdiff");
+		}
 		dump(aWindow);
 	}
 

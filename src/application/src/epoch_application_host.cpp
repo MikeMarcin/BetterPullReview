@@ -3770,7 +3770,12 @@ namespace bpr::application {
 				|| !State.Authority.has_value()
 				|| !State.AcceptedRevision.has_value()
 				|| !State.AcceptedComparison.has_value()
-				|| !core::valid(State.AcceptedComparisonRevision)) {
+				|| !core::valid(State.AcceptedComparisonRevision)
+				// [[BPR-1560]]. Whole PR without a merge base GitHub named has
+				// a base the core marked unavailable; its recorded base is in
+				// the cache, but a comparison from it is not GitHub's.
+				|| (State.AcceptedBasis == core::comparison_base_basis::recorded_base
+					&& !core::available_for_diff(*State.AcceptedComparison))) {
 				return std::nullopt;
 			}
 			const auto& authority = *State.Authority;
@@ -9388,8 +9393,20 @@ namespace bpr::application {
 								return sparse && application::valid(*sparse) && sparse->Commit == aCommit
 									&& sparse->Residency == git_revision_residency::sparse_commit_trees;
 							};
+							// [[BPR-1560]]. Previous upload's left side is the
+							// preceding update's retained head, proved exactly as
+							// an explicitly chosen one is.
+							const auto previousHead = candidates.PreviousDistinctHead
+								? std::optional{ core::comparison_anchor{
+									  .Identity = { .Authority   = candidates.PreviousDistinctHead->Id.Authority,
+													.Incarnation = candidates.PreviousDistinctHead->Id.Incarnation,
+													.Kind        = core::comparison_anchor_kind::epoch_head,
+													.Epoch       = candidates.PreviousDistinctHead->Id.Ordinal },
+									  .Commit       = candidates.PreviousDistinctHead->Head,
+									  .Availability = candidates.PreviousDistinctHead->HeadAvailability } }
+								: std::nullopt;
 							exact = matchesSparseAnchor(candidates.ExplicitLeft)
-								|| matchesSparseAnchor(candidates.ExplicitRight);
+								|| matchesSparseAnchor(candidates.ExplicitRight) || matchesSparseAnchor(previousHead);
 						}
 						verified.emplace_back(aCommit, exact);
 						return exact;

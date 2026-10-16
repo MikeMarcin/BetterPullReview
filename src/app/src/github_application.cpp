@@ -1044,6 +1044,16 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed intraline changes",
 				};
+			// [[BPR-1560]]. Served like nested-folders: github.com, one head.
+			case detail::github_public_path_fixture::merge_base_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed merge base",
+				};
 			case detail::github_public_path_fixture::conventional_comments_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -17209,13 +17219,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || DiffHost == nullptr) {
 				return;
 			}
-			// GitHub's current PR diff uses a merge-base coordinate on LEFT,
-			// while BPR's retained Branch base is explicitly the accepted base
-			// tip. The provider snapshot carries no exact merge-base identity, so
-			// LEFT stays unplaced for the new comparison until the epoch host
-			// answers that its left document is the merge base's version
-			// ([[BPR-1212]], `observe_base_numbering`), instead of applying a
-			// numeric line to a potentially unrelated blob.
+			// GitHub's current PR diff uses a merge-base coordinate on LEFT.
+			// LEFT stays unplaced for the new comparison until
+			// `observe_base_numbering` answers that its left document is the
+			// version of the merge base GitHub named ([[BPR-1560]]: Whole PR's
+			// left commit is that merge base) or the same blob ([[BPR-1212]]),
+			// instead of applying a numeric line to a potentially unrelated blob.
 			constexpr auto leftHasCurrentDiffRevision = false;
 			const auto     rightIsCurrentHead         = conversation_endpoint_is_current(
 				aComparison, core::diff_side::right);
