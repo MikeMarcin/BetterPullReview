@@ -300,6 +300,87 @@ namespace bpr::qt {
 		}
 	}
 
+	void append_text_selection_ranges(
+		QList<QTextLayout::FormatRange>& aRanges,
+		const QTextBlock&                aBlock,
+		const int                        aFrom,
+		const int                        aTo,
+		const code_text_selection&       aSelection)
+	{
+		if (!aBlock.isValid() || aFrom >= aTo || !aSelection.Fill.isValid()) {
+			return;
+		}
+		struct run
+		{
+			int    Begin = 0;
+			int    End   = 0;
+			QColor Ink;
+		};
+		// The colour each character is drawn in without the selection: the
+		// document's own for a fragment that sets one, else the normal ink,
+		// then each token's over that.
+		auto runs = std::vector<run>{ };
+		for (auto fragment = aBlock.begin(); !fragment.atEnd(); ++fragment) {
+			const auto part  = fragment.fragment();
+			const auto begin = std::max(aFrom, part.position() - aBlock.position());
+			const auto end   = std::min(aTo, part.position() - aBlock.position() + part.length());
+			if (begin < end) {
+				const auto foreground = part.charFormat().foreground();
+				runs.push_back({ .Begin = begin, .End = end, .Ink = foreground.style() == Qt::NoBrush ? aSelection.Normal : foreground.color() });
+			}
+		}
+		// The line break, past the text, is covered by the fill.
+		const auto textEnd = std::max(aFrom, aBlock.length() - 1);
+		if (textEnd < aTo) {
+			runs.push_back({ .Begin = textEnd, .End = aTo, .Ink = aSelection.Normal });
+		}
+		if (aBlock.layout() != nullptr) {
+			for (const auto& token : aBlock.layout()->formats()) {
+				if (token.format.foreground().style() == Qt::NoBrush) {
+					continue;
+				}
+				const auto tokenEnd = token.start + token.length;
+				auto       split    = std::vector<run>{ };
+				split.reserve(runs.size() + 2U);
+				for (const auto& each : runs) {
+					const auto begin = std::max(each.Begin, token.start);
+					const auto end   = std::min(each.End, tokenEnd);
+					if (begin >= end) {
+						split.push_back(each);
+						continue;
+					}
+					if (each.Begin < begin) {
+						split.push_back({ .Begin = each.Begin, .End = begin, .Ink = each.Ink });
+					}
+					split.push_back({ .Begin = begin, .End = end, .Ink = token.format.foreground().color() });
+					if (end < each.End) {
+						split.push_back({ .Begin = end, .End = each.End, .Ink = each.Ink });
+					}
+				}
+				runs = std::move(split);
+			}
+		}
+		const auto fill = to_appearance_color(aSelection.Fill);
+		for (const auto& each : runs) {
+			auto range   = QTextLayout::FormatRange{ };
+			range.start  = each.Begin;
+			range.length = each.End - each.Begin;
+			range.format.setBackground(aSelection.Fill);
+			if (aSelection.FullWidth) {
+				range.format.setProperty(QTextFormat::FullWidthSelection, true);
+			}
+			range.format.setForeground(to_presentation_color(
+				core::readable_selection_ink(to_appearance_color(each.Ink.isValid() ? each.Ink : aSelection.Normal), fill, aSelection.Variant)));
+			// Adjacent runs in one ink draw as one range.
+			if (!aRanges.isEmpty() && aRanges.back().start + aRanges.back().length == range.start
+				&& aRanges.back().format == range.format) {
+				aRanges.back().length += range.length;
+			} else {
+				aRanges.push_back(range);
+			}
+		}
+	}
+
 	auto spans_of_line(
 		const application::token_span_list& aSpans,
 		const std::uint32_t                 aLine)
