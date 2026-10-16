@@ -530,6 +530,22 @@ namespace {
 		publish_updates_line(aWindow, core::workbench_updates_line::folded);
 	}
 
+	/// \brief [[BPR-1532]]. Whether \p aKey on \p aAction is the one binding an
+	/// assembled window shares on purpose.
+	///
+	/// An ambiguous shortcut overload triggers neither action, so a window
+	/// binds each key once. The single exception: the tour outline's own
+	/// reorder keys, widget-scoped, are First and Last change's, and the window
+	/// unbinds those while focus is in the outline (test_change_end_keys_yield),
+	/// so Qt never sees both at once. Every "no key bound twice" check skips
+	/// exactly this pair and nothing else ([[BPR-1552]]).
+	[[nodiscard]] auto yields_to_tour_reorder(const QAction& aAction, const QKeySequence& aKey) -> bool
+	{
+		const auto reorder = aAction.objectName() == QStringLiteral("tourMoveUp") || aAction.objectName() == QStringLiteral("tourMoveDown");
+		return reorder && aAction.shortcutContext() == Qt::WidgetWithChildrenShortcut
+			&& (aKey == QKeySequence{ QStringLiteral("Alt+Shift+Up") } || aKey == QKeySequence{ QStringLiteral("Alt+Shift+Down") });
+	}
+
 	/// \brief Saves a window render beside the suite's other renders, when the
 	/// run names a render path.
 	void save_render(qt::workbench_window& aWindow, const QString& aSuffix)
@@ -6898,8 +6914,8 @@ namespace {
 		expect(window.close_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }, "platform Close Tab key is bound");
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* action : window.findChildren<QAction*>()) {
-			if (!action->shortcut().isEmpty()) {
-				expect(!sequences.contains(action->shortcut()), "assembled keys are unique");
+			if (!action->shortcut().isEmpty() && !yields_to_tour_reorder(*action, action->shortcut())) {
+				expect(!sequences.contains(action->shortcut()), "assembled keys are unique: " + action->shortcut().toString().toStdString());
 				sequences.push_back(action->shortcut());
 			}
 		}
@@ -7473,15 +7489,11 @@ namespace {
 		}
 
 		// An ambiguous shortcut overload triggers neither action, so one key
-		// sequence may never be offered twice in one window. [[BPR-1532]]: the
-		// tour outline's reorder keys are First and Last change's, and the
-		// window unbinds those while the outline has focus
-		// (test_change_end_keys_yield), so the two never match at once.
+		// sequence may never be offered twice in one window, except the pair
+		// the window yields to the tour outline (yields_to_tour_reorder).
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* const action : window.findChildren<QAction*>()) {
-			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
-				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
-			if (action->shortcut().isEmpty() || yieldedTo) {
+			if (action->shortcut().isEmpty() || yields_to_tour_reorder(*action, action->shortcut())) {
 				continue;
 			}
 			expect(!sequences.contains(action->shortcut()),
@@ -8617,17 +8629,12 @@ namespace {
 				   && zoomOut->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
 				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+0") } },
 			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘0 is Actual Size");
-		// [[BPR-1532]]. One pair is shared on purpose: the tour outline's own
-		// reorder keys, widget-scoped, are First and Last change's, and the
-		// window unbinds those while focus is in the outline (checked by
-		// test_change_end_keys_yield). Every other key is bound once.
-		const auto changeEndKeys = QList{ QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
-		auto       keys          = QList<QKeySequence>{ };
+		// Every key is bound once, except the pair the window yields to the
+		// tour outline (yields_to_tour_reorder).
+		auto keys = QList<QKeySequence>{ };
 		for (const auto* const action : window.findChildren<QAction*>()) {
-			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
-				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
 			for (const auto& key : action->shortcuts()) {
-				if (yieldedTo && changeEndKeys.contains(key)) {
+				if (yields_to_tour_reorder(*action, key)) {
 					continue;
 				}
 				expect(!keys.contains(key), "no key is bound twice in the assembled window: " + key.toString().toStdString());

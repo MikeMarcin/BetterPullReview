@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1543",
+    "BPR-1544"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0036 amendment: GitHub-parity Markdown rendering cards A and B",
+  "created": "2026-10-16T05:22:46.561716+00:00",
+  "base": "e8b3b1cb7d73c6838cc1a96ae615c3e74f5e0a55"
+}

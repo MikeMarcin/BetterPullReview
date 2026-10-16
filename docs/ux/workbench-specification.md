@@ -1869,7 +1869,10 @@ The Comments tab is inline only (owner verdict on [[BPR-1290]]'s prototype,
 beside the code, each hanging from its line, and the drawer moves with the
 code: it never scrolls on its own, and a wheel over it scrolls the code. Only
 when the code can scroll no further does the drawer take the overflow, so the
-foot of a tall open thread can still be read. A closed note shows its first
+foot of a tall open thread can still be read. A thread follows its line
+however far the line scrolls above the code, so every wheel notch or scroll
+bar move brings more of a thread taller than the drawer into view, as Discuss
+shows it ([[BPR-1542]]). A closed note shows its first
 post's author, avatar, label mark and rail ([[BPR-1083]]), two lines of the
 body as written (one when resolved), the reply count with the people who
 replied, the count of new posts and ✓ when resolved; a resolved note is faded.

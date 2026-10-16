@@ -1,0 +1,31 @@
+{
+ "assignment": "BPR-1552",
+ "mandate": "Regression on main: qt_document_tabs_scale_{100,125,200} fail on a duplicate Alt+Shift+Up between tourMoveUp and firstWorkbenchChangeAction after BPR-1532; triage application_label_publication_recovery failing on main 32e9bcc0b.",
+ "governing_rfc": "RFC-BPR-0076 (BPR-1532's change-end keys)",
+ "changed_paths": [
+  "tests/adapters_qt/workbench_window_tests.cpp",
+  "src/app/src/review_submission_fixture.cpp"
+ ],
+ "root_cause": "Document tabs: BPR-1532 narrowed two of the three duplicate-key checks to its documented tour-outline exception, missing the document-tabs course's own copy. Label publication recovery: BPR-1538 (5a09d4f61) matches a review's comments at the request's head through original_commit_id/original_line; the test-build review server named only commit_id at its provider's bound head, so after the course's restart advanced the head, Check status could not confirm the lost review.",
+ "fix": "One helper, yields_to_tour_reorder, used by all three checks; the fixture's comment collection names original_commit_id, original_line and original_start_line as GitHub does.",
+ "commits": {
+  "allocation_on_main": "0917321fd",
+  "card": "6de27b5fc",
+  "test_fix": "06cd859d3",
+  "fixture_fix": "f5d7743b2"
+ },
+ "branch": "bpr-1552-document-tabs-keys",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1552-document-tabs-keys",
+ "baseline": "0917321fd (main)",
+ "verification": {
+  "focused": "qt_document_tabs_scale_*, qt_change_end_keys, qt_workbench_window_scale_*, qt_profile_management_window, application_label_publication_recovery pass",
+  "negative_controls": "tour-named action on Ctrl+W and non-tour action on Alt+Shift+Up both fail the document-tabs check; unfixed fixture fails the label course, and passes with the pre-BPR-1538 head choice",
+  "full_suite": "ctest --preset dev -j8: 736/739, 1 Debug skip, 3 board rows failed only for the worktree's missing .agents/skills and pass with it linked",
+  "composition_contracts": "9/9, no reseal",
+  "format": "clang-format 22.1.8 clean",
+  "tidy": "clean on changed lines",
+  "documentation": "DOCUMENTATION_OK"
+ },
+ "pending": [],
+ "next_action": "None after merge to main."
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1545",
+    "BPR-1546",
+    "BPR-1547",
+    "BPR-1548",
+    "BPR-1549",
+    "BPR-1550"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0084 inline Markdown images: core policy, host lane, GitHub/decode adapters, Qt presentation, disk cache, closeout",
+  "created": "2026-10-16T05:29:20.014044+00:00",
+  "base": "0df097481a82642ee646d05a6b0be89000058349"
+}

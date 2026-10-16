@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1542"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Comments drawer cuts off a long thread",
+  "created": "2026-10-16T05:15:51.236388+00:00",
+  "base": "4fe83a9133300c2fa47f89d651e8ad1df6280402"
+}

@@ -245,6 +245,16 @@ namespace bpr::app::detail {
 				}
 				return "COMMENTED";
 			}
+			/// [[BPR-1552]]. The head \p aReview was submitted at; the bound head
+			/// for a review this server does not hold.
+			auto written_head(const application::review_database_id aReview) const -> core::git_commit_oid
+			{
+				if (State->StagedReview && State->StagedReview->Id == aReview) {
+					return State->StagedReview->Commit;
+				}
+				const auto review = std::ranges::find(State->PreviousReviews, aReview, &application::staged_review_entity::Id);
+				return review == State->PreviousReviews.end() ? Binding.Target.Semantic.ExpectedHead : review->Commit;
+			}
 			/// [[BPR-1367]]. As GitHub answers: a review's own comment list
 			/// (`aLines` false) carries no `line`, `side`, `start_line`,
 			/// `start_side` or `subject_type`, pending or submitted; only the
@@ -266,6 +276,14 @@ namespace bpr::app::detail {
 							result += ",\"subject_type\":\"line\",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
 							if (source.FirstLine != source.LastLine) {
 								result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
+							}
+							// [[BPR-1552]]. As GitHub answers after a push: `commit_id`
+							// follows the head, and where the comment was written
+							// stays on `original_commit_id`, the head its review was
+							// submitted at, and `original_line` (BPR-1538 matches it).
+							result += ",\"original_commit_id\":" + json_text(std::string{ core::canonical_hex(written_head(c.Review)).view() }) + ",\"original_line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
+							if (source.FirstLine != source.LastLine) {
+								result += ",\"original_start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1);
 							}
 						}
 					} else {

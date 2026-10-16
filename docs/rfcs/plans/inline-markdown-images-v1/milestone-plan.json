@@ -1,0 +1,118 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "inline-markdown-images-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0084"
+    ],
+    "issues": [
+      "BPR-1545",
+      "BPR-1546",
+      "BPR-1547",
+      "BPR-1548",
+      "BPR-1549",
+      "BPR-1550"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "image-policy-core",
+      "outcome": "The core decides image admission, served-address matching, fetch/redirect/credential admission, display size and state with stale rejection, tested without Qt.",
+      "work": [
+        {
+          "issue": "BPR-1545"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Core tests cover every admission, matching, hop, credential, sizing, bound and state rule with negative controls; core-only and both architecture-boundary tests pass."
+      ],
+      "boundary": "Pure core policy and tests; no host, adapter or Qt change."
+    },
+    {
+      "id": "image-host-lane",
+      "outcome": "The application host resolves, fetches, decodes and caches images on a bounded cancellable lane and publishes a provider-free image projection.",
+      "work": [
+        {
+          "issue": "BPR-1546"
+        }
+      ],
+      "depends_on": [
+        "image-policy-core"
+      ],
+      "exit_criteria": [
+        "Host tests with fake ports and the manual executor cover concurrency, queue and cache bounds, cancellation, stale and duplicate completions, cache hits without requests, and shutdown with work in flight."
+      ],
+      "boundary": "Application ports, host lane, memory cache and projection; adapters are fakes."
+    },
+    {
+      "id": "github-image-adapters",
+      "outcome": "GitHub resolution reads, native HTTPS image fetches under the credential and redirect policy, and the restricted Qt Gui decoder implement the host ports.",
+      "work": [
+        {
+          "issue": "BPR-1547"
+        }
+      ],
+      "depends_on": [
+        "image-host-lane"
+      ],
+      "exit_criteria": [
+        "Loopback contract tests prove AC04 and the fetch-side AC03 bounds; decoder tests prove the format restriction and decode bounds; the CLI shape and fixture replay are covered."
+      ],
+      "boundary": "GitHub adapter, decode adapter and their contract tests."
+    },
+    {
+      "id": "inline-image-presentation",
+      "outcome": "The shipped reader shows images inline with loading, reflow, sizing, HiDPI, animation, links, accessibility and fallback, composed through the real application with packaged decoders.",
+      "work": [
+        {
+          "issue": "BPR-1548"
+        }
+      ],
+      "depends_on": [
+        "github-image-adapters"
+      ],
+      "exit_criteria": [
+        "Qt and composed fixture courses prove AC01, AC02 and AC05; packaging ships the qgif and qjpeg plugins; documentation and resealed composition contracts agree."
+      ],
+      "boundary": "Qt presentation, composition, packaging plugin list, fixtures and documentation."
+    },
+    {
+      "id": "image-disk-cache",
+      "outcome": "A bounded owner-private on-disk image cache in the profile serves images across restarts and is removed by profile purge.",
+      "work": [
+        {
+          "issue": "BPR-1549"
+        }
+      ],
+      "depends_on": [
+        "inline-image-presentation"
+      ],
+      "exit_criteria": [
+        "Tests prove AC06: bounds, isolation, expiry, restart without request, purge removal."
+      ],
+      "boundary": "Disk cache port, adapter and purge integration."
+    },
+    {
+      "id": "image-acceptance",
+      "outcome": "The live BPR-Test course, the frozen attended build and the owner's verdict close the RFC.",
+      "work": [
+        {
+          "issue": "BPR-1550"
+        },
+        {
+          "rfc": "RFC-BPR-0084"
+        }
+      ],
+      "depends_on": [
+        "image-disk-cache"
+      ],
+      "exit_criteria": [
+        "AC07 live course passes within the rate-limit margin and the owner answers the attended question; AC08 gates pass; every criterion has recorded evidence."
+      ],
+      "boundary": "Verification, attended review and closeout; owner acceptance cannot be self-certified."
+    }
+  ],
+  "unplanned_work": []
+}

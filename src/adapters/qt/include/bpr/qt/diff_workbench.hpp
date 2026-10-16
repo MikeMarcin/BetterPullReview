@@ -315,11 +315,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_anchor_marker_rect(
 			core::diff_side aSide) const -> QRect;
 		/// \brief Where one zero-based line of a pane is, in this widget's
-		/// coordinates; empty while the line is not laid out or not visible.
+		/// coordinates, however far it is from view; empty when the pane has
+		/// no such line.
 		///
 		/// \details [[BPR-0648]]. The comments drawer aligns its cards to the
 		/// lines their threads sit on, and follows the shared scroll through
 		/// `set_frame_observer`. This is the only geometry it reads.
+		/// [[BPR-1542]]: exact far from view, so a thread taller than the
+		/// drawer rises with its line until its foot shows.
 		[[nodiscard]] auto line_rect(core::diff_side aSide, std::uint32_t aLine) const
 			-> QRect;
 		/// \brief Marks lines that carry a thread (amber) or a new one (blue).
@@ -601,8 +604,9 @@ namespace bpr::qt {
 		/// \brief Fully reveals a keyboard-selected row at the nearest edge.
 		void reveal_keyboard_row(QPlainTextEdit* aPane, const QRect& aRow, const QRect& aVisible);
 		/// \brief [[BPR-1476]]. A row's rect in a pane's viewport, however far
-		/// it is from view.
-		[[nodiscard]] auto keyboard_row_rect(QPlainTextEdit* aPane, std::uint32_t aRow) const -> QRect;
+		/// it is from view: the keyboard's reveal and, since [[BPR-1542]],
+		/// `line_rect`, which the open thread in the Comments drawer hangs from.
+		[[nodiscard]] auto exact_row_rect(QPlainTextEdit* aPane, std::uint32_t aRow) const -> QRect;
 		void               apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void               update_detail();
 		/// \brief [[BPR-1334]]. Projects the current line, or the panes'
