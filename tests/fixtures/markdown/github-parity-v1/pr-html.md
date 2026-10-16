@@ -1,5 +1,5 @@
 <p align="center">
-  <b>Release 4.2</b> &middot; <a href="https://example.test/notes">Release notes</a>
+  <b>Release 4.2</b> &middot; <a href="https://example.invalid/notes">Release notes</a>
 </p>
 
 ## Summary

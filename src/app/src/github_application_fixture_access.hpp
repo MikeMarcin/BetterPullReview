@@ -98,6 +98,10 @@ namespace bpr::app::detail {
 		/// and four pull request comments are the GitHub-parity Markdown
 		/// fixtures, for judging comments, line breaks, alerts and footnotes.
 		markdown_parity_v1,
+		/// [[BPR-1544]]. The nested-folders pull request whose description
+		/// and three pull request comments are the GitHub-parity HTML,
+		/// details and emoji fixtures.
+		markdown_html_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

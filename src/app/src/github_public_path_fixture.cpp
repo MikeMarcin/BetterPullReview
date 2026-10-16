@@ -473,13 +473,16 @@ namespace bpr::app::detail {
 			// image-bearing bodies (`scripts/build_markdown_images_fixture.py`).
 			// [[BPR-1543]]: markdown-parity-v1 is the same pull request with
 			// the GitHub-parity Markdown bodies
-			// (`scripts/build_markdown_parity_fixture.py`).
+			// (`scripts/build_markdown_parity_fixture.py`), and [[BPR-1544]]'s
+			// markdown-html-v1 its HTML (`scripts/build_markdown_html_fixture.py`).
 			case github_public_path_fixture::overview_labels_v1:
 			case github_public_path_fixture::markdown_images_v1:
 			case github_public_path_fixture::markdown_parity_v1:
+			case github_public_path_fixture::markdown_html_v1:
 				return {
 					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_images_v1 ? "markdown-images-v1"
 						: aFixture == github_public_path_fixture::markdown_parity_v1                  ? "markdown-parity-v1"
+						: aFixture == github_public_path_fixture::markdown_html_v1                    ? "markdown-html-v1"
 																									  : "overview-labels-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,

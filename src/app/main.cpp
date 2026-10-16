@@ -9080,6 +9080,23 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationIdentities = { "issue-comment:IC_mp_1", "issue-comment:IC_mp_2", "issue-comment:IC_mp_3", "issue-comment:IC_mp_4" },
 					.ExpectedThreadId               = std::nullopt,
 				};
+			} else if (*fixture == "markdown-html-v1") {
+				// [[BPR-1544]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity HTML fixtures; see
+				// `scripts/build_markdown_html_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_html_v1;
+				fixtureName            = "markdown-html-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Speed up the cache writer and fix the crash on resume",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 3,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mh_1", "issue-comment:IC_mh_2", "issue-comment:IC_mh_3" },
+					.ExpectedThreadId               = std::nullopt,
+				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
 				// file with eight; see `scripts/build_inline_drawer_fixture.py`.

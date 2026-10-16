@@ -8,7 +8,7 @@ H<sub>2</sub>O and E = mc<sup>2</sup>; press <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
 <div align="right">Right-aligned div</div>
 
-<a href="https://example.com/docs">An HTML link</a> and <a href="javascript:alert(1)">a script link</a> and <a href="#section">a fragment</a>.
+<a href="https://example.invalid/docs">An HTML link</a> and <a href="javascript:alert(1)">a script link</a> and <a href="#section">a fragment</a>.
 
 <hr>
 
@@ -27,8 +27,8 @@ H<sub>2</sub>O and E = mc<sup>2</sup>; press <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
 <script>alert('x')</script>
 <style>body { color: red }</style>
-<iframe src="https://example.com/embed"></iframe>
-<form action="https://example.com"><input type="text" value="field"><button>Send</button></form>
+<iframe src="https://example.invalid/embed"></iframe>
+<form action="https://example.invalid"><input type="text" value="field"><button>Send</button></form>
 <span onclick="alert(1)" style="color:red" class="c" id="i">attributes stripped</span>
 <font color="red">font tag</font>
 <center>center tag</center>

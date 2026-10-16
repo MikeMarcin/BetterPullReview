@@ -308,7 +308,7 @@ namespace {
 			links.push_back(link.Href);
 		}
 		std::cout << "html-links: " << links.join(QLatin1Char{ ' ' }).toStdString() << '\n';
-		expect(links == QStringList{ QStringLiteral("https://example.com/docs"), QStringLiteral("#section") }, "an HTML link keeps its destination; a script link is only its text, as on GitHub");
+		expect(links == QStringList{ QStringLiteral("https://example.invalid/docs"), QStringLiteral("#section") }, "an HTML link keeps its destination; a script link is only its text, as on GitHub");
 		expect(reserved_marks(document) == 0, "no mark reaches the reader");
 	}
 
@@ -417,7 +417,7 @@ namespace {
 		expect(first == paragraph, "every shortcode becomes GitHub's emoji");
 		const auto text = folded(document);
 		expect(text.contains(QStringLiteral(":notanemoji:")) && format_of(document, QStringLiteral(":+1:")).fontFixedPitch(), "an unknown or coded shortcode stays as written");
-		expect(text.contains(QStringLiteral("Adjacent:smile:text")) && text.contains(QStringLiteral("10:30:45")) && text.contains(QStringLiteral("https://example.com/:smile:/x")), "a shortcode needs a boundary, and a URL keeps its text");
+		expect(text.contains(QStringLiteral("Adjacent:smile:text")) && text.contains(QStringLiteral("10:30:45")) && text.contains(QStringLiteral("https://example.invalid/:smile:/x")), "a shortcode needs a boundary, and a URL keeps its text");
 		expect(aView.original_body() == fixture(QStringLiteral("emoji")), "source keeps the shortcodes");
 	}
 
