@@ -1,0 +1,32 @@
+{
+ "assignment": "BPR-1553",
+ "mandate": "Owner report 2026-10-16 on the installed app: the Updates line seems non-functional; the left and right handles that chose the compared versions cannot be found or moved. Find the regressing change, fix the root cause, prove both handles render and drag in the four themes at 100/125/200%, and merge.",
+ "governing_rfc": "RFC-BPR-0029 (occurrence history and import), RFC-BPR-0028 (Updates line handles)",
+ "changed_paths": [
+  "src/adapters/qt/src/epoch_comparison_control.cpp",
+  "tests/adapters_qt/epoch_comparison_control_tests.cpp",
+  "tests/end_to_end/live_second_account_course.cpp"
+ ],
+ "root_cause": "epoch_comparison_control::apply_catalog took AllowOccurrenceImport from every catalogue projection; only the occurrence history projection sets it, so the host's next catalogue projection turned it off and no GitHub-recorded update was a stop. Latent since 1bd5c5e80 (2026-09-13, large reviews only); 0bfcbaa9a (2026-09-26) made every review within the read limits read selected objects, so on every signed-in review the handles could reach only updates this install observed, and on a first open both sat stacked on the newest node.",
+ "fix": "Take the flag only with the occurrence history and clear it with that history (replacement, authority change, no authority).",
+ "commits": {
+  "allocation_on_main": "0bcc6951f",
+  "card": "7b2dfb8c8",
+  "fix": "fa47d1bf7",
+  "merge_main": "c18cdeaf4"
+ },
+ "branch": "bpr-epoch-handles",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-epoch-handles",
+ "baseline": "4fe83a913 (main)",
+ "verification": {
+  "focused": "qt_epoch_comparison_scale_{100,125,200}, application_epoch_update_line_public_path, application_anonymous_public_preview_public_path, application_epoch_ordinary_update_recreated pass on the merged tree",
+  "negative_control": "previous apply_catalog fails the new course at 'light: the right handle drags onto the newer GitHub-recorded update' at all three scales",
+  "live": "BPR-Test#71 through the shipped composition, signed in with the active gh account: force-push nodes unselectable before, selectable and imported on drag after; PR closed and branch deleted",
+  "composition_contracts": "composition, workbench, review_ledger, review_round_trip, defect pass with no reseal; agent_chat, agent_finding, agent_invocation, queue not built in this partial build",
+  "format": "clang-format 22.1.8 clean",
+  "tidy": "clean on the changed files",
+  "documentation": "DOCUMENTATION_OK"
+ },
+ "pending": [],
+ "next_action": "None after merge to main. The installed 0.2.1 keeps the defect until a release carries the fix."
+}
