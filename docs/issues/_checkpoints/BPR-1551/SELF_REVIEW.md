@@ -25,3 +25,15 @@ identical unknown DLL are rejected. Native actual producer/full-map and Windows
 module regression acceptance remain pending. Root will alone rebuild/sign into a
 new output; actual extracted-package audit/signature coverage is required before
 card finish. Old signed candidate and published Mac0.2.1 stay immutable.
+
+## Native falsification
+
+The actually relinked DLL passes824symbol full-map proof and native hardening.
+Each producer/map/unknown/seam negative fails for its named reason; same-name
+bytes cannot substitute a producer, and identical bytes cannot authorize an
+unknown name. All native script cases execute with68pass/3reported skips; source
+Root/code is exact23447, no app/core/adapter/test-runtime source changed. The
+coordinator's read-only WIP review reports no new source finding; it is advisory
+and is not represented as required independent acceptance. All4final native
+signatures and actual new expanded-MSI audit remain mandatory, with no trust
+approval inferred from current unsigned development producer proof.
