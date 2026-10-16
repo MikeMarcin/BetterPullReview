@@ -379,8 +379,8 @@ The fenced-code scan, the language table, GitHub's diff grammar and the
 suggestion rows joined the core target as selector 4, with the property
 checks in `tests/fuzz/markdown_fuzz.cpp` (blocks in order and bounded, lines
 inside the body, marks inside their line and ordered, rows matching both
-sides with changed words inside each row). Run on a copy of the 29 checked-in
-seeds then present on branch `bpr-1562-fenced-code`, macOS arm64, Apple clang with LLVM
+sides with changed words inside each row). Run on a copy of the checked-in seeds
+(29 then; RFC-BPR-0084's SVG seed makes 30) on branch `bpr-1562-fenced-code`, macOS arm64, Apple clang with LLVM
 23's libFuzzer runtime, `-max_len=16384`.
 
 | Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
