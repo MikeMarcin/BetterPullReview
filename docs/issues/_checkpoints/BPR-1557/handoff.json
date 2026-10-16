@@ -34,7 +34,7 @@
   "tests/end_to_end/live_second_account_course.cpp",
   "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
   "docs/ux/workbench-specification.md",
-  "docs/issues/40-parked/BPR-1557-the-updates-line-starts-with-the-pull-request-base.md"
+  "docs/issues/60-done/BPR-1557-the-updates-line-starts-with-the-pull-request-base.md"
  ],
  "verification": "See the card's acceptance: model, line, composed, live and gates pass; full ctest on fd6c65196 731/740 with all 9 failures passing in isolation; focused rows, format, tidy and documentation on 1a76acd0f.",
  "review": {
@@ -48,16 +48,13 @@
   "executable_sha256": "681160b575f35dfe57340e2785a908136e605d31505109d950748b695a11a3ee",
   "server_pid": 65571,
   "url_port": 63235,
-  "pending": [
-   "BPR-1557:owner"
-  ]
+  "pending": [],
+  "verdict": "accept",
+  "decision_id": "9994b166-2e9e-4882-9784-715ad023d6d0"
  },
  "live_target": "MikeMarcin/BPR-Test#74 closed; branches bpr-1557-base and bpr-1557-feature deleted",
- "pending": [
-  "BPR-1557:owner (attended Accept/Reject)",
-  "landing: merge main into the branch, reseal the round-trip composition digests on the merged tree, rerun the focused rows, finish the card"
- ],
- "next_action": "Read status --after 3 of session a21a5f42. Accept: merge main into the branch, reseal the round-trip composition digests on the merged tree, rerun the focused rows, finish. Reject: v004 from the note. BPR-1560 moves the base to the merge base through pull_request_base; the label stays 'Base' and the tooltip neutral.",
+ "pending": [],
+ "next_action": "None: landed on main. BPR-1560 changes pull_request_base semantics; the line follows.",
  "previous_reviews": [
   {
    "session": "d62ac57667ce277091d8684de8c34f0b",
@@ -77,5 +74,6 @@
    "candidate": "released",
    "frozen_root": "removed"
   }
- ]
+ ],
+ "merged_tree": "8ce8ae9db"
 }
