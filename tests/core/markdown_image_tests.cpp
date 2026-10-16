@@ -272,10 +272,53 @@ namespace {
 		expect(markdown_image_cache_key("github.com", 7, source) != markdown_image_cache_key("github.com", 8, source), "keys are isolated per account");
 		expect(markdown_image_cache_key("github.com", 7, source) != markdown_image_cache_key("ghe.example", 7, source), "keys are isolated per host");
 	}
+
+	/// RFC-BPR-0084 Q1. SVG admission: self-contained and bounded, or refused.
+	void svg_admission()
+	{
+		namespace core      = bpr::core;
+		const auto document = [](const std::string& aBody) {
+			return R"svg(<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10">)svg" + aBody + "</svg>";
+		};
+		const auto state = [](const std::string& aDocument) {
+			const auto admitted = core::admit_markdown_svg(aDocument);
+			return admitted ? core::markdown_image_state::loaded : admitted.error();
+		};
+		expect(core::markdown_svg_signature("\xEF\xBB\xBF <?xml version=\"1.0\"?>\n<!-- badge --><!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"x\"><svg/>"), "BOM, declaration, comment and doctype precede the root");
+		expect(!core::markdown_svg_signature("<html><svg/></html>") && !core::markdown_svg_signature("<svgx/>") && !core::markdown_svg_signature("GIF89a"), "only an svg root element is SVG");
+		expect(state(document(R"svg(<linearGradient id="g"/><rect fill="url(#g)" style="fill:url( '#g' )"/><use xlink:href="#g"/><use href = '#g'/>)svg")) == core::markdown_image_state::loaded, "fragment references are admitted");
+		expect(state(document(R"svg(<image xlink:href="data:image/png;base64,AAAA"/><image href="data:image/svg+xml;base64,AAAA"/>)svg")) == core::markdown_image_state::loaded, "embedded raster and SVG payloads are admitted");
+		for (const auto* refused : { R"svg(<image xlink:href="https://e.example/a.png"/>)svg", R"svg(<image href="file:///etc/passwd"/>)svg", R"svg(<image href="a.png"/>)svg",
+									 R"svg(<image xlink:href=" //e.example/a.png"/>)svg", R"svg(<image href="data:text/html;base64,AA"/>)svg", R"svg(<use xlink:href="other.svg#g"/>)svg",
+									 R"svg(<image href=a.png/>)svg", R"svg(<rect style="fill:url(https://e.example/x)"/>)svg", R"svg(<rect fill="url(other.svg#g)"/>)svg",
+									 R"svg(<style>@import url(#a);</style>)svg", R"svg(<style>@font-face{font-family:x}</style>)svg", R"svg(<font><glyph/></font>)svg",
+									 R"svg(<script>x</script>)svg", R"svg(<foreignObject/>)svg", R"svg(<a href="javascript:x"/>)svg", R"svg(<!-- href="http://e.example" -->)svg" }) {
+			expect(state(document(refused)) == core::markdown_image_state::blocked, std::string{ "refused: " } + refused);
+		}
+		expect(state(R"svg(<!DOCTYPE svg [<!ENTITY a "x">]><svg/>)svg") == core::markdown_image_state::blocked, "an entity declaration is refused");
+		expect(state(R"svg(<!DOCTYPE svg [ ]><svg/>)svg") == core::markdown_image_state::blocked, "an internal doctype subset is refused");
+		expect(state("<png/>") == core::markdown_image_state::unsupported, "not SVG is unsupported");
+		auto deep = std::string{ };
+		for (std::size_t index = 0; index < core::markdown_image_svg_depth; ++index) {
+			deep += "<g>";
+		}
+		expect(state(document(deep)) == core::markdown_image_state::too_large, "nesting past the bound is too large");
+		deep.erase(0U, 3U);
+		expect(state(document(deep)) == core::markdown_image_state::loaded, "negative control: nesting within the bound is admitted");
+		auto many = std::string{ };
+		for (std::size_t index = 0; index < core::markdown_image_svg_elements; ++index) {
+			many += "<g/>";
+		}
+		expect(state(document(many)) == core::markdown_image_state::too_large, "elements past the bound are too large");
+		expect(state(document(std::string(core::markdown_image_svg_bytes, ' '))) == core::markdown_image_state::too_large, "bytes past the bound are too large");
+		expect(state(document(R"svg(<text>a > b</text><rect title="a>b"/>)svg")) == core::markdown_image_state::loaded, "quoted > and text do not confuse the element scan");
+		expect(state(R"svg(<svg><g)svg") == core::markdown_image_state::failed, "an unterminated element fails");
+	}
 } // namespace
 
 int main()
 {
+	svg_admission();
 	lengths();
 	tag_scanning();
 	linked();

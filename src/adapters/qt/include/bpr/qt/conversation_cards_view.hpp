@@ -497,6 +497,9 @@ namespace bpr::qt {
 		void apply_markdown_image(const application::markdown_image_projection& aImage);
 		/// \brief Asks again for the open thread's images still loading.
 		void request_images();
+		/// \brief RFC-BPR-0084 Q3. Shows or hides images in every post, the
+		/// open thread's now and any thread opened later.
+		void set_images_shown(bool aShown);
 		/// \brief [[BPR-1290]]. Shows the reply editor at the foot of the open
 		/// thread and gives it focus.
 		void begin_reply(const std::string& aThread);
@@ -682,6 +685,7 @@ namespace bpr::qt {
 		std::function<bool(QWheelEvent&)>                                                    ScrollForward;
 		std::function<void(const std::string&, const std::string&)>                          LinkDispatch;
 		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageDispatch;
+		bool                                                                                 ImagesShown = true;
 		std::function<void(const std::string&, const QString&)>                              ReplyTextDispatch;
 		std::optional<thread_reply_presentation>                                             Reply;
 		/// [[BPR-1212]]. My draft is open and being written in the drawer.

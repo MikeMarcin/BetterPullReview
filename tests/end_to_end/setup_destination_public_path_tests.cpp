@@ -706,7 +706,7 @@ namespace {
 				std::cerr << "image " << image.Ordinal << " " << image.Source.toStdString() << " state=" << static_cast<int>(image.State) << '\n';
 			} });
 		const auto& images = body->image_store()->images();
-		expect(images.size() == 9U, "nine description images; the <img> in code is not one");
+		expect(images.size() == 10U, "ten description images; the <img> in code is not one");
 		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
 			expect(state(*body, index) == core::markdown_image_state::loaded && images[index].Image != nullptr, "attachments, proxied, linked, animated and themed images load");
 		}
@@ -715,10 +715,13 @@ namespace {
 		expect(images[6].Image->Frames.size() == 8U, "the animated GIF keeps its frames");
 		expect(images[7].Source.endsWith(window.palette().color(QPalette::Base).lightness() < 128 ? QStringLiteral("theme-dark.png") : QStringLiteral("theme-light.png")),
 			   "the <picture> shows the source for the reader's scheme");
-		// The SVG badge is served as image/svg+xml and keeps its placeholder.
-		expect(state(*body, 8U) == core::markdown_image_state::unsupported, "the SVG badge is unsupported");
+		// RFC-BPR-0084 owner amendment 1: the SVG badge rasterizes at twice
+		// its size, and the WebP photograph decodes through qwebp.
+		expect(state(*body, 8U) == core::markdown_image_state::loaded && images[8].Image->Width == 90U && images[8].Image->Height == 20U && images[8].Image->Scale == 2U,
+			   "the SVG badge shows at its own size, drawn at twice the density");
+		expect(state(*body, 9U) == core::markdown_image_state::loaded && images[9].Image->Width == 240U && images[9].Image->Height == 120U, "the WebP photograph shows");
 		const auto text = body->rendered_view()->toPlainText();
-		expect(text.contains(QStringLiteral("[Image: build (format not shown) — open image link]")), "the SVG badge keeps its placeholder with the reason");
+		expect(!text.contains(QStringLiteral("[Image:")), "no description image is a placeholder");
 		expect(text.contains(QStringLiteral("<img src=\"not-an-image.png\">")), "an <img> in code stays text");
 		capture(window, QStringLiteral("markdown-images-overview.png"));
 
@@ -754,14 +757,13 @@ namespace {
 		wait_for([&] { return post("Narrow layout") != nullptr && settled(*post("Narrow layout")); }, "the reopened comment's image is answered from the cache");
 		expect(state(*post("Narrow layout"), 0U) == core::markdown_image_state::loaded, "the reopened comment's attachment shows again");
 		const auto first = github_application_fixture_access::evidence(*owner);
-		expect(first.MarkdownImageResolutions >= 1U && first.MarkdownImageFetches >= 10U, "the first run resolved and fetched its images");
+		expect(first.MarkdownImageResolutions >= 1U && first.MarkdownImageFetches >= 12U, "the first run resolved and fetched its images");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images course quiescence");
 		owner.reset();
 
 		// RFC-BPR-0084 AC06. A restart on the same profile shows what decoded
-		// from the disk cache: only the SVG badge, which was never stored, is
-		// fetched again.
+		// from the disk cache, and asks GitHub for nothing.
 		terminal     = false;
 		auto restart = github_application_fixture_access::start(app::detail::github_public_path_fixture::markdown_images_v1, options, [&](auto aResult) {
 			terminal = true;
@@ -779,12 +781,44 @@ namespace {
 		submit(again, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
 		auto* const reread = again.overview_page()->body_view();
 		wait_for([&] { return reread->isVisible() && settled(*reread); }, "every description image has an answer after the restart");
-		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
+		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U }) {
 			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
 		}
-		expect(state(*reread, 8U) == core::markdown_image_state::unsupported, "the SVG badge is still unsupported");
 		const auto second = github_application_fixture_access::evidence(*owner);
-		expect(second.MarkdownImageFetches == 1U, "after the restart only the never-cached SVG is fetched");
+		expect(second.MarkdownImageFetches == 0U && second.MarkdownImageResolutions == 0U, "after the restart nothing is resolved or fetched");
+
+		// RFC-BPR-0084 Q3. Don't load, chosen in Settings, reaches the open
+		// window: every image is its placeholder and nothing is asked for.
+		const auto option = [&again](const char* aName) {
+			auto* const found = again.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Images preference is in Settings");
+			return found;
+		};
+		option("markdownImagesOff")->click();
+		wait_for([&] { return !reread->images_shown(); }, "Don't load reaches the description");
+		expect(reread->rendered_view()->toPlainText().contains(QStringLiteral("[Image: The summary before the change — open image link]")), "the description's images are placeholders");
+		again.choose_modality(qt::review_modality::discuss);
+		auto* const againCards = again.conversation_panel()->cards();
+		againCards->open_thread("issue-comment:IC_mi_2");
+		wait_for([&] {
+			auto* const open = againCards->open_card();
+			if (open == nullptr) {
+				return false;
+			}
+			for (auto* const widget : open->findChildren<QWidget*>()) {
+				auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget);
+				if (reader != nullptr && reader->original_body().find("Spinner while it loads") != std::string::npos) {
+					return !reader->images_shown() && reader->rendered_view()->toPlainText().contains(QStringLiteral("[Image: Loading spinner — open image link]"));
+				}
+			}
+			return false;
+		},
+				 "a comment opened with Don't load shows placeholders");
+		const auto off = github_application_fixture_access::evidence(*owner);
+		expect(off.MarkdownImageFetches == 0U && off.MarkdownImageResolutions == 0U, "Don't load asks GitHub for nothing, even for a comment never seen since the restart");
+		option("markdownImagesLoad")->click();
+		again.choose_modality(qt::review_modality::overview);
+		wait_for([&] { return reread->images_shown() && settled(*reread) && state(*reread, 0U) == core::markdown_image_state::loaded; }, "Load shows the images again");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images restart quiescence");
 	}

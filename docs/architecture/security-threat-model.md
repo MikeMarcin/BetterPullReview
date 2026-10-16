@@ -567,7 +567,15 @@ re-admitted by the core (`admit_markdown_image_redirect`), HTTPS on port 443
 only, at most three redirects, 10 MiB, 20 seconds, status 200, no cookie, no
 referrer, identity encoding; the decoder trusts signatures, not labels, and
 reads PNG, JPEG and GIF only within pixel, side, frame and decoded-byte bounds.
-SVG and WebP are not decoded. `tests/scripts/verify_native_https_images.py`
+Owner amendment 1 (2026-10-16) adds WebP through `qtimageformats`' `qwebp`
+(libwebp) within the same bounds, and SVG: the core admits a document only if
+it is at most 1 MiB, 20,000 elements and depth 64, every `href` names a
+fragment or an embedded image payload, every CSS `url()` a fragment, and it
+has no entity declaration, internal doctype subset, script, `foreignObject`,
+`@import`, `@font-face` or SVG font; QtSvg then renders it once, untrusted and
+without animation, so it can load no file, URL, font or image from outside.
+No SVG image plugin ships, so no other path reaches SVG parsing. A profile can
+turn image loading off. `tests/scripts/verify_native_https_images.py`
 proves the credential and redirect rules on loopback. Images that decoded,
 private attachments included, are kept in the profile's owner-private
 `state/v1/markdown-images.sqlite3` (128 MiB, seven days after last use, keyed by

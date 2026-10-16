@@ -726,6 +726,11 @@ namespace bpr::qt {
 		Cards->set_image_dispatch(std::move(aDispatch));
 	}
 
+	void github_conversation_panel::set_images_shown(const bool aShown)
+	{
+		Cards->set_images_shown(aShown);
+	}
+
 	void github_conversation_panel::apply_markdown_image(const application::markdown_image_projection& aImage)
 	{
 		Cards->apply_markdown_image(aImage);

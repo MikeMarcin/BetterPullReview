@@ -38,6 +38,10 @@ namespace bpr::core {
 	inline constexpr std::size_t   markdown_image_disk_cache_bytes      = 128U * 1024U * 1024U;
 	inline constexpr std::uint32_t markdown_image_disk_cache_days       = 7U;
 	inline constexpr std::size_t   markdown_image_source_bytes          = 4096U;
+	/// RFC-BPR-0084 Q1 (owner, 2026-10-16). An SVG is rasterized only within these.
+	inline constexpr std::size_t markdown_image_svg_bytes    = 1024U * 1024U;
+	inline constexpr std::size_t markdown_image_svg_elements = 20'000U;
+	inline constexpr std::size_t markdown_image_svg_depth    = 64U;
 
 	/// \brief The one state an image is in (RFC-BPR-0084 "What renders").
 	enum class markdown_image_state : std::uint8_t {
@@ -233,6 +237,23 @@ namespace bpr::core {
 	/// \brief Whether an animation of this many frames and decoded bytes keeps
 	/// every frame; one beyond either bound keeps its first frame only.
 	[[nodiscard]] auto markdown_image_animation_admitted(std::size_t aFrames, std::size_t aDecodedBytes) noexcept -> bool;
+
+	/// \brief RFC-BPR-0084 Q1. Whether a payload's leading bytes are an SVG
+	/// document: optional BOM, XML declaration, comments and doctype, then an
+	/// `svg` root element.
+	[[nodiscard]] auto markdown_svg_signature(std::string_view aDocument) noexcept -> bool;
+
+	/// \brief RFC-BPR-0084 Q1. Admits an SVG document for static rasterization.
+	///
+	/// \details The document must be self-contained: every `href` names a
+	/// fragment of the document itself (`#id`) or an embedded
+	/// `data:image/png|jpeg|gif|webp|svg+xml` payload, and every CSS `url()` a
+	/// fragment. Entity declarations, an internal doctype subset, scripts,
+	/// `foreignObject`, `@import`, `@font-face` and SVG fonts are refused
+	/// (`blocked`). Over `markdown_image_svg_bytes`, `_elements` or `_depth` it
+	/// is `too_large`; anything not an SVG document is `unsupported`. The scan
+	/// is conservative: a forbidden word inside a comment or text refuses too.
+	[[nodiscard]] auto admit_markdown_svg(std::string_view aDocument) -> std::expected<void, markdown_image_state>;
 
 	/// \brief The displayed size: hints over the natural size, aspect kept, no wider than available.
 	[[nodiscard]] auto markdown_image_display_size(markdown_image_size aNatural, const markdown_image_hints& aHints,

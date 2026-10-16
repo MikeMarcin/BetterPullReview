@@ -118,8 +118,18 @@ share of it). Frames draw at the screen's device pixel ratio from a cached
 scaled pixmap; an uploaded attachment's corners are rounded by 6 px as on
 GitHub. An animated GIF animates with its delays (a delay of 10 ms or less
 shows for 100 ms, as in browsers) while the reader is visible. A failed,
-blocked, too-large, unsupported (SVG, WebP) or over-limit image is replaced by
-the placeholder text, with the reason in parentheses for the last three.
+blocked, too-large, unsupported or over-limit image is replaced by the
+placeholder text, with the reason in parentheses for the last three. By
+RFC-BPR-0084 owner amendment 1, a WebP decodes like a GIF (animated too), and
+an SVG that `core::admit_markdown_svg` finds self-contained and bounded is
+drawn once by QtSvg's renderer at twice its size, so a badge stays sharp; an
+SVG that names anything outside itself is blocked.
+
+The profile's "Descriptions and comments: Images" preference (Settings, Review
+behaviour; Load by default) reaches every reader through `set_images_shown`.
+Don't load renders every image as its placeholder and asks for nothing; Load
+renders the body again, which asks for its images, so cached ones show at
+once.
 
 An image object carries its link (or its own source) as anchor, so Tab, Enter
 and a click reach it through the same untrusted-destination path as links;

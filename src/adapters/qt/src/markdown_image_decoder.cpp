@@ -5,6 +5,9 @@
 #include <QColorSpace>
 #include <QImage>
 #include <QImageReader>
+#include <QPainter>
+#include <QSvgRenderer>
+#include <QtSvg/qtsvgglobal.h>
 
 #include <cstring>
 #include <utility>
@@ -22,6 +25,10 @@ namespace bpr::qt {
 			}
 			if (aBytes.starts_with("GIF87a") || aBytes.starts_with("GIF89a")) {
 				return QByteArrayLiteral("gif");
+			}
+			// RFC-BPR-0084 Q2: RIFF, a little-endian length, then WEBP.
+			if (aBytes.size() >= 12U && aBytes.starts_with("RIFF") && aBytes.substr(8U, 4U) == "WEBP") {
+				return QByteArrayLiteral("webp");
 			}
 			return { };
 		}
@@ -47,11 +54,56 @@ namespace bpr::qt {
 			frame.DelayMs = aDelay;
 			return frame;
 		}
+
+		/// RFC-BPR-0084 Q1. An admitted SVG, rendered once, statically, at twice
+		/// its natural size so it stays sharp on high-density screens.
+		auto rasterize_svg(const std::string_view aBytes) -> std::expected<application::markdown_decoded_image, core::markdown_image_state>
+		{
+			if (const auto admitted = core::admit_markdown_svg(aBytes); !admitted) {
+				return std::unexpected{ admitted.error() };
+			}
+			QSvgRenderer renderer;
+			// Untrusted-source parsing (no AssumeTrustedSource) and no animation.
+			renderer.setOptions(QtSvg::DisableAnimations);
+			if (!renderer.load(QByteArray{ aBytes.data(), static_cast<qsizetype>(aBytes.size()) }) || !renderer.isValid()) {
+				return std::unexpected{ core::markdown_image_state::failed };
+			}
+			auto natural = renderer.defaultSize();
+			if (natural.isEmpty()) {
+				// A browser's size for an image with neither size nor viewBox.
+				natural = QSize{ 300, 150 };
+			}
+			const auto size = core::markdown_image_size{ static_cast<std::uint32_t>(natural.width()), static_cast<std::uint32_t>(natural.height()) };
+			if (!core::markdown_image_dimensions_admitted(size)) {
+				return std::unexpected{ core::markdown_image_state::too_large };
+			}
+			const auto scale  = core::markdown_image_dimensions_admitted({ size.Width * 2U, size.Height * 2U }) ? 2U : 1U;
+			auto       pixels = QImage{ natural * static_cast<int>(scale), QImage::Format_ARGB32_Premultiplied };
+			if (pixels.isNull()) {
+				return std::unexpected{ core::markdown_image_state::too_large };
+			}
+			pixels.fill(Qt::transparent);
+			{
+				QPainter painter{ &pixels };
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setRenderHint(QPainter::SmoothPixmapTransform);
+				renderer.render(&painter, QRectF{ QPointF{ }, QSizeF{ pixels.size() } });
+			}
+			auto image   = application::markdown_decoded_image{ };
+			image.Width  = size.Width;
+			image.Height = size.Height;
+			image.Scale  = scale;
+			image.Frames.push_back(frame_of(std::move(pixels), 0U));
+			return image;
+		}
 	} // namespace
 
 	auto markdown_image_decoder::decode(const std::string_view aBytes) const
 		-> std::expected<application::markdown_decoded_image, core::markdown_image_state>
 	{
+		if (core::markdown_svg_signature(aBytes)) {
+			return rasterize_svg(aBytes);
+		}
 		const auto format = format_of(aBytes);
 		if (format.isEmpty()) {
 			return std::unexpected{ core::markdown_image_state::unsupported };

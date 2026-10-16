@@ -129,6 +129,8 @@ namespace bpr::qt {
 		void set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch);
 		void apply_markdown_image(const application::markdown_image_projection& aImage);
 		void request_images();
+		/// \brief RFC-BPR-0084 Q3. Shows or hides images in the conversation's posts.
+		void set_images_shown(bool aShown);
 		void adopt_appearance(const appearance_profile& aProfile);
 		/// \brief [[BPR-1083]]. The label tints and mark style for the notes.
 		void set_label_marks(const feedback_mark_theme& aTheme);

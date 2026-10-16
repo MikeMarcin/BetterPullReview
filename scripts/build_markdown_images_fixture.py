@@ -6,16 +6,16 @@ and comments show the way GitHub shows them. This copies the constructed
 nested-folders contract (`tests/fixtures/github/contracts/v1/nested-folders-v1`,
 BPR-1213), gives it a description and two pull request comments that hold
 GitHub's image forms (uploaded attachments, `<img width>`, a table, a list,
-a linked image, an animated GIF, a `<picture>` with a dark source, an SVG badge
-and an image that is gone), and writes, beside it, what GitHub's rendering
+a linked image, an animated GIF, a `<picture>` with a dark source, an SVG badge,
+a WebP photograph and an image that is gone), and writes, beside it, what GitHub's rendering
 would serve for them:
 
   tests/fixtures/github/markdown-images/v1/markdown-images-v1/bodies.json
       each body node's rendered HTML, as GraphQL `bodyHTML` answers it;
   tests/fixtures/github/markdown-images/v1/markdown-images-v1/manifest.json
       each served address's image file and content type;
-  tests/fixtures/github/markdown-images/v1/markdown-images-v1/*.png|gif|svg
-      the images, drawn here from code.
+  tests/fixtures/github/markdown-images/v1/markdown-images-v1/*.png|gif|svg|webp
+      the images, drawn here from code (the WebP is embedded, see SUNSET_WEBP).
 
 Every image is synthetic and deterministic; nothing is fetched, and no
 identity, address or signature is real (`jwt=fixture`).
@@ -26,6 +26,7 @@ Usage:
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import shutil
@@ -70,6 +71,8 @@ The weekly export summary becomes a card. Screenshots from the issue it fixes:
 </picture>
 
 Build status: ![build]({EXTERNAL.format("badge.svg")})
+
+A WebP photograph: ![Sunset over the bay]({EXTERNAL.format("sunset.webp")})
 
 `<img src="not-an-image.png">` stays code.
 """
@@ -239,6 +242,29 @@ def spinner_frames(size: int, count: int) -> list[bytes]:
     return frames
 
 
+# RFC-BPR-0084 owner amendment 1. A 240x120 lossy WebP sunset, embedded
+# because no WebP encoder is assumed here: drawn with Pillow and encoded once
+# with `cwebp -q 80 -m 6` (libwebp 1.5).
+SUNSET_WEBP = base64.b64decode(
+    "UklGRloDAABXRUJQVlA4IE4DAAAwGQCdASrwAHgAPm02l0ikIyIhJjToAIANiWNu/Hv0OPJEwt+S"
+    "uOmuq3G3pgG87ZDOrt/ugiZFSdlrwkXBKr85k9ZS0E9mKk7LXhIt5LNXhouSld0RG3b37zXQgxgQ"
+    "J4fG2UUrREXJS0E38mhABBbppjCwVvbNkUTr8pzMVJ2WstgMkBVKrWSQP5YqfkPnJmVeznB+DPAH"
+    "y27gkkaYCv38RKHvPsJ3bJncgTINKq0YYTObPUN7fuSph6YTLmla/Wl9+92rSLbbbbbbbbbaKGI8"
+    "FLwA/u/zaBbn/+dg+PdE+1D/+SnxxxZ5L69U3ChcuT6o1EYfBM2UaiMPgmbKN1Z0ddPuN/AXfkup"
+    "Z4DWk0E0vLoAgp5SXLy1/LoAqNUf0j/yJ9DoaZaAAAG1+8gJtUVIPiYEM4Bi7QT8O9DE3sod/ef7"
+    "Nfp1PrB2pRmR+OhrEcN551J5DzL2LGPlcnpH/kT6HJEk8RgSIi0DmI6s4oLOzfxA2SPCk27hwozq"
+    "QccEn5GRQP3kL+CW/Xx6682hwHdBjI6L25HO6/lxw6AtMidjj44V1WvUx/+EH5wdVVjHFfemZmny"
+    "F0yMJsD54h2Cyf1R3asH7Pg4cFd+ciAkJItyZ4dWXktKdyw+EgkjgSiS/ManwehE4wFEGw730Ua7"
+    "37V3l5aVNlGYBWu4Gh+Ipq45uC5xzzoYpa/CI4WuqmCjDwlgoxIyrMbel0/ypp/0MrbcDTGuS5ke"
+    "dpz7PXmo9yTet6YFfHlEksRmg31ZPhZeNzpkiX2jBrxGa1rMZ3uSHYaHqnFOWVJ5eU6t0kmwXgjv"
+    "wpYb03mCEatB4cJe5NXJH//Ftja27H39VmWEjy2IugPO46u3w9RbwV/GS/JOp9WC0L6R8njANFgu"
+    "+e1+yaE9lhLqm453DE7rxP/f/XUfknSJ0WpJ+nz2ROrfKBe45+hlg5md+5/+x7lCzl6G5RQrg2U3"
+    "nqGvs/5aE5UnJWlHJwmJ0QaOoF1f3zvRW0SQdy/oZr3DkaaQZoG4OrNHtltr2jMapgk1MuP62+X4"
+    "aj8BG2DJfiiPPU8G77Ug4QXwV5HqGeiyRmvLBYVHvmJQ1Hys/C+62DvamrxhooZkuDz52mSYHxCW"
+    "i24XfD+ZpgAAAAA="
+)
+
+
 BADGE = """<svg xmlns="http://www.w3.org/2000/svg" width="90" height="20"><rect width="90" height="20" rx="3" fill="#555"/><rect x="37" width="53" height="20" rx="3" fill="#4c1"/><text x="6" y="14" fill="#fff" font-family="Verdana" font-size="11">build</text><text x="42" y="14" fill="#fff" font-family="Verdana" font-size="11">passing</text></svg>
 """
 
@@ -283,6 +309,7 @@ def main() -> int:
         "loading.gif": (gif(64, 64, [(255, 255, 255), (9, 105, 218), (208, 215, 222)], spinner_frames(64, 8), 8), "image/gif"),
         "spinner.gif": (gif(32, 32, [(255, 255, 255), (130, 80, 223), (234, 238, 242)], spinner_frames(32, 12), 6), "image/gif"),
         "badge.svg": (BADGE.encode("utf-8"), "image/svg+xml; charset=utf-8"),
+        "sunset.webp": (SUNSET_WEBP, "image/webp"),
     }
     for name, (data, _) in files.items():
         (images / name).write_bytes(data)
@@ -290,7 +317,7 @@ def main() -> int:
     served = {}
     for index in range(1, 6):
         served[ATTACHMENT.format(index)] = (PRIVATE.format(index), f"attachment-{index}.png", None)
-    for name in ("dice.png", "flower.png", "loading.gif", "theme-dark.png", "theme-light.png", "badge.svg", "spinner.gif", "missing.png"):
+    for name in ("dice.png", "flower.png", "loading.gif", "theme-dark.png", "theme-light.png", "badge.svg", "sunset.webp", "spinner.gif", "missing.png"):
         address = EXTERNAL.format(name)
         served[address] = (camo(address), name if name != "missing.png" else None, address)
 
@@ -311,6 +338,7 @@ def main() -> int:
         '<picture><source media="(prefers-color-scheme: dark)" srcset="' + dark_served + '" data-canonical-src="' + EXTERNAL.format("theme-dark.png") + '">',
         img(EXTERNAL.format("theme-light.png")) + "</picture>",
         "<p>Build status: " + img(EXTERNAL.format("badge.svg")) + "</p>",
+        "<p>A WebP photograph: " + img(EXTERNAL.format("sunset.webp")) + "</p>",
         '<p><code>&lt;img src="not-an-image.png"&gt;</code> stays code.</p>',
     ))
     bodies = {

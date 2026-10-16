@@ -163,7 +163,7 @@ namespace {
 					const auto fetched = (*transport)->perform_markdown_image(request, { });
 					if (!fetched) {
 						projection.State = fetched.error();
-					} else if (!fetched->ContentType.starts_with("image/") || fetched->ContentType.starts_with("image/svg")) {
+					} else if (!fetched->ContentType.starts_with("image/")) {
 						projection.State = core::markdown_image_state::unsupported;
 						detail           = fetched->ContentType;
 					} else if (auto image = decoder.decode(fetched->Bytes)) {

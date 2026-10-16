@@ -179,7 +179,8 @@ inline images can be judged beside GitHub's own presentation.
 (`bpr-fixtures/nested-folders#21`, signed in as `fixture-author`) and gives it a
 description with five uploaded attachments (one `<img width>`, two in a
 table), a proxied transparent PNG, a linked image, an animated GIF at a set
-height, a `<picture>` with a dark source, an SVG badge and an `<img>` in code,
+height, a `<picture>` with a dark source, an SVG badge, a WebP photograph
+(embedded in the builder; owner amendment 1) and an `<img>` in code,
 and two pull request comments: an attachment at a set width, and an animated
 GIF beside an image that is gone. Beside the contract, under
 `tests/fixtures/github/markdown-images/v1/markdown-images-v1/`, it writes what
