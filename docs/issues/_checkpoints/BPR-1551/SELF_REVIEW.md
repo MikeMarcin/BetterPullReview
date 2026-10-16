@@ -37,3 +37,19 @@ coordinator's read-only WIP review reports no new source finding; it is advisory
 and is not represented as required independent acceptance. All4final native
 signatures and actual new expanded-MSI audit remain mandatory, with no trust
 approval inferred from current unsigned development producer proof.
+
+## Final artifact acceptance
+
+Read the coordinator-supplied actualR2/R4 outputs locally and checked their source,
+MSI/executable/SPDX identities, exact five trust rows (MSI +4images), Valid status,
+approved publisher and timestamps. Both mechanical audits pass on the actual
+expanded17-image MSI runtime; xdiff explicitly uses full-map producer proof. The
+signed DLL hash appropriately differs from the unsigned R1 development hash.
+No fresh artifact identity is inferred for later docs-only branch commits.
+
+This satisfies the bounded artifact criterion without modifying the frozen23447
+producer/tag or rerunning package/sign operations. The coordinator's offline dry
+run and raw31scan retention are reported with their actual scope; no new security
+or legal approval is inferred. Documentation/board/canonical finish is local only.
+All five criteria/four exits can close; publication/download trust verification
+and wider RFC0038 qualification remain coordinator-owned outside this card.
