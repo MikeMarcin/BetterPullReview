@@ -40,19 +40,21 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1531-v001-kVFsC7",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "203673dc69e83ec6df55581a9dc16e5a",
-    "event_cursor": 4,
+    "event_cursor": 5,
     "candidates": {
       "BPR-1531-option-a-v001": "f239492a9a2843c5e6bc4fb08955101078e7f3097128b48974f5d6d0433341f2"
     },
-    "phase": "ready",
-    "protected": true,
+    "phase": "decided",
+    "protected": false,
     "decisions": null,
-    "server_pid": 57648,
+    "server_pid": null,
     "server_port": 62744,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), 1ad7b8d2-df3b-4be1-a1d1-1590ae78a37e"
   },
-  "pending": [
-    "AC4 human: owner Accept/Reject of candidate BPR-1531-option-a-v001"
-  ],
-  "next_action": "On hand-back after cursor 4: Accept merges bpr-alt-a-accept into main (rebase onto main first; BPR-1532 also edits workbench_window.cpp keys), finishes the card Done and removes the frozen root; Reject's note becomes v002 on the same branch."
+  "pending": [],
+  "next_action": "None: accepted, merged to main and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "verification": "14/14 focused and shared window/menu rows pass; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
 }

@@ -125,3 +125,27 @@ That is a separate owner decision if it matters.
 
 Next: on hand-back after cursor 4, an Accept merges `bpr-alt-a-accept` into
 main and finishes the card; a Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:45Z: Accept**, no note (decision
+`1ad7b8d2-df3b-4be1-a1d1-1590ae78a37e`, event 5 of session
+`203673dc69e83ec6df55581a9dc16e5a`), on candidate
+`BPR-1531-option-a-v001` at `a51990fd7`, fingerprint `f239492a…`. Event
+cursor consumed: 5.
+
+`main` (through `32890abb4`, with BPR-1528, BPR-1529, BPR-1530 and
+BPR-1534) merged into `bpr-alt-a-accept` at `ee5129876` without conflicts. On
+the merged tree (`dev`, Debug): `qt_review_state_icon`,
+`application_review_ledger_composition_contract`,
+`qt_workbench_focus_order_scale_100`, `architecture_boundaries`,
+`application_accepted_file_in_overview`,
+`application_diff_zoom_public_path`,
+`application_header_source_navigation`,
+`qt_workbench_window_scale_{100,125,200}`, `qt_profile_management_window`,
+`qt_files_tree`, `qt_home_list_scale_100` and `qt_appearance_profile` pass
+14/14; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 57648) was stopped, the candidate's protection
+released and the frozen root removed. BPR-1536 builds on this branch and lands
+after it.
