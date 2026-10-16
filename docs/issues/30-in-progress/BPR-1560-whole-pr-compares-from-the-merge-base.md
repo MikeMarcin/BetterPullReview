@@ -73,6 +73,11 @@ on github.com sets `base.sha` to the base tip at the push (course #78, steps 3
 and 5). Whichever rule the owner's server follows, the fix does not depend on
 it: it never compares from `base.sha`.
 
+Further owner evidence (relayed 2026-10-16): the file whose right pane was not
+syntax-highlighted ([[BPR-1558]], fixed on main at `ec097d8dc`: identical blobs
+on both sides only coloured the left) was one of the 0-change files, that is
+identical blobs on both sides, which is this card's second symptom.
+
 Not a regression: two-dot from the recorded base has been the Whole PR
 contract since the epoch core (`618c56419`, `cac0f5169`, 2026-07-30). BPR-0944
 recorded the same anomaly on 2026-09-20 and the owner deferred the decision;
