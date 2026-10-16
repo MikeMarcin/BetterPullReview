@@ -11,10 +11,8 @@
  "root_causes": [
   "Line details painted with Qt's QPlainTextEdit selection, which repaints selected glyphs in HighlightedText: selected int Light #1f2328 (was #6e3ec8), Dark #dcdcdc (#ffd700), HC Light #000000 (#5a009e), HC Dark #ffffff (#dbaaff)"
  ],
- "pending": [
-  "AC3 human: owner Accept/Reject of BPR-1534-line-details-syntax-v001"
- ],
- "next_action": "On hand-back: Accept merges 1cf1db2f1 + c84681b0a (cherry-picks without a0538e749) to main and finishes BPR-1534; Reject's note becomes v002.",
+ "pending": [],
+ "next_action": "None for BPR-1534: done.",
  "source_root": "/Users/jaeger/.codex/worktrees/bpr1533-selection/BetterPullReview",
  "branch": "bpr-1533-selection",
  "baseline": "1bd314121 (main when rebased; claimed at dd8f5691e)",
@@ -52,16 +50,30 @@
   "state": "/Users/jaeger/.codex/attended-review/bpr1533-v001-aCNnPi",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
   "session": "7c8004e6428577726d1ce8825ee1dff5",
-  "event_cursor": 8,
+  "event_cursor": 11,
   "candidates": {
    "BPR-1533-selection-v001": "cfc14897d92f544bd5d618d95f1c6ce05f3eedf9543295dec3b4e48ae7a7b36c",
    "BPR-1534-line-details-syntax-v001": "d9dda508db354a3567365412bdcd3059b0a9ea4de89f2bceb0ba5f7bb9c26268"
   },
-  "phase": "ready",
+  "phase": "handed-back",
   "protected": true,
-  "decisions": null,
-  "server_pid": 70713,
+  "decisions": {
+   "BPR-1534-line-details-syntax-v001": {
+    "outcome": "accept",
+    "event": 10,
+    "decision_id": "ef8841e4-f2d3-44c6-83ed-001d339d0088"
+   }
+  },
+  "server_pid": null,
   "server_port": 64647,
   "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+ },
+ "merged": {
+  "main_base": "0b37d5438",
+  "commits": {
+   "shared_helper": "b38953f19",
+   "BPR-1534": "5bde3d8dd",
+   "render_look": "1d2564527"
+  }
  }
 }
