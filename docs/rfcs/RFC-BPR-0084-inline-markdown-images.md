@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0084"
 title: "Show images in descriptions and comments the way GitHub does"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0036"]
 metadata: {"rfc_base_sha":"94699fd51c2644c3ebb38743f623927d179859a1","mandate_revision":"inline-markdown-images-r1","milestone_plan":{"id":"inline-markdown-images-v1","path":"docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json"}}
@@ -30,6 +30,12 @@ cards:
 | [[BPR-1554]] | SVG through QtSvg ([owner amendment 1](#owner-amendment-1-2026-10-16-answers-to-q1-q3), AM1-01) |
 | [[BPR-1555]] | WebP through Qt's WebP plugin (AM1-02) |
 | [[BPR-1556]] | "Images in descriptions and comments" preference (AM1-03) |
+
+Closed 2026-10-16 by [[BPR-1550]]: the live course on `MikeMarcin/BPR-Test`
+passed, the owner accepted the images criterion in attended session
+`8a5e3c24` (cursor 17), and owner amendment 1 (SVG, WebP, the preference) was
+implemented by [[BPR-1554]] to [[BPR-1556]] and verified on the tree merged
+with `main`.
 
 The image parts of RFC-BPR-0036 ("Links, images and remote content" and the
 image clause of its AC-03) are superseded by this RFC for image references
