@@ -205,3 +205,37 @@ handles were 7x13 hollow outlines in that colour.
 - Behaviour, keys, menus, accessibility and wording are v001's; the label
   stays "Base" and the tooltip neutral until BPR-1560 moves the base to the
   merge base through `pull_request_base`.
+
+v001's host is stopped and its candidate released (session event 6); its
+Reject stays recorded. Its frozen root is removed.
+
+## Attended review v002 (pending)
+
+- Session `66dd3c27654c930973d797eb9fea2e84`, fresh state
+  `/Users/jaeger/.mask/bpr-1557-base-anchor-v002-20261016/attended-review`,
+  checkout `.claude/worktrees/bpr-1557-base-anchor`, event cursor 3.
+- Candidate `BPR-1557-base-anchor-v002` (revision `frozen-d3b2e36ed-v002`,
+  fingerprint `b95dbd24edef…`), criterion `BPR-1557:owner`: the Updates line's
+  handles are easy to see at a glance, with the left on the pull request's
+  base and the right on the newest update. Inline 2x offscreen renders: before
+  (main), v001 and v002 in Light and Dark, one update and three; v002 in both
+  high-contrast themes and with keyboard focus.
+- Frozen root `/Users/jaeger/bpr1557-base-anchor-v002.kg9vgygo` from
+  `d3b2e36ed` (fixture `conventional-comments-v1`, file
+  `src/engine/renderer.cpp`, `--next-push`); executable SHA-256
+  `172834c0d855d75a0b6a32f1e23b27c5ecf3ad7cc677a1eee951e6e76e42bc51`; its own
+  check showed the file on head `b20cb443…` and the pushed head `cd24836c…`.
+- Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v002.kg9vgygo/launch.py`
+  (`--next-push` for the second update).
+- Verification on `d3b2e36ed`: `qt_epoch_comparison_scale_{100,125,200}` (the
+  v002 checks: outline contrast, outer-side outline, arm direction, hover and
+  its clearing, focus ring, the two stack cases) with a negative control (the
+  outline as the bare accent fails them); `qt_workbench_window_scale_{100,125,200}`,
+  `core_update_line`, `core_epoch_policy`, `application_epoch_host`, the
+  workbench and round-trip composition contracts and the anonymous preview,
+  ordinary-update-recreated and update-line public paths pass; clang-format 22
+  and tidy clean on `epoch_line.cpp`.
+
+Next: read the decision (`status --after 3`). Accept: merge main into the
+branch, reseal the round-trip composition digest on the merged tree, rerun the
+focused rows and finish. Reject: its note shapes v003.
