@@ -16,23 +16,23 @@
   "Line details used Qt's opaque selection; Inactive palette equals Active, so focus is not a cause"
  ],
  "pending": [
-  "AC4 human: owner Accept/Reject of BPR-1533-selection-v001"
+  "AC4 human: owner Accept/Reject of BPR-1533-selection-v002"
  ],
- "next_action": "On hand-back: Accept merges 1cf1db2f1 + a0538e749 (and c16ce09b1's harness) to main and finishes BPR-1533; Reject's note becomes v002. Weakest measured case to watch: Light, part of a changed run on the selected line, 1.02:1 hue-only against the selected row's derived emphasis (BPR-0323).",
+ "next_action": "On hand-back: Accept merges 9f55457be + c7b84c309 onto current main, reruns the focused rows and docs gate, and finishes BPR-1533; Reject's note becomes v003.",
  "source_root": "/Users/jaeger/.codex/worktrees/bpr1533-selection/BetterPullReview",
  "branch": "bpr-1533-selection",
- "baseline": "1bd314121 (main when rebased; claimed at dd8f5691e)",
+ "baseline": "dd2f52691 (main after BPR-1534 merged)",
  "commits": {
-  "shared_helper": "1cf1db2f1",
-  "BPR-1533": "a0538e749",
-  "BPR-1534": "c84681b0a",
-  "render_look": "c16ce09b1 (tests only)"
+  "BPR-1533_v001_panes": "9f55457be",
+  "BPR-1533_v002_light": "c7b84c309",
+  "merged_shared_helper_on_main": "b38953f19"
  },
- "source_candidate": "c84681b0a09ed2935f0f098cbdeb777b1ae95a14",
+ "source_candidate": "c7b84c309b4ea84dbb56868065f0ebfb387d15e0",
  "independence": "BPR-1534's commit cherry-picks onto the helper alone and its tests pass there; BPR-1533's commit was tested on the helper alone before BPR-1534's was added",
  "design": {
   "frontend_design": "loaded before design work",
-  "treatment": "text selection painted last, solid in the pane's Highlight (code_selection_background), over band, selected-line wash and intraline emphasis; each run's colour through core::readable_selection_ink (append_text_selection_ranges in code_sample_painter); no setting, no hard-coded colour, no core change"
+  "treatment": "text selection painted last, solid in the pane's Highlight (code_selection_background), over band, selected-line wash and intraline emphasis; each run's colour through core::readable_selection_ink (append_text_selection_ranges in code_sample_painter); no setting, no hard-coded colour, no core change",
+  "v002": "Light only: core::text_selection_fill_alpha(light)=191, code_text_selection_fill composites Highlight over Base; #7FB0E8 -> #9FC4EE; Dark and high contrast pixel-identical to v001"
  },
  "verification": {
   "focused": "ctest at the final sources: qt_diff_workbench_scale_{100,125,200}, qt_code_sample_painter, qt_appearance_profile, qt_workbench_window_scale_{100,125,200}, application_line_details_public_path, application_source_find{,_scale_1_25,_scale_2_0}, application_cpp_identifier_appearance, application_overview_summary_{1,1_25,2}, application_review_tour_composition_{public_path,scale_125,scale_200}, application_review_tour_publication_* : 28/28 pass; qt_diff_workbench_scale_{100,125,200}, qt_code_sample_painter, qt_workbench_window_scale_100, application_line_details_public_path, application_source_find: 7/7 at 38fd036e6 (= c84681b0a content)",
@@ -41,31 +41,41 @@
   "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors: clang-tidy passed on code_sample_painter.cpp, diff_workbench.cpp, line_details_pane.cpp, diff_workbench_tests.cpp, code_sample_painter_tests.cpp",
   "documentation": "main's scripts/verify_documentation.py --root <worktree> after rebase: DOCUMENTATION_OK; verify_documentation_tests: 67 OK",
   "build": "worktree build/dev configured Release with CPM_SOURCE_CACHE=main's build/.cpm-cache (disk was at 139 MiB free at start)",
-  "renders": "better_pull_review_qt_diff_workbench_tests --render-selection-looks DIR, QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2; after at c16ce09b1, before with dd8f5691e's diff_workbench.cpp and line_details_pane.{hpp,cpp} on the same harness"
+  "renders": "better_pull_review_qt_diff_workbench_tests --render-selection-looks DIR, QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2; after at c16ce09b1, before with dd8f5691e's diff_workbench.cpp and line_details_pane.{hpp,cpp} on the same harness",
+  "v002": "13/13 focused rows at c7b84c309; painter and line-kinds courses check the Light mix and full strength elsewhere; clang-format 22 and clang-tidy clean; DOCUMENTATION_OK"
  },
  "frozen": {
-  "root": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45",
-  "launcher": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45/launch.py",
-  "source_commit": "c84681b0a09ed2935f0f098cbdeb777b1ae95a14",
+  "root": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v002.y_w8x0ux",
+  "launcher": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v002.y_w8x0ux/launch.py",
+  "source_commit": "c7b84c309b4ea84dbb56868065f0ebfb387d15e0",
   "fixture": "line-details-v1",
   "open_file": "src/report/query.cpp",
   "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/report/query.cpp head a7603d7f2fe157ae72a0d4e13dada90fab83b31a",
-  "executable_sha256": "f429c39b5ba91f82111a9ba9d3dab1ae3a9aa29fc31477f38ca6f21013097c11"
+  "executable_sha256": "3e247b928697ae104b3c422145d6f21e30fc2b5b4417028a2feabc0b15e05565"
  },
  "review": {
-  "state": "/Users/jaeger/.codex/attended-review/bpr1533-v001-aCNnPi",
+  "state": "/Users/jaeger/.codex/attended-review/bpr1533-v002-HvpcEu",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
-  "session": "7c8004e6428577726d1ce8825ee1dff5",
-  "event_cursor": 8,
+  "session": "e78b03cc6c44fc4e078c1654d392c8eb",
+  "event_cursor": 4,
   "candidates": {
-   "BPR-1533-selection-v001": "cfc14897d92f544bd5d618d95f1c6ce05f3eedf9543295dec3b4e48ae7a7b36c",
-   "BPR-1534-line-details-syntax-v001": "d9dda508db354a3567365412bdcd3059b0a9ea4de89f2bceb0ba5f7bb9c26268"
+   "BPR-1533-selection-v002": "a4666b1fea0c0a5c0b758d2f302014293e54f06022beb360504d48d71fe86e5b"
   },
   "phase": "ready",
   "protected": true,
   "decisions": null,
-  "server_pid": 70713,
-  "server_port": 64647,
+  "server_pid": 38389,
+  "server_port": 58809,
   "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+ },
+ "history": {
+  "v001": {
+   "session": "7c8004e6428577726d1ce8825ee1dff5",
+   "decision": "reject",
+   "event": 9,
+   "note": "It feels slightly overdone on the light.",
+   "released_at_cursor": 12,
+   "frozen_root_removed": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45"
+  }
  }
 }
