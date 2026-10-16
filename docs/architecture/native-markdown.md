@@ -12,12 +12,13 @@ The renderer uses Qt's `QTextDocument::MarkdownDialectGitHub` with
 emphasis, quotes, ordered and unordered lists, fenced/indented code, inline code,
 thematic breaks, strikethrough, read-only tasks, tables and links. The owner's
 [amendment 1](../rfcs/RFC-BPR-0036-native-markdown-rendering.md#owner-amendment-1--2026-10-16-github-parity)
-adds GitHub's HTML comments, line breaks, alerts and footnotes
+adds GitHub's HTML comments, line breaks, alerts, footnotes, `<details>`,
+GitHub's sanitised HTML subset and emoji shortcodes
 ([GitHub parity](#github-parity-amendment-1) below). Math, Mermaid, video,
 active HTML, editing tools and syntax highlighting are not part of this
-delivery. Unsupported syntax can always be read in **View source**. Raw HTML
-other than a comment is displayed as literal text, never submitted to an HTML
-importer.
+delivery. Unsupported syntax can always be read in **View source**. Qt's
+Markdown import still never reads HTML (`MarkdownNoHTML`); only HTML the
+reader has sanitized to its allow-list reaches Qt's HTML import.
 
 **View source** and **Rendered** retain separate reading positions and selections;
 the first switch uses approximate scroll fraction. **Copy source** copies the
@@ -189,6 +190,37 @@ and any other holder keeps its scroll position while the selection moves.
 Copying a partial rendered selection serializes the presented document, so it
 carries "Note" and the footnote numbers rather than the source syntax; a full
 selection still copies the original bytes.
+
+### `<details>`, the HTML subset and emoji ([[BPR-1544]])
+
+GitHub's renderer passes raw HTML through an allow-list. The reader keeps the
+same subset, compared with GitHub's own output for `details`, `html`, `emoji`,
+`hostile-html` and `pr-html` in the same fixture directory:
+
+| HTML | Rendered as |
+| --- | --- |
+| `<details>`, `<details open>` with `<summary>` | A section, closed unless `open`. Its summary leads with a disclosure triangle (▶ closed, ▼ open, at 0.7 of the text) in the text colour, and the whole summary is an in-body toggle: Tab reaches it, Enter or a click opens or closes it, and its accessible description says "Collapsed section" or "Expanded section". The section's blocks are hidden with Qt's block visibility, so its lists, code and tables keep their structure; a hidden table also gives up its borders and spacing. Tab skips links inside a closed section. A section without a summary is called "Details", as on GitHub. The Markdown between the tags reads, as GitHub's does when blank lines part it from them. Nested sections each keep their own state. Opening a section changes no text, so selection, links and the original bytes stay as they were. |
+| `b`, `strong`, `i`, `em`, `s`, `strike`, `del`, `ins`, `sub`, `sup`, `kbd`, `code`, `tt`, `samp`, `mark`, `br` | Inline formatting over the Markdown between the tags (`ins` underlines, as GitHub's browser does; `mark` is the base 30% toward the theme's warning colour, GitHub's attention tint). `kbd` is a key cap: the code font at 0.85, a fill 6% from the base toward the text, a hairline rounded edge 70% from the text toward the base, and a thin space inside each end. An unclosed tag ends with its paragraph. |
+| `p`, `div`, `h1`–`h6`, `hr`, `blockquote`, `ul`, `ol`, `li`, table tags, `pre`, `dl`, `dt`, `dd` | A top-level HTML block (to its blank line, or to `</pre>`) is sanitized and placed through Qt's HTML import: only `align` (on `p`, `div`, headings and cells) and `colspan`/`rowspan` (on cells) survive. A lone `<div align>` or `<p align>` followed by a blank line aligns the Markdown up to its lone closing tag, as GitHub's centered README headers do. `pre` reads as a code block. |
+| `a href` | A link only when core's `markdown_html_link_kept` says its destination could ever be admitted (HTTP(S), a fragment or a path, without credentials); otherwise its text alone, as GitHub drops a `javascript:` link. Activation still goes through application admission. GitHub keeps a credential-bearing link that the reader shows as text. |
+| `script`, `style`, `iframe`, `textarea`, `title`, `xmp`, `noembed`, `noframes`, `plaintext` | Visible text, as GFM's tag filter shows them. |
+| `img`, `picture`, `source`, and an `a` around one | Left as written for [RFC-BPR-0084](../rfcs/RFC-BPR-0084-inline-markdown-images.md), which places images in the presented document. |
+| `u`, `small`, `span`, `font`, `center`, `form`, `input`, `button`, `svg`, `object`, any other tag | The tag is dropped and its text kept, as GitHub's sanitizer does (GitHub strips `u`, though the amendment named it). |
+
+Every attribute other than those above is dropped, so no style, class, event
+handler, `src` or `background` reaches Qt. Qt's HTML import is given only
+structure tags; formatting travels as the reader's own marks (U+FDEB `<br>`,
+U+FDED and U+FDEE around a span, U+FDEF for a block). The resource denial of
+`markdown_document` still answers every request, and the hostile courses count
+none.
+
+Emoji shortcodes (`:+1:`, `:tada:`) come from a table of gemoji 4.1.0's 1,913
+aliases (MIT, `third_party/gemoji`), generated by
+`scripts/generate_markdown_emoji_table.py` into
+`src/adapters/qt/src/markdown_emoji_table.inc`; nothing is fetched. As GitHub's
+filter, a shortcode needs a boundary on both sides (`a:smile:b` and `10:30:45`
+stay), and code, URLs, link destinations and HTML tags are left as written.
+Shortcodes are replaced even in a body that holds a reserved mark.
 
 ## Bounds and lifecycle
 

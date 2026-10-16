@@ -180,6 +180,19 @@ namespace bpr::core {
 		}
 	}
 
+	auto markdown_html_link_kept(const std::string_view aDestination) -> bool
+	{
+		if (aDestination.empty() || aDestination.size() > 4096 || !safe_text(aDestination) || carries_credentials(aDestination)) {
+			return false;
+		}
+		if (absolute_web_address(aDestination)) {
+			return true;
+		}
+		// No scheme: a colon only after the path has begun.
+		const auto colon = aDestination.find(':');
+		return colon == std::string_view::npos || colon > aDestination.find_first_of("/?#");
+	}
+
 	auto admit_markdown_link(const markdown_link_intent& aIntent, const markdown_link_observation& aObservation)
 		-> std::expected<markdown_destination, markdown_link_result>
 	{

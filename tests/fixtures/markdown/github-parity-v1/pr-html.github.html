@@ -1,0 +1,47 @@
+<p align="center" dir="auto">
+  <b>Release 4.2</b> · <a href="https://example.invalid/notes" rel="nofollow">Release notes</a>
+</p>
+<h2 dir="auto">Summary</h2>
+<p dir="auto">Speeds up the cache writer 🚀 and fixes the crash on resume 🐛.<br>
+Press <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> to rebuild the index.</p>
+<p dir="auto">The p<sub>99</sub> write time drops from 120 ms to 40 ms (3× faster, see<sup>[2]</sup>).</p>
+<details>
+<summary>Benchmark output</summary>
+<pre lang="text" class="notranslate"><code class="notranslate">cache_writer/serial     120 ms
+cache_writer/lane        40 ms
+</code></pre>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Case</th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cold</td>
+<td>120 ms</td>
+<td>40 ms</td>
+</tr>
+<tr>
+<td>warm</td>
+<td>30 ms</td>
+<td>12 ms</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+</details>
+<details>
+<summary>Checklist ✅</summary>
+<ul class="contains-task-list">
+<li class="task-list-item"><input type="checkbox" id="" disabled="" class="task-list-item-checkbox" aria-label="Completed task" checked=""> Tests pass</li>
+<li class="task-list-item"><input type="checkbox" id="" disabled="" class="task-list-item-checkbox" aria-label="Completed task" checked=""> Docs updated</li>
+</ul>
+</details>
+<markdown-accessiblity-table><table role="table">
+  <tbody><tr><th>Platform</th><th>Status</th></tr>
+  <tr><td>macOS</td><td>✅ passing</td></tr>
+  <tr><td>Windows</td><td><g-emoji class="g-emoji" alias="warning">⚠️</g-emoji> flaky</td></tr>
+</tbody></table></markdown-accessiblity-table>
+<p dir="auto">Thanks 👍</p>

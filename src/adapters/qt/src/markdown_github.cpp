@@ -1,5 +1,7 @@
 #include "markdown_github.hpp"
 
+#include "markdown_github_html.hpp"
+
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QPalette>
@@ -744,6 +746,247 @@ namespace bpr::qt::detail {
 			return rewrite(aText, edits);
 		}
 
+		// [[BPR-1544]]. A `:name:` GitHub knows becomes its emoji. Like GitHub's
+		// filter it needs a boundary on both sides, so `a:b:c` and a time stay
+		// as written; code, URLs, link destinations and HTML tags are skipped.
+		auto replace_emoji(const QString& aText) -> QString
+		{
+			if (!aText.contains(QLatin1Char{ ':' })) {
+				return aText;
+			}
+			const auto                                  source = classify(aText);
+			const auto&                                 lines  = source.Lines;
+			std::vector<std::pair<text_range, QString>> edits;
+			const auto                                  word = [](const QChar aChar) { return aChar.isLetterOrNumber() || aChar == QLatin1Char{ '_' } || aChar == QLatin1Char{ ':' }; };
+			const auto                                  name = [](const QChar aChar) {
+				const auto code = aChar.unicode();
+				return (code >= 'a' && code <= 'z') || (code >= '0' && code <= '9') || code == '_' || code == '+' || code == '-';
+			};
+			for (std::size_t index = 0; index < lines.size();) {
+				if (lines[index].Code || lines[index].Blank) {
+					++index;
+					continue;
+				}
+				const auto last  = paragraph_end(lines, index, [](const source_line&) { return false; });
+				const auto begin = lines[index].Content;
+				const auto limit = lines[last].End;
+				scan_inline(aText, begin, limit, [&](const qsizetype aAt) -> qsizetype {
+					if (aText[aAt] == QLatin1Char{ '<' }) {
+						const auto tag = html_tag_at(QStringView{ aText }.mid(aAt, limit - aAt));
+						return tag ? tag->Length : 0;
+					}
+					if (aText[aAt] != QLatin1Char{ ':' } || (aAt > 0 && word(aText[aAt - 1]))) {
+						return 0;
+					}
+					auto end = aAt + 1;
+					while (end < limit && end - aAt <= 64 && name(aText[end])) {
+						++end;
+					}
+					if (end == aAt + 1 || end >= limit || aText[end] != QLatin1Char{ ':' } || (end + 1 < aText.size() && word(aText[end + 1]))) {
+						return 0;
+					}
+					auto token = aAt;
+					while (token > begin && aAt - token < 512 && !aText[token - 1].isSpace()) {
+						--token;
+					}
+					const auto before = QStringView{ aText }.mid(token, aAt - token);
+					if (before.contains(QLatin1StringView{ "://" }) || before.startsWith(QLatin1StringView{ "www." }, Qt::CaseInsensitive) || before.contains(QLatin1StringView{ "](" })) {
+						return 0;
+					}
+					const auto emoji = markdown_emoji(QStringView{ aText }.mid(aAt + 1, end - aAt - 1));
+					if (!emoji) {
+						return 0;
+					}
+					edits.push_back({ { aAt, end + 1 }, *emoji });
+					return end + 1 - aAt;
+				});
+				index = last + 1;
+			}
+			return rewrite(aText, edits);
+		}
+
+		// U+FDE0 opens a region paragraph: `1` a closed `<details>`, `2` an
+		// open one, `0` its end, `a` an aligned region and `z` its end.
+		// U+FDEF names a sanitized HTML block.
+		constexpr auto region_mark = QChar{ 0xFDE0 };
+		constexpr auto block_mark  = QChar{ 0xFDEF };
+
+		auto region(const QChar aKind, const QString& aText = { }) -> QString
+		{
+			return QLatin1Char{ '\n' } + region_mark + aKind + html_mark_close + aText + QStringLiteral("\n\n");
+		}
+
+		struct summary_split
+		{
+			QString Summary;
+			QString After;
+			bool    Found = false;
+		};
+
+		/// A `<summary>…</summary>` at the start of `aRest`, and what follows it.
+		auto split_summary(const QStringView aRest) -> summary_split
+		{
+			const auto rest   = aRest.trimmed();
+			auto       result = summary_split{ };
+			const auto tag    = rest.startsWith(QLatin1Char{ '<' }) ? html_tag_at(rest) : std::nullopt;
+			if (!tag || tag->Closing || tag->Name != QStringLiteral("summary")) {
+				result.After = rest.toString();
+				return result;
+			}
+			const auto inner = rest.mid(tag->Length);
+			const auto close = inner.indexOf(QLatin1StringView{ "</summary>" }, 0, Qt::CaseInsensitive);
+			result.Found     = true;
+			result.Summary   = (close < 0 ? inner : inner.mid(0, close)).trimmed().toString();
+			result.After     = close < 0 ? QString{ } : inner.mid(close + 10).trimmed().toString();
+			return result;
+		}
+
+		auto closes_details(const QString& aText, const source_line& aLine) -> bool
+		{
+			return line_text(aText, aLine).trimmed().compare(QLatin1StringView{ "</details>" }, Qt::CaseInsensitive) == 0;
+		}
+
+		// [[BPR-1544]]. Top-level HTML blocks, as CommonMark starts them:
+		// `<details>` and `</details>` become region paragraphs, so the
+		// Markdown between them still reads; a lone `<div align>` or
+		// `<p align>` followed by a blank line opens an aligned region its
+		// lone closing tag ends; any other block of structure tags (to the
+		// blank line, or to `</pre>`) is sanitized and named by a mark.
+		auto mark_html_blocks(const QString& aText, prepared_markdown& aPrepared) -> QString
+		{
+			if (!aText.contains(QLatin1Char{ '<' })) {
+				return aText;
+			}
+			const auto                                  source = classify(aText);
+			const auto&                                 lines  = source.Lines;
+			std::vector<std::pair<text_range, QString>> edits;
+			auto                                        details = 0;
+			std::vector<QString>                        aligned;
+			const auto                                  top = [](const source_line& aLine) { return !aLine.Code && !aLine.Blank && aLine.Quotes == 0 && aLine.ListIndent == 0 && aLine.Indent <= 3; };
+			for (std::size_t index = 0; index < lines.size(); ++index) {
+				const auto& line = lines[index];
+				if (!top(line) || aText[line.Rest] != QLatin1Char{ '<' }) {
+					continue;
+				}
+				const auto rest = line_text(aText, line).trimmed();
+				const auto tag  = html_tag_at(rest);
+				if (!tag) {
+					continue;
+				}
+				const auto alone     = tag->Length == rest.size();
+				const auto nextBlank = index + 1 >= lines.size() || lines[index + 1].Blank;
+				if (tag->Name == QStringLiteral("details") && !tag->Closing) {
+					auto split = split_summary(rest.mid(tag->Length));
+					auto last  = index;
+					if (!split.Found && split.After.isEmpty() && index + 1 < lines.size() && top(lines[index + 1])) {
+						if (auto next = split_summary(line_text(aText, lines[index + 1])); next.Found) {
+							split = std::move(next);
+							last  = index + 1;
+						}
+					}
+					// GitHub calls a section without a summary "Details".
+					auto replacement = region(tag->attribute(QStringLiteral("open")) ? QLatin1Char{ '2' } : QLatin1Char{ '1' }, split.Found ? split.Summary : QStringLiteral("Details"));
+					if (!split.After.isEmpty()) {
+						replacement += split.After + QLatin1Char{ '\n' };
+					}
+					edits.push_back({ { line.Begin, lines[last].End }, replacement });
+					++details;
+					index = last;
+					continue;
+				}
+				if (tag->Name == QStringLiteral("details") && tag->Closing && alone && details > 0) {
+					edits.push_back({ { line.Begin, line.End }, region(QLatin1Char{ '0' }) });
+					--details;
+					continue;
+				}
+				if ((tag->Name == QStringLiteral("div") || tag->Name == QStringLiteral("p")) && !tag->Closing && alone && nextBlank) {
+					if (const auto align = html_alignment(*tag); !align.isEmpty()) {
+						edits.push_back({ { line.Begin, line.End }, region(QLatin1Char{ 'a' }, align.left(1)) });
+						aligned.push_back(tag->Name);
+						continue;
+					}
+				}
+				if (tag->Closing && alone && !aligned.empty() && aligned.back() == tag->Name) {
+					edits.push_back({ { line.Begin, line.End }, region(QLatin1Char{ 'z' }) });
+					aligned.pop_back();
+					continue;
+				}
+				if (html_kind_of(tag->Name) != html_kind::block) {
+					continue;
+				}
+				auto last = index;
+				if (tag->Name == QStringLiteral("pre") && !tag->Closing) {
+					while (last + 1 < lines.size() && !QStringView{ aText }.mid(lines[last].Begin, lines[last].End - lines[last].Begin).contains(QLatin1StringView{ "</pre>" }, Qt::CaseInsensitive)) {
+						++last;
+					}
+				} else {
+					while (last + 1 < lines.size() && !lines[last + 1].Blank && !closes_details(aText, lines[last + 1])) {
+						++last;
+					}
+				}
+				auto html        = sanitize_html_block(QStringView{ aText }.mid(line.Rest, lines[last].ContentEnd - line.Rest), aPrepared.Hrefs);
+				auto replacement = QString{ QLatin1Char{ '\n' } };
+				if (html_shows_anything(html)) {
+					replacement = QLatin1Char{ '\n' } + block_mark + QString::number(aPrepared.Html.size()) + html_mark_close + QStringLiteral("\n\n");
+					aPrepared.Html.push_back(std::move(html));
+				}
+				edits.push_back({ { line.Begin, lines[last].End }, replacement });
+				index = last;
+			}
+			return rewrite(aText, edits);
+		}
+
+		// [[BPR-1544]]. Inline HTML in every paragraph, outside code spans:
+		// formatting and kept links become marks, `<br>` a break mark, other
+		// tags are dropped with their text kept, and the tag filter's tags,
+		// the image tags and an `<a>` around an image stay as written.
+		auto mark_html_inline(const QString& aText, prepared_markdown& aPrepared) -> QString
+		{
+			if (!aText.contains(QLatin1Char{ '<' })) {
+				return aText;
+			}
+			const auto                                  source = classify(aText);
+			const auto&                                 lines  = source.Lines;
+			std::vector<std::pair<text_range, QString>> edits;
+			for (std::size_t index = 0; index < lines.size();) {
+				if (lines[index].Code || lines[index].Blank) {
+					++index;
+					continue;
+				}
+				const auto        last  = paragraph_end(lines, index, [](const source_line&) { return false; });
+				const auto        limit = lines[last].End;
+				std::vector<bool> links;
+				auto              literalLinks = 0;
+				scan_inline(aText, lines[index].Content, limit, [&](const qsizetype aAt) -> qsizetype {
+					if (aText[aAt] != QLatin1Char{ '<' }) {
+						return 0;
+					}
+					const auto tag = html_tag_at(QStringView{ aText }.mid(aAt, limit - aAt));
+					if (!tag) {
+						return 0;
+					}
+					const auto kind = html_kind_of(tag->Name);
+					const auto end  = aAt + tag->Length;
+					if (kind == html_kind::literal) {
+						return tag->Length;
+					}
+					if (kind == html_kind::link && !tag->Closing && html_link_holds_image(QStringView{ aText }.mid(end, limit - end))) {
+						++literalLinks;
+						return tag->Length;
+					}
+					if (kind == html_kind::link && tag->Closing && literalLinks > 0) {
+						--literalLinks;
+						return tag->Length;
+					}
+					const auto replacement = kind == html_kind::block || kind == html_kind::drop ? QString{ } : inline_html_mark(*tag, kind, aPrepared.Hrefs, links);
+					edits.push_back({ { aAt, end }, replacement });
+					return tag->Length;
+				});
+				index = last + 1;
+			}
+			return rewrite(aText, edits);
+		}
+
 		auto holds_reserved(const QString& aText) -> bool
 		{
 			return std::ranges::any_of(aText, [](const QChar aChar) { return aChar.unicode() >= first_reserved && aChar.unicode() <= last_reserved; });
@@ -974,6 +1217,316 @@ namespace bpr::qt::detail {
 			}
 		}
 
+		// [[BPR-1544]]. Each HTML block mark becomes the sanitized HTML it
+		// names, through Qt's HTML import; the reader's resource denial still
+		// answers any request, and the HTML names no resource.
+		void present_html_blocks(QTextDocument& aDocument, const prepared_markdown& aPrepared)
+		{
+			std::vector<std::pair<int, std::size_t>> found;
+			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+				const auto text = block.text();
+				if (text.size() < 3 || text.front() != block_mark || text.back() != html_mark_close) {
+					continue;
+				}
+				auto       number = false;
+				const auto index  = text.mid(1, text.size() - 2).toUInt(&number);
+				if (number && index < aPrepared.Html.size()) {
+					found.emplace_back(block.blockNumber(), index);
+				}
+			}
+			for (auto it = found.rbegin(); it != found.rend(); ++it) {
+				const auto before = aDocument.blockCount();
+				auto       cursor = QTextCursor{ aDocument.findBlockByNumber(it->first) };
+				cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+				// Qt merges the first inserted paragraph into the block it is
+				// inserted at, which would lose its alignment or heading; a
+				// sentinel paragraph takes that merge and is removed.
+				cursor.insertHtml(QStringLiteral("<p>") + block_mark + QStringLiteral("</p>") + aPrepared.Html[it->second]);
+				if (const auto sentinel = aDocument.findBlockByNumber(it->first); sentinel.text() == QString{ block_mark }) {
+					remove_block(aDocument, sentinel);
+				}
+				// An HTML <pre> reads as a code block, in the code font and fill.
+				const auto inserted = aDocument.blockCount() - before + 1;
+				for (auto block = aDocument.findBlockByNumber(it->first); block.isValid() && block.blockNumber() < it->first + inserted; block = block.next()) {
+					if (auto format = block.blockFormat(); format.nonBreakableLines() && !format.hasProperty(QTextFormat::BlockCodeLanguage)) {
+						format.setProperty(QTextFormat::BlockCodeLanguage, QString{ });
+						QTextCursor{ block }.setBlockFormat(format);
+					}
+				}
+			}
+		}
+
+		struct inline_mark
+		{
+			int  Start = 0;
+			int  End   = 0;
+			bool Open  = false;
+			int  Kind  = 0;
+			int  Field = -1;
+		};
+
+		/// The inline mark at `aAt`: its kind, optional field and end.
+		auto read_inline_mark(const QTextDocument& aDocument, const int aAt) -> std::optional<inline_mark>
+		{
+			auto result = inline_mark{ .Start = aAt, .Open = aDocument.characterAt(aAt) == html_open_mark };
+			auto field  = &result.Kind;
+			auto digits = 0;
+			for (auto at = aAt + 1; at < aDocument.characterCount() && at < aAt + 24; ++at) {
+				const auto ch = aDocument.characterAt(at);
+				if (ch == html_mark_close) {
+					result.End = at + 1;
+					return digits > 0 ? std::optional{ result } : std::nullopt;
+				}
+				if (ch == html_mark_field && field == &result.Kind) {
+					result.Field = 0;
+					field        = &result.Field;
+				} else if (ch.isDigit() && ch.unicode() < 0x80) {
+					*field = *field * 10 + (ch.unicode() - '0');
+					++digits;
+				} else {
+					return std::nullopt;
+				}
+			}
+			return std::nullopt;
+		}
+
+		auto inline_format(const int aKind, const int aField, const prepared_markdown& aPrepared) -> QTextCharFormat
+		{
+			auto format = QTextCharFormat{ };
+			switch (static_cast<html_kind>(aKind)) {
+			case html_kind::bold:
+				format.setFontWeight(QFont::Bold);
+				break;
+			case html_kind::italic:
+				format.setFontItalic(true);
+				break;
+			case html_kind::strike:
+				format.setFontStrikeOut(true);
+				break;
+			case html_kind::underline:
+				format.setFontUnderline(true);
+				break;
+			case html_kind::subscript:
+				format.setVerticalAlignment(QTextCharFormat::AlignSubScript);
+				break;
+			case html_kind::superscript:
+				format.setVerticalAlignment(QTextCharFormat::AlignSuperScript);
+				break;
+			case html_kind::keyboard:
+				format.setFontFixedPitch(true);
+				format.setProperty(markdown_keyboard_property, true);
+				break;
+			case html_kind::code:
+				format.setFontFixedPitch(true);
+				break;
+			case html_kind::highlight:
+				format.setProperty(markdown_highlight_property, true);
+				break;
+			case html_kind::link:
+				if (aField >= 0 && static_cast<std::size_t>(aField) < aPrepared.Hrefs.size()) {
+					format.setAnchor(true);
+					format.setAnchorHref(aPrepared.Hrefs[static_cast<std::size_t>(aField)]);
+				}
+				break;
+			default:
+				break;
+			}
+			return format;
+		}
+
+		// [[BPR-1544]]. Inline HTML marks become character formats over the
+		// text between an opening mark and its closing one (to the end of the
+		// block when unclosed, as a browser closes it with its paragraph), and
+		// `<br>` becomes a line separator.
+		void present_inline_html(QTextDocument& aDocument, const prepared_markdown& aPrepared)
+		{
+			for (auto cursor = aDocument.find(QString{ html_break_mark }); !cursor.isNull(); cursor = aDocument.find(QString{ html_break_mark }, cursor.position())) {
+				cursor.insertText(QString{ QChar::LineSeparator }, format_at(aDocument, cursor.selectionStart()));
+			}
+			std::vector<inline_mark> marks;
+			for (const auto open : { html_open_mark, html_close_mark }) {
+				for (auto cursor = aDocument.find(QString{ open }); !cursor.isNull(); cursor = aDocument.find(QString{ open }, cursor.position())) {
+					if (const auto found = read_inline_mark(aDocument, cursor.selectionStart())) {
+						marks.push_back(*found);
+					}
+				}
+			}
+			if (marks.empty()) {
+				return;
+			}
+			std::ranges::sort(marks, { }, &inline_mark::Start);
+			struct span
+			{
+				int             Start = 0;
+				int             End   = 0;
+				QTextCharFormat Format;
+			};
+			std::vector<span>        spans;
+			std::vector<std::size_t> open;
+			for (std::size_t index = 0; index < marks.size(); ++index) {
+				const auto& item = marks[index];
+				if (item.Open) {
+					open.push_back(index);
+					continue;
+				}
+				const auto match = std::ranges::find_if(open.rbegin(), open.rend(), [&](const std::size_t aOpen) { return marks[aOpen].Kind == item.Kind; });
+				if (match == open.rend()) {
+					continue;
+				}
+				const auto& start = marks[*match];
+				spans.push_back({ .Start = start.End, .End = item.Start, .Format = inline_format(start.Kind, start.Field, aPrepared) });
+				open.erase(std::next(match).base());
+			}
+			for (const auto index : open) {
+				const auto& start = marks[index];
+				const auto  block = aDocument.findBlock(start.Start);
+				spans.push_back({ .Start = start.End, .End = block.position() + block.length() - 1, .Format = inline_format(start.Kind, start.Field, aPrepared) });
+			}
+			// Where a position lands once every mark before it is gone.
+			std::vector<int> removedBefore{ 0 };
+			for (const auto& item : marks) {
+				removedBefore.push_back(removedBefore.back() + item.End - item.Start);
+			}
+			const auto shifted = [&](const int aPosition) {
+				const auto after = std::ranges::upper_bound(marks, aPosition, { }, &inline_mark::End);
+				return aPosition - removedBefore[static_cast<std::size_t>(after - marks.begin())];
+			};
+			for (auto& item : spans) {
+				item.Start = shifted(item.Start);
+				item.End   = shifted(item.End);
+			}
+			auto cursor = QTextCursor{ &aDocument };
+			for (auto it = marks.rbegin(); it != marks.rend(); ++it) {
+				cursor.setPosition(it->Start);
+				cursor.setPosition(it->End, QTextCursor::KeepAnchor);
+				cursor.removeSelectedText();
+			}
+			for (const auto& item : spans) {
+				if (item.End > item.Start) {
+					cursor.setPosition(item.Start);
+					cursor.setPosition(item.End, QTextCursor::KeepAnchor);
+					cursor.mergeCharFormat(item.Format);
+				}
+			}
+		}
+
+		auto disclosure(const bool aOpen) -> QString
+		{
+			// U+25BC and U+25B6, drawn at 0.7 of the text as a browser's marker.
+			return aOpen ? QStringLiteral("\u25BC ") : QStringLiteral("\u25B6 ");
+		}
+
+		auto summary_format(const int aId, const bool aOpen) -> QTextCharFormat
+		{
+			auto format = QTextCharFormat{ };
+			format.setAnchor(true);
+			format.setAnchorHref(aOpen ? QStringLiteral("Hide details") : QStringLiteral("Show details"));
+			format.setProperty(markdown_internal_target_property, markdown_details_target + QString::number(aId));
+			format.setProperty(markdown_summary_property, aId);
+			return format;
+		}
+
+		auto region_alignment(const QChar aCode) -> Qt::Alignment
+		{
+			return aCode == QLatin1Char{ 'c' } ? Qt::AlignHCenter : aCode == QLatin1Char{ 'r' } ? Qt::AlignRight
+				: aCode == QLatin1Char{ 'j' }                                                   ? Qt::AlignJustify
+																								: Qt::AlignLeft;
+		}
+
+		// [[BPR-1544]]. Region paragraphs: each `<details>` summary gets its
+		// disclosure triangle and becomes the in-body link that toggles it,
+		// and every block until its end records the `<details>` it is in; an
+		// aligned region aligns its blocks and tables. The region paragraphs
+		// themselves go.
+		void present_regions(QTextDocument& aDocument)
+		{
+			auto                       next = 0;
+			std::vector<int>           details;
+			std::vector<Qt::Alignment> aligned;
+			std::vector<int>           marks;
+			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+				const auto text = block.text();
+				if (text.size() >= 3 && text[0] == region_mark) {
+					const auto close = text.indexOf(html_mark_close);
+					const auto code  = text[1];
+					if (code == QLatin1Char{ '1' } || code == QLatin1Char{ '2' }) {
+						const auto id     = ++next;
+						const auto isOpen = code == QLatin1Char{ '2' };
+						auto       format = block.blockFormat();
+						format.setProperty(markdown_details_property, id);
+						format.setProperty(markdown_details_open_property, isOpen);
+						if (!details.empty()) {
+							auto path = QStringList{ };
+							for (const auto parent : details) {
+								path.push_back(QString::number(parent));
+							}
+							format.setProperty(markdown_details_path_property, path.join(QLatin1Char{ '/' }));
+						}
+						auto cursor = QTextCursor{ block };
+						cursor.setBlockFormat(format);
+						cursor.setPosition(block.position());
+						cursor.setPosition(block.position() + static_cast<int>(close) + 1, QTextCursor::KeepAnchor);
+						cursor.insertText(disclosure(isOpen), format_at(aDocument, block.position() + static_cast<int>(close) + 1));
+						cursor.setPosition(block.position());
+						cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+						cursor.mergeCharFormat(summary_format(id, isOpen));
+						details.push_back(id);
+						continue;
+					}
+					if (code == QLatin1Char{ '0' } && !details.empty()) {
+						details.pop_back();
+					} else if (code == QLatin1Char{ 'a' }) {
+						aligned.push_back(region_alignment(text.size() > 3 ? text[3] : QLatin1Char{ 'l' }));
+					} else if (code == QLatin1Char{ 'z' } && !aligned.empty()) {
+						aligned.pop_back();
+					}
+					marks.push_back(block.blockNumber());
+					continue;
+				}
+				auto cursor = QTextCursor{ block };
+				auto format = block.blockFormat();
+				if (!details.empty()) {
+					auto path = QStringList{ };
+					for (const auto parent : details) {
+						path.push_back(QString::number(parent));
+					}
+					format.setProperty(markdown_details_path_property, path.join(QLatin1Char{ '/' }));
+				}
+				if (!aligned.empty()) {
+					if (auto* table = cursor.currentTable(); table != nullptr) {
+						auto tableFormat = table->format();
+						tableFormat.setAlignment(aligned.back());
+						table->setFormat(tableFormat);
+					} else {
+						format.setAlignment(aligned.back());
+					}
+				}
+				if (!details.empty() || !aligned.empty()) {
+					cursor.setBlockFormat(format);
+				}
+			}
+			for (auto it = marks.rbegin(); it != marks.rend(); ++it) {
+				remove_block(aDocument, aDocument.findBlockByNumber(*it));
+			}
+			apply_markdown_details(aDocument);
+		}
+
+		void collapse_hidden_tables(QTextFrame& aFrame)
+		{
+			for (auto* frame : aFrame.childFrames()) {
+				if (auto* table = qobject_cast<QTextTable*>(frame); table != nullptr && !table->cellAt(0, 0).firstCursorPosition().block().isVisible()) {
+					auto format = table->format();
+					format.setBorder(0);
+					format.setBorderStyle(QTextFrameFormat::BorderStyle_None);
+					format.setCellPadding(0);
+					format.setCellSpacing(0);
+					format.setMargin(0);
+					table->setFormat(format);
+				}
+				collapse_hidden_tables(*frame);
+			}
+		}
+
 		struct alert_hue
 		{
 			QRgb Light;
@@ -998,10 +1551,11 @@ namespace bpr::qt::detail {
 	auto prepare_github_markdown(const QString& aSource) -> prepared_markdown
 	{
 		auto prepared   = prepared_markdown{ };
-		prepared.Text   = remove_comments(aSource);
+		prepared.Text   = replace_emoji(remove_comments(aSource));
 		prepared.Marks  = !holds_reserved(aSource);
 		prepared.Breaks = !aSource.contains(break_mark);
 		if (prepared.Marks) {
+			prepared.Text = mark_html_inline(mark_html_blocks(prepared.Text, prepared), prepared);
 			prepared.Text = mark_alerts(move_footnotes(prepared.Text));
 		}
 		if (prepared.Breaks) {
@@ -1012,15 +1566,104 @@ namespace bpr::qt::detail {
 
 	void present_github_markdown(QTextDocument& aDocument, const prepared_markdown& aPrepared)
 	{
+		// Qt's underline for `_text_` is converted before any `<ins>` adds one.
 		present_underscore_emphasis(aDocument);
+		if (aPrepared.Marks) {
+			present_html_blocks(aDocument, aPrepared);
+			present_inline_html(aDocument, aPrepared);
+		}
 		if (aPrepared.Breaks) {
 			present_breaks(aDocument);
 		}
 		if (aPrepared.Marks) {
 			present_footnotes(aDocument);
 			present_alerts(aDocument);
+			present_regions(aDocument);
 		}
 		remove_leftover_marks(aDocument, aPrepared);
+	}
+
+	void apply_markdown_details(QTextDocument& aDocument)
+	{
+		std::map<int, bool> open;
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			if (const auto format = block.blockFormat(); format.hasProperty(markdown_details_property)) {
+				open[format.intProperty(markdown_details_property)] = format.boolProperty(markdown_details_open_property);
+			}
+		}
+		if (open.empty()) {
+			return;
+		}
+		auto changed = false;
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			const auto path    = block.blockFormat().stringProperty(markdown_details_path_property);
+			auto       visible = true;
+			for (const auto& id : QStringView{ path }.split(QLatin1Char{ '/' }, Qt::SkipEmptyParts)) {
+				visible = visible && open[id.toInt()];
+			}
+			if (block.isVisible() != visible) {
+				auto handle = block;
+				handle.setVisible(visible);
+				changed = true;
+			}
+		}
+		collapse_hidden_tables(*aDocument.rootFrame());
+		if (changed) {
+			aDocument.markContentsDirty(0, aDocument.characterCount());
+		}
+	}
+
+	auto toggle_markdown_details(QTextDocument& aDocument, const int aId) -> std::optional<bool>
+	{
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			auto format = block.blockFormat();
+			if (!format.hasProperty(markdown_details_property) || format.intProperty(markdown_details_property) != aId) {
+				continue;
+			}
+			const auto isOpen = !format.boolProperty(markdown_details_open_property);
+			format.setProperty(markdown_details_open_property, isOpen);
+			auto cursor = QTextCursor{ block };
+			cursor.setBlockFormat(format);
+			cursor.setPosition(block.position());
+			cursor.setPosition(block.position() + 2, QTextCursor::KeepAnchor);
+			cursor.insertText(disclosure(isOpen), format_at(aDocument, block.position()));
+			cursor.setPosition(block.position());
+			cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+			cursor.mergeCharFormat(summary_format(aId, isOpen));
+			apply_markdown_details(aDocument);
+			return isOpen;
+		}
+		return std::nullopt;
+	}
+
+	auto markdown_details_open(const QTextDocument& aDocument, const int aId) -> bool
+	{
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			const auto format = block.blockFormat();
+			if (format.hasProperty(markdown_details_property) && format.intProperty(markdown_details_property) == aId) {
+				return format.boolProperty(markdown_details_open_property);
+			}
+		}
+		return false;
+	}
+
+	auto markdown_keyboard_spans(const QTextDocument& aDocument) -> std::vector<std::pair<int, int>>
+	{
+		std::vector<std::pair<int, int>> spans;
+		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				if (!fragment.charFormat().boolProperty(markdown_keyboard_property)) {
+					continue;
+				}
+				if (!spans.empty() && spans.back().second == fragment.position()) {
+					spans.back().second += fragment.length();
+				} else {
+					spans.emplace_back(fragment.position(), fragment.position() + fragment.length());
+				}
+			}
+		}
+		return spans;
 	}
 
 	auto markdown_alert_title(const markdown_alert aAlert) -> QString
@@ -1072,6 +1715,15 @@ namespace bpr::qt::detail {
 		const auto mix  = [](const float aInk, const float aBase) { return aInk + (aBase - aInk) * 0.32F; };
 		style.Muted     = QColor::fromRgbF(mix(ink.redF(), base.redF()), mix(ink.greenF(), base.greenF()), mix(ink.blueF(), base.blueF()));
 		style.Base      = aFont;
+		// [[BPR-1544]]. A key cap: the base 6% toward the text, edged by the
+		// text 70% toward the base, as GitHub's subtle key in either theme.
+		const auto toward = [](const QColor& aFrom, const QColor& aTo, const float aAmount) {
+			return QColor::fromRgbF(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount, aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount, aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aAmount);
+		};
+		style.KeyFill   = toward(base, ink, 0.06F);
+		style.KeyEdge   = toward(ink, base, 0.7F);
+		style.Ink       = ink;
+		style.Highlight = toward(base, style.Alerts[static_cast<std::size_t>(markdown_alert::warning) - 1], 0.3F);
 		return style;
 	}
 
@@ -1090,15 +1742,19 @@ namespace bpr::qt::detail {
 		} else if (aStyle.Base.pixelSize() > 0) {
 			small.setProperty(QTextFormat::FontPixelSize, static_cast<int>(std::lround(aStyle.Base.pixelSize() * 0.86)));
 		}
+		auto key = QTextCharFormat{ };
+		if (aStyle.Base.pointSizeF() > 0.0) {
+			key.setFontPointSize(aStyle.Base.pointSizeF() * 0.85);
+		} else if (aStyle.Base.pixelSize() > 0) {
+			key.setProperty(QTextFormat::FontPixelSize, static_cast<int>(std::lround(aStyle.Base.pixelSize() * 0.85)));
+		}
+		key.setBackground(aStyle.KeyFill);
 		std::vector<fragment_style> fragments;
 		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
 			auto       format   = block.blockFormat();
 			const auto alert    = format.intProperty(markdown_alert_property);
 			const auto footnote = format.boolProperty(markdown_footnote_property);
-			if (alert == 0 && !footnote) {
-				continue;
-			}
-			auto cursor = QTextCursor{ block };
+			auto       cursor   = QTextCursor{ block };
 			if (alert > 0 && cursor.currentTable() == nullptr) {
 				// No quote fill: the bar alone marks an alert, as on GitHub.
 				if (!code_block(block)) {
@@ -1118,6 +1774,16 @@ namespace bpr::qt::detail {
 			}
 			const auto title = alert > 0 && format.boolProperty(markdown_alert_title_property);
 			fragments.clear();
+			if (format.hasProperty(markdown_details_property) && block.length() > 2) {
+				// The disclosure triangle at 0.7 of the text, as a browser's marker.
+				auto marker = block.begin().fragment().charFormat();
+				if (aStyle.Base.pointSizeF() > 0.0) {
+					marker.setFontPointSize(aStyle.Base.pointSizeF() * 0.7);
+				}
+				marker.setForeground(aStyle.Ink);
+				marker.setFontUnderline(false);
+				fragments.push_back({ .Position = block.position(), .Length = 1, .Format = marker });
+			}
 			for (auto it = block.begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
 				auto       chars    = fragment.charFormat();
@@ -1130,6 +1796,21 @@ namespace bpr::qt::detail {
 					if (!chars.isAnchor()) {
 						chars.setForeground(aStyle.Muted);
 					}
+				}
+				// [[BPR-1544]]. A summary reads as text, as GitHub's does; its
+				// triangle says it opens. A key is a small cap.
+				if (chars.hasProperty(markdown_summary_property)) {
+					chars.setForeground(aStyle.Ink);
+					chars.setFontUnderline(false);
+				}
+				if (chars.boolProperty(markdown_keyboard_property)) {
+					chars.merge(key);
+				}
+				if (chars.boolProperty(markdown_highlight_property)) {
+					chars.setBackground(aStyle.Highlight);
+				}
+				if (chars == fragment.charFormat()) {
+					continue;
 				}
 				fragments.push_back({ .Position = fragment.position(), .Length = fragment.length(), .Format = chars });
 			}

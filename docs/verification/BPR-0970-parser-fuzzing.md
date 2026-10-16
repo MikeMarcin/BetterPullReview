@@ -192,7 +192,7 @@ in this graph.
 |---|---|---|
 | `diff` | 12 | Hand-made pairs: identical, replaced, CRLF against LF, whitespace, NUL bytes, BOM, invalid UTF-8, a moved block, absent sides, the material path |
 | `markdown` | 26 | Hostile and ordinary link destinations; review Markdown from `docs/rfcs/assets/bpr-review-cycles-v1/examples` and `bpr-review-tour-v1/examples`; one regression seed; three image-markup and served-HTML seeds and one SVG badge seed (RFC-BPR-0084) |
-| `markdown_view` | 16 | Tables, fences with tabs, images, deep nesting, HTML, the tour examples; one regression seed; [[BPR-1543]]'s GitHub-parity bodies (comments, alerts, footnotes, a PR template, edge marks) |
+| `markdown_view` | 21 | Tables, fences with tabs, images, deep nesting, HTML, the tour examples; one regression seed; [[BPR-1543]]'s GitHub-parity bodies (comments, alerts, footnotes, a PR template, edge marks); [[BPR-1544]]'s details, HTML, hostile HTML, emoji and HTML PR bodies |
 | `settings_theme` | 15 | The draft branch's five theme documents; cell rewrites of text, integers, NULL, blobs and invalid UTF-8 for both stores |
 | `github_api` | 95 | The recorded github.com contract responses (`tests/fixtures/github/contracts/v1/github-com`); capability fixtures, with and without rate-limit headers; the RFC-BPR-0017 signed-out captures; the draft branch's GraphQL documents; device-flow, mutation, staged-review and publication bodies shaped as the contract tests write them; `gh api --include` output; the eleven pages of `github_paged_read`'s success course, captured in request order from an uncommitted dump of its fixture transport, and the signed-out variant; timeline and discovery pages; one regression seed |
 | `git_output` | 26 | A real index, commit object and packed-refs from a scratch repository; pkt-line replies as `application_git_protocol_v2` builds them; Git's own output for each process reader; one regression seed |
@@ -358,6 +358,19 @@ text), macOS arm64, Apple clang with LLVM 23's libFuzzer runtime.
 | Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `fuzz_markdown_view` | 1543001 | 360,876 | 400 | 6,047 | 710 | cov 2,181, ft 10,482, 1,260 units | clean |
+
+### Campaign 6: `fuzz_markdown_view` after [[BPR-1544]], 15 minutes
+
+The HTML recognizer and sanitizer (`markdown_github_html.cpp`), `<details>`
+regions and emoji passes joined the reader. Run on a copy of the 21
+checked-in seeds at `fbdb893e2`, macOS arm64, Apple clang with LLVM 23's
+libFuzzer runtime, while an attended build compiled beside it (hence the low
+rate). The target's own fix for this tree (its helper renamed apart from
+`bpr::application`) is in the same commit range.
+
+| Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fuzz_markdown_view` | 1544001 | 67,351 | 74 | 2,944 | 577 | cov 3,775, ft 17,662, 1,596 units | clean |
 
 ### What the campaigns do not show
 

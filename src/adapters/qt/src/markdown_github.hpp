@@ -7,15 +7,18 @@
 #include <QTextFormat>
 
 #include <array>
+#include <optional>
+#include <utility>
 #include <vector>
 
 class QPalette;
 class QTextDocument;
 
 /// \file
-/// \brief [[BPR-1543]]. What a GitHub pull request body shows that Qt's
-/// Markdown reader does not: hidden HTML comments, single newlines as line
-/// breaks, alerts and footnotes (RFC-BPR-0036 amendment 1).
+/// \brief [[BPR-1543]], [[BPR-1544]]. What a GitHub pull request body shows
+/// that Qt's Markdown reader does not: hidden HTML comments, single newlines
+/// as line breaks, alerts, footnotes, `<details>`, GitHub's HTML subset and
+/// emoji shortcodes (RFC-BPR-0036 amendment 1).
 /// \details Two halves around `QTextDocument::setMarkdown`. Preparation
 /// rewrites the source line by line before the import: it removes comments,
 /// marks each soft line break, moves footnote definitions to a section at the
@@ -49,6 +52,21 @@ namespace bpr::qt::detail {
 	/// Character property: the anchor name an in-body link moves to. Only
 	/// presentation sets it; an authored link never carries it.
 	inline constexpr auto markdown_internal_target_property = QTextFormat::UserProperty + 0x0B54;
+	/// Character property: text an HTML `<kbd>` held, drawn as a key cap.
+	inline constexpr auto markdown_keyboard_property = QTextFormat::UserProperty + 0x0B55;
+	/// Block property: a `<details>` summary's number in the document.
+	inline constexpr auto markdown_details_property = QTextFormat::UserProperty + 0x0B56;
+	/// Block property: whether that `<details>` is open.
+	inline constexpr auto markdown_details_open_property = QTextFormat::UserProperty + 0x0B57;
+	/// Block property: the numbers of every `<details>` a block is inside,
+	/// outermost first, separated by `/`.
+	inline constexpr auto markdown_details_path_property = QTextFormat::UserProperty + 0x0B58;
+	/// Character property: text an HTML `<mark>` held, drawn highlighted.
+	inline constexpr auto markdown_highlight_property = QTextFormat::UserProperty + 0x0B5A;
+	/// Character property: summary text, which toggles its `<details>`.
+	inline constexpr auto markdown_summary_property = QTextFormat::UserProperty + 0x0B59;
+	/// The in-body target that toggles `<details>` number N is `details:N`.
+	inline constexpr auto markdown_details_target = QLatin1StringView{ "details:" };
 
 	/// \brief A body rewritten for Qt's GitHub-dialect import, and which marks
 	/// it may hold.
@@ -57,9 +75,13 @@ namespace bpr::qt::detail {
 		QString Text;
 		/// Soft breaks are marked; false when the body itself holds the mark.
 		bool Breaks = false;
-		/// Alerts and footnotes are marked; false when the body holds a
-		/// reserved character.
+		/// Alerts, footnotes and HTML are marked; false when the body holds
+		/// a reserved character.
 		bool Marks = false;
+		/// [[BPR-1544]]. Each sanitized HTML block, by its mark's number.
+		std::vector<QString> Html;
+		/// [[BPR-1544]]. Each kept HTML link's destination, by its mark's number.
+		std::vector<QString> Hrefs;
 	};
 
 	/// \brief Rewrites a body for Qt's GitHub-dialect import.
@@ -94,6 +116,13 @@ namespace bpr::qt::detail {
 		qreal AlertIndent = 16.0;
 		/// The space above and below an alert.
 		qreal AlertGap = 8.0;
+		/// [[BPR-1544]]. A key cap's fill and its edge.
+		QColor KeyFill;
+		QColor KeyEdge;
+		/// The text colour a summary keeps, though it is a link.
+		QColor Ink;
+		/// `<mark>`'s highlight: the base 30% toward the warning colour.
+		QColor Highlight;
 	};
 
 	/// \brief The style for a palette and the reader's font.
@@ -103,6 +132,20 @@ namespace bpr::qt::detail {
 	/// and the footnotes section in smaller quiet type. Idempotent: run after
 	/// every other format refresh.
 	void style_github_markdown(QTextDocument& aDocument, const markdown_github_style& aStyle);
+
+	/// \brief [[BPR-1544]]. Shows each block whose `<details>` are all open
+	/// and hides the rest; a hidden table also gives up its borders.
+	void apply_markdown_details(QTextDocument& aDocument);
+
+	/// \brief Opens or closes `<details>` number `aId`.
+	/// \returns Whether it is open now, or nothing when there is no such one.
+	[[nodiscard]] auto toggle_markdown_details(QTextDocument& aDocument, int aId) -> std::optional<bool>;
+
+	/// \brief Whether `<details>` number `aId` is open.
+	[[nodiscard]] auto markdown_details_open(const QTextDocument& aDocument, int aId) -> bool;
+
+	/// \brief Each `<kbd>` span's first and end position, for its key cap.
+	[[nodiscard]] auto markdown_keyboard_spans(const QTextDocument& aDocument) -> std::vector<std::pair<int, int>>;
 
 	/// \brief One alert's extent in a document, for its bar.
 	struct markdown_alert_extent

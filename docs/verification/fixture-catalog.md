@@ -129,6 +129,17 @@ as the description and that directory's comments, breaks, alerts and footnotes
 bodies as four pull request comments, byte for byte. GitHub's own rendering of
 each body is kept beside it as `*.github.html`. Constructed, not recorded.
 
+### `markdown-html-v1`, the GitHub-parity HTML bodies
+
+Added for [[BPR-1544]], so `<details>`, GitHub's HTML subset and emoji
+shortcodes can be judged in the application beside GitHub.
+`scripts/build_markdown_html_fixture.py` copies the nested-folders contract and
+serves `tests/fixtures/markdown/github-parity-v1/pr-html.md` as the
+description and that directory's details, html and emoji bodies as three pull
+request comments, byte for byte. The hostile-HTML body holds forbidden byte
+patterns by design, so it is judged from its tests rather than served.
+Constructed, not recorded.
+
 ### `conversations-v1`, prototype v2's pull request
 
 Added for [[BPR-1293]], so Threads (named Conversations until [[BPR-1341]]) can be judged against its prototype

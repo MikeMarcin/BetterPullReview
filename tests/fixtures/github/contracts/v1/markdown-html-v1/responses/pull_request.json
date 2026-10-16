@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "<p align=\"center\">\n  <b>Release 4.2</b> &middot; <a href=\"https://example.invalid/notes\">Release notes</a>\n</p>\n\n## Summary\n\nSpeeds up the cache writer :rocket: and fixes the crash on resume :bug:.\nPress <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> to rebuild the index.\n\nThe p<sub>99</sub> write time drops from 120&nbsp;ms to 40&nbsp;ms (3&times; faster, see<sup>[2]</sup>).\n\n<details>\n<summary>Benchmark output</summary>\n\n```text\ncache_writer/serial     120 ms\ncache_writer/lane        40 ms\n```\n\n| Case | Before | After |\n| --- | --- | --- |\n| cold | 120 ms | 40 ms |\n| warm | 30 ms | 12 ms |\n</details>\n\n<details>\n<summary>Checklist :white_check_mark:</summary>\n\n- [x] Tests pass\n- [x] Docs updated\n</details>\n\n<table>\n  <tr><th>Platform</th><th>Status</th></tr>\n  <tr><td>macOS</td><td>:white_check_mark: passing</td></tr>\n  <tr><td>Windows</td><td>:warning: flaky</td></tr>\n</table>\n\nThanks :+1:\n",
+	"changed_files": 17,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "nested-folders",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_21",
+	"number": 21,
+	"state": "open",
+	"title": "Speed up the cache writer and fix the crash on resume",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}
