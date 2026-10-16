@@ -9425,12 +9425,38 @@ namespace bpr::application {
 							aEpoch.HeadAvailability = core::anchor_availability::unavailable;
 						}
 					};
+					// [[BPR-1560]]. On a selected-objects review an imported
+					// update GitHub recorded is retained with the current
+					// comparison base as its base, unproven for that head: its
+					// base is no anchor to compare from ("Show this update
+					// alone"). Its head stays comparable.
+					auto importedEpochs = std::optional<std::vector<core::epoch_ordinal>>{ };
+					const auto importedBase = [&](const core::comparison_anchor& aAnchor) {
+						if (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
+							|| object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects) {
+							return false;
+						}
+						if (!importedEpochs) {
+							importedEpochs.emplace();
+							if (const auto history = context->Catalog->occurrences(aStop); history) {
+								for (const auto& occurrence : history->Occurrences) {
+									if (occurrence.LocalEpoch && occurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event) {
+										importedEpochs->push_back(occurrence.LocalEpoch->Ordinal);
+									}
+								}
+							} else {
+								return true;
+							}
+						}
+						return std::ranges::find(*importedEpochs, aAnchor.Identity.Epoch) != importedEpochs->end()
+							&& (!candidates.LatestLive || candidates.LatestLive->Id.Ordinal != aAnchor.Identity.Epoch);
+					};
 					const auto verifyAnchor = [&](auto& aAnchor) {
 						if (
 							aAnchor
 							&& aAnchor->Availability
 								== core::anchor_availability::available
-							&& !isVerified(aAnchor->Commit)) {
+							&& (!isVerified(aAnchor->Commit) || importedBase(*aAnchor))) {
 							aAnchor->Availability = core::anchor_availability::unavailable;
 						}
 					};

@@ -6460,6 +6460,26 @@ namespace {
 				   && value.State.ExactBlobRequests.size() == 1U
 				   && value.State.ExactBlobRequests.front().ExpectedBlob == blob.Blob,
 			   "historical sparse endpoint reads only its selected exact blob with a complete opposite endpoint");
+		// [[BPR-1560]]. The imported update's base is the current comparison
+		// base taken as is, unproven for that head: "Show this update alone"
+		// is unavailable, while its head stays a readable anchor.
+		{
+			const auto importedEpoch = *linked.LocalEpoch;
+			const auto anchorOf      = [&](const core::comparison_anchor_kind aKind) {
+                return core::comparison_anchor_identity{ .Authority = importedEpoch.Authority, .Incarnation = importedEpoch.Incarnation, .Kind = aKind, .Epoch = importedEpoch.Ordinal };
+			};
+			value.Host->dispatch(core::select_comparison_anchors_intent{
+				.Left                    = anchorOf(core::comparison_anchor_kind::epoch_base),
+				.Right                   = anchorOf(core::comparison_anchor_kind::epoch_head),
+				.ExpectedCatalogRevision = value.Host->state().Catalog->Revision,
+			});
+			drain(value);
+			expect(value.Host->state().AcceptedComparison
+					   && value.Host->state().AcceptedComparison->Left.Identity.Kind == core::comparison_anchor_kind::epoch_base
+					   && value.Host->state().AcceptedComparison->Left.Availability == core::anchor_availability::unavailable
+					   && value.Host->state().AcceptedComparison->Right.Availability == core::anchor_availability::available,
+				   "a selected-objects import's own base is no anchor to compare from");
+		}
 		const auto imports = std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision");
 		value.Host->dispatch(core::select_epoch_occurrence_intent{
 			.Side            = core::comparison_side::left,

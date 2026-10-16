@@ -135,10 +135,15 @@ class Course:
         if interdiff.exists() and course.returncode == 0 and "parity:interdiff shown=1" not in course.stdout:
             interdiff.unlink()
         check = ["python3", str(HERE / "bpr1560_live_parity.py"), "--root", str(self.root), "--pull", str(self.pull)]
-        if self.previous_head:
+        if self.previous_head and not self.arguments.negative_control:
             check += ["--interdiff-from", self.previous_head]
-        if self.arguments.negative_control:
+        # The comparison from the recorded base differs from GitHub's only
+        # where the recorded base is not the merge base; elsewhere the control
+        # must still agree with GitHub.
+        diverged = base_sha != against_tip
+        if self.arguments.negative_control and diverged:
             check.append("--expect-mismatch")
+        print(f"  expectation: {'mismatch (base.sha is not the merge base)' if self.arguments.negative_control and diverged else 'parity'}")
         verdict = subprocess.run(check, capture_output=True, text=True)
         print("\n".join("  " + line for line in verdict.stdout.splitlines()))
         for name in ("parity.jsonl", "parity-interdiff.jsonl"):

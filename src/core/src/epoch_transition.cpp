@@ -1569,8 +1569,20 @@ namespace bpr::core {
 				return output;
 			}
 
-			const auto resolution = resolve_comparison(
+			auto resolution = resolve_comparison(
 				*aState.Authority, aState.RequestedSelection, aEvent.Candidates, aState.AcceptedBasis);
+			// [[BPR-1560]]. Without a merge base GitHub named, the accepted
+			// revision's base is only the recorded base: no comparison compares
+			// from it, the newest update shown alone included.
+			if (aState.AcceptedBasis == comparison_base_basis::recorded_base && aState.AcceptedRevision && resolution.Pair
+				&& (resolution.Reason == epoch_reason_code::none || resolution.Reason == epoch_reason_code::unavailable)) {
+				for (auto* const anchor : { &resolution.Pair->Left, &resolution.Pair->Right }) {
+					if (anchor->Identity.Kind == comparison_anchor_kind::epoch_base && anchor->Commit == aState.AcceptedRevision->Base) {
+						anchor->Availability = anchor_availability::unavailable;
+						resolution.Reason    = epoch_reason_code::merge_base_unavailable;
+					}
+				}
+			}
 			if (resolution.Reason != epoch_reason_code::none
 				&& resolution.Reason != epoch_reason_code::unavailable
 				&& resolution.Reason != epoch_reason_code::merge_base_unavailable) {

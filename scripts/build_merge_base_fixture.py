@@ -18,8 +18,9 @@ branch's lines reverted and `b.txt` unchanged with the pull request's text on
 both sides. The pack holds every object reachable from `T` and `H`, so either
 basis can be served and only the comparison base decides what is shown.
 
-    build_merge_base_fixture.py            writes construction, pack, contract
-    build_merge_base_fixture.py <out.json> writes only the construction
+    build_merge_base_fixture.py                 writes construction, pack, contract
+    build_merge_base_fixture.py <out.json>      writes only the construction
+    build_merge_base_fixture.py --root <dir>    writes all three under <dir>
 """
 
 from __future__ import annotations
@@ -30,9 +31,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-import build_nested_folders_fixture as nested
-import build_recorded_pull_request_pack as pack
-from contained_temporary_support import contained_temporary_directory
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_nested_folders_fixture as nested  # noqa: E402
+import build_recorded_pull_request_pack as pack  # noqa: E402
+from contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def numbered(name: str, count: int, changes: dict[int, str] | None = None) -> str:
@@ -124,9 +126,14 @@ def verify(result: dict, repository: str, merge_base: str, tip: str, head: str) 
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+    source = Path(__file__).resolve().parents[1]
+    arguments = sys.argv[1:]
+    root = source
+    if arguments[:1] == ["--root"] and len(arguments) == 2:
+        root = Path(arguments[1]).resolve()
+        arguments = []
     fixture = root / "tests/fixtures/github/pull-requests/merge-base-v1"
-    recording = Path(sys.argv[1]) if len(sys.argv) > 1 else fixture / "construction.json"
+    recording = Path(arguments[0]) if arguments else fixture / "construction.json"
     with contained_temporary_directory() as repository:
         merge_base, tip, head = build(repository)
         result = construction(merge_base, tip, head)
@@ -140,11 +147,11 @@ def main() -> int:
                                  env={**os.environ, **pack.FIXTURE_ENVIRONMENT}, check=True).stdout
     recording.parent.mkdir(parents=True, exist_ok=True)
     recording.write_text(json.dumps(result, indent="\t", sort_keys=True) + "\n", encoding="utf-8", newline="\n")
-    if len(sys.argv) > 1:
+    if arguments:
         return 0
     (fixture / "objects.pack").write_bytes(objects)
-    subprocess.run([sys.executable, str(root / "scripts/build_recorded_pull_request_contract.py"), str(recording),
-                    str(root / "tests/fixtures/github/contracts/v1/merge-base-v1")], check=True)
+    subprocess.run([sys.executable, str(source / "scripts/build_recorded_pull_request_contract.py"), str(recording),
+                    str(root / "tests/fixtures/github/contracts/v1/merge-base-v1")], check=True, capture_output=True)
     print(f"MERGE_BASE_FIXTURE_OK:merge_base={merge_base}:base={tip}:head={head}:{len(objects)}")
     return 0
 

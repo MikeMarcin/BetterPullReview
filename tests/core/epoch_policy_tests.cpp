@@ -2605,6 +2605,18 @@ namespace {
 		expect(resolved.Comparison && resolved.Comparison->Pair && !resolved.Comparison->AvailableForDiff && ready.State.Status == epoch_status::unavailable
 				   && std::ranges::any_of(resolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_unavailable; }),
 			   "Whole PR without a named merge base is unavailable and says why");
+
+		// "Show this update alone" from the newest update's recorded base is
+		// refused the same way: the recorded base is never compared from.
+		const auto baseAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_base);
+		const auto headAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_head);
+		const auto alone      = transition(ready.State, select_comparison_anchors_intent{ .Left = baseAnchor.Identity, .Right = headAnchor.Identity, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toAlone   = request_from<resolve_comparison_request>(alone);
+		expect(toAlone != nullptr, "an exact pair asks for resolution");
+		const auto aloneResolved = transition(ready.State, comparison_resolved_event{ .Context = toAlone->Context, .Candidates = { .Catalog = ready.Catalog, .ExplicitLeft = baseAnchor, .ExplicitRight = headAnchor } });
+		expect(aloneResolved.Comparison && !aloneResolved.Comparison->AvailableForDiff
+				   && std::ranges::any_of(aloneResolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_unavailable; }),
+			   "the newest update alone, from its recorded base, is unavailable and says why");
 	}
 
 	auto test_pending_one_sided_selection_supersession() -> void

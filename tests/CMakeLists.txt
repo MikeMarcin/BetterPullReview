@@ -435,6 +435,16 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/markdown_images_fixture_tests.py"
 )
 
+# [[BPR-1560]]. merge-base-v1 regenerates byte for byte and its descriptor
+# names the commits it built.
+bpr_add_network_isolated_test(
+    NAME merge_base_fixture_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/merge_base_fixture_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME github_recorded_fixture_contract
     WINDOWS_UNCONTAINED

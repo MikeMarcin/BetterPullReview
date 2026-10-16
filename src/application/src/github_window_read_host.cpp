@@ -482,8 +482,8 @@ namespace bpr::application {
 		void publish_error_advisory(const github_provider_error& aError) { LastError = aError; }
 		/// \brief [[BPR-1560]]. The commit the review compares from, as text:
 		/// the merge base GitHub named, else the recorded base. The cached
-		/// overview reads its historical source at the same pair the retained
-		/// epoch holds.
+		/// overview, retained only with a named merge base, reads its
+		/// historical source at the same pair the retained epoch holds.
 		[[nodiscard]] static auto comparison_base_text(const github_pull_request_snapshot& aSnapshot) -> std::string_view
 		{
 			return aSnapshot.MergeBaseAvailability == github_merge_base_availability::available && aSnapshot.MergeBaseOid
@@ -704,6 +704,16 @@ namespace bpr::application {
 				if (aSnapshot.BranchPolicy.ProtectionAvailability != github_observation_availability::available && (previous.BranchPolicy.ProtectionAvailability == github_observation_availability::available || previous.BranchPolicy.ProtectionStale)) {
 					aSnapshot.BranchPolicy.Protection      = previous.BranchPolicy.Protection;
 					aSnapshot.BranchPolicy.ProtectionStale = true;
+				}
+				// [[BPR-1560]]. A merge base GitHub named for this same head,
+				// recorded base and base branch outlives a later failed read of
+				// it, so one transient failure neither hides Whole PR nor
+				// appends a base-change epoch and another back.
+				if (aSnapshot.MergeBaseAvailability != github_merge_base_availability::available
+					&& previous.MergeBaseAvailability == github_merge_base_availability::available) {
+					aSnapshot.MergeBaseOid          = previous.MergeBaseOid;
+					aSnapshot.MergeBaseTipOid       = previous.MergeBaseTipOid;
+					aSnapshot.MergeBaseAvailability = github_merge_base_availability::available;
 				}
 			}
 			AcceptedSnapshot = std::move(aSnapshot);
@@ -1134,6 +1144,12 @@ namespace bpr::application {
 			}
 			const auto& snapshot = *AcceptedSnapshot;
 			if (snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size()) > 1000000) {
+				return;
+			}
+			// [[BPR-1560]]. The cached overview's source reader reads its base
+			// as the comparison's base; without a merge base GitHub named there
+			// is none, so nothing new is cached for this read.
+			if (snapshot.MergeBaseAvailability != github_merge_base_availability::available) {
 				return;
 			}
 			auto retained = core::cached_review_overview{
