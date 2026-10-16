@@ -868,6 +868,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # cannot narrow its own data root ("Failed to set permissions",
     # bpr_narrow_owner_private.cmake:16), before the application starts.
     "application_review_progress_push_contract": "dos-volume-name",
+    # [[BPR-1558]]. The syntax delivery course composes the shipped
+    # application over `e2e::private_data_root` exactly as
+    # application_header_source_navigation does; pinned by that shape, not yet
+    # measured contained on Windows.
+    "application_syntax_delivery": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they
