@@ -616,6 +616,23 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 	}
+	auto review_submission_session::last_unknown(const std::string& aKey, std::stop_token aStop) -> std::optional<core::review_submission_unknown_diagnosis>
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (aStop.stop_requested() || !Recovery) {
+				return std::nullopt;
+			}
+			const auto loaded = Recovery->load(aKey);
+			if (!loaded || !*loaded || !application::valid(**loaded) || (**loaded).Request.IdempotencyKey != aKey || !(**loaded).Request.LiveBinding
+				|| !application::same_review_submission_identity(*(**loaded).Request.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
+				return std::nullopt;
+			}
+			return (**loaded).LastUnknown;
+		} catch (...) {
+			return std::nullopt;
+		}
+	}
 	auto review_submission_session::submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result { return execute(aRequest, aStop, true); }
 	auto review_submission_session::reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result { return execute(aRequest, aStop, false); }
 }

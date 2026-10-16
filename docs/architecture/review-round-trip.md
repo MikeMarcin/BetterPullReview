@@ -746,6 +746,16 @@ removed on resolution or withdrawal) and writes it to the diagnostics log as a
 counts-only `github.review_submission` event. It never decides publication;
 an unknown outcome stays unknown and sends nothing.
 
+The compose page says why in one plain line under "Review status is unknown"
+([[BPR-1541]]). The core picks the line (`core::notice`): the reason, comment
+counts only for a comment mismatch, and the status class only for an HTTP
+status. Qt words it (`qt::review_submission_unknown_text`). The line is the
+status's accessible description and part of the page's announcement, drawn in
+the status's own text colour. Discovery carries each restored attempt's kept
+reason (`review_submission_port::last_unknown`), so a restarted window shows
+it before Check status answers. Each Check status answer replaces the line, and
+it is absent once the review is confirmed or while a review is being written.
+
 SQLite schema v3 adds `submission_attempt` and `submission_baseline` beside the
 existing comment tables in `review-mutation-recovery.sqlite3`. A versioned,
 bounded binary snapshot preserves the complete request and full uint64 IDs.

@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1541"
 title: "Say why a review's status is unknown, on the compose page"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0008"]
 depends_on: ["BPR-1540"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"owner decision 2026-10-15 on BPR-1540's open question (relayed by the coordinator): the compose page should show a short plain-language reason under 'Review status is unknown'","governing_rfc":"RFC-BPR-0008","related_cards":["BPR-1540","BPR-1538","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1541--BPR-1541--c23556c64e37.json","design_skill":"frontend-design:frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"qt_review_submission_editor_scale_{100,125,200}: each of 20 reasons shows its own distinct line, equal to the status's accessible description, short, wrapped, no identity; counts singular/plural; 4xx/5xx/other distinct; status text colour with >= 4.5:1 in four themes. v002: every reason's line sits in the waiting panel; qt rows also assert the panel's placement, title, assurance, Check status inside it, accessible name/description, fallback and checking states, and 4.5:1 words on its amber-tinted ground in four themes."}},{"criterion":"AC2","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"application_start_review_contract kept/restored courses: the restarted window shows the kept network line while Check status is held ('Checking the original review'); host and provider rows carry and read the kept reason by key."}},{"criterion":"AC3","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"uncertain course: a 503 Check status replaces the line, a confirming Check status clears it; Qt rows: no line while drafting or without a reason."}},{"criterion":"AC4","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"Negative controls: restored course fails at restored-reason-not-shown without the kept reason; Qt row fails without the accessible description; Qt and host rows' own controls."}},{"criterion":"AC5","outcome":"pass","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"command","detail":"clang-format 22.1.8 passes; tidy clean on changed lines; verify_documentation OK; round-trip composition contract resealed on the branch tree (5996b22d.../740e0bc3...) and both composition contracts pass; reseal again on merge."}},{"criterion":"AC6","outcome":"pending","revision":"8ef3e435ade81bd08d4280beba831eca22d2d1a5","evidence":{"kind":"freeform","detail":"v001 rejected at cursor 7 in session 2aad932f341313c448a9e890b46139d5 (\"This is pretty darned ugly, can we do better frontend ux design\"). v002 Accept/Reject pending in session 639b1472456536d8c47dcbda99a91f2d, candidate BPR-1541-waiting-panel-v002, fingerprint 2c7c21c0fb98f42c52ac8409d60c976897287c82389d3a0778369f465a60d74d, cursor 4; frozen root /Users/jaeger/bpr-1541-unknown-reason-v002.zsswbcu0 (executable ea77596e3b5d...), with before/v001/v002 Light/Dark renders, window renders and the 20-line v002 sheet."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"command","detail":"qt_review_submission_editor_scale_{100,125,200}: each of 20 reasons shows its own distinct line, equal to the status's accessible description, short, wrapped, no identity; counts singular/plural; 4xx/5xx/other distinct; status text colour with >= 4.5:1 in four themes. v002: every reason's line sits in the waiting panel; qt rows also assert the panel's placement, title, assurance, Check status inside it, accessible name/description, fallback and checking states, and 4.5:1 words on its amber-tinted ground in four themes."}},{"criterion":"AC2","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"command","detail":"application_start_review_contract kept/restored courses: the restarted window shows the kept network line while Check status is held ('Checking the original review'); host and provider rows carry and read the kept reason by key."}},{"criterion":"AC3","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"command","detail":"uncertain course: a 503 Check status replaces the line, a confirming Check status clears it; Qt rows: no line while drafting or without a reason."}},{"criterion":"AC4","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"command","detail":"Negative controls: restored course fails at restored-reason-not-shown without the kept reason; Qt row fails without the accessible description; Qt and host rows' own controls."}},{"criterion":"AC5","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"command","detail":"Merged tree 5dc457cac: full dev ctest 738/739 pass; the one failure, documentation_structure, was NEXT_ID behind another branch's reservation and passes after the final rebase; round-trip composition contract passes unchanged on the merged tree (full ceb537d5..., manifest 9a5627b5...); clang-format 22 and tidy clean on changed lines; verify_documentation OK."}},{"criterion":"AC6","outcome":"pass","revision":"5dc457cac113090e633bd73909f5d467244f6235","evidence":{"kind":"observation","detail":"Owner accepted the exact frozen candidate BPR-1541-waiting-panel-v002 (8ef3e435a, executable ea77596e3b5d...) in session 639b1472456536d8c47dcbda99a91f2d, decision 97d7d431-cb20-46d8-be9c-e2cdd30a9cbd at event 5, handed back at event 6, no note. v001 was rejected in session 2aad932f341313c448a9e890b46139d5."}}]
 ---
 
 # BPR-1541: Say why a review's status is unknown, on the compose page
@@ -237,3 +236,24 @@ asked in session `639b1472456536d8c47dcbda99a91f2d` with one Accept/Reject
 question. The question carries before / v001 / v002 renders in Light and Dark,
 the window in Light and Dark, and the 20-line v002 sheet. The v001 host was
 stopped, its candidate released, and its frozen root removed.
+
+## Closeout
+
+The owner accepted v002 with no note: candidate `BPR-1541-waiting-panel-v002`
+(`8ef3e435a`), decision `97d7d431`, at event 5 of session
+`639b1472456536d8c47dcbda99a91f2d`. The branch was rebased onto `main` three
+times as `main` moved and landed by fast-forward.
+
+On the merged tree:
+
+- The full `ctest --preset dev` passed 738 of 739 rows. The one failure,
+  `documentation_structure`, was `NEXT_ID` falling behind another branch's
+  reservation. It passes after the final rebase, and so does
+  `documentation_issue_graph_contract`.
+- The round-trip composition contract passes with the pins resealed on the
+  branch. `main` had not changed `github_application.cpp` or the production
+  app sources since.
+- The documentation gate passes.
+
+The review host was stopped and the v002 candidate released. The frozen roots
+for v001 and v002 were removed.

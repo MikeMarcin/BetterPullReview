@@ -235,7 +235,17 @@ namespace bpr::application {
 						}
 					}
 				}
-				return { aRecord->Context, std::move(pending) };
+				// [[BPR-1541]]. Each restored attempt brings the reason its
+				// record keeps, so the page can say it before Check status.
+				auto unknown = std::map<std::string, core::review_submission_unknown_diagnosis>{ };
+				if (pending) {
+					for (const auto& request : *pending) {
+						if (auto kept = provider->last_unknown(request.IdempotencyKey, aRecord->Stop.get_token()); kept && core::valid(*kept)) {
+							unknown.emplace(request.IdempotencyKey, *kept);
+						}
+					}
+				}
+				return { aRecord->Context, std::move(pending), std::move(unknown) };
 			}
 			if (aRecord->Operation == operation::lookup) {
 				auto found = provider->admitted(aRecord->Key, aRecord->Stop.get_token());

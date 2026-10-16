@@ -122,6 +122,11 @@ namespace bpr::app {
 		std::optional<std::string>                            LookupKey;
 		std::optional<application::review_submission_request> Recovering;
 		publication_observer                                  PublicationObserved;
+		/// [[BPR-1541]]. Why the shown submission is still unknown, from its
+		/// last Check status or, after a restart, its record; and what each
+		/// discovered attempt's record kept.
+		std::optional<core::review_submission_unknown_diagnosis>         Unknown;
+		std::map<std::string, core::review_submission_unknown_diagnosis> KeptUnknown;
 	};
 	/// Tour composition reuses the summary host, exact grants and journal session.
 	class review_tour_publication_workflow final : public application::review_submission_projection_port
