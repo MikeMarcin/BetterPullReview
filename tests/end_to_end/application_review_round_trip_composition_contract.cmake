@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"87ad560e815b16fcce91388e7e2dd54a85b69d75ae4e733aa7c4f1672c8bdabe"
+		"30ce89012e519e806626725f82a97bc46264d54f81a86d3cda3a1ad4253d0e49"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "465b7af3c156475ac41dedd39fbaca00836d187fa57e5618e3ab28b09868fe9f"
+        "30e32f28dc5b8cf975bb49e5c1b1ae6fb6e7bfbf8f3519c3f876e8386bfd400e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2600,3 +2600,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1543.
+
+# [[BPR-1544]] reseal over main at d60265b51 (BPR-1543's pins), recomputed on
+# the tree that merges this card onto it. The constructed markdown-html-v1
+# fixture joins the same four test-build tables as markdown-parity-v1 did for
+# BPR-1543, sharing overview-labels-v1's descriptor with its own contract
+# directory. Test builds only: no grant, target, provider, credential,
+# transport, GitHub write, mutation or publication path changes; the
+# production mutation-branch pin is unchanged. Self-review on BPR-1544.
