@@ -1,0 +1,461 @@
+{
+  "schema": "bpr.current-native-acceptance.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "code_candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+  "project_version_at_tests": "0.2.1",
+  "release_target": "Windows 0.2.2; version/artifact binding belongs to coordinator after engineering handoff",
+  "production_delta_since_windows_181": [
+    "src/application/src/diff_application_host.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp"
+  ],
+  "windows": {
+    "task": "BPR-1527-resume-windows-r67b",
+    "wrapper_pid": 18368,
+    "runner_pid": 36320,
+    "ctest_pid": 39584,
+    "session": "mikem Interactive Limited/session3",
+    "result": "Complete; 35 passed, 0 failed, 0 skipped; CTest/wrapper exit0, task Ready and owned PIDs absent",
+    "report": {
+      "schema": "bpr.test-timings.v1",
+      "wall_seconds": 1301.057931200019,
+      "summed_test_seconds": 1300.93377,
+      "counts": {
+        "passed": 35
+      },
+      "tests": [
+        {
+          "name": "qt_workbench_window_scale_100",
+          "seconds": 175.063,
+          "status": "passed"
+        },
+        {
+          "name": "application_diagnostic_subsystems",
+          "seconds": 169.336,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_workbench_scale_200",
+          "seconds": 108.02,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_workbench_scale_125",
+          "seconds": 104.794,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_workbench_scale_100",
+          "seconds": 93.7438,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_navigation_entry",
+          "seconds": 92.9077,
+          "status": "passed"
+        },
+        {
+          "name": "application_active_changed_scaling",
+          "seconds": 50.1756,
+          "status": "passed"
+        },
+        {
+          "name": "application_uiforetw_selected_diff_contract",
+          "seconds": 47.9374,
+          "status": "passed"
+        },
+        {
+          "name": "application_reply_draft_contract",
+          "seconds": 42.1499,
+          "status": "passed"
+        },
+        {
+          "name": "application_source_find_scale_2_0",
+          "seconds": 37.3517,
+          "status": "passed"
+        },
+        {
+          "name": "application_source_find_scale_1_25",
+          "seconds": 34.1189,
+          "status": "passed"
+        },
+        {
+          "name": "application_source_find",
+          "seconds": 32.972,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_submission_composition_scale_200",
+          "seconds": 27.4254,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_submission_composition_scale_125",
+          "seconds": 26.1202,
+          "status": "passed"
+        },
+        {
+          "name": "application_agent_invocation_composition_contract",
+          "seconds": 25.7325,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_submission_composition_public_path",
+          "seconds": 24.3533,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_tour_composition_scale_200",
+          "seconds": 21.6489,
+          "status": "passed"
+        },
+        {
+          "name": "application_header_source_navigation",
+          "seconds": 21.0884,
+          "status": "passed"
+        },
+        {
+          "name": "application_published_file_switch_contract",
+          "seconds": 19.9194,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_tour_composition_scale_125",
+          "seconds": 19.1854,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_tour_composition_public_path",
+          "seconds": 18.4945,
+          "status": "passed"
+        },
+        {
+          "name": "application_label_authoring_contract",
+          "seconds": 16.231,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_tour_cold_import_public_path",
+          "seconds": 15.3472,
+          "status": "passed"
+        },
+        {
+          "name": "application_threaded_reply_contract",
+          "seconds": 14.2549,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_progress_push_contract",
+          "seconds": 12.7749,
+          "status": "passed"
+        },
+        {
+          "name": "application_refresh_pick_contract",
+          "seconds": 12.7638,
+          "status": "passed"
+        },
+        {
+          "name": "application_agent_finding_workshop_press_contract",
+          "seconds": 9.0927,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_round_trip_composition_contract",
+          "seconds": 7.9743,
+          "status": "passed"
+        },
+        {
+          "name": "application_diff_host",
+          "seconds": 5.43923,
+          "status": "passed"
+        },
+        {
+          "name": "application_diff_workbench_shutdown_public_path",
+          "seconds": 5.27096,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_200",
+          "seconds": 1.9374,
+          "status": "passed"
+        },
+        {
+          "name": "qt_code_sample_painter",
+          "seconds": 1.93144,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_150",
+          "seconds": 1.84144,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_125",
+          "seconds": 1.79585,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_100",
+          "seconds": 1.74065,
+          "status": "passed"
+        }
+      ],
+      "candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+      "ctest_exit": 0,
+      "command": [
+        "ctest",
+        "--preset",
+        "windows-dev",
+        "--tests-from-file",
+        "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr1527-windows-normal-r67b-suite\\selected-tests.txt",
+        "--parallel",
+        "4",
+        "--output-on-failure",
+        "--no-tests=error",
+        "--output-log",
+        "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr1527-windows-normal-r67b-suite\\ctest.log",
+        "--output-junit",
+        "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr1527-windows-normal-r67b-suite\\junit.xml"
+      ],
+      "complete": true,
+      "scope": "35affectedordinarynormalcourses, unchangedbudgets/assertions/containment,705registrationunchanged. OriginalR58/R60b retained; unaffected535+168passing evidence keeps its exactoriginalscope. Notuninterrupted705releaseapproval."
+    },
+    "source_provenance": "Force actual changed host/Qt and unchanged strengthened QtDiff objects, selected actual executables relinked, source/object timestamps checked, runtime instrumentation/negative markers absent, exact clean candidate before/after. All705 registrations unchanged; no fixture extras. Jobs4 with prescribed serial GUI/performance resources, no independent native Windows/WSL workload.",
+    "stop_ms": 4.5641,
+    "held_matcher_stop_ms": 0.4301,
+    "full_wrapper_stop_scalar": "Not printed by successful wrapper; wrapper pass proves original full-effect10ms child assertion, standalone scalar separately observed.",
+    "originals_archive": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-r67b-complete-preserved.zip",
+    "private_archive_sha256": "64d656dbed95d6c5d1b357c6ebc46b4b62087faf923bbc97a1c6c181f1eaf15f"
+  },
+  "wsl": {
+    "task": "BPR-1527-resume-windows-r68b",
+    "wrapper_pid": 30680,
+    "runner_pid": 135941,
+    "ctest_pid": 136153,
+    "report": {
+      "schema": "bpr.test-timings.v1",
+      "wall_seconds": 71.43182329299452,
+      "summed_test_seconds": 71.404089,
+      "counts": {
+        "passed": 12
+      },
+      "tests": [
+        {
+          "name": "qt_diff_workbench_scale_200",
+          "seconds": 15.5804,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_workbench_scale_125",
+          "seconds": 13.5092,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_workbench_scale_100",
+          "seconds": 11.4291,
+          "status": "passed"
+        },
+        {
+          "name": "application_source_find",
+          "seconds": 11.0603,
+          "status": "passed"
+        },
+        {
+          "name": "application_reply_draft_contract",
+          "seconds": 8.55941,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_submission_composition_public_path",
+          "seconds": 4.44228,
+          "status": "passed"
+        },
+        {
+          "name": "application_diff_host",
+          "seconds": 2.7196,
+          "status": "passed"
+        },
+        {
+          "name": "application_review_tour_cold_import_public_path",
+          "seconds": 2.71002,
+          "status": "passed"
+        },
+        {
+          "name": "application_diff_workbench_shutdown_public_path",
+          "seconds": 0.994486,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_200",
+          "seconds": 0.150172,
+          "status": "passed"
+        },
+        {
+          "name": "qt_code_sample_painter",
+          "seconds": 0.129602,
+          "status": "passed"
+        },
+        {
+          "name": "qt_diff_axis_scale_125",
+          "seconds": 0.119519,
+          "status": "passed"
+        }
+      ],
+      "candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+      "ctest_exit": 0,
+      "command": [
+        "ctest",
+        "--preset",
+        "dev",
+        "--tests-from-file",
+        "/home/mmarcin/bpr-v021/.mask/sessions/BPR-1527/evidence/wsl-r68b/selected-tests.txt",
+        "--parallel",
+        "4",
+        "--output-on-failure",
+        "--no-tests=error",
+        "--output-log",
+        "/home/mmarcin/bpr-v021/.mask/sessions/BPR-1527/evidence/wsl-r68b/ctest.log",
+        "--output-junit",
+        "/home/mmarcin/bpr-v021/.mask/sessions/BPR-1527/evidence/wsl-r68b/junit.xml"
+      ],
+      "complete": true,
+      "scope": "WSL Ubuntu26.04 affected portability, notnativeUbuntu desktop/vault/package acceptance"
+    },
+    "context": "Ubuntu26.04 WSL, selected actual native producers forced/relinked; all12 normal courses contained under existing registration. Jobs4 with serial GUI resources; no Windows native build/test overlapped.",
+    "scope": "Affected portability, not native Ubuntu desktop/vault qualification.",
+    "prerequisite_failure": "R68 adopted exact aa629 but stopped before any compile/test because scheduled PATH omitted existing user-local tools. Preserved original. R68b only prepended existing /home/mmarcin/.local/bin in its process; no system/environment settings changed.",
+    "private_archive_sha256": "d61a806650e5c2bfe94951c16ca564bff571fe76ebdcc8754c79107ef735b1e0"
+  },
+  "cache_supplement": {
+    "task": "BPR-1527-resume-windows-r69",
+    "wrapper_pid": 18524,
+    "runner_pid": 43564,
+    "ctest_pid": 41588,
+    "benchmark_pid": 41944,
+    "result": "Complete: 1 passed, 0 failed, 0 skipped; CTest/wrapper exit0, taskReady",
+    "report": {
+      "schema": "bpr.test-timings.v1",
+      "wall_seconds": 270.2602612999908,
+      "summed_test_seconds": 270.16,
+      "counts": {
+        "passed": 1
+      },
+      "tests": [
+        {
+          "name": "application_large_review_cache_bytes",
+          "seconds": 270.16,
+          "status": "passed"
+        }
+      ],
+      "candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+      "configuration": "Release",
+      "ctest_exit": 0,
+      "complete": true,
+      "command": [
+        "ctest",
+        "--preset",
+        "windows-dev",
+        "-C",
+        "Release",
+        "-R",
+        "^application_large_review_cache_bytes$",
+        "--parallel",
+        "1",
+        "--output-on-failure",
+        "--no-tests=error",
+        "--output-log",
+        "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr1527-windows-cache-r69-suite\\ctest.log",
+        "--output-junit",
+        "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr1527-windows-cache-r69-suite\\junit.xml"
+      ],
+      "scope": "Existingoptimizednativecache-bytessupplement; originalassertions/inputs/budget/registeredskip unchanged. Notanentirereleasegate/packageapproval."
+    },
+    "provenance": {
+      "candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+      "configuration": "Release",
+      "executable": "C:\\Users\\mikem\\bpr-v021\\build\\windows-dev\\tests\\end_to_end\\Release\\better_pull_review_large_review.exe",
+      "sha256": "762afe798b3719e35d8e87c9dca1c9d05d77d6236d349770f27efcb58c388a6f",
+      "mtime_ns": 1792131392779418000,
+      "build_command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "windows-dev",
+        "--config",
+        "Release",
+        "--parallel",
+        "4",
+        "--target",
+        "bench_better_pull_review_large_review"
+      ],
+      "scope": "Only optimized existing cache-bytes supplement, notpackage/sign/publication; originalDebugconfiguredskip retained."
+    },
+    "registered_timeout_seconds": 3420,
+    "metrics": {
+      "CacheByteCourse": true,
+      "ByteEvictedDiff": true,
+      "ByteEvictedIndex": true,
+      "ByteRevisitExact": true,
+      "ByteSupersessionHeldExact": true,
+      "ByteHeldSourceObservations": 8,
+      "ByteSelections": 22,
+      "BytePeakCacheEntries": 33,
+      "ByteSupersessionsWithWork": 1,
+      "ByteEntryBytes": 3080024,
+      "ByteAdmittedBytes": 67760528,
+      "BytePeakCacheBytes": 64721304
+    },
+    "originals_archive": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-r69-complete-preserved.zip",
+    "private_archive_sha256": "f7c4063a4814b3760fbe9be6fa025922a014e4dbda4a605b13196bf909c0b436",
+    "scope": "Only existing optimized native cache-bytes supplement. Original Debug configured skip remains a skip; no entire Release matrix, package or signing approval."
+  },
+  "reuse": {
+    "r58_r60b": "Complete cross-outage inventory on181/code0769 =703pass/1diagnostic fail/1configured Debug skip, not an uninterrupted current705 gate.535 original valid passes and168 resumed passes retain source/registration/dependency/fixture scope. Current35 replace affected claims only; no relabeling of originals.",
+    "mac": "R59 all14 original failures pass on code0769, with one separate source-bottom regression; R61 actual repair/control +11 affected positives, R65 disabled-poll negative/restoration, R66 six current public paths and static checks. Unchanged-source reuse only, no Mac0.2.1 producer mutation.",
+    "static": "Current Qt/host actual strict TUs clang-tidy22.1.8 pass, fullformat22 and architecture pass. Earlier unchanged10TU strict/architecture verifier evidence and67unchanged documentation verifier tests reused. Current final documentation/board gate and source self-review pass; no broad repetition."
+  },
+  "uncertainties": [
+    "The exact historical Windows R21 UIforETW failing substep is unproven; actual compiled old/current deferred-completion controls and current ordinary native passes establish the supported correction.",
+    "The exact phases of original10.3557/10.3359ms cancellation failures were not instrumented. Matched component probes establish a bounded polling headroom improvement; no single-work-unit/unwind/scheduler wall-time guarantee is inferred.",
+    "Current engineering evidence is not package signing/trust, native clean-account/vault/crash/vulnerability approval or an uninterrupted final-version705 pass."
+  ],
+  "pending": [
+    "Coordinator final Windows0.2.2 source/version/artifact binding and appropriate selected release checks, package/sign/publication. Native binaries here remain aa629/project0.2.1."
+  ],
+  "source_sha256": {
+    "src/application/src/diff_application_host.cpp": "050b3be80e4c74c58ed52f356237e559da0b513844aef9a60105d171bb03e903",
+    "src/adapters/qt/src/diff_workbench.cpp": "f19893f69bf93451148dbf52590b7b23586cf7a283b33ff81c123b7477ee8732",
+    "tests/adapters_qt/diff_workbench_tests.cpp": "af8733ad4229636d3c802cc9f4a1ac3129988c67cea6bdb79e50fc39ed9c1f90"
+  },
+  "quiescence": {
+    "observed_utc": "2026-10-16T06:23:05.4847505Z",
+    "owned_windows_pids_remaining": [],
+    "native_windows_workload": [],
+    "wsl_native_workload": [],
+    "wsl_inventory_exit": 0,
+    "tasks": [
+      {
+        "state": "Ready",
+        "task": "BPR-1527-resume-windows-r67b"
+      },
+      {
+        "state": "Ready",
+        "task": "BPR-1527-resume-windows-r68"
+      },
+      {
+        "state": "Ready",
+        "task": "BPR-1527-resume-windows-r68b"
+      },
+      {
+        "state": "Ready",
+        "task": "BPR-1527-resume-windows-r69"
+      }
+    ],
+    "windows_source": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
+    "windows_branch": "codex/bpr1527-windows-v022-r17",
+    "windows_status": [],
+    "mac": "All owned commands completed; CPU slot already returned to coordinator. No denied global process inspection or substitute used.",
+    "ownership_transfer": "Release serialized Windows/WSL native slot to coordinator after canonical handoff; this owner will dispatch nothing further without new work."
+  },
+  "engineering_result": "All12criteria/11exits accepted with explicit source-scoped reuse, original failures retained, canonical finish prepared after actual quiescence. Not release approval."
+}
