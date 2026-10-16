@@ -2117,3 +2117,20 @@ bpr_enable_hardening(test_better_pull_review_markdown_image_decoder_tests)
 bpr_enable_warnings(test_better_pull_review_markdown_image_decoder_tests)
 bpr_add_network_isolated_test(NAME qt_markdown_image_decoder COMMAND test_better_pull_review_markdown_image_decoder_tests)
 set_tests_properties(qt_markdown_image_decoder PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 60)
+
+# RFC-BPR-0084. Images in the Markdown reader at the supported scales.
+bpr_add_executable(test_better_pull_review_markdown_image_view_tests markdown_image_view_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_image_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_markdown_image_view_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_image_view_tests)
+foreach(image_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" image_suffix "${image_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_images_${image_suffix}"
+        COMMAND test_better_pull_review_markdown_image_view_tests
+    )
+    set_tests_properties("qt_markdown_images_${image_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${image_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-images-${image_suffix}"
+        TIMEOUT 60
+    )
+endforeach()

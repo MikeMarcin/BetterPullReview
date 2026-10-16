@@ -721,6 +721,21 @@ namespace bpr::qt {
 		return ProjectionNodesVisited;
 	}
 
+	void github_conversation_panel::set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch)
+	{
+		Cards->set_image_dispatch(std::move(aDispatch));
+	}
+
+	void github_conversation_panel::apply_markdown_image(const application::markdown_image_projection& aImage)
+	{
+		Cards->apply_markdown_image(aImage);
+	}
+
+	void github_conversation_panel::request_images()
+	{
+		Cards->request_images();
+	}
+
 	void github_conversation_panel::set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)
 	{
 		Cards->set_link_dispatch(std::move(aDispatch));

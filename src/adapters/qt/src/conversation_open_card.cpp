@@ -1305,6 +1305,14 @@ namespace bpr::qt {
 					Link(id, QString::fromStdString(aDestination));
 				}
 			});
+			// RFC-BPR-0084. A published post's images load; a draft's stay text.
+			if (!aCard.Draft) {
+				view->reader()->set_image_dispatch([this, id = post.Id](std::vector<core::markdown_image_reference> aReferences) {
+					if (ImageRequest) {
+						ImageRequest(id, std::move(aReferences));
+					}
+				});
+			}
 			view->HeightChanged = [this] {
 				if (HeightChanged) {
 					HeightChanged();
@@ -1969,6 +1977,21 @@ namespace bpr::qt {
 					button->setIcon(conversation_icon(static_cast<conversation_glyph>(glyph.toInt()), palette()));
 				}
 			}
+		}
+	}
+	void open_thread_card::apply_image(const application::markdown_image_projection& aImage)
+	{
+		for (auto* const view : Posts) {
+			if (view->post().Id == aImage.Body) {
+				view->reader()->apply_image(aImage);
+			}
+		}
+	}
+
+	void open_thread_card::request_images()
+	{
+		for (auto* const view : Posts) {
+			view->reader()->request_images();
 		}
 	}
 } // namespace bpr::qt

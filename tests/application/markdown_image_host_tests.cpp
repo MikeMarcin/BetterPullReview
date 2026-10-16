@@ -343,6 +343,10 @@ namespace {
 		fixture.settle();
 		fixture.resolve(0, { { .Node = "PR_node", .Served = { { .Source = std::string{ signed_served }, .Canonical = { } } } } });
 		expect(fixture.Fetch.Calls.size() == 1U, "fetch started");
+		fixture.Window->request(fixture.intent("", { std::string{ attachment_address } }));
+		fixture.settle();
+		expect(!fixture.Fetch.Calls[0].Stop.stop_requested() && fixture.Fetch.Calls.size() == 1U && fixture.Resolution.Calls.size() == 1U,
+			   "asking again for the same image keeps its load and asks nothing new");
 		fixture.Window->request(fixture.intent("", { "https://e.example/new.png" }));
 		expect(fixture.Fetch.Calls[0].Stop.stop_requested(), "a body's new request cancels its earlier load");
 		fixture.Fetch.ok(0);

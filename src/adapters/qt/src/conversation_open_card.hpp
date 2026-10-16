@@ -229,6 +229,12 @@ namespace bpr::qt {
 
 		std::function<void(card_action)>                        Action;
 		std::function<void(const std::string&, const QString&)> Link;
+		/// RFC-BPR-0084. A published post's image references, by post identity.
+		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageRequest;
+		/// \brief Shows one image answer in the post it names.
+		void apply_image(const application::markdown_image_projection& aImage);
+		/// \brief Asks again for every published post's images still loading.
+		void request_images();
 		std::function<void(const QString&)>                     ReplyText;
 		/// [[BPR-1212]]. Each edit of my draft written in the composer.
 		std::function<void(const QString&)> DraftText;

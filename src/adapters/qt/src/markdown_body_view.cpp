@@ -1,11 +1,14 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include "markdown_document.hpp"
+#include "markdown_images.hpp"
 
+#include "bpr/application/github_projection.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_conversation.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -27,10 +30,12 @@
 #include <QTextEdit>
 #include <QTextFragment>
 #include <QTextTable>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <string_view>
@@ -286,6 +291,8 @@ namespace bpr::qt {
 		std::function<void(bool)>           LeaveLinks;
 		/// A link reached by Tab, so its destination can be said where it is.
 		std::function<void(const QString&)> LinkFocused;
+		/// RFC-BPR-0084. The accessible text of an image object at a position.
+		std::function<QString(int)> ImageLabel;
 		/// In place a vertical wheel belongs to what holds the post.
 		bool                        InPlace = false;
 		std::function<QMimeData*()> CopySelection;
@@ -388,6 +395,10 @@ namespace bpr::qt {
 				cursor.setPosition(link.End, QTextCursor::KeepAnchor);
 				setTextCursor(cursor);
 				ensureCursorVisible();
+				// An image link is announced by its alternative text, then where it goes.
+				const auto image = ImageLabel && link.End - link.Start == 1 ? ImageLabel(link.Start) : QString{ };
+				setAccessibleDescription(image.isEmpty() ? QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally.")
+														 : image + QStringLiteral(". ") + link.Target);
 				if (Describe) {
 					Describe(link.Target);
 				}
@@ -463,6 +474,25 @@ namespace bpr::qt {
 		layout->addWidget(Notice);
 		Pages    = new QStackedWidget{ this };
 		Rendered = new markdown_text_view{ Pages };
+		// RFC-BPR-0084. Image objects are sized and drawn by the store; the
+		// timer moves animated images on while the reader is visible.
+		Images = new detail::markdown_image_store{ *Rendered };
+		Rendered->document()->documentLayout()->registerHandler(detail::markdown_image_object, Images);
+		Rendered->ImageLabel = [this](const int aPosition) -> QString {
+			const auto* slot = Images->slot_at(*Rendered->document(), aPosition);
+			return slot == nullptr ? QString{ } : detail::markdown_image_store::placeholder_of(*slot);
+		};
+		Animation = new QTimer{ this };
+		Animation->setSingleShot(true);
+		connect(Animation, &QTimer::timeout, this, [this] {
+			const auto now     = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			const auto elapsed = AnimationStarted == 0 ? 0 : now - AnimationStarted;
+			AnimationStarted   = now;
+			if (Images->advance(elapsed)) {
+				Rendered->viewport()->update();
+			}
+			schedule_animation();
+		});
 		Rendered->setAccessibleName(QStringLiteral("Rendered Markdown body"));
 		Rendered->setAccessibleDescription(QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally."));
 		auto* source = new markdown_source_view{ Pages };
@@ -482,7 +512,7 @@ namespace bpr::qt {
 				// has no source offsets, so Qt serializes its formatting as Markdown.
 				const auto bytes = cursor.selectionStart() == 0 && cursor.selectionEnd() == Rendered->document()->characterCount() - 1
 					? QByteArray{ Body.data(), static_cast<qsizetype>(Body.size()) }
-					: QTextDocumentFragment{ cursor }.toMarkdown(markdown_features).toUtf8();
+					: selected_markdown(cursor).toUtf8();
 				mime->setData(QStringLiteral("text/plain"), bytes);
 			}
 			return mime;
@@ -784,7 +814,14 @@ namespace bpr::qt {
 			const auto source = QString::fromUtf8(shown.data(), static_cast<qsizetype>(shown.size()));
 			document->setMarkdown(source, markdown_features);
 			if (restore_code_tabs(*document, source)) {
-				replace_images(*document);
+				// RFC-BPR-0084. With a holder to ask, images become objects that
+				// load; without one they stay the accessible placeholder.
+				if (ImageDispatch) {
+					Images->place(*document, dark_palette(), core::markdown_linked_images(Body));
+				} else {
+					Images->clear();
+					replace_images(*document);
+				}
 				if (InPlace) {
 					// [[BPR-1083]]. The recognized header leads the first
 					// paragraph as written; rendered, `**praise:**` reads
@@ -830,6 +867,11 @@ namespace bpr::qt {
 																	  : QString{ });
 		Notice->setVisible(!Notice->text().isEmpty());
 		Toggle->setEnabled(RenderedAvailable);
+		if (!RenderedAvailable) {
+			Images->clear();
+		}
+		dispatch_images();
+		schedule_animation();
 	}
 
 	void markdown_body_view::refresh_formats()
@@ -1060,7 +1102,121 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::ApplicationPaletteChange
 			|| aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::ApplicationFontChange || aEvent->type() == QEvent::StyleChange) {
 			refresh_formats();
+			// A <picture> shows the source for the current scheme.
+			if (Images->choose_scheme(dark_palette())) {
+				Rendered->document()->markContentsDirty(0, Rendered->document()->characterCount());
+				dispatch_images();
+			}
 			height_changed();
 		}
+	}
+	auto markdown_body_view::selected_markdown(const QTextCursor& aCursor) const -> QString
+	{
+		// Qt serializes an image object as U+FFFC; each becomes its Markdown again.
+		auto       markdown = QTextDocumentFragment{ aCursor }.toMarkdown(markdown_features);
+		const auto* document = Rendered->document();
+		auto        from     = qsizetype{ 0 };
+		for (auto position = aCursor.selectionStart(); position < aCursor.selectionEnd(); ++position) {
+			if (document->characterAt(position) != QChar::ObjectReplacementCharacter) {
+				continue;
+			}
+			const auto* slot = Images->slot_at(*document, position);
+			const auto  at   = markdown.indexOf(QChar::ObjectReplacementCharacter, from);
+			if (slot == nullptr || at < 0) {
+				continue;
+			}
+			const auto text = detail::markdown_image_store::markdown_of(*slot);
+			markdown.replace(at, 1, text);
+			from = at + text.size();
+		}
+		return markdown;
+	}
+
+	auto markdown_body_view::dark_palette() const -> bool
+	{
+		return palette().color(QPalette::Active, QPalette::Base).lightness() < 128;
+	}
+
+	void markdown_body_view::set_image_dispatch(std::function<void(std::vector<core::markdown_image_reference>)> aDispatch)
+	{
+		const auto first = !ImageDispatch && aDispatch;
+		ImageDispatch    = std::move(aDispatch);
+		// A body read before there was anyone to ask holds placeholders; render
+		// it again so its images can load. Later bindings change nothing shown.
+		const auto marked = Body.find("![") != std::string::npos || Body.find("<img") != std::string::npos
+			|| Body.find("<IMG") != std::string::npos || Body.find("<picture") != std::string::npos;
+		if (first && marked && RenderedAvailable) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
+	void markdown_body_view::request_images()
+	{
+		dispatch_images();
+	}
+
+	void markdown_body_view::dispatch_images()
+	{
+		if (!ImageDispatch || !RenderedAvailable) {
+			return;
+		}
+		auto waiting = Images->waiting();
+		if (!waiting.empty()) {
+			ImageDispatch(std::move(waiting));
+		}
+	}
+
+	void markdown_body_view::apply_image(const application::markdown_image_projection& aImage)
+	{
+		auto*      document = Rendered->document();
+		auto*      scroll   = Rendered->verticalScrollBar();
+		const auto before   = document->size().height();
+		const auto position = detail::markdown_image_position(*document, aImage.Ordinal);
+		// An image that grows above what is being read pushes it down; keep it in place.
+		const auto above = position && document->documentLayout()->blockBoundingRect(document->findBlock(*position)).bottom() < scroll->value();
+		if (!Images->apply(*document, aImage)) {
+			return;
+		}
+		Rendered->reset_links();
+		const auto grown = document->size().height() - before;
+		if (above && grown != 0.0) {
+			scroll->setValue(scroll->value() + static_cast<int>(std::lround(grown)));
+		}
+		height_changed();
+		schedule_animation();
+	}
+
+	auto markdown_body_view::image_store() const noexcept -> const detail::markdown_image_store*
+	{
+		return Images;
+	}
+
+	void markdown_body_view::schedule_animation()
+	{
+		const auto next = isVisible() ? Images->next_frame_ms() : std::nullopt;
+		if (!next) {
+			Animation->stop();
+			AnimationStarted = 0;
+			return;
+		}
+		if (!Animation->isActive()) {
+			if (AnimationStarted == 0) {
+				AnimationStarted = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			}
+			Animation->start(static_cast<int>(*next));
+		}
+	}
+
+	void markdown_body_view::showEvent(QShowEvent* aEvent)
+	{
+		QWidget::showEvent(aEvent);
+		schedule_animation();
+	}
+
+	void markdown_body_view::hideEvent(QHideEvent* aEvent)
+	{
+		QWidget::hideEvent(aEvent);
+		schedule_animation();
 	}
 } // namespace bpr::qt

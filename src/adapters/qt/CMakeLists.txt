@@ -56,6 +56,7 @@ add_library(
         src/workbench_landing.cpp
         src/markdown_body_view.cpp
         src/markdown_image_decoder.cpp
+        src/markdown_images.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp

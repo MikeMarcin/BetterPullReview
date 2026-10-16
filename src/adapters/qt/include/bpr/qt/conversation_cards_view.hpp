@@ -491,6 +491,12 @@ namespace bpr::qt {
 		/// \brief Link destinations in a post, with the post's identity, for
 		/// the application's admission ([[BPR-0456]]).
 		void set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0084. Asks for a published post's images by post identity.
+		void set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch);
+		/// \brief Shows one image answer in the open thread's post it names.
+		void apply_markdown_image(const application::markdown_image_projection& aImage);
+		/// \brief Asks again for the open thread's images still loading.
+		void request_images();
 		/// \brief [[BPR-1290]]. Shows the reply editor at the foot of the open
 		/// thread and gives it focus.
 		void begin_reply(const std::string& aThread);
@@ -675,6 +681,7 @@ namespace bpr::qt {
 		std::function<void()>                                       MarksObserver;
 		std::function<bool(QWheelEvent&)>                           ScrollForward;
 		std::function<void(const std::string&, const std::string&)> LinkDispatch;
+		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageDispatch;
 		std::function<void(const std::string&, const QString&)>     ReplyTextDispatch;
 		std::optional<thread_reply_presentation>                    Reply;
 		/// [[BPR-1212]]. My draft is open and being written in the drawer.

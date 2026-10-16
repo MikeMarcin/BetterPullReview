@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 
+#include "bpr/core/markdown_image.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QFont>
@@ -15,12 +16,23 @@ class QPlainTextEdit;
 class QPushButton;
 class QStackedWidget;
 class QTextEdit;
+class QTextCursor;
+class QTimer;
 
+namespace bpr::application {
+	struct markdown_image_projection;
+}
+
+#include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	class markdown_text_view;
+	namespace detail {
+		class markdown_image_store;
+	}
 
 	/// \brief A native, resource-free Markdown reader with original source and copy.
 	/// \details Call only on the GUI lane with an already admitted provider body.
@@ -39,6 +51,20 @@ namespace bpr::qt {
 		void clear();
 		/// \brief Binds untrusted link gestures to the application admission lane.
 		void set_link_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0084. Shows this body's images inline, asking the
+		/// application for each one's pixels through `aDispatch`.
+		/// \details Without a dispatch every image stays the accessible text
+		/// placeholder and nothing is asked for. The references are untrusted
+		/// source text in document order; answers come back by `apply_image`.
+		void set_image_dispatch(std::function<void(std::vector<core::markdown_image_reference>)> aDispatch);
+		/// \brief Asks again for every image still loading, after the holder's
+		/// accepted context changed.
+		void request_images();
+		/// \brief Shows one image's answer; ignored unless it names an image of
+		/// the current body by ordinal and the source this body sent.
+		void apply_image(const application::markdown_image_projection& aImage);
+		/// \brief The current body's images, for tests and accessibility.
+		[[nodiscard]] auto image_store() const noexcept -> const detail::markdown_image_store*;
 		/// \brief Uses the composed code typography without overriding the native palette.
 		void set_code_font(const QFont& aFont, qreal aTabStopDistance);
 		/// \brief Switches modes, retaining independent positions and selections.
@@ -90,6 +116,8 @@ namespace bpr::qt {
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
+		void showEvent(QShowEvent* aEvent) override;
+		void hideEvent(QHideEvent* aEvent) override;
 
 	private:
 		void prepare_rendered();
@@ -99,11 +127,19 @@ namespace bpr::qt {
 		void refresh_controls();
 		void refresh_control_row();
 		void show_context_menu(bool aSource, const QPoint& aPosition);
+		void dispatch_images();
+		[[nodiscard]] auto selected_markdown(const QTextCursor& aCursor) const -> QString;
+		void schedule_animation();
+		[[nodiscard]] auto dark_palette() const -> bool;
 
 		std::string                             Body;
 		std::string                             Identity;
 		std::function<void(const std::string&)> LinkDispatch;
 		std::function<void(QMenu&)>             ContextMenuBuilder;
+		std::function<void(std::vector<core::markdown_image_reference>)> ImageDispatch;
+		detail::markdown_image_store*           Images    = nullptr;
+		QTimer*                                 Animation = nullptr;
+		std::int64_t                            AnimationStarted = 0;
 		markdown_text_view*                     Rendered    = nullptr;
 		QPlainTextEdit*                         Source      = nullptr;
 		QStackedWidget*                         Pages       = nullptr;

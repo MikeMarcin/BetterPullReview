@@ -256,7 +256,7 @@ namespace bpr::adapters::github::detail {
 			struct media_lane
 			{
 				application::effect_executor*                                    Executor = nullptr;
-				std::map<std::uint64_t, std::shared_ptr<native_https_transport>> Transports;
+				std::map<std::uint64_t, github_provider::media_performer> Transports;
 				std::atomic<std::size_t>                                         Queued{ 0U };
 			};
 			std::vector<std::unique_ptr<media_lane>> MediaLanes;
@@ -2658,6 +2658,20 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
+	auto make_native_markdown_image_media_factory() -> github_provider::media_transport_factory
+	{
+		return [](const validated_github_host_profile& aProfile) -> github_provider::media_performer {
+			auto transport = make_native_https_media_transport(aProfile);
+			if (!transport) {
+				return { };
+			}
+			auto shared = std::shared_ptr<native_https_transport>{ std::move(*transport) };
+			return [shared](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) {
+				return shared->perform_markdown_image(aRequest, std::move(aStop));
+			};
+		};
+	}
+
 	void github_provider::configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory)
 	{
 		if (Implementation == nullptr) {
@@ -2734,11 +2748,11 @@ namespace bpr::adapters::github::detail {
 				try {
 					const auto key  = profile->profile().value();
 					auto&      slot = lane->Transports[key];
-					if (slot == nullptr) {
+					if (!slot) {
 						slot = state->MediaFactory(*profile);
 					}
-					if (slot != nullptr) {
-						result = slot->perform_markdown_image(aRequest, aStop);
+					if (slot) {
+						result = slot(aRequest, aStop);
 					}
 				} catch (...) {
 				}

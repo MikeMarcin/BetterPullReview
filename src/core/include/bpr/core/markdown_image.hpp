@@ -105,6 +105,22 @@ namespace bpr::core {
 	/// 8 KiB of markup per tag. This is a tag recognizer, not an HTML parser.
 	[[nodiscard]] auto scan_html_images(std::string_view aText) -> std::vector<html_image_span>;
 
+	/// \brief A Markdown image written inside a link: `[![alt](source)](link)`.
+	struct markdown_linked_image
+	{
+		std::string Source;
+		std::string Link;
+
+		auto operator==(const markdown_linked_image&) const -> bool = default;
+	};
+
+	/// \brief Finds the Markdown images a body wraps in a link, in source order.
+	/// \details A reader whose Markdown import drops a link around an image
+	/// pairs each image with the next unused entry of the same source. Only the
+	/// exact form `[![alt](source "title")](link)` outside fenced, indented and
+	/// inline code is recognized; at most four times the per-body bound.
+	[[nodiscard]] auto markdown_linked_images(std::string_view aMarkdown) -> std::vector<markdown_linked_image>;
+
 	/// \brief One image `src` or `srcset` candidate GitHub's rendered HTML serves.
 	struct markdown_served_image
 	{

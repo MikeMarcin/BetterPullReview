@@ -10969,6 +10969,15 @@ namespace bpr::qt {
 		if (aUpdate.CachedSource && HasCachedOverview && !HasGithubPullRequest) {
 			OverviewPage->present_cached_source(*aUpdate.CachedSource);
 		}
+		// RFC-BPR-0084. Each answer reaches the body it names; a reader ignores
+		// one that is not for its current image.
+		for (const auto& image : aUpdate.Images) {
+			if (image.Body.empty()) {
+				OverviewPage->body_view()->apply_image(image);
+			} else {
+				ConversationPanel->apply_markdown_image(image);
+			}
+		}
 		if (aUpdate.Session.has_value()) {
 			// [[BPR-0803]]. A device flow still asking for its code when some
 			// other way in -- GitHub CLI above all -- has signed in is ended
@@ -11140,6 +11149,15 @@ namespace bpr::qt {
 			statusBar()->showMessage(message, 8000);
 		};
 		OverviewPage->body_view()->set_link_dispatch([dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		// RFC-BPR-0084. Images ask under this publication's context; a new
+		// context asks again for whatever is still loading.
+		const auto images = [this, context = aPullRequest.MarkdownContext](const std::string& aBody, std::vector<core::markdown_image_reference> aReferences) {
+			if (context && MarkdownImageDispatch) {
+				MarkdownImageDispatch({ .Context = *context, .Body = aBody, .References = std::move(aReferences) });
+			}
+		};
+		OverviewPage->body_view()->set_image_dispatch([images](std::vector<core::markdown_image_reference> aReferences) { images({ }, std::move(aReferences)); });
+		ConversationPanel->set_image_dispatch(images);
 		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
@@ -11246,6 +11264,10 @@ namespace bpr::qt {
 			ConversationPanel->present_notice(QString{ });
 		}
 		update_github_presentation_state();
+		// RFC-BPR-0084. Unchanged bodies keep their images; ones still loading
+		// ask again under the new context, which a cached image answers at once.
+		OverviewPage->body_view()->request_images();
+		ConversationPanel->request_images();
 		// [[BPR-0668]]. The line states what is open, so it is written when
 		// what is open changes, not only when a workbench projection lands.
 		// Guarded: this runs while the window is still being assembled.
@@ -11281,6 +11303,11 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch)
 	{
 		MarkdownDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch)
+	{
+		MarkdownImageDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch)

@@ -232,8 +232,10 @@ namespace bpr::adapters::github::detail {
 		void fetch(application::markdown_image_fetch_request                     aRequest,
 				   std::stop_token                                               aStop,
 				   std::function<void(application::markdown_image_fetch_result)> aCompletion) override;
-		/// \brief Builds one credential-free media transport for a profile.
-		using media_transport_factory = std::function<std::shared_ptr<native_https_transport>(const validated_github_host_profile&)>;
+		/// \brief Performs one credential-free image fetch on its lane.
+		using media_performer = std::function<application::markdown_image_fetch_result(const application::markdown_image_fetch_request&, std::stop_token)>;
+		/// \brief Builds one lane's credential-free media performer for a profile.
+		using media_transport_factory = std::function<media_performer(const validated_github_host_profile&)>;
 		/// \brief RFC-BPR-0084. Gives image fetches their serial lanes, one media
 		/// transport per lane and profile. Call once, before any fetch.
 		void configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory);
@@ -246,6 +248,10 @@ namespace bpr::adapters::github::detail {
 
 	using github_provider_factory_result = std::expected<std::unique_ptr<github_provider>,
 														 github_provider_configuration_failure>;
+
+	/// \brief RFC-BPR-0084. The shipped media performers: one native HTTPS
+	/// media transport per lane and profile.
+	[[nodiscard]] auto make_native_markdown_image_media_factory() -> github_provider::media_transport_factory;
 
 	[[nodiscard]] auto make_github_provider(
 		std::shared_ptr<github_profile_catalog>             aProfiles,

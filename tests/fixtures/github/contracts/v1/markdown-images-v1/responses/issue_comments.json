@@ -1,0 +1,18 @@
+[
+	{
+		"body": "Narrow layout for the card: <img width=\"240\" alt=\"Narrow layout\" src=\"https://github.com/user-attachments/assets/5b1d1c1e-0f2a-4c3b-9d4e-000000000005\" />\n",
+		"node_id": "IC_mi_1",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "Spinner while it loads: ![Loading spinner](https://images.example.invalid/spinner.gif)\n\nAnd one that is gone: ![Missing image](https://images.example.invalid/missing.png)\n",
+		"node_id": "IC_mi_2",
+		"user": {
+			"login": "jiayin",
+			"node_id": "U_fixture_jiayin"
+		}
+	}
+]

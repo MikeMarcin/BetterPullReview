@@ -90,6 +90,17 @@ namespace {
 		expect(spans.size() == 1U && spans[0].Source == "first.png", "the first duplicate attribute wins");
 	}
 
+	void linked()
+	{
+		const auto found = markdown_linked_images(
+			"A [![build](https://e.example/b.png)](https://ci.example/run) and [![t](<https://e.example/s p.png> \"Title\")](https://x.example/)\n"
+			"`[![code](c.png)](https://no/)` and ![plain](p.png)\n\n```\n[![fenced](f.png)](https://no/)\n```\n    [![indented](i.png)](https://no/)\n"
+			"[![broken](b.png)] (https://no/)\n");
+		expect(found.size() == 2U, "two linked images outside code");
+		expect(found[0] == markdown_linked_image{ .Source = "https://e.example/b.png", .Link = "https://ci.example/run" }, "plain form");
+		expect(found[1] == markdown_linked_image{ .Source = "https://e.example/s p.png", .Link = "https://x.example/" }, "angle source and title");
+	}
+
 	void served()
 	{
 		const auto html = std::string{ "<p><a href=\"x\"><img src=\"https://camo.githubusercontent.com/abc/def\" alt=\"badge\" data-canonical-src=\"https://img.shields.io/a.svg?x=1&amp;y=2\"></a>" }
@@ -267,6 +278,7 @@ int main()
 {
 	lengths();
 	tag_scanning();
+	linked();
 	served();
 	fetch_policy();
 	sizing();

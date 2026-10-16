@@ -848,6 +848,25 @@ namespace bpr::qt {
 		LinkDispatch = std::move(aDispatch);
 	}
 
+	void conversation_cards_view::set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch)
+	{
+		ImageDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::apply_markdown_image(const application::markdown_image_projection& aImage)
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->apply_image(aImage);
+		}
+	}
+
+	void conversation_cards_view::request_images()
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->request_images();
+		}
+	}
+
 	void conversation_cards_view::set_reply_text_dispatch(std::function<void(const std::string&, const QString&)> aDispatch)
 	{
 		ReplyTextDispatch = std::move(aDispatch);
@@ -1716,6 +1735,12 @@ namespace bpr::qt {
 				LinkDispatch(aPost, aDestination.toStdString());
 			}
 		};
+		OpenCard->ImageRequest = [this](const std::string& aPost, std::vector<core::markdown_image_reference> aReferences) {
+			if (ImageDispatch) {
+				ImageDispatch(aPost, std::move(aReferences));
+			}
+		};
+		OpenCard->request_images();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
 				ReplyTextDispatch(id, aText);

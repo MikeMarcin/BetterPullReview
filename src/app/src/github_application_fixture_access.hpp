@@ -90,6 +90,10 @@ namespace bpr::app::detail {
 		/// arguments, strings, operators, spacing, numbers, rewritten lines
 		/// and prose, non-Latin text), for judging intraline emphasis.
 		intraline_v1,
+		/// RFC-BPR-0084. The nested-folders pull request whose description and
+		/// two pull request comments hold GitHub's image forms, served with
+		/// GitHub's rendering and the images it serves, for judging inline images.
+		markdown_images_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

@@ -649,6 +649,99 @@ namespace bpr::core {
 		return spans;
 	}
 
+	auto markdown_linked_images(const std::string_view aMarkdown) -> std::vector<markdown_linked_image>
+	{
+		std::vector<markdown_linked_image> found;
+		auto                               fence      = std::string_view{ };
+		auto                               offset     = std::size_t{ 0 };
+		const auto                         text       = aMarkdown.substr(0, std::min(aMarkdown.size(), maximum_scanned_bytes));
+		const auto                         maximum    = 4U * markdown_image_references_per_body;
+		while (offset < text.size() && found.size() < maximum) {
+			const auto end  = text.find('\n', offset);
+			auto       line = text.substr(offset, end == std::string_view::npos ? text.size() - offset : end - offset);
+			offset += line.size() + 1U;
+			auto indent = std::size_t{ 0 };
+			while (indent < line.size() && line[indent] == ' ') {
+				++indent;
+			}
+			const auto marker = line.substr(indent);
+			if (!fence.empty()) {
+				if (indent <= 3U && marker.starts_with(fence)) {
+					fence = { };
+				}
+				continue;
+			}
+			if (indent <= 3U && (marker.starts_with("```") || marker.starts_with("~~~"))) {
+				fence = marker.substr(0, 3);
+				continue;
+			}
+			if (indent >= 4U || line.starts_with('\t')) {
+				continue;
+			}
+			// Inline code spans hide whatever they hold.
+			auto masked = std::string{ line };
+			for (auto open = masked.find('`'); open != std::string::npos;) {
+				auto run = open;
+				while (run < masked.size() && masked[run] == '`') {
+					++run;
+				}
+				const auto ticks = masked.substr(open, run - open);
+				const auto close = masked.find(ticks, run);
+				if (close == std::string::npos) {
+					break;
+				}
+				std::fill(masked.begin() + static_cast<std::ptrdiff_t>(open), masked.begin() + static_cast<std::ptrdiff_t>(close + ticks.size()), ' ');
+				open = masked.find('`', close + ticks.size());
+			}
+			for (auto start = masked.find("[!["); start != std::string::npos && found.size() < maximum; start = masked.find("[![", start + 3U)) {
+				const auto altEnd = masked.find("](", start + 3U);
+				if (altEnd == std::string::npos) {
+					break;
+				}
+				auto cursor = altEnd + 2U;
+				auto source = std::string{ };
+				if (cursor < masked.size() && masked[cursor] == '<') {
+					const auto close = masked.find('>', cursor);
+					if (close == std::string::npos) {
+						continue;
+					}
+					source = masked.substr(cursor + 1U, close - cursor - 1U);
+					cursor = close + 1U;
+				} else {
+					const auto stop = masked.find_first_of(" )", cursor);
+					if (stop == std::string::npos) {
+						continue;
+					}
+					source = masked.substr(cursor, stop - cursor);
+					cursor = stop;
+				}
+				while (cursor < masked.size() && masked[cursor] == ' ') {
+					++cursor;
+				}
+				if (cursor < masked.size() && (masked[cursor] == '"' || masked[cursor] == '\'')) {
+					const auto close = masked.find(masked[cursor], cursor + 1U);
+					if (close == std::string::npos) {
+						continue;
+					}
+					cursor = close + 1U;
+					while (cursor < masked.size() && masked[cursor] == ' ') {
+						++cursor;
+					}
+				}
+				if (masked.compare(cursor, 3U, ")](") != 0) {
+					continue;
+				}
+				cursor += 3U;
+				const auto stop = masked.find_first_of(" )", cursor);
+				if (stop == std::string::npos || masked[stop] != ')' || source.empty() || stop == cursor) {
+					continue;
+				}
+				found.push_back({ .Source = std::move(source), .Link = masked.substr(cursor, stop - cursor) });
+			}
+		}
+		return found;
+	}
+
 	auto served_markdown_images(const std::string_view aHtml) -> std::optional<std::vector<markdown_served_image>>
 	{
 		if (aHtml.size() > markdown_image_body_html_bytes) {

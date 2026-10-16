@@ -9047,6 +9047,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 39,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "markdown-images-v1") {
+				// RFC-BPR-0084. The nested-folders pull request whose bodies hold
+				// GitHub's image forms; see `scripts/build_markdown_images_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_images_v1;
+				fixtureName            = "markdown-images-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle                  = "Show the weekly export summary as a card",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 2,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mi_1", "issue-comment:IC_mi_2" },
+					.ExpectedThreadId               = std::nullopt,
+				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
 				// file with eight; see `scripts/build_inline_drawer_fixture.py`.

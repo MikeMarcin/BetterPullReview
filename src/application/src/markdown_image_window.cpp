@@ -99,16 +99,27 @@ namespace bpr::application {
 			InFlight.clear();
 		}
 
-		void forget_body(const std::string& aBody)
+		/// A body's new request keeps what it still asks for in flight and
+		/// cancels the rest; it returns the references already waiting.
+		auto supersede_body(const core::markdown_image_intent& aIntent) -> std::vector<std::uint32_t>
 		{
+			std::vector<std::uint32_t> kept;
 			for (auto it = Entries.begin(); it != Entries.end();) {
-				if (it->Body == aBody) {
+				const auto still = it->Body == aIntent.Body
+					&& std::ranges::any_of(aIntent.References, [&it](const core::markdown_image_reference& aReference) {
+						   return aReference.Ordinal == it->Ordinal && aReference.Source == it->Source.Written;
+					   });
+				if (it->Body == aIntent.Body && !still) {
 					cancel_entry(*it);
 					it = Entries.erase(it);
-				} else {
-					++it;
+					continue;
 				}
+				if (still) {
+					kept.push_back(it->Ordinal);
+				}
+				++it;
 			}
+			return kept;
 		}
 
 		void request(const core::markdown_image_intent& aIntent)
@@ -137,8 +148,11 @@ namespace bpr::application {
 				publish(std::move(immediate));
 				return;
 			}
-			forget_body(aIntent.Body);
+			const auto waiting = supersede_body(aIntent);
 			for (const auto& admission : *admitted) {
+				if (std::ranges::find(waiting, admission.Ordinal) != waiting.end()) {
+					continue;
+				}
 				const auto written = std::ranges::find(aIntent.References, admission.Ordinal, &core::markdown_image_reference::Ordinal)->Source;
 				if (!admission.Source) {
 					immediate.push_back(projection(facts, aIntent.Body, admission.Ordinal, written, admission.Source.error()));
@@ -193,6 +207,8 @@ namespace bpr::application {
 				request.Nodes.assign(Unresolved.begin(), Unresolved.begin() + static_cast<std::ptrdiff_t>(count));
 				Unresolved.erase(Unresolved.begin(), Unresolved.begin() + static_cast<std::ptrdiff_t>(count));
 				request.Sequence = NextSequence++;
+				// Each resolution names its own request within the accepted read.
+				request.Context.Request = core::request_id{ request.Sequence };
 				InFlight.emplace(request.Sequence, request);
 				++Outstanding;
 				auto  weak     = weak_from_this();

@@ -1329,6 +1329,9 @@ namespace bpr::qt {
 
 		/// \brief Binds explicit reader gestures to current-context application policy.
 		void set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch);
+		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
+		/// window's accepted Markdown context, to the application.
+		void set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch);
 		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
 		/// named pull request and builds its address.
 		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
@@ -2386,6 +2389,7 @@ namespace bpr::qt {
 		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
+		std::function<void(const core::markdown_image_intent&)>                      MarkdownImageDispatch;
 		std::string                                                                  MarkdownAuthority;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
