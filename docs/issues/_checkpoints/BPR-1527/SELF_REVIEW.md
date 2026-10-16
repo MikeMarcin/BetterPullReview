@@ -318,3 +318,30 @@ installed; originals/counterexamples stay retained. Later Mac lifecycle/viewport
 Find/held-reply checks remain required pending explicit CPU release. Published
 Mac0.2.1 supplies no acceptance for these later bytes. This is sole-owner review,
 not independent review or release approval.
+
+## Mac-local R59 native counterexample
+
+The preserved30course run on unchanged0769code is29pass/1fail/0skip,exit8,272.59s.
+Every original d52Mac failing selector now passes, including current UIforETW and
+held-storage reply. This does not close affected portability: normalQt200 fails
+6.89s at diff_workbench_tests.cpp2322. Its condition requires both a visible native
+horizontal scrollbar and displayed source bottom exactly one pixel before the
+bar's top. The aggregate failure does not log which conjunct, mode, side or actual
+rectangle failed. No cause is invented from the assertion label.
+
+The condition and its preceding inputs are unchanged since6747. The added actual
+backing-frame helper is called only after the later keyboard loop; it has not run
+at this failure. The851split overscan/placement/offset delta is a relevant candidate,
+without proving an introduced defect or a platform assumption. A bounded next
+native diagnosis should record exact visibility/rectangles/mode/side and compare
+old/current production in the same context before repair. No assertion, style,
+input, timeout or accepted policy changes in this acceptance/checkpoint slice.
+
+Completed R57build/ten object timestamps and prior strict/format/architecture gates
+are reused because production/test/build input bytes are unchanged. R59selected
+commands/properties match all30old registrations. No denied ps bypass or foreign
+process inventory occurs; own-run and checkout-suite locks plus the coordinated
+reservation are recorded, with no independent global-quiet/performance claim.
+All local commands finish and both own locks are available. R58 remote outcome is
+unverified after outage; Windows/SSH/WSL access is explicitly blocked. No canonical
+Done, source integration, published0.2.1 change or release approval is inferred.

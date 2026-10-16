@@ -26,7 +26,7 @@
     "behavior": "Issue Next/Previous once each, retain original semantic selection/dispatch identity, observe exact one-forward/one-reverse completion. Duplicate dispatch, wrong selection, actual role pixels, geometry, height, complete16toolbar order and all original waits/budgets remain asserted.",
     "native_windows": "Proper current-source app R34 UIfor48.25s and R47 UIfor48.65s pass; same app UIfor bytes retained through df589.",
     "portable": "R54 WSL normal UIfor14.50s passes on exact production df589.",
-    "mac": "R57 exact later candidate normal focused acceptance pending.",
+    "mac": "R59 complete normal course passes20.5664s on unchanged0769code, all original profiles/geometry/navigation/pixels/16controls retained. See mac-local-recovery-r59.json; full30result still fails only unrelated Qt200source-edge assertion. Historical R21 exact-substep uncertainty is not recast as a current UIfor failure.",
     "limits": "No standalone isolated pass is claimed as a historical cause proof; direct source and actual compiled controls establish the supported contract correction."
   }
 }

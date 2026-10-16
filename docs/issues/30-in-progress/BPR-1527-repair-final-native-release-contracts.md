@@ -127,9 +127,9 @@ explicit file choice opens against a current accepted pair/catalogue. Exact revo
 authority retires the pending choice. Native label/submission scales/controls pass.
 
 Normal Windows workbench100/125/200 passes93.64/104.43/108.10s under unchanged120s
-versus genuine old-source200119.35s. Split-only actual overscan reuses native pixels;
-mask initialization and narrow frame repair preserve every prior navigation/quality
-assertion. Removing only that repair fails the actual backing-frame oracle. Find
+versus genuine old-source200119.35s. On those Windows/WSL checks, split-only actual overscan reuses native pixels;
+mask initialization and narrow frame repair retain their prior navigation/quality
+assertions. R59 below records an actual Mac counterexample. Removing only that repair fails the actual backing-frame oracle. Find
 compares both exact displayed pane rectangles with all fit/focus/interaction rules;
 deliberate product layout reflow fails.
 
@@ -151,3 +151,18 @@ BPR1527 remains In Progress. Later Mac affected native checks still require expl
 coordinator engineering CPU release; none reached this owner. Published Mac0.2.1
 stays immutable. Resume the same implementer for remaining acceptance/canonical
 finish, preserving all11criteria/10exits. No human review/server or waiver is pending.
+
+
+Outage recovery is Mac-local acceptance/checkpoint only; Windows/SSH/WSL access
+and R58interrupted outcome remain blocked/unverified. Reusing exact completed Mac
+build and unchanged code0769, R59accounts30normal courses:29pass/1fail/0skip,
+exit8,272.59s. All fourteen original Mac failures pass, including UIforETW20.57s,
+held reply16.06s and Find3scales. Normalqt_diff_workbench_scale_200fails6.89s at
+its unchanged source-bottom/native-horizontal-scrollbar assertion before the new
+frame oracle executes. Exact side/mode/visibility/coordinates remain unlogged;
+851overscan/placement is a relevant changed surface, not an established cause.
+[The recovery checkpoint](../_checkpoints/BPR-1527/mac-local-recovery-r59.json)
+retains exact results, constraints and next diagnosis. No product/assertion/style,
+threshold or policy change is made. Local commands/owned locks are finished;
+BPR1527 remains InProgress with all eleven criteria/ten exits. Published0.2.1
+stays untouched; no new release, install, publication or deletion authority.

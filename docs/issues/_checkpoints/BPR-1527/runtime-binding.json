@@ -12,8 +12,8 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "ACTIVE Windows R58 complete normal gate preparation, taskBPR-1527-full-windows-r58 wrapper22200 session1. Exact181b7bf03 source/code0769. Normal configure/force10/fullbuild then all705 via normalpreset/jobs4; no PC/WSL competing workload. Own Mac commands quiescent;30Mac runtime checks pending quiet interval.",
-  "acceptance": "0769 Windows9normal169s, WSL22normal188.97s plus naming-only submission4.46s, strict10TUs/architecture/format22/doc67 pass. R57 Mac compile/link exactcode passes; runtime acceptance pending coordinated quiet interval. InProgress; no canonical finish/main integration/release approval.",
+  "command_state": "MAC-LOCAL R59 thirty-course command finishedexit8,29pass/1fail/0skip272.59s. Runner31957/CTest31969 and unifiedexec42844 complete; own-run and owned-suite locks released/reacquired nonblocking. Local commands quiescent; no process-list scan. WindowsR58 outcome remains unverified/access-blocked; no Windows/SSH/WSL action.",
+  "acceptance": "Current0769 Mac29normal courses pass including all14original Mac failures, UIfor20.57s and heldreply16.06s; completeQt200 fails6.89s at unchanged source-bottom/horizontal-scrollbar assertion before new frame oracle. Existing focusedWindows/WSL/static evidence reused, no full705pass inferred. All11criteria/10exits retained, InProgress; no canonical finish/integration/release approval.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
     "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
@@ -22,7 +22,8 @@
     "Direct human/coordinator release-boundary amendment: macOS-only0.2.1; Windows/Ubuntu0.2.1 canceled/deferred; Windows fixes0.2.2. Supersede common-source0.2.1 coupling, retain all10 behavioral/timing criteria and9 exits; BPR-1527 In Progress. Root owns MacCPU/frozen producer after docs handback; no PCwork until explicit lease.",
     "Coordinator finalWindows705=679pass25fail1skip; PCreleased; explicit navigation-entryAC11/exit10 addition for0.2.2 preservesprior10/9. Mac0.2.1 boundaryc233c7683 excludes laterWindowscommits.",
     "Coordinator explicitly released Mac engineering CPU for remaining affected acceptance and historical UIforETW accounting; no new release/version/package/publication authority.",
-    "Coordinator explicitly directs complete normal exact-source Windows gate on current committed181b7bf03 after Windows idle, rather than waiting solely for Mac CPU. Sameowner, all results/configured skips retained, no package/sign/publish or Mac0.2.1 mutation."
+    "Coordinator explicitly directs complete normal exact-source Windows gate on current committed181b7bf03 after Windows idle, rather than waiting solely for Mac CPU. Sameowner, all results/configured skips retained, no package/sign/publish or Mac0.2.1 mutation.",
+    "Outage recovery: same owner, MAC-LOCAL pending30course acceptance/checkpoint only. No Windows/SSH/WSL execution, inspection, reconnect or settings changes. No denied-ps bypass; no publication/install repetition or new policy/release/deletion authority."
   ],
   "plan_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e",
   "source_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",

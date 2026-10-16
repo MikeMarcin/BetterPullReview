@@ -7,6 +7,33 @@ gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
 BPR-1527 remains In Progress with eleven criteria and ten exits. BPR-1525/1526
 remain Done. Every behavioral, native and timing requirement remains in force.
 
+## Current frontier after Mac-local recovery R59
+
+Mac30normal courses are complete: **29pass/1fail/0skip, CTestexit8,272.59s**
+on unchanged code076922c13. All fourteen original Mac failures now pass, including
+UIforETW20.57s, held-storage reply16.06s and Find3scales14.03/11.80/12.25s.
+The sole failure is the normal complete200% workbench course,6.89s, at the unchanged
+"actual source bottom meets the native horizontal scrollbar, excluding overscan"
+assertion. This prevents affected Mac acceptance; it is not a timeout or a failure
+of the newly added backing-frame oracle, which has not yet executed in that case.
+[The R59record](mac-local-recovery-r59.json) preserves all30 outcomes and limits.
+
+This recovery is **Mac-local acceptance/checkpoint only**. No Windows/SSH/WSL
+execution, inspection, reconnect or settings change is authorized. R58 current
+outcome remains unverified after outage; earlier Running records are historical.
+Published0.2.1 producer/tag stays untouched. No source/assertion/input/threshold,
+style, policy, version, package or publication change is made. No ps or alternate
+process inventory is attempted. The coordinated Mac reservation/own locks are
+recorded; independent global quiet and Mac performance improvement are not claimed.
+
+Local runner31957/CTest31969 and unifiedexec42844 finishedexit8; both owned locks
+are available again. No local native command or review server remains. Next bounded
+engineering work needs exact side/mode/clip/bar visibility/coordinates at the
+unchanged assertion, then same-context old/current production evidence. The
+851viewport/overscan delta is relevant but not a proven historical cause. Preserve
+the failed result; do not waive the assertion or use Windows/WSL passes as Mac proof.
+BPR1527 remains InProgress with all11criteria/10exits; no canonical finish is claimed.
+
 ## Release and source boundary
 
 The human directed: "If windows is far away then just release Mac only and
@@ -354,3 +381,39 @@ No gate result is inferred yet. This same owner retains the active command and
 source; do not dispatch a duplicate or a Windows/WSL competing command.
 Mac30course remains pending its quiet interval; no package, signing, publication
 or published Mac0.2.1 mutation is authorized.
+
+## Current outage-recovery boundary, Mac local only
+
+The coordinator resumes this same owner only for the pending30course local Mac
+acceptance and checkpoint. **Windows/SSH/WSL execution and inspection, reconnect
+or settings changes are not authorized.** R58's preceding active-gate paragraph
+is historical last-known state; its interrupted outcome is unverified, and no
+Windows status or signing result is inferred. No publication/install repetition,
+new release/version/policy or deletion authority follows. Published0.2.1 stays
+untouched. No denied process-list operation or substitute inspection is used.
+
+[The recovery binding](mac-local-recovery-r59.json) records exact scope and inputs.
+The owned worktree is clean5ed0c82e0 before these notes; code076922c13 is unchanged
+through all src/tests/cmake/build inputs. All ten Mac object timestamps exactly
+match the completed R57receipt, so its twelve-target build is reused. A fresh
+local show-only CTest manifest matches all thirty saved commands/properties.
+Old owned local build17674/test72650 exec sessions are no longer registered;
+receipts and the prior local preflight refusals establish that no30course run
+started. No own native command or review server is active.
+
+The saved private runner survives but its /tmp copy does not. The recovered
+`/tmp/bpr1527-mac-r59-run.py` uses exclusive own-run and owned-checkout suite
+advisory locks, verifies exact code/selectors, and records a coordinator-held
+quiet interval instead of invoking the denied ps or any substitute process API.
+Those locks prevent duplicate cooperating owned runs; they do not certify global
+resource quiet. The coordinator has been notified that the normal run is ready
+and the quiet interval is the remaining prerequisite. No tests dispatched or
+new runtime acceptance claimed; all eleven criteria/ten exits remain in force.
+
+R59 result: all30accounted,29pass/1fail/0skip,272.59s,exit8. All14original Mac
+failed courses pass on unchanged0769. The normal200course fails6.89s at the
+unchanged source-bottom/horizontal-bar assertion before its new frame helper;
+actual mode/side/visibility/coordinates are unlogged. See the current frontier
+and [R59record](mac-local-recovery-r59.json). No product/test/threshold edit is
+made in this acceptance/checkpoint recovery. Own local command and locks are
+finished; Windows outcome/access remains blocked and unverified.

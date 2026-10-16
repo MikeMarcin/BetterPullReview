@@ -131,3 +131,34 @@ land under `.mask/sessions/BPR-1527/evidence/mac-followup-r57/`. The script has
 not been dispatched; preflight is not a lease or a substitute for coordinating
 the quiet interval. After a real result, preserve any failure and finish all
 remaining criterion/exit, self-review, documentation and canonical board upkeep.
+
+## Current Mac-local outage recovery
+
+All earlier Windows/SSH/WSL commands and active-state claims above are historical
+only. Direct coordinator access restriction prohibits executing or inspecting
+those hosts, reconnecting or changing settings. R58 outcome is unverified; do not
+restart or infer completion. Published0.2.1 stays untouched.
+
+Use [R59binding](mac-local-recovery-r59.json). The exact completed Mac build and
+30normal registrations are recovered and unchanged. No process-list inventory
+is authorized; old owned local exec sessions are absent and receipts show no
+previous30course dispatch. Recover the runner from its private copied evidence
+if /tmp is lost again. After the coordinator supplies a quiet interval, run
+`python3 /tmp/bpr1527-mac-r59-run.py --quiet-context` with that exact coordination
+as its text argument. It uses exclusive own-run/checkout suite locks and no
+process inventory. All30original course assertions/timeouts/containment remain.
+Preserve any failure and report only actual local acceptance; no new product,
+policy, release, install, publication or deletion work belongs to this recovery.
+
+## R59 complete result and next boundary
+
+The30course run is finished,29pass/1fail/0skip,exit8,272.59s. Preserve its private
+originals. Only qt_diff_workbench_scale_200 fails6.89s at the existing source
+bottom/horizontal-scrollbar assertion; all14original Mac failures and other
+focused courses pass. No new frame-helper acceptance is inferred past that stop.
+The conjunction does not identify visibility vs coordinate mismatch, side or mode.
+No source/assertion change is made under this checkpoint-only recovery. Next
+implementation slice should capture those exact facts and a controlled native
+old/current comparison before selecting a fix; no threshold/style/platform waiver.
+All local commands/owned locks are finished; no review server is open. Windows
+inspection/execution/reconnect remains explicitly forbidden, R58 outcome unknown.
