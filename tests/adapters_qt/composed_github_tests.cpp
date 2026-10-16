@@ -3613,15 +3613,13 @@ namespace {
 			   "negative control: a reply's :qu: stays as typed, in place and in its draft, with no label");
 		replyBox->clear();
 		QApplication::processEvents();
-		replyLabels->chip()->click();
-		QApplication::processEvents();
-		expect(replyLabels->menu()->isVisible(), "the reply's chip opens the label menu");
-		replyLabels->menu()->label_button(core::feedback_label::question)->click();
-		QApplication::processEvents();
+		// A label typed out in full labels the reply; the chip and its menu
+		// are proved in place by qt_conversation_cards_view.
+		typeInto(replyBox, QStringLiteral("question: "));
 		expect(replyBox->toPlainText() == QStringLiteral("question: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: "),
-			   "the menu's question labels the reply, in place and in its draft");
+			   "question typed out in full labels the reply, in place and in its draft");
 		expect(replyLabels->chip()->accessibleName() == QStringLiteral("Label: question") && composer->statistics().Edits == 0U,
-			   "the reply's chip names the label; it was written once, by the reply's own controls");
+			   "the reply's chip names the label typed");
 		typeInto(replyBox, QStringLiteral("why"));
 		capture_layout_state(window, QStringLiteral("inline-reply-label"));
 		replyBox->clear();
