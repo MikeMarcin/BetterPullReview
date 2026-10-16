@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1540"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Reason code when a review submission stays unknown",
+  "created": "2026-10-16T01:35:27.196639+00:00",
+  "base": "fbe406db88781d6453f77488ab2d633e056748c5"
+}

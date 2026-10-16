@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/intraline",
+	"id": 2,
+	"name": "intraline",
+	"node_id": "R_intraline",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

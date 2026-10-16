@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1537"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Intraline highlights on word and punctuation tokens with semantic cleanup (owner report 2026-10-15)",
+  "created": "2026-10-15T22:31:20.692369+00:00",
+  "base": "581c7952afab035769dfbfec5fc24183b0710e96"
+}

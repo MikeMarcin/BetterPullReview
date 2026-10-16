@@ -1,0 +1,48 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_intraline",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "config/review.json",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/review-guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "locale/messages.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/review/comparison.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/report.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/intraline:37:files",
+						"hasNextPage": false
+					},
+					"totalCount": 5
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_37",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

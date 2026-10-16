@@ -344,6 +344,7 @@ namespace {
 
 	enum class intraline_mode : std::uint8_t {
 		reference,
+		decline,
 		none_matched,
 		unequal,
 	};
@@ -371,6 +372,9 @@ namespace {
 											 diff_component_meter& /*aMeter*/) -> std::optional<std::vector<diff_match>> override
 		{
 			++Calls;
+			if (Mode == intraline_mode::decline) {
+				return std::nullopt;
+			}
 			if (Mode == intraline_mode::none_matched) {
 				return std::vector<diff_match>{ };
 			}
@@ -384,7 +388,8 @@ namespace {
 				}
 				return std::vector<diff_match>{ };
 			}
-			// The engine's own minimal LCS, with its tie-breaking.
+			// A minimal character LCS, with the tie-breaking the engine used
+			// before [[BPR-1537]] compared words.
 			const auto rows    = aLeft.size() + 1U;
 			const auto columns = aRight.size() + 1U;
 			auto       table   = std::vector<std::uint32_t>(rows * columns, 0U);
@@ -528,13 +533,32 @@ namespace {
 						   && scored.Result->AlignmentApproximate == expected.Result->AlignmentApproximate,
 					   "[[BPR-1465]] the engine's own scores, supplied, pair identically and charge the same budget");
 			}
-			auto       same       = intraline{ intraline_mode::reference };
-			const auto emphasized = compute_file_diff(testCase.input(), same);
+			auto       declined   = intraline{ intraline_mode::decline };
+			const auto emphasized = compute_file_diff(testCase.input(), declined);
 			if (expected.Result.has_value()) {
 				expect(emphasized.Result.has_value() && emphasized.Result->Alignment == expected.Result->Alignment
 						   && emphasized.Result->Intraline == expected.Result->Intraline,
-					   "[[BPR-1465]] the engine's own intraline matches, supplied, give identical edits");
+					   "[[BPR-1465]] a declined intraline part keeps the engine's own edits");
 			}
+			auto       characters = intraline{ intraline_mode::reference };
+			const auto supplied   = compute_file_diff(testCase.input(), characters);
+			if (expected.Result.has_value()) {
+				expect(supplied.Result.has_value() && supplied.Result->Alignment == expected.Result->Alignment,
+					   "[[BPR-1465]] supplied character matches leave the alignment as it is");
+			}
+		}
+		// [[BPR-1537]] Supplied matches are used as they are: a minimal
+		// character LCS keeps the "a" alpha and beta share, where the engine's
+		// own comparison emphasises the whole changed word.
+		{
+			const auto testCase   = make_case("prefix alpha\n", "prefix beta\n");
+			auto       characters = intraline{ intraline_mode::reference };
+			const auto supplied   = text_result(compute_file_diff(testCase.input(), characters), "[[BPR-1465]] a character-level intraline answer is valid");
+			const auto own        = text_result(product_file_diff(testCase.input()), "the engine's own intraline computes");
+			expect(supplied.Intraline.size() == 1U && supplied.Intraline.front().Left == byte_span{ 7U, 11U } && supplied.Intraline.front().Right == byte_span{ 7U, 10U },
+				   "[[BPR-1465]] the supplied character matches decide the edits: \"alph\" became \"bet\" before the shared \"a\"");
+			expect(own.Intraline.size() == 1U && own.Intraline.front().Left == byte_span{ 7U, 12U } && own.Intraline.front().Right == byte_span{ 7U, 11U },
+				   "[[BPR-1537]] the engine's own edit is the whole word");
 		}
 		// A different valid answer is used: no matched scalar makes each
 		// similar pair one edit.

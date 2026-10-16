@@ -1091,6 +1091,13 @@ pressed before its load settles. Source failure cannot strand ordinary file
 navigation; change navigation still needs the file's comparison material
 ([[BPR-1517]]).
 
+A press refused because the active tab's exact view is unavailable shows
+"This tab's file is unavailable. Choose another file or comparison." for the
+same three seconds as a bound, so an arrow never silently does nothing. The
+document tabs belong to the pull request they were opened in: opening another
+pull request, from Home or a link, starts its tabs again even though the open
+first retires the shown pull request ([[BPR-1539]]).
+
 Every tooltip in the application shows directly below the control it names,
 left edges aligned and four pixels apart, or directly above it where below
 would leave the screen, moved left only to stay on the screen

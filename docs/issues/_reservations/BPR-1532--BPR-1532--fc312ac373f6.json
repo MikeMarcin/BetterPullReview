@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1532"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "First and last change in the current file on Alt+Shift+Up/Down",
+  "created": "2026-10-15T21:53:15.828591+00:00",
+  "base": "535227a0f3adff68c66d1d042eb72052e70a3970"
+}
