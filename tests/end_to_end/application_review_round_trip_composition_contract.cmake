@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b6fcb768f3f5b12cb5a686ab186892d8df602ab7aea26b07a7bacb16d3f9347d"
+		"36cc06f1bb1f60601498be30d6a7239f46b9afb78d539184ca35e3930426381e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "07250c9d0bb9374341ade6408802c798f6f695f36127be9bce8f978de7522865"
+        "05ba68aa9ec15ffaccaeba0ad35c777493ea2933b59e3c46e457d39239dd3afe"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2578,7 +2578,18 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
 
-# [[BPR-1565]] reseal over main at 1e5c35b7f (the last matching pins). The
+# [[BPR-1558]] reseal over main 1e5c35b7f, whose own pins match its tree.
+# github_application.cpp hands one syntax classification to every comparison
+# side whose blob it names (a pure rename's two panes share one classification),
+# and clear_diff_selection retires the appearance host's in-flight
+# classifications beside the classifier blob bindings it already dropped. A
+# tests-on hold in the composition blob source and two fixture accessors
+# (github_application_fixture_access.hpp) let a course order classification
+# after the diff. Presentation delivery only: no grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1558.
+
+# [[BPR-1565]] reseal over main at ec097d8dc, after the BPR-1558 reseal above. The
 # owner removed the comment editor's typed `:xx:` label codes on 2026-10-16.
 # github_application.cpp, in its tests-on label-authoring course only: the
 # `:qu:` phase now types `:qu: ` and the subject with the label helper on,

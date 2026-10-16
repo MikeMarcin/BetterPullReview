@@ -2822,6 +2822,12 @@ namespace bpr::app {
 				// no longer be answered from a comparison that arrived later.
 				return std::nullopt;
 			}
+#if defined(BPR_BUILD_TESTING)
+			if (!wait_while_held()) {
+				// Left while held: the read a departure stops answers nothing.
+				return std::nullopt;
+			}
+#endif
 			// A real token, where this used to pass a default-constructed one that
 			// could never signal. `clear_comparison` stops it, so a read for a
 			// comparison the reviewer has left is abandoned promptly rather than
@@ -2839,10 +2845,64 @@ namespace bpr::app {
 			};
 		}
 
+#if defined(BPR_BUILD_TESTING)
+		/// \brief [[BPR-1558]]. Holds every classifier blob read at its start,
+		/// as a slow read would, until released or its comparison is left.
+		void hold_reads(const bool aHold)
+		{
+			{
+				const auto guard = std::lock_guard{ HoldMutex };
+				Held             = aHold;
+			}
+			HoldChanged.notify_all();
+		}
+
+		[[nodiscard]] auto held_reads() const -> std::size_t
+		{
+			const auto guard = std::lock_guard{ HoldMutex };
+			return Waiting;
+		}
+#endif
+
 	private:
 		// Two blobs per comparison, so eight comparisons' worth of concurrent
 		// classification. Past that a read is refused rather than mis-bound.
 		static constexpr auto MaximumRequests = std::size_t{ 16U };
+
+#if defined(BPR_BUILD_TESTING)
+		/// \brief Waits out a test hold; false when the comparison was left.
+		///
+		/// \details The departure stops the wait as it stops a real read. The
+		/// callback is registered before the lock is taken and destroyed after
+		/// it is released, so it can neither run nor be waited for under it.
+		[[nodiscard]] auto wait_while_held() -> bool
+		{
+			const auto departure = departure_token();
+			const auto wake      = std::stop_callback{ departure, [this] { wake_held_reads(); } };
+			{
+				auto lock = std::unique_lock{ HoldMutex };
+				++Waiting;
+				HoldChanged.wait(lock, [this, &departure] { return !Held || departure.stop_requested(); });
+				--Waiting;
+			}
+			return !departure.stop_requested();
+		}
+
+		/// \brief Wakes held reads to look again. The lock orders the wakeup
+		/// after a waiter's predicate check, so none is lost.
+		void wake_held_reads()
+		{
+			{
+				const auto guard = std::lock_guard{ HoldMutex };
+			}
+			HoldChanged.notify_all();
+		}
+
+		mutable std::mutex      HoldMutex;
+		std::condition_variable HoldChanged;
+		bool                    Held    = false;
+		std::size_t             Waiting = 0U;
+#endif
 
 		[[nodiscard]] auto find_request(const core::git_blob_oid& aBlob)
 			-> std::vector<application::diff_blob_request>::iterator
@@ -16888,6 +16948,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// left.
 				SyntaxBlobs->clear_comparison();
 			}
+			if (AppearanceHost != nullptr) {
+				// [[BPR-1558]]. The classifications those reads served go with
+				// them. Left in flight, a request for the same blob made before
+				// their failed terminals arrive would join one, and that pane
+				// would stay plain with nothing left to ask again.
+				AppearanceHost->cancel_classifications();
+			}
 			// The definitions go with them: nothing on screen can be adopted for
 			// a selection that has been cleared, and keeping the choices would
 			// only let a later publication colour a pane the reviewer has left.
@@ -17401,13 +17468,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// \brief Hands one published classification to the side it describes.
+		/// \brief Hands one published classification to every side it describes.
 		///
 		/// \details The side is decided by blob identity, which is the only
 		/// thing that can decide it: a classification names a blob, and a
 		/// comparison is the only thing that knows which side that blob is on.
 		/// A classification for neither side belongs to a comparison the
 		/// reviewer has already left, and is dropped.
+		///
+		/// [[BPR-1558]]. Both sides can name the same blob: a pure rename, or
+		/// a file the two compared updates share. `classify_comparison` then
+		/// asks once, the host coalesces the second request, and this one
+		/// publication is the only answer either pane will get. Choosing the
+		/// first matching side coloured the left pane and left the right plain
+		/// until the reviewer came back to the file and the display's cache
+		/// read gave both panes the spans.
 		void adopt_classification(
 			const application::token_span_publication& aSpans)
 		{
@@ -17437,19 +17512,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++DroppedClassifications;
 				return;
 			}
-			const auto side = context->Key.LeftBlob == std::optional{ aSpans.Key.Blob }
-				? std::optional{ core::diff_side::left }
-				: context->Key.RightBlob == std::optional{ aSpans.Key.Blob }
-				? std::optional{ core::diff_side::right }
-				: std::nullopt;
-			if (!side.has_value() || !aSpans.Spans) {
+			const auto blob  = std::optional{ aSpans.Key.Blob };
+			const auto left  = context->Key.LeftBlob == blob;
+			const auto right = context->Key.RightBlob == blob;
+			if ((!left && !right) || !aSpans.Spans) {
 				++DroppedClassifications;
 				return;
 			}
-			if (surface->adopt_token_spans(*side, aSpans.Spans)) {
-				++AdoptedClassifications;
-			} else {
-				++DroppedClassifications;
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				if (!(side == core::diff_side::left ? left : right)) {
+					continue;
+				}
+				if (surface->adopt_token_spans(side, aSpans.Spans)) {
+					++AdoptedClassifications;
+				} else {
+					++DroppedClassifications;
+				}
 			}
 		}
 
@@ -20710,6 +20788,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	{
 		const auto& gate = aApplication.Implementation->ReviewMutationDecisionGate;
 		return gate ? gate->pending() : 0U;
+	}
+	void detail::github_application_fixture_access::hold_syntax_blob_reads(github_application& aApplication, const bool aHold)
+	{
+		if (auto& blobs = aApplication.Implementation->SyntaxBlobs; blobs) {
+			blobs->hold_reads(aHold);
+		}
+	}
+	auto detail::github_application_fixture_access::held_syntax_blob_reads(const github_application& aApplication) -> std::size_t
+	{
+		const auto& blobs = aApplication.Implementation->SyntaxBlobs;
+		return blobs ? blobs->held_reads() : 0U;
 	}
 
 	auto detail::github_application_fixture_access::device_binding_store_idle(const github_application& aApplication) noexcept -> bool

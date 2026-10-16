@@ -1290,6 +1290,34 @@ namespace {
 			   "a cancelled classification publishes nothing");
 	}
 
+	/// [[BPR-1558]]. The composition stops a departed comparison's blob reads.
+	/// Retiring their classifications with them means a request for the same
+	/// blob is submitted afresh rather than coalesced onto a read that was
+	/// stopped, and the settings and theme work in flight is left alone.
+	void test_classification_cancellation_resubmits_and_spares_other_work()
+	{
+		auto       h       = harness{ };
+		const auto palette = contrast_safe_palette();
+		h.Host.classify(key(1U));
+		h.Host.export_theme_file("kept.json", palette, core::appearance_variant::dark);
+		h.Host.cancel_classifications();
+		h.Host.classify(key(1U));
+		expect(h.Host.coalesced_classifications() == 0U && h.Host.classification_submissions() == 2U,
+			   "a request after the cancellation is submitted afresh, not joined to the retired one");
+		h.settle();
+		expect(h.Host.rejected_terminals() == 1U
+				   && h.Host.last_rejection() == application::appearance_terminal_rejection::cancelled,
+			   "the retired classification's terminal is refused");
+		const auto published = std::ranges::count_if(h.Projections.Published, [](const application::appearance_projection& aProjection) {
+			return aProjection.Spans.has_value() && aProjection.Spans->Key == key(1U) && aProjection.Spans->Spans != nullptr;
+		});
+		expect(published == 1 && h.Host.cached(key(1U)) != nullptr,
+			   "the fresh request publishes and retains the blob's spans");
+		expect(h.ThemeDocuments.Writes == 1U
+				   && std::ranges::any_of(h.Projections.Published, [](const application::appearance_projection& aProjection) { return aProjection.ThemeExported; }),
+			   "the export in flight still writes and is acknowledged");
+	}
+
 	void test_export_round_trip_refusal_and_cancellation()
 	{
 		auto       h       = harness{ };
@@ -1438,6 +1466,7 @@ auto main() -> int
 	test_classification_failures_are_reported();
 	test_duplicate_in_flight_classification_is_coalesced();
 	test_cancellation_refuses_the_terminal_and_keeps_the_cache();
+	test_classification_cancellation_resubmits_and_spares_other_work();
 	test_export_round_trip_refusal_and_cancellation();
 	test_resets_are_scoped_durable_and_retire_import();
 	test_preview_cancellation_retires_only_import();
