@@ -251,12 +251,14 @@ set(BPR_PRODUCT_QT_VERSION 6.11.2)
 add_executable(app_better_pull_review fixture.cpp)
 add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
 add_library(better_pull_review_xdiff SHARED fixture.cpp)
+set_target_properties(better_pull_review_xdiff PROPERTIES OUTPUT_NAME bpr_xdiff)
 set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")
 include("{ROOT.as_posix()}/packaging/Install.cmake")
 ''')
             runtime.run("cmake", "-S", source, "-B", build)
             info = json.loads((build / "_bpr/package-inputs.json").read_text())
             self.assertEqual(info["target"], runtime.linux_target())
+            self.assertEqual(info["private_libraries"], {"libbpr_xdiff.so": str(build / "libbpr_xdiff.so")})
             expected = "DEB" if runtime.linux_baseline()["distribution"][0] == "ubuntu" else "RPM"
             self.assertIn(f'set(CPACK_GENERATOR "{expected}")', (build / "CPackConfig.cmake").read_text())
 
@@ -276,7 +278,8 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             build = Path(directory)
             (build / "_bpr").mkdir()
             (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
-            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": runtime.platform.system(), "qt_version": version}
+            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": runtime.platform.system(), "qt_version": version,
+                    "private_libraries": {name: str(build / Path(name).name) for name in runtime.PRIVATE_LIBRARIES[runtime.platform.system()]}}
             path = build / "_bpr/package-inputs.json"
             path.write_text(json.dumps(info))
             self.assertEqual(runtime.inputs(build)["qt_version"], version)
@@ -284,6 +287,38 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             path.write_text(json.dumps(info))
             with self.assertRaisesRegex(ValueError, "pinned Qt version"):
                 runtime.inputs(build)
+
+    def test_private_producer_declarations_cannot_grant_unknown_library_authority(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "bpr_xdiff.dll"
+            info = {"platform": "Windows", "private_libraries": {library.name: str(library)}}
+            self.assertEqual(runtime.private_library_producers(info), [library])
+            for declaration in ({}, {"unknown.dll": str(root / "unknown.dll")},
+                                {**info["private_libraries"], "unknown.dll": str(root / "unknown.dll")}):
+                with self.subTest(declaration=declaration), self.assertRaisesRegex(ValueError, "declaration mismatch"):
+                    runtime.private_library_producers({"platform": "Windows", "private_libraries": declaration})
+            for path in ("bpr_xdiff.dll", str(root / "other.dll"), None):
+                with self.subTest(path=path), self.assertRaisesRegex(ValueError, "invalid private-library producer path"):
+                    runtime.private_library_producers({"platform": "Windows", "private_libraries": {library.name: path}})
+
+    def test_private_producer_must_belong_to_the_selected_native_build(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            build = root / "selected-build"
+            (build / "_bpr").mkdir(parents=True)
+            (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
+            version = next(item["version"] for item in runtime.components({"platform": "Windows"}) if item["name"] == "QtBase")
+            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": "Windows", "qt_version": version,
+                    "private_libraries": {"bpr_xdiff.dll": str(root / "unselected-build/bpr_xdiff.dll")}}
+            path = build / "_bpr/package-inputs.json"
+            path.write_text(json.dumps(info))
+            with patch.object(runtime.platform, "system", return_value="Windows"):
+                with self.assertRaisesRegex(ValueError, "outside the selected build"):
+                    runtime.inputs(build)
+                info["private_libraries"]["bpr_xdiff.dll"] = str(build / "bpr_xdiff.dll")
+                path.write_text(json.dumps(info))
+                self.assertEqual(runtime.inputs(build)["private_libraries"], info["private_libraries"])
 
     def test_unpinned_cached_source_is_refused_without_network(self):
         with ContainedTemporaryDirectory() as directory:

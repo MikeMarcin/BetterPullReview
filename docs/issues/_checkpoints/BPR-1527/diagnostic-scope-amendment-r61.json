@@ -1,0 +1,17 @@
+{
+  "schema": "bpr.binding-amendment.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate": "authorized-release-continuation-final-gates-r3",
+  "authority": "Explicit coordinator addition of application_diagnostic_subsystems and unchanged10ms diff-host cancellation, with plan/card upkeep after uninterrupted R60b collection. Renewed human Windows-release continuation authorization relayed by coordinator.",
+  "prior_criteria": 11,
+  "prior_exits": 10,
+  "current_criteria": 12,
+  "current_exits": 11,
+  "preservation": "All prior criteria and exits retained byte-for-byte, append only AC12/exit11; no threshold/input/assertion/containment relaxation. Existing execution recipe2/owner/model/effort unchanged.",
+  "prior_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e",
+  "current_definition_fingerprint": "sha256:ef9aa296494dc2844135227b7bf4916b13cdc05f807eb05a7315c4a6b44bd477",
+  "current_obligation_fingerprint": "sha256:c18aa8fd8b2a41fcbd92f2b69a3f15016ad70c695666f233537e02efe0762c1f",
+  "prior_binding_private": ".mask/sessions/BPR-1527/evidence/mac-native-r61/binding-before-diagnostic-amendment.json",
+  "current_binding": "implementer-binding.json",
+  "result": "Binding12obligations/11exits valid/resolved; semantic acceptance remains engineering/native evidence, not helper judgment."
+}

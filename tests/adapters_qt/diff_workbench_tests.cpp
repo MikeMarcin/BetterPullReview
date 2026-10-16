@@ -12,6 +12,7 @@
 #include <QAbstractButton>
 #include <QAccessible>
 #include <QApplication>
+#include <QBackingStore>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QFontMetrics>
@@ -2229,6 +2230,44 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1527]]. Read the completed raster, before a grab repaints it.
+	/// Native scrolling must leave both source frames as a fresh native paint
+	/// would draw them; a forced render alone hides backing-store corruption.
+	void expect_current_source_frames(qt::diff_workbench& aWorkbench)
+	{
+		auto* const backing = aWorkbench.backingStore();
+		expect(backing != nullptr, "the raster workbench has a backing store");
+		auto actual = QImage{ };
+		// paintDevice is valid only inside this boundary; an empty region
+		// changes no pixels, and the copy keeps no pointer to the device.
+		backing->beginPaint(QRegion{ });
+		if (const auto* device = backing->paintDevice(); device && device->devType() == QInternal::Image) {
+			actual = static_cast<const QImage*>(device)->copy();
+		}
+		backing->endPaint();
+		expect(!actual.isNull(), "the completed raster backing image is available");
+		const auto fresh = aWorkbench.grab().toImage();
+		expect(actual.size() == fresh.size() && actual.devicePixelRatio() == fresh.devicePixelRatio(),
+			   "completed and fresh workbench rasters share exact pixel geometry");
+		for (auto* const source : { aWorkbench.left_pane(), aWorkbench.right_pane(), aWorkbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) }) {
+			if (!source || !source->isVisible()) {
+				continue;
+			}
+			const auto frameHeight = source->frameWidth();
+			if (frameHeight <= 0) {
+				continue;
+			}
+			const auto logical = QRect{ source->mapTo(&aWorkbench, QPoint{ }), QSize{ source->width(), frameHeight } };
+			const auto ratio   = actual.devicePixelRatio();
+			const auto pixels  = QRectF{ QPointF{ logical.topLeft() } * ratio, QSizeF{ logical.size() } * ratio }.toAlignedRect();
+			if (actual.copy(pixels).convertToFormat(QImage::Format_ARGB32) != fresh.copy(pixels).convertToFormat(QImage::Format_ARGB32)) {
+				std::cerr << "BPR1527_SOURCE_FRAME_MISMATCH pane=" << source->objectName().toStdString()
+						  << " pixels=" << pixels.x() << ',' << pixels.y() << ',' << pixels.width() << ',' << pixels.height() << '\n';
+				expect(false, "completed native source frames match a fresh render after keyboard scrolling");
+			}
+		}
+	}
+
 	void test_keyboard_minimal_reveal()
 	{
 		auto text = std::string{ };
@@ -2334,6 +2373,7 @@ namespace {
 						}
 					}
 					expect(reveals > 10, "minimum-reveal course exercises the upper clipped-row branch");
+					expect_current_source_frames(workbench);
 				}
 			}
 		}

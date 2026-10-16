@@ -1,3 +1,20 @@
+# BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
+# a confirmed kept-reply action can arrive while a reread reopens private storage.
+# Retain its core-admitted command/CAS with the exact shared owner and consumer;
+# restore completion drains it, and scope replacement retires it. A later explicit
+# action on the same draft replaces its pending intent without recomputing a CAS.
+# The existing deleted-thread public course holds the private effect lane across
+# confirmation, then requires the original durable discard/zero-send evidence.
+# Native format22 and print-only digests were observed; print mode verifies nothing.
+# Focused native/control/static acceptance remains pending in the BPR-1527 checkpoint.
+# Production mutation-branch pin, provider, grant and credential admission unchanged.
+# BPR-1527 Windows0.2.2 scoped review after Mac boundary c233c7683:
+# github_application.cpp changes only test-build failure observations for
+# the already-scoped UIforETW probe and label authoring. No new source body,
+# credential, grant, provider or publication branch is executed or admitted.
+# Exact native print-only digests were observed after format22; that mode
+# verifies nothing. Self-review/checkpoint retain the pending native checks.
+# The production mutation-branch digest below is unchanged.
 # BPR-1526 scoped self-review over 8f0d25418: c3009b2b0 is the only
 # committed production-app manifest change, plus nine behavior-preserving
 # local/parameter naming repairs in this upkeep slice. The first-save workshop
@@ -1515,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"87ad560e815b16fcce91388e7e2dd54a85b69d75ae4e733aa7c4f1672c8bdabe"
+		"bf2eb28c99c6c6d0c1f812057db632e51cbb9a6ea272a1ffc8918e159e234000"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "465b7af3c156475ac41dedd39fbaca00836d187fa57e5618e3ab28b09868fe9f"
+        "4bdc2c9842fc3e334b3028c8499e3ac7d3b1c4cb81565c7218c98eeaa2050189"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2600,3 +2617,18 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1543.
+
+# Merge reseal (2026-10-16): local main e64c7158f merged with origin/main
+# 23447f3a9 over merge base c233c7683. Each side's pinned-scope changes carry
+# their own recorded review: BPR-1527's Windows 0.2.2 commits (retained
+# first-file choice, abandoned tab load on an accepted refresh, kept-reply
+# commands held while private storage reopens, test-build probe observations)
+# and, on local main, BPR-1531/1532/1537/1539/1540/1541/1543/1558, and the
+# RFC-BPR-0084 image cards. git merged github_application.cpp and
+# github_application_fixture_access.hpp without conflict; the merged text is
+# the union of the reviewed diffs, and the only adjacent pair (BPR-1539's
+# adopt_tab_destination reset and BPR-1527's retained Chosen file) composes:
+# another pull request clears the choice, an accepted refresh of the same one
+# keeps it. Digests recomputed on the merged tree with
+# BPR_PRINT_PINNED_DIGESTS. No grant, provider, credential, transport,
+# publication or production mutation-branch change.

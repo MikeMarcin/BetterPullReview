@@ -161,11 +161,14 @@ def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
     return matching_paths[0]
 
 
-def inspect(binary: Path, info: dict, redist_root: Path | None = None) -> composition.symbol_table:
-    producers = [Path(info["app"]), *(Path(path) for path in info["helpers"])]
+def inspect(binary: Path, info: dict, redist_root: Path | None = None, *,
+            private_producers: tuple[Path, ...] = ()) -> composition.symbol_table:
+    producers = [Path(info["app"]), *(Path(path) for path in info["helpers"]), *private_producers]
     selected = [path for path in producers if path.name == binary.name]
     if selected:
         require(len(selected) == 1, "ambiguous-first-party-producer")
+        if selected[0] in private_producers:
+            require(pe_headers(binary.read_bytes())["characteristics"] & 0x2000, "declared-private-producer-not-dll")
         return composition.symbol_table(map_symbols(binary, selected[0]), "byte-identical PE + bound full link /MAP + undname anchors")
     upstream_dll(binary, info, redist_root)
     reader = shutil.which("llvm-readobj")

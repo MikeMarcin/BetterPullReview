@@ -1,0 +1,203 @@
+{
+  "schema": "bpr.mac-local-recovery-checkpoint.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "role": "rfc-implementer",
+  "model": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "coordinator_scope": "Outage recovery: same owner, MAC-LOCAL pending30course acceptance/checkpoint only. No Windows/SSH/WSL execution, inspection, reconnect or settings changes. No denied-ps bypass; no publication/install repetition or new policy/release/deletion authority.",
+  "notes_basis": "5ed0c82e081af61a8df0ac19a1998b0ab021b5b8",
+  "code_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "source": "Owned codex/v021-windows-gate-fixes worktree, clean before recovery notes. Published0.2.1 producer/tag unchanged.",
+  "reused_verification": "R57 normal12target Mac build passed; all10recorded changed objects persist at exact receipt mtimes. Critical source hashes match. All src/tests/cmake/CMakeLists/preset bytes unchanged from0769. Existing Windows/WSL/strict/format/architecture evidence retained with original limits; no reruns or access attempted.",
+  "normal_manifest": "Fresh local CTest show-only matches all30 saved commands/properties exactly, including original timeouts/environment/containment and serial scheduling.",
+  "local_command_reconciliation": "Old owned local build17674 and test72650 sessions are unknown to unified exec. Durable receipts and both prior local preflight refusals show no30course run ever started; no normal result/log/JUnit existed at recovery. No foreign process inventory attempted.",
+  "runner": "/tmp/bpr1527-mac-r59-run.py; durable private copy .mask/sessions/BPR-1527/evidence/mac-local-recovery-r59/bpr1527-mac-r59-run.py",
+  "runner_controls": "Exclusive own-run lock plus owned-checkout suite advisory lock; verify exact code hashes and30selectors; no process-list call or substitute inspection. Record coordinator quiet-context evidence. Locks alone do not prove machine-wide quiet.",
+  "normal_result": {
+    "complete_inventory": true,
+    "registered": 30,
+    "passed": 29,
+    "failed": 1,
+    "skipped": 0,
+    "ctest_exit": 8,
+    "ctest_wall_seconds": 272.59,
+    "runner_wall_seconds": 272.618,
+    "failed_course": "qt_diff_workbench_scale_200",
+    "failed_seconds": 6.88865,
+    "assertion": "actual source bottom meets the native horizontal scrollbar, excluding overscan",
+    "child_exit": 1,
+    "all_fourteen_original_mac_failed_courses": "Pass on current0769code; all30 original commands/properties retained.",
+    "results": [
+      {
+        "name": "qt_code_sample_painter",
+        "seconds": 0.370641,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_workbench_scale_200",
+        "seconds": 6.88865,
+        "status": "failed"
+      },
+      {
+        "name": "qt_workbench_window_scale_100",
+        "seconds": 28.9738,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_100",
+        "seconds": 0.395279,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_125",
+        "seconds": 0.360278,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_150",
+        "seconds": 0.360377,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_200",
+        "seconds": 0.370612,
+        "status": "passed"
+      },
+      {
+        "name": "application_agent_finding_workshop_press_contract",
+        "seconds": 6.2971,
+        "status": "passed"
+      },
+      {
+        "name": "application_agent_invocation_composition_contract",
+        "seconds": 14.5849,
+        "status": "passed"
+      },
+      {
+        "name": "application_uiforetw_selected_diff_contract",
+        "seconds": 20.5664,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_round_trip_composition_contract",
+        "seconds": 2.82577,
+        "status": "passed"
+      },
+      {
+        "name": "application_threaded_reply_contract",
+        "seconds": 4.95441,
+        "status": "passed"
+      },
+      {
+        "name": "application_label_authoring_contract",
+        "seconds": 4.99644,
+        "status": "passed"
+      },
+      {
+        "name": "application_published_file_switch_contract",
+        "seconds": 8.03678,
+        "status": "passed"
+      },
+      {
+        "name": "application_refresh_pick_contract",
+        "seconds": 5.59113,
+        "status": "passed"
+      },
+      {
+        "name": "application_reply_draft_contract",
+        "seconds": 16.0629,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_progress_push_contract",
+        "seconds": 5.56772,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_tour_composition_public_path",
+        "seconds": 6.56418,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_tour_composition_scale_125",
+        "seconds": 4.26395,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_tour_composition_scale_200",
+        "seconds": 4.58926,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_submission_composition_public_path",
+        "seconds": 7.93097,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_submission_composition_scale_125",
+        "seconds": 5.90847,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_submission_composition_scale_200",
+        "seconds": 6.27453,
+        "status": "passed"
+      },
+      {
+        "name": "application_active_changed_scaling",
+        "seconds": 20.5464,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_tour_cold_import_public_path",
+        "seconds": 5.11987,
+        "status": "passed"
+      },
+      {
+        "name": "application_header_source_navigation",
+        "seconds": 11.9467,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_navigation_entry",
+        "seconds": 34.0994,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find",
+        "seconds": 14.0341,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find_scale_1_25",
+        "seconds": 11.8045,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find_scale_2_0",
+        "seconds": 12.25,
+        "status": "passed"
+      }
+    ]
+  },
+  "windows": "R58 last-known full gate had started before outage. Current outcome remains unverified and access-blocked by direct coordinator instruction. Do not inspect, reconnect, restart, stop or infer completion. Signing outside this recovery remains blocked.",
+  "pending": [
+    "Normal Mac200/native-source-edge failure diagnosis/repair/acceptance; all29 other focused courses pass",
+    "Windows705interrupted outcome remains unverified and access-blocked until explicit authorization",
+    "Authorized final milestone accounting/finish only after remaining requirements; current recovery is acceptance/checkpoint only"
+  ],
+  "own_commands": "Local run completeexit8; unifiedexec42844 completed, own-run and owned-suite locks reacquired nonblocking afterward. No new native command or review server remains; no machine-wide process scan.",
+  "resource_context": "Coordinator resumes same owner for Mac-local pending30course acceptance in previously released Mac engineering slot; owner reserves this short serial interval through coordination message and requests other coordinated Mac build/test work held. No other owned native command runs. Own-run and checkout suite locks required. Foreign process inventory is not performed or claimed because ps/process-list bypass is prohibited; no independent global-quiet or Mac performance improvement claim.",
+  "resource_limit": "Own-run/checkout suite locks and coordinator-reserved interval; no independent global-process quiet certification or Mac performance-improvement claim.",
+  "producer_binding": "15actual executable/helper files hashed in private actual-producers.json; reused12target build/10unchanged objects.",
+  "localization": {
+    "source": "tests/adapters_qt/diff_workbench_tests.cpp:2322",
+    "meaning": "Conjunction of horizontal scrollbar visibility and exact displayed-source-bottom == native horizontal-bar-top-1. Actual side/mode/rectangle/subcondition is not logged.",
+    "unchanged_oracle": "Falling assertion and preceding test inputs are unchanged from6747; only new backing-frame helper/call were added later in this test. The failure occurs before the new helper executes.",
+    "candidate": "851 changes split-only overscan/placement and atomic offset/frame restoration. Relevant changed surface, not a proven cause or introduced-regression classification without native scalar/baseline evidence.",
+    "next": "Under a new implementation slice, capture exact side/mode/source clip/scrollbar visibility/geometry at this unchanged assertion and compare old/current production under same native context. Preserve every assertion/threshold and appearance; no blanket Mac exception."
+  },
+  "evidence": "Private .mask/sessions/BPR-1527/evidence/mac-local-recovery-r59: normal.log,normal-junit.xml,normal.receipt.json,normal-LastTest.log,result-summary.json,selected-manifest.json,actual-producers.json,local-quiescent.json,recovered runner and recovery binding.",
+  "documentation": "Initial counter1541/high-water1542 refusal preserved privately; exact-main9d805bc35 counter1542 plus existing1541reservation adopted, no new IDs. Recheck and after-result documentation gate pass; current final-byte gate/commit receipt retained privately. Existing67unchanged verifier-unit result reused."
+}
