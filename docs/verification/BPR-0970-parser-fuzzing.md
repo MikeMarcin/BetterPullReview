@@ -350,6 +350,19 @@ text), macOS arm64, Apple clang with LLVM 23's libFuzzer runtime.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `fuzz_markdown_view` | 1543001 | 360,876 | 400 | 6,047 | 710 | cov 2,181, ft 10,482, 1,260 units | clean |
 
+### Campaign 6: `fuzz_markdown_view` after [[BPR-1544]], 15 minutes
+
+The HTML recognizer and sanitizer (`markdown_github_html.cpp`), `<details>`
+regions and emoji passes joined the reader. Run on a copy of the 21
+checked-in seeds at `fbdb893e2`, macOS arm64, Apple clang with LLVM 23's
+libFuzzer runtime, while an attended build compiled beside it (hence the low
+rate). The target's own fix for this tree (its helper renamed apart from
+`bpr::application`) is in the same commit range.
+
+| Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fuzz_markdown_view` | 1544001 | 67,351 | 74 | 2,944 | 577 | cov 3,775, ft 17,662, 1,596 units | clean |
+
 ### What the campaigns do not show
 
 Three 15-minute campaigns per target, and a fourth for `fuzz_github_api`,
