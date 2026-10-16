@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1541"
 title: "Say why a review's status is unknown, on the compose page"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0008"]
 depends_on: ["BPR-1540"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"owner decision 2026-10-15 on BPR-1540's open question (relayed by the coordinator): the compose page should show a short plain-language reason under 'Review status is unknown'","governing_rfc":"RFC-BPR-0008","related_cards":["BPR-1540","BPR-1538","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1541--BPR-1541--c23556c64e37.json","design_skill":"frontend-design:frontend-design"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"qt_review_submission_editor_scale_{100,125,200}: each of 20 reasons shows its own distinct line, equal to the status's accessible description, short, wrapped, no identity; counts singular/plural; 4xx/5xx/other distinct; status text colour with >= 4.5:1 in four themes."}},{"criterion":"AC2","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"application_start_review_contract kept/restored courses: the restarted window shows the kept network line while Check status is held ('Checking the original review'); host and provider rows carry and read the kept reason by key."}},{"criterion":"AC3","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"uncertain course: a 503 Check status replaces the line, a confirming Check status clears it; Qt rows: no line while drafting or without a reason."}},{"criterion":"AC4","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"Negative controls: restored course fails at restored-reason-not-shown without the kept reason; Qt row fails without the accessible description; Qt and host rows' own controls."}},{"criterion":"AC5","outcome":"pass","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"command","detail":"clang-format 22.1.8 passes; tidy clean on changed lines; verify_documentation OK; round-trip composition contract resealed on the branch tree (5996b22d.../740e0bc3...) and both composition contracts pass; reseal again on merge."}},{"criterion":"AC6","outcome":"pending","revision":"d88fc46f89c4f45f397c364054cdc5a452a8200b","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in session 2aad932f341313c448a9e890b46139d5, candidate BPR-1541-reason-line-v001, fingerprint dd7b3d83d9e89afd2c807495c0ac0c29ab51dcf0110bf56da2b92844ab657815, cursor 4; frozen root /Users/jaeger/bpr-1541-unknown-reason-v001.tc7b6nl5 (executable 1d4eb8904f69...), with a 20-line Light/Dark sheet."}}]
 ---
 
 # BPR-1541: Say why a review's status is unknown, on the compose page
