@@ -1896,6 +1896,27 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# [[BPR-1544]]. GitHub parity: details, the sanitised HTML subset (with
+# hostile-HTML courses) and emoji shortcodes, compared with GitHub's rendering.
+bpr_add_executable(test_better_pull_review_markdown_github_html_tests markdown_github_html_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_github_html_tests PRIVATE BetterPullReview::AdapterQt)
+target_compile_definitions(test_better_pull_review_markdown_github_html_tests PRIVATE
+    "BPR_MARKDOWN_PARITY_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/github-parity-v1\"")
+bpr_enable_hardening(test_better_pull_review_markdown_github_html_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_github_html_tests)
+foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" markdown_suffix "${markdown_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_github_html_${markdown_suffix}"
+        COMMAND test_better_pull_review_markdown_github_html_tests
+    )
+    set_tests_properties("qt_markdown_github_html_${markdown_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-github-html-${markdown_suffix}"
+        PASS_REGULAR_EXPRESSION "markdown-github-html-tests:pass"
+        TIMEOUT 120
+    )
+endforeach()
+
 bpr_add_executable(test_better_pull_review_composed_markdown_tests composed_markdown_tests.cpp)
 target_link_libraries(test_better_pull_review_composed_markdown_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_composed_markdown_tests)

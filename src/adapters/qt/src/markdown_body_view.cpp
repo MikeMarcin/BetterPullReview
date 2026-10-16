@@ -247,6 +247,9 @@ namespace bpr::qt {
 					format.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
 					format.setBorderBrush(aBorder);
 					format.setCellPadding(4);
+					// [[BPR-1544]]. An HTML table's default spacing drew every
+					// border twice; a Markdown table has none.
+					format.setCellSpacing(0);
 					table->setFormat(format);
 					style_table_header(*table);
 					// Keep each cell's text readable. Qt otherwise squeezes wide
@@ -303,6 +306,7 @@ namespace bpr::qt {
 
 		void reset_links()
 		{
+			KeySpans    = detail::markdown_keyboard_spans(*document());
 			FocusedLink = -1;
 			Pressed.clear();
 			Links.clear();
@@ -405,7 +409,11 @@ namespace bpr::qt {
 
 		bool focusNextPrevChild(bool aNext) override
 		{
-			const auto next = FocusedLink < 0 ? (aNext ? 0 : static_cast<int>(Links.size()) - 1) : FocusedLink + (aNext ? 1 : -1);
+			auto next = FocusedLink < 0 ? (aNext ? 0 : static_cast<int>(Links.size()) - 1) : FocusedLink + (aNext ? 1 : -1);
+			// [[BPR-1544]]. A link inside a closed section is not visited.
+			while (next >= 0 && next < static_cast<int>(Links.size()) && !document()->findBlock(Links[static_cast<std::size_t>(next)].Start).isVisible()) {
+				next += aNext ? 1 : -1;
+			}
 			if (next >= 0 && next < static_cast<int>(Links.size())) {
 				focus_link(next);
 				return true;
@@ -429,18 +437,24 @@ namespace bpr::qt {
 			QColor Colour;
 		};
 		std::vector<alert_bar> AlertBars;
+		/// [[BPR-1544]]. Opens or closes a `<details>` section by number.
+		std::function<void(int)> ToggleDetails;
+		/// [[BPR-1544]]. Each key cap's span and the colour of its edge.
+		std::vector<std::pair<int, int>> KeySpans;
+		QColor                           KeyEdge;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override
 		{
 			QTextEdit::paintEvent(aEvent);
-			if (AlertBars.empty()) {
+			if (AlertBars.empty() && KeySpans.empty()) {
 				return;
 			}
-			auto        painter = QPainter{ viewport() };
-			auto* const blocks  = document()->documentLayout();
-			const auto  offset  = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
-			const auto  left    = document()->documentMargin();
+			auto painter = QPainter{ viewport() };
+			paint_key_caps(painter);
+			auto* const blocks = document()->documentLayout();
+			const auto  offset = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
+			const auto  left   = document()->documentMargin();
 			for (const auto& bar : AlertBars) {
 				auto top    = std::numeric_limits<qreal>::max();
 				auto bottom = std::numeric_limits<qreal>::lowest();
@@ -456,6 +470,31 @@ namespace bpr::qt {
 		}
 
 	private:
+		/// [[BPR-1544]]. A hairline rounded edge around each `<kbd>` on one
+		/// line, as GitHub draws a key; its fill is the text's background.
+		void paint_key_caps(QPainter& aPainter)
+		{
+			aPainter.save();
+			aPainter.setRenderHint(QPainter::Antialiasing, true);
+			aPainter.setPen(QPen{ KeyEdge, 1.0 });
+			aPainter.setBrush(Qt::NoBrush);
+			for (const auto& [start, end] : KeySpans) {
+				if (!document()->findBlock(start).isVisible()) {
+					continue;
+				}
+				auto cursor = QTextCursor{ document() };
+				cursor.setPosition(start);
+				const auto first = cursorRect(cursor);
+				cursor.setPosition(end);
+				const auto last = cursorRect(cursor);
+				if (first.top() != last.top()) {
+					continue;
+				}
+				aPainter.drawRoundedRect(QRectF{ static_cast<qreal>(first.left()) + 0.5, static_cast<qreal>(first.top()) + 0.5, static_cast<qreal>(last.left() - first.left()) - 1.0, static_cast<qreal>(first.height()) - 1.0 }, 4.0, 4.0);
+			}
+			aPainter.restore();
+		}
+
 		struct link
 		{
 			int         Start;
@@ -482,10 +521,16 @@ namespace bpr::qt {
 			cursor.setPosition(link.End, QTextCursor::KeepAnchor);
 			setTextCursor(cursor);
 			ensureCursorVisible();
-			// An image link is announced by its alternative text, then where it goes.
+			// An image link is announced by its alternative text, then where it
+			// goes; a section's summary by whether it is open.
 			const auto image = ImageLabel && link.End - link.Start == 1 ? ImageLabel(link.Start) : QString{ };
-			setAccessibleDescription(image.isEmpty() ? QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally.")
-													 : image + QStringLiteral(". ") + link.Target);
+			if (link.Internal.startsWith(detail::markdown_details_target)) {
+				const auto open = detail::markdown_details_open(*document(), link.Internal.mid(detail::markdown_details_target.size()).toInt());
+				setAccessibleDescription(open ? QStringLiteral("Expanded section. Enter hides its contents.") : QStringLiteral("Collapsed section. Enter shows its contents."));
+			} else {
+				setAccessibleDescription(image.isEmpty() ? QStringLiteral("Read-only body. Tab visits links; Enter requests opening the displayed destination. Wide code and tables scroll horizontally.")
+														 : image + QStringLiteral(". ") + link.Target);
+			}
 			if (Describe) {
 				Describe(link.Target);
 			}
@@ -495,9 +540,25 @@ namespace bpr::qt {
 		}
 
 		/// Selects the link a footnote link names and brings it into view,
-		/// so Enter there leads back.
+		/// so Enter there leads back; a summary opens or closes its section
+		/// and keeps the focus.
 		void jump_to(const QString& aName)
 		{
+			if (aName.startsWith(detail::markdown_details_target)) {
+				if (!hasFocus()) {
+					setFocus(Qt::OtherFocusReason);
+				}
+				if (ToggleDetails) {
+					ToggleDetails(aName.mid(detail::markdown_details_target.size()).toInt());
+				}
+				// The summary says "Hide details" now; read the links again.
+				reset_links();
+				const auto index = std::ranges::find(Links, aName, &link::Internal) - Links.begin();
+				if (index < static_cast<std::ptrdiff_t>(Links.size())) {
+					focus_link(static_cast<int>(index));
+				}
+				return;
+			}
 			const auto found = std::ranges::find_if(Links, [&aName](const link& aLink) { return aLink.Names.contains(aName); });
 			if (found == Links.end()) {
 				return;
@@ -635,6 +696,15 @@ namespace bpr::qt {
 		Rendered->Describe = [this](const QString& aTarget) {
 			Destination->setText(aTarget);
 			Destination->setToolTip(aTarget);
+		};
+		// [[BPR-1544]]. A summary's Enter or click opens or closes its
+		// section in place; the formats are drawn again, so a table the
+		// section shows gets its borders back, and the height follows.
+		Rendered->ToggleDetails = [this](const int aId) {
+			if (detail::toggle_markdown_details(*Rendered->document(), aId)) {
+				refresh_formats();
+				height_changed();
+			}
 		};
 		Rendered->Activate = [this](const QString& aTarget) {
 			Rendered->Describe(aTarget);
@@ -1111,6 +1181,10 @@ namespace bpr::qt {
 		for (const auto& extent : detail::markdown_alert_extents(*document)) {
 			Rendered->AlertBars.push_back({ .First = extent.First, .Last = extent.Last, .Colour = github.Alerts[static_cast<std::size_t>(static_cast<int>(extent.Alert) - 1)] });
 		}
+		// [[BPR-1544]]. A closed section stays closed through every refresh,
+		// its tables with it.
+		detail::apply_markdown_details(*document);
+		Rendered->KeyEdge = github.KeyEdge;
 		Rendered->viewport()->update();
 		Source->setFont(CodeFont);
 		if (TabStopDistance > 0) {
