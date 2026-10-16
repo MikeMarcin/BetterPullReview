@@ -1,0 +1,105 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "release-v0.2.2",
+  "segment_id": "pe-private-library-r1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1551",
+  "binding": {
+    "plan_id": "bpr-1551-private-library-release-proof",
+    "plan_path": "docs/rfcs/plans/bpr-1551-private-library-release-proof/milestone-plan.json",
+    "milestone_id": "declared-pe-library-proof",
+    "definition_fingerprint": "sha256:0112cc203471fa0ac141d7085db301da0539e588125c1585d2c9be1538b2f954",
+    "obligations": [
+      {
+        "id": "BPR-1551:AC1",
+        "source": "BPR-1551",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:af06da3b57a3f4e15f949ed26e5973a6e51388af4fb65848b380385f29d0a6a1"
+      },
+      {
+        "id": "BPR-1551:AC2",
+        "source": "BPR-1551",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:af06da3b57a3f4e15f949ed26e5973a6e51388af4fb65848b380385f29d0a6a1"
+      },
+      {
+        "id": "BPR-1551:AC3",
+        "source": "BPR-1551",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:af06da3b57a3f4e15f949ed26e5973a6e51388af4fb65848b380385f29d0a6a1"
+      },
+      {
+        "id": "BPR-1551:AC4",
+        "source": "BPR-1551",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:af06da3b57a3f4e15f949ed26e5973a6e51388af4fb65848b380385f29d0a6a1"
+      },
+      {
+        "id": "BPR-1551:AC5",
+        "source": "BPR-1551",
+        "selector": "AC5",
+        "source_fingerprint": "sha256:af06da3b57a3f4e15f949ed26e5973a6e51388af4fb65848b380385f29d0a6a1"
+      }
+    ],
+    "obligation_fingerprint": "sha256:3d038d226c24c8140251fa0cca188dc909e1c37b4fd172277e6d72532ffb85eb",
+    "exit_criteria": [
+      {
+        "id": "declared-pe-library-proof:exit:1",
+        "text": "Preserve actual4c package failure and unsigned/missing-map facts; exact declared producer binding/full symbols and unknown/mismatch controls pass."
+      },
+      {
+        "id": "declared-pe-library-proof:exit:2",
+        "text": "Current meaningful portable/native producer and full-map checks pass with original hardening/containment/contracts; signing coverage is complete in the maintained driver and offline manifest guard."
+      },
+      {
+        "id": "declared-pe-library-proof:exit:3",
+        "text": "Coordinator rebuild/sign produces a new exact-source candidate whose expanded package audit and complete source-built signature coverage pass; original artifacts remain untouched."
+      },
+      {
+        "id": "declared-pe-library-proof:exit:4",
+        "text": "Complete source self-review, focused documentation/board gates, intentional commits and canonical finish; release command ownership quiescent with wider qualification gaps explicit."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "declared-pe-library-proof"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/v021-windows-gate-fixes",
+    "source_revision": "d4a802d86ccd0811d8681f59886d7200add63bfc",
+    "workflow_branch": "codex/v021-windows-gate-fixes",
+    "workflow_revision": "d4a802d86ccd0811d8681f59886d7200add63bfc"
+  }
+}
