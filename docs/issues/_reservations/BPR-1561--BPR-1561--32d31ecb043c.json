@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1561"
+  ],
+  "reserve_for": "ubuntu-readiness-fixture-20261016",
+  "purpose": "",
+  "created": "2026-10-16T17:15:44.597473+00:00",
+  "base": "bd04bf3df2133ed699931014c28260e7799ce551"
+}

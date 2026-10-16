@@ -144,5 +144,12 @@ int main()
 	mineElsewhere.Hostname = "ghe.example.invalid";
 	expect(admit_recent_review_window(mineElsewhere, signedIn, github_account_id{ 1 }).error() == markdown_link_result::refused, "an account's reading on another host does not open a new window");
 	expect(admit_recent_review_window(unsafe, signedIn, github_account_id{ 1 }).error() == markdown_link_result::refused, "a stored name that is not a name does not open a new window");
+	// [[BPR-1544]]. An HTML link keeps its link only when it could ever be admitted.
+	for (const auto* address : { "https://example.invalid/docs", "HTTP://example.invalid:8080/a", "#section", "docs/guide.md", "./guide.md#start", "/root/path", "path/with:colon" }) {
+		expect(markdown_html_link_kept(address), address);
+	}
+	for (const auto* address : { "", "javascript:alert(1)", "JavaScript:alert(1)", "vbscript:x", "data:text/html,x", "file:///etc/passwd", "mailto:a@example.invalid", "jav\tascript:x", " javascript:x", "https://user:password@example.invalid/a", "https://example.invalid/?access_token=x", "https://example.invalid/a b", "https://example.invalid\\@evil.invalid" }) {
+		expect(!markdown_html_link_kept(address), address);
+	}
 	std::cout << "Markdown navigation policy passed\n";
 }

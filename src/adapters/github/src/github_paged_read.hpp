@@ -5,6 +5,7 @@
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
 
+#include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
 
 #include <cstddef>
@@ -144,6 +145,27 @@ namespace bpr::adapters::github::detail {
 		std::stop_token                                aStop,
 		const github_paged_read_limits&                aLimits = { }) noexcept
 		-> github_personal_discovery_read_result;
+
+	struct github_markdown_image_resolution
+	{
+		std::vector<application::markdown_image_resolved_body> Bodies;
+		application::github_rate_limit_state                   RateLimits;
+	};
+
+	using github_markdown_image_resolution_result = std::expected<github_markdown_image_resolution, github_paged_read_failure>;
+
+	/// \brief RFC-BPR-0084. One bounded GraphQL read of the bodies' rendered HTML.
+	/// \details The answer must name the accepted repository and pull request
+	/// and answer every requested node in order with its exact identity; a
+	/// deleted body answers null and serves nothing. Each `bodyHTML` is read
+	/// through `core::served_markdown_images` and never leaves this adapter.
+	[[nodiscard]] auto perform_markdown_image_resolution(
+		github_wire_transport_port&                           aTransport,
+		const validated_github_host_profile&                  aProfile,
+		const application::markdown_image_resolution_request& aRequest,
+		std::stop_token                                       aStop,
+		const github_paged_read_limits&                       aLimits = { }) noexcept
+		-> github_markdown_image_resolution_result;
 
 	[[nodiscard]] auto perform_paged_github_read(
 		github_wire_transport_port&                              aTransport,

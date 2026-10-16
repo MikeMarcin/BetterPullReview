@@ -848,6 +848,33 @@ namespace bpr::qt {
 		LinkDispatch = std::move(aDispatch);
 	}
 
+	void conversation_cards_view::set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch)
+	{
+		ImageDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::apply_markdown_image(const application::markdown_image_projection& aImage)
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->apply_image(aImage);
+		}
+	}
+
+	void conversation_cards_view::set_images_shown(const bool aShown)
+	{
+		ImagesShown = aShown;
+		if (OpenCard != nullptr) {
+			OpenCard->set_images_shown(aShown);
+		}
+	}
+
+	void conversation_cards_view::request_images()
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->request_images();
+		}
+	}
+
 	void conversation_cards_view::set_reply_text_dispatch(std::function<void(const std::string&, const QString&)> aDispatch)
 	{
 		ReplyTextDispatch = std::move(aDispatch);
@@ -1716,6 +1743,13 @@ namespace bpr::qt {
 				LinkDispatch(aPost, aDestination.toStdString());
 			}
 		};
+		OpenCard->ImageRequest = [this](const std::string& aPost, std::vector<core::markdown_image_reference> aReferences) {
+			if (ImageDispatch) {
+				ImageDispatch(aPost, std::move(aReferences));
+			}
+		};
+		OpenCard->set_images_shown(ImagesShown);
+		OpenCard->request_images();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
 				ReplyTextDispatch(id, aText);
@@ -2953,11 +2987,6 @@ namespace bpr::qt {
 					return true;
 				}
 				if (key.key() == Qt::Key_Escape) {
-					// An open label completion is the label controls' to close
-					// first ([[BPR-1083]]); the reply keeps its text and focus.
-					if (const auto* const labels = OpenCard->label_controls(); labels != nullptr && labels->completion()->isVisible()) {
-						return false;
-					}
 					if (drafting) {
 						if (OpenCard->Action) {
 							OpenCard->Action(card_action::close_draft);

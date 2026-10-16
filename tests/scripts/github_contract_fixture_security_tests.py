@@ -216,6 +216,34 @@ FIXTURES = {
             "ListIssueComments": "synthetic",
         },
     },
+    # RFC-BPR-0084. The nested-folders contract with image-bearing bodies as
+    # its description and pull request comments, written by
+    # scripts/build_markdown_images_fixture.py. GitHub's rendering of them and
+    # the images it serves sit outside this tree.
+    "markdown-images-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {"ListIssueComments": "synthetic"},
+    },
+    # [[BPR-1544]]. The same contract with the GitHub-parity HTML, details
+    # and emoji bodies, written by
+    # scripts/build_markdown_html_fixture.py.
+    "markdown-html-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {"ListIssueComments": "synthetic"},
+    },
+    # [[BPR-1543]]. The nested-folders contract with the GitHub-parity
+    # Markdown bodies as its description and pull request comments, written
+    # by scripts/build_markdown_parity_fixture.py.
+    "markdown-parity-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {"ListIssueComments": "synthetic"},
+    },
     # [[BPR-1293]]. Prototype v2's pull request, written by
     # scripts/build_conversations_fixture.py.
     "conversations-v1": {
@@ -441,6 +469,12 @@ ALLOWED_URL_HOSTS = {
     "docs.github.com",
     "github.com",
     "ghe.example.invalid",
+    # RFC-BPR-0084. The external images markdown-images-v1's bodies name; the
+    # reserved .invalid name resolves nowhere.
+    "images.example.invalid",
+    # [[BPR-1544]]. The links markdown-html-v1's bodies name; the reserved
+    # .invalid name resolves nowhere.
+    "example.invalid",
 }
 FORBIDDEN_ARTIFACT_FIELDS = {
     "_links",

@@ -2064,11 +2064,10 @@ is drawn. Its header row has Show line, Resolve or Unresolve, Mark read, More
 the foot of the thread; the reply is the same draft the composition entry
 writes, and nothing is published until Publish (Command+Return). The reply
 has the composer's own label controls ([[BPR-1083]]): the label chip and its
-menu (Command+L), and with the label helper on, a lone `:` opening the label
-completion and a typed `:xx:` code becoming its label, as `:qu:` becomes
-`question: `. The decoration toggles stay in the chip's menu, since the drawer
-is too narrow for them beside the chip ([[BPR-1290]], the owner's v003 note:
-"chortcodes arent working in the reply comments"). Comment
+menu (Command+L). The decoration toggles stay in the chip's menu, since the
+drawer is too narrow for them beside the chip ([[BPR-1290]]). A typed `:xx:`
+code stays the text typed: the owner removed the codes on 2026-10-16
+([[BPR-1565]]). Comment
 (Option-C) on a thread's line writes its reply in place the same way. A file-level compatibility
 comment states in the open thread why it is placed at its line (RFC-BPR-0022).
 

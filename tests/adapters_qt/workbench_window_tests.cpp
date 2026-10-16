@@ -11681,6 +11681,49 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief RFC-BPR-0084 Q3. Settings' "Descriptions and comments: Images"
+	/// row is one profile preference; the window follows what the host publishes.
+	void test_markdown_images_preference_follows_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto button = [&window](const char* const aName) {
+			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Images row names its options");
+			return found;
+		};
+		auto* const body = window.overview_page()->body_view();
+		expect(button("markdownImagesLoad")->isChecked() && !button("markdownImagesOff")->isChecked() && body->images_shown(),
+			   "Images start on Load: images show by default");
+		expect(button("markdownImagesOff")->accessibleName() == QStringLiteral("Images: Don't load") && window.findChild<QToolButton*>(QStringLiteral("markdownImagesInfo")) != nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("resetDescriptionsAndComments")) != nullptr,
+			   "the row has accessible choices, an information glyph and its own Reset");
+		button("markdownImagesOff")->click();
+		expect(records.size() == 1U && records.back().MarkdownImages == application::review_markdown_images::off
+				   && records.back().LineDetails == application::review_behaviour_settings{ }.LineDetails,
+			   "Don't load dispatches the whole record with images off");
+		expect(body->images_shown(), "nothing changes until the host publishes the choice");
+		auto off           = application::review_behaviour_settings{ };
+		off.MarkdownImages = application::review_markdown_images::off;
+		window.publish(application::workbench_projection{ .Behaviour = off });
+		process_events();
+		expect(!body->images_shown() && button("markdownImagesOff")->isChecked(), "a published Don't load hides the description's images and moves the row");
+		button("resetDescriptionsAndComments")->click();
+		expect(records.size() == 2U && records.back().MarkdownImages == application::review_markdown_images::load,
+			   "Reset returns the row to Load");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(body->images_shown() && button("markdownImagesLoad")->isChecked(), "a published Load shows them again");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1512]]. Settings edits wait for accepted publication and resize the real ribbon.
 	void test_center_ribbon_width_settings_and_rendering()
 	{
@@ -14717,12 +14760,23 @@ namespace {
 			window.choose_home(false);
 			process_events();
 			expectCurrent();
-			window.show_local_cycle(QStringLiteral("A retained local cycle"));
+			const auto cycleTitle = QStringLiteral("A retained local cycle");
+			const auto cycleBadge = QStringLiteral("  ·  Local cycle");
+			window.show_local_cycle(cycleTitle);
 			accepted.Title           = "Updated behind the local cycle";
 			accepted.MarkdownContext = page_context(4U);
 			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
 			process_events();
-			const auto retainedCycle = window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("A retained local cycle"))
+			// The native title may elide at the platform floor. Its full tooltip
+			// still names this exact cycle, and the visible prefix and badge must
+			// belong to it rather than to the PR updated behind it.
+			const auto caption    = window.identity_label()->text();
+			const auto drawnTitle = caption.endsWith(cycleBadge) ? caption.chopped(cycleBadge.size()) : QString{ };
+			const auto prefix     = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
+			const auto namesCycle = drawnTitle == cycleTitle
+				|| (!prefix.isEmpty() && prefix.size() < cycleTitle.size() && cycleTitle.startsWith(prefix));
+			const auto retainedCycle = window.identity_label()->isVisible() && namesCycle
+				&& window.identity_label()->toolTip() == cycleTitle + cycleBadge
 				&& !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled();
 			if (!retainedCycle) {
 				std::cerr << "local-cycle-republication width=" << window.width()
@@ -16057,6 +16111,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--center-ribbon-width"))) {
 		test_center_ribbon_width_settings_and_rendering();
 		test_line_details_view_menu_and_settings_follow_the_projection();
+		test_markdown_images_preference_follows_the_projection();
 		std::cout << "center-ribbon-width:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -16291,6 +16346,7 @@ auto main(int argc, char** argv) -> int
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
 	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
 	test_line_details_view_menu_and_settings_follow_the_projection();
+	test_markdown_images_preference_follows_the_projection();
 	test_continue_review_and_opening_honour_the_modality_preferences();
 	test_comments_filter_and_return_comparison_preferences_apply_on_open();
 	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();

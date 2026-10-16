@@ -55,6 +55,10 @@ add_library(
         src/epoch_line.cpp
         src/workbench_landing.cpp
         src/markdown_body_view.cpp
+        src/markdown_image_decoder.cpp
+        src/markdown_images.cpp
+        src/markdown_github.cpp
+        src/markdown_github_html.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp
@@ -108,6 +112,9 @@ target_link_libraries(
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
+    PRIVATE
+        # RFC-BPR-0084 Q1. Only the image decoder renders SVG.
+        Qt6::Svg
 )
 target_include_directories(
     better_pull_review_adapter_qt

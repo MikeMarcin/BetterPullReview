@@ -1305,6 +1305,15 @@ namespace bpr::qt {
 					Link(id, QString::fromStdString(aDestination));
 				}
 			});
+			// RFC-BPR-0084. A published post's images load; a draft's stay text.
+			if (!aCard.Draft) {
+				view->reader()->set_images_shown(ImagesShown);
+				view->reader()->set_image_dispatch([this, id = post.Id](std::vector<core::markdown_image_reference> aReferences) {
+					if (ImageRequest) {
+						ImageRequest(id, std::move(aReferences));
+					}
+				});
+			}
 			view->HeightChanged = [this] {
 				if (HeightChanged) {
 					HeightChanged();
@@ -1424,8 +1433,7 @@ namespace bpr::qt {
 			auto* const controls = new QHBoxLayout{ };
 			controls->setSpacing(6);
 			// The composer's own label controls ([[BPR-1083]]): the chip and
-			// its menu, ⌘L, and with the helper on the `:` completion and the
-			// `:xx:` replacement. The drawer is too narrow for the decoration
+			// its menu, and ⌘L. The drawer is too narrow for the decoration
 			// toggles; they stay in the menu, and the chip's mark shows them.
 			Labels = new feedback_label_controls{ ReplyBox, Editor };
 			Labels->setObjectName(QStringLiteral("threadReplyLabels"));
@@ -1629,7 +1637,6 @@ namespace bpr::qt {
 		// [[BPR-1329]]. A draft that is publishing is not written, but a retry
 		// of that same publication is still offered.
 		Publishable = aDraft.has_value() && aDraft->Publishable && (aDraft->Editable || aDraft->Retry);
-		Labels->set_helper(aDraft.has_value() && aDraft->LabelHelper);
 		ReplyBox->setReadOnly(!aDraft.has_value() || !aDraft->Editable);
 		if (aDraft.has_value() && ReplyBox->toPlainText() != aDraft->Body) {
 			// The draft editor's text arrives. A suggestion's caret goes to
@@ -1854,9 +1861,6 @@ namespace bpr::qt {
 		}
 		const auto ours = aReply.has_value() && aReply->Thread == Id;
 		Publishable     = ours && aReply->Publishable;
-		// The helper is the draft editor's switch; a reply that is not yet
-		// its draft has none.
-		Labels->set_helper(ours && aReply->LabelHelper);
 		if (ours && ReplyBox->toPlainText() != aReply->Body) {
 			// The draft editor's text arrives; a caret at the end keeps typing
 			// where it was.
@@ -1969,6 +1973,29 @@ namespace bpr::qt {
 					button->setIcon(conversation_icon(static_cast<conversation_glyph>(glyph.toInt()), palette()));
 				}
 			}
+		}
+	}
+	void open_thread_card::apply_image(const application::markdown_image_projection& aImage)
+	{
+		for (auto* const view : Posts) {
+			if (view->post().Id == aImage.Body) {
+				view->reader()->apply_image(aImage);
+			}
+		}
+	}
+
+	void open_thread_card::request_images()
+	{
+		for (auto* const view : Posts) {
+			view->reader()->request_images();
+		}
+	}
+
+	void open_thread_card::set_images_shown(const bool aShown)
+	{
+		ImagesShown = aShown;
+		for (auto* const view : Posts) {
+			view->reader()->set_images_shown(aShown);
 		}
 	}
 } // namespace bpr::qt

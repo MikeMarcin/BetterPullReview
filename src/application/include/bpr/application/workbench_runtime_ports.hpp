@@ -571,19 +571,22 @@ namespace bpr::application {
 	/// \details The owner, 2026-10-05: "i think settings should also have a
 	/// toggle to switch between the icons and the shortcode icons, because i
 	/// liked both of them." Icons, the default, are BPR-1080's twelve glyphs;
-	/// letters are the label's two-letter shortcode in the same mark, with the
+	/// letters are the label's two letters (`qu` for question) in the same mark, with the
 	/// same tints, blocking fill, size and names. Presentation only.
 	enum class review_feedback_marks : std::uint8_t {
 		icons,
 		letters,
 	};
 
-	/// \brief Whether the comment editor offers the label helper ([[BPR-1088]]).
+	/// \brief The profile's label helper ([[BPR-1088]]).
 	///
-	/// \details The helper is the label chip's completion and the leading
-	/// `:xx:` shortcodes (RFC-BPR-0048's convention-assisted composition).
-	/// Off by default (owner, BPR-1079 Settings v1): a label typed out in
-	/// full is recognized and counted either way.
+	/// \details Until [[BPR-1565]] it also turned on the comment editor's
+	/// leading `:xx:` codes and their completion; the owner removed those on
+	/// 2026-10-16 (RFC-BPR-0048 owner amendment 1). It now decides only
+	/// whether a comment workshop request carries the Review feedback
+	/// guidance ([[BPR-1091]]). Off by default (owner, BPR-1079 Settings v1):
+	/// a label typed out in full, or chosen with the chip, is recognized and
+	/// counted either way.
 	enum class review_label_helper : std::uint8_t {
 		off,
 		on,
@@ -611,6 +614,16 @@ namespace bpr::application {
 	enum class review_line_details : std::uint8_t {
 		shown,
 		hidden,
+	};
+
+	/// \brief RFC-BPR-0084 Q3. Whether images in pull request descriptions and
+	/// comments load (owner, 2026-10-16: a "Load images in descriptions and
+	/// comments" preference, on by default). Load is zero, so a stored profile
+	/// older than the preference loads them. Off, each image is its accessible
+	/// placeholder and nothing is fetched.
+	enum class review_markdown_images : std::uint8_t {
+		load,
+		off,
 	};
 
 	/// \brief What reading the stored label columns left out ([[BPR-1088]]).
@@ -667,6 +680,8 @@ namespace bpr::application {
 		review_line_details LineDetails = review_line_details::shown;
 		/// [[BPR-1512]]. Logical pixels; half the previous fixed 56-pixel divider.
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
+		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
+		review_markdown_images MarkdownImages = review_markdown_images::load;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -704,6 +719,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_overview_counts::all)
 			&& static_cast<std::uint8_t>(aSettings.LineDetails)
 			<= static_cast<std::uint8_t>(review_line_details::hidden)
+			&& static_cast<std::uint8_t>(aSettings.MarkdownImages)
+			<= static_cast<std::uint8_t>(review_markdown_images::off)
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();

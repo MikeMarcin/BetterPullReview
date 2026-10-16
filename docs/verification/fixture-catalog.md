@@ -119,6 +119,27 @@ them under ?. No conversation has an unknown resolution: that needs the REST
 fallback, which a GraphQL fixture does not take. Constructed, not recorded;
 `application_overview_labels_public_path` pins its counts.
 
+### `markdown-parity-v1`, the GitHub-parity Markdown bodies
+
+Added for [[BPR-1543]], so the Markdown reader's hidden comments, line breaks,
+alerts and footnotes can be judged in the application beside GitHub.
+`scripts/build_markdown_parity_fixture.py` copies the nested-folders contract
+(its pull request, files and pack) and serves `tests/fixtures/markdown/github-parity-v1/pr-template.md`
+as the description and that directory's comments, breaks, alerts and footnotes
+bodies as four pull request comments, byte for byte. GitHub's own rendering of
+each body is kept beside it as `*.github.html`. Constructed, not recorded.
+
+### `markdown-html-v1`, the GitHub-parity HTML bodies
+
+Added for [[BPR-1544]], so `<details>`, GitHub's HTML subset and emoji
+shortcodes can be judged in the application beside GitHub.
+`scripts/build_markdown_html_fixture.py` copies the nested-folders contract and
+serves `tests/fixtures/markdown/github-parity-v1/pr-html.md` as the
+description and that directory's details, html and emoji bodies as three pull
+request comments, byte for byte. The hostile-HTML body holds forbidden byte
+patterns by design, so it is judged from its tests rather than served.
+Constructed, not recorded.
+
 ### `conversations-v1`, prototype v2's pull request
 
 Added for [[BPR-1293]], so Threads (named Conversations until [[BPR-1341]]) can be judged against its prototype
@@ -170,6 +191,28 @@ text. The same pack and contract builders serve it as
 `bpr-fixtures/intraline#37` on github.com, signed in as `fixture-author`, with
 no review, thread or comment. Constructed, not recorded; its fixture test
 regenerates the construction and the served tree byte for byte.
+
+### `markdown-images-v1`, images in a description and comments
+
+Added for [RFC-BPR-0084](../rfcs/RFC-BPR-0084-inline-markdown-images.md), so
+inline images can be judged beside GitHub's own presentation.
+`scripts/build_markdown_images_fixture.py` copies the nested-folders contract
+(`bpr-fixtures/nested-folders#21`, signed in as `fixture-author`) and gives it a
+description with five uploaded attachments (one `<img width>`, two in a
+table), a proxied transparent PNG, a linked image, an animated GIF at a set
+height, a `<picture>` with a dark source, an SVG badge, a WebP photograph
+(embedded in the builder; owner amendment 1) and an `<img>` in code,
+and two pull request comments: an attachment at a set width, and an animated
+GIF beside an image that is gone. Beside the contract, under
+`tests/fixtures/github/markdown-images/v1/markdown-images-v1/`, it writes what
+GitHub's rendering serves for them: `bodies.json` (each node's `bodyHTML`, with
+camo and `private-user-images` addresses signed `jwt=fixture`), `manifest.json`
+(each served address's file and content type) and the images, drawn from code.
+A fixture run answers `resolve_body_images` from `bodies.json` and image
+fetches from `manifest.json`, never the network; `missing.png` has no file and
+fails. Every name, address and image is synthetic. `markdown_images_fixture_contract`
+regenerates both trees byte for byte and checks they agree;
+`application_markdown_images_public_path` opens it through the real composition.
 
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,

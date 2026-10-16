@@ -5,12 +5,14 @@
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
@@ -116,6 +118,7 @@
 #include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
+#include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
@@ -1068,6 +1071,33 @@ namespace bpr::app {
 						github_com_2022_11_28,
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed Overview labels",
+				};
+			case detail::github_public_path_fixture::markdown_images_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed inline images",
+				};
+			case detail::github_public_path_fixture::markdown_parity_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Markdown parity",
+				};
+			case detail::github_public_path_fixture::markdown_html_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Markdown HTML",
 				};
 			case detail::github_public_path_fixture::conversations_v1:
 				return {
@@ -2810,6 +2840,12 @@ namespace bpr::app {
 				// no longer be answered from a comparison that arrived later.
 				return std::nullopt;
 			}
+#if defined(BPR_BUILD_TESTING)
+			if (!wait_while_held()) {
+				// Left while held: the read a departure stops answers nothing.
+				return std::nullopt;
+			}
+#endif
 			// A real token, where this used to pass a default-constructed one that
 			// could never signal. `clear_comparison` stops it, so a read for a
 			// comparison the reviewer has left is abandoned promptly rather than
@@ -2827,10 +2863,64 @@ namespace bpr::app {
 			};
 		}
 
+#if defined(BPR_BUILD_TESTING)
+		/// \brief [[BPR-1558]]. Holds every classifier blob read at its start,
+		/// as a slow read would, until released or its comparison is left.
+		void hold_reads(const bool aHold)
+		{
+			{
+				const auto guard = std::lock_guard{ HoldMutex };
+				Held             = aHold;
+			}
+			HoldChanged.notify_all();
+		}
+
+		[[nodiscard]] auto held_reads() const -> std::size_t
+		{
+			const auto guard = std::lock_guard{ HoldMutex };
+			return Waiting;
+		}
+#endif
+
 	private:
 		// Two blobs per comparison, so eight comparisons' worth of concurrent
 		// classification. Past that a read is refused rather than mis-bound.
 		static constexpr auto MaximumRequests = std::size_t{ 16U };
+
+#if defined(BPR_BUILD_TESTING)
+		/// \brief Waits out a test hold; false when the comparison was left.
+		///
+		/// \details The departure stops the wait as it stops a real read. The
+		/// callback is registered before the lock is taken and destroyed after
+		/// it is released, so it can neither run nor be waited for under it.
+		[[nodiscard]] auto wait_while_held() -> bool
+		{
+			const auto departure = departure_token();
+			const auto wake      = std::stop_callback{ departure, [this] { wake_held_reads(); } };
+			{
+				auto lock = std::unique_lock{ HoldMutex };
+				++Waiting;
+				HoldChanged.wait(lock, [this, &departure] { return !Held || departure.stop_requested(); });
+				--Waiting;
+			}
+			return !departure.stop_requested();
+		}
+
+		/// \brief Wakes held reads to look again. The lock orders the wakeup
+		/// after a waiter's predicate check, so none is lost.
+		void wake_held_reads()
+		{
+			{
+				const auto guard = std::lock_guard{ HoldMutex };
+			}
+			HoldChanged.notify_all();
+		}
+
+		mutable std::mutex      HoldMutex;
+		std::condition_variable HoldChanged;
+		bool                    Held    = false;
+		std::size_t             Waiting = 0U;
+#endif
 
 		[[nodiscard]] auto find_request(const core::git_blob_oid& aBlob)
 			-> std::vector<application::diff_blob_request>::iterator
@@ -3963,6 +4053,15 @@ namespace bpr::app {
 		worker_executor AppearanceEffects;
 		worker_executor QueueEffects;
 		worker_executor ReviewMutationEffects;
+		/// RFC-BPR-0084. Body images: the decoder outlives the lanes that call
+		/// it; four serial fetch lanes, each with its own media transport, and
+		/// one decode lane; the profile's image service and cache. The disk
+		/// cache is used only on the decode lane, which is joined before it goes.
+		qt::markdown_image_decoder                                          ImageDecoder;
+		std::unique_ptr<application::markdown_image_disk_cache_port>        ImageDisk;
+		worker_executor                                                     ImageDecodeEffects;
+		std::array<worker_executor, core::markdown_image_fetch_concurrency> ImageFetchEffects;
+		std::unique_ptr<application::markdown_image_service>                Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -4516,7 +4615,23 @@ namespace bpr::app {
 			if (EpochActors) {
 				EpochActors->shutdown();
 			}
+			if (Images) {
+				Images->shutdown();
+			}
 		}
+		/// RFC-BPR-0084. A fixture run serves images from its pack and never the
+		/// network; every other run fetches through native HTTPS.
+		[[nodiscard]] auto markdown_image_media_factory(adapters::github::detail::github_provider::media_transport_factory aProduction)
+			-> adapters::github::detail::github_provider::media_transport_factory
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture) {
+				return Fixture->markdown_image_media_factory();
+			}
+#endif
+			return aProduction;
+		}
+
 		void poll_shutdown()
 		{
 			if (!ServicesClosing || ShutdownComplete) {
@@ -4528,7 +4643,11 @@ namespace bpr::app {
 			if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
-				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
+				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)
+				|| (Images && !Images->quiescent())) {
+				return;
+			}
+			if (!ImageDecodeEffects.idle() || std::ranges::any_of(ImageFetchEffects, [](const worker_executor& aLane) { return !aLane.idle(); })) {
 				return;
 			}
 			if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
@@ -4607,6 +4726,10 @@ namespace bpr::app {
 			ReviewMutationEffects.close_and_drain();
 			ReviewSubmissionEffects.close_and_drain();
 			ReviewLedgerEffects.close_and_drain();
+			for (auto& lane : ImageFetchEffects) {
+				lane.close_and_drain();
+			}
+			ImageDecodeEffects.close_and_drain();
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
@@ -4987,6 +5110,20 @@ namespace bpr::app {
 				throw std::runtime_error{ "GitHub provider composition failed" };
 			}
 			Provider = std::move(*provider);
+			// RFC-BPR-0084. Image fetches run on their own serial lanes, each
+			// with a credential-free media transport per profile; a credentialed
+			// GHES hop runs on the provider's lane through the account transport.
+			{
+				std::vector<application::effect_executor*> lanes;
+				lanes.reserve(ImageFetchEffects.size());
+				for (auto& lane : ImageFetchEffects) {
+					lanes.push_back(&lane);
+				}
+				Provider->configure_markdown_images(std::move(lanes), markdown_image_media_factory(adapters::github::detail::make_native_markdown_image_media_factory()));
+			}
+			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
+			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
+																			  core::markdown_image_memory_cache_bytes, ImageDisk.get());
 
 			// RFC-BPR-0017's credential-free read authority, over the same
 			// profiles and the same transport factory. A second provider
@@ -7080,6 +7217,15 @@ namespace bpr::app {
 			if (!showsTab) {
 				return;
 			}
+			// [[BPR-1527]]. A first file gesture can precede its accepted
+			// comparison. A reread may retire the workbench selection before
+			// that pair arrives, so open the core's retained explicit choice
+			// once the current catalogue admits it. Review entry alone has none.
+			if (const auto& tabs = TabHost->state(); !tabs.Active && tabs.Chosen
+				&& WorkbenchHost->state().Navigation && WorkbenchHost->contains_file(*tabs.Chosen)) {
+				TabHost->apply(core::open_in_active_tab_intent{ .File = *tabs.Chosen });
+				return;
+			}
 			const auto activeTab = [this]() -> const core::document_tab* {
 				const auto& tabs = TabHost->state();
 				return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
@@ -7383,7 +7529,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
 					schedule_link_location();
-					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests);
+					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests, Profile->Images.get(), Profile->Provider.get());
 			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 					WindowRead->read_cached_source(aPath.toStdString());
@@ -7393,6 +7539,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->WindowBrowser)
 					: core::markdown_link_result::stale;
+			});
+			Window->set_markdown_image_dispatch([this, weak](const core::markdown_image_intent& aIntent) {
+				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
+					WindowRead->request_markdown_images(aIntent);
+				}
 			});
 			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
@@ -7708,11 +7859,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				});
 #if defined(BPR_BUILD_TESTING)
-			// [[BPR-1083]], [[BPR-1088]]. An attended look at the shortcodes, and
-			// the label-authoring probe, turn the helper on through the
-			// profile's own setting: the write the Comment labels › Label helper
-			// switch makes, so every window's comment editor follows the
-			// persisted preference exactly as it does for a reviewer.
+			// [[BPR-1083]], [[BPR-1088]]. `--label-helper`, the attended
+			// workshop look and the label-authoring probe turn the helper on
+			// through the profile's own setting: the write the Comment labels ›
+			// Label helper switch makes. Since [[BPR-1565]] the helper only
+			// sends the Review feedback guidance with a workshop request; the
+			// probe keeps it on to show a typed `:qu:` stays text even so.
 			if (Profile->LabelHelper && !Profile->LabelHelperRequested && Profile->WorkbenchPreferences) {
 				Profile->LabelHelperRequested = true;
 				auto* const preferences       = Profile->WorkbenchPreferences.get();
@@ -11241,6 +11393,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return true;
 		}
 
+		struct pending_unsent_reply_commands
+		{
+			std::shared_ptr<application::shared_draft_application_host> Owner;
+			application::shared_draft_consumer                          Consumer;
+			// One exact admitted command per draft in the bounded owner. A
+			// later explicit action on that draft replaces its pending intent.
+			std::map<core::review_draft_id, core::revisioned_review_draft_command> Commands;
+		};
+		std::optional<pending_unsent_reply_commands> PendingUnsentReplyCommands;
+
+		void change_unsent_reply(const core::revisioned_review_draft_command& aCommand)
+		{
+			const auto owner    = SharedDrafts;
+			const auto consumer = DraftConsumer;
+			PrivateReview->change_draft(aCommand, [this, owner, consumer](auto aCommit) {
+				if (!Closing && owner == SharedDrafts && consumer == DraftConsumer && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					present_saved_drafts();
+				}
+			});
+		}
+
+		/// [[BPR-1527]]. A visible kept reply can be acted on while a reread
+		/// reopens its private store. Keep its original command and CAS; a
+		/// different owner, consumer or draft revision never inherits it.
+		void flush_unsent_reply_commands()
+		{
+			if (!PendingUnsentReplyCommands) {
+				return;
+			}
+			if (Closing || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+				PendingUnsentReplyCommands.reset();
+				return;
+			}
+			if (!PrivateReview || !PrivateDraftsReady || !PrivateReview->binding()) {
+				return;
+			}
+			auto pending = std::exchange(PendingUnsentReplyCommands, std::nullopt);
+			for (const auto& [id, command] : pending->Commands) {
+				if (Closing || pending->Owner != SharedDrafts || pending->Consumer != DraftConsumer) {
+					return;
+				}
+				const auto current = SharedDrafts->read(DraftConsumer, id);
+				if (current.Accepted && current.Accepted->Revision == command.ExpectedRevision && current.Accepted->Scope == command.Scope) {
+					change_unsent_reply(command);
+				}
+			}
+		}
+
 		/// \brief [[BPR-1374]]. A kept reply's note: its words become a new
 		/// comment on its line, or it is discarded. Decided by the core
 		/// against the threads the server holds now; nothing is published.
@@ -11259,13 +11459,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!command) {
 				return;
 			}
-			if (PrivateReview && PrivateDraftsReady) {
-				const auto owner = SharedDrafts;
-				PrivateReview->change_draft(*command, [this, owner](auto aCommit) {
-					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
-						present_saved_drafts();
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || !PrivateReview->binding()) {
+					if (!PendingUnsentReplyCommands || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+						pending_unsent_reply_commands pending;
+						pending.Owner              = SharedDrafts;
+						pending.Consumer           = DraftConsumer;
+						PendingUnsentReplyCommands = std::move(pending);
 					}
-				});
+					PendingUnsentReplyCommands->Commands.insert_or_assign(aDraft, *command);
+				} else {
+					change_unsent_reply(*command);
+				}
 				return;
 			}
 			if (const auto outcome = SharedDrafts->apply(DraftConsumer, *command); !outcome.Failure && outcome.Accepted) {
@@ -11560,6 +11765,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (SharedDrafts && SharedDrafts->authority() == authority) {
 				return true;
 			}
+			PendingUnsentReplyCommands.reset();
 			if (SharedDrafts) {
 				SharedDrafts->detach(DraftConsumer);
 			}
@@ -12946,6 +13152,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							present_review_draft(*SelectedSemanticSelection);
 						}
 						resume_reply();
+						flush_unsent_reply_commands();
 					} else {
 						PrivateDraftsReady = false;
 					}
@@ -14048,6 +14255,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				load_defects();
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
+				// [[BPR-1527]]. This observation retires every workbench
+				// selection. A tab driver that already selected its file is
+				// waiting for retired material and cannot select it again.
+				// Let the accepted comparison and returned files restart that
+				// active view, rather than leave it blocking the owed refresh.
+				abandon_tab_load();
 				// [[BPR-1303]]. A refresh that moves the head changes the
 				// tab's comparison, and that reloads the tab; one that keeps
 				// the diff leaves the workbench with no file and is owed it.
@@ -14115,6 +14328,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++WorkbenchInvalidations;
 #endif
 				WorkbenchHost->invalidate(*authority);
+				// A pending first choice has no tab comparison to bind it.
+				// Only this exact revoked authority retires that ephemeral open.
+				if (TabHost && !TabHost->state().Active && TabHost->state().Chosen) {
+					TabHost->reset();
+				}
 			}
 			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
 				return aAuthority.Profile == aInvalidation.Profile
@@ -14136,6 +14354,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				suspend_review_tour();
 			}
 			if (retiresLedger) {
+				PendingUnsentReplyCommands.reset();
 				retire_review_ledger();
 				retire_review_mutation_host();
 				if (SharedDrafts) {
@@ -16823,6 +17042,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// left.
 				SyntaxBlobs->clear_comparison();
 			}
+			if (AppearanceHost != nullptr) {
+				// [[BPR-1558]]. The classifications those reads served go with
+				// them. Left in flight, a request for the same blob made before
+				// their failed terminals arrive would join one, and that pane
+				// would stay plain with nothing left to ask again.
+				AppearanceHost->cancel_classifications();
+			}
 			// The definitions go with them: nothing on screen can be adopted for
 			// a selection that has been cleared, and keeping the choices would
 			// only let a later publication colour a pane the reviewer has left.
@@ -17336,13 +17562,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// \brief Hands one published classification to the side it describes.
+		/// \brief Hands one published classification to every side it describes.
 		///
 		/// \details The side is decided by blob identity, which is the only
 		/// thing that can decide it: a classification names a blob, and a
 		/// comparison is the only thing that knows which side that blob is on.
 		/// A classification for neither side belongs to a comparison the
 		/// reviewer has already left, and is dropped.
+		///
+		/// [[BPR-1558]]. Both sides can name the same blob: a pure rename, or
+		/// a file the two compared updates share. `classify_comparison` then
+		/// asks once, the host coalesces the second request, and this one
+		/// publication is the only answer either pane will get. Choosing the
+		/// first matching side coloured the left pane and left the right plain
+		/// until the reviewer came back to the file and the display's cache
+		/// read gave both panes the spans.
 		void adopt_classification(
 			const application::token_span_publication& aSpans)
 		{
@@ -17372,19 +17606,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++DroppedClassifications;
 				return;
 			}
-			const auto side = context->Key.LeftBlob == std::optional{ aSpans.Key.Blob }
-				? std::optional{ core::diff_side::left }
-				: context->Key.RightBlob == std::optional{ aSpans.Key.Blob }
-				? std::optional{ core::diff_side::right }
-				: std::nullopt;
-			if (!side.has_value() || !aSpans.Spans) {
+			const auto blob  = std::optional{ aSpans.Key.Blob };
+			const auto left  = context->Key.LeftBlob == blob;
+			const auto right = context->Key.RightBlob == blob;
+			if ((!left && !right) || !aSpans.Spans) {
 				++DroppedClassifications;
 				return;
 			}
-			if (surface->adopt_token_spans(*side, aSpans.Spans)) {
-				++AdoptedClassifications;
-			} else {
-				++DroppedClassifications;
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				if (!(side == core::diff_side::left ? left : right)) {
+					continue;
+				}
+				if (surface->adopt_token_spans(side, aSpans.Spans)) {
+					++AdoptedClassifications;
+				} else {
+					++DroppedClassifications;
+				}
 			}
 		}
 
@@ -18271,6 +18508,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                                   SelectedDiffFailures     = 0U;
 			std::size_t                                   IntentDispatches         = 0U;
 			std::size_t                                   ChangeDispatches         = 0U;
+			std::optional<core::semantic_selection>       ChangeOrigin;
 			/// \brief [[BPR-0859]]. Ticks of the waits this probe bounds by
 			/// count and names itself: the panes, the role paint, the change
 			/// walk and the focused layout.
@@ -18445,7 +18683,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_file,
 				awaiting_marks,
 				awaiting_line_draft,
-				awaiting_shortcode,
+				awaiting_literal_code,
 				awaiting_chip,
 				awaiting_shortcut,
 				awaiting_published,
@@ -18558,12 +18796,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				passed,
 				failed,
 			};
-			detail::reply_draft_probe_evidence       Evidence;
-			std::optional<core::review_draft_id>     Draft;
-			detail::review_mutation_fixture_evidence Before;
-			std::size_t                              Waited = 0U;
-			phase                                    Phase  = phase::awaiting_file;
-			std::string                              Diagnostic;
+			detail::reply_draft_probe_evidence                Evidence;
+			std::optional<core::review_draft_id>              Draft;
+			detail::review_mutation_fixture_evidence          Before;
+			std::size_t                                       Waited = 0U;
+			phase                                             Phase  = phase::awaiting_file;
+			std::string                                       Diagnostic;
+			std::optional<QScopeGuard<std::function<void()>>> PrivateEffectsHold;
+			bool                                              HeldDiscard = false;
 		};
 		std::optional<reply_draft_probe_state> ReplyDraftProbe;
 		// [[BPR-1478]]. The course in which a reread lands just after the
@@ -18620,6 +18860,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_refused,
 				awaiting_discarded,
 				awaiting_held,
+				/// [[BPR-1541]].
+				awaiting_replaced,
+				awaiting_restored_unknown,
+				awaiting_restored_replaced,
 				awaiting_reconciled,
 				// [[BPR-1345]] v002, `again`.
 				awaiting_old_line,
@@ -20642,6 +20886,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto& gate = aApplication.Implementation->ReviewMutationDecisionGate;
 		return gate ? gate->pending() : 0U;
 	}
+	void detail::github_application_fixture_access::hold_syntax_blob_reads(github_application& aApplication, const bool aHold)
+	{
+		if (auto& blobs = aApplication.Implementation->SyntaxBlobs; blobs) {
+			blobs->hold_reads(aHold);
+		}
+	}
+	auto detail::github_application_fixture_access::held_syntax_blob_reads(const github_application& aApplication) -> std::size_t
+	{
+		const auto& blobs = aApplication.Implementation->SyntaxBlobs;
+		return blobs ? blobs->held_reads() : 0U;
+	}
 
 	auto detail::github_application_fixture_access::device_binding_store_idle(const github_application& aApplication) noexcept -> bool
 	{
@@ -21090,6 +21345,47 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.arg(course_surface_names(aStep.Needs), course_surface_names(missing), bound));
 		}
 		return report("COURSE_MODALITY_STALLED", bound);
+	}
+
+	auto detail::github_application_fixture_access::verify_pending_first_file_choice_invalidation(
+		github_application& aApplication) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		if (!owner || !owner->TabHost || !owner->LastAcceptedHandoff || !owner->WorkbenchReview.exact(*owner->LastAcceptedHandoff)) {
+			return false;
+		}
+		const auto& tabs   = owner->TabHost->state();
+		const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		if (!active || !active->View.File) {
+			return false;
+		}
+		const auto  file    = *active->View.File;
+		const auto& handoff = *owner->LastAcceptedHandoff;
+		const auto  exact   = application::pull_request_authority_invalidation{
+			.ApplicationSession = handoff.ApplicationSession,
+			.Profile            = handoff.Profile,
+			.ProfileRevision    = handoff.ProfileRevision,
+			.Host               = handoff.Host,
+			.HostAuthority      = handoff.HostAuthority,
+			.Account            = handoff.Account,
+			.Viewer             = handoff.Viewer,
+			.Repository         = handoff.Repository,
+			.PullRequest        = handoff.PullRequest,
+			.IdentityGeneration = handoff.IdentityGeneration,
+			.Mode               = handoff.Mode,
+		};
+		// Arrange the core state already observed between the real first-file
+		// gesture and its comparison: an explicit choice, no tab or pair yet.
+		owner->TabHost->reset();
+		owner->TabHost->observe_file_choice(file);
+		auto foreign        = exact;
+		foreign.PullRequest = core::pull_request_id{ exact.PullRequest.value() == 1U ? 2U : 1U };
+		owner->invalidate(foreign);
+		if (tabs.Active || tabs.Chosen != std::optional{ file }) {
+			return false;
+		}
+		owner->invalidate(exact);
+		return !tabs.Active && !tabs.Pending && !tabs.Chosen;
 	}
 
 	auto detail::github_application_fixture_access::epoch_refresh_identity(
@@ -24545,6 +24841,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		auto&      probe = *implementation->UIforEtwSelectedDiffProbe;
 		const auto fail  = [&probe, implementation] {
+			const auto* const surface = implementation->Window->comparison_surface();
+			bpr::app::detail::terminal_text_stream{ }
+				<< "UIFORETW_PROBE_FAILURE:phase=" << static_cast<int>(probe.Phase)
+				<< " waits=" << static_cast<qulonglong>(probe.Waits)
+				<< " reveal_waits=" << static_cast<qulonglong>(probe.RevealWaits)
+				<< " next=" << probe.Evidence.NextChangeNavigation
+				<< " previous=" << probe.Evidence.PreviousChangeNavigation
+				<< " rc_revealed=" << probe.RcRevealed
+				<< " dispatches=" << static_cast<qulonglong>(implementation->WorkbenchChangeDispatches)
+				<< " baseline_dispatches=" << static_cast<qulonglong>(probe.ChangeDispatches)
+				<< " selection=" << (surface && surface->selection().has_value())
+				<< " geometry_pending=" << (surface && surface->geometry_pending())
+				<< " pending_navigation=" << implementation->PendingReviewNavigation.has_value()
+				<< " tab_pending=" << (implementation->TabHost && implementation->TabHost->state().Pending.has_value())
+				<< " tab_queued=" << implementation->TabAdvanceQueued << '\n';
 			probe.Evidence.FixtureDiffHelperUnused
 				= implementation->FixtureDiffHelperInvocations == 0U;
 			probe.Phase = state_type::phase::failed;
@@ -24954,30 +25265,42 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.RcIntralinePairs || !pairOne->Group.has_value()) {
 				return fail();
 			}
-			if (!probe.Evidence.NextChangeNavigation) {
-				auto* const nextChange     = window->next_change_action();
-				auto* const previousChange = window->previous_change_action();
-				const auto  before         = workbench->selection();
-				if (nextChange == nullptr || previousChange == nullptr
-					|| !nextChange->isEnabled() || !before.has_value()) {
+			if (!probe.ChangeOrigin) {
+				auto* const nextChange = window->next_change_action();
+				if (!nextChange || !window->previous_change_action()
+					|| !nextChange->isEnabled() || !workbench->selection()) {
 					return fail();
 				}
+				probe.ChangeOrigin     = workbench->selection();
 				probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 				nextChange->trigger();
+				return result::pending;
+			}
+			// [[BPR-1527]]. A navigation press may be retained until its tab
+			// restoration completes. Issue each gesture once, then observe its
+			// exact dispatch and semantic result on the normal completion lane.
+			if (!probe.Evidence.NextChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches) {
+					return wait("UIFORETW_RC_NEXT_CHANGE_STALLED", rcFacts);
+				}
+				auto* const previousChange = window->previous_change_action();
 				probe.Evidence.NextChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 1U
-					&& workbench->selection().has_value()
-					&& workbench->selection()->Group != before->Group
-					&& previousChange->isEnabled();
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U
+					&& workbench->selection() && workbench->selection()->Group != probe.ChangeOrigin->Group
+					&& previousChange && previousChange->isEnabled();
 				if (!probe.Evidence.NextChangeNavigation) {
 					return fail();
 				}
 				previousChange->trigger();
+				return result::pending;
+			}
+			if (!probe.Evidence.PreviousChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U) {
+					return wait("UIFORETW_RC_PREVIOUS_CHANGE_STALLED", rcFacts);
+				}
 				probe.Evidence.PreviousChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 2U
-					&& workbench->selection() == before;
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 2U
+					&& workbench->selection() == probe.ChangeOrigin;
 				if (!probe.Evidence.PreviousChangeNavigation) {
 					return fail();
 				}
@@ -28205,26 +28528,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			probe.Evidence.CommentEditable = true;
 			body->setFocus();
-			probe.Typing = QStringLiteral(":qu:");
-			probe.Phase  = state_type::phase::awaiting_shortcode;
+			// [[BPR-1565]]. The `:xx:` codes are gone (owner, 2026-10-16): a
+			// typed `:qu:` stays the text it is, with the helper on.
+			probe.Typing = QStringLiteral(":qu: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			probe.Phase  = state_type::phase::awaiting_literal_code;
 			return result::pending;
 		}
-		case state_type::phase::awaiting_shortcode: {
+		case state_type::phase::awaiting_literal_code: {
+			const auto subjectText = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			const auto literal     = QStringLiteral(":qu: ") + subjectText;
 			note("body=" + text().toStdString() + " draft=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" })
-				 + " helper=" + std::to_string(controls->helper() ? 1 : 0) + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
-			// The replacement is queued after the closing colon's own change.
-			if (!typed() || (text() != QStringLiteral("question: ") && !text().startsWith(QStringLiteral("question: S")))) {
+				 + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (!typed()) {
 				return result::pending;
 			}
-			if (text() == QStringLiteral("question: ")) {
-				probe.Evidence.ShortcodeApplied = controls->state().Label == core::feedback_label::question;
-				probe.Typing                    = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			if (text() == literal) {
+				probe.Evidence.CodeStaysLiteral = !controls->state().Label.has_value() && controls->statistics().Edits == 0U;
+				render("editor-literal-code");
+				// The reviewer takes the code out by hand: one selection and
+				// Backspace, so the draft follows as typing does.
+				auto cursor = body->textCursor();
+				cursor.setPosition(0);
+				cursor.setPosition(5, QTextCursor::KeepAnchor);
+				body->setTextCursor(cursor);
+				key(Qt::Key_Backspace, Qt::NoModifier, QString{ });
 				return result::pending;
 			}
-			if (text() != QStringLiteral("question: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()))) {
-				return result::pending;
+			if (text() != subjectText) {
+				return fail("literal-code-changed body=" + text().toStdString());
 			}
-			render("editor-shortcode");
 			controls->chip()->click();
 			QCoreApplication::processEvents();
 			auto* const choice = controls->menu() != nullptr ? controls->menu()->label_button(core::feedback_label::suggestion) : nullptr;
@@ -28424,7 +28756,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == replyBody;
 			render("reply-in-place-native");
 			const auto& evidence = probe.Evidence;
-			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.CodeStaysLiteral
 				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked && evidence.PatchMarkedNative
 				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
 			if (!all) {
@@ -28631,8 +28963,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (const auto selected = surface->selection(); !selected || selected->PreferredLine.Side != core::diff_side::right || selected->PreferredLine.Line != *probe.Line) {
 					static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.Line));
 				}
-				const auto& draft = implementation->ReviewDraft;
-				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" }));
+				const auto& draft  = implementation->ReviewDraft;
+				const auto* active = implementation->TabHost && implementation->TabHost->state().Active
+					? core::find_tab(implementation->TabHost->state(), *implementation->TabHost->state().Active)
+					: nullptr;
+				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" })
+					 + " selected_file=" + std::to_string(implementation->WorkbenchHost->selected().has_value())
+					 + " active_tab=" + std::to_string(active != nullptr)
+					 + " tab_file=" + std::to_string(active && active->View.File.has_value())
+					 + " chosen=" + std::to_string(implementation->TabHost && implementation->TabHost->state().Chosen.has_value())
+					 + " material=" + std::to_string(implementation->ReviewSourceMaterial.has_value())
+					 + " tab_queued=" + std::to_string(implementation->TabAdvanceQueued));
 				if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right || draft->State != core::review_draft_state::drafting) {
 					return result::pending;
 				}
@@ -29233,6 +29574,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.PrivateEffectsHold.reset();
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
@@ -29322,6 +29664,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
 		};
 		const auto finish = [&] {
+			if (aCourse == course::deleted && !probe.HeldDiscard) {
+				return fail("discard-not-held");
+			}
 			probe.Evidence.NothingSent = !sent();
 			const auto& evidence       = probe.Evidence;
 			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
@@ -29381,6 +29726,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				fixture.stage_server_root(std::string{ threadId }, std::nullopt, true);
 			} else if (aCourse == course::deleted || aCourse == course::kept) {
 				fixture.stage_server_thread_deleted(std::string{ threadId });
+			}
+			if (aCourse == course::deleted) {
+				// Hold only private storage, while the reread and visible note
+				// complete normally. Confirm must retain this exact discard.
+				probe.PrivateEffectsHold.emplace(hold_private_review_effects(aApplication));
 			}
 			window->github_refresh_action()->trigger();
 			probe.Waited = 0U;
@@ -29498,8 +29848,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (const auto stored = saved(); !stored || stored->Draft.State != core::review_draft_state::drafting) {
 				return fail("discarded-before-asked");
 			}
+			if (!probe.PrivateEffectsHold || implementation->PrivateDraftsReady || (implementation->PrivateReview && implementation->PrivateReview->binding())) {
+				return fail("discard-store-not-held");
+			}
 			yes->click();
 			QCoreApplication::processEvents();
+			const auto retained = saved();
+			probe.HeldDiscard   = retained && retained->Draft.State == core::review_draft_state::drafting;
+			probe.PrivateEffectsHold.reset();
+			if (!probe.HeldDiscard) {
+				return fail("discard-before-store-resumes");
+			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_discarded;
 			return result::pending;
@@ -29859,7 +30218,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		constexpr auto path  = std::string_view{ "src/engine/renderer.cpp" };
 		constexpr auto other = std::string_view{ "src/engine/renderer.h" };
-		const auto     words = std::array{
+		// [[BPR-1541]]. The lines the page shows for an unreachable list and
+		// for a server error.
+		const auto unknownLine        = [](const core::review_submission_unknown_reason aReason) { return qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = aReason }); };
+		const auto unknownServerError = qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = core::review_submission_unknown_reason::http_status, .StatusClass = 5U });
+		const auto words              = std::array{
 			QStringLiteral("question: Where does this value come from? (BPR-1345 first)"),
 			QStringLiteral("nit: these two lines could be one. (BPR-1345 range)"),
 			QStringLiteral("BPR-1345: this one goes on its own."),
@@ -30139,6 +30502,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (revealed == detail::fixture_file_reveal_result::shown) {
 				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored
+					: aCourse == course::restored       ? state_type::phase::awaiting_restored_unknown
 					: aCourse == course::again          ? state_type::phase::awaiting_old_line
 														: state_type::phase::awaiting_first_line;
 			}
@@ -30320,7 +30684,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			{
 				const auto lock         = std::scoped_lock{ server.Mutex };
 				server.RefuseNextReview = aCourse == course::refused;
-				server.LoseNextReview   = aCourse == course::uncertain;
+				server.LoseNextReview   = aCourse == course::uncertain || aCourse == course::kept;
 			}
 			// [[BPR-1475]]. What the submission's own reread is measured from.
 			probe.ReadsBefore     = implementation->Fixture->evidence().AccountReadCount;
@@ -30329,8 +30693,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			summary->disposition_button(core::review_disposition::comment)->click();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
-			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain ? state_type::phase::awaiting_held
-																														   : state_type::phase::awaiting_submitted;
+			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain || aCourse == course::kept ? state_type::phase::awaiting_held
+																																					  : state_type::phase::awaiting_submitted;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_submitted: {
@@ -30545,15 +30909,92 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.UncertainHeld) {
 				return fail("uncertain-not-held-exactly");
 			}
+			// [[BPR-1541]]. The list could not be reached: the page says so
+			// under the status, as part of its description, naming nothing.
 			{
-				const auto lock        = std::scoped_lock{ server.Mutex };
-				server.HideReviewReads = false;
+				const auto line            = summary->unknown_reason_label()->text();
+				probe.Evidence.ReasonShown = !summary->unknown_reason_label()->isHidden() && line == unknownLine(core::review_submission_unknown_reason::network)
+					&& summary->status_label()->accessibleDescription() == line && !line.contains(QStringLiteral("conventional")) && !line.contains(QStringLiteral("renderer"));
+				render(QStringLiteral("unknown-reason"), summary);
+				// [[BPR-1541]] v002. The held review in the window, in each theme.
+				renderThemes(QStringLiteral("unknown-status"));
+				if (!probe.Evidence.ReasonShown) {
+					return fail("unknown-reason-not-shown");
+				}
+			}
+			if (aCourse == course::kept) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			{
+				// Check status again: the list answers with a server error.
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.ReviewReadStatus = 503;
+			}
+			summary->reconcile_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_replaced;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_replaced: {
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " reconcile=" + std::to_string(summary->reconcile_action()->isEnabled() ? 1 : 0));
+			if (line != unknownServerError || !summary->reconcile_action()->isEnabled()) {
+				return ++probe.Waited < 400U ? result::pending : fail("unknown-reason-not-replaced");
+			}
+			probe.Evidence.ReasonReplaced = posts().size() == 1U && summary->status_label()->accessibleDescription() == line;
+			if (!probe.Evidence.ReasonReplaced) {
+				return fail("unknown-reason-replaced-wrongly");
+			}
+			{
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads  = false;
+				server.ReviewReadStatus = 0;
 			}
 			summary->reconcile_action()->trigger();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_reconciled;
 			return result::pending;
+		}
+		case state_type::phase::awaiting_restored_unknown: {
+			// [[BPR-1541]]. Restarted over the kept root, with the review
+			// list's reads held: before Check status answers, the restored
+			// review already says what its record kept.
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " status=" + summary->status_label()->text().toStdString());
+			if (line.isEmpty() || summary->unknown_reason_label()->isHidden()) {
+				return ++probe.Waited < 400U ? result::pending : fail("restored-reason-not-shown");
+			}
+			probe.Evidence.ReasonRestored = line == unknownLine(core::review_submission_unknown_reason::network) && summary->shown_draft()
+				&& summary->shown_draft()->State == core::review_submission_state::submitting && summary->status_label()->text().startsWith(QStringLiteral("Checking the original review"));
+			if (!probe.Evidence.ReasonRestored) {
+				return fail("restored-reason-not-the-kept-one");
+			}
+			{
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads  = true;
+				server.ReviewReadStatus = 503;
+				server.StallReviewReads = false;
+			}
+			server.ReadGate.notify_all();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_restored_replaced;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_restored_replaced: {
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " status=" + summary->status_label()->text().toStdString());
+			if (line != unknownServerError) {
+				return ++probe.Waited < 400U ? result::pending : fail("restored-reason-not-replaced");
+			}
+			probe.Evidence.ReasonReplaced = summary->status_label()->text().startsWith(QStringLiteral("Review status is unknown."));
+			if (!probe.Evidence.ReasonReplaced) {
+				return fail("restored-reason-replaced-wrongly");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
 		}
 		case state_type::phase::awaiting_reconciled: {
 			const auto published = countPublished();
@@ -30567,6 +31008,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 1 comment");
 			if (!probe.Evidence.Reconciled) {
 				return fail("reconciled-after-a-second-post");
+			}
+			// [[BPR-1541]]. Confirmed: no reason is shown.
+			probe.Evidence.ReasonCleared = summary->unknown_reason_label()->isHidden() && summary->unknown_reason_label()->text().isEmpty();
+			if (!probe.Evidence.ReasonCleared) {
+				return fail("reason-kept-after-confirmation");
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

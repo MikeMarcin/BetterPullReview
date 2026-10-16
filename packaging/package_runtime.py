@@ -25,12 +25,18 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LINUX_TARGETS = {"DEB": "linux-ubuntu-26.04-x64", "RPM": "linux-rhel-10-x64"}
-QT_LIBRARIES = {"Core", "Gui", "Widgets", "Network", "DBus", "OpenGL", "XcbQpa"}
+# RFC-BPR-0084 Q1: Svg rasterizes SVG body images (the library, no plugin).
+QT_LIBRARIES = {"Core", "Gui", "Widgets", "Network", "DBus", "OpenGL", "XcbQpa", "Svg"}
+# RFC-BPR-0084. GIF and JPEG decode body images; PNG is built into QtGui. Owner
+# amendment 1 (Q2) adds WebP, qtimageformats' qwebp with its bundled libwebp.
 PLUGINS = {
     "Darwin": ["platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib",
-               "networkinformation/libqapplenetworkinformation.dylib", "tls/libqsecuretransportbackend.dylib"],
-    "Windows": ["platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "tls/qschannelbackend.dll"],
-    "Linux": ["platforms/libqxcb.so", "tls/libqopensslbackend.so"],
+               "networkinformation/libqapplenetworkinformation.dylib", "tls/libqsecuretransportbackend.dylib",
+               "imageformats/libqgif.dylib", "imageformats/libqjpeg.dylib", "imageformats/libqwebp.dylib"],
+    "Windows": ["platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "tls/qschannelbackend.dll",
+                "imageformats/qgif.dll", "imageformats/qjpeg.dll", "imageformats/qwebp.dll"],
+    "Linux": ["platforms/libqxcb.so", "tls/libqopensslbackend.so",
+              "imageformats/libqgif.so", "imageformats/libqjpeg.so", "imageformats/libqwebp.so"],
 }
 CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(?:_1|_threads)?|concrt140)\.dll", re.I)
 # Declared non-binary runtime files beside the application. [[BPR-0974]]: the
@@ -50,7 +56,7 @@ PRIVATE_LIBRARIES = {
 # list its copyright line names.
 NOTICE_FILES = (
     "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
-    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "fmt/LICENSE",
+    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "gemoji/LICENSE", "fmt/LICENSE",
     "sha1collisiondetection/LICENSE", "hacl-star/LICENSE", "rapidfuzz-cpp/LICENSE", "dtl/COPYING",
     "git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt",
 )
@@ -87,7 +93,32 @@ def inputs(build: Path) -> dict:
     qt_version = next(item["version"] for item in components(value) if item["name"] == "QtBase")
     if value["platform"] != platform.system() or value["qt_version"] != qt_version:
         raise ValueError("native platform and pinned Qt version must match package inputs")
+    if value["platform"] == "Windows":
+        for producer in private_library_producers(value):
+            if not producer.resolve().is_relative_to(build.resolve()):
+                raise ValueError("private-library producer is outside the selected build")
     return value
+
+
+def private_library_producers(info: dict) -> list[Path]:
+    """Source-built library identities come from the fixed runtime declaration.
+
+    The selected CMake graph emits their producer paths; a filename in an
+    inspected package cannot grant itself first-party producer authority.
+    File bytes and full native link evidence are checked separately.
+    """
+    declared = info.get("private_libraries")
+    if not isinstance(declared, dict) or set(declared) != set(PRIVATE_LIBRARIES[info["platform"]]):
+        raise ValueError("private-library producer declaration mismatch; reconfigure the selected build")
+    producers = []
+    for relative, value in declared.items():
+        if not isinstance(value, str):
+            raise ValueError("invalid private-library producer path")
+        producer = Path(value)
+        if not producer.is_absolute() or producer.name != Path(relative).name or producer.is_symlink():
+            raise ValueError("invalid private-library producer path")
+        producers.append(producer)
+    return producers
 
 
 # [[BPR-1179]]. The two removable component families a package was built with.
@@ -286,6 +317,16 @@ def qt_records(info: dict, root: Path) -> dict:
     # Match deployed runtime files to the producer's SBOM, then traverse only
     # runtime relationships. Build tools (rcc/moc/designer) are not product code.
     upstream = json.loads((Path(info["qt_root"]) / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
+    # RFC-BPR-0084. QtSvg and qtimageformats' qwebp come from their own
+    # producer SBOMs; a package that deploys them joins those documents to
+    # qtbase's before matching, and refuses to go on without them.
+    deployed_names = {path.name for path in root.rglob("*") if path.is_file()}
+    for module, marker in (("qtsvg", "QtSvg"), ("qtimageformats", "qwebp")):
+        if not any(marker in name for name in deployed_names):
+            continue
+        extra = json.loads((Path(info["qt_root"]) / f"sbom/{module}-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
+        for key in ("packages", "files", "relationships", "hasExtractedLicensingInfos"):
+            upstream.setdefault(key, []).extend(item for item in extra.get(key, []) if item not in upstream.get(key, []))
     def identity(name: str) -> str:
         # ELF deployment preserves the SONAME; the producer records the full
         # versioned file behind that symlink. Both identify the same module.
@@ -327,13 +368,21 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
     texts.append(("Corresponding source release asset", source_reference + "See SOURCE-OFFERS.txt for recipient access, retention and replacement instructions."))
     for relative in NOTICE_FILES:
         texts.append((relative, (ROOT / "third_party" / relative).read_text(encoding="utf-8")))
-    for name in ("QtBase", "KSyntaxHighlighting"):
+    for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting"):
         with tarfile.open(archives[name]) as source:
             for member in source.getmembers():
                 if member.isfile() and "/LICENSES/" in member.name and member.size < 1024 * 1024:
                     stream = source.extractfile(member)
                     assert stream is not None
                     texts.append((member.name, stream.read().decode("utf-8")))
+    # RFC-BPR-0084 Q2. libwebp is compiled into qwebp: its licence, patent
+    # grant and authors travel whole.
+    with tarfile.open(archives["QtImageFormats"]) as source:
+        for member in source.getmembers():
+            if member.isfile() and re.search(r"/src/3rdparty/libwebp/(COPYING|PATENTS|AUTHORS)$", member.name):
+                stream = source.extractfile(member)
+                assert stream is not None
+                texts.append((member.name, stream.read().decode("utf-8")))
     # Preserve every embedded definition/theme's own attribution, including
     # legacy LGPL/GPL data licenses; never infer all KDE resources are MIT.
     with tarfile.open(archives["KSyntaxHighlighting"]) as source:

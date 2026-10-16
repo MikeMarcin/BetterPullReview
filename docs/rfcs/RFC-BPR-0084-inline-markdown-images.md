@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0084"
 title: "Show images in descriptions and comments the way GitHub does"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0036"]
 metadata: {"rfc_base_sha":"94699fd51c2644c3ebb38743f623927d179859a1","mandate_revision":"inline-markdown-images-r1","milestone_plan":{"id":"inline-markdown-images-v1","path":"docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json"}}
@@ -27,6 +27,15 @@ cards:
 | [[BPR-1548]] | Qt presentation, composition, packaging (AC01, AC02, AC05) |
 | [[BPR-1549]] | On-disk cache in the profile (AC06) |
 | [[BPR-1550]] | Live course, attended owner review and closeout (AC07, AC08) |
+| [[BPR-1554]] | SVG through QtSvg ([owner amendment 1](#owner-amendment-1-2026-10-16-answers-to-q1-q3), AM1-01) |
+| [[BPR-1555]] | WebP through Qt's WebP plugin (AM1-02) |
+| [[BPR-1556]] | "Images in descriptions and comments" preference (AM1-03) |
+
+Closed 2026-10-16 by [[BPR-1550]]: the live course on `MikeMarcin/BPR-Test`
+passed, the owner accepted the images criterion in attended session
+`8a5e3c24` (cursor 17), and owner amendment 1 (SVG, WebP, the preference) was
+implemented by [[BPR-1554]] to [[BPR-1556]] and verified on the tree merged
+with `main`.
 
 The image parts of RFC-BPR-0036 ("Links, images and remote content" and the
 image clause of its AC-03) are superseded by this RFC for image references
@@ -203,7 +212,7 @@ images keep the placeholder until a later extension.
 
 Formats are PNG, JPEG and GIF, recognized by signature, decoded with format
 auto-detection off. SVG, WebP and anything else are **unsupported** and keep
-the placeholder (see open questions).
+the placeholder (see open questions). Owner amendment 1 adds SVG and WebP.
 
 ### Caching and requests
 
@@ -241,7 +250,53 @@ cookie or referrer is sent.
 - **Q3 Setting.** Accept to add a "Load images in descriptions and comments"
   preference, on by default; Reject to load always.
 
-Until answered, the defaults above apply.
+Until answered, the defaults above apply. The owner accepted all three on
+2026-10-16; see owner amendment 1.
+
+### Owner amendment 1 (2026-10-16): answers to Q1-Q3
+
+Recorded from attended session `8a5e3c244f674294366fd8796da2897e` (cursor 17):
+the owner accepted "Images in descriptions and comments show the way GitHub
+shows them" and each open question, with no notes. Accepting Q2 is the owner's
+approval of libwebp (BSD-3-Clause) inside Qt's `qtimageformats`.
+
+- **SVG (Q1).** An SVG payload, recognized by its root element, is rasterized
+  once, statically, with QtSvg's renderer (untrusted-source mode, animations
+  off), never through a Qt image plugin. The core admits it first: at most
+  1 MiB, 20,000 elements and nesting depth 64; every `href` names a fragment of
+  the document or an embedded `data:image/png|jpeg|gif|webp|svg+xml` payload;
+  every CSS `url()` names a fragment; no entity declaration, internal doctype
+  subset, script, `foreignObject`, `@import`, `@font-face` or SVG font. So
+  nothing outside the document is ever loaded: no file, URL or external font
+  or image. A refused SVG is `blocked`, an oversized one `too_large`. The
+  rasterized size is the SVG's own (`width`/`height`, else its `viewBox`,
+  else 300 x 150 as in a browser) within the pixel and side bounds, drawn at
+  twice that size so it stays sharp at high density. The package adds the
+  QtSvg library and no SVG plugin.
+- **WebP (Q2).** WebP, recognized by its `RIFF....WEBP` signature, decodes
+  through Qt's `qwebp` plugin from `qtimageformats` with the same byte, pixel,
+  side, frame and decoded-byte bounds as GIF; an animated WebP animates. The
+  pinned Qt provider adds the `qtimageformats` module; the package ships only
+  `qwebp` from it.
+- **Preference (Q3).** Settings > Review behaviour has "Descriptions and
+  comments: Images — Load / Don't load", Load by default, stored in the
+  profile's workbench preferences and applied live in every window. Don't
+  load shows every image as its placeholder and sends no resolution or fetch;
+  turning it back on shows the images again.
+
+Packaging, release and capsule plugin policies, third-party notices and the
+SBOM name QtSvg, `qtimageformats` and its bundled libwebp.
+
+- **AM1-01:** Core and decoder tests show an admitted SVG rasterized at its
+  size and twice its density, and each refused construct (`http`/`file`
+  `href`, external `url()`, entity, script, `foreignObject`, `@import`,
+  `@font-face`, over-bound size, elements or depth) ending in its state with a
+  negative control; a composed fixture shows an SVG badge inline.
+- **AM1-02:** Decoder tests show still and animated WebP within the bounds and
+  an over-bound one refused; the composed fixture shows a WebP image; package,
+  release and capsule policies and notices name the added files.
+- **AM1-03:** Storage, Qt and composed tests show the preference persisted
+  (schema migration keeps Load), applied live, and off making no request.
 
 ## Acceptance criteria
 

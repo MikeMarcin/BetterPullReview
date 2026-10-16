@@ -746,12 +746,22 @@ class DependencyModernizationTests(unittest.TestCase):
         # empty prefix on a zero exit -- the exact intermittent failure the
         # provider's own comment says exit status cannot rule out.
         for arm, guard in (
-            ('bpr_validate_qt_prefix("${prefix}" cached_is_valid)', "if(NOT cached_is_valid)"),
+            ('bpr_validate_qt_prefix("${prefix}" cached_is_valid)', "if(NOT cached_is_valid OR NOT cached_has_addons)"),
             ('bpr_validate_qt_prefix("${BPR_QT_ROOT}" supplied_is_valid)', "if(NOT supplied_is_valid)"),
-            ('bpr_validate_qt_prefix("${prefix}" attempt_is_valid)', "if(attempt_is_valid)"),
+            ('bpr_validate_qt_prefix("${prefix}" attempt_is_valid)', "if(attempt_is_valid AND attempt_has_addons)"),
         ):
             self.assertIn(arm, provider)
             self.assertIn(guard, provider)
+        # RFC-BPR-0084. Each arm also requires the add-on modules (QtSvg and
+        # the WebP plugin): a cached, supplied or freshly written prefix
+        # without them is never accepted.
+        for arm in (
+            'bpr_validate_qt_addons("${prefix}" cached_has_addons)',
+            'bpr_validate_qt_addons("${BPR_QT_ROOT}" supplied_has_addons)',
+            'bpr_validate_qt_addons("${prefix}" attempt_has_addons)',
+        ):
+            self.assertIn(arm, provider)
+        self.assertRegex(provider, r"(?m)^set\(BPR_QT_ADDON_MODULES qtimageformats\)$")
 
         # The lock has to be held before the prefix is read or written, not
         # merely to exist somewhere in the file.

@@ -96,7 +96,7 @@ subscriptions. Saved preferences belong to the current BPR profile.
 | Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
 | Drawers | Drawer controls Hidden | Drawer-control preference |
 | Comparison | Line details Shown; center ribbon width 28 px | Both comparison preferences |
-| Comment labels | Label helper off; Label marks Icons (or Letters, the two-letter shortcodes; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These four choices |
+| Comment labels | Label helper off; Label marks Icons (or Letters, each label's two letters; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These four choices |
 | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
 
 **Center ribbon width** sets the space connecting the two source panes, in
@@ -104,10 +104,12 @@ logical pixels (16–256). It defaults to 28 px, half the former fixed 56 px.
 The accepted value updates every window of the profile and survives restart;
 Comparison’s Reset restores 28 px and shows Line details.
 
-Comment labels ([[BPR-1088]]). **Label helper** turns on the comment
-editor's label chip completion and its leading `:shortcodes:` in every window
-of the profile once the choice is saved; a label typed out in full is
-recognized and counted either way. **Overview counts** is where a pull
+Comment labels ([[BPR-1088]]). **Label helper** sends the Review feedback
+guidance with each comment workshop request (see below) once the choice is
+saved; a label typed out in full, or chosen with the chip, is recognized and
+counted either way. Until [[BPR-1565]] it also turned on the comment editor's
+leading `:xx:` codes and their completion, which the owner removed on
+2026-10-16; a code typed now stays text. **Overview counts** is where a pull
 request's Overview starts, Open (unresolved threads) or All; switching
 on an Overview changes only that view. **Overview chips** lists the twelve
 labels: tick one to give it its own count in the Overview's Comments column,

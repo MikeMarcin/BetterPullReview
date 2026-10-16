@@ -53,7 +53,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Eleven added the writing hooks' overrides to the profile row.
 	///
 	/// Twelve since [[BPR-1083]]: how label marks are drawn, icons or the
-	/// two-letter shortcode marks, in the profile row. A migrated row reads
+	/// two-letter marks, in the profile row. A migrated row reads
 	/// icons, the default.
 	///
 	/// Thirteen since [[BPR-1088]]: the comment editor's label helper, the
@@ -86,7 +86,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// bit. Older window rows retain the four original bits and start it expanded.
 	/// Twenty since [[BPR-1512]]: the profile's center ribbon width, defaulting
 	/// to 28 logical pixels, with all previous profile and window choices retained.
-	inline constexpr std::int64_t workbench_settings_schema_version = 20;
+	inline constexpr std::int64_t workbench_settings_schema_version = 21;
 
 	/// \brief Owns the durable workbench layout database.
 	///

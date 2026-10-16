@@ -1,3 +1,20 @@
+# BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
+# a confirmed kept-reply action can arrive while a reread reopens private storage.
+# Retain its core-admitted command/CAS with the exact shared owner and consumer;
+# restore completion drains it, and scope replacement retires it. A later explicit
+# action on the same draft replaces its pending intent without recomputing a CAS.
+# The existing deleted-thread public course holds the private effect lane across
+# confirmation, then requires the original durable discard/zero-send evidence.
+# Native format22 and print-only digests were observed; print mode verifies nothing.
+# Focused native/control/static acceptance remains pending in the BPR-1527 checkpoint.
+# Production mutation-branch pin, provider, grant and credential admission unchanged.
+# BPR-1527 Windows0.2.2 scoped review after Mac boundary c233c7683:
+# github_application.cpp changes only test-build failure observations for
+# the already-scoped UIforETW probe and label authoring. No new source body,
+# credential, grant, provider or publication branch is executed or admitted.
+# Exact native print-only digests were observed after format22; that mode
+# verifies nothing. Self-review/checkpoint retain the pending native checks.
+# The production mutation-branch digest below is unchanged.
 # BPR-1526 scoped self-review over 8f0d25418: c3009b2b0 is the only
 # committed production-app manifest change, plus nine behavior-preserving
 # local/parameter naming repairs in this upkeep slice. The first-save workshop
@@ -1515,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8d6818d7974315580333eed60b7b7b72fd50ee052dd742c8838e5a3d35523c9b"
+		"88e47223d463c402348d8d0ee42a6e098cff4b8c0c09a9d92dfe4a51541fb20d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cae8d253b4124d11d70312d414576002e89fca95e713a88cd9bc5a8474ec71a6"
+        "73f7e0fe9817cb285068e28a6794920733f502e0f286730c3a5e3f96f752c657"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2577,3 +2594,63 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
+
+# [[BPR-1558]] reseal over main 1e5c35b7f, whose own pins match its tree.
+# github_application.cpp hands one syntax classification to every comparison
+# side whose blob it names (a pure rename's two panes share one classification),
+# and clear_diff_selection retires the appearance host's in-flight
+# classifications beside the classifier blob bindings it already dropped. A
+# tests-on hold in the composition blob source and two fixture accessors
+# (github_application_fixture_access.hpp) let a course order classification
+# after the diff. Presentation delivery only: no grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1558.
+
+# [[BPR-1543]] reseal over main at ec097d8dc (RFC-BPR-0084's inline images
+# and BPR-1558 merged; the last matching pins), recomputed on the tree that
+# merges this card onto it. The constructed markdown-parity-v1 fixture
+# joins the test-build fixture enum (github_application_fixture_access.hpp),
+# the host-profile table (github_application.cpp), the served-fixture table
+# (github_public_path_fixture.cpp, sharing overview-labels-v1's descriptor with
+# its own contract directory) and the --github-fixture names (main.cpp),
+# exactly as intraline-v1 did for BPR-1537. Test builds only: no grant,
+# target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1543.
+
+# Merge reseal (2026-10-16): local main e64c7158f merged with origin/main
+# 23447f3a9 over merge base c233c7683. Each side's pinned-scope changes carry
+# their own recorded review: BPR-1527's Windows 0.2.2 commits (retained
+# first-file choice, abandoned tab load on an accepted refresh, kept-reply
+# commands held while private storage reopens, test-build probe observations)
+# and, on local main, BPR-1531/1532/1537/1539/1540/1541/1543/1558, and the
+# RFC-BPR-0084 image cards. git merged github_application.cpp and
+# github_application_fixture_access.hpp without conflict; the merged text is
+# the union of the reviewed diffs, and the only adjacent pair (BPR-1539's
+# adopt_tab_destination reset and BPR-1527's retained Chosen file) composes:
+# another pull request clears the choice, an accepted refresh of the same one
+# keeps it. Digests recomputed on the merged tree with
+# BPR_PRINT_PINNED_DIGESTS. No grant, provider, credential, transport,
+# publication or production mutation-branch change.
+
+# [[BPR-1565]] reseal over main at 05e32be79, after the merge reseal above. The
+# owner removed the comment editor's typed `:xx:` label codes on 2026-10-16.
+# github_application.cpp, in its tests-on label-authoring course only: the
+# `:qu:` phase now types `:qu: ` and the subject with the label helper on,
+# checks the text stays as typed with no label and no control edit, takes
+# the code out with one selection and Backspace, then goes on to the chip as
+# before; one comment explains why the course still turns the helper on.
+# main.cpp prints the renamed evidence bit (CodeStaysLiteral, in the same
+# place) and github_application_fixture_access.hpp names it. Test builds
+# only: no grant, target, provider, credential, transport, GitHub write,
+# mutation or publication path changes; the production mutation-branch pin
+# is unchanged; the full application and production-manifest digests are
+# refreshed. Self-review on BPR-1565.
+
+# [[BPR-1544]] reseal over main at 7132f6356 (BPR-1565's pins), recomputed on
+# the tree that merges this card onto it. The constructed markdown-html-v1
+# fixture joins the same four test-build tables as markdown-parity-v1 did for
+# BPR-1543, sharing overview-labels-v1's descriptor with its own contract
+# directory. Test builds only: no grant, target, provider, credential,
+# transport, GitHub write, mutation or publication path changes; the
+# production mutation-branch pin is unchanged. Self-review on BPR-1544.

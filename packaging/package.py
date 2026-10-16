@@ -67,7 +67,8 @@ def main() -> None:
     signatures = {}
     producers = {}
     if all(windows_options):
-        for image in [Path(info["app"]), *(Path(value) for value in info["helpers"])]:
+        for image in [Path(info["app"]), *(Path(value) for value in info["helpers"]),
+                      *runtime.private_library_producers(info)]:
             if image.name in producers:
                 raise ValueError("duplicate first-party image name")
             receipt = signing.sign_windows(image, args.signtool, args.azure_dlib, args.azure_metadata, args.publisher)

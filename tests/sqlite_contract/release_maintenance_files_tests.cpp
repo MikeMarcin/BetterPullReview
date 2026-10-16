@@ -159,6 +159,8 @@ namespace {
 		write(aRoot / "state/v1/review-cycles.sqlite3-wal", "cycle sidecar");
 		write(aRoot / "state/v1/review-overviews.sqlite3", "private cached overview");
 		write(aRoot / "state/v1/review-overviews.sqlite3-wal", "cached overview sidecar");
+		write(aRoot / "state/v1/markdown-images.sqlite3", "cached body images");
+		write(aRoot / "state/v1/markdown-images.sqlite3-wal", "cached body image sidecar");
 		{
 			auto       connections = adapters::sqlite::make_remembered_connection_store(aRoot, core::default_bpr_profile_id);
 			const auto before      = connections->load({ });
@@ -228,6 +230,7 @@ namespace {
 		expect(host.state().Stopped && vault.Erased == 1, "profile purge stops runtime after exact credential deletion");
 		expect(!fs::exists(root.Path / "logs/diagnostics.log") && !fs::exists(root.Path / "state/v1/appearance-settings.sqlite3-wal"), "data and sidecars deleted");
 		expect(!fs::exists(root.Path / "state/v1/review-overviews.sqlite3") && !fs::exists(root.Path / "state/v1/review-overviews.sqlite3-wal"), "profile purge removes cached overview and sidecar");
+		expect(!fs::exists(root.Path / "state/v1/markdown-images.sqlite3") && !fs::exists(root.Path / "state/v1/markdown-images.sqlite3-wal"), "profile purge removes the image cache and sidecar");
 		expect(!fs::exists(root.Path / "state/v1/review-tours.sqlite3") && !fs::exists(root.Path / "state/v1/review-tours.sqlite3-wal"), "profile purge removes tour prose and baselines");
 		expect(!fs::exists(root.Path / "state/v1/review-cycles.sqlite3") && !fs::exists(root.Path / "state/v1/review-cycles.sqlite3-wal"), "profile purge removes local review cycles");
 		expect(!fs::exists(root.Path / "state/v1/remembered-connections.sqlite3") && !fs::exists(root.Path / "state/v1/remembered-connections.sqlite3-wal"), "profile purge removes remembered connection metadata and sidecar");

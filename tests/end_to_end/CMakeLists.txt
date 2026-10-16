@@ -3253,6 +3253,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_overview_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "overview-feedback-public-path:pass")
+# RFC-BPR-0084. markdown-images-v1's images resolved, fetched, decoded and
+# drawn in the description and in comments through the real composition.
+bpr_add_network_isolated_test(
+    NAME application_markdown_images_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --markdown-images
+)
+set_tests_properties(application_markdown_images_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "markdown-images-public-path:pass")
 # [[BPR-1089]]. overview-labels-v1, the pull request the owner's Overview look
 # opens: its counts in Open and All, Settings' chips in order, the ? count, and
 # the Label key, a Comments menu and Discuss's caption in the page's theme.
@@ -4346,6 +4356,19 @@ bpr_add_network_isolated_test(NAME application_cpp_identifier_appearance WINDOWS
 set_tests_properties(application_cpp_identifier_appearance PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CPP_IDENTIFIER_RENDER_ROOT=${PROJECT_BINARY_DIR}/cpp-identifier-renders"
     TIMEOUT 240 PASS_REGULAR_EXPRESSION "CPP_IDENTIFIER_APPEARANCE_OK")
+
+# BPR-1558: both panes end classified whichever of classification and diff answers first.
+bpr_add_executable(test_syntax_delivery_public_path syntax_delivery_public_path_tests.cpp)
+target_link_libraries(test_syntax_delivery_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_syntax_delivery_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_syntax_delivery_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_syntax_delivery_public_path)
+bpr_enable_warnings(test_syntax_delivery_public_path)
+bpr_add_network_isolated_test(NAME application_syntax_delivery WINDOWS_UNCONTAINED
+    COMMAND test_syntax_delivery_public_path)
+set_tests_properties(application_syntax_delivery PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "SYNTAX_DELIVERY_PUBLIC_PATH_OK")
 
 # RFC-BPR-0076: entry, exact tab restoration, bounds and actual window-system keys.
 bpr_add_executable(test_review_navigation_entry_public_path review_navigation_entry_public_path_tests.cpp)

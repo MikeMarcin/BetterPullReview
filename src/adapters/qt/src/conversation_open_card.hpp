@@ -209,7 +209,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto change_view() const noexcept -> QWidget*;
 		[[nodiscard]] auto reply_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto reply_field() const noexcept -> QAbstractButton*;
-		/// \brief The reply's label chip, menu and shortcodes: the composer's
+		/// \brief The reply's label chip and menu: the composer's
 		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
 		/// takes no reply.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;
@@ -229,7 +229,16 @@ namespace bpr::qt {
 
 		std::function<void(card_action)>                        Action;
 		std::function<void(const std::string&, const QString&)> Link;
-		std::function<void(const QString&)>                     ReplyText;
+		/// RFC-BPR-0084. A published post's image references, by post identity.
+		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageRequest;
+		/// \brief Shows one image answer in the post it names.
+		void apply_image(const application::markdown_image_projection& aImage);
+		/// \brief Asks again for every published post's images still loading.
+		void request_images();
+		/// \brief RFC-BPR-0084 Q3. Shows or hides every post's images, now and
+		/// for posts built later.
+		void                                set_images_shown(bool aShown);
+		std::function<void(const QString&)> ReplyText;
 		/// [[BPR-1212]]. Each edit of my draft written in the composer.
 		std::function<void(const QString&)> DraftText;
 		std::function<void()>               HeightChanged;
@@ -263,6 +272,7 @@ namespace bpr::qt {
 		bool                     Replying    = false;
 		bool                     Applying    = false;
 		bool                     Publishable = false;
+		bool                     ImagesShown = true;
 		int                      Notch       = 14;
 		QWidget*                 Header      = nullptr;
 		QWidget*                 Foot        = nullptr;

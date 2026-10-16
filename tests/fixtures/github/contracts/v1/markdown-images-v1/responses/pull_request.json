@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "## Export summary card\n\nThe weekly export summary becomes a card. Screenshots from the issue it fixes:\n\n![The summary before the change](https://github.com/user-attachments/assets/5b1d1c1e-0f2a-4c3b-9d4e-000000000001)\n\n<img width=\"420\" alt=\"The summary card at a set width\" src=\"https://github.com/user-attachments/assets/5b1d1c1e-0f2a-4c3b-9d4e-000000000002\" />\n\n| Before | After |\n|---|---|\n| <img width=\"300\" alt=\"Before\" src=\"https://github.com/user-attachments/assets/5b1d1c1e-0f2a-4c3b-9d4e-000000000003\" /> | <img width=\"300\" alt=\"After\" src=\"https://github.com/user-attachments/assets/5b1d1c1e-0f2a-4c3b-9d4e-000000000004\" /> |\n\n- A transparent PNG through GitHub's image proxy: ![Dice with transparency](https://images.example.invalid/dice.png)\n- A linked photograph: [![A flower](https://images.example.invalid/flower.png)](https://images.example.invalid/flower)\n- An animated GIF at a set height: <img height=\"48\" alt=\"Loading\" src=\"https://images.example.invalid/loading.gif\">\n\n<picture>\n  <source media=\"(prefers-color-scheme: dark)\" srcset=\"https://images.example.invalid/theme-dark.png\">\n  <img alt=\"A themed banner\" src=\"https://images.example.invalid/theme-light.png\">\n</picture>\n\nBuild status: ![build](https://images.example.invalid/badge.svg)\n\nA WebP photograph: ![Sunset over the bay](https://images.example.invalid/sunset.webp)\n\n`<img src=\"not-an-image.png\">` stays code.\n",
+	"changed_files": 17,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "nested-folders",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_21",
+	"number": 21,
+	"state": "open",
+	"title": "Show the weekly export summary as a card",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

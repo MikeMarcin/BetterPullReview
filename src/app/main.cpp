@@ -232,6 +232,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-open-on-github" },
 		bpr::app::command_line_option{ .Name = "attended-open-settings" },
 		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -1281,7 +1282,7 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
-		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain|again`.
+		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain|again|kept|restored`.
 		std::optional<bpr::app::detail::start_review_course> StartReviewCourse;
 		bool                                                 StartReviewPassed = false;
 		bpr::app::detail::start_review_probe_evidence        StartReviewEvidence;
@@ -3706,6 +3707,7 @@ namespace {
 			// same head over the same data root, whose objects are already held.
 			// [[BPR-1374]]. So does the unsent-reply course's restart.
 			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
+					|| aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::restored }
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
 				? 0
 				: aRun.MaintenanceProbe
@@ -4940,7 +4942,7 @@ namespace {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
 				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReviewEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
-				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
+				   << evidence.CodeStaysLiteral << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
 				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
@@ -4989,7 +4991,14 @@ namespace {
 					   << evidence.SecondDiscard << evidence.AgainStarted << evidence.AgainOffered << evidence.AgainSubmitted << '\n';
 				break;
 			case bpr::app::detail::start_review_course::uncertain:
-				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.Reconciled << '\n';
+				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.ReasonShown << evidence.ReasonReplaced << evidence.Reconciled
+					   << evidence.ReasonCleared << '\n';
+				break;
+			case bpr::app::detail::start_review_course::kept:
+				stream << "START_REVIEW_KEPT_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.ReasonShown << '\n';
+				break;
+			case bpr::app::detail::start_review_course::restored:
+				stream << "START_REVIEW_RESTORED_EVIDENCE:" << evidence.ReasonRestored << evidence.ReasonReplaced << '\n';
 				break;
 			}
 			stream << "START_REVIEW_DIAGNOSTIC:" << QString::fromStdString(aRun.StartReviewDiagnostic) << '\n';
@@ -5424,6 +5433,7 @@ namespace {
 	// (`--attended-open-pull-request`) it stops once the pull request is open.
 	void schedule_attended_preflight_look(bpr::app::github_application& aApplication, std::string aLook);
 	void schedule_attended_workshop_look(bpr::app::github_application& aApplication);
+	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5504,6 +5514,8 @@ namespace {
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
 					if (look == "workshop") {
 						schedule_attended_workshop_look(aApplication);
+					} else if (look == "unknown-review") {
+						schedule_attended_unknown_review_look(aApplication);
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
@@ -5625,6 +5637,36 @@ namespace {
 			window.settings_action()->trigger();
 			QTextStream{ stdout } << (window.settings()->isVisible() ? "ATTENDED_SETTINGS_SHOWN" : "ATTENDED_SETTINGS_FAILED") << '\n';
 		});
+	}
+
+	// [[BPR-1541]]. `--attended-unknown-review-look`: on
+	// conventional-comments-v1, once the file is shown, the start-a-review
+	// course's `kept` path runs in the open window: a review with one comment
+	// is submitted as Comment, its answer and the review list are lost, and
+	// the window stays on the held review, whose page says why its status is
+	// unknown. Nothing reaches GitHub; one line says where it got.
+	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, bpr::app::detail::start_review_course::kept);
+			if (result == bpr::app::detail::start_review_probe_result::pending) {
+				return;
+			}
+			timer->stop();
+			timer->deleteLater();
+			if (result == bpr::app::detail::start_review_probe_result::passed) {
+				QTextStream{ stdout } << "ATTENDED_UNKNOWN_REVIEW_SHOWN\n";
+			} else {
+				QTextStream{ stdout } << "ATTENDED_UNKNOWN_REVIEW_FAILED:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::start_review_diagnostic(aApplication)) << '\n';
+			}
+			QTextStream{ stdout }.flush();
+		});
+		timer->start();
 	}
 
 	// [[BPR-1084]] and [[BPR-1085]]. `--attended-preflight-look`: on
@@ -8905,8 +8947,9 @@ auto main(int argc, char** argv) -> int
 			= launch.has("--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
 			= launch.has("--public-preview-unfetchable-first-head-course");
-		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
-		// the helper, and reads the pull request again after publishing.
+		// [[BPR-1083]]. The label-authoring course types `:qu:` with the helper
+		// on, to show it stays text ([[BPR-1565]]), and reads the pull request
+		// again after publishing.
 		const auto labelAuthoringProbe    = launch.has("--label-authoring-probe");
 		fixtureOptions.LabelHelper        = launch.has("--label-helper") || labelAuthoringProbe;
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
@@ -8920,6 +8963,13 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1345]]. The start-a-review course reads again after publishing.
 		const auto startReviewCourse      = launch.value("--start-review-course");
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
+		// [[BPR-1541]]. The restored course holds the review list's reads, so
+		// the restarted window shows the reason its record kept before Check
+		// status answers.
+		if (startReviewCourse == std::optional<std::string_view>{ "restored" }) {
+			fixtureOptions.ReviewSubmissionServer                   = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.ReviewSubmissionServer->StallReviewReads = true;
+		}
 		// [[BPR-1478]]. The refresh-pick course reads the pull request again.
 		const auto refreshPickCourseName = launch.value("--refresh-pick-course");
 		auto       refreshPickCourse     = std::optional<bpr::app::detail::refresh_pick_course>{ };
@@ -9055,6 +9105,56 @@ auto main(int argc, char** argv) -> int
 					.ExpectedAccountText      = "fixture-author (@fixture-author)",
 					.ExpectedConversationRows = 39,
 					.ExpectedThreadId         = std::nullopt,
+				};
+			} else if (*fixture == "markdown-images-v1") {
+				// RFC-BPR-0084. The nested-folders pull request whose bodies hold
+				// GitHub's image forms; see `scripts/build_markdown_images_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_images_v1;
+				fixtureName            = "markdown-images-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Show the weekly export summary as a card",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 2,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mi_1", "issue-comment:IC_mi_2" },
+					.ExpectedThreadId               = std::nullopt,
+				};
+			} else if (*fixture == "markdown-parity-v1") {
+				// [[BPR-1543]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity Markdown fixtures; see
+				// `scripts/build_markdown_parity_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_parity_v1;
+				fixtureName            = "markdown-parity-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Move the cache writer onto the serialized lane",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 4,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mp_1", "issue-comment:IC_mp_2", "issue-comment:IC_mp_3", "issue-comment:IC_mp_4" },
+					.ExpectedThreadId               = std::nullopt,
+				};
+			} else if (*fixture == "markdown-html-v1") {
+				// [[BPR-1544]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity HTML fixtures; see
+				// `scripts/build_markdown_html_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_html_v1;
+				fixtureName            = "markdown-html-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Speed up the cache writer and fix the crash on resume",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 3,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mh_1", "issue-comment:IC_mh_2", "issue-comment:IC_mh_3" },
+					.ExpectedThreadId               = std::nullopt,
 				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
@@ -9576,6 +9676,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
 		// the file, a seeded suggestion draft and, for `review`, the preflight.
 		const auto attendedPreflightLook = launch.value("--attended-preflight-look");
+		// [[BPR-1541]]. The held review that says why it is unknown.
+		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
 		const auto attendedReadState = launch.has("--attended-read-state");
 		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
@@ -9639,6 +9742,7 @@ auto main(int argc, char** argv) -> int
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
 					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
 			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))
+			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -10006,6 +10110,8 @@ auto main(int argc, char** argv) -> int
 									: startReviewCourse == std::optional<std::string_view>{ "refused" }                                                                                                                                                                   ? std::optional{ bpr::app::detail::start_review_course::refused }
 									: startReviewCourse == std::optional<std::string_view>{ "uncertain" }                                                                                                                                                                 ? std::optional{ bpr::app::detail::start_review_course::uncertain }
 									: startReviewCourse == std::optional<std::string_view>{ "again" }                                                                                                                                                                     ? std::optional{ bpr::app::detail::start_review_course::again }
+									: startReviewCourse == std::optional<std::string_view>{ "kept" }                                                                                                                                                                      ? std::optional{ bpr::app::detail::start_review_course::kept }
+									: startReviewCourse == std::optional<std::string_view>{ "restored" }                                                                                                                                                                  ? std::optional{ bpr::app::detail::start_review_course::restored }
 																																																																		  : std::nullopt,
 								.ReplyDraftCourse                = replyDraftCourse,
 								.RefreshPickCourse               = refreshPickCourse,
@@ -10043,6 +10149,9 @@ auto main(int argc, char** argv) -> int
 					auto look = std::optional<std::string>{ };
 					if (attendedWorkshopAgent.has_value()) {
 						look = std::string{ "workshop" };
+					}
+					if (attendedUnknownReviewLook) {
+						look = std::string{ "unknown-review" };
 					}
 					if (attendedPreflightLook.has_value()) {
 						look = std::string{ *attendedPreflightLook };

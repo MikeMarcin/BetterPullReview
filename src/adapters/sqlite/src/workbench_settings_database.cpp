@@ -48,7 +48,8 @@ namespace bpr::adapters::sqlite::detail {
 		/// profile row twenty-seven columns, and [[BPR-1375]] version
 		/// eighteen's Claude model twenty-eight.
 		/// [[BPR-1512]] Version twenty adds the center ribbon width.
-		constexpr std::size_t MaximumTableColumns = 29U;
+		/// RFC-BPR-0084 Q3: version twenty-one's image preference, thirty.
+		constexpr std::size_t MaximumTableColumns = 30U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -127,7 +128,7 @@ namespace bpr::adapters::sqlite::detail {
 				  "writing_stop TEXT NOT NULL DEFAULT '' CHECK(length(CAST(writing_stop AS BLOB)) <= 8192),"
 				  // [[BPR-1083]]. How label marks are drawn, schema version
 				  // 12: zero is the pictorial icons, the default (owner,
-				  // 2026-10-05), one the two-letter shortcode marks.
+				  // 2026-10-05), one the two-letter marks.
 				  "feedback_marks INTEGER NOT NULL DEFAULT 0 CHECK(feedback_marks BETWEEN 0 AND 1),"
 				  // [[BPR-1088]]. Schema version 13, each defaulted so a
 				  // migrated row keeps what it had: the label helper off,
@@ -160,7 +161,11 @@ namespace bpr::adapters::sqlite::detail {
 				  // `core::maximum_claude_model_bytes`, written out for the
 				  // same reason as the wrapper's.
 				  "claude_model TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claude_model AS BLOB)) <= 128),"
-				  "center_ribbon_width INTEGER NOT NULL DEFAULT 28 CHECK(center_ribbon_width BETWEEN 16 AND 256)) STRICT";
+				  "center_ribbon_width INTEGER NOT NULL DEFAULT 28 CHECK(center_ribbon_width BETWEEN 16 AND 256),"
+				  // RFC-BPR-0084 Q3. Schema version 21: whether images in
+				  // descriptions and comments load. Zero is load, the default,
+				  // so a migrated row loads them.
+				  "markdown_images INTEGER NOT NULL DEFAULT 0 CHECK(markdown_images BETWEEN 0 AND 1)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -309,6 +314,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 16                       ? ",line_details"
 				: aVersion <= 17                       ? ",claude_model"
 				: aVersion <= 19                       ? ",center_ribbon_width"
+				: aVersion <= 20                       ? ",markdown_images"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -339,7 +345,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "") + (aVersion >= 20 ? ",center_ribbon_width" : "") + (aVersion >= 21 ? ",markdown_images" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -703,11 +709,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to nineteen
+			// migration named here carries versions one to twenty
 			// specifically, written out rather than derived from the constant,
 			// so a version this build has no step for is refused rather than
 			// handed to the wrong one.
-			if (*current < 0 || *current > 19) {
+			if (*current < 0 || *current > 20) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1055,8 +1061,8 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28) "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1074,7 +1080,7 @@ namespace bpr::adapters::sqlite::detail {
 			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks,"
 			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns,"
 			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback, line_details = excluded.line_details,"
-			"claude_model = excluded.claude_model, center_ribbon_width = excluded.center_ribbon_width");
+			"claude_model = excluded.claude_model, center_ribbon_width = excluded.center_ribbon_width, markdown_images = excluded.markdown_images");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1099,6 +1105,7 @@ namespace bpr::adapters::sqlite::detail {
 			|| ::sqlite3_bind_int64(statement->Value, 20, static_cast<std::int64_t>(aSettings.Behaviour.FeedbackMarks)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 26, static_cast<std::int64_t>(aSettings.Behaviour.LineDetails)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 28, static_cast<std::int64_t>(aSettings.Behaviour.CenterRibbonWidth)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 29, static_cast<std::int64_t>(aSettings.Behaviour.MarkdownImages)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value, 1, static_cast<std::int64_t>(aSettings.Files))
@@ -1394,7 +1401,7 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1468,11 +1475,15 @@ namespace bpr::adapters::sqlite::detail {
 			::sqlite3_column_int64(statement->Value, 25),
 			application::review_line_details::hidden);
 		const auto ribbonWidth = ::sqlite3_column_int64(statement->Value, 27);
+		// RFC-BPR-0084 Q3. Column 28, after center_ribbon_width.
+		const auto markdownImages = preference_of(
+			::sqlite3_column_int64(statement->Value, 28),
+			application::review_markdown_images::off);
 		if (ribbonWidth < application::minimum_center_ribbon_width || ribbonWidth > application::maximum_center_ribbon_width) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		if (!onePane || !openModality || !markRead || !returnComparison
-			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts || !lineDetails) {
+			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts || !lineDetails || !markdownImages) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		// [[BPR-1088]]. The label columns never fail the load: every catalog
@@ -1549,6 +1560,7 @@ namespace bpr::adapters::sqlite::detail {
 				.LabelColumnsRecovery = recovery,
 				.LineDetails          = *lineDetails,
 				.CenterRibbonWidth    = static_cast<std::uint32_t>(ribbonWidth),
+				.MarkdownImages       = *markdownImages,
 			},
 			.WritingHooks  = std::move(hooks),
 			.ClaudeWrapper = std::move(wrapper),

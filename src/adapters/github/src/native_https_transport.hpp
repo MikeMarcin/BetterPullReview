@@ -9,6 +9,7 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 
 #include <chrono>
@@ -173,6 +174,21 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                          aStop)
 			-> native_https_device_authorization_completion;
 
+		/// \brief RFC-BPR-0084. Fetches one body image at its admitted first hop.
+		///
+		/// \details Runs only under the media binding, or under the account
+		/// binding of a GHES profile whose hostname the request's policy names.
+		/// Each redirect is followed only when
+		/// `core::admit_markdown_image_redirect` admits it; the authorization
+		/// header is sent only on a hop the core marked, only by a binding that
+		/// holds a credential, and only to the profile's exact host or its
+		/// `media.` host. No cookie or referrer is sent; identity encoding;
+		/// status 200 only; the byte bound and the request's own deadline hold.
+		[[nodiscard]] auto perform_markdown_image(
+			const application::markdown_image_fetch_request& aRequest,
+			std::stop_token                                  aStop)
+			-> application::markdown_image_fetch_result;
+
 	private:
 		friend class native_git_smart_transport;
 
@@ -278,6 +294,16 @@ namespace bpr::adapters::github::detail {
 		core::github_session_request_context aContext) noexcept
 		-> native_https_transport_factory_result;
 
+	/// \brief RFC-BPR-0084. Builds a credential-free transport for body images only.
+	///
+	/// \details Takes no credential, so none can decay into it. It satisfies
+	/// `perform_markdown_image` and refuses every other entry. It needs the
+	/// profile's system proxy and trust, and serves CLI and native profiles
+	/// alike, since GitHub.com's image addresses carry their own authorization.
+	[[nodiscard]] auto make_native_https_media_transport(
+		const validated_github_host_profile& aProfile) noexcept
+		-> native_https_transport_factory_result;
+
 	/// \brief Builds a shipped transport bound to an anonymous Git smart
 	/// authority.
 	///
@@ -339,6 +365,12 @@ namespace bpr::adapters::github::detail {
 	/// it requires naming it. The symbol exists only under
 	/// `BPR_NATIVE_HTTPS_TESTING` and is absent from a shipped build, so it
 	/// creates no anonymous profile and no partial public mode.
+	/// \brief RFC-BPR-0084. The media transport against the loopback seam.
+	[[nodiscard]] auto make_native_https_media_transport_for_test(
+		const validated_github_host_profile&   aProfile,
+		const native_https_test_configuration& aConfiguration) noexcept
+		-> native_https_transport_factory_result;
+
 	[[nodiscard]] auto make_native_https_credential_free_transport_for_test(
 		const validated_github_host_profile&   aProfile,
 		core::github_session_request_context   aContext,

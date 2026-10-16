@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1562",
+    "BPR-1563",
+    "BPR-1564"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0036 amendment 2: fenced code blocks in the Markdown reader as GitHub renders them (language highlighting, diff blocks, suggestion blocks)",
+  "created": "2026-10-16T18:12:56.260670+00:00",
+  "base": "5e340ee2104c15d42ff27dea8b224c8598758b30"
+}

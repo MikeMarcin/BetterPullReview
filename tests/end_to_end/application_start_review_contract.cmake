@@ -31,8 +31,16 @@ cmake_minimum_required(VERSION 4.4.2)
 #           into a new review, which Comment submits with exactly it, and
 #           nothing says "Review draft discarded.".
 # uncertain The answer and the review list are lost: the draft is held with
-#           its text and no retry; Check status, once the list reads again,
-#           finds the review and marks it published, with one review sent.
+#           its text and no retry, and the page says why under the status
+#           (BPR-1541). Check status with the list answering a server error
+#           replaces that line; Check status, once the list reads again,
+#           finds the review and marks it published, with one review sent,
+#           and no reason is shown.
+# kept      The uncertain course over its own kept data root, stopped once the
+#           held review says why (BPR-1541).
+# restored  That root restarted with the review list's reads held: the
+#           restored review shows the reason its record kept before Check
+#           status answers, and Check status's answer replaces it.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -43,15 +51,19 @@ endforeach()
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 math(EXPR bpr_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
-file(REMOVE_RECURSE "${BPR_ROOT}")
+set(BPR_KEPT_ROOT "${BPR_ROOT}-kept")
+file(REMOVE_RECURSE "${BPR_ROOT}" "${BPR_KEPT_ROOT}")
 bpr_private_data_root(BPR_ROOT)
+bpr_private_data_root(BPR_KEPT_ROOT)
 
 foreach(course_spec IN ITEMS
     "pending|persistent|START_REVIEW_PENDING_EVIDENCE:11111"
     "finish|persistent|START_REVIEW_FINISH_EVIDENCE:11111111"
     "refused|fresh|START_REVIEW_REFUSED_EVIDENCE:1111"
-    "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111"
-    "again|fresh|START_REVIEW_AGAIN_EVIDENCE:1111111111")
+    "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111111"
+    "again|fresh|START_REVIEW_AGAIN_EVIDENCE:1111111111"
+    "kept|kept|START_REVIEW_KEPT_EVIDENCE:1111"
+    "restored|kept|START_REVIEW_RESTORED_EVIDENCE:11")
     string(REPLACE "|" ";" course_parts "${course_spec}")
     list(GET course_parts 0 course)
     list(GET course_parts 1 root)
@@ -59,6 +71,8 @@ foreach(course_spec IN ITEMS
     set(bpr_root_arguments)
     if(root STREQUAL "persistent")
         set(bpr_root_arguments --epoch-fixture-root "${BPR_ROOT}" --epoch-fixture-phase single)
+    elseif(root STREQUAL "kept")
+        set(bpr_root_arguments --epoch-fixture-root "${BPR_KEPT_ROOT}" --epoch-fixture-phase single)
     endif()
     execute_process(
         COMMAND

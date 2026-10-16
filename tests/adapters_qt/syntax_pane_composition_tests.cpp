@@ -20,6 +20,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QApplication>
+#include <QColor>
 #include <QElapsedTimer>
 #include <QPlainTextEdit>
 #include <QScrollBar>
@@ -356,6 +357,81 @@ namespace {
 			!workbench.token_spans(core::diff_side::left),
 			"a refused classification leaves the pane with no spans to paint");
 	}
+
+	/// \brief [[BPR-1559]]: a template call's name and argument are painted in
+	/// their roles on the composed surface.
+	void test_template_call_roles_reach_the_pane()
+	{
+		const auto left  = std::string{ "void calls()\n{\n\tauto a = getComponent<Type>();\n}\n" };
+		const auto right = left + "// a trailing difference so the comparison has one\n";
+
+		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
+		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
+		const auto options    = core::diff_options{ };
+		const auto outcome    = bpr::tests::product_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },
+			.RightBytes = std::span<const std::uint8_t>{ rightBytes },
+		});
+		expect(outcome.Reason == core::diff_reason_code::none && outcome.Result.has_value(),
+			   "the template comparison computes");
+
+		auto       catalog        = syntax::packaged_definition_catalog{ };
+		auto       blobs          = single_blob{ left };
+		auto       classifier     = syntax::packaged_syntax_classifier{ catalog, blobs };
+		const auto classification = classifier.classify(
+			{
+				.Context      = { },
+				.Key          = { .Blob = blob(21U), .Definition = catalog.definition_for_path("review.cpp") },
+				.MaximumSpans = 1'000'000U,
+			},
+			std::stop_token{ });
+		expect(classification.Status == application::syntax_classification_status::available,
+			   "the packaged classifier answers for the template blob");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		workbench.adopt_appearance(profile);
+		const auto context = core::diff_request_context{
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = outcome.Result->Alignment.Key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		workbench.set_loading(context);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*outcome.Result),
+		}));
+		process_events();
+		expect(workbench.adopt_token_spans(core::diff_side::left,
+										   std::make_shared<const application::token_span_list>(classification.Spans)),
+			   "the template spans arrive in the order the pane requires");
+		process_events();
+
+		const auto line    = static_cast<int>(line_of(left, "getComponent"));
+		const auto row     = std::string_view{ "\tauto a = getComponent<Type>();" };
+		const auto painted = block_formats(*workbench.left_pane(), line);
+		const auto colour  = [&](const std::string_view aWord) -> std::optional<QColor> {
+			const auto column = static_cast<int>(row.find(aWord));
+			for (const auto& range : painted) {
+				if (range.start <= column && range.start + range.length >= column + static_cast<int>(aWord.size())) {
+					return range.format.foreground().color();
+				}
+			}
+			return std::nullopt;
+		};
+		const auto function = profile.color(core::appearance_role::syntax_function);
+		const auto type     = profile.color(core::appearance_role::syntax_type);
+		expect(function != type, "the light profile paints functions and types apart");
+		expect(colour("getComponent") == function, "the template call's name is painted as a function");
+		expect(colour("Type") == type, "the template argument is painted as a type");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -365,6 +441,7 @@ auto main(int argc, char** argv) -> int
 		QStringLiteral("BetterPullReviewSyntaxPaneCompositionTests"));
 	test_classified_blob_reaches_the_pane();
 	test_an_oversize_blob_paints_nothing_rather_than_a_prefix();
+	test_template_call_roles_reach_the_pane();
 	std::cout << "syntax-pane-composition-tests:pass\n";
 	return EXIT_SUCCESS;
 }

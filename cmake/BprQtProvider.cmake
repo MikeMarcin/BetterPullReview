@@ -16,6 +16,10 @@ include_guard(GLOBAL)
 set(BPR_QT_VERSION "6.11.2")
 set(BPR_AQTINSTALL_VERSION "3.3.0")
 set(BPR_AQTINSTALL_WINDOWS_REVISION "8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b")
+# RFC-BPR-0084 Q2 (owner, 2026-10-16). Add-on modules beyond Qt's essentials:
+# qtimageformats supplies the WebP reader body images decode with. QtSvg is one
+# of the essentials aqtinstall already installs.
+set(BPR_QT_ADDON_MODULES qtimageformats)
 
 option(
     BPR_QT_PROVIDER
@@ -93,6 +97,26 @@ function(bpr_validate_qt_prefix prefix result_output)
     set(${result_output} TRUE PARENT_SCOPE)
 endfunction()
 
+# RFC-BPR-0084. The add-on files the application uses: QtSvg for SVG body
+# images and the WebP image plugin. A prefix acquired before they were pinned
+# has neither plugin and is amended in place rather than downloaded again.
+function(bpr_validate_qt_addons prefix result_output)
+    set(${result_output} TRUE PARENT_SCOPE)
+    if(NOT BPR_BUILD_QT)
+        return()
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        set(webp "${prefix}/plugins/imageformats/qwebp.dll")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        set(webp "${prefix}/plugins/imageformats/libqwebp.dylib")
+    else()
+        set(webp "${prefix}/plugins/imageformats/libqwebp.so")
+    endif()
+    if(NOT EXISTS "${webp}" OR NOT EXISTS "${prefix}/lib/cmake/Qt6Svg/Qt6SvgConfig.cmake")
+        set(${result_output} FALSE PARENT_SCOPE)
+    endif()
+endfunction()
+
 # Released aqtinstall 3.3.0 cannot locate Qt 6.11's split Windows repositories.
 # Use the exact upstream merge of https://github.com/miurahr/aqtinstall/pull/1000
 # on that host only until a release includes it. This build-only tool is not
@@ -109,7 +133,7 @@ function(bpr_qt_installer_requirement output)
     endif()
 endfunction()
 
-function(bpr_download_qt host arch prefix_root prefix)
+function(bpr_download_qt host arch prefix_root prefix amend)
     find_package(Python3 ${BPR_PYTHON_MINIMUM_VERSION} COMPONENTS Interpreter QUIET)
     if(NOT Python3_Interpreter_FOUND)
         message(
@@ -173,10 +197,16 @@ function(bpr_download_qt host arch prefix_root prefix)
             "bpr: acquiring Qt ${BPR_QT_VERSION} (${arch}), attempt "
             "${attempt}/${attempt_limit}"
         )
+        # An amendment adds only the add-on modules to an essentials prefix.
+        set(only_modules)
+        if(amend)
+            set(only_modules --noarchives)
+        endif()
         execute_process(
             COMMAND
                 "${environment_python}" -m aqt install-qt "${host}" desktop
-                "${BPR_QT_VERSION}" "${arch}" --outputdir "${prefix_root}"
+                "${BPR_QT_VERSION}" "${arch}" -m ${BPR_QT_ADDON_MODULES} ${only_modules}
+                --outputdir "${prefix_root}"
             # aqtinstall writes aqtinstall.log into its working directory, and
             # the repository must not collect transient tool output.
             WORKING_DIRECTORY "${prefix_root}"
@@ -185,12 +215,15 @@ function(bpr_download_qt host arch prefix_root prefix)
             ERROR_VARIABLE install_output
         )
         bpr_validate_qt_prefix("${prefix}" attempt_is_valid)
-        if(attempt_is_valid)
+        bpr_validate_qt_addons("${prefix}" attempt_has_addons)
+        if(attempt_is_valid AND attempt_has_addons)
             return()
         endif()
         # A partially written prefix would otherwise be mistaken for a cache
-        # hit by the next configure.
-        file(REMOVE_RECURSE "${prefix}")
+        # hit by the next configure. An amendment keeps the essentials it found.
+        if(NOT amend)
+            file(REMOVE_RECURSE "${prefix}")
+        endif()
     endforeach()
 
     message(
@@ -215,6 +248,14 @@ function(bpr_acquire_qt output)
 
     if(BPR_QT_ROOT)
         bpr_validate_qt_prefix("${BPR_QT_ROOT}" supplied_is_valid)
+        bpr_validate_qt_addons("${BPR_QT_ROOT}" supplied_has_addons)
+        if(supplied_is_valid AND NOT supplied_has_addons)
+            message(
+                FATAL_ERROR
+                "BPR_QT_ROOT='${BPR_QT_ROOT}' lacks QtSvg or the qtimageformats "
+                "WebP plugin that body images need."
+            )
+        endif()
         if(NOT supplied_is_valid)
             message(
                 FATAL_ERROR
@@ -245,15 +286,17 @@ function(bpr_acquire_qt output)
     endif()
 
     bpr_validate_qt_prefix("${prefix}" cached_is_valid)
-    if(NOT cached_is_valid)
+    bpr_validate_qt_addons("${prefix}" cached_has_addons)
+    if(NOT cached_is_valid OR NOT cached_has_addons)
         if(BPR_DEPENDENCY_OFFLINE)
             message(
                 FATAL_ERROR
                 "BPR_DEPENDENCY_OFFLINE=ON requires Qt ${BPR_QT_VERSION} "
-                "(${qt_arch}) in CPM_SOURCE_CACHE='${CPM_SOURCE_CACHE}'"
+                "(${qt_arch}) with ${BPR_QT_ADDON_MODULES} in "
+                "CPM_SOURCE_CACHE='${CPM_SOURCE_CACHE}'"
             )
         endif()
-        bpr_download_qt("${qt_host}" "${qt_arch}" "${prefix_root}" "${prefix}")
+        bpr_download_qt("${qt_host}" "${qt_arch}" "${prefix_root}" "${prefix}" ${cached_is_valid})
     endif()
 
     set(${output} "${prefix}" PARENT_SCOPE)

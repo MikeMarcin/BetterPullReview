@@ -1335,7 +1335,7 @@ auto main(int argc, char** argv) -> int
 		contract.require("accepted-draft-still-drafting", shownDraft.has_value() && shownDraft->State == core::review_draft_state::drafting && shownDraft->Body == agent_injected);
 		contract.require("label-read-from-the-bytes", chip.Label == core::feedback_label::issue && chip.Blocking);
 		contract.require("one-press-one-launch", launches == 1U);
-		contract.require("label-helper-still-on", editor->label_controls()->helper() && scopeAfter.starts_with("On."));
+		contract.require("label-helper-still-on", window.behaviour().LabelHelper == application::review_label_helper::on && scopeAfter.starts_with("On."));
 		contract.require("no-browser-opened", opens == 0U);
 		contract.require("no-github-mutation", noGithubMutation && finalMutation.Submissions == 0U && finalMutation.TargetObservations == 0U && finalMutation.StoredComments == 0U && finalMutation.Resolutions == 0U);
 		const auto passed = report_contract("workshop-injection-evidence", contract);

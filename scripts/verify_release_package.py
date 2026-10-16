@@ -214,6 +214,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
     evidence.update(check_graph(build, info, revision))
     binaries = []
     symbol_evidence = {}
+    private_producers = tuple(runtime.private_library_producers(info)) if info["platform"] == "Windows" else ()
     for path in sorted(root.rglob("*")):
         if path.is_symlink() or not path.is_file():
             continue
@@ -221,7 +222,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
             magic = stream.read(4)
         if not magic.startswith(BINARY_MAGICS):
             continue
-        table = (pe_release.inspect(path, info, windows_redist_root) if info["platform"] == "Windows"
+        table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers) if info["platform"] == "Windows"
                  else composition.inspect_symbols(path))
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])

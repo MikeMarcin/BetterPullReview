@@ -42,7 +42,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "gemoji", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
@@ -176,7 +176,7 @@ class PackageRuntimeTests(unittest.TestCase):
                 pass
             archive = Path(directory) / "empty.tar"
             archive.write_bytes(empty.getvalue())
-            with patch.object(runtime, "source_archives", return_value={"QtBase": archive, "KSyntaxHighlighting": archive}), \
+            with patch.object(runtime, "source_archives", return_value={"QtBase": archive, "QtSvg": archive, "QtImageFormats": archive, "KSyntaxHighlighting": archive}), \
                     patch.object(runtime, "prepare_source_asset", return_value=provenance), \
                     patch.object(runtime, "qt_records", return_value=records):
                 runtime.notices(build, info, root)
@@ -250,12 +250,15 @@ set(Qt6_DIR "{ROOT.as_posix()}/fixture-qt/lib/cmake/Qt6")
 set(BPR_PRODUCT_QT_VERSION 6.11.2)
 add_executable(app_better_pull_review fixture.cpp)
 add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
+add_library(better_pull_review_xdiff SHARED fixture.cpp)
+set_target_properties(better_pull_review_xdiff PROPERTIES OUTPUT_NAME bpr_xdiff)
 set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")
 include("{ROOT.as_posix()}/packaging/Install.cmake")
 ''')
             runtime.run("cmake", "-S", source, "-B", build)
             info = json.loads((build / "_bpr/package-inputs.json").read_text())
             self.assertEqual(info["target"], runtime.linux_target())
+            self.assertEqual(info["private_libraries"], {"libbpr_xdiff.so": str(build / "libbpr_xdiff.so")})
             expected = "DEB" if runtime.linux_baseline()["distribution"][0] == "ubuntu" else "RPM"
             self.assertIn(f'set(CPACK_GENERATOR "{expected}")', (build / "CPackConfig.cmake").read_text())
 
@@ -275,7 +278,8 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             build = Path(directory)
             (build / "_bpr").mkdir()
             (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
-            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": runtime.platform.system(), "qt_version": version}
+            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": runtime.platform.system(), "qt_version": version,
+                    "private_libraries": {name: str(build / Path(name).name) for name in runtime.PRIVATE_LIBRARIES[runtime.platform.system()]}}
             path = build / "_bpr/package-inputs.json"
             path.write_text(json.dumps(info))
             self.assertEqual(runtime.inputs(build)["qt_version"], version)
@@ -283,6 +287,38 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             path.write_text(json.dumps(info))
             with self.assertRaisesRegex(ValueError, "pinned Qt version"):
                 runtime.inputs(build)
+
+    def test_private_producer_declarations_cannot_grant_unknown_library_authority(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            library = root / "bpr_xdiff.dll"
+            info = {"platform": "Windows", "private_libraries": {library.name: str(library)}}
+            self.assertEqual(runtime.private_library_producers(info), [library])
+            for declaration in ({}, {"unknown.dll": str(root / "unknown.dll")},
+                                {**info["private_libraries"], "unknown.dll": str(root / "unknown.dll")}):
+                with self.subTest(declaration=declaration), self.assertRaisesRegex(ValueError, "declaration mismatch"):
+                    runtime.private_library_producers({"platform": "Windows", "private_libraries": declaration})
+            for path in ("bpr_xdiff.dll", str(root / "other.dll"), None):
+                with self.subTest(path=path), self.assertRaisesRegex(ValueError, "invalid private-library producer path"):
+                    runtime.private_library_producers({"platform": "Windows", "private_libraries": {library.name: path}})
+
+    def test_private_producer_must_belong_to_the_selected_native_build(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            build = root / "selected-build"
+            (build / "_bpr").mkdir(parents=True)
+            (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
+            version = next(item["version"] for item in runtime.components({"platform": "Windows"}) if item["name"] == "QtBase")
+            info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": "Windows", "qt_version": version,
+                    "private_libraries": {"bpr_xdiff.dll": str(root / "unselected-build/bpr_xdiff.dll")}}
+            path = build / "_bpr/package-inputs.json"
+            path.write_text(json.dumps(info))
+            with patch.object(runtime.platform, "system", return_value="Windows"):
+                with self.assertRaisesRegex(ValueError, "outside the selected build"):
+                    runtime.inputs(build)
+                info["private_libraries"]["bpr_xdiff.dll"] = str(build / "bpr_xdiff.dll")
+                path.write_text(json.dumps(info))
+                self.assertEqual(runtime.inputs(build)["private_libraries"], info["private_libraries"])
 
     def test_unpinned_cached_source_is_refused_without_network(self):
         with ContainedTemporaryDirectory() as directory:
@@ -326,12 +362,17 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 cache = build / "release-sources"
                 cache.mkdir()
                 declared = []
-                for name in ("QtBase", "KSyntaxHighlighting"):
+                for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting"):
                     path = cache / f"{name}-1.tar.gz"
                     with tarfile.open(path, "w:gz") as archive:
                         entry = tarfile.TarInfo(name + "/LICENSES/fixture.txt")
                         entry.size = 7
                         archive.addfile(entry, io.BytesIO(b"license"))
+                        if name == "QtImageFormats":
+                            # RFC-BPR-0084. libwebp's own licence inside qwebp.
+                            webp = tarfile.TarInfo(name + "/src/3rdparty/libwebp/COPYING")
+                            webp.size = 18
+                            archive.addfile(webp, io.BytesIO(b"libwebp-copying-ok"))
                     declared.append({"name": name, "version": "1", "url": "https://example.invalid/source.tar.gz", "sha256": runtime.digest(path)})
                 (build / "_bpr").mkdir()
                 (build / "_bpr/LibArchive-NOTICES.txt").write_text("LibArchive notice")
@@ -344,6 +385,8 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                       patch.dict(runtime.os.environ, {"BPR_MSVC_REDISTRIBUTION_NOTICE": str(msvc)}),
                       patch.object(runtime.urllib.request, "urlopen") as network):
                     runtime.notices(build, info, stage)
+                    notices = (runtime.legal_root(stage, info) / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
+                    self.assertIn("libwebp-copying-ok", notices, "libwebp's licence travels with qwebp")
                     provenance = runtime.installed_source_provenance(stage, info, "a" * 40)
                     asset = runtime.source_asset_path(build, info, "a" * 40)
                     runtime.verify_source_asset(asset, provenance)
