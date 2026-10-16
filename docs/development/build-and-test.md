@@ -3629,18 +3629,22 @@ only, and AC06 Accept of the render set, session
 archive SHA-256, size and the BSD-3-Clause `COPYING`, honors the offline cache,
 and re-extracts only the `dtl/` headers and `COPYING` under `build/_bpr/dtl`.
 It is part of the Qt-free core graph and on the owner's core allow-list as
-`BetterPullReview::Dtl`. `intraline_common_scalars` in
+`BetterPullReview::Dtl`. `intraline_common_elements` in
 `src/core/src/diff_intraline.cpp` runs `dtl::Diff` (O(NP)) over one similar
-pair's Unicode scalars; the ranges are the gaps between its common scalars.
-Each comparison is a step of the engine's meter, counted in batches of 4,096,
+pair; since [[BPR-1537]] its elements are the pair's tokens (word parts, space
+runs, operators, punctuation and wide-character clusters) between their common
+prefix and suffix, and the ranges are the cleaned-up changes between its common
+tokens. Each comparison is a step of the engine's meter, counted in batches of 4,096,
 and the matrix budget is not charged, so `MatrixCellsConsumed` is pairing's
 alone. A stop is caught inside the comparator, which then reports every pair
 equal so dtl finishes in one pass; the result is dropped and the stop thrown
 again, so no stop unwinds through dtl's plain `new[]`. dtl 1.21 restarts past
-2,000,000 path points on a path that can join unequal scalars: a pair whose
-(left + 1) x (right + 1) grid is that large keeps the budgeted character table,
-and every common scalar dtl returns is checked before use. `core_diff_intraline`
-covers the ranges, the budget, the large-pair table and a stop inside dtl.
+2,000,000 path points on a path that can join unequal elements: a pair whose
+(left + 1) x (right + 1) token grid is that large compares its tokens in the
+budgeted table instead, and every common element dtl returns is checked before
+use. `core_diff_intraline` covers the ranges, a golden corpus of changed lines
+with a character-level control, the budget, the large-pair table and a stop
+inside dtl.
 License and provenance are under `third_party/dtl/`.
 
 [[BPR-1498]] extends the approval (owner Accept, 2026-10-13) to the Review

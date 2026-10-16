@@ -1,0 +1,74 @@
+{
+  "assignment": "BPR-1535",
+  "mandate": "Owner request 2026-10-15: move Home from Ctrl+0 (Command-0) to Ctrl+Shift+H (Command-Shift-H), and Actual Size from Ctrl+Alt+0 (Command-Option-0) to Ctrl+0 (Command-0). Command-backtick rejected (macOS window cycling).",
+  "governing_rfc": "RFC-BPR-0028 AC-06 (Home button); RFC-BPR-0032 Back to the review row; BPR-1336 zoom commands; BPR-1080 label menu Plain on Command-0 unchanged",
+  "decisions": {
+    "actual_size_secondary_ctrl_alt_0": "No. Clean replace: owner asked to move it; no test or spec required the old key; Ctrl+Alt+0 is AltGr+0 on Windows German/Nordic layouts.",
+    "altgr_yield": "Kept: it guards any Ctrl+Alt window key, not only Actual Size's."
+  },
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1535-home-key/BetterPullReview",
+  "branch": "bpr-1535-home-key",
+  "baseline": "1bd314121",
+  "source_candidate": "0c450bcfa894aee1becb37669139d41a9cc78fad",
+  "changed_paths": [
+    "docs/issues/10-backlog/BPR-1021-close-rfc-0028.md",
+    "docs/rfcs/RFC-BPR-0028-review-workbench-direction.md",
+    "docs/rfcs/RFC-BPR-0032-calm-home-and-accounts-surfaces.md",
+    "docs/ux/appearance-and-accessibility.md",
+    "docs/ux/conventional-comments-feedback.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/feedback_label_controls.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/appearance_settings_panel.cpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/adapters/qt/src/feedback_label_controls.cpp",
+    "src/adapters/qt/src/workbench_landing.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/adapters_qt/appearance_settings_panel_tests.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/adapters_qt/feedback_label_controls_tests.cpp",
+    "tests/adapters_qt/profile_management_window_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/end_to_end/diff_zoom_public_path_tests.cpp",
+    "tests/end_to_end/review_cycle_two_round_public_path_tests.cpp"
+  ],
+  "verification": {
+    "focused": "ctest --preset dev: qt_workbench_window_scale_100, _125, _200, application_diff_zoom_public_path, qt_composed_github_scale_100, qt_profile_management_window, qt_feedback_label_controls, qt_appearance_settings_panel, architecture_boundaries: pass",
+    "negative_control": "Home back on Ctrl+0 and Actual Size back on Ctrl+Alt+0: qt_workbench_window_scale_100 fails '⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘0 is Actual Size'; application_diff_zoom_public_path fails '⌘⌥0 is no longer Actual Size, nor Home'",
+    "format": "clang-format 22.1.8 dry run over the 14 touched C++ files: clean",
+    "tidy": "clang-tidy 22 --warnings-as-errors: no finding on changed lines; 6 pre-existing findings on unchanged lines of three touched test files",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests 67 OK",
+    "not_built": "test_review_cycle_two_round_public_path is outside this dev graph (app_bpr target absent); its one-line Home key change was not compiled"
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1535-home-key-v001.1htuhc7c",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1535-home-key-v001.1htuhc7c/launch.py",
+    "source_commit": "0c450bcfa894aee1becb37669139d41a9cc78fad",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf (rerun after freeze)",
+    "executable_sha256": "3a7563fa14ad8b3ca31f531434702fda26879b834107a97a3cb6e3490a9c1e10"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1535-v001-8fBoSC",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "96a82a58bc3aad238c97b09cc3cc2b22",
+    "event_cursor": 4,
+    "candidates": {
+      "BPR-1535-home-key-v001": "6067f20c636ed95a975dd3facad403ece3c8757871e065210eccd34dbe009611"
+    },
+    "phase": "ready",
+    "protected": true,
+    "decisions": null,
+    "server_pid": 70256,
+    "server_port": 64627,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC4 human: owner Accept/Reject of candidate BPR-1535-home-key-v001"
+  ],
+  "uncertainties": [
+    "Native macOS menu: Actual Size's Command-0 key equivalent versus the open label menu's Plain was reasoned from Qt 6.10.0 qcocoansmenu.mm (focus object offered ShortcutOverride first), not observed; the cocoa course needs the owner's desktop."
+  ],
+  "next_action": "On hand-back after cursor 4: Accept rebases bpr-1535-home-key onto main (BPR-1531, BPR-1532, BPR-1536 also edit workbench_window.cpp and the key table), reruns the focused tests, merges, finishes the card Done and removes the frozen root and the worktree's build/dev; Reject's note becomes v002 on the same branch."
+}

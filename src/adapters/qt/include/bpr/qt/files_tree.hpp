@@ -188,6 +188,11 @@ namespace bpr::qt {
 	};
 
 	/// \brief Draws the tree's rows: guide lines, the read dot, the counts.
+	///
+	/// \details [[BPR-1529]]. A folder's name is DemiBold in the palette's
+	/// `PlaceholderText`, the ink Overview's folder rows use; a file's name
+	/// keeps ordinary `Text`. [[BPR-1530]]. A folder draws its file count
+	/// only while its view has it collapsed.
 	class files_tree_delegate final : public QStyledItemDelegate
 	{
 	public:

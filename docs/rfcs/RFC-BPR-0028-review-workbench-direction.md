@@ -238,7 +238,10 @@ one never moves the other; a modality sets both, a manual toggle overrides
 until the next modality change. Amended 2026-10-06 ([[BPR-1295]]): Review
 restores the arrangement it last had rather than setting the drawers, and ⌘B
 hides every open drawer and brings back the same set; opening a drawer by hand
-while they are hidden drops that set.
+while they are hidden drops that set. Amended 2026-10-15 by the owner: the
+files tree draws a folder's name in the ink Overview's folder rows use, so
+folders read apart from files ([[BPR-1529]]), and a folder draws its file
+count only while it is collapsed ([[BPR-1530]]).
 
 **Settings.** RFC-BPR-0018's window and sidebar, with these pages fixed by the
 asset: Accounts & hosts (one card per server, device-grant sessions shown as

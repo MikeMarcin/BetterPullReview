@@ -1032,6 +1032,16 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed long lines",
 				};
+			// [[BPR-1537]]. Served like nested-folders: github.com, one head.
+			case detail::github_public_path_fixture::intraline_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed intraline changes",
+				};
 			case detail::github_public_path_fixture::conventional_comments_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -6682,6 +6692,11 @@ namespace bpr::app {
 		/// diff, so Review owes the active tab's view once its files return.
 		bool RefreshKeptTabView      = false;
 		bool RevalidatingKeptTabView = false;
+		/// \brief [[BPR-1539]]. The pull request the tabs were opened in.
+		/// `ReadingDestination` cannot say: opening another pull request
+		/// invalidates the shown one, which clears it, before the new read is
+		/// accepted.
+		std::optional<core::window_review_destination> TabDestination;
 		/// \brief Whether the modality shows a tab (Review) or the window's
 		/// comparison (Overview and Discuss, which have no tab).
 		[[nodiscard]] static auto tab_modality(const core::workbench_modality aModality) noexcept -> bool
@@ -6778,6 +6793,23 @@ namespace bpr::app {
 			TabDriver.emplace(aRequest.View);
 			schedule_tab_presentation();
 		}
+		/// \brief [[BPR-1132]]. Another pull request: its tabs start again.
+		///
+		/// \details [[BPR-1539]]. Kept tabs name the previous pull request's
+		/// comparison, which the core never admits for this one, so every
+		/// view they asked for was unavailable and the file and change arrows
+		/// refused each press while the files tree still chose files.
+		void adopt_tab_destination(const core::window_review_destination& aDestination)
+		{
+			if (TabDestination.has_value() && *TabDestination != aDestination && TabHost != nullptr) {
+				cancel_review_navigation();
+				abandon_tab_load();
+				TabPresented.reset();
+				ObservedTabFile.reset();
+				TabHost->reset();
+			}
+			TabDestination = aDestination;
+		}
 		/// \brief One file/change press bound to the PR and exact active tab that entered Review.
 		struct pending_review_navigation
 		{
@@ -6842,7 +6874,7 @@ namespace bpr::app {
 				if (active->State == core::document_tab_view_state::unavailable) {
 					const auto command = pending.Command;
 					PendingReviewNavigation.reset();
-					Window->focus_review_navigation(command);
+					Window->refuse_review_navigation(command);
 				}
 				return;
 			}
@@ -6889,7 +6921,7 @@ namespace bpr::app {
 				const auto command = PendingReviewNavigation ? std::optional{ PendingReviewNavigation->Command } : std::nullopt;
 				cancel_review_navigation();
 				if (command) {
-					Window->focus_review_navigation(*command);
+					Window->refuse_review_navigation(*command);
 				}
 			}
 			if (aOutcome == core::document_tab_view_outcome::ready) {
@@ -7249,14 +7281,8 @@ namespace bpr::app {
 					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number, snapshot->Account };
 					if (ReadingDestination != destination) {
 						AcceptedReadingPosition.reset();
-						// [[BPR-1132]]. Another pull request: its tabs start again.
-						if (ReadingDestination.has_value() && TabHost != nullptr) {
-							abandon_tab_load();
-							TabPresented.reset();
-							ObservedTabFile.reset();
-							TabHost->reset();
-						}
 					}
+					adopt_tab_destination(destination);
 					const auto opened  = ReadingDestination != destination;
 					ReadingDestination = destination;
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
@@ -13941,6 +13967,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto destination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number, aHandoff.Account };
 				const auto opened      = ReadingDestination != destination;
 				ReadingDestination     = destination;
+				adopt_tab_destination(destination);
 				// [[BPR-1365]]. Recently viewed says which of its entries is open.
 				if (opened) {
 					publish_recent();

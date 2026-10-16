@@ -487,6 +487,80 @@ namespace bpr::qt {
 		return QPlainTextEdit::eventFilter(aWatched, aEvent);
 	}
 
+	void line_details_pane::paintEvent(QPaintEvent* const aEvent)
+	{
+		const auto cursor = textCursor();
+		if (Empty || !cursor.hasSelection()) {
+			QPlainTextEdit::paintEvent(aEvent);
+			return;
+		}
+		auto painter = QPainter{ viewport() };
+		auto offset  = contentOffset();
+		auto exposed = aEvent->rect();
+		// As Qt does: the brush origin for wave underlines, and the right
+		// margin kept clear of a full-width selection.
+		painter.setBrushOrigin(offset);
+		const auto widest = std::max(static_cast<qreal>(viewport()->width()), document()->documentLayout()->documentSize().width());
+		exposed.setRight(std::min(exposed.right(), static_cast<int>(offset.x() + widest - document()->documentMargin() + cursorWidth())));
+		painter.setClipRect(exposed);
+
+		auto context = getPaintContext();
+		// Qt puts the text selection last, in Highlight and HighlightedText.
+		auto fullWidth = false;
+		if (!context.selections.isEmpty() && context.selections.back().cursor == cursor) {
+			fullWidth = context.selections.back().format.boolProperty(QTextFormat::FullWidthSelection);
+			context.selections.removeLast();
+		}
+		const auto& normal    = Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)];
+		const auto  selection = code_text_selection{
+			.Fill      = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight),
+			.Normal    = Colors.Supplied && normal.isValid() ? normal : context.palette.text().color(),
+			.Variant   = Colors.Variant,
+			.FullWidth = fullWidth,
+		};
+		painter.setPen(context.palette.text().color());
+		const auto caret = textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard);
+		for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
+			const auto  rect   = blockBoundingRect(block).translated(offset);
+			auto* const layout = block.layout();
+			if (block.isVisible() && layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {
+				auto       ranges   = QList<QTextLayout::FormatRange>{ };
+				const auto position = block.position();
+				const auto length   = block.length();
+				for (const auto& each : std::as_const(context.selections)) {
+					const auto from = each.cursor.selectionStart() - position;
+					const auto to   = each.cursor.selectionEnd() - position;
+					if (from < length && to > 0 && to > from) {
+						ranges.push_back(QTextLayout::FormatRange{ .start = from, .length = to - from, .format = each.format });
+					} else if (!each.cursor.hasSelection() && each.format.hasProperty(QTextFormat::FullWidthSelection)
+							   && block.contains(each.cursor.position())) {
+						// An empty row's band: a full-width selection needs only
+						// a position.
+						const auto line  = layout->lineForTextPosition(each.cursor.position() - position);
+						auto       range = QTextLayout::FormatRange{ .start = line.textStart(), .length = line.textLength(), .format = each.format };
+						if (range.start + range.length == length - 1) {
+							++range.length;
+						}
+						ranges.push_back(range);
+					}
+				}
+				const auto from = cursor.selectionStart() - position;
+				const auto to   = cursor.selectionEnd() - position;
+				if (from < length && to > 0) {
+					append_text_selection_ranges(ranges, block, std::max(0, from), std::min(length, to), selection);
+				}
+				layout->draw(&painter, offset, ranges, exposed);
+				if (caret && context.cursorPosition >= position && context.cursorPosition < position + length) {
+					layout->drawCursor(&painter, offset, context.cursorPosition - position, cursorWidth());
+				}
+			}
+			offset.ry() += rect.height();
+			if (offset.y() > viewport()->height()) {
+				break;
+			}
+		}
+	}
+
 	void line_details_pane::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QPlainTextEdit::resizeEvent(aEvent);

@@ -1,0 +1,143 @@
+{
+	"api_roots": {
+		"graphql": "https://api.github.com/graphql",
+		"rest": "https://api.github.com"
+	},
+	"host": "github.com",
+	"interactions": [
+		{
+			"body": null,
+			"canonical_query": "",
+			"method": "GET",
+			"operation": "GetViewerIdentity",
+			"path": "/user",
+			"response_file": "responses/viewer.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "",
+			"method": "GET",
+			"operation": "GetRepository",
+			"path": "/repos/bpr-fixtures/intraline",
+			"response_file": "responses/repository.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "",
+			"method": "GET",
+			"operation": "GetPullRequest",
+			"path": "/repos/bpr-fixtures/intraline/pulls/37",
+			"response_file": "responses/pull_request.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100",
+			"method": "GET",
+			"operation": "ListPullRequestFiles",
+			"path": "/repos/bpr-fixtures/intraline/pulls/37/files",
+			"response_file": "responses/files.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100",
+			"method": "GET",
+			"operation": "ListPullRequestCommits",
+			"path": "/repos/bpr-fixtures/intraline/pulls/37/commits",
+			"response_file": "responses/commits.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100",
+			"method": "GET",
+			"operation": "ListReviews",
+			"path": "/repos/bpr-fixtures/intraline/pulls/37/reviews",
+			"response_file": "responses/reviews.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": "{\"query\":\"query GetReviewData($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid files(first:100){totalCount nodes{path viewerViewedState} pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve subjectType path diffSide line originalLine comments(first:100){totalCount nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{__typename login ... on Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}\",\"variables\":{\"name\":\"intraline\",\"number\":37,\"owner\":\"bpr-fixtures\"}}",
+			"canonical_query": "",
+			"method": "POST",
+			"operation": "ListReviewThreads",
+			"path": "/graphql",
+			"response_file": "responses/review_threads.json",
+			"safe_headers": {
+				"Accept": "application/json",
+				"Content-Type": "application/json",
+				"User-Agent": "BetterPullReview/0.1"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100",
+			"method": "GET",
+			"operation": "ListIssueComments",
+			"path": "/repos/bpr-fixtures/intraline/issues/37/comments",
+			"response_file": "responses/issue_comments.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100",
+			"method": "GET",
+			"operation": "ListChecks",
+			"path": "/repos/bpr-fixtures/intraline/commits/2222222222222222222222222222222222222222/check-runs",
+			"response_file": "responses/checks.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		},
+		{
+			"body": null,
+			"canonical_query": "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20repo%3Abpr-fixtures%2Fintraline",
+			"method": "GET",
+			"operation": "SearchPullRequests",
+			"path": "/search/issues",
+			"response_file": "responses/search.json",
+			"safe_headers": {
+				"Accept": "application/vnd.github+json",
+				"User-Agent": "BetterPullReview/0.1",
+				"X-GitHub-Api-Version": "2022-11-28"
+			}
+		}
+	],
+	"product": "github.com",
+	"sanitized": true,
+	"schema_revision": 1,
+	"version": "cloud"
+}

@@ -210,6 +210,41 @@ namespace bpr::qt {
 		const QColor&                           aFill,
 		const std::optional<code_emphasis_ink>& aInk);
 
+	/// \brief How a code surface draws a text selection ([[BPR-1533]], [[BPR-1534]]).
+	///
+	/// \details `Fill` is the pane's `QPalette::Highlight`, which
+	/// `appearance_profile` derives from `code_selection_background`, laid
+	/// solid; `Normal` is the ink of text no token colours (`syntax_normal`);
+	/// `Variant` decides the text floor each ink is held to. `FullWidth` is
+	/// the style's choice (macOS's) that a selection past a line's end runs
+	/// to the pane's edge.
+	struct code_text_selection
+	{
+		QColor                   Fill;
+		QColor                   Normal;
+		core::appearance_variant Variant   = core::appearance_variant::light;
+		bool                     FullWidth = false;
+	};
+
+	/// \brief Appends the ranges that draw characters `aFrom` to `aTo` of one
+	/// block as selected: the solid fill, each glyph in its own colour.
+	///
+	/// \details The selection is the top layer: it goes over the line's band,
+	/// the selected line's wash and the intraline emphasis, as every text box
+	/// in the window draws one. Unlike Qt's own selection, which repaints every
+	/// glyph in `HighlightedText`, each run keeps its colour: a classified
+	/// token's from the block's layout formats (`apply_syntax_format_ranges`),
+	/// other text's from the document, else `Normal`. A colour moves only as
+	/// far as `core::readable_selection_ink` needs to read on the fill, so it
+	/// keeps its hue. The ranges are the block's, for `QTextLayout::draw`;
+	/// `aTo` may include the block's line break, which the fill covers.
+	void append_text_selection_ranges(
+		QList<QTextLayout::FormatRange>& aRanges,
+		const QTextBlock&                aBlock,
+		int                              aFrom,
+		int                              aTo,
+		const code_text_selection&       aSelection);
+
 	/// \brief Returns the spans of one line of a classification.
 	///
 	/// \details Found by search because the list is non-decreasing in `Line`,

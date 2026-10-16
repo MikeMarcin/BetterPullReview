@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1536"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Option-letter window and menu keys step aside in text input on macOS (Option-R types \u00ae)",
+  "created": "2026-10-15T22:28:24.804248+00:00",
+  "base": "22ab579992f08f31f7347f4af8e6bf6264f73b99"
+}

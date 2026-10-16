@@ -93,6 +93,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto gutter_widget() const noexcept -> QWidget*;
 
 	protected:
+		/// \brief [[BPR-1534]]. Paints as `QPlainTextEdit` does, except a text
+		/// selection, which keeps each glyph's colour.
+		///
+		/// \details Qt repaints every selected glyph in `HighlightedText`, so
+		/// a selection lost the row's syntax colours (the owner, 2026-10-15).
+		/// The selection is drawn as the comparison panes draw theirs
+		/// (`append_text_selection_ranges`): the top layer, solid in the
+		/// pane's `Highlight`, each glyph in its own colour made readable on
+		/// it. Without a selection, or with nothing shown (the placeholder),
+		/// Qt paints.
+		void paintEvent(QPaintEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 		auto viewportEvent(QEvent* aEvent) -> bool override;
