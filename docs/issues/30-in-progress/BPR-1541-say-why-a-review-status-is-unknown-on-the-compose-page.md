@@ -115,4 +115,63 @@ The variants of two of these lines:
 
 ## Evidence
 
-Pending.
+Candidate: branch `bpr-1541-unknown-line` at `d88fc46f8`, not merged. It
+lands only after the owner accepts it, with the composition contracts
+resealed again on the merged tree. macOS, Debug without debug information.
+
+- **Core.** `core_review_submission` `test_unknown_notices`: each reason keeps
+  its line, and carries counts only for `comments_mismatch` and a status
+  class only for `http_status`. As many comments held as carried gives
+  matched-of; a different number gives held-of; no carried comment gives no
+  count; status classes 0, 2 and 3 are not told apart.
+- **Qt.** `qt_review_submission_editor_scale_{100,125,200}`:
+  - With no reason there is no line.
+  - Each of the 20 reasons shows its own distinct line: non-empty, ending
+    with a full stop, at most 170 characters, and equal to the status's
+    accessible description. None names the host, owner, repository, account,
+    head or summary in the projection, and each wraps inside a 300-pixel page.
+  - The counts read "only 2 of 3 comments matched", "it holds 2 comments and
+    this one has 3 comments" and "only 0 of 1 comment matched". A refused
+    read and an unclassified error read differently from a server error.
+  - In Light, Dark and both High Contrast themes the line uses the status's
+    own text colour, with contrast of at least 4.5:1.
+  - Negative controls: a cleared reason and a draft being written show no
+    line.
+  - Mutation control: without the accessible description the row fails at
+    "the status's description says it".
+- **Host.** `application_review_submission_application_host`: discovery
+  carries the discovered attempt's kept reason, and only that one. An invalid
+  kept reason is not carried; with none kept, none is carried.
+- **Provider.** `live_review_submission_provider`: a restarted session reads
+  the kept reason back by key. Another key reads none, and once Check status
+  confirms the review there is none.
+- **Composed application.** `application_start_review_contract` passes all
+  seven courses:
+  - `uncertain` (`1111111`): held, with the network line shown and part of
+    the description. Check status with a 503 replaces it with the
+    server-error line. Check status with the list readable confirms the
+    review with one POST, and the line is cleared.
+  - `kept` (`1111`): over its own kept data root.
+  - `restored` (`11`): that root restarted with the review list's reads held.
+    The restored review shows the kept network line while the status says
+    "Checking the original review", and the answer replaces it.
+  - Negative control: with the restored attempt not taking its kept reason,
+    `restored` fails at `restored-reason-not-shown`.
+  - Along the way the fixture's borrowed store was found not to forward
+    `note_unknown`, so the composed fixture never kept a reason. It now
+    forwards it; the live provider was unaffected.
+- **Gates.**
+  - `application_review_round_trip_composition_contract` resealed for this
+    tree: full digest `5996b22d…`, production manifest `740e0bc3…`. It and
+    `application_composition_contract` pass.
+  - clang-format 22.1.8 check of the 22 changed C++ files passes.
+  - clang-tidy reports nothing in changed lines. The fixture, host and host
+    test report findings on lines that are on `main` unchanged.
+  - `verify_documentation` passes.
+- **Owner (AC6).** A frozen build: root
+  `/Users/jaeger/bpr-1541-unknown-reason-v001.tc7b6nl5`, executable sha256
+  `1d4eb8904f69…`. Its `--check` passed: `ATTENDED_UNKNOWN_REVIEW_SHOWN`.
+  The look is `--attended-unknown-review-look`, which holds an unknown review
+  open showing its network line. Session `2aad932f341313c448a9e890b46139d5`
+  asks one Accept/Reject question, candidate `BPR-1541-reason-line-v001`, with
+  a render sheet of all 20 lines in Light and Dark. The answer is pending.
