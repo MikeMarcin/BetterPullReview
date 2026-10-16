@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1533"
 title: "A text selection in the comparison panes reads as clearly as in Line details, on every line kind"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-15","owner_note":"At least on dark theme I'm finding it quite hard to see a selected block (eg a word double clicked) in the middle of a change diff on the main pane. Partially because of the line highlight color, but I don't think that's the only cause. Actually it's not so easy to see even on unchanged lines. The single line details pane shows it much more clearly for some reason.","governing_rfc":"RFC-BPR-0006","related_rfcs":["RFC-BPR-0028","RFC-BPR-0034"],"related_cards":["BPR-1212","BPR-1156","BPR-1334","BPR-1503","BPR-1534"],"reservation":"docs/issues/_reservations/BPR-1533--BPR-1533--5c45415baeca.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200} line-kinds course at c7b84c309: four variants x unchanged, removed, added, changed, focused and unfocused: fill is the theme selection fill (Light #9FC4EE, others full strength), 56-102 sRGB units from the ground; baseline paint fails."}},{"criterion":"AC2","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"qt_code_sample_painter: helper keeps readable roles, moves faint ones, every run at the text floor, Light mix #9FC4EE and full strength elsewhere; BPR-1212 syntax course expects the selection ink; Light selected type 4.50:1."}},{"criterion":"AC3","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"13/13 focused rows at c7b84c309 incl. application_source_find x3, application_line_details_public_path, qt_workbench_window_scale_{100,125,200}; clang-format 22, clang-tidy, DOCUMENTATION_OK."}},{"criterion":"AC4","outcome":"pending","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"freeform","detail":"v001 rejected (session 7c8004e6..., event 9: 'It feels slightly overdone on the light.'). v002 Accept/Reject pending in fresh session e78b03cc6c44fc4e078c1654d392c8eb, candidate BPR-1533-selection-v002, fingerprint a4666b1fea0c0a5c0b758d2f302014293e54f06022beb360504d48d71fe86e5b, cursor 4; frozen root bpr1533-selection-v002.y_w8x0ux."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"018cf93f8","evidence":{"kind":"command","detail":"On main (018cf93f8): qt_diff_workbench_scale_{100,125,200} line-kinds course, four variants x unchanged/removed/added/changed, focused and unfocused: fill is the theme selection fill (Light #9FC4EE, others full strength), 56-102 sRGB units from the ground; the previous wash fails."}},{"criterion":"AC2","outcome":"pass","revision":"018cf93f8","evidence":{"kind":"command","detail":"qt_code_sample_painter: run inks at the text floor, Light mix and full strength elsewhere; BPR-1212 syntax course expects the selection ink; Light selected type 4.50:1."}},{"criterion":"AC3","outcome":"pass","revision":"018cf93f8","evidence":{"kind":"command","detail":"17/17 rows on the merged tree incl. application_source_find x3, application_line_details_public_path, application_diff_zoom_public_path, qt_workbench_window_scale_{100,125,200} and the three composition contracts (reseal 63ba6d66a for main's own src/app drift); DOCUMENTATION_OK."}},{"criterion":"AC4","outcome":"pass","revision":"018cf93f8","evidence":{"kind":"observation","detail":"Owner rejected v001 ('It feels slightly overdone on the light.', session 7c8004e6..., event 9) and accepted BPR-1533-selection-v002 (session e78b03cc6c44fc4e078c1654d392c8eb, event 5, fingerprint a4666b1f...) on the frozen c7b84c309 build, content-identical to 018cf93f8."}}]
 ---
 
 # BPR-1533: A text selection in the comparison panes reads as clearly as in Line details, on every line kind
@@ -194,4 +193,30 @@ kept) and the v001 frozen root was removed.
 
 Next: on hand-back, an Accept merges `9f55457be` and `c7b84c309` to `main`
 and finishes the card; a Reject's note becomes v003.
+
+## Owner verdict on v002 and merge — 2026-10-15
+
+The owner accepted `BPR-1533-selection-v002` (session
+`e78b03cc6c44fc4e078c1654d392c8eb`, decision event 5, fingerprint
+`a4666b1f…`, no note; handed back at event 6) on the frozen `c7b84c309`
+build. The v002 server was stopped and its protection released (cursor 7);
+the v002 frozen root was removed after the merge.
+
+Merged onto `main` at `5766e7cbd` by fast-forward: `d7d95ed0d` (the panes'
+solid top-layer selection) and `018cf93f8` (v002, the lighter Light fill),
+both content-identical to the accepted candidate, plus `63ba6d66a`, a reseal of
+`application_review_round_trip_composition_contract`. That reseal is not
+caused by this card: `main` at `1dde04281` failed the contract on its own,
+because BPR-1540's `8fed598f1` and BPR-1532's merges changed `src/app`
+without resealing (the "found" `github_application.cpp` digest is the sha256
+of `main`'s own file, and the second seal covers only the production `src/app`
+set). On the merged tree at `1a2cc04b9` plus these commits, 17 of 17 rows
+pass: `qt_diff_workbench_scale_{100,125,200}`, `qt_code_sample_painter`,
+`qt_appearance_profile`, `qt_workbench_window_scale_{100,125,200}`,
+`application_line_details_public_path`, `application_source_find` ×3,
+`application_cpp_identifier_appearance`, `application_diff_zoom_public_path`,
+`application_workbench_composition_contract`,
+`application_review_round_trip_composition_contract` and
+`application_composition_contract`. The final rebase over `5766e7cbd`
+changed only board files; `DOCUMENTATION_OK` on the merged tree.
 

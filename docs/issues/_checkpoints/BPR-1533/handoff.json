@@ -15,10 +15,8 @@
   "wash inserted before the opaque intraline emphasis: invisible inside a change (1.00:1)",
   "Line details used Qt's opaque selection; Inactive palette equals Active, so focus is not a cause"
  ],
- "pending": [
-  "AC4 human: owner Accept/Reject of BPR-1533-selection-v002"
- ],
- "next_action": "On hand-back: Accept merges 9f55457be + c7b84c309 onto current main, reruns the focused rows and docs gate, and finishes BPR-1533; Reject's note becomes v003.",
+ "pending": [],
+ "next_action": "None: BPR-1533 done.",
  "source_root": "/Users/jaeger/.codex/worktrees/bpr1533-selection/BetterPullReview",
  "branch": "bpr-1533-selection",
  "baseline": "dd2f52691 (main after BPR-1534 merged)",
@@ -57,14 +55,20 @@
   "state": "/Users/jaeger/.codex/attended-review/bpr1533-v002-HvpcEu",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
   "session": "e78b03cc6c44fc4e078c1654d392c8eb",
-  "event_cursor": 4,
+  "event_cursor": 7,
   "candidates": {
    "BPR-1533-selection-v002": "a4666b1fea0c0a5c0b758d2f302014293e54f06022beb360504d48d71fe86e5b"
   },
-  "phase": "ready",
-  "protected": true,
-  "decisions": null,
-  "server_pid": 38389,
+  "phase": "handed-back",
+  "protected": false,
+  "decisions": {
+   "BPR-1533-selection-v002": {
+    "outcome": "accept",
+    "event": 5,
+    "decision_id": "a54eb2e5-d439-42a3-b65a-afc3fa79cbea"
+   }
+  },
+  "server_pid": null,
   "server_port": 58809,
   "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
  },
@@ -76,6 +80,23 @@
    "note": "It feels slightly overdone on the light.",
    "released_at_cursor": 12,
    "frozen_root_removed": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v001.u0prev45"
+  },
+  "v002": {
+   "session": "e78b03cc6c44fc4e078c1654d392c8eb",
+   "decision": "accept",
+   "event": 5,
+   "handed_back": 6,
+   "released_at_cursor": 7,
+   "frozen_root_removed": "/Users/jaeger/.codex/attended-builds/bpr1533-selection-v002.y_w8x0ux"
   }
+ },
+ "merged": {
+  "main_base": "5766e7cbd",
+  "commits": {
+   "BPR-1533_panes": "d7d95ed0d",
+   "BPR-1533_v002_light": "018cf93f8",
+   "contract_reseal": "63ba6d66a"
+  },
+  "verification": "17/17 focused + composition contract rows on the merged tree; DOCUMENTATION_OK"
  }
 }
