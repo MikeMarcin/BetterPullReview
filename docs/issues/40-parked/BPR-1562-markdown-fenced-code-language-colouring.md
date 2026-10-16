@@ -102,3 +102,27 @@ new colour. The full description is the reader design's
   draws `<b>`, which that course expects literal (not this change).
 - `fuzz_markdown` selector 4: 10 minutes, 574,890 runs, clean.
 - clang-format 22, clang-tidy 22 clean on touched files; documentation gate OK.
+
+## Continuation
+
+- **Candidate:** branch `bpr-1562-fenced-code` (worktree
+  `.claude/worktrees/bpr-1562-fenced-code`), stacked on `bpr-1544-gfm-html` at
+  `60657aa3b`; reviewed build from `c7aaec454`, frozen at
+  `/Users/jaeger/bpr-1562-fenced-code-v001.lmt9brah` (executable
+  `73e6b1176f0e...`), launched by `python3
+  /Users/jaeger/bpr-1562-fenced-code-v001.lmt9brah/launch.py`; it opens
+  `markdown-code-v1` on `src/engine/renderer.cpp`. Later commits add tests and
+  card notes only.
+- **Owner review:** session `03479a9ac4702b758484f2587c7e35f4`, state
+  `/Users/jaeger/.mask/attended-review-sessions/bpr-1562-fenced-code-v001-20261016`,
+  cursor 12; one Accept/Reject each for language colours (BPR-1562), diff
+  blocks (BPR-1563) and suggested changes (BPR-1564), each with GitHub's page
+  beside the reader in Light and Dark. Live sample: MikeMarcin/BPR-Test#80
+  (branch `bpr-1562-fenced-code`, review 5551993302 by MikeMarcinTest); close
+  it and delete its branch after the review.
+- **Landing (do not merge before acceptance):** once BPR-1544 is on main,
+  rebase this branch's own commits (after `60657aa3b`) onto main, reseal the
+  round-trip composition contract over the merged tree (`src/app` changed),
+  run the full dev suite once and the documentation gate, merge, and finish
+  the three cards on the owner's verdicts. `qt_composed_github_scale_*`'s
+  `<b>` expectation belongs to BPR-1544's landing, not this change.
