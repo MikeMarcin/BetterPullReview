@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1546"
 title: "Host lane, ports and memory cache for inline images"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0084"]
 depends_on: ["BPR-1545"]
 metadata: {"mandate_revision":"inline-markdown-images-r1","milestone_plan":{"id":"inline-markdown-images-v1","path":"docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json"},"milestone":"image-host-lane"}
