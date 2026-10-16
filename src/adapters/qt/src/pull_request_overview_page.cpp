@@ -3322,6 +3322,8 @@ namespace bpr::qt {
 	void pull_request_overview_page::adopt_appearance(const appearance_profile& aProfile)
 	{
 		Body->Reader->set_code_font(aProfile.code_font(), aProfile.code_tab_stop_distance());
+		// [[BPR-1562]]. Fenced code in the review panes' colours.
+		Body->Reader->set_code_theme({ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() });
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);

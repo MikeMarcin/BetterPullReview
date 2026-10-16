@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"88e47223d463c402348d8d0ee42a6e098cff4b8c0c09a9d92dfe4a51541fb20d"
+		"686df60dad86034f5d02154bc1fb72527be798de6fbf6a70d1951553de778445"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "73f7e0fe9817cb285068e28a6794920733f502e0f286730c3a5e3f96f752c657"
+        "da50ad9c8a8ccf31ae69c9a19c6a222026bc0276c99f1ba8fdd281acdb45e69b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2654,3 +2654,13 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # directory. Test builds only: no grant, target, provider, credential,
 # transport, GitHub write, mutation or publication path changes; the
 # production mutation-branch pin is unchanged. Self-review on BPR-1544.
+
+# [[BPR-1562]] reseal over main at c9ff3bf50 (BPR-1544's pins), recomputed on
+# the tree that rebases BPR-1562..1564 onto it. github_application.cpp composes
+# the Markdown readers' fenced-code classification: a host of its own over a
+# packaged classifier of its own, on the appearance effect lane with the shared
+# definitions, relayed through the window. The constructed markdown-code-v1
+# fixture joins the test-build tables, sharing conventional-comments-v1's
+# descriptor with its own contract directory. No grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# the production mutation-branch pin is unchanged. Self-review on BPR-1562.

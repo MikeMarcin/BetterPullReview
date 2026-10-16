@@ -1,7 +1,11 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 
+#include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/appearance_model.hpp"
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/core/markdown_image.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QFont>
@@ -24,6 +28,7 @@ namespace bpr::application {
 }
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -32,7 +37,30 @@ namespace bpr::qt {
 	class markdown_text_view;
 	namespace detail {
 		class markdown_image_store;
+		class markdown_code_store;
 	}
+
+	/// \brief [[BPR-1562]]. The theme fenced code is drawn in: the review
+	/// panes' role colours and the variant that decides how far an ink moves
+	/// to stay readable.
+	struct markdown_code_theme
+	{
+		code_role_colors         Colors{ };
+		core::appearance_variant Variant = core::appearance_variant::light;
+	};
+
+	/// \brief [[BPR-1564]]. A body that is a comment on lines of a file: its
+	/// `suggestion` blocks show as GitHub's Suggested change, coloured by the
+	/// file's language, against the commented lines when they are on hand.
+	struct markdown_suggestion_presentation
+	{
+		/// The commented file's path, which chooses the rows' language.
+		std::string Path;
+		/// The commented lines; none shows the added rows alone.
+		std::optional<core::markdown_suggestion_context> Lines;
+
+		auto operator<=>(const markdown_suggestion_presentation&) const = default;
+	};
 
 	/// \brief A native, resource-free Markdown reader with original source and copy.
 	/// \details Call only on the GUI lane with an already admitted provider body.
@@ -73,6 +101,26 @@ namespace bpr::qt {
 		[[nodiscard]] auto image_store() const noexcept -> const detail::markdown_image_store*;
 		/// \brief Uses the composed code typography without overriding the native palette.
 		void set_code_font(const QFont& aFont, qreal aTabStopDistance);
+		/// \brief [[BPR-1562]]. Draws fenced code in the review panes' colours.
+		/// \details Without one, diff and suggestion blocks use the built-in
+		/// light or dark theme the palette suggests.
+		void set_code_theme(const markdown_code_theme& aTheme);
+		/// \brief [[BPR-1562]]. Asks for the spans of this body's fenced code
+		/// through `aDispatch`, which answers by `apply_code_syntax`. Without
+		/// one, code stays plain and nothing is asked for.
+		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		/// \brief Colours every block showing the answer's text, without
+		/// moving the reading position; ignored when no block shows it.
+		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		/// \brief Asks again for the current body's code, after the holder's
+		/// dispatch became able to answer.
+		void request_code_syntax();
+		/// \brief [[BPR-1564]]. Shows `suggestion` blocks as a Suggested change,
+		/// or as plain code without a presentation (descriptions, issue
+		/// comments, review summaries), as GitHub does.
+		void set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions);
+		/// \brief The current body's fenced code, for tests and accessibility.
+		[[nodiscard]] auto code_store() const noexcept -> const detail::markdown_code_store*;
 		/// \brief Switches modes, retaining independent positions and selections.
 		void show_source(bool aSource);
 		/// \brief Moves source switching into the native reader context menu and hides action rows.
@@ -135,44 +183,50 @@ namespace bpr::qt {
 		void               show_context_menu(bool aSource, const QPoint& aPosition);
 		void               dispatch_images();
 		[[nodiscard]] auto has_images() const -> bool;
+		void               dispatch_code();
+		void               style_code();
 		[[nodiscard]] auto selected_markdown(const QTextCursor& aCursor) const -> QString;
 		void               schedule_animation();
 		[[nodiscard]] auto dark_palette() const -> bool;
 
-		std::string                                                      Body;
-		std::string                                                      Identity;
-		std::function<void(const std::string&)>                          LinkDispatch;
-		std::function<void(QMenu&)>                                      ContextMenuBuilder;
-		std::function<void(std::vector<core::markdown_image_reference>)> ImageDispatch;
-		bool                                                             ImagesShown      = true;
-		detail::markdown_image_store*                                    Images           = nullptr;
-		QTimer*                                                          Animation        = nullptr;
-		std::int64_t                                                     AnimationStarted = 0;
-		markdown_text_view*                                              Rendered         = nullptr;
-		QPlainTextEdit*                                                  Source           = nullptr;
-		QStackedWidget*                                                  Pages            = nullptr;
-		QWidget*                                                         Controls         = nullptr;
-		QPushButton*                                                     Toggle           = nullptr;
-		QPushButton*                                                     Copy             = nullptr;
-		QLabel*                                                          Notice           = nullptr;
-		QLabel*                                                          Destination      = nullptr;
-		QLabel*                                                          Mark             = nullptr;
-		std::optional<feedback_mark_theme>                               MarkTheme;
-		feedback_body_mark                                               BodyMark;
-		QFont                                                            CodeFont;
-		qreal                                                            TabStopDistance   = 0;
-		bool                                                             RenderedAvailable = false;
-		bool                                                             VisitedSource     = false;
-		bool                                                             VisitedRendered   = false;
-		QString                                                          Fallback;
-		bool                                                             InPlace         = false;
-		bool                                                             ContextControls = false;
-		std::function<void()>                                            HeightObserver;
-		qsizetype                                                        HeaderChars   = 0;
-		qsizetype                                                        HeaderStart   = 0;
-		qsizetype                                                        SourceColumns = 0;
-		mutable int                                                      CachedWidth   = -1;
-		mutable int                                                      CachedHeight  = 0;
+		std::string                                                                 Body;
+		std::string                                                                 Identity;
+		std::function<void(const std::string&)>                                     LinkDispatch;
+		std::function<void(QMenu&)>                                                 ContextMenuBuilder;
+		std::function<void(std::vector<core::markdown_image_reference>)>            ImageDispatch;
+		bool                                                                        ImagesShown = true;
+		detail::markdown_image_store*                                               Images      = nullptr;
+		std::shared_ptr<detail::markdown_code_store>                                Code;
+		std::optional<markdown_code_theme>                                          CodeTheme;
+		std::optional<markdown_suggestion_presentation>                             Suggestions;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
+		QTimer*                                                                     Animation        = nullptr;
+		std::int64_t                                                                AnimationStarted = 0;
+		markdown_text_view*                                                         Rendered         = nullptr;
+		QPlainTextEdit*                                                             Source           = nullptr;
+		QStackedWidget*                                                             Pages            = nullptr;
+		QWidget*                                                                    Controls         = nullptr;
+		QPushButton*                                                                Toggle           = nullptr;
+		QPushButton*                                                                Copy             = nullptr;
+		QLabel*                                                                     Notice           = nullptr;
+		QLabel*                                                                     Destination      = nullptr;
+		QLabel*                                                                     Mark             = nullptr;
+		std::optional<feedback_mark_theme>                                          MarkTheme;
+		feedback_body_mark                                                          BodyMark;
+		QFont                                                                       CodeFont;
+		qreal                                                                       TabStopDistance   = 0;
+		bool                                                                        RenderedAvailable = false;
+		bool                                                                        VisitedSource     = false;
+		bool                                                                        VisitedRendered   = false;
+		QString                                                                     Fallback;
+		bool                                                                        InPlace         = false;
+		bool                                                                        ContextControls = false;
+		std::function<void()>                                                       HeightObserver;
+		qsizetype                                                                   HeaderChars   = 0;
+		qsizetype                                                                   HeaderStart   = 0;
+		qsizetype                                                                   SourceColumns = 0;
+		mutable int                                                                 CachedWidth   = -1;
+		mutable int                                                                 CachedHeight  = 0;
 	};
 } // namespace bpr::qt
 

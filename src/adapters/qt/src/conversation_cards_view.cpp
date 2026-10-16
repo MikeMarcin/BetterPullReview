@@ -853,6 +853,31 @@ namespace bpr::qt {
 		ImageDispatch = std::move(aDispatch);
 	}
 
+	void conversation_cards_view::set_suggestion_locator(card_suggestion_locator aLocator)
+	{
+		SuggestionLocator = std::move(aLocator);
+	}
+
+	void conversation_cards_view::set_code_theme(const markdown_code_theme& aTheme)
+	{
+		CodeTheme = aTheme;
+		if (OpenCard != nullptr) {
+			OpenCard->set_code_theme(aTheme);
+		}
+	}
+
+	void conversation_cards_view::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		CodeDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->apply_code_syntax(aSpans);
+		}
+	}
+
 	void conversation_cards_view::apply_markdown_image(const application::markdown_image_projection& aImage)
 	{
 		if (OpenCard != nullptr) {
@@ -1393,6 +1418,7 @@ namespace bpr::qt {
 			card.Path              = text(node.Path);
 			card.Side              = side_of(node);
 			card.Line              = node.Line;
+			card.StartLine         = node.StartLine;
 			card.Resolved          = node.Resolved;
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
@@ -1685,7 +1711,21 @@ namespace bpr::qt {
 		};
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
-		OpenCard                     = new open_thread_card{ card, style, viewport() };
+		style.CodeTheme              = CodeTheme;
+		// [[BPR-1564]]. A published comment on lines shows its suggestions as
+		// GitHub does: against the commented lines while the thread is current
+		// on the compared file, otherwise the suggested lines alone.
+		if (!card.Draft && !card.Path.isEmpty() && card.Line.has_value() && !card.FileLevel) {
+			auto shown = markdown_suggestion_presentation{ .Path = card.Path.toStdString() };
+			if (!card.Outdated && card.Side.has_value() && SuggestionLocator) {
+				const auto first = card.StartLine.value_or(*card.Line);
+				if (auto lines = SuggestionLocator(card.Path, *card.Side, first, *card.Line); lines.has_value() && !lines->empty()) {
+					shown.Lines = core::markdown_suggestion_context{ .FirstLine = first, .Lines = std::move(*lines) };
+				}
+			}
+			style.Suggestions = std::move(shown);
+		}
+		OpenCard = new open_thread_card{ card, style, viewport() };
 		OpenCard->setProperty("threadKey", key);
 		const auto id    = card.Id;
 		const auto words = card.UnsentReply.has_value() && card.Draft && !card.Posts.empty() ? card.Posts.front().Body : QString{ };
@@ -1743,6 +1783,11 @@ namespace bpr::qt {
 				LinkDispatch(aPost, aDestination.toStdString());
 			}
 		};
+		OpenCard->CodeRequest = [this](std::vector<application::markdown_code_syntax_request> aRequests) {
+			if (CodeDispatch) {
+				CodeDispatch(std::move(aRequests));
+			}
+		};
 		OpenCard->ImageRequest = [this](const std::string& aPost, std::vector<core::markdown_image_reference> aReferences) {
 			if (ImageDispatch) {
 				ImageDispatch(aPost, std::move(aReferences));
@@ -1750,6 +1795,7 @@ namespace bpr::qt {
 		};
 		OpenCard->set_images_shown(ImagesShown);
 		OpenCard->request_images();
+		OpenCard->request_code_syntax();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
 				ReplyTextDispatch(id, aText);

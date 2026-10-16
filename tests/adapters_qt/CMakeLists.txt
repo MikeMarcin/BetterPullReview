@@ -2176,3 +2176,25 @@ foreach(image_scale IN ITEMS 1.0 1.25 2.0)
         TIMEOUT 60
     )
 endforeach()
+
+# [[BPR-1562]], [[BPR-1563]], [[BPR-1564]]. Fenced code as GitHub draws it,
+# through the composed classifier, against GitHub's own rendering. Linked
+# with the syntax adapter so the packaged definitions answer.
+bpr_add_executable(test_better_pull_review_qt_markdown_code_tests markdown_code_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_markdown_code_tests PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
+target_compile_definitions(test_better_pull_review_qt_markdown_code_tests PRIVATE
+    "BPR_MARKDOWN_CODE_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/code-blocks-v1\"")
+bpr_enable_hardening(test_better_pull_review_qt_markdown_code_tests)
+bpr_enable_warnings(test_better_pull_review_qt_markdown_code_tests)
+foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" markdown_suffix "${markdown_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_code_${markdown_suffix}"
+        COMMAND test_better_pull_review_qt_markdown_code_tests
+    )
+    set_tests_properties("qt_markdown_code_${markdown_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-code-${markdown_suffix}"
+        PASS_REGULAR_EXPRESSION "markdown-code-tests:pass"
+        TIMEOUT 120
+    )
+endforeach()

@@ -131,6 +131,9 @@ namespace bpr::qt {
 		void request_images();
 		/// \brief RFC-BPR-0084 Q3. Shows or hides images in the conversation's posts.
 		void set_images_shown(bool aShown);
+		/// \brief [[BPR-1562]]. Code classification for the open thread's posts.
+		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		void adopt_appearance(const appearance_profile& aProfile);
 		/// \brief [[BPR-1083]]. The label tints and mark style for the notes.
 		void set_label_marks(const feedback_mark_theme& aTheme);

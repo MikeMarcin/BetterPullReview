@@ -9139,6 +9139,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationIdentities = { "issue-comment:IC_mp_1", "issue-comment:IC_mp_2", "issue-comment:IC_mp_3", "issue-comment:IC_mp_4" },
 					.ExpectedThreadId               = std::nullopt,
 				};
+			} else if (*fixture == "markdown-code-v1") {
+				// [[BPR-1562]]. The conventional-comments pull request whose
+				// bodies hold fenced code and suggestions; see
+				// `scripts/build_markdown_code_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_code_v1;
+				fixtureName            = "markdown-code-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move the cache writer onto the serialized lane",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 7,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "markdown-html-v1") {
 				// [[BPR-1544]]. The nested-folders pull request whose bodies are
 				// the GitHub-parity HTML fixtures; see

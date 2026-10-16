@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "## Summary\n\nMoves the cache writer onto the serialized lane, so `refresh()` reads the snapshot outside the lock.\n\n```cpp\ntemplate <typename T>\nauto cache<T>::refresh() -> std::uint64_t\n{\n\tauto next  = read_snapshot(); // outside the lock\n\tauto guard = std::lock_guard{ Mutex };\n\tSnapshot   = std::move(next);\n\treturn ++Generation;\n}\n```\n\nThe fixture generator, in Python:\n\n```py\ndef snapshot(rows: list[str], limit: int = 64) -> dict:\n    \"\"\"Keep the first `limit` rows.\"\"\"\n    return {\"rows\": rows[:limit], \"count\": len(rows)}  # trimmed\n```\n\nThe settings it reads:\n\n```json\n{ \"cache\": { \"lane\": \"serialized\", \"limit\": 64, \"enabled\": true } }\n```\n\n```yaml\ncache:\n  lane: serialized   # was: shared\n  limit: 64\n```\n\n```ts\nexport async function refresh(cache: Cache): Promise<number> {\n  const next = await cache.read();\n  return cache.swap(next);\n}\n```\n\n```rust\nfn refresh(cache: &Mutex<Cache>) -> u64 {\n    let next = read_snapshot();\n    let mut guard = cache.lock().unwrap();\n    guard.swap(next)\n}\n```\n\n```go\nfunc (c *Cache) Refresh() uint64 {\n\tnext := readSnapshot()\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\treturn c.swap(next)\n}\n```\n\n```sh\ncmake --preset dev && ctest --preset dev -R \"cache_\" --output-on-failure\n```\n\n```cmake\nadd_executable(cache_tests cache_tests.cpp)\ntarget_link_libraries(cache_tests PRIVATE BetterPullReview::Core)\n```\n\n## The change\n\n```diff\n@@ -7,8 +7,9 @@ namespace sample {\n \tvoid cache::refresh()\n \t{\n-\t\tauto guard = std::lock_guard{ Mutex };\n-\t\tSnapshot   = read_snapshot();\n+\t\tauto next  = read_snapshot();\n+\t\tauto guard = std::lock_guard{ Mutex };\n+\t\tSnapshot   = std::move(next);\n \t\tGeneration += 1;\n \t}\n```\n\nAn unknown language and a block without one stay plain:\n\n```cobol-ish\nMOVE NEXT TO SNAPSHOT.\n```\n\n```\nplain text, no language\n```\n\nIndented code and `inline code` are never coloured:\n\n    auto guard = std::lock_guard{ Mutex };\n",
+	"changed_files": 17,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "nested-folders",
+		"repo": {
+			"full_name": "bpr-fixtures/nested-folders",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_21",
+	"number": 21,
+	"state": "open",
+	"title": "Move the cache writer onto the serialized lane",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

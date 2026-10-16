@@ -102,6 +102,10 @@ namespace bpr::app::detail {
 		/// and three pull request comments are the GitHub-parity HTML,
 		/// details and emoji fixtures.
 		markdown_html_v1,
+		/// [[BPR-1562]]. The conventional-comments pull request whose
+		/// description and comments hold fenced code in many languages and
+		/// diff blocks, and whose threads suggest changes to its lines.
+		markdown_code_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

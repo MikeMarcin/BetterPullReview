@@ -1095,3 +1095,11 @@ target_link_libraries(test_json_preflight PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_json_preflight)
 bpr_enable_warnings(test_json_preflight)
 bpr_add_network_isolated_test(NAME core_json_preflight COMMAND test_json_preflight)
+# [[BPR-1562]], [[BPR-1563]], [[BPR-1564]]. Fenced code, against GitHub's own rendering.
+bpr_add_executable(test_better_pull_review_markdown_code_tests markdown_code_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_code_tests PRIVATE BetterPullReview::Core)
+target_compile_definitions(test_better_pull_review_markdown_code_tests PRIVATE
+    "BPR_MARKDOWN_CODE_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/code-blocks-v1\"")
+bpr_enable_hardening(test_better_pull_review_markdown_code_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_code_tests)
+bpr_add_network_isolated_test(NAME core_markdown_code COMMAND test_better_pull_review_markdown_code_tests)

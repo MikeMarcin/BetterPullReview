@@ -323,6 +323,8 @@ namespace bpr::application {
 			const auto threadId     = prefixed_id("review-thread:", thread.Thread.value());
 			const auto side         = project(thread.DiffSide);
 			const auto availability = anchor_availability(thread);
+			// [[BPR-1564]]. The thread's lines are its first comment's.
+			const auto startLine = thread.Comments.empty() ? std::nullopt : thread.Comments.front().Observation.StartLine;
 			conversations.push_back(github_conversation_projection{
 				.Id                 = threadId,
 				.ParentId           = std::nullopt,
@@ -332,6 +334,7 @@ namespace bpr::application {
 				.Path               = thread.Path,
 				.Line               = thread.Line,
 				.OriginalLine       = thread.OriginalLine,
+				.StartLine          = startLine,
 				.DiffSide           = side,
 				.AnchorAvailability = availability,
 				.ReviewState        = github_review_state_projection::none,
@@ -356,6 +359,7 @@ namespace bpr::application {
 					.Path               = thread.Path,
 					.Line               = thread.Line,
 					.OriginalLine       = thread.OriginalLine,
+					.StartLine          = startLine,
 					.DiffSide           = side,
 					.AnchorAvailability = availability,
 					.ReviewState        = github_review_state_projection::none,

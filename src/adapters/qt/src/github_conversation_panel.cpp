@@ -736,6 +736,16 @@ namespace bpr::qt {
 		Cards->apply_markdown_image(aImage);
 	}
 
+	void github_conversation_panel::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		Cards->set_code_syntax_dispatch(std::move(aDispatch));
+	}
+
+	void github_conversation_panel::apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		Cards->apply_markdown_code_syntax(aSpans);
+	}
+
 	void github_conversation_panel::request_images()
 	{
 		Cards->request_images();
@@ -754,6 +764,8 @@ namespace bpr::qt {
 	void github_conversation_panel::adopt_appearance(const appearance_profile& aProfile)
 	{
 		Cards->set_code_font(aProfile.code_font());
+		// [[BPR-1562]]. Posts' fenced code in the review panes' colours.
+		Cards->set_code_theme({ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() });
 	}
 
 	void github_conversation_panel::refresh_projection()
