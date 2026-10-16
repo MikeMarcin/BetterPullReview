@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1557"
 title: "The Updates line starts with the pull request's base"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
+parked_on: "human-review"
 metadata: {"kind":"design-correction","found_by":"Owner chat, 2026-10-16","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0029","RFC-BPR-0003"],"related_cards":["BPR-0646","BPR-0944","BPR-1340","BPR-1553"],"reservation":"docs/issues/_reservations/BPR-1557--BPR-1557--c5ee30b1bbf9.json","acceptance":["BPR-1557:model","BPR-1557:line","BPR-1557:composed","BPR-1557:live","BPR-1557:gates","BPR-1557:owner"]}
-acceptance: []
+acceptance: [{"criterion": "BPR-1557:model", "outcome": "pass", "revision": "1a76acd0f", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^core_(update_line|epoch_policy)$'", "detail": "core_update_line: places (base, an update's own base, heads), stops (left: base then heads incl. importable; right: heads), steps from any place, one update gives two places. core_epoch_policy test_resolution_names_the_pull_request_base: an exact pair's resolution names the newest live epoch's base after the base moved; Whole PR's left is that base; an imported LatestLive names none. Negative control: a resolution withholding the base for exact pairs fails at 'an exact pair's resolution still names the newest live epoch's base, after the base moved'."}}, {"criterion": "BPR-1557:line", "outcome": "pass", "revision": "1a76acd0f", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^qt_epoch_comparison_scale_(100|125|200)$'", "detail": "test_the_line_starts_with_the_pull_request_base in Light, Dark, High Contrast Light and High Contrast Dark at 1.0/1.25/2.0: one update keeps the handles more than half the line apart; Whole PR puts the left handle on the base (post in the accent inside it, left/right handle sides and the span to the newest update in the accent, at least 60 sRGB units off the ground) and the post is faint once the left handle leaves; drags (left off the base onto the oldest head; right to the start stops on the oldest head), Left back onto the base, Shift+Left never onto it, click/Cmd-click, the base menu (Compare from here, Copy base commit copies the full OID), Alt+1's action, an older page and the accessible name. Negative control: with the published base withheld from the line all three scales fail."}}, {"criterion": "BPR-1557:composed", "outcome": "pass", "revision": "1a76acd0f", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^application_epoch_update_line_public_path$'", "detail": "Anonymous public-preview fixture through the shipped composition: stage 0 requires the whole-PR pair on the base and the newest update; PUBLIC_PATH_HANDLE_DRAG_STEPS prbase->head0 | head3->head2 | Shift+Right head2->head3; EPOCH_UPDATE_LINE_DRAG_OK:1."}}, {"criterion": "BPR-1557:live", "outcome": "pass", "revision": "fd6c65196", "evidence": {"kind": "command", "command": "QT_QPA_PLATFORM=offscreen build/dev/tests/end_to_end/live_second_account_course --course epoch --root <owner-private mkdtemp> --pull 74", "detail": "MikeMarcin/BPR-Test#74 (feature from main; base branch bpr-1557-base one commit ahead; two force pushes and an ordinary push; closed and both branches deleted afterwards), signed in with the active gh account. First open: left=prbase right=head2, 'Updates line: from the pull request base 75e2349 to update 3 of 3'; base 75e23497520d = GitHub base.sha, merge base e2a44aa8fef7 (compare API). Right drag imported the oldest force push (right=head0), left drag onto it, Left stepped back to prbase. X-RateLimit-Remaining 4996 before, 4926 after."}}, {"criterion": "BPR-1557:gates", "outcome": "pass", "revision": "1a76acd0f", "evidence": {"kind": "command", "command": "ctest --preset dev --output-on-failure (fd6c65196); focused rows, format, tidy and documentation on 1a76acd0f", "detail": "Full run on fd6c65196 (lean -g0 dev build, load average near 38 from two other agents' full runs): 731/740 passed; the 9 failures (application_diff_host 10 ms stop budget, qt_composed_long_thread_scale_100, release_update_native_https, application_large_review_active_work and _pathological input budgets, large_review_replay_contract timeout, application_agent_materialization_crash_recovery, application_review_submission_composition_public_path and _scale_125) all passed rerun in isolation on the same binaries (large_review_active_work twice). application_composition_contract passed in the full run after the round-trip reseal (production app source digest cae8d253...). On 1a76acd0f: core_update_line, core_epoch_policy, qt_epoch_comparison x3, application_epoch_host, workbench and round-trip composition contracts, anonymous preview, ordinary-update-recreated and update-line public paths pass; clang-format 22.1.8 --Werror clean; clang-tidy clean on update_line.cpp, epoch_line.cpp, epoch_comparison_control.cpp, epoch_transition.cpp, update_line_tests.cpp; DOCUMENTATION_OK and verify_documentation_tests OK on a trial merge with main 5df5bf89f (the branch alone trips NEXT_ID high water from later allocations on main)."}}]
 ---
 
 # BPR-1557: The Updates line starts with the pull request's base
@@ -151,3 +152,25 @@ The core decides, the host performs, Qt presents. No host, provider, Git or
 storage behaviour changes: the comparison still compares exactly the anchors
 it did. Whole PR's comparison basis (base tip or merge base) is
 [[BPR-0944]]'s and unchanged here.
+
+## Attended review v001 (pending)
+
+- Session `d62ac57667ce277091d8684de8c34f0b`, fresh state
+  `/Users/jaeger/.mask/bpr-1557-base-anchor-v001-20261016/attended-review`,
+  checkout `.claude/worktrees/bpr-1557-base-anchor`, event cursor 3.
+- Candidate `BPR-1557-base-anchor-v001` (revision `frozen-1a76acd0f-v001`,
+  fingerprint `bc56762e0c12…`), criterion `BPR-1557:owner`. One Accept or
+  Reject: the Updates line starts with the left handle on the pull request's
+  base and the right on the newest update. Inline 2x offscreen renders, before
+  (main `15f0bff17`) and after, Light and Dark, one update and three.
+- Frozen root `/Users/jaeger/bpr1557-base-anchor-v001.jaffeggk` from
+  `1a76acd0f` (fixture `conventional-comments-v1`, file
+  `src/engine/renderer.cpp`, `--next-push`); executable SHA-256
+  `936f9aac5143e84cb9d84b21c26aee3674c33fbf43517525cbb04a5cba7867af`; its own
+  check showed the file on head `b20cb443…` and the pushed head `cd24836c…`.
+- Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v001.jaffeggk/launch.py`
+  (`--next-push` for the second update).
+
+Next: read the decision (`status --after 3`). Accept: merge the branch with
+main, reseal the round-trip composition digest on the merged tree, rerun the
+focused rows and finish. Reject: its note shapes v002.

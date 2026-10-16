@@ -1,0 +1,58 @@
+{
+ "assignment": "BPR-1557",
+ "mandate": "Owner design correction 2026-10-16 on the Updates line: 'Surely the left side should be at whatever the PR's merge base is, no?' Give the line a base anchor at its left end with the left handle there by default and the right on the newest update; core decides, Qt presents; tests in four themes at 100/125/200, composed anonymous course and a signed-in live course; full dev ctest once; attended Accept/Reject; do not merge before acceptance; park on main. Amended mid-task by the coordinator: keep the anchor presentational; base/merge-base semantics belong to a separate implementer; record base-selection findings on the card.",
+ "governing_rfc": "RFC-BPR-0028 (Updates line), RFC-BPR-0029 (base vs derived comparison base)",
+ "branch": "bpr-1557-base-anchor",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1557-base-anchor",
+ "baseline": "15f0bff17 (main, allocation)",
+ "commits": {
+  "allocation_on_main": "15f0bff17",
+  "card": "b881b18cb",
+  "implementation": "fd6c65196",
+  "presentational_base": "1a76acd0f"
+ },
+ "candidate": "1a76acd0f",
+ "changed_paths": [
+  "src/core/include/bpr/core/update_line.hpp",
+  "src/core/src/update_line.cpp",
+  "src/core/CMakeLists.txt",
+  "src/core/include/bpr/core/epoch_model.hpp",
+  "src/core/src/epoch_transition.cpp",
+  "src/application/include/bpr/application/epoch_projection.hpp",
+  "src/application/src/epoch_application_host.cpp",
+  "src/adapters/qt/include/bpr/qt/epoch_line.hpp",
+  "src/adapters/qt/src/epoch_line.cpp",
+  "src/adapters/qt/include/bpr/qt/epoch_comparison_control.hpp",
+  "src/adapters/qt/src/epoch_comparison_control.cpp",
+  "src/app/main.cpp",
+  "tests/core/update_line_tests.cpp",
+  "tests/core/CMakeLists.txt",
+  "tests/core/epoch_policy_tests.cpp",
+  "tests/adapters_qt/epoch_comparison_control_tests.cpp",
+  "tests/end_to_end/live_second_account_course.cpp",
+  "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+  "docs/ux/workbench-specification.md",
+  "docs/issues/40-parked/BPR-1557-the-updates-line-starts-with-the-pull-request-base.md"
+ ],
+ "verification": "See the card's acceptance: model, line, composed, live and gates pass; full ctest on fd6c65196 731/740 with all 9 failures passing in isolation; focused rows, format, tidy and documentation on 1a76acd0f.",
+ "review": {
+  "session": "d62ac57667ce277091d8684de8c34f0b",
+  "state": "/Users/jaeger/.mask/bpr-1557-base-anchor-v001-20261016/attended-review",
+  "cursor": 3,
+  "candidate": "BPR-1557-base-anchor-v001",
+  "revision": "frozen-1a76acd0f-v001",
+  "fingerprint": "bc56762e0c126c84293ed5bb2497256fac18b2561a4732e399c84c21380846b4",
+  "frozen_root": "/Users/jaeger/bpr1557-base-anchor-v001.jaffeggk",
+  "executable_sha256": "936f9aac5143e84cb9d84b21c26aee3674c33fbf43517525cbb04a5cba7867af",
+  "server_pid": 55377,
+  "pending": [
+   "BPR-1557:owner"
+  ]
+ },
+ "live_target": "MikeMarcin/BPR-Test#74 closed; branches bpr-1557-base and bpr-1557-feature deleted",
+ "pending": [
+  "BPR-1557:owner (attended Accept/Reject)",
+  "landing: merge main into the branch, reseal the round-trip composition digests on the merged tree, rerun the focused rows, finish the card"
+ ],
+ "next_action": "Read status --after 3 of the session. Accept: land as above. Reject: v002 from the note. If the base-semantics fix changes pull_request_base in epoch_transition.cpp, the line follows it; recheck the base tooltip and the label 'Base'."
+}
