@@ -9,9 +9,10 @@
   "allocation_on_main": "15f0bff17",
   "card": "b881b18cb",
   "implementation": "fd6c65196",
-  "presentational_base": "1a76acd0f"
+  "presentational_base": "1a76acd0f",
+  "v002": "d3b2e36ed"
  },
- "candidate": "1a76acd0f",
+ "candidate": "d3b2e36ed",
  "changed_paths": [
   "src/core/include/bpr/core/update_line.hpp",
   "src/core/src/update_line.cpp",
@@ -36,15 +37,16 @@
  ],
  "verification": "See the card's acceptance: model, line, composed, live and gates pass; full ctest on fd6c65196 731/740 with all 9 failures passing in isolation; focused rows, format, tidy and documentation on 1a76acd0f.",
  "review": {
-  "session": "d62ac57667ce277091d8684de8c34f0b",
-  "state": "/Users/jaeger/.mask/bpr-1557-base-anchor-v001-20261016/attended-review",
+  "session": "66dd3c27654c930973d797eb9fea2e84",
+  "state": "/Users/jaeger/.mask/bpr-1557-base-anchor-v002-20261016/attended-review",
   "cursor": 3,
-  "candidate": "BPR-1557-base-anchor-v001",
-  "revision": "frozen-1a76acd0f-v001",
-  "fingerprint": "bc56762e0c126c84293ed5bb2497256fac18b2561a4732e399c84c21380846b4",
-  "frozen_root": "/Users/jaeger/bpr1557-base-anchor-v001.jaffeggk",
-  "executable_sha256": "936f9aac5143e84cb9d84b21c26aee3674c33fbf43517525cbb04a5cba7867af",
-  "server_pid": 55377,
+  "candidate": "BPR-1557-base-anchor-v002",
+  "revision": "frozen-d3b2e36ed-v002",
+  "fingerprint": "b95dbd24edef19212be60493010535336d7a42a0ebfb4cc01706c19b37e2bb14",
+  "frozen_root": "/Users/jaeger/bpr1557-base-anchor-v002.kg9vgygo",
+  "executable_sha256": "172834c0d855d75a0b6a32f1e23b27c5ecf3ad7cc677a1eee951e6e76e42bc51",
+  "server_pid": 23927,
+  "url_port": 57715,
   "pending": [
    "BPR-1557:owner"
   ]
@@ -54,5 +56,14 @@
   "BPR-1557:owner (attended Accept/Reject)",
   "landing: merge main into the branch, reseal the round-trip composition digests on the merged tree, rerun the focused rows, finish the card"
  ],
- "next_action": "Read status --after 3 of the session. Accept: land as above. Reject: v002 from the note. If the base-semantics fix changes pull_request_base in epoch_transition.cpp, the line follows it; recheck the base tooltip and the label 'Base'."
+ "next_action": "Read status --after 3 of session 66dd3c27. Accept: merge main into the branch, reseal the round-trip composition digests on the merged tree, rerun the focused rows, finish. Reject: v003 from the note. BPR-1560 will move the base to the merge base through pull_request_base; the label stays 'Base' and the tooltip neutral.",
+ "previous_review": {
+  "session": "d62ac57667ce277091d8684de8c34f0b",
+  "verdict": "reject",
+  "note": "I find these handles quite difficult to see.",
+  "decision_id": "60120f22-bc68-467a-8aa0-08028b69c28b",
+  "host": "stopped",
+  "candidate": "released",
+  "frozen_root": "removed"
+ }
 }
