@@ -53,6 +53,8 @@ namespace {
 		/// [[BPR-1345]]. What each key's lookup answers.
 		std::map<std::string, std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>> Admitted;
 		std::size_t                                                                                                                       Lookups = 0U;
+		/// [[BPR-1541]]. Why each key was last left unknown, as its record keeps it.
+		std::map<std::string, core::review_submission_unknown_diagnosis> Kept;
 	};
 	struct provider final : application::review_submission_port
 	{
@@ -86,6 +88,12 @@ namespace {
 		{
 			expect(State->InEffect, "pending discovery runs on effect lane");
 			return State->Pending;
+		}
+		auto last_unknown(const std::string& aKey, std::stop_token) -> std::optional<core::review_submission_unknown_diagnosis> override
+		{
+			expect(State->InEffect, "a kept reason is read on the effect lane");
+			const auto kept = State->Kept.find(aKey);
+			return kept != State->Kept.end() ? std::optional{ kept->second } : std::nullopt;
 		}
 		auto result(const application::review_submission_request& aRequest) -> application::review_submission_result
 		{
@@ -259,6 +267,26 @@ namespace {
 		expect(f.Host.discover().has_value(), "discovery accepted");
 		f.drain();
 		expect(std::get<application::review_submission_discovery>(f.Projection.Terminals.back().Outcome).value() == f.State->Pending, "discovery preserves original request/key");
+		expect(f.Projection.Terminals.back().Unknown.empty(), "[[BPR-1541]] with no kept reason the discovery carries none");
+		{
+			// [[BPR-1541]]. A restored attempt brings the reason its record
+			// kept; an invalid one, or one for a key not discovered, does not.
+			fixture kept;
+			kept.State->Pending = { request() };
+			auto reason         = core::review_submission_unknown_diagnosis{ .Reason = core::review_submission_unknown_reason::comments_mismatch, .CommentsExpected = 3U, .CommentsFound = 3U, .CommentsMatched = 2U };
+			kept.State->Kept.emplace(request().IdempotencyKey, reason);
+			kept.State->Kept.emplace("another-key", reason);
+			expect(kept.Host.discover().has_value(), "discovery with a kept reason accepted");
+			kept.drain();
+			const auto& terminal = kept.Projection.Terminals.back();
+			expect(terminal.Unknown.size() == 1U && terminal.Unknown.at(request().IdempotencyKey) == reason, "the discovery carries the discovered attempt's kept reason only");
+			reason.CommentsMatched = 9U;
+			kept.State->Kept.clear();
+			kept.State->Kept.emplace(request().IdempotencyKey, reason);
+			expect(kept.Host.discover().has_value(), "a second discovery accepted");
+			kept.drain();
+			expect(kept.Projection.Terminals.back().Unknown.empty(), "an invalid kept reason is not carried");
+		}
 		expect(f.Host.reconcile(request()).has_value(), "read-only recovery requires no new publication grant");
 		f.drain();
 		expect(f.State->Submitted == 0U && f.State->Reconciled == 1U, "recovery never chooses submit effect");
