@@ -100,17 +100,23 @@ namespace bpr::qt {
 		core::appearance_variant aVariant) -> QString;
 
 	/// \brief [[BPR-0776]]. Home's three states: what needs me, what waits on
-	/// others, and what I follow.
+	/// others, and what I follow; and [[BPR-1528]] the section of my own pull
+	/// requests.
+	///
+	/// \details My pull requests is a section, not a state: its rows keep their
+	/// own state colours, and its tone is only the panel's header and rail
+	/// (owner, 2026-10-15).
 	enum class attention_tone : std::uint8_t {
 		needs_me,
 		waiting_on_others,
 		following,
+		my_pull_requests,
 	};
 
-	/// \brief Returns one Home state colour at text strength for one built-in variant.
+	/// \brief Returns one Home section colour at text strength for one built-in variant.
 	///
 	/// \details A derived role the closed vocabulary deliberately omits. Home's
-	/// states present the core's attention grouping rather than a review-ledger
+	/// sections present the core's attention grouping rather than a review-ledger
 	/// state, so the colours are neither customisable nor stored. Each reads as
 	/// small text at 4.5:1 or better against its variant's code background and
 	/// application surface.

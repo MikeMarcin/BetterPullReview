@@ -82,12 +82,15 @@ namespace bpr::qt {
 	/// \brief [[BPR-1365]]. What that row's accessible description begins with.
 	[[nodiscard]] auto home_reviewing_description() -> QString;
 
-	/// \brief Home's three state colours at text strength.
+	/// \brief Home's section colours at text strength.
 	struct home_state_colours
 	{
 		QColor NeedsMe;
 		QColor WaitingOnOthers;
 		QColor Following;
+		/// [[BPR-1528]]. My pull requests' header and rail only: its rows keep
+		/// their own state colours.
+		QColor MyPullRequests;
 		/// [[BPR-1357]]. The ink a row says it could not be opened in: the
 		/// theme's defect colour, which every variant holds at text strength.
 		QColor Failure;

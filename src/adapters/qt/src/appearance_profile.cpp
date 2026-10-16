@@ -367,18 +367,20 @@ namespace bpr::qt {
 			{ role::find_current_match_background, srgb(0x422C00) },
 		} });
 
-		/// \brief [[BPR-0776]]. Home's state colours per built-in variant, in
-		/// `attention_tone` order: amber, blue and green.
+		/// \brief [[BPR-0776]]. Home's section colours per built-in variant, in
+		/// `attention_tone` order: amber, blue, green and [[BPR-1528]] plum.
 		///
 		/// \details The light amber is darker than the design board's so that the
 		/// reason word reads as small text on white; the high-contrast tones are
-		/// the accepted high-contrast warning, unread and accepted colours.
-		using attention_entries = std::array<std::uint32_t, 3U>;
+		/// the accepted high-contrast warning, unread and accepted colours. The
+		/// plum of My pull requests sits about 65 degrees of hue from the blue of
+		/// Waiting on others and holds the same text-strength floor.
+		using attention_entries = std::array<std::uint32_t, 4U>;
 
-		constexpr auto light_attention               = attention_entries{ 0x9A6100U, 0x3468D6U, 0x1A7A50U };
-		constexpr auto dark_attention                = attention_entries{ 0xE0A23CU, 0x6D9BFFU, 0x4CC08AU };
-		constexpr auto high_contrast_light_attention = attention_entries{ 0x7A3000U, 0x0033CCU, 0x005A1EU };
-		constexpr auto high_contrast_dark_attention  = attention_entries{ 0xFFBC66U, 0x66B2FFU, 0x4AE56BU };
+		constexpr auto light_attention               = attention_entries{ 0x9A6100U, 0x3468D6U, 0x1A7A50U, 0x9A3FB0U };
+		constexpr auto dark_attention                = attention_entries{ 0xE0A23CU, 0x6D9BFFU, 0x4CC08AU, 0xCF86E8U };
+		constexpr auto high_contrast_light_attention = attention_entries{ 0x7A3000U, 0x0033CCU, 0x005A1EU, 0x6B0080U };
+		constexpr auto high_contrast_dark_attention  = attention_entries{ 0xFFBC66U, 0x66B2FFU, 0x4AE56BU, 0xE59CFFU };
 
 		constexpr auto contrast_hundredths_per_unit = 100.0;
 

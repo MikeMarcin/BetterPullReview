@@ -161,3 +161,16 @@ visible under Hide quiet; bounded names, separate people/team counts and last-kn
 freshness extend existing native row anatomy. This successor adds bounded provider
 reads and numeric-account-bound metadata retention; historical section rearrangement
 and its evidence are unchanged. Historical human/native obligations are not waived.
+
+## Owner amendment: My pull requests header and rail colour — 2026-10-15
+
+The owner asked: "Can we add a header and rail color for my reviews on the
+home". [[BPR-1528]] replaces this RFC's neutral section header with a tinted
+header and rail in a fourth built-in Home tone, plum, for each of Light, Dark,
+High Contrast Light and High Contrast Dark. Like Home's state tones it reads as
+small text at 4.5:1 or better on its variant's base and surface and is neither
+stored nor customisable. It marks the section rather than a state: rows keep
+their own reason-word colours and marks, and membership, order, counts,
+summaries, collapse and Group behaviour are unchanged. AC01–AC05 and their
+evidence are unchanged; the owner's visual acceptance of the exact candidate
+belongs to BPR-1528.

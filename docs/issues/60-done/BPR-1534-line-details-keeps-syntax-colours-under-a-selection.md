@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1534"
 title: "Line details keeps the syntax colours under a text selection"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-15","owner_note":"Although I see the line details lists syntax highlights on selecting which is a separate bug","governing_rfc":"RFC-BPR-0006","related_rfcs":["RFC-BPR-0028"],"related_cards":["BPR-1334","BPR-1212","BPR-1156","BPR-1533"],"reservation":"docs/issues/_reservations/BPR-1534--BPR-1534--78ec543a573a.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200} Line details course, four variants: selected int drawn in its selection ink (4.51/5.65/8.84/7.03:1) not HighlightedText; Qt's paint fails in every variant."}},{"criterion":"AC2","outcome":"pass","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"command","detail":"Same course: fill is code_selection_background via the panes' helper; 0 pixels differ outside the selection; Copy's selection unchanged; application_line_details_public_path passes."}},{"criterion":"AC3","outcome":"pending","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in fresh session 7c8004e6428577726d1ce8825ee1dff5, candidate BPR-1534-line-details-syntax-v001, fingerprint d9dda508db354a3567365412bdcd3059b0a9ea4de89f2bceb0ba5f7bb9c26268, cursor 8; frozen root bpr1533-selection-v001.u0prev45."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"5bde3d8dd","evidence":{"kind":"command","detail":"On main at 5bde3d8dd: qt_diff_workbench_scale_{100,125,200} Line details course, four variants: selected int in its selection ink (4.51/5.65/8.84/7.03:1) not HighlightedText; Qt's paint fails in every variant (negative control at the candidate)."}},{"criterion":"AC2","outcome":"pass","revision":"5bde3d8dd","evidence":{"kind":"command","detail":"Same course: fill is code_selection_background via the shared append_text_selection_ranges (b38953f19); 0 pixels differ outside the selection; Copy unchanged; application_line_details_public_path and qt_code_sample_painter pass; DOCUMENTATION_OK."}},{"criterion":"AC3","outcome":"pass","revision":"5bde3d8dd","evidence":{"kind":"observation","detail":"Owner accepted BPR-1534-line-details-syntax-v001 in session 7c8004e6428577726d1ce8825ee1dff5 (event 10, fingerprint d9dda508...) on the frozen c84681b0a build; product sources identical to 5bde3d8dd."}}]
 ---
 
 # BPR-1534: Line details keeps the syntax colours under a text selection
@@ -86,3 +85,17 @@ The review server (pid 70713) is handed to the coordinator.
 
 Next: on hand-back, an Accept merges this card's commit (with the shared
 helper) to `main` and finishes the card; a Reject's note becomes v002.
+
+## Owner verdict and merge — 2026-10-15
+
+The owner accepted `BPR-1534-line-details-syntax-v001` (session
+`7c8004e6428577726d1ce8825ee1dff5`, decision event 10, fingerprint
+`d9dda508…`, handed back at event 11) on the frozen `c84681b0a` build. The
+shared helper and this card's commits were cherry-picked onto `main` at
+`0b37d5438` as `b38953f19` (helper), `5bde3d8dd` (this card) and `1d2564527`
+(the render look, tests only), without [[BPR-1533]]'s commit, which the owner
+rejected for a v002. On that tree `qt_diff_workbench_scale_{100,125,200}`,
+`qt_code_sample_painter` and `application_line_details_public_path` pass (5 of
+5), the Line details course reports the same inks (4.51, 5.65, 8.84, 7.03:1),
+and the documentation gate reports `DOCUMENTATION_OK`.
+
