@@ -18684,6 +18684,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_refused,
 				awaiting_discarded,
 				awaiting_held,
+				/// [[BPR-1541]].
+				awaiting_replaced,
+				awaiting_restored_unknown,
+				awaiting_restored_replaced,
 				awaiting_reconciled,
 				// [[BPR-1345]] v002, `again`.
 				awaiting_old_line,
@@ -29923,7 +29927,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		constexpr auto path  = std::string_view{ "src/engine/renderer.cpp" };
 		constexpr auto other = std::string_view{ "src/engine/renderer.h" };
-		const auto     words = std::array{
+		// [[BPR-1541]]. The lines the page shows for an unreachable list and
+		// for a server error.
+		const auto unknownLine        = [](const core::review_submission_unknown_reason aReason) { return qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = aReason }); };
+		const auto unknownServerError = qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = core::review_submission_unknown_reason::http_status, .StatusClass = 5U });
+		const auto words              = std::array{
 			QStringLiteral("question: Where does this value come from? (BPR-1345 first)"),
 			QStringLiteral("nit: these two lines could be one. (BPR-1345 range)"),
 			QStringLiteral("BPR-1345: this one goes on its own."),
@@ -30203,6 +30211,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (revealed == detail::fixture_file_reveal_result::shown) {
 				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored
+					: aCourse == course::restored       ? state_type::phase::awaiting_restored_unknown
 					: aCourse == course::again          ? state_type::phase::awaiting_old_line
 														: state_type::phase::awaiting_first_line;
 			}
@@ -30384,7 +30393,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			{
 				const auto lock         = std::scoped_lock{ server.Mutex };
 				server.RefuseNextReview = aCourse == course::refused;
-				server.LoseNextReview   = aCourse == course::uncertain;
+				server.LoseNextReview   = aCourse == course::uncertain || aCourse == course::kept;
 			}
 			// [[BPR-1475]]. What the submission's own reread is measured from.
 			probe.ReadsBefore     = implementation->Fixture->evidence().AccountReadCount;
@@ -30393,8 +30402,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			summary->disposition_button(core::review_disposition::comment)->click();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
-			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain ? state_type::phase::awaiting_held
-																														   : state_type::phase::awaiting_submitted;
+			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain || aCourse == course::kept ? state_type::phase::awaiting_held
+																																					  : state_type::phase::awaiting_submitted;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_submitted: {
@@ -30609,15 +30618,92 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.UncertainHeld) {
 				return fail("uncertain-not-held-exactly");
 			}
+			// [[BPR-1541]]. The list could not be reached: the page says so
+			// under the status, as part of its description, naming nothing.
 			{
-				const auto lock        = std::scoped_lock{ server.Mutex };
-				server.HideReviewReads = false;
+				const auto line            = summary->unknown_reason_label()->text();
+				probe.Evidence.ReasonShown = !summary->unknown_reason_label()->isHidden() && line == unknownLine(core::review_submission_unknown_reason::network)
+					&& summary->status_label()->accessibleDescription() == line && !line.contains(QStringLiteral("conventional")) && !line.contains(QStringLiteral("renderer"));
+				render(QStringLiteral("unknown-reason"), summary);
+				// [[BPR-1541]] v002. The held review in the window, in each theme.
+				renderThemes(QStringLiteral("unknown-status"));
+				if (!probe.Evidence.ReasonShown) {
+					return fail("unknown-reason-not-shown");
+				}
+			}
+			if (aCourse == course::kept) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			{
+				// Check status again: the list answers with a server error.
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.ReviewReadStatus = 503;
+			}
+			summary->reconcile_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_replaced;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_replaced: {
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " reconcile=" + std::to_string(summary->reconcile_action()->isEnabled() ? 1 : 0));
+			if (line != unknownServerError || !summary->reconcile_action()->isEnabled()) {
+				return ++probe.Waited < 400U ? result::pending : fail("unknown-reason-not-replaced");
+			}
+			probe.Evidence.ReasonReplaced = posts().size() == 1U && summary->status_label()->accessibleDescription() == line;
+			if (!probe.Evidence.ReasonReplaced) {
+				return fail("unknown-reason-replaced-wrongly");
+			}
+			{
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads  = false;
+				server.ReviewReadStatus = 0;
 			}
 			summary->reconcile_action()->trigger();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_reconciled;
 			return result::pending;
+		}
+		case state_type::phase::awaiting_restored_unknown: {
+			// [[BPR-1541]]. Restarted over the kept root, with the review
+			// list's reads held: before Check status answers, the restored
+			// review already says what its record kept.
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " status=" + summary->status_label()->text().toStdString());
+			if (line.isEmpty() || summary->unknown_reason_label()->isHidden()) {
+				return ++probe.Waited < 400U ? result::pending : fail("restored-reason-not-shown");
+			}
+			probe.Evidence.ReasonRestored = line == unknownLine(core::review_submission_unknown_reason::network) && summary->shown_draft()
+				&& summary->shown_draft()->State == core::review_submission_state::submitting && summary->status_label()->text().startsWith(QStringLiteral("Checking the original review"));
+			if (!probe.Evidence.ReasonRestored) {
+				return fail("restored-reason-not-the-kept-one");
+			}
+			{
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads  = true;
+				server.ReviewReadStatus = 503;
+				server.StallReviewReads = false;
+			}
+			server.ReadGate.notify_all();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_restored_replaced;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_restored_replaced: {
+			const auto line = summary->unknown_reason_label()->text();
+			note("reason=" + line.toStdString() + " status=" + summary->status_label()->text().toStdString());
+			if (line != unknownServerError) {
+				return ++probe.Waited < 400U ? result::pending : fail("restored-reason-not-replaced");
+			}
+			probe.Evidence.ReasonReplaced = summary->status_label()->text().startsWith(QStringLiteral("Review status is unknown."));
+			if (!probe.Evidence.ReasonReplaced) {
+				return fail("restored-reason-replaced-wrongly");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
 		}
 		case state_type::phase::awaiting_reconciled: {
 			const auto published = countPublished();
@@ -30631,6 +30717,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 1 comment");
 			if (!probe.Evidence.Reconciled) {
 				return fail("reconciled-after-a-second-post");
+			}
+			// [[BPR-1541]]. Confirmed: no reason is shown.
+			probe.Evidence.ReasonCleared = summary->unknown_reason_label()->isHidden() && summary->unknown_reason_label()->text().isEmpty();
+			if (!probe.Evidence.ReasonCleared) {
+				return fail("reason-kept-after-confirmation");
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

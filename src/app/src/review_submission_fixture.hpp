@@ -49,6 +49,14 @@ namespace bpr::app::detail {
 		/// The review list cannot be read: set when the next review's answer
 		/// is lost, so its outcome is unknown until the reads come back.
 		bool HideReviewReads = false;
+		/// [[BPR-1541]]. While reads are hidden, answer the review list with
+		/// this status instead of a failure to connect; 0 for that failure.
+		int ReviewReadStatus = 0;
+		/// [[BPR-1541]]. Hold every read of the review list until released,
+		/// so a restarted window shows what its record kept before Check
+		/// status answers. Released by clearing it and notifying `ReadGate`.
+		bool                    StallReviewReads = false;
+		std::condition_variable ReadGate;
 	};
 	[[nodiscard]] auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state>, std::unique_ptr<application::review_submission_recovery_port>, application::review_submission_live_binding, std::string) -> std::unique_ptr<application::review_submission_port>;
 	[[nodiscard]] auto make_review_submission_fixture_provider(

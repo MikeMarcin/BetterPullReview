@@ -5,6 +5,7 @@
 #include "bpr/application/review_submission_port.hpp"
 
 #include <chrono>
+#include <map>
 #include <memory>
 #include <variant>
 
@@ -33,6 +34,9 @@ namespace bpr::application {
 	{
 		review_submission_host_context                                                                                                                    Context;
 		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result, review_submission_lookup> Outcome;
+		/// [[BPR-1541]]. With a discovery: why each discovered attempt was
+		/// last left unknown, by its key, as its record keeps it.
+		std::map<std::string, core::review_submission_unknown_diagnosis> Unknown = { };
 	};
 	class review_submission_projection_port
 	{

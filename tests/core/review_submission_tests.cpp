@@ -308,11 +308,48 @@ namespace {
 			expect(!parse_review_submission_unknown(text), "anything but the exact line is not read");
 		}
 	}
+	/// [[BPR-1541]]. The core chooses each reason's line and the only numbers
+	/// it may say: comment counts for a mismatch that carried comments, the
+	/// status class 4 or 5 for an HTTP status; nothing else reaches the page.
+	void test_unknown_notices()
+	{
+		for (std::size_t index = 0U; index < review_submission_unknown_reason_count; ++index) {
+			const auto reason          = static_cast<review_submission_unknown_reason>(index);
+			auto       diagnosis       = review_submission_unknown_diagnosis{ .Reason = reason };
+			diagnosis.PostAnswer       = review_submission_post_answer::error_status;
+			diagnosis.PostStatusClass  = 5U;
+			diagnosis.HttpStatusClass  = 4U;
+			diagnosis.CommentsExpected = 3U;
+			diagnosis.CommentsFound    = 3U;
+			diagnosis.CommentsMatched  = 2U;
+			diagnosis.CandidateReviews = 1U;
+			diagnosis.PagesRead        = 2U;
+			const auto line            = notice(diagnosis);
+			const auto counted         = reason == review_submission_unknown_reason::comments_mismatch;
+			const auto classed         = reason == review_submission_unknown_reason::http_status;
+			expect(line.Reason == reason && (line.Count != review_submission_unknown_count::none) == counted && (line.StatusClass != 0U) == classed,
+				   "each reason keeps its line and only its own numbers");
+		}
+		auto mismatch = review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::comments_mismatch, .CommentsExpected = 3U, .CommentsFound = 3U, .CommentsMatched = 2U };
+		auto line     = notice(mismatch);
+		expect(line.Count == review_submission_unknown_count::matched_of_carried && line.Value == 2U && line.Of == 3U, "as many held as carried: how many matched");
+		mismatch.CommentsFound   = 2U;
+		mismatch.CommentsMatched = 0U;
+		line                     = notice(mismatch);
+		expect(line.Count == review_submission_unknown_count::held_of_carried && line.Value == 2U && line.Of == 3U, "another number held: how many it holds");
+		mismatch.CommentsExpected = 0U;
+		mismatch.CommentsFound    = 0U;
+		expect(notice(mismatch).Count == review_submission_unknown_count::none, "a review that carried no comment says no count");
+		for (const auto status : std::array<std::uint8_t, 3>{ 0U, 2U, 3U }) {
+			expect(notice(review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::http_status, .HttpStatusClass = status }).StatusClass == 0U, "only a refusal or a server error is told apart");
+		}
+	}
 } // namespace
 
 int main()
 {
 	test_unknown_reasons();
+	test_unknown_notices();
 	test_decided_controls();
 	test_kept_drafts();
 	test_transitions();
