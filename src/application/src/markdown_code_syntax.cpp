@@ -82,18 +82,18 @@ namespace bpr::application {
 				++Refused;
 				return;
 			}
-			const auto key    = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
-			const auto add_to = [&aRequest](wanted& aWanted) {
+			const auto key         = token_span_cache_key{ .Blob = *blob, .Definition = *definition };
+			const auto addSelector = [&aRequest](wanted& aWanted) {
 				if (std::ranges::find(aWanted.Selectors, aRequest.Selector) == aWanted.Selectors.end()) {
 					aWanted.Selectors.push_back(aRequest.Selector);
 				}
 			};
 			if (Classifying && Classifying->Key == key) {
-				add_to(*Classifying);
+				addSelector(*Classifying);
 				return;
 			}
 			if (const auto found = std::ranges::find(Waiting, key, &wanted::Key); found != Waiting.end()) {
-				add_to(*found);
+				addSelector(*found);
 				return;
 			}
 			if (Waiting.size() >= Limits.Waiting) {

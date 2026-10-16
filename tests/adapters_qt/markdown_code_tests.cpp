@@ -19,6 +19,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
@@ -451,6 +452,43 @@ namespace {
 		use_theme(aView, themes[0]);
 	}
 
+	/// The preview budgets still bound the work: a body near 64 KiB of fenced
+	/// code in three kinds renders, is placed and is classified within the
+	/// reader's one-second local ceiling.
+	void check_bounds(qt::markdown_body_view& aView, composed& aPath)
+	{
+		use_theme(aView, themes[0]);
+		aView.set_suggestions(qt::markdown_suggestion_presentation{ .Path = "src/a.cpp", .Lines = core::markdown_suggestion_context{ .FirstLine = 1U, .Lines = { "int a = 0;" } } });
+		auto body   = std::string{ };
+		auto blocks = 0;
+		// About 60 KB in under 2,048 lines: blocks of eight long lines.
+		while (body.size() < 58'000U) {
+			const auto n    = std::to_string(blocks);
+			const auto kind = blocks % 3;
+			body += kind == 0 ? "```cpp\n" : kind == 1 ? "```diff\n@@ -1,4 +1,4 @@\n"
+													   : "```suggestion\n";
+			for (auto line = 0; line < 8; ++line) {
+				const auto text = "auto value" + n + "_" + std::to_string(line) + " = compute(first, second, third) + offset; // note " + n;
+				body += (kind == 1 ? (line % 2 == 0 ? "-" : "+") : "") + text + "\n";
+			}
+			body += "```\n\n";
+			++blocks;
+		}
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		aView.set_body(body, "bounds:1");
+		settle();
+		const auto rendered = timer.elapsed();
+		aPath.deliver(aView);
+		const auto coloured = timer.elapsed();
+		std::cout << "bounds: " << body.size() << " bytes, " << blocks << " blocks, rendered in " << rendered << " ms, coloured by " << coloured << " ms\n";
+		expect(aView.rendered_available(), "a 58 KB body of fenced code renders: " + aView.fallback_reason().toStdString());
+		expect(rendered < 1000, "it renders within the one-second ceiling");
+		expect(static_cast<int>(aView.code_store()->blocks().size()) == blocks && std::ranges::all_of(aView.code_store()->blocks(), &qt::detail::markdown_code_store::block::Placed),
+			   "every block is placed");
+		aView.set_suggestions(std::nullopt);
+	}
+
 	struct github_row
 	{
 		bool    Added  = false;
@@ -657,6 +695,7 @@ try {
 	check_arrival(view, path);
 	check_diff(view);
 	check_suggestions(view);
+	check_bounds(view, path);
 	capture(view, path);
 	path.Host.shutdown();
 	std::cout << "markdown-code-tests:pass\n";

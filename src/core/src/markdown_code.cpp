@@ -553,9 +553,8 @@ namespace bpr::core {
 					if (!quote_marker(line)) {
 						break;
 					}
-				} else if (blank(line.rest())) {
-					line.consume_columns(open.Indent);
-				} else if (line.indentation() >= open.Indent) {
+				} else if (blank(line.rest()) || line.indentation() >= open.Indent) {
+					// An item continues on a blank line or one indented to its content.
 					line.consume_columns(open.Indent);
 				} else {
 					break;

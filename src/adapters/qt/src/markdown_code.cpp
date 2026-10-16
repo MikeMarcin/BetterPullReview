@@ -401,6 +401,86 @@ namespace bpr::qt::detail {
 		return taken;
 	}
 
+	namespace {
+		/// \brief GitHub's diff grammar marks of one line, in the theme's colours.
+		[[nodiscard]] auto diff_formats(const std::string& aLine, const markdown_code_colours& aColours) -> QList<QTextLayout::FormatRange>
+		{
+			auto formats = QList<QTextLayout::FormatRange>{ };
+			for (const auto& mark : core::markdown_diff_marks(aLine)) {
+				const auto [from, to] = range_of(aLine, mark.Begin, mark.Begin + mark.Length);
+				auto range            = QTextLayout::FormatRange{ };
+				range.start           = from;
+				range.length          = to - from;
+				switch (mark.Kind) {
+				case core::markdown_diff_mark_kind::inserted:
+					range.format.setBackground(aColours.AddedFill);
+					range.format.setForeground(aColours.AddedInk);
+					break;
+				case core::markdown_diff_mark_kind::deleted:
+					range.format.setBackground(aColours.RemovedFill);
+					range.format.setForeground(aColours.RemovedInk);
+					break;
+				case core::markdown_diff_mark_kind::changed:
+					range.format.setBackground(aColours.ChangedFill);
+					range.format.setForeground(aColours.ChangedInk);
+					break;
+				case core::markdown_diff_mark_kind::range:
+					range.format.setForeground(aColours.Range);
+					range.format.setFontWeight(QFont::Bold);
+					break;
+				case core::markdown_diff_mark_kind::header:
+					range.format.setForeground(aColours.Header);
+					break;
+				case core::markdown_diff_mark_kind::separator:
+					range.format.setForeground(aColours.Header);
+					range.format.setFontWeight(QFont::Bold);
+					break;
+				}
+				if (range.length > 0) {
+					formats.push_back(range);
+				}
+			}
+			return formats;
+		}
+
+		/// \brief A suggestion row's syntax colours, and its changed words on
+		/// the intraline fill with every glyph's ink held readable on it.
+		[[nodiscard]] auto row_formats(const core::markdown_suggestion_row& aRow, const application::shared_token_spans& aSpans, const std::uint32_t aLine,
+									   const code_role_colors& aRoles, const markdown_code_colours& aColours, const core::appearance_variant aVariant)
+			-> QList<QTextLayout::FormatRange>
+		{
+			auto formats = line_formats(aRow.Text, aSpans, aLine, aRoles);
+			if (aRow.ChangedEnd <= aRow.ChangedBegin) {
+				return formats;
+			}
+			const auto fill     = aRow.Added ? aColours.AddedWord : aColours.RemovedWord;
+			const auto readable = [&](const QColor& aGlyph) {
+				return to_presentation_color(core::readable_emphasis_foreground(to_appearance_color(aGlyph), to_appearance_color(fill), aVariant));
+			};
+			const auto [from, to] = range_of(aRow.Text, aRow.ChangedBegin, aRow.ChangedEnd);
+			const auto syntax     = formats;
+			auto       word       = QTextLayout::FormatRange{ };
+			word.start            = from;
+			word.length           = to - from;
+			word.format.setBackground(fill);
+			word.format.setForeground(readable(aColours.Normal));
+			formats.push_back(word);
+			// A classified token keeps its hue, held readable on the mark.
+			for (const auto& token : syntax) {
+				const auto begin = std::max(token.start, from);
+				const auto end   = std::min(token.start + token.length, to);
+				if (begin < end) {
+					auto inked   = QTextLayout::FormatRange{ };
+					inked.start  = begin;
+					inked.length = end - begin;
+					inked.format.setForeground(readable(token.format.foreground().color()));
+					formats.push_back(inked);
+				}
+			}
+			return formats;
+		}
+	} // namespace
+
 	void markdown_code_store::style(QTextDocument& aDocument, const markdown_code_colours& aColours, const code_role_colors& aRoles, const core::appearance_variant aVariant, const QFont& aFont, const QFont& aCode)
 	{
 		Colours  = aColours;
@@ -408,18 +488,14 @@ namespace bpr::qt::detail {
 		if (Blocks.empty()) {
 			return;
 		}
-		const auto metrics = QFontMetricsF{ aCode };
-		const auto digit   = metrics.horizontalAdvance(QLatin1Char{ '0' });
-		auto       header  = QTextCharFormat{ };
+		const auto digit  = QFontMetricsF{ aCode }.horizontalAdvance(QLatin1Char{ '0' });
+		auto       header = QTextCharFormat{ };
 		header.setForeground(aColours.Muted);
 		header.setFontFamilies(aFont.families());
 		header.setFontFixedPitch(false);
 		if (aFont.pointSizeF() > 0.0) {
 			header.setFontPointSize(aFont.pointSizeF() * 0.86);
 		}
-		const auto plain = [&aColours](const QColor& aGlyph, const QColor& aFill, const core::appearance_variant aThemeVariant) {
-			return to_presentation_color(core::readable_emphasis_foreground(to_appearance_color(aGlyph.isValid() ? aGlyph : aColours.Normal), to_appearance_color(aFill), aThemeVariant));
-		};
 		for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
 			auto format = current.blockFormat();
 			if (!format.hasProperty(markdown_code_ordinal_property)) {
@@ -429,125 +505,68 @@ namespace bpr::qt::detail {
 			if (ordinal >= Blocks.size()) {
 				continue;
 			}
-			auto&      entry   = Blocks[ordinal];
-			const auto row     = row_of(current);
-			const auto index   = static_cast<std::uint32_t>(format.intProperty(markdown_code_line_property));
-			auto       formats = QList<QTextLayout::FormatRange>{ };
-			if (entry.Suggestion) {
-				const auto numbers     = entry.Numbered ? std::max<std::size_t>(2U, std::to_string(entry.Rows.empty() || !entry.Rows.back().Number ? 0U : *entry.Rows.back().Number).size()) : 0U;
-				const auto numberWidth = entry.Numbered ? std::ceil(digit * static_cast<qreal>(numbers) + 16.0) : 0.0;
-				const auto gutter      = numberWidth + std::ceil(digit + 12.0);
-				if (row == markdown_code_row::header) {
-					format.setLeftMargin(header_indent);
-					format.setTopMargin(box_gap + header_pad);
-					format.setBottomMargin(header_pad);
-					format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
-					format.clearBackground();
+			const auto& entry = Blocks[ordinal];
+			const auto  index = static_cast<std::uint32_t>(format.intProperty(markdown_code_line_property));
+			if (!entry.Suggestion) {
+				if (index == 0U && current.previous().isValid() && current.previous().blockFormat().hasProperty(QTextFormat::BlockCodeFence) && format.topMargin() != block_gap) {
+					// Two fenced blocks in a row read as two, as GitHub draws them.
+					format.setTopMargin(block_gap);
 					set_block_format(aDocument, current, format);
-					auto cursor = QTextCursor{ current };
-					cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-					if (current.begin().atEnd() || current.begin().fragment().charFormat() != header) {
-						cursor.setCharFormat(header);
-					}
-					continue;
 				}
-				format.setLeftMargin(gutter);
-				format.setTopMargin(row_pad);
-				const auto next = current.next();
-				const auto last = !next.isValid() || next.blockFormat().intProperty(markdown_code_ordinal_property) != static_cast<int>(ordinal)
-					|| !next.blockFormat().hasProperty(markdown_code_ordinal_property);
-				format.setBottomMargin(last ? row_pad + box_gap : row_pad);
+				const auto shown = index < entry.Fence.Lines.size();
+				apply_syntax_format_ranges(aDocument, current,
+										   !shown                                                          ? QList<QTextLayout::FormatRange>{ }
+											   : entry.Language.Kind == core::markdown_code_kind::language ? line_formats(entry.Fence.Lines[index], entry.Spans, index, aRoles)
+											   : entry.Language.Kind == core::markdown_code_kind::diff     ? diff_formats(entry.Fence.Lines[index], aColours)
+																										   : QList<QTextLayout::FormatRange>{ });
+				continue;
+			}
+			const auto row = row_of(current);
+			if (row == markdown_code_row::header) {
+				format.setLeftMargin(header_indent);
+				format.setTopMargin(box_gap + header_pad);
+				format.setBottomMargin(header_pad);
 				format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
 				format.clearBackground();
-				format.setProperty(markdown_code_gutter_property, gutter);
-				format.setProperty(markdown_code_numbers_property, numberWidth);
 				set_block_format(aDocument, current, format);
-				// The reader gives code a background of its own; a row's fill is
-				// painted under the whole row instead.
-				auto       cursor = QTextCursor{ current };
-				const auto chars  = current.begin().atEnd() ? QTextCharFormat{ } : current.begin().fragment().charFormat();
-				if (chars.background().style() != Qt::NoBrush) {
+				if (current.begin().atEnd() || current.begin().fragment().charFormat() != header) {
+					auto cursor = QTextCursor{ current };
 					cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-					auto clear = QTextCharFormat{ };
-					clear.setBackground(Qt::NoBrush);
-					cursor.mergeCharFormat(clear);
+					cursor.setCharFormat(header);
 				}
-				const auto removed = row == markdown_code_row::removed;
-				const auto rows    = std::ranges::count_if(entry.Rows, [](const core::markdown_suggestion_row& aRow) { return !aRow.Added; });
-				const auto at      = removed ? static_cast<std::size_t>(index) : static_cast<std::size_t>(rows) + index;
-				if (at < entry.Rows.size()) {
-					const auto& suggestion = entry.Rows[at];
-					formats                = line_formats(suggestion.Text, removed ? entry.RemovedSpans : entry.Spans, index, aRoles);
-					if (suggestion.ChangedEnd > suggestion.ChangedBegin) {
-						const auto fill       = removed ? aColours.RemovedWord : aColours.AddedWord;
-						const auto [from, to] = range_of(suggestion.Text, suggestion.ChangedBegin, suggestion.ChangedEnd);
-						auto word             = QTextLayout::FormatRange{ };
-						word.start            = from;
-						word.length           = to - from;
-						word.format.setBackground(fill);
-						word.format.setForeground(plain(aColours.Normal, fill, aVariant));
-						const auto syntax = formats;
-						formats.push_back(word);
-						// A classified token keeps its hue, held readable on the mark.
-						for (const auto& token : syntax) {
-							const auto begin = std::max(token.start, from);
-							const auto end   = std::min(token.start + token.length, to);
-							if (begin < end) {
-								auto inked   = QTextLayout::FormatRange{ };
-								inked.start  = begin;
-								inked.length = end - begin;
-								inked.format.setForeground(plain(token.format.foreground().color(), fill, aVariant));
-								formats.push_back(inked);
-							}
-						}
-					}
-				}
-			} else if (index == 0U && current.previous().isValid() && current.previous().blockFormat().hasProperty(QTextFormat::BlockCodeFence) && format.topMargin() != block_gap) {
-				// Two fenced blocks in a row read as two, as GitHub draws them.
-				format.setTopMargin(block_gap);
-				set_block_format(aDocument, current, format);
+				continue;
 			}
-			if (entry.Suggestion) {
-			} else if (entry.Language.Kind == core::markdown_code_kind::language && index < entry.Fence.Lines.size()) {
-				formats = line_formats(entry.Fence.Lines[index], entry.Spans, index, aRoles);
-			} else if (entry.Language.Kind == core::markdown_code_kind::diff && index < entry.Fence.Lines.size()) {
-				const auto& line = entry.Fence.Lines[index];
-				for (const auto& mark : core::markdown_diff_marks(line)) {
-					const auto [from, to] = range_of(line, mark.Begin, mark.Begin + mark.Length);
-					auto range            = QTextLayout::FormatRange{ };
-					range.start           = from;
-					range.length          = std::max(0, to - from);
-					switch (mark.Kind) {
-					case core::markdown_diff_mark_kind::inserted:
-						range.format.setBackground(aColours.AddedFill);
-						range.format.setForeground(aColours.AddedInk);
-						break;
-					case core::markdown_diff_mark_kind::deleted:
-						range.format.setBackground(aColours.RemovedFill);
-						range.format.setForeground(aColours.RemovedInk);
-						break;
-					case core::markdown_diff_mark_kind::changed:
-						range.format.setBackground(aColours.ChangedFill);
-						range.format.setForeground(aColours.ChangedInk);
-						break;
-					case core::markdown_diff_mark_kind::range:
-						range.format.setForeground(aColours.Range);
-						range.format.setFontWeight(QFont::Bold);
-						break;
-					case core::markdown_diff_mark_kind::header:
-						range.format.setForeground(aColours.Header);
-						break;
-					case core::markdown_diff_mark_kind::separator:
-						range.format.setForeground(aColours.Header);
-						range.format.setFontWeight(QFont::Bold);
-						break;
-					}
-					if (range.length > 0) {
-						formats.push_back(range);
-					}
-				}
+			// The gutter: the numbers' column, wide enough for the last one,
+			// then the sign's.
+			const auto last        = entry.Rows.empty() || !entry.Rows.back().Number ? 0U : *entry.Rows.back().Number;
+			const auto numberWidth = entry.Numbered ? std::ceil(digit * static_cast<qreal>(std::max<std::size_t>(2U, std::to_string(last).size())) + 16.0) : 0.0;
+			const auto gutter      = numberWidth + std::ceil(digit + 12.0);
+			const auto next        = current.next();
+			const auto final       = !next.isValid() || !next.blockFormat().hasProperty(markdown_code_ordinal_property)
+				|| next.blockFormat().intProperty(markdown_code_ordinal_property) != static_cast<int>(ordinal);
+			format.setLeftMargin(gutter);
+			format.setTopMargin(row_pad);
+			format.setBottomMargin(final ? row_pad + box_gap : row_pad);
+			format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
+			format.clearBackground();
+			format.setProperty(markdown_code_gutter_property, gutter);
+			format.setProperty(markdown_code_numbers_property, numberWidth);
+			set_block_format(aDocument, current, format);
+			// The reader gives code a background of its own; a row's fill is
+			// painted under the whole row instead.
+			if (!current.begin().atEnd() && current.begin().fragment().charFormat().background().style() != Qt::NoBrush) {
+				auto cursor = QTextCursor{ current };
+				cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+				auto clear = QTextCharFormat{ };
+				clear.setBackground(Qt::NoBrush);
+				cursor.mergeCharFormat(clear);
 			}
-			apply_syntax_format_ranges(aDocument, current, formats);
+			const auto removed = row == markdown_code_row::removed;
+			const auto before  = static_cast<std::size_t>(std::ranges::count_if(entry.Rows, [](const core::markdown_suggestion_row& aRow) { return !aRow.Added; }));
+			const auto at      = removed ? static_cast<std::size_t>(index) : before + index;
+			apply_syntax_format_ranges(aDocument, current,
+									   at < entry.Rows.size() ? row_formats(entry.Rows[at], removed ? entry.RemovedSpans : entry.Spans, index, aRoles, aColours, aVariant)
+															  : QList<QTextLayout::FormatRange>{ });
 		}
 	}
 
