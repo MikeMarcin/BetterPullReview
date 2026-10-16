@@ -119,7 +119,14 @@ new colour. The full description is the reader design's
   beside the reader in Light and Dark. Live sample: MikeMarcin/BPR-Test#80
   (branch `bpr-1562-fenced-code`, review 5551993302 by MikeMarcinTest); close
   it and delete its branch after the review.
-- **Landing (do not merge before acceptance):** once BPR-1544 is on main,
+- **Owner verdicts (2026-10-16):** all three accepted with no notes,
+  handed back at cursor 16, which is consumed. The review host is stopped,
+  the frozen root removed, and BPR-Test#80 closed with its branch deleted.
+- **Landed** on main by merge `425ea6835`, rebased onto `c9ff3bf50` after
+  BPR-1544, with the round-trip composition contract resealed and the shell
+  guard admitting the exact Linguist alias rows. Full dev suite: 762 of 764,
+  the other two passing on their own rerun.
+- **Landing (as planned):** once BPR-1544 is on main,
   rebase this branch's own commits (after `60657aa3b`) onto main, reseal the
   round-trip composition contract over the merged tree (`src/app` changed),
   run the full dev suite once and the documentation gate, merge, and finish
