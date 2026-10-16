@@ -21,6 +21,8 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFontDatabase>
+#include <QFontMetricsF>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -597,6 +599,17 @@ namespace {
 			}
 		}
 
+		// A body that opens with its suggestion keeps the box's gap above it.
+		{
+			auto post = qt::markdown_body_view{ };
+			post.set_in_place(true);
+			post.set_suggestions(qt::markdown_suggestion_presentation{ .Path = "src/cache.cpp", .Lines = core::markdown_suggestion_context{ .FirstLine = 1U, .Lines = { "a" } } });
+			post.set_body("```suggestion\nb\n```\n", "suggestion:first");
+			auto&      doc   = document_of(post);
+			const auto first = doc.begin();
+			expect(first.blockFormat().intProperty(row_property) == 3 && first.layout()->lineCount() > 0 && doc.documentLayout()->blockBoundingRect(first).top() + first.layout()->lineAt(0).y() >= 14.0,
+				   "a body opening with a suggestion keeps the box's gap above its header");
+		}
 		// Without the commented lines: the added rows alone, unnumbered.
 		aView.set_suggestions(qt::markdown_suggestion_presentation{ .Path = "src/cache.cpp" });
 		show(aView, "Outdated:\n\n```suggestion\n\tauto next = read();\n```\n", "suggestion:no-context");
@@ -630,6 +643,14 @@ namespace {
 			return;
 		}
 		expect(QDir{ }.mkpath(root), "create capture directory");
+		// A real monospaced face for the review sheets, where the platform has
+		// one; the offscreen default fixed font is not monospaced on macOS.
+		auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+		if (QFontDatabase::hasFamily(QStringLiteral("Menlo"))) {
+			code = QFont{ QStringLiteral("Menlo"), 12 };
+		}
+		const auto tab = 4.0 * QFontMetricsF{ code }.horizontalAdvance(QLatin1Char{ ' ' });
+		aView.set_code_font(code, tab);
 		for (const auto& theme : themes) {
 			for (const auto& page : { QStringLiteral("pr-sample"), QStringLiteral("diff") }) {
 				aView.set_suggestions(std::nullopt);
@@ -657,6 +678,7 @@ namespace {
 				const auto comment = value.toObject();
 				auto*      post    = new qt::markdown_body_view{ &holder };
 				post->set_in_place(true);
+				post->set_code_font(code, tab);
 				post->set_code_theme(code_theme(theme.Variant));
 				aPath.bind(*post);
 				auto context = core::markdown_suggestion_context{ .FirstLine = static_cast<std::uint32_t>(comment[QStringLiteral("start_line")].toInt()) };

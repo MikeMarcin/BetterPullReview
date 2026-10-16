@@ -12,6 +12,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextFrame>
 #include <QTextLayout>
 
 #include <algorithm>
@@ -485,6 +486,18 @@ namespace bpr::qt::detail {
 	{
 		Colours  = aColours;
 		CodeFont = aCode;
+		// Qt lays the first block of a document at its top whatever its top
+		// margin, so a body that opens with a suggestion keeps the box's gap
+		// on its root frame instead.
+		{
+			auto       frame = aDocument.rootFrame()->frameFormat();
+			const auto opens = row_of(aDocument.begin()) == markdown_code_row::header;
+			const auto top   = opens ? aDocument.documentMargin() + box_gap + header_pad : aDocument.documentMargin();
+			if (frame.topMargin() != top) {
+				frame.setTopMargin(top);
+				aDocument.rootFrame()->setFrameFormat(frame);
+			}
+		}
 		if (Blocks.empty()) {
 			return;
 		}
