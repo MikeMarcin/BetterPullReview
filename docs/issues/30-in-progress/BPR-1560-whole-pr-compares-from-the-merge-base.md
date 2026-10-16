@@ -173,6 +173,52 @@ every right blob exactly the head's.
 - **Anonymous public preview** admits the read on github.com; GHES signed out
   refuses it before any request, as every anonymous GHES read.
 
+## Evidence (fix branch `bpr-1560-merge-base`)
+
+Kept in the worktree's ignored `build/dev/bpr1560-evidence/` (the session
+scratchpad was emptied once mid-run, losing the first runs' logs; their
+numbers are kept here).
+
+- **Fixture.** `application_merge_base_public_path` passes: a.txt, b.txt,
+  new.txt and shared.txt show exactly GitHub's lines; with compare failing,
+  Whole PR says "GitHub did not say where this pull request branched…" and
+  no comparison from the recorded base is shown. Negative control (the
+  handoff given the recorded base): fails at a.txt, `removed=3 added=3`,
+  "the removed lines are GitHub's: no line of the base branch's own is
+  reverted".
+- **Live #76** (`base.sha` ahead of the merge base): `bpr1560_live_parity.py`
+  PASS, 3/3 files, blobs from the merge base; the three LEFT comments posted by
+  MikeMarcinTest (a.txt 2, b.txt 3, shared.txt 5) are placed on the left at
+  "Line 2", "Line 3" and "Line 5". Negative control on the same build with the
+  recorded base: 10 differences, b.txt's blobs equal ("both sides show the
+  same blob"), line 50/40/55/58 reverts, and no LEFT thread placed.
+- **Live #75** (two merges from the base): PASS, 3/3, before and after the fix.
+  After merging #75 (closed, merged): compare against `base.sha` names
+  `017af0a` (GitHub's basis, files unchanged), compare against the branch
+  names the head itself (`behind`, an empty diff), which is why a closed pull
+  request asks against its recorded base.
+- **Squash course** (`bpr1560_live_course.py`, #82, signed in, sparse, one data
+  root across all steps): Whole PR matches GitHub on every file in every step
+  (modified, added, renamed with no change, removed) including the squash on
+  the fork point (`base.sha` = tip, merge base two commits behind) and the
+  squash onto an older base commit (`base.sha` = tip, merge base one behind);
+  the interdiff from the previous update matches both heads' blobs from step 2
+  on (absent-from-both files reported as such). Step 3's first run failed once
+  in Git acquisition (transport `response_limit` while the composition
+  contracts ran beside it); forcing the same head again on the same data root
+  passed (Whole PR 6/6, interdiff shown). Not reproduced; recorded.
+- **Gates so far.** clang-format 22 clean; clang-tidy clean on the 17 changed
+  sources (warnings as errors); `DOCUMENTATION_OK`; composition contracts pass
+  after a reseal (`application_review_round_trip_composition_contract`,
+  `application_composition_contract`); focused suites pass:
+  `core_epoch_policy`, `github_read_contract`,
+  `github_anonymous_read_contract`, `github_paged_read`,
+  `native_https_anonymous_read_contract`, `github_mutation_contract`,
+  `sqlite_review_submission_recovery_storage`, `application_github_contract`,
+  `application_epoch_host`, `application_epoch_contract`,
+  `application_review_submission_composition_public_path`,
+  `application_review_submission_cli_ordinary`.
+
 ## Not changed, deliberately
 
 - `review_queue_facts.cpp` and the projection's `BaseOid` keep GitHub's
