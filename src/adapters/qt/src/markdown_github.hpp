@@ -61,6 +61,8 @@ namespace bpr::qt::detail {
 	/// Block property: the numbers of every `<details>` a block is inside,
 	/// outermost first, separated by `/`.
 	inline constexpr auto markdown_details_path_property = QTextFormat::UserProperty + 0x0B58;
+	/// Character property: text an HTML `<mark>` held, drawn highlighted.
+	inline constexpr auto markdown_highlight_property = QTextFormat::UserProperty + 0x0B5A;
 	/// Character property: summary text, which toggles its `<details>`.
 	inline constexpr auto markdown_summary_property = QTextFormat::UserProperty + 0x0B59;
 	/// The in-body target that toggles `<details>` number N is `details:N`.
@@ -119,6 +121,8 @@ namespace bpr::qt::detail {
 		QColor KeyEdge;
 		/// The text colour a summary keeps, though it is a link.
 		QColor Ink;
+		/// `<mark>`'s highlight: the base 30% toward the warning colour.
+		QColor Highlight;
 	};
 
 	/// \brief The style for a palette and the reader's font.

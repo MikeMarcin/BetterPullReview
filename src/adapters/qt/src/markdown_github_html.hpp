@@ -58,6 +58,8 @@ namespace bpr::qt::detail {
 		/// Structure: paragraphs, divisions, headings, rules, quotes, lists,
 		/// tables, preformatted text.
 		block,
+		/// `<mark>`, highlighted as GitHub's attention tint.
+		highlight,
 	};
 
 	[[nodiscard]] auto html_kind_of(const QString& aName) -> html_kind;

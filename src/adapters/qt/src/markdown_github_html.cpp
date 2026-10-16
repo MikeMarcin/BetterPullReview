@@ -263,6 +263,7 @@ namespace bpr::qt::detail {
 			entry{ "samp", html_kind::code },
 			entry{ "a", html_kind::link },
 			entry{ "br", html_kind::line_break },
+			entry{ "mark", html_kind::highlight },
 			entry{ "p", html_kind::block },
 			entry{ "div", html_kind::block },
 			entry{ "h1", html_kind::block },
@@ -380,7 +381,7 @@ namespace bpr::qt::detail {
 			return mark(html_open_mark, static_cast<int>(html_kind::link), static_cast<int>(aHrefs.size()) - 1);
 		}
 		const auto formatting = aKind == html_kind::bold || aKind == html_kind::italic || aKind == html_kind::strike || aKind == html_kind::underline || aKind == html_kind::subscript
-			|| aKind == html_kind::superscript || aKind == html_kind::keyboard || aKind == html_kind::code;
+			|| aKind == html_kind::superscript || aKind == html_kind::keyboard || aKind == html_kind::code || aKind == html_kind::highlight;
 		if (!formatting || aTag.SelfClosing) {
 			return { };
 		}

@@ -290,6 +290,7 @@ namespace {
 		expect(format_of(document, QStringLiteral("inserted")).fontUnderline(), "<ins> underlines, as GitHub's browser does");
 		expect(!format_of(document, QStringLiteral("under")).fontUnderline() && !github.contains(QStringLiteral("<u>")), "<u> is plain text, as GitHub strips it");
 		expect(format_of(document, QStringLiteral("code ")).fontFixedPitch(), "<code> is code");
+		expect(format_of(document, QStringLiteral("mark")).background().style() != Qt::NoBrush && format_of(document, QStringLiteral("small")).background().style() == Qt::NoBrush, "<mark> is highlighted, as on GitHub; <small> is plain");
 		expect(block_containing(document, QStringLiteral("Centered paragraph")).blockFormat().alignment().testFlag(Qt::AlignHCenter), "<p align=center> centers");
 		expect(block_containing(document, QStringLiteral("Right-aligned div")).blockFormat().alignment().testFlag(Qt::AlignRight), "<div align=right> aligns right");
 		expect(block_containing(document, QStringLiteral("An HTML heading")).blockFormat().headingLevel() == 3, "<h3> is a heading");

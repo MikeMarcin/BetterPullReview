@@ -1319,6 +1319,9 @@ namespace bpr::qt::detail {
 			case html_kind::code:
 				format.setFontFixedPitch(true);
 				break;
+			case html_kind::highlight:
+				format.setProperty(markdown_highlight_property, true);
+				break;
 			case html_kind::link:
 				if (aField >= 0 && static_cast<std::size_t>(aField) < aPrepared.Hrefs.size()) {
 					format.setAnchor(true);
@@ -1717,9 +1720,10 @@ namespace bpr::qt::detail {
 		const auto toward = [](const QColor& aFrom, const QColor& aTo, const float aAmount) {
 			return QColor::fromRgbF(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount, aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount, aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aAmount);
 		};
-		style.KeyFill = toward(base, ink, 0.06F);
-		style.KeyEdge = toward(ink, base, 0.7F);
-		style.Ink     = ink;
+		style.KeyFill   = toward(base, ink, 0.06F);
+		style.KeyEdge   = toward(ink, base, 0.7F);
+		style.Ink       = ink;
+		style.Highlight = toward(base, style.Alerts[static_cast<std::size_t>(markdown_alert::warning) - 1], 0.3F);
 		return style;
 	}
 
@@ -1791,6 +1795,9 @@ namespace bpr::qt::detail {
 				}
 				if (chars.boolProperty(markdown_keyboard_property)) {
 					chars.merge(key);
+				}
+				if (chars.boolProperty(markdown_highlight_property)) {
+					chars.setBackground(aStyle.Highlight);
 				}
 				if (chars == fragment.charFormat()) {
 					continue;
