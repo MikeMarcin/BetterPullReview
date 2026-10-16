@@ -9,8 +9,10 @@
 
 #include <QApplication>
 #include <QPlainTextEdit>
+#include <QTextDocument>
 #include <QTextEdit>
 
+#include <algorithm>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -45,6 +47,12 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	// render says why.
 	fuzz::require(view.original_body() == body);
 	fuzz::require(view.rendered_available() || !view.fallback_reason().isEmpty());
+	// [[BPR-1543]]. The GitHub-parity marks never reach the rendered document
+	// unless the body itself holds them.
+	const auto marked = [](const QString& aText) {
+		return std::ranges::any_of(aText, [](const QChar aChar) { return aChar.unicode() == 0x2008 || (aChar.unicode() >= 0xFDE0 && aChar.unicode() <= 0xFDEF); });
+	};
+	fuzz::require(marked(QString::fromUtf8(body.data(), static_cast<qsizetype>(body.size()))) || !marked(view.rendered_view()->document()->toRawText()));
 	view.show_source(true);
 	fuzz::require(view.source_visible());
 	static_cast<void>(view.selected_source_bytes());

@@ -1,0 +1,9 @@
+> [!NOTE]
+> a `code
+span` b\
+c  
+<!-- open
+- [^x]
+
+[^x]: ```
+    y
