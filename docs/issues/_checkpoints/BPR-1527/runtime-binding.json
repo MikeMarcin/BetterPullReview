@@ -12,8 +12,8 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "AllWindowsR62-R65tasksReadyandownedPIDsabsent, exact181source/object/exeforce-restored; no nativePCworkload. Macnormal11+hostnegative/restoration+6public+strict2TUs/architecture/fullformatcomplete. Committed4Kicandidateadoption/normalWindows35next; no activecommand/reviewserver.",
-  "acceptance": "All12criteria/11exitsretained; R60bcompletecross-outage705inventory703pass1diagnosticfail1configuredDebugskip, originalsretained. Mac897Qtfix11normalpass; currenthost4Kirepairnegative242.50ms/restored4.23ms and6publicpaths82.32spass, staticpass. NativeordinaryWindowsandaffectedportable/currentfinalsourceacceptanceremainpending. No releaseapproval.",
+  "command_state": "Quiescent: WindowsR67b35/35, WSLR68b12/12 and ReleasecacheR69pass; all recoverytasksReady, ownedWindowsPIDsabsent, nativeWindows/WSLinventoriesquiet. Maccommandsfinished/CPUreturnedroot; no reviewserver.",
+  "acceptance": "All12criteria/11exits accepted with source-scoped reuse; original R58/R60b failures/interrupt/Debugskip retained. Current Windows35, WSL12, optimizedcache1 pass; affectedMac/negatives/static/documentation/self-review pass. Canonical docs-only finish releases ownership; no releaseapproval.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
     "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
@@ -28,9 +28,9 @@
     "Coordinator explicitly authorizes repair of R59Mac200source-bottom regression and adds application_diagnostic_subsystems existing10ms diff-host stop contract, preserving10.3557original and unchanged threshold/assertion/containment. Update plan/card after uninterrupted native170collection; same owner/route."
   ],
   "plan_definition_fingerprint": "sha256:ef9aa296494dc2844135227b7bf4916b13cdc05f807eb05a7315c4a6b44bd477",
-  "source_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "source_candidate": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
   "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
   "windows_release_target": "0.2.2",
   "obligation_fingerprint": "sha256:c18aa8fd8b2a41fcbd92f2b69a3f15016ad70c695666f233537e02efe0762c1f",
-  "binding_upkeep": "binding-upkeep.json; execution-record heading normalized, prior binding retained,11criteria/10exits and all preceding amendments unchanged."
+  "binding_upkeep": "Existing r3 binding retains all12criteria/11exits and source requirement fingerprints; current repository source revision refreshed after intentional product commits."
 }

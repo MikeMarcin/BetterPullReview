@@ -2,11 +2,11 @@
 
 Mandate `authorized-release-continuation-final-gates-r3`; sole implementer review,
 not an independent review or release approval. Baseline `d52f5bb1221e26dc00dbc9269c3ad0408b64548a`.
-Current owned candidate is `076922c1340086b02a706665b2de2c9cbc9f28fa`.
-Production Qt bytes remain851; application action retention remainsdf589 and passes WSL R53/R54. Native Windows
-R55 passes9normal courses on0769; later Mac checks await CPU release.
-Application bytes remain830/ccf;851 adds the bounded Qt scroll/frame repair and
-its regression oracle. Mac6747/c233 is a separate immutable release boundary.
+Current code candidate is `aa6294c50f95b51d95f7c7861d7430f89cdb2fdc`.
+Windows ordinary R67b passes 35/35 and WSL R68b passes 12/12 on exact rebuilt
+producers. Current Mac affected checks and strict changed Qt/host TUs pass.
+The optimized Release cache supplement passes270.16s with no skip; all owned
+native commands are finished and actual inventories are quiet. Mac6747/c233 is an immutable release boundary.
 Historical notes below retain their candidate context. The
 [incremental audit](windows-native-incremental-audit.json) supersedes old
 copied-source/build-success claims: r29/r32 exact-source positives and r27whole
@@ -379,3 +379,30 @@ and affected native/portable checks on committed source remain due. Full raw
 traces/provenance and every original failure are retained. No provider, authority,
 publication, credential or production-app mutation branch changes; print-only
 existing composition digests remain unchanged, and that mode proves no behavior.
+
+
+## Final candidate verification and reuse review
+
+Reviewed the two production changes since181/code0769: native split extent uses
+the mapped actual horizontal-bar boundary only when split and visible; the host
+selects the existing4Ki stop control without changing the generic core default.
+No alternate cache, new dependency, clock inward, provider authority or publication
+branch is added. Original bottom/frame/pixel and full-effect10ms assertions remain.
+Frontend-design was loaded before the Qt appearance-preserving repair.
+
+Actual ordinary Windows35 and WSL12 pass on committedaa629 with forced producer
+provenance. Mac11affected plus6current public courses and the compiled controls
+retain exact source hashes. Current strict Qt/host22.1.8 and fullformat22/architecture
+pass; earlier unchanged10TU results and verifier checks are reused by actual bytes.
+No broad test repetition is needed. All original failures and rejected/stale
+provenance claims remain preserved. The exact historical R21capture substep and
+original diagnostic failure phases remain unproven; current native contracts and
+source-backed controls support the narrow repairs without inventing those facts.
+Final version/package/signing/qualification is outside this engineering acceptance.
+
+The final single optimized cache-bytes course passes270.16s on the actual Release
+benchmark, unchanged3420s registered deadline and original cache64MiB/64entry
+input. Exact raw output/provenance/report is preserved. Debug remains configured
+Skipped in its original inventory; this later pass is a separate supplement.
+Final actual native inventories and owned PID checks are quiet, with no writer,
+review server or protected candidate left under this owner's active command.
