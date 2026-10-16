@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1564"
 title: "Markdown reader: suggestion blocks shown as GitHub's Suggested change"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
