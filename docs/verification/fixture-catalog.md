@@ -119,6 +119,16 @@ them under ?. No conversation has an unknown resolution: that needs the REST
 fallback, which a GraphQL fixture does not take. Constructed, not recorded;
 `application_overview_labels_public_path` pins its counts.
 
+### `markdown-parity-v1`, the GitHub-parity Markdown bodies
+
+Added for [[BPR-1543]], so the Markdown reader's hidden comments, line breaks,
+alerts and footnotes can be judged in the application beside GitHub.
+`scripts/build_markdown_parity_fixture.py` copies the nested-folders contract
+(its pull request, files and pack) and serves `tests/fixtures/markdown/github-parity-v1/pr-template.md`
+as the description and that directory's comments, breaks, alerts and footnotes
+bodies as four pull request comments, byte for byte. GitHub's own rendering of
+each body is kept beside it as `*.github.html`. Constructed, not recorded.
+
 ### `conversations-v1`, prototype v2's pull request
 
 Added for [[BPR-1293]], so Threads (named Conversations until [[BPR-1341]]) can be judged against its prototype

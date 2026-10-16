@@ -9047,6 +9047,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 39,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "markdown-parity-v1") {
+				// [[BPR-1543]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity Markdown fixtures; see
+				// `scripts/build_markdown_parity_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_parity_v1;
+				fixtureName            = "markdown-parity-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move the cache writer onto the serialized lane",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 4,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
 				// file with eight; see `scripts/build_inline_drawer_fixture.py`.

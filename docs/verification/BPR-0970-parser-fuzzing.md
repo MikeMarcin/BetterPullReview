@@ -321,6 +321,19 @@ checked-in seeds. 2026-10-01T19:40:10Z to 19:55:11Z.
 |---|---|---|---|---|---|---|---|
 | `fuzz_github_api` | 970305 | 2,134,878 | 2,369 | 7,774 | 1,055 | cov 24,505, ft 59,727, 6,788 units | clean |
 
+### Campaign 5: `fuzz_markdown_view` after [[BPR-1543]], 15 minutes
+
+The GitHub-parity preparation and presentation (`markdown_github.cpp`) added a
+line classifier, a code-span scanner and document rewriting to the reader, and
+the target now also requires that no parity mark reaches the rendered document
+unless the body holds one. Run on a copy of the 16 checked-in seeds at
+`cc305a2ff` (the later bracketing of a reference's number changes only its
+text), macOS arm64, Apple clang with LLVM 23's libFuzzer runtime.
+
+| Target | Seed | Executions | exec/s | New units | Peak RSS (MB) | Final coverage | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fuzz_markdown_view` | 1543001 | 360,876 | 400 | 6,047 | 710 | cov 2,181, ft 10,482, 1,260 units | clean |
+
 ### What the campaigns do not show
 
 Three 15-minute campaigns per target, and a fourth for `fuzz_github_api`,

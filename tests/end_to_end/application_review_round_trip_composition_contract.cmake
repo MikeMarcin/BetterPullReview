@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8d6818d7974315580333eed60b7b7b72fd50ee052dd742c8838e5a3d35523c9b"
+		"960a53b75c7db6a1ea654cc35856ddeaf85b2e948c3713cf9af89fa6dd83222e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a9e27968c9f773693e4338f3df8cef6e5ee0fc412348dc3b223a10e07e6c2ef4"
+        "8e2f29b98ee8e8ca61216f26a907f4a590ab7d2f5c4d85fe1031c407896740a2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2577,3 +2577,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
+
+# [[BPR-1543]] reseal over 63ba6d66a (the last matching pins) on the branch
+# tree based on main at 58dcf7e4d. The constructed markdown-parity-v1 fixture
+# joins the test-build fixture enum (github_application_fixture_access.hpp),
+# the host-profile table (github_application.cpp), the served-fixture table
+# (github_public_path_fixture.cpp, sharing overview-labels-v1's descriptor with
+# its own contract directory) and the --github-fixture names (main.cpp),
+# exactly as intraline-v1 did for BPR-1537. Test builds only: no grant,
+# target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1543.
