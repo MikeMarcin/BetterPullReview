@@ -171,6 +171,10 @@ namespace {
 		bool        PagedComments = false, FailSecondPage = false, ForeignNext = false;
 		std::size_t PageTwoReads = 0;
 		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
+		/// merge base, which numbers LEFT lines, is no longer the target's.
+		bool        MovedMergeBase = false;
+		std::size_t MergeBaseReads = 0U;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
 		/// of other people's comments; or reports the second stop a line off.
 		bool        CollectionNoise = false, WrongLine = false;
@@ -343,6 +347,13 @@ namespace {
 				if (pending_comment_path(wire.Path)) {
 					return not_found();
 				}
+				const auto head = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+				if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "?page=2&per_page=1") {
+					++MergeBaseReads;
+					const auto mergeBase = MovedMergeBase ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
+					return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b')
+							  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+				}
 				expect(false, "fixture answers only independently named read endpoints");
 			}
 			const auto index = Writes;
@@ -484,6 +495,18 @@ namespace {
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->pending_tours()->empty() && provider->reconcile_tour(plan()).State == publication_state::published && remote.Writes == 5, "fresh session reads exact completed journal");
+		}
+		{
+			// [[BPR-1560]]. A tour with a stop on a LEFT line asks GitHub's merge
+			// base before anything is written; when it moved since the tour was
+			// written, nothing is written.
+			scratch root;
+			server  remote;
+			remote.MovedMergeBase = true;
+			auto       provider   = session(remote, root.Path);
+			const auto result     = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 1U,
+				   "a moved merge base refuses a tour with a LEFT stop before any write");
 		}
 		{
 			// [[BPR-1367]]. The submitted review's lines are read from every

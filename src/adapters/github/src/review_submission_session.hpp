@@ -39,7 +39,10 @@ namespace bpr::adapters::github::detail {
 		/// indeterminate result is unknown.
 		void               explain(application::review_submission_result& aResult);
 		[[nodiscard]] auto perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
-		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
+		/// \brief Viewer, then target and head. [[BPR-1560]]: with `aLeftLine`,
+		/// last the merge base GitHub numbers a LEFT line in, which must still
+		/// be the one the review was written against.
+		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false, bool aLeftLine = false) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
 		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
 		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop) -> application::review_submission_result;

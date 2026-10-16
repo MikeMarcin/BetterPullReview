@@ -4332,7 +4332,14 @@ namespace bpr::app::detail {
 				const auto  text     = [](const std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
 				const auto  user     = QJsonObject{ { "id", static_cast<qint64>(actor.DatabaseId) }, { "node_id", text(actor.NodeId) }, { "login", text(actor.Login) } };
 				QJsonObject object;
-				if (wire.Operation == operation::observe_viewer) {
+				if (wire.Operation == operation::observe_merge_base) {
+					// [[BPR-1560]]. The fixture's base branch has not moved: the
+					// merge base is the one the target's LEFT lines name.
+					object = { { "url", text("https://api.github.com/repos/" + target.Repository.Owner + "/" + target.Repository.Name + "/compare/" + target.BaseRef + "..."
+											 + std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() }) },
+							   { "base_commit", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) } } },
+							   { "merge_base_commit", QJsonObject{ { "sha", text(core::canonical_hex(application::comparison_base(target)).view()) } } } };
+				} else if (wire.Operation == operation::observe_viewer) {
 					object = user;
 				} else if (wire.Operation == operation::observe_pull_request) {
 					object = { { "id", static_cast<qint64>(target.PullRequestDatabaseId) }, { "node_id", text(target.PullRequestNodeId) }, { "number", static_cast<qint64>(target.Number.value()) }, { "state", "open" }, { "base", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) }, { "ref", text(target.BaseRef) }, { "repo", QJsonObject{ { "id", static_cast<qint64>(target.RepositoryDatabaseId) }, { "node_id", text(target.RepositoryNodeId) }, { "full_name", text(target.Repository.Owner + "/" + target.Repository.Name) } } } } }, { "head", QJsonObject{ { "sha", text(core::canonical_hex(target.Semantic.ExpectedHead).view()) }, { "ref", text(target.HeadRef) } } } };

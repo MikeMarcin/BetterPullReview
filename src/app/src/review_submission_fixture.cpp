@@ -311,6 +311,14 @@ namespace bpr::app::detail {
 					if (w.Path == (Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/user" : "/api/v3/user")) {
 						return success(user_json());
 					}
+					if (w.Operation == wire::review_mutation_operation::observe_merge_base) {
+						// [[BPR-1560]]. The fixture's base branch has not moved.
+						const auto& t    = Binding.Target;
+						const auto  head = std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() };
+						return success("{\"url\":" + json_text("https://api.github.com/repos/" + t.Repository.Owner + "/" + t.Repository.Name + "/compare/" + t.BaseRef + "..." + head)
+									   + ",\"base_commit\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + "},\"merge_base_commit\":{\"sha\":"
+									   + json_text(std::string{ core::canonical_hex(application::comparison_base(t)).view() }) + "}}");
+					}
 					if (w.Path == pull()) {
 						const auto& t = Binding.Target;
 						return success("{\"id\":" + std::to_string(t.PullRequestDatabaseId) + ",\"node_id\":" + json_text(t.PullRequestNodeId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"state\":\"open\",\"body\":" + json_text(State->StagedDescription.value_or(Description)) + ",\"head\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() }) + ",\"ref\":" + json_text(t.HeadRef) + "},\"base\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + ",\"ref\":" + json_text(t.BaseRef) + ",\"repo\":{\"id\":" + std::to_string(t.BaseRepositoryDatabaseId) + ",\"node_id\":" + json_text(t.RepositoryNodeId) + ",\"full_name\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}");

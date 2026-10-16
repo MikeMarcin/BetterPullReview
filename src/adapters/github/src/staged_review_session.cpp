@@ -501,7 +501,9 @@ namespace bpr::adapters::github::detail {
 				if (!aWrite) {
 					return { state::outcome_unknown, { } };
 				}
-				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop)) {
+				// [[BPR-1560]]. A stop on a LEFT line asks GitHub's merge base too.
+				const auto leftLine = !aPlan.Compatibility && std::ranges::any_of(aPlan.Stops, [](const auto& aTourStop) { return aTourStop.Source.Side == core::diff_side::left; });
+				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop, false, leftLine)) {
 					return { state::conflict, { } };
 				}
 				current.Plan    = aPlan;

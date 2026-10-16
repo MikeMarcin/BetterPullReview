@@ -536,6 +536,9 @@ namespace {
 		case operation::staged_update_pending_comment: return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateReviewComment" };
 		case operation::observe_pull_request:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
+		case operation::observe_merge_base:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1",
+								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1", "" };
 		case operation::observe_viewer:
 			return request_shape{ http_method::get, "/user", "/api/v3/user", "" };
 		case operation::observe_review_comments:
@@ -663,6 +666,7 @@ namespace {
 			compile_staged_review_request(staged_request(application::staged_review_operation::create_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_pending_comment, serverTarget)),
+			compile_merge_base_observation_request(serverTarget, aServer),
 
 		};
 	}
@@ -706,7 +710,7 @@ namespace {
 			row{ operation::staged_create_issue_comment, http_method::post, false, 201, true },
 			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
 			row{ operation::staged_update_pending_comment, http_method::post, true, 200, true },
-
+			row{ operation::observe_merge_base, http_method::get, false, 200, false },
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
