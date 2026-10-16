@@ -241,6 +241,32 @@ try {
 		expect(log.record({ .TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U) }) == status::dropped, "unknown source never enters log");
 		expect(log.record({ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 422 }) == status::available, "review comment status survives real logger vocabulary");
 		expect(log.record({ .HttpStatus = 600U }) == status::dropped, "invalid HTTP status never enters log");
+		{
+			// [[BPR-1540]]. A review submission left unknown: its reason and
+			// counts, and nothing else, reach the file.
+			auto diagnosis             = core::review_submission_unknown_diagnosis{ };
+			diagnosis.Reason           = core::review_submission_unknown_reason::comment_page_too_large;
+			diagnosis.PostAnswer       = core::review_submission_post_answer::error_status;
+			diagnosis.PostStatusClass  = 5U;
+			diagnosis.CommentsExpected = 3U;
+			diagnosis.PagesRead        = 1U;
+			auto       event           = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
+			const auto text            = core::describe(diagnosis);
+			std::ranges::copy(text, event.Summary.Text.begin());
+			event.Summary.Size     = static_cast<std::uint16_t>(text.size());
+			event.Summary.State    = application::diagnostic_summary_state::sanitized;
+			event.ReviewSubmission = diagnosis;
+			expect(log.record(event) == status::available, "a review submission reason reaches the real log");
+			auto other            = event;
+			other.Summary.Text[0] = 'X';
+			expect(log.record(other) == status::dropped, "a reason whose detail is anything but its own line never enters the log");
+			auto invalid                              = event;
+			invalid.ReviewSubmission->HttpStatusClass = 9U;
+			expect(log.record(invalid) == status::dropped, "an invalid reason never enters the log");
+			auto misplaced      = event;
+			misplaced.Operation = application::diagnostic_operation::pull_request;
+			expect(log.record(misplaced) == status::dropped, "a reason rides only its own operation");
+		}
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -336,6 +362,12 @@ try {
 	const auto first    = tests::read_diagnostic_logs(root);
 	const auto exported = application::prepare_release_diagnostics(first, core::release_maintenance_revision{ 1U });
 	expect(first.find("github.review_comment") != std::string::npos, "review comment operation retained locally");
+	expect(first.find("\"op\":\"github.review_submission\"") != std::string::npos
+			   && first.find("\"detail\":\"review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1\"") != std::string::npos
+			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
+		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
+	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
+		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");
 	expect(exported && exported->Descriptor.Records != 0U && exported->Bytes.find("runtime-only-file-secret") == std::string::npos
 			   && exported->Bytes.find("newField") == std::string::npos && exported->Bytes.find("request=") == std::string::npos,

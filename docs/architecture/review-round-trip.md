@@ -736,6 +736,16 @@ head, `original_line` and `original_start_line`, side, path and words, so
 Check status still confirms a review after a push has moved or outdated its
 comments ([[BPR-1538]]).
 
+An indeterminate result names why it is unknown ([[BPR-1540]]): the first
+read that stopped the reconciliation, as one of the core's closed
+`review_submission_unknown_reason` values, with what GitHub answered the POST
+and counts of comments carried, held and matched, new reviews of mine and
+comment pages read. The session fills it, keeps it with the unresolved
+attempt (schema 6 `submission_unknown`, replaced by each Check status and
+removed on resolution or withdrawal) and writes it to the diagnostics log as a
+counts-only `github.review_submission` event. It never decides publication;
+an unknown outcome stays unknown and sends nothing.
+
 SQLite schema v3 adds `submission_attempt` and `submission_baseline` beside the
 existing comment tables in `review-mutation-recovery.sqlite3`. A versioned,
 bounded binary snapshot preserves the complete request and full uint64 IDs.

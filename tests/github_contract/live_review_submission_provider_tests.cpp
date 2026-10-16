@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 #include <random>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -774,7 +775,15 @@ namespace {
 			std::cout << aPhase << ":pass\n";
 			return;
 		}
-		expect(loaded && *loaded && **loaded == expected, "abrupt restart retains exact request, authority, baseline, witness and receipt");
+		// [[BPR-1540]]. A recovery run before this one may have recorded why
+		// the witnessed attempt is still unknown: GitHub lists no review.
+		auto       retained = loaded ? *loaded : std::nullopt;
+		const auto why      = retained ? retained->LastUnknown : std::nullopt;
+		if (retained) {
+			retained->LastUnknown.reset();
+		}
+		expect(retained && *retained == expected, "abrupt restart retains exact request, authority, baseline, witness and receipt");
+		expect(!why || (witnessed && why->Reason == core::review_submission_unknown_reason::review_not_listed), "only an unknown witnessed attempt keeps a reason, and it names the review not listed");
 		auto current = configuration();
 		if (moved) {
 			wire.WrongHead                       = true;
@@ -979,6 +988,20 @@ namespace {
 		bool Pushed = false;
 		/// The landed review holds one comment with other words.
 		bool AlterOne = false;
+		/// [[BPR-1540]]. The POST lands two identical reviews; the server names
+		/// no original position; the account or pull request read back is
+		/// another; no operation can begin.
+		bool Twice = false, NoOriginal = false, OtherViewer = false, OtherPull = false, RefuseOperation = false;
+		/// [[BPR-1540]]. Answers a request before the server does, when it
+		/// returns one.
+		std::function<std::optional<github_mutation_wire_completion>(const review_mutation_wire_request&)> Answer;
+		auto                                                                                               begin_mutation_operation(std::stop_token aStop) -> github_mutation_operation override
+		{
+			if (RefuseOperation) {
+				return std::unexpected{ application::review_mutation_failure::credential_unavailable };
+			}
+			return github_mutation_wire_transport::begin_mutation_operation(aStop);
+		}
 
 		[[nodiscard]] auto head() const -> std::string { return std::string{ core::canonical_hex(Request.Proposal.Target.ExpectedHead).view() }; }
 		[[nodiscard]] auto moved() const -> std::string { return std::string{ core::canonical_hex(commit(0x33U)).view() }; }
@@ -987,6 +1010,7 @@ namespace {
 			auto all = Comments;
 			if (Visible) {
 				for (auto value : LandedComments) {
+					value.OmitOriginal = NoOriginal;
 					if (Pushed) {
 						value.Commit = moved();
 						if (value.Side == "LEFT") {
@@ -1011,11 +1035,16 @@ namespace {
 			const auto  pull    = Prefix + "/repos/MikeMarcin/BPR-Test/pulls/1";
 			const auto  ok      = [](std::string aBody, std::vector<http_header> aHeaders = { }) { return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(aHeaders), .Body = std::move(aBody) } }; };
 			const auto  pageKey = pull + "/comments?per_page=100&page=";
+			if (Answer) {
+				if (auto answered = Answer(wire)) {
+					return std::move(*answered);
+				}
+			}
 			if (wire.Method == http_method::get && wire.Path == Prefix + "/user") {
-				return viewer_response();
+				return OtherViewer ? ok("{\"login\":\"fixture-reviewer\",\"id\":23,\"node_id\":\"MDQ6VXNlcjIy\"}") : viewer_response();
 			}
 			if (wire.Method == http_method::get && wire.Path == pull) {
-				return target_response(target().RepositoryDatabaseId, Pushed ? commit(0x33U) : Request.Proposal.Target.ExpectedHead);
+				return target_response(OtherPull ? 999U : target().RepositoryDatabaseId, Pushed ? commit(0x33U) : Request.Proposal.Target.ExpectedHead);
 			}
 			if (wire.Method == http_method::get && wire.Path == pull + "/reviews?per_page=100") {
 				auto all = Reviews;
@@ -1063,6 +1092,9 @@ namespace {
 				++Posts;
 				if (Lands) {
 					Landed.push_back({ .Id = 900U, .Author = Me, .Body = Request.Proposal.Body, .State = "APPROVED", .Commit = head() });
+					if (Twice) {
+						Landed.push_back({ .Id = 901U, .Author = Me, .Body = Request.Proposal.Body, .State = "APPROVED", .Commit = head() });
+					}
 					auto id = std::uint64_t{ 9'001U };
 					for (const auto& sent : Request.Proposal.Comments) {
 						auto value              = github_shapes::comment{ };
@@ -1242,6 +1274,235 @@ namespace {
 				const auto                result = session.submit_and_reconcile(server->Request);
 				expect(result.Publication == publication::indeterminate && server->Posts == 1U && server->Pages == 2U, label + "a review holding other comments is not confirmed");
 			}
+		}
+	}
+	/// [[BPR-1540]]. Keeps every diagnostic event the session records.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		std::vector<application::diagnostic_event> Events;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			try {
+				Events.push_back(aEvent);
+			} catch (...) {
+				return application::diagnostic_log_status::dropped;
+			}
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+	};
+	/// [[BPR-1540]]. One way a submission stays unknown: how to arrange it,
+	/// whether it is found by Check status in a later session, and the
+	/// reason it must name.
+	struct unknown_case
+	{
+		std::string_view                         Name;
+		core::review_submission_unknown_reason   Reason;
+		bool                                     CheckStatus = false;
+		std::function<void(busy_server&, bool&)> Arrange;
+	};
+	[[nodiscard]] auto answer_on(std::string aPathPart, github_mutation_wire_completion aCompletion, const bool aAfterPost = true)
+		-> std::function<std::optional<github_mutation_wire_completion>(const review_mutation_wire_request&)>
+	{
+		auto posted = std::make_shared<bool>(false);
+		return [part = std::move(aPathPart), completion = std::move(aCompletion), aAfterPost, posted](const review_mutation_wire_request& aWire) -> std::optional<github_mutation_wire_completion> {
+			if (aWire.Method == http_method::post) {
+				*posted = true;
+				return std::nullopt;
+			}
+			if ((!aAfterPost || *posted) && aWire.Path.find(part) != std::string::npos) {
+				return completion;
+			}
+			return std::nullopt;
+		};
+	}
+	[[nodiscard]] auto wire_answer(const int aStatus, std::string aBody, std::vector<http_header> aHeaders = { }) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = aStatus, .Headers = std::move(aHeaders), .Body = std::move(aBody) } };
+	}
+	[[nodiscard]] auto unknown_cases() -> std::vector<unknown_case>
+	{
+		using reason      = core::review_submission_unknown_reason;
+		const auto other  = std::string{ "/repositories/999/pulls/1/comments?per_page=100&page=2" };
+		auto       result = std::vector<unknown_case>{ };
+		const auto add    = [&result](std::string_view aName, reason aReason, bool aCheck, std::function<void(busy_server&, bool&)> aArrange) {
+			result.push_back({ .Name = aName, .Reason = aReason, .CheckStatus = aCheck, .Arrange = std::move(aArrange) });
+		};
+		add("not listed", reason::review_not_listed, false, [](busy_server& aServer, bool& aOn) { aServer.Visible = !aOn; });
+		add("several listed", reason::several_reviews_listed, false, [](busy_server& aServer, bool& aOn) { aServer.Twice = aOn; });
+		add("list unreadable", reason::review_list_unreadable, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/reviews?per_page=100", wire_answer(200, "{"));
+			}
+		});
+		add("list too large", reason::review_list_too_large, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/reviews?per_page=100", wire_answer(200, std::string(maximum_review_mutation_list_response_bytes + 1U, ' ')));
+			}
+		});
+		add("list paged", reason::review_list_paged, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/reviews?per_page=100", wire_answer(200, "[]", { { .Name = "Link", .Value = "<https://api.github.com/repositories/1328277631/pulls/1/reviews?per_page=100&page=2>; rel=\"next\"" } }));
+			}
+		});
+		add("page unreadable", reason::comment_page_unreadable, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/comments?per_page=100&page=1", wire_answer(200, "[{"));
+			}
+		});
+		add("page too large", reason::comment_page_too_large, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/comments?per_page=100&page=1", wire_answer(200, std::string(maximum_review_mutation_list_response_bytes + 1U, ' ')));
+			}
+		});
+		add("link refused", reason::comment_page_link_refused, false, [other](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/comments?per_page=100&page=1", wire_answer(200, "[]", { { .Name = "Link", .Value = "<https://api.github.com" + other + ">; rel=\"next\"" } }));
+			}
+		});
+		add("collection too long", reason::comment_collection_too_long, false, [](busy_server& aServer, bool& aOn) {
+			if (!aOn) {
+				return;
+			}
+			auto posted    = std::make_shared<bool>(false);
+			aServer.Answer = [&aServer, posted](const review_mutation_wire_request& aWire) -> std::optional<github_mutation_wire_completion> {
+				if (aWire.Method == http_method::post) {
+					*posted = true;
+					return std::nullopt;
+				}
+				const auto key = std::string{ "/comments?per_page=100&page=" };
+				const auto at  = aWire.Path.find(key);
+				if (!*posted || at == std::string::npos) {
+					return std::nullopt;
+				}
+				const auto page  = static_cast<std::uint32_t>(std::stoul(aWire.Path.substr(at + key.size())));
+				auto       value = aServer.Comments.front();
+				value.Id         = 50'000U + page;
+				return wire_answer(200, "[" + github_shapes::comment_json(aServer.Pull, value) + "]", { { .Name = "Link", .Value = "<" + aServer.Pull.comments_page(page + 1U) + ">; rel=\"next\"" } });
+			};
+		});
+		add("comments mismatch", reason::comments_mismatch, false, [](busy_server& aServer, bool& aOn) { aServer.AlterOne = aOn; });
+		add("server error", reason::http_status, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/reviews?per_page=100", wire_answer(502, "{}"));
+			}
+		});
+		add("rate limited", reason::rate_limited, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/comments?per_page=100&page=1", github_mutation_wire_error{ .ProviderFailure = application::github_provider_failure::rate_limit, .HttpStatus = 403U });
+			}
+		});
+		add("timeout", reason::timeout, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/reviews?per_page=100", github_mutation_wire_error{ .ProviderFailure = application::github_provider_failure::timeout });
+			}
+		});
+		add("network", reason::network, false, [](busy_server& aServer, bool& aOn) {
+			if (aOn) {
+				aServer.Answer = answer_on("/comments?per_page=100&page=2", github_mutation_wire_error{ .ProviderFailure = application::github_provider_failure::network });
+			}
+		});
+		add("moved without original", reason::comment_moved_without_original_position, true, [](busy_server& aServer, bool& aOn) { aServer.NoOriginal = aOn; });
+		add("account mismatch", reason::account_mismatch, true, [](busy_server& aServer, bool& aOn) { aServer.OtherViewer = aOn; });
+		add("pull request mismatch", reason::pull_request_mismatch, true, [](busy_server& aServer, bool& aOn) { aServer.OtherPull = aOn; });
+		add("connection unavailable", reason::connection_unavailable, true, [](busy_server& aServer, bool& aOn) { aServer.RefuseOperation = aOn; });
+		// The two below are arranged by the row: no local record, and a
+		// stopped Check status.
+		add("local record unavailable", reason::local_record_unavailable, true, [](busy_server&, bool&) { });
+		add("cancelled", reason::cancelled, true, [](busy_server&, bool&) { });
+		return result;
+	}
+	/// [[BPR-1540]]. Each reason, for GitHub.com and GHES: the unknown result
+	/// names it with its counts, the attempt keeps it, and the diagnostics log
+	/// receives it with nothing but enums and counts. Each case's control,
+	/// the same arrangement without its cause, is published and names, keeps
+	/// and logs nothing.
+	void test_unknown_reasons_are_named_kept_and_logged()
+	{
+		using publication = application::review_submission_publication;
+		auto covered      = std::set<core::review_submission_unknown_reason>{ };
+		for (const auto& selected : busy_cases()) {
+			for (const auto& entry : unknown_cases()) {
+				for (const auto cause : { true, false }) {
+					const auto          label = std::string{ selected.Name } + ", " + std::string{ entry.Name } + (cause ? "" : " (control)") + ": ";
+					temporary_directory root;
+					temporary_directory spare;
+					const auto          server = busy_server_for(selected);
+					auto                log    = std::make_shared<recording_log>();
+					auto                on     = cause;
+					auto                result = application::review_submission_result{ };
+					auto                stop   = std::stop_source{ };
+					auto                head   = server->Request.Proposal.Target.ExpectedHead;
+					if (!entry.CheckStatus) {
+						entry.Arrange(*server, on);
+						review_submission_session session{ *server, busy_configuration(selected, head), std::make_shared<lease>(), busy_storage(selected, root.Path), log };
+						result = session.submit_and_reconcile(server->Request);
+					} else {
+						// Unknown first (not listed yet), then Check status in a
+						// later session; the cause is arranged for Check status.
+						server->Visible = false;
+						{
+							review_submission_session session{ *server, busy_configuration(selected, head), std::make_shared<lease>(), busy_storage(selected, root.Path) };
+							expect(session.submit_and_reconcile(server->Request).Publication == publication::indeterminate, label + "the first answer is unknown");
+						}
+						server->Visible = true;
+						entry.Arrange(*server, on);
+						if (entry.Reason == core::review_submission_unknown_reason::comment_moved_without_original_position) {
+							server->Pushed = true;
+							head           = commit(0x33U);
+						}
+						auto store = busy_storage(selected, root.Path);
+						if (cause && entry.Reason == core::review_submission_unknown_reason::local_record_unavailable) {
+							store = busy_storage(selected, spare.Path);
+						}
+						if (cause && entry.Reason == core::review_submission_unknown_reason::cancelled) {
+							stop.request_stop();
+						}
+						review_submission_session later{ *server, busy_configuration(selected, head), std::make_shared<lease>(), std::move(store), log };
+						result = later.reconcile(server->Request, stop.get_token());
+					}
+					auto       check = busy_storage(selected, root.Path);
+					const auto kept  = check->load(server->Request.IdempotencyKey);
+					if (!cause) {
+						expect(result.Publication == publication::published && !result.Unknown && log->Events.empty(), label + "without its cause the review is confirmed and nothing is named or logged");
+						expect(kept && *kept && !(**kept).LastUnknown, label + "and the attempt keeps no reason");
+						continue;
+					}
+					if (!result.Unknown || result.Unknown->Reason != entry.Reason) {
+						std::cerr << label << "named " << (result.Unknown ? core::name(result.Unknown->Reason) : std::string_view{ "nothing" }) << '\n';
+					}
+					expect(result.Publication == publication::indeterminate && result.Unknown && result.Unknown->Reason == entry.Reason, label + "the unknown result names its reason");
+					expect(result.Unknown->CommentsExpected == 3U && core::valid(*result.Unknown), label + "with the review's three comments counted");
+					expect(server->Posts == 1U, label + "and nothing is sent again");
+					covered.insert(entry.Reason);
+					const auto local = entry.Reason == core::review_submission_unknown_reason::local_record_unavailable;
+					expect(local || (kept && *kept && (**kept).LastUnknown == result.Unknown), label + "the attempt keeps the reason");
+					expect(!log->Events.empty(), label + "the diagnostics log receives it");
+					const auto& event = log->Events.back();
+					expect(event.Operation == application::diagnostic_operation::review_submission && event.Outcome == application::diagnostic_outcome::failed && event.ReviewSubmission == result.Unknown
+							   && event.Summary.State == application::diagnostic_summary_state::sanitized && event.Summary.text() == core::describe(*result.Unknown) && event.Request == 0U && event.HttpStatus == 0U,
+						   label + "as one counts-only event");
+					const auto text = event.Summary.text();
+					expect(std::ranges::all_of(text, [](const char aCharacter) { return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '_' || aCharacter == '=' || aCharacter == ' '; }),
+						   label + "whose words are only enum names, keys and digits");
+					for (const auto* secret : { "MikeMarcin", "BPR-Test", "github.com", "ghe.example", "fixture-reviewer", "question:", "nit:", "praise:", "src/" }) {
+						expect(text.find(secret) == std::string_view::npos, label + "with no host, repository, account, path or comment words");
+					}
+				}
+			}
+		}
+		expect(covered.size() == core::review_submission_unknown_reason_count, "every reason is reached by a case");
+		// The counts say what was found.
+		{
+			temporary_directory root;
+			const auto          server = busy_server_for(busy_cases().front());
+			server->AlterOne           = true;
+			review_submission_session session{ *server, busy_configuration(busy_cases().front(), server->Request.Proposal.Target.ExpectedHead), std::make_shared<lease>(), busy_storage(busy_cases().front(), root.Path) };
+			const auto                result = session.submit_and_reconcile(server->Request);
+			expect(result.Unknown && result.Unknown->CommentsFound == 3U && result.Unknown->CommentsMatched == 2U && result.Unknown->CandidateReviews == 1U && result.Unknown->PagesRead == 2U
+					   && result.Unknown->PostAnswer == core::review_submission_post_answer::error_status && result.Unknown->PostStatusClass == 5U,
+				   "a mismatch counts the comments held and matched, the new review, the pages read and the POST's 5xx answer");
 		}
 	}
 	// [[BPR-1345]]. The live probe's two halves, run by hand against
@@ -1609,6 +1870,7 @@ namespace {
 		row{ "historical_recovery", &test_historical_recovery },
 		row{ "review_carries_its_comments_exactly", &test_a_review_carries_its_comments_exactly },
 		row{ "review_with_comments_reconciles_on_a_busy_pull_request", &test_a_review_with_comments_reconciles_on_a_busy_pull_request },
+		row{ "unknown_reasons_are_named_kept_and_logged", &test_unknown_reasons_are_named_kept_and_logged },
 	};
 }
 auto main(int aArgc, char** aArgv) -> int

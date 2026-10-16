@@ -199,7 +199,7 @@ permission; the staged coordinator owns the journal and author command boundary.
 Staged publication extends the existing review-submission family. A frozen plan
 contains ordered sources/prose, exact live binding, owner/generation and any
 separate description edit. The host consumes one bounded parent grant; each
-transmission consumes an exact child journal revision. SQLite recovery v5 stores
+transmission consumes an exact child journal revision. SQLite recovery v5 (v6 since [[BPR-1540]]) stores
 one finite pending step and confirmed returned identities in the existing
 private recovery database. Unknown writes are reconciled by complete reads and
 are never blindly repeated. Stop/restart retains receipts and requires explicit

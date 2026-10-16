@@ -1,9 +1,11 @@
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/review_submission_unknown.hpp"
 
 #include <array>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -261,10 +263,56 @@ namespace {
 		const auto failed = apply(*last.Draft, command(kind::fail_submit, last.Draft->Attempt.value()));
 		refused(*failed.Draft, command(kind::begin_submit), rejection::attempt_exhausted);
 	}
+	/// [[BPR-1540]]. Every reason has one stable name and survives the
+	/// log line; the line carries enums and counts only, and nothing else
+	/// is read back.
+	void test_unknown_reasons()
+	{
+		for (std::size_t index = 0U; index < review_submission_unknown_reason_count; ++index) {
+			const auto value = static_cast<review_submission_unknown_reason>(index);
+			const auto named = name(value);
+			expect(!named.empty() && review_submission_unknown_reason_named(named) == value, "every reason has one stable name");
+			auto diagnosis             = review_submission_unknown_diagnosis{ };
+			diagnosis.Reason           = value;
+			diagnosis.PostAnswer       = review_submission_post_answer::error_status;
+			diagnosis.PostStatusClass  = 5U;
+			diagnosis.HttpStatusClass  = 4U;
+			diagnosis.CommentsExpected = 3U;
+			diagnosis.CommentsFound    = 2U;
+			diagnosis.CommentsMatched  = 1U;
+			diagnosis.CandidateReviews = 1U;
+			diagnosis.PagesRead        = 2U;
+			const auto line            = describe(diagnosis);
+			expect(line == "review_submission=" + std::string{ named } + " post=error_status post_class=5 http_class=4 expected=3 found=2 matched=1 candidates=1 pages=2", "the log line is fixed keys, enums and counts");
+			expect(parse_review_submission_unknown(line) == diagnosis, "the log line reads back exactly");
+		}
+		expect(name(static_cast<review_submission_unknown_reason>(review_submission_unknown_reason_count)).empty() && !review_submission_unknown_reason_named("unknown"), "nothing outside the set has a name");
+		auto diagnosis = review_submission_unknown_diagnosis{ };
+		expect(valid(diagnosis) && describe(diagnosis) == "review_submission=review_not_listed post=not_sent post_class=0 http_class=0 expected=0 found=0 matched=0 candidates=0 pages=0", "the default is a valid reason");
+		for (const auto& invalid : std::array{
+				 review_submission_unknown_diagnosis{ .Reason = static_cast<review_submission_unknown_reason>(review_submission_unknown_reason_count) },
+				 review_submission_unknown_diagnosis{ .PostAnswer = static_cast<review_submission_post_answer>(4U) },
+				 review_submission_unknown_diagnosis{ .HttpStatusClass = 1U },
+				 review_submission_unknown_diagnosis{ .HttpStatusClass = 6U },
+				 review_submission_unknown_diagnosis{ .PostStatusClass = 5U },
+				 review_submission_unknown_diagnosis{ .CommentsExpected = 51U },
+				 review_submission_unknown_diagnosis{ .CommentsExpected = 2U, .CommentsFound = 1U, .CommentsMatched = 2U },
+			 }) {
+			expect(!valid(invalid) && describe(invalid).empty(), "an out-of-range diagnosis is not valid and is never written");
+		}
+		const auto line = describe(diagnosis);
+		for (const auto& text : std::array<std::string, 9>{ std::string{ }, line + " ", "x" + line, line + " host=example.invalid", "review_submission=review_not_listed", "review_submission=other post=not_sent post_class=0 http_class=0 expected=0 found=0 matched=0 candidates=0 pages=0",
+															"review_submission=review_not_listed post=not_sent post_class=0 http_class=0 expected=00 found=0 matched=0 candidates=0 pages=0",
+															"review_submission=review_not_listed post=not_sent post_class=0 http_class=0 expected=0 found=0 matched=0 candidates=0 pages=70000",
+															"review_submission=review_not_listed post=not_sent http_class=0 post_class=0 expected=0 found=0 matched=0 candidates=0 pages=0" }) {
+			expect(!parse_review_submission_unknown(text), "anything but the exact line is not read");
+		}
+	}
 } // namespace
 
 int main()
 {
+	test_unknown_reasons();
 	test_decided_controls();
 	test_kept_drafts();
 	test_transitions();

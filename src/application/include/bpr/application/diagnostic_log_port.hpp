@@ -1,5 +1,7 @@
 #ifndef BPR_APPLICATION_DIAGNOSTIC_LOG_PORT_HPP
 #define BPR_APPLICATION_DIAGNOSTIC_LOG_PORT_HPP
+#include "bpr/core/review_submission_unknown.hpp"
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -40,7 +42,9 @@ namespace bpr::application {
 													 capability,
 													 pull_request,
 													 epoch,
-													 review_comment };
+													 review_comment,
+													 /// [[BPR-1540]]. A submitted review left unknown.
+													 review_submission };
 	enum class diagnostic_paged_operation : std::uint8_t {
 		none,
 		get_viewer_identity,
@@ -118,6 +122,9 @@ namespace bpr::application {
 		diagnostic_detail                           Detail = diagnostic_detail::standard;
 		/// Capture generation for delayed intermediate producers; zero means current.
 		std::uint64_t ContextGeneration = 0;
+		/// [[BPR-1540]]. Why a submitted review is still unknown: enums and
+		/// counts only, logged as the `review_submission` failure domain.
+		std::optional<core::review_submission_unknown_diagnosis> ReviewSubmission;
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,

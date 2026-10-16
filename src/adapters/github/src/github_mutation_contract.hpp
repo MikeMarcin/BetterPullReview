@@ -124,6 +124,8 @@ namespace bpr::adapters::github::detail {
 		identity_mismatch,
 		response_limit,
 		target_unavailable,
+		/// [[BPR-1540]]. A paged list continues past the pages it may read.
+		collection_limit,
 	};
 
 	/// \brief Carries one whole-review summary without a source-line anchor.

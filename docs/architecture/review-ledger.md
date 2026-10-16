@@ -547,7 +547,7 @@ immutable composition revisions. Publication payload version 2 adds the exact
 idempotency key, actor node/database/login, path, accepted head and receipt-space
 reservation. Version 1 payloads remain readable with these formerly unrecorded
 facts absent; no actor or recovery authority is invented. The remote logical
-journal remains recovery schema 5 and retains ownership of send/reconcile state.
+journal remains in the recovery database (schema 6 since [[BPR-1540]]) and retains ownership of send/reconcile state.
 
 Pending joins reserve 4 KiB in the existing payload quota before remote
 admission. Completion consumes this reserve, atomically attaches the canonical

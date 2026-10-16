@@ -423,9 +423,9 @@ namespace {
 		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store && user_version(database_path(directory)) == 5 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		expect(store && user_version(database_path(directory)) == 6 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
 		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
 		expect(submission.has_value(), "whole-review journal remains compatible after migration");
 	}
@@ -549,7 +549,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 6",
+				   "PRAGMA user_version = 7",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -598,7 +598,7 @@ namespace {
 			candidate.LegacyKey = std::string(64U, alias);
 			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
 		}
-		expect(user_version(database_path(directory)) == 5,
+		expect(user_version(database_path(directory)) == 6,
 			   "version-one migration commits schema version four");
 	}
 
@@ -610,9 +610,9 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 5, "submission factory migrates exact v2 database to v4");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 6, "submission factory migrates exact v2 database to v4");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect(anchored.has_value(), "source-line factory opens shared v4 schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);

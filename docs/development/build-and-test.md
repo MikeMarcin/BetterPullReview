@@ -3380,6 +3380,21 @@ comparison. Nested catalog recovery currently retains its mapped core reason,
 so its earlier adapter detail may already be unavailable. Logging refusal or
 backpressure does not change the history result.
 
+A submitted review whose outcome stays unknown, on Submit or Check status,
+records one `github.review_submission.failed` event ([[BPR-1540]]). Its
+`failure_domain` is `review_submission`, its `failure` is one of the closed
+reasons in `bpr/core/review_submission_unknown.hpp` (for example
+`review_not_listed`, `comment_page_too_large`, `comment_page_link_refused`,
+`comments_mismatch`, `rate_limited`, `account_mismatch`), and its detail is
+one line of fixed keys and decimal counts:
+`review_submission=REASON post=ANSWER post_class=N http_class=N expected=N
+found=N matched=N candidates=N pages=N`. It carries no host, repository, URL,
+account name, path, token or comment words, so it is safe for a protected
+GitHub Enterprise Server. The export keeps that line only when it parses back
+exactly. The same reason is kept with the unresolved attempt in
+`review-mutation-recovery.sqlite3` (`submission_unknown`, schema 6) and is
+cleared when the attempt resolves or is withdrawn.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

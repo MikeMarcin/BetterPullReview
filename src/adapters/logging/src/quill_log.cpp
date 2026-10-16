@@ -417,7 +417,7 @@ namespace bpr::adapters::logging {
 			return identity;
 		}
 
-		constexpr std::array<std::string_view, 6>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment" };
+		constexpr std::array<std::string_view, 7>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission" };
 		constexpr std::array<std::string_view, 13> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline" };
 		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 		constexpr std::array<std::string_view, 5>  summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
@@ -520,6 +520,14 @@ namespace bpr::adapters::logging {
 			static constexpr std::array<std::string_view, 17> gitSteps{ "none", "admission", "temporary_store", "process_runner", "identity_before", "cli_version", "git_version", "cli_qualification", "git_qualification", "clone", "object_check", "identity_after", "local_store", "local_pack", "pack_read", "git_capability_probe", "cli_capability_probe" };
 			const auto                                        gitStep = static_cast<std::size_t>(aEvent.GitStep);
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
+			// [[BPR-1540]]. A review submission's reason is a valid diagnosis
+			// and nothing else; its detail is exactly that diagnosis.
+			if (aEvent.ReviewSubmission
+				&& (!core::valid(*aEvent.ReviewSubmission) || aEvent.Operation != application::diagnostic_operation::review_submission || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U
+					|| aEvent.Summary.text() != core::describe(*aEvent.ReviewSubmission))) {
+				State->drop();
+				return status_type::dropped;
+			}
 			if ((aEvent.Detail != application::diagnostic_detail::standard && aEvent.Detail != application::diagnostic_detail::verbose) || gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size() || (aEvent.Summary.Size != 0U && aEvent.Summary.State != application::diagnostic_summary_state::sanitized)
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter >= 127U; })) {
 				State->drop();
@@ -537,10 +545,11 @@ namespace bpr::adapters::logging {
 
 				static constexpr quill::MacroMetadata metadata{ "", "", "{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
 				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
-				const auto                            failureDomain = githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation") : domains[aEvent.EpochFailure.index()];
-				const auto                            failure       = githubFailure
-					? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
-					: std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
+				const auto                            failureDomain = aEvent.ReviewSubmission ? std::string_view{ "review_submission" } : githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation")
+																																						: domains[aEvent.EpochFailure.index()];
+				const auto                            failure       = aEvent.ReviewSubmission ? core::name(aEvent.ReviewSubmission->Reason)
+					: githubFailure                                                           ? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
+																							  : std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
 				const auto                            utc           = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 				if (utc < 0 || Sequence == std::numeric_limits<std::uint64_t>::max()) {
 					State->drop();
