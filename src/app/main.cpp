@@ -4431,8 +4431,6 @@ namespace {
 							  status.PublicPreviewWriteRefusals)
 					   << "\nPUBLIC_PREVIEW_EPOCH_STATUS:"
 					   << static_cast<unsigned>(aRun.PublicPreview.SettledEpoch)
-					   << "\nPUBLIC_PREVIEW_MERGE_BASE_UNAVAILABLE:"
-					   << (aRun.PublicPreview.SettledMergeBaseUnavailable ? "true" : "false")
 					   << "\nPUBLIC_PREVIEW_OCCURRENCES:"
 					   << static_cast<unsigned long long>(aRun.PublicPreview.SettledOccurrenceCount)
 					   << "\nPUBLIC_PREVIEW_HISTORY_INCOMPLETE:"

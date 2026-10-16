@@ -784,16 +784,21 @@ namespace bpr::app::detail {
 		/// asked for, and the merge base. A base that shares no history with
 		/// the head has none, which GitHub answers with not found.
 		[[nodiscard]] auto merge_base_response(const fixture_descriptor& aDescriptor, const adapters::github::detail::wire_request& aRequest, const bool aUnrelatedBase,
-											   const bool aUnavailable) -> wire_response
+											   const bool aUnavailable, const bool aUnauthorized = false) -> wire_response
 		{
 			auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Completeness = page_completeness::complete };
-			if (aUnavailable || aUnrelatedBase) {
+			if (aUnauthorized) {
+				response.Status = 401;
+				response.Body   = R"({"message":"Bad credentials"})";
+			} else if (aUnavailable || aUnrelatedBase) {
 				response.Status = aUnavailable ? 500 : 404;
 				response.Body   = aUnavailable ? R"({"message":"fixture compare unavailable"})" : R"({"message":"Not Found"})";
 			} else {
 				const auto tip       = aRequest.Semantic.BranchRef.empty() ? aRequest.Semantic.BaseOid : std::string{ aDescriptor.BaseOid };
 				const auto mergeBase = aDescriptor.MergeBaseOid.empty() ? std::string{ aDescriptor.BaseOid } : std::string{ aDescriptor.MergeBaseOid };
-				response.Body        = R"({"status":"ahead","total_commits":1,"base_commit":{"sha":")" + tip + R"("},"merge_base_commit":{"sha":")" + mergeBase
+				const auto asked     = aRequest.Semantic.BranchRef.empty() ? aRequest.Semantic.BaseOid : aRequest.Semantic.BranchRef;
+				response.Body        = R"({"url":"https://api.github.com/repos/)" + aRequest.Semantic.Owner + "/" + aRequest.Semantic.Repository + "/compare/" + asked + "..."
+					+ aRequest.Semantic.HeadOid + R"(","status":"ahead","total_commits":1,"base_commit":{"sha":")" + tip + R"("},"merge_base_commit":{"sha":")" + mergeBase
 					+ R"("},"commits":[],"files":[]})";
 			}
 			append_rate_limit_headers(response, aRequest.Operation);
@@ -1778,9 +1783,16 @@ namespace bpr::app::detail {
 			bool                                             CliEnabled             = false;
 			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
 			bool                                             RefuseFirstSmartAcquire = false;
-			/// [[BPR-1560]]. Compare reads answered, and whether they fail.
-			std::size_t                                 MergeBaseReads           = 0U;
-			bool                                        MergeBaseUnavailable     = false;
+			/// [[BPR-1560]]. Compare reads answered, and whether they fail; the
+			/// pull request each role last served, to answer the read again that
+			/// confirms it, and whether the race course moves it in between.
+			std::size_t                  MergeBaseReads         = 0U;
+			std::size_t                  MergeBaseConfirmations = 0U;
+			bool                         MergeBaseUnavailable   = false;
+			bool                         MergeBaseRace          = false;
+			bool                         MergeBaseUnauthorized  = false;
+			std::map<int, bool>          ConfirmationPending;
+			std::map<int, wire_response> LastPullRequest;
 			bool                                        FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
@@ -2667,8 +2679,31 @@ namespace bpr::app::detail {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
 					++State->MergeBaseReads;
+					State->ConfirmationPending[static_cast<int>(Role)] = true;
 					return github_wire_success{ .Correlation = aRequest.Correlation,
-												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable) };
+												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable,
+																			 State->MergeBaseUnauthorized) };
+				}
+				// [[BPR-1560]]. The pull request read again after the merge base
+				// is the one this snapshot served, unless the race course moves
+				// its recorded base between the reads.
+				if (aRequest.Wire.Operation == read_operation::get_pull_request && State->ConfirmationPending[static_cast<int>(Role)]
+					&& State->LastPullRequest.contains(static_cast<int>(Role))) {
+					State->ConfirmationPending[static_cast<int>(Role)] = false;
+					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
+						State->RecordingFailure = -5;
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					auto again = State->LastPullRequest.at(static_cast<int>(Role));
+					if (State->MergeBaseRace) {
+						auto object = QJsonDocument::fromJson(QByteArray::fromStdString(again.Body)).object();
+						auto base   = object.value(QStringLiteral("base")).toObject();
+						base.insert(QStringLiteral("sha"), QStringLiteral("abababababababababababababababababababab"));
+						object.insert(QStringLiteral("base"), base);
+						again.Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+					}
+					++State->MergeBaseConfirmations;
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(again) };
 				}
 				// [[BPR-0990]]. Personal discovery is answered by the fixture
 				// server, not the recorded review script, and only on the
@@ -2833,7 +2868,12 @@ namespace bpr::app::detail {
 				}
 				return github_wire_success{
 					.Correlation = aRequest.Correlation,
-					.Response    = std::move(*response),
+					.Response    = [&] {
+                        if (aRequest.Wire.Operation == read_operation::get_pull_request) {
+                            State->LastPullRequest.insert_or_assign(static_cast<int>(Role), *response);
+                        }
+                        return std::move(*response);
+					}(),
 				};
 			}
 
@@ -4752,6 +4792,8 @@ namespace bpr::app::detail {
 			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->MergeBaseUnavailable    = aOptions.MergeBaseUnavailable;
+			Recording->MergeBaseRace           = aOptions.MergeBaseRace;
+			Recording->MergeBaseUnauthorized   = aOptions.MergeBaseUnauthorized;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);
 			Recording->Offline                 = std::move(aOptions.Offline);
@@ -4928,6 +4970,8 @@ namespace bpr::app::detail {
 			result.MarkdownImageResolutions = Implementation->Recording->MarkdownImageResolutions.load();
 			result.MarkdownImageFetches     = Implementation->Recording->MarkdownImageFetches.load();
 			result.LastReadOperation        = Implementation->Recording->LastReadOperation;
+			result.MergeBaseReads           = Implementation->Recording->MergeBaseReads;
+			result.MergeBaseConfirmations   = Implementation->Recording->MergeBaseConfirmations;
 			result.SmartAcquireCount        = static_cast<int>(
 				Implementation->Recording->SmartAcquireCalls);
 			result.SmartAcquireRefusalCount = static_cast<int>(

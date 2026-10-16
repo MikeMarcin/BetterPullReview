@@ -252,12 +252,11 @@ namespace bpr::adapters::github::detail {
 			/// [[BPR-1373]]. The account each pinned CLI profile first signed in
 			/// as in this run, by profile and login, under `Mutex`.
 			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
-			/// [[BPR-1560]]. Merge bases GitHub named for a closed pull request,
-			/// by host, profile, repository and the exact recorded base and head
-			/// they answer, under `Mutex`. An exact pair's merge base never
-			/// changes, so a poll that finds the same pair asks nothing; only
-			/// answers are kept, never failures. An open pull request's basis is
-			/// its branch, which moves, so it is asked on every read.
+			/// [[BPR-1560]]. Merge bases GitHub named for an exact recorded base
+			/// and head, by host, profile and repository, under `Mutex`. An exact
+			/// pair's merge base never changes, so a poll that finds the same pair
+			/// asks nothing; only answers are kept, never failures. An open pull
+			/// request's base branch moves, so its merge base is asked every read.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
 			std::atomic<std::uint64_t>                                                                               NextSnapshot{ 1U };
 			bool                                                                                                     Closing = false;
@@ -2451,58 +2450,104 @@ namespace bpr::adapters::github::detail {
 						// [[BPR-1560]]. GitHub's Files changed compares from the
 						// merge base of the base branch and the head, not from the
 						// base commit GitHub records for the pull request, which
-						// may lag or lead. An open pull request asks for its
-						// current head against the base branch, and the answer
-						// names the tip GitHub resolved, so that tip and its merge
-						// base come from one response and nothing is kept under a
-						// branch name that can move. A closed pull request, whose
-						// branch may have moved on or taken the head, asks against
-						// its recorded base; that answer is an exact pair and is
-						// remembered. A failure leaves the merge base unavailable;
-						// it never erases the accepted live read and is never
-						// replaced by any base.
+						// may lag or lead. Three reads bind it to this snapshot:
+						// the merge base against the recorded base (an exact pair,
+						// remembered); for an open pull request the merge base
+						// against the base branch, which must name the same commit,
+						// or GitHub's two bases disagree and its file list's basis
+						// is not knowable; then the pull request's metadata again,
+						// which must still be the snapshot's, so the file list and
+						// the merge base describe one state. A closed pull request,
+						// whose branch may have moved on or taken the head, is
+						// compared with its recorded base only. Lost authentication
+						// fails the whole read, as on every optional read; any
+						// other failure leaves the merge base unavailable and never
+						// stands in another base.
 						{
-							const auto open  = result->PullRequest.State == application::github_pull_request_state::open;
-							const auto basis = github_merge_base_basis{
-								.BaseRef = open ? result->PullRequest.BaseRef : std::string{ },
-								.BaseOid = std::string{ result->PullRequest.BaseOid.value() },
+							enum class merge_base_step : std::uint8_t {
+								answered,
+								unavailable,
+								stop,
 							};
-							const auto key   = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(),
-														   basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
-							auto       known = std::optional<std::pair<std::string, std::string>>{ };
-							if (!open) {
+							const auto open      = result->PullRequest.State == application::github_pull_request_state::open;
+							const auto head      = std::string{ result->PullRequest.HeadOid.value() };
+							const auto recorded  = std::string{ result->PullRequest.BaseOid.value() };
+							auto       stopError = std::optional<github_paged_read_failure>{ };
+							auto       observe   = [&](const application::github_rate_limit_state& aRates) {
+                                if (aRates.Core) {
+                                    result->RateLimits.Core = aRates.Core;
+                                }
+							};
+							const auto settle = [&](const github_paged_read_failure& aFailure) {
+								if (std::holds_alternative<github_paged_read_cancelled>(aFailure)) {
+									stopError = aFailure;
+									return merge_base_step::stop;
+								}
+								const auto& error = std::get<application::github_provider_error>(aFailure);
+								observe(error.RateLimits);
+								if (error.Failure == application::github_provider_failure::authentication) {
+									stopError = aFailure;
+									return merge_base_step::stop;
+								}
+								return merge_base_step::unavailable;
+							};
+							auto ask = [&](const github_merge_base_basis& aBasis, std::optional<github_merge_base_read>& aAnswer) {
+								auto read = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository, aBasis, head,
+																		   job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (!read) {
+									return settle(read.error());
+								}
+								observe(read->RateLimits);
+								aAnswer = std::move(*read);
+								return merge_base_step::answered;
+							};
+							const auto key   = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(), recorded, head };
+							auto       exact = std::optional<github_merge_base_read>{ };
+							{
 								std::scoped_lock lock{ state->Mutex };
 								if (const auto found = state->MergeBases.find(key); found != state->MergeBases.end()) {
-									known = std::pair{ found->second, basis.BaseOid };
+									exact = github_merge_base_read{ .MergeBaseOid = found->second, .BaseCommitOid = recorded };
 								}
 							}
-							if (!known) {
-								auto mergeBase = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository,
-																				basis, result->PullRequest.HeadOid.value(),
-																				job->Stop.get_token(), { }, state->ReadAuthority, &observer);
-								if (mergeBase) {
-									known = std::pair{ mergeBase->MergeBaseOid, mergeBase->BaseCommitOid };
-									if (mergeBase->RateLimits.Core) {
-										result->RateLimits.Core = mergeBase->RateLimits.Core;
-									}
-									if (!open) {
-										constexpr auto   maximumRemembered = std::size_t{ 256U };
-										std::scoped_lock lock{ state->Mutex };
-										if (state->MergeBases.size() >= maximumRemembered) {
-											state->MergeBases.clear();
-										}
-										state->MergeBases.emplace(key, known->first);
-									}
-								} else if (std::holds_alternative<github_paged_read_cancelled>(mergeBase.error())) {
+							auto step = exact ? merge_base_step::answered : ask(github_merge_base_basis{ .BaseOid = recorded }, exact);
+							if (step == merge_base_step::answered && exact) {
+								constexpr auto   maximumRemembered = std::size_t{ 256U };
+								std::scoped_lock lock{ state->Mutex };
+								if (state->MergeBases.size() >= maximumRemembered) {
+									state->MergeBases.clear();
+								}
+								state->MergeBases.emplace(key, exact->MergeBaseOid);
+							}
+							auto chosen = exact;
+							if (step == merge_base_step::answered && open) {
+								auto tip = std::optional<github_merge_base_read>{ };
+								step     = ask(github_merge_base_basis{ .BaseRef = result->PullRequest.BaseRef, .BaseOid = recorded }, tip);
+								if (step == merge_base_step::answered) {
+									step   = tip->MergeBaseOid == exact->MergeBaseOid ? merge_base_step::answered : merge_base_step::unavailable;
+									chosen = tip;
+								}
+							}
+							if (step == merge_base_step::answered) {
+								const auto confirmed = perform_github_pull_request_confirmation(*readTransport, *profile, aRequest, *result,
+																								job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (!confirmed) {
+									step = settle(confirmed.error());
+								} else {
+									observe(confirmed->RateLimits);
+									step = confirmed->Unchanged ? merge_base_step::answered : merge_base_step::unavailable;
+								}
+							}
+							if (step == merge_base_step::stop) {
+								if (std::holds_alternative<github_paged_read_cancelled>(*stopError)) {
 									cancelled();
-									return;
-								} else if (const auto& error = std::get<application::github_provider_error>(mergeBase.error()); error.RateLimits.Core) {
-									result->RateLimits.Core = error.RateLimits.Core;
+								} else {
+									failed(std::get<application::github_provider_error>(*stopError));
 								}
+								return;
 							}
-							if (known) {
-								result->MergeBaseOid          = application::commit_oid{ known->first };
-								result->MergeBaseTipOid       = application::commit_oid{ known->second };
+							if (step == merge_base_step::answered) {
+								result->MergeBaseOid          = application::commit_oid{ chosen->MergeBaseOid };
+								result->MergeBaseTipOid       = application::commit_oid{ chosen->BaseCommitOid };
 								result->MergeBaseAvailability = application::github_merge_base_availability::available;
 							} else {
 								result->MergeBaseAvailability = application::github_merge_base_availability::failed;

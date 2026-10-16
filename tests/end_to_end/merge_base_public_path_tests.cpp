@@ -86,13 +86,15 @@ namespace {
 		std::unique_ptr<app::github_application> Application;
 	};
 
-	auto start(course& aCourse, const bool aMergeBaseUnavailable) -> qt::workbench_window&
+	auto start(course& aCourse, const bool aMergeBaseUnavailable, const bool aMergeBaseRace = false, const bool aUnauthorized = false) -> qt::workbench_window&
 	{
 		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
 		expect(dataRoot.has_value(), "private course root");
 		auto options                 = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot  = dataRoot;
 		options.MergeBaseUnavailable = aMergeBaseUnavailable;
+		options.MergeBaseRace        = aMergeBaseRace;
+		options.MergeBaseUnauthorized = aUnauthorized;
 		auto terminal                = false;
 		auto startup                 = access::start(app::detail::github_public_path_fixture::merge_base_v1, options, [&](auto aResult) {
 			terminal = true;
@@ -109,6 +111,9 @@ namespace {
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
 		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/merge-base#1560"));
 		window.home_open_action()->trigger();
+		if (aUnauthorized) {
+			return window;
+		}
 		wait_for([&] { return window.showing_overview() && window.overview_page()->projection().has_value(); }, "the pull request opens on Overview");
 		auto step  = app::detail::course_modality_step{ };
 		step.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true };
@@ -180,11 +185,13 @@ namespace {
 	}
 
 	/// No merge base named: Whole PR says so and compares nothing from the
-	/// recorded base.
-	void whole_pr_without_a_merge_base_says_so()
+	/// recorded base. Also when GitHub recorded another base for the pull
+	/// request between the snapshot and the read that confirms it: the file
+	/// list and the merge base would describe two states.
+	void whole_pr_without_a_merge_base_says_so(const bool aRace)
 	{
 		auto  run    = course{ };
-		auto& window = start(run, true);
+		auto& window = start(run, !aRace, aRace);
 		wait_for([&] { return window.epoch_selectors()->status_text().contains(QStringLiteral("GitHub did not say where this pull request branched")); },
 				 "Whole PR says GitHub named no merge base");
 		select(window, "b.txt");
@@ -198,7 +205,28 @@ namespace {
 				   "nothing is compared from the recorded base");
 		}
 		std::cout << "merge-base unavailable status=" << window.epoch_selectors()->status_text().toStdString() << '\n';
-		render(window, QStringLiteral("merge-base-unavailable"));
+		render(window, aRace ? QStringLiteral("merge-base-race") : QStringLiteral("merge-base-unavailable"));
+		expect(access::evidence(*run.Application).MergeBaseConfirmations == (aRace ? 1U : 0U) && access::evidence(*run.Application).MergeBaseReads >= 1U, "the race course confirmed once; the failing compare confirms nothing");
+		finish(run);
+	}
+
+	/// Lost authentication on the merge-base read fails the whole read, as on
+	/// every optional read: the pull request is not shown without it.
+	void lost_authentication_fails_the_read()
+	{
+		auto  run    = course{ };
+		auto& window = start(run, false, false, true);
+		wait_for([&] { return access::evidence(*run.Application).MergeBaseReads >= 1U && window.github_status_text().find("Loading") == std::string::npos; },
+				 "the compare read answers");
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (elapsed.elapsed() < 2000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		std::cout << "merge-base unauthorized status=" << window.github_status_text() << '\n';
+		expect(window.github_status_text() != "Pull request ready." && !window.comparison_surface()->current_result(),
+			   "a read whose merge base was refused for its credential is not accepted");
 		finish(run);
 	}
 }
@@ -207,7 +235,9 @@ int main(int aArgc, char** aArgv)
 {
 	QApplication qtApplication{ aArgc, aArgv };
 	whole_pr_is_githubs_files_changed();
-	whole_pr_without_a_merge_base_says_so();
+	whole_pr_without_a_merge_base_says_so(false);
+	whole_pr_without_a_merge_base_says_so(true);
+	lost_authentication_fails_the_read();
 	std::cout << "MERGE_BASE_PUBLIC_PATH_OK qt=" << qVersion() << '\n';
 	return 0;
 }

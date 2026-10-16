@@ -3501,9 +3501,10 @@ namespace {
 		}
 	};
 
-	[[nodiscard]] auto compare_body(const std::string_view aBase, const std::string_view aMergeBase) -> std::string
+	[[nodiscard]] auto compare_body(const std::string_view aBase, const std::string_view aMergeBase, const std::string_view aHead = head_oid) -> std::string
 	{
-		return R"({"status":"diverged","total_commits":3,"base_commit":{"sha":")" + std::string{ aBase } + R"("},"merge_base_commit":{"sha":")"
+		return R"({"url":"https://api.github.com/repos/octo-org/review-repository/compare/base...)" + std::string{ aHead }
+			+ R"(","status":"diverged","total_commits":3,"base_commit":{"sha":")" + std::string{ aBase } + R"("},"merge_base_commit":{"sha":")"
 			+ std::string{ aMergeBase } + R"("},"commits":[],"files":[]})";
 	}
 
@@ -3550,6 +3551,7 @@ namespace {
 			expect(!result && std::holds_alternative<application::github_provider_error>(result.error()) && scripted.Requests.size() == 1U, aMessage);
 		};
 		refused(R"({"base_commit":{"sha":"3333333333333333333333333333333333333333"}})", 200, "an answer without a merge base is refused");
+		refused(compare_body(tip, mergeBase, "5555555555555555555555555555555555555555"), 200, "an answer about another head is refused");
 		refused(compare_body(tip, "44444444"), 200, "an abbreviated merge base is refused");
 		refused(compare_body(tip, "4444444444444444444444444444444444444444444444444444444444444444"), 200, "a merge base of another object format is refused");
 		refused("[]", 200, "a non-object answer is refused");

@@ -4115,15 +4115,61 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto baseSha  = json_member(json_object(baseValue), "sha");
 			const auto mergeSha = json_member(json_object(mergeBase), "sha");
-			// The answer is bound to what was asked: a reply about another
-			// base commit, or in another object format, is not this pull
-			// request's comparison base.
-			if (!hexadecimal_oid(baseSha) || !hexadecimal_oid(mergeSha)
+			const auto url      = json_member(document, "url");
+			// The answer is bound to what was asked: GitHub echoes the compared
+			// pair in `url`, whose head must be exactly the head asked about; a
+			// reply about another base commit, or in another object format, is
+			// not this pull request's comparison base.
+			const auto echoedHead = json_is_string(url) && text(url).ends_with("..." + std::string{ aHead });
+			if (!echoedHead || !hexadecimal_oid(baseSha) || !hexadecimal_oid(mergeSha)
 				|| (aBasis.BaseRef.empty() && text(baseSha) != aBasis.BaseOid)
 				|| text(mergeSha).size() != aHead.size() || text(baseSha).size() != aHead.size()) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
 			return github_merge_base_read{ .MergeBaseOid = text(mergeSha), .BaseCommitOid = text(baseSha), .RateLimits = rates };
+		} catch (...) {
+			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
+		}
+	}
+
+	auto perform_github_pull_request_confirmation(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const application::github_pull_request_snapshot&         aSnapshot,
+		const std::stop_token                                    aStop,
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority,
+		github_paged_response_observer*                          aObserver) noexcept -> github_pull_request_confirmation_result
+	{
+		auto rates = application::github_rate_limit_state{ };
+		try {
+			if (!provider_request_valid(aProfile, aRequest, core::provider_snapshot_id{ 1U }, aLimits, aReadAuthority)
+				|| aSnapshot.Repository.Repository.value() == 0U
+				|| (aRequest.Context.ExpectedRepository && *aRequest.Context.ExpectedRepository != aSnapshot.Repository.Repository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto limits              = aLimits;
+			limits.MaximumTotalPages = 1U;
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, aObserver };
+			if (!execution.bind_repository(aSnapshot.Repository.Repository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto page = execution.fetch(semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::get_pull_request));
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			auto pullRequest = parse_pull_request(*page, aRequest.Context, aSnapshot.Repository, aLimits.Records);
+			if (!pullRequest) {
+				return std::unexpected{ execution.enrich(pullRequest.error()) };
+			}
+			const auto& now = pullRequest->Record;
+			const auto& was = aSnapshot.PullRequest;
+			return github_pull_request_confirmation{
+				.Unchanged = now.PullRequest == was.PullRequest && now.HeadOid == was.HeadOid && now.BaseOid == was.BaseOid
+					&& now.BaseRef == was.BaseRef && now.State == was.State && pullRequest->ChangedFiles == aSnapshot.Files.size(),
+				.RateLimits = rates,
+			};
 		} catch (...) {
 			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
 		}

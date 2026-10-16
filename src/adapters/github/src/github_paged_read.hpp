@@ -157,6 +157,32 @@ namespace bpr::adapters::github::detail {
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_merge_base_read_result;
 
+	/// \brief [[BPR-1560]]. Whether the pull request GitHub describes now is
+	/// the one a snapshot was read from.
+	struct github_pull_request_confirmation
+	{
+		bool                                 Unchanged = false;
+		application::github_rate_limit_state RateLimits;
+	};
+
+	using github_pull_request_confirmation_result = std::expected<github_pull_request_confirmation, github_paged_read_failure>;
+
+	/// \brief [[BPR-1560]]. Reads the pull request's metadata again after the
+	/// merge-base read and reports whether its head, recorded base, base
+	/// branch, state and changed-file count are still the snapshot's, which
+	/// binds the snapshot's file list and the merge base to one state of the
+	/// pull request.
+	[[nodiscard]] auto perform_github_pull_request_confirmation(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const application::github_pull_request_snapshot&         aSnapshot,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
+		-> github_pull_request_confirmation_result;
+
 	/// \brief [[BPR-0988]]. What one personal discovery read found.
 	struct github_personal_discovery_read
 	{
