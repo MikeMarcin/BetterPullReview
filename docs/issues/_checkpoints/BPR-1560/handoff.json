@@ -1,0 +1,18 @@
+{
+ "assignment": "BPR-1560",
+ "mandate": "Owner report 2026-10-16 (coordinator relay): installed app shows diffs that differ from GitHub's Files changed on a PR with merges from main; unrelated main changes appear and some PR files show 0 changes with the PR's text on both sides. Find and fix the root cause so the default comparison equals GitHub's Files changed; interdiffs stay correct; never a silently wrong diff. Owner cross-review (Astra critical + Fable) of the root cause before the fix and of the fix plus live evidence before landing; do not merge to main until the coordinator relays both verdicts.",
+ "governing_rfc": "RFC-BPR-0029 (epochs and comparison anchors); BPR-0944 (owner-deferred comparison basis)",
+ "phase": "root cause confirmed; report returned; fix not started",
+ "root_cause": "Whole PR's left anchor is the latest live epoch's base, which is GitHub's recorded base commit (baseRefOid/base.sha) read in github_paged_read.cpp, handed over as the accepted revision's Base in github_window_read_host.cpp make_epoch_handoff, and selected in core select_pair (epoch_transition.cpp case whole_pr). GitHub's file list and Files changed use merge-base(base.sha, head). base.sha is the base tip at PR creation, kept across ordinary pushes, reset only when a push moves the merge base; whenever it is ahead of the merge base, the two-dot comparison shows base-branch changes reversed and hides PR changes the base already carries. Latent since 618c56419/cac0f5169 (2026-07-30); BPR-0944 recorded it 2026-09-20 (owner-deferred). 0bfcbaa9a did not change the basis but makes a local merge base underivable on signed-in (sparse) reviews.",
+ "commits": {"allocation_on_main": "bd04bf3df", "root_cause_card_and_course": "6ae8875a1"},
+ "branch": "bpr-1560-merge-base",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1560-merge-base",
+ "build": "build/dev (full dev build of bd04bf3df plus the course harness)",
+ "live_targets": {"pr_75": "bpr1560-feature into bpr1560-main: 4 iterations, 2 merges from base; base.sha == merge base now; parity PASS", "pr_76": "bpr1560-feature2 into bpr1560-main: base ahead of fork point at open, PR's b.txt change landed on base separately; base.sha 5476b9780a96 != merge base ffc2ef6d22ce; parity FAIL (10 differences)"},
+ "commands": [
+  "QT_QPA_PLATFORM=offscreen build/dev/tests/end_to_end/live_second_account_course --course parity --root <mkdtemp> --pull 76",
+  "python3 tests/end_to_end/bpr1560_live_parity.py --root <same> --pull 76"
+ ],
+ "pending": ["fix (GitHub compare merge_base_commit as the live comparison base; explicit unavailable state otherwise)", "adapter contract tests", "deterministic composed fixture", "live parity after fix on #75, #76 and a force-push course", "negative control", "full dev ctest, format, tidy, docs gate, composition contracts", "reviewer verdicts before merge"],
+ "next_action": "Implement the fix on bpr-1560-merge-base once resumed; do not merge before the coordinator relays both review verdicts."
+}
