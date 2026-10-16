@@ -173,7 +173,7 @@ New fixture `intraline-v1` (`scripts/build_intraline_fixture.py`,
 `bpr-fixtures/intraline#37`): five files of everyday changed lines, served by
 `--github-fixture intraline-v1`.
 
-## Attended review (AC4, pending)
+## Attended review (AC4)
 
 Frozen build `/Users/jaeger/bpr-1537-intraline-v001.ipjf7vxp` from `7bda4c32f`
 (launcher `--check` passed: fixture tree present, offscreen launch reached
@@ -190,7 +190,34 @@ candidate) through the product's `diff_workbench` are in
 `/Users/jaeger/bpr-attended/bpr-1537-intraline-v001/renders`; offline page
 `review.html` beside them.
 
-## Continuation
+**Owner decision, 2026-10-16T01:32:29Z: Accept** (decision
+`a8fb8649-a17d-4173-8188-7b78c785449f`, event 5, note "whole words with
+cleanup is defintely better"), on candidate `BPR-1537-intraline-words` at
+revision `7bda4c32f`, superseding an earlier Accept without a note (event 4).
+The session was not handed back; the latest decision is final. The host was
+stopped and the candidate's protection released.
+
+## Closeout (2026-10-16)
+
+`main` (through `d66744c4f`, with BPR-1538 and BPR-1539) merged into the
+branch at `4fa548338` and `1f078f0d5`. BPR-1539's `6ea8f221f` had changed
+`github_application.cpp` without resealing, so `837e43dcc` reseals the
+composition contract on the merged tree for both changes (mutation pin
+unchanged). On the merged tree (`dev`, Debug, `-g0`): `core_diff_model`,
+`core_diff_compute`, `core_diff_intraline`, `core_diff_compute_components`,
+`core_diff_compute_benchmark`, `core_diff_semantics`, `core_diff_transition`,
+`application_diff_host`, `qt_diff_workbench_scale_{100,125,200}`,
+`qt_diff_axis_scale_{100,125,150,200}`,
+`application_github_public_path_uiforetw_74`,
+`application_uiforetw_selected_diff_contract`,
+`application_diff_workbench_public_path`,
+`application_line_details_public_path`, `github_recorded_fixture_contract`,
+`github_contract_fixture_security`,
+`application_review_round_trip_composition_contract`,
+`architecture_boundaries` and `coding_format_check` pass; the documentation
+gate and its tests pass.
+
+## Continuation (as parked; done above)
 
 - On Accept: merge `bpr-1537-intraline-tokens` into `main` (re-check the
   composition contract pins against `main`'s then-current `src/app` and
