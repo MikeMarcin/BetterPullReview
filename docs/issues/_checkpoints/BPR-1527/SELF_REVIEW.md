@@ -360,3 +360,22 @@ context. Frontend-design was loaded; this repairs inherited appearance. Temporar
 variants were force-restored, with exact object/executable regeneration. New Qt
 source is not in the frozen181Windows continuation; affected native/portable
 acceptance and cancellation work remain required.
+
+## R66 application-host cancellation headroom
+
+Reviewed only the host's selected existing stop-control interval and matching
+architecture notes. Stop-token identity, core decision state, matcher wakeup,
+requeue/refusal and result construction remain unchanged. Core keeps its generic
+64Ki default and deterministic meter; this caller chooses4Ki without adding a
+clock, thread or policy dependency inward. The end-to-end10ms assertion still
+includes Host->request and full effect/core cleanup. The interval cannot bound
+one expensive work unit, unwind or scheduler delay; no universal wall-clock
+guarantee is inferred from component timings. Matched native minimal traces
+show a smaller pre-observation/effect remainder while~4ms unwind remains. Actual
+original failure phases were not captured, so that uncertainty remains explicit.
+The compiled disabled-poll negative fails242.50ms and exact restored current
+host passes4.23ms;6current Mac public paths pass. Uninstrumented Windows wrapper
+and affected native/portable checks on committed source remain due. Full raw
+traces/provenance and every original failure are retained. No provider, authority,
+publication, credential or production-app mutation branch changes; print-only
+existing composition digests remain unchanged, and that mode proves no behavior.

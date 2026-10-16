@@ -190,3 +190,13 @@ split overscan alone reproduces a3logical-pixel gap; original pre851 passes in t
 same native context. The narrow actual-scrollbar-boundary correction passes all11
 affected normal Mac courses, with original bottom assertion and stronger frame
 oracle intact. Windows/portable acceptance on the repaired source remains due.
+
+R66 current headroom slice selects4Ki host stop checks through the existing core
+control, preserving generic64Ki default and original10ms/full-effect assertion.
+[The source review and native probes](../_checkpoints/BPR-1527/cancellation-repair-r66.json)
+retain actual original failures, similar~4ms core unwind and a smaller observed
+request/poll/effect remainder. The exact original failure phases remain unknown;
+no component metric substitutes for ordinary native acceptance. A compiled Mac
+disabled-poll negative fails242.50ms, exact restored candidate passes4.23ms, and
+6current public paths plus strict22/current architecture/fullformat pass. Current
+committed-source ordinary Windows and affected WSL acceptance remain pending.

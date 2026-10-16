@@ -34,10 +34,19 @@ before CTest due to inherited WSL cwd, retained as prerequisite failure; explici
 accessible cwd fixed inventory without ACL/settings changes.
 [The explicit diagnostic scope amendment](diagnostic-scope-amendment-r61.json)
 adds AC12/exit11 after collection, retaining prior11/10 and unchanged10ms contract.
-NativeR62temporary host trace now runs on the same181basis, force-compiling the
-actual producer and force-restoring source/object/executable before completion;
-trace timing is diagnostic only. Windows/WSL native inventory was empty before
-its unique interactive dispatch. No concurrent native PC command is started.
+[Cancellation repair](cancellation-repair-r66.json) records completedR62–R65
+native cause probes and exact181source/object/exe restoration. All tasksReady,
+recordedPIDs absent, no native Windows/WSL competitor. Minimal matched traces
+show similar~4ms core unwind, but the remaining request/poll/effect time drops
+from max3.79ms at64Ki to0.63ms at4Ki. This supports a bounded host polling
+improvement; it cannot bound individual work units, unwind or OS scheduling.
+Original10.3557/10.3359failure phases remain unobserved, with failures preserved.
+A compiled disabled-poll Mac negative fails242.50ms at unchanged10ms; current
+candidate force-restored passes4.23ms/heldmatcher0.63ms. Six current Mac public
+courses pass82.32s, stricthostTU22/current architecture/fullformat pass. Generic
+core default, matcher callback, abandonment/restart policy and all assertions/
+inputs remain unchanged. Current4Ki candidate ordinary Windows acceptance is
+next on the same sole-owned branch; no further exploratory repetition is planned.
 
 [Mac source-bottom repair](mac-source-bottom-repair-r61.json) preserves the R59
 29pass/1fail inventory and actual native counterexamples. Reduced split overscan
@@ -47,7 +56,7 @@ The narrow repair anchors the displayed split clip to the actual visible native
 horizontal scrollbar. Current strengthened test is restored byte-for-byte; no
 threshold, input, frame assertion, style or font change. All11affected normal Mac
 courses pass102.62s (whole100/125/200=16.89/17.10/18.91s, axes4,painter,Find3).
-StrictQtTU22, full format22, both architecture courses, documentation and67verifier units pass. All temporary probes are removed
+StrictQtTU22, full format22 and both architecture courses pass. Documentation passed before concurrent sharedID allocations advanced highwater; later failed attempts are retained, and exact existing counter/receipt upkeep repeats that gate before closeout. The67unchanged verifier units pass. All temporary probes are removed
 from tracked source; only the narrow production Qt correction remains modified.
 Windows181/code0769 stays frozen during R60b; native adoption/rebuild waits for
 quiescence. Changed Qt behavior requires affected current-source acceptance on

@@ -3,11 +3,45 @@
 Mandate `authorized-release-continuation-final-gates-r3`; plan
 `bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
 Same sole implementer `/root/bpr1525_implementer`; no subagents. BPR-1527 remains
-In Progress with all eleven criteria and ten exits; BPR-1525/1526 remain Done.
+In Progress with all twelve criteria and eleven exits; BPR-1525/1526 remain Done.
 Read [CURRENT](CURRENT.md), the live card, private ACTIVE.json and the actual
 native receipt/task/process state before any dispatch.
 
-## Resource and source boundaries
+## Current R60b–R66 continuation
+
+Renewed human/coordinator authorization supersedes the historical outage access
+ban below. Windows/WSL native execution and owned-worktree Mac repairs are active,
+with actual-denial/no-bypass and serialized PC ownership retained. Root owns final
+0.2.2 version/package/sign/publication; published Mac0.2.1 stays immutable.
+
+R60b completes170normal courses on181/code0769:168pass/1diagnostic failure/
+1configured Debug cache-bytes skip,792.26s. Together with535preserved valid passes,
+all705are accounted703pass/1fail/1skip across outage. This is not uninterrupted
+full acceptance. Whole125/200 pass105.27/107.98s. Original538rows/failures and
+all resumed output are preserved; see [the full record](windows-resumed-gate-r60b.json).
+
+Mac source-bottom correction is committed897df7ef0; all11affected normal courses,
+strictQtTU22, architecture2, fullformat22 and doc67pass. Later documentation gate
+encountered advancing sharedID highwater; adopt only exact existing maincounter/
+receipts as upkeep, never merge unrelatedmain. [R61](mac-source-bottom-repair-r61.json)
+retains original failure and actual source controls.
+
+R62–R65 native cancellation traces all finish and force-restore181 source/object/
+executable, with taskReady/ownedPIDsabsent. Original10.3557/10.3359ms failures stay
+failed. Minimal old64Ki traces show up to3.79ms outside~4ms core unwind; matched
+4Ki traces reduce that remainder to0.63ms. These are diagnostics, not normal10ms
+acceptance or a universal bound. Current ownedsource has only a narrow host4Ki
+stop-check choice plus architecture notes pending commit; generic core64Ki and
+all assertions/inputs remain. A compiled Mac disabled-poll negative fails242.50ms;
+exact candidate restoration passes4.23ms and heldmatcher0.63ms. Six current public
+Mac paths pass82.32s; current strict/architecture/fullformat checks pass. Next: commit candidate after current checks, adopt in
+ownedWindows branch after quiet inventory, force actual producers, run normal
+complete diagnostic wrapper/host, affected Qt/public paths; serialize subsequent
+WSL affected compile/check. Preserve source-bound old passes while invalidating
+affected current evidence. No checkpoint-only stop or release action is authorized.
+
+## Historical resource and source boundaries
+
 
 0.2.1 is macOS-only. Mac code6747 plus docs boundaryc233 are immutable for this
 implementer. Root owns its published release producer. The coordinator has now explicitly
@@ -132,7 +166,7 @@ not been dispatched; preflight is not a lease or a substitute for coordinating
 the quiet interval. After a real result, preserve any failure and finish all
 remaining criterion/exit, self-review, documentation and canonical board upkeep.
 
-## Current Mac-local outage recovery
+## Historical Mac-local outage recovery (superseded by renewal above)
 
 All earlier Windows/SSH/WSL commands and active-state claims above are historical
 only. Direct coordinator access restriction prohibits executing or inspecting
@@ -150,7 +184,7 @@ process inventory. All30original course assertions/timeouts/containment remain.
 Preserve any failure and report only actual local acceptance; no new product,
 policy, release, install, publication or deletion work belongs to this recovery.
 
-## R59 complete result and next boundary
+## Historical R59 complete result and next boundary
 
 The30course run is finished,29pass/1fail/0skip,exit8,272.59s. Preserve its private
 originals. Only qt_diff_workbench_scale_200 fails6.89s at the existing source

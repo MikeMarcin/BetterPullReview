@@ -12,8 +12,8 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "R60b completeCTest8/wrapper1,170accounted; exact181sourcecleanbeforeR62, taskReady/PIDsabsent and nativeWindows/WSLinventoryempty. MacR61elevennormal+strictQtTU+architecture2/fullformat/doc67complete. Unique WindowsR62temporarycancellationtrace active wrapper32920/session3; finallyforce-restores exact181source/object/exe.",
-  "acceptance": "Cross-outage705inventory703pass/1diagnosticfail/1configuredDebugskip, original538rowsretained. Nativewhole125105.27/200107.98pass atunchanged120s; diagnostic10.3359msfails10ms. Macnarrowbottomfix11normalpass plusstrict22/architecture/format/doc67pass. All12criteria/11exitsretained; current-sourceWindows/portable andcancellationrepairpending. No releaseapproval.",
+  "command_state": "AllWindowsR62-R65tasksReadyandownedPIDsabsent, exact181source/object/exeforce-restored; no nativePCworkload. Macnormal11+hostnegative/restoration+6public+strict2TUs/architecture/fullformatcomplete. Committed4Kicandidateadoption/normalWindows35next; no activecommand/reviewserver.",
+  "acceptance": "All12criteria/11exitsretained; R60bcompletecross-outage705inventory703pass1diagnosticfail1configuredDebugskip, originalsretained. Mac897Qtfix11normalpass; currenthost4Kirepairnegative242.50ms/restored4.23ms and6publicpaths82.32spass, staticpass. NativeordinaryWindowsandaffectedportable/currentfinalsourceacceptanceremainpending. No releaseapproval.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
     "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
