@@ -309,10 +309,18 @@ in the accent (v002; the owner, on v001's hollow handles: "I find these
 handles quite difficult to see"). The theme's accent is a selection colour
 that stands only 1.2:1 to 2.1:1 off the ground in the built-in themes, so the
 brackets and the span carry an outline: the accent moved towards the ink only
-as far as it must to stand 4.5:1 off the ground and 3:1 off the track. Each
+as far as it must to stand 4.5:1 off the ground and 3:1 off the track. On a
+dark ground (Dark, High Contrast Dark) that kept the selection navy's family,
+and the owner asked for "a different color so they stand out" (v003): there
+the brackets are the accent's hue turned towards cyan, saturated and at full
+value, at least 7:1 off the ground and the track, with a rim darker than the
+ground that draws their arms; the span is that colour tinted into the ground,
+a step below the brackets; the focus ring is the bright colour. Amber stays
+"my last review"'s. Each
 bracket stands on a ground-coloured halo, so neither the track nor a node
 runs into it, and a held update's node is its bracket's stem. Under the
-pointer, or while dragged, a bracket fills with its outline colour and the
+pointer, or while dragged, a bracket fills with its outline colour (the ink on
+a dark ground) and the
 pointer shows sideways arrows; with the keyboard on the line, the handle the
 arrow keys move wears a ring. Whole PR puts the left bracket on the base and
 the right on the newest update. An update's own base sits 18 pixels before its

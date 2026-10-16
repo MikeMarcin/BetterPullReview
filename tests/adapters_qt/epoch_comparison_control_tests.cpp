@@ -1336,11 +1336,12 @@ namespace {
 			// Both handles are painted in the theme's accent, away from the
 			// node and the track: the left one's left side, the right one's
 			// right side, on the line's top rows.
-			const auto image  = line->grab().toImage();
-			const auto ratio  = image.devicePixelRatio();
-			const auto accent = line->palette().color(QPalette::Active, QPalette::Highlight);
-			const auto ground = line->palette().color(QPalette::Active, QPalette::Window);
-			const auto inked  = [&](const double aX) {
+			const auto image   = line->grab().toImage();
+			const auto ratio   = image.devicePixelRatio();
+			const auto handles = line->handle_colours();
+			const auto accent  = handles.Fill;
+			const auto ground  = line->palette().color(QPalette::Active, QPalette::Window);
+			const auto inked   = [&](const double aX) {
 				auto best = std::numeric_limits<int>::max();
 				// Half-pixel steps over the handle's top rows and its side.
 				for (auto row = 2; row <= 6; ++row) {
@@ -1415,7 +1416,8 @@ namespace {
 			const auto bar     = spanned.pixelColor(static_cast<int>(std::lround(middle.x() * ratio)), static_cast<int>(std::lround(middle.y() * ratio)));
 			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 0U }
 					   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U }
-					   && (std::abs(bar.red() - accent.red()) + std::abs(bar.green() - accent.green()) + std::abs(bar.blue() - accent.blue())) * 3 < separation,
+					   && (std::abs(bar.red() - handles.Span.red()) + std::abs(bar.green() - handles.Span.green()) + std::abs(bar.blue() - handles.Span.blue())) * 3
+						   < std::abs(handles.Span.red() - ground.red()) + std::abs(handles.Span.green() - ground.green()) + std::abs(handles.Span.blue() - ground.blue()),
 				   theme + ": the imported pair moves the handles apart, with the accent span between them");
 		}
 	}
@@ -1494,9 +1496,12 @@ namespace {
 			// Painted: the post in the accent inside the left handle, both
 			// handles' outer sides and the span between the base and the
 			// oldest update in the accent, which stands off the ground.
-			const auto image  = line->grab().toImage();
-			const auto ratio  = image.devicePixelRatio();
-			const auto accent = line->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto image   = line->grab().toImage();
+			const auto ratio   = image.devicePixelRatio();
+			const auto handles = line->handle_colours();
+			// The brackets' face; v002's accent on a light ground, v003's vivid
+			// colour on a dark one.
+			const auto accent = handles.Fill;
 			const auto ground = line->palette().color(QPalette::Active, QPalette::Window);
 			const auto faint  = line->palette().color(QPalette::Active, QPalette::PlaceholderText);
 			const auto pixel  = [&](const QImage& aImage, const double aX, const double aY) {
@@ -1512,11 +1517,12 @@ namespace {
 				return best;
 			};
 			const auto separation = distance(accent, ground);
+			const auto spanApart  = std::max(distance(handles.Span, ground), 1);
 			const auto baseAt     = line->stop_position(*line->left_stop());
 			const auto rightAt    = line->stop_position(*line->right_stop());
 			expect(separation >= 60 && nearest(image, baseAt.x(), baseAt.y(), accent) * 3 < separation
 					   && nearest(image, rightAt.x(), rightAt.y(), accent) * 3 < separation
-					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, baseAt.y(), accent) * 3 < separation
+					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, baseAt.y(), handles.Span) * 3 < spanApart
 					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 1.5, accent) * 3 >= separation * 2,
 				   theme + ": the left handle's stem stands on the base in the accent, and the accent span runs from it to the newest update");
 
@@ -1526,18 +1532,36 @@ namespace {
 			// stands at least 4.5:1 off the ground and 3:1 off the track, drawn
 			// on the brackets' outer sides; a bracket's arms reach towards the
 			// other handle, `[` on the left and `]` on the right.
-			const auto outline = line->handle_outline();
-			const auto rule    = line->palette().color(QPalette::Active, QPalette::Mid);
-			const auto ink     = line->palette().color(QPalette::Active, QPalette::WindowText);
-			const auto edged   = [&](const QImage& aImage, const double aX, const double aY) {
-				return nearest(aImage, aX, aY, outline) * 3 < std::max(distance(outline, ground), 1);
+			//
+			// [[BPR-1557]] v003. The owner, on v002: "light v002 is okay but dark
+			// they need to be a different color so they stand out." On a dark
+			// ground the brackets are a vivid colour of their own, at least 7:1
+			// off the ground and the track and far from the selection colour,
+			// with a dark rim that draws their arms; on a light one they are
+			// v002's.
+			const auto outline  = handles.Outline;
+			const auto rule     = line->palette().color(QPalette::Active, QPalette::Mid);
+			const auto ink      = line->palette().color(QPalette::Active, QPalette::WindowText);
+			const auto selected = line->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto dark     = qt::epoch_line::contrast_ratio(ground, QColor{ Qt::black }) < qt::epoch_line::contrast_ratio(ink, QColor{ Qt::black });
+			const auto paired   = [&](const QColor& aColour) {
+				return [&, aColour](const QImage& aImage, const double aX, const double aY) {
+					return nearest(aImage, aX, aY, aColour) * 3 < std::max(distance(aColour, ground), 1);
+				};
 			};
-			expect(qt::epoch_line::contrast_ratio(outline, ground) >= 4.5 && qt::epoch_line::contrast_ratio(outline, rule) >= 3.0
-					   && edged(image, baseAt.x() - 2.5, 8.0) && edged(image, rightAt.x() + 2.5, 8.0)
+			const auto edged     = paired(outline);
+			const auto spanEdged = paired(handles.SpanEdge);
+			const auto hoverFill = paired(handles.Hover);
+			const auto ringed    = paired(handles.Ring);
+			expect(dark ? qt::epoch_line::contrast_ratio(accent, ground) >= 7.0 && qt::epoch_line::contrast_ratio(accent, rule) >= 7.0 && distance(accent, selected) >= 200
+						   && handles.Ring == accent
+						: qt::epoch_line::contrast_ratio(outline, ground) >= 4.5 && qt::epoch_line::contrast_ratio(outline, rule) >= 3.0 && accent == selected,
+				   theme + (dark ? ": on a dark ground the brackets are a vivid colour at least 7:1 off the ground and the track, far from the selection colour" : ": on a light ground the brackets keep v002's accent with an outline 4.5:1 off the ground and 3:1 off the track"));
+			expect(edged(image, baseAt.x() - 2.5, 8.0) && edged(image, rightAt.x() + 2.5, 8.0)
 					   && nearest(image, baseAt.x() + 5.0, 2.0, accent) * 3 < separation && nearest(image, rightAt.x() - 5.0, 2.0, accent) * 3 < separation
 					   && nearest(image, rightAt.x() + 6.0, 2.0, accent) * 3 >= separation * 2
-					   && edged(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 5.5),
-				   theme + ": the brackets and the span are outlined at 4.5:1 off the ground and 3:1 off the track, and their arms point inwards");
+					   && spanEdged(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 5.5),
+				   theme + ": the brackets and the span carry their edges on their outer sides, and the brackets' arms point inwards");
 			expect(rightAt.x() - baseAt.x() > 100, theme + ": the whole PR's two handles stand far apart, never stacked on one node");
 
 			// Hover: a handle under the pointer fills with its outline colour
@@ -1546,8 +1570,8 @@ namespace {
 			QApplication::sendEvent(line, &hover);
 			const auto hovered = line->grab().toImage();
 			expect(line->hovered_side() == core::comparison_side::right && line->cursor().shape() == Qt::SizeHorCursor
-					   && edged(hovered, rightAt.x(), rightAt.y()) && nearest(hovered, rightAt.x(), rightAt.y(), accent) * 3 >= separation,
-				   theme + ": a hovered handle fills with its outline colour under a sideways pointer");
+					   && hoverFill(hovered, rightAt.x(), rightAt.y()) && nearest(hovered, rightAt.x(), rightAt.y(), accent) * 3 >= separation,
+				   theme + ": a hovered handle changes its fill under a sideways pointer");
 			auto away = QEvent{ QEvent::Leave };
 			QApplication::sendEvent(line, &away);
 			expect(!line->hovered_side() && line->cursor().shape() != Qt::SizeHorCursor, theme + ": leaving the line clears the hover");
@@ -1608,7 +1632,7 @@ namespace {
 			line->clearFocus();
 			QApplication::processEvents();
 			const auto unfocused = line->grab().toImage();
-			expect(edged(focused, rightNow.x() + 6.5, 9.0) && !edged(unfocused, rightNow.x() + 6.5, 9.0),
+			expect(ringed(focused, rightNow.x() + 6.5, 9.0) && !ringed(unfocused, rightNow.x() + 6.5, 9.0),
 				   theme + ": with the keyboard on the line the handle it moves wears a visible ring");
 			line->setFocus(Qt::OtherFocusReason);
 			QApplication::processEvents();

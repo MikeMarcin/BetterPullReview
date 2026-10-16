@@ -219,6 +219,35 @@ namespace bpr::qt {
 		return ink;
 	}
 
+	auto epoch_line::handle_colours() const -> epoch_line_colours
+	{
+		const auto& colours = palette();
+		const auto  accent  = colours.color(QPalette::Active, QPalette::Highlight);
+		const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
+		const auto  ground  = colours.color(QPalette::Active, QPalette::Window);
+		const auto  outline = handle_outline();
+		if (luminance(ground) >= luminance(ink)) {
+			// A light ground: v002, which the owner accepted for Light.
+			return epoch_line_colours{ .Fill = accent, .Outline = outline, .Span = accent, .SpanEdge = outline, .Hover = outline, .Ring = outline };
+		}
+		// [[BPR-1557]] v003. The owner, on v002: "light v002 is okay but dark
+		// they need to be a different color so they stand out." On a dark
+		// ground the accent is a deep selection navy, and an outline moved
+		// towards the ink kept that family. The handles take the accent's hue
+		// turned towards cyan, saturated and at full value, as a solid colour
+		// that stands far off the ground and the track on its own; the span is
+		// that colour tinted into the ground. Amber stays
+		// "my last review"'s; the update dots stay grey.
+		auto       hue   = accent.hsvHue() < 0 ? 210 : accent.hsvHue();
+		const auto turn  = std::clamp(hue - 195, 0, 20);
+		hue              = hue >= 180 && hue <= 240 ? hue - turn : 195;
+		const auto vivid = QColor::fromHsv(hue, 170, 255);
+		// The bright face carries the contrast; a rim darker than the ground
+		// draws every edge, so the arms read as a bracket round the span, which
+		// stays a step below the brackets. The focus ring is the bright colour.
+		return epoch_line_colours{ .Fill = vivid, .Outline = mixed(ground, QColor{ Qt::black }, 0.6), .Span = mixed(ground, vivid, 0.4), .SpanEdge = mixed(ground, vivid, 0.7), .Hover = ink, .Ring = vivid };
+	}
+
 	auto epoch_line::hovered_side() const noexcept -> std::optional<core::comparison_side>
 	{
 		return Hovered;
@@ -829,7 +858,7 @@ namespace bpr::qt {
 		// Track, then the span between the handles: [[BPR-1557]] v002, a filled
 		// bar in the accent with its edges in the handles' outline, so the
 		// compared range reads at a glance in every theme.
-		const auto outline = handle_outline();
+		const auto handles = handle_colours();
 		painter.setPen(QPen{ rule, 1.0 });
 		painter.drawLine(left_inset(), node_y, width() - side_padding, node_y);
 		const auto left   = DragStop && Dragging == core::comparison_side::left ? DragStop : left_stop();
@@ -876,8 +905,8 @@ namespace bpr::qt {
 			}
 		}
 		if (left && right) {
-			painter.setPen(QPen{ outline, 1.0 });
-			painter.setBrush(accent);
+			painter.setPen(QPen{ handles.SpanEdge, 1.0 });
+			painter.setBrush(handles.Span);
 			// On the half pixel, so its one-pixel edges are crisp at every scale.
 			painter.drawRect(QRectF{ std::min(leftX, rightX), static_cast<qreal>(node_y) - (span_height / 2.0) + 0.5, std::abs(rightX - leftX), span_height });
 		}
@@ -931,12 +960,12 @@ namespace bpr::qt {
 			}
 			const auto shape  = bracket(aX, aSide);
 			const auto active = Hovered == aSide || Dragging == aSide;
-			painter.setPen(QPen{ outline, active ? 2.0 : 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin });
-			painter.setBrush(active ? outline : accent);
+			painter.setPen(QPen{ active ? handles.Hover : handles.Outline, active ? 2.0 : 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin });
+			painter.setBrush(active ? handles.Hover : handles.Fill);
 			painter.drawPath(shape);
 			if (hasFocus() && ActiveSide == aSide) {
 				painter.setBrush(Qt::NoBrush);
-				painter.setPen(QPen{ outline, 1.5 });
+				painter.setPen(QPen{ handles.Ring, 1.5 });
 				painter.drawRoundedRect(shape.boundingRect().adjusted(-4.0, -0.25, 4.0, 4.0), 3.0, 3.0);
 			}
 		};

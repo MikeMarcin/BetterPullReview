@@ -5,6 +5,7 @@
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/update_line.hpp"
 
+#include <QColor>
 #include <QPoint>
 #include <QString>
 #include <QWidget>
@@ -15,7 +16,6 @@
 #include <utility>
 #include <vector>
 
-class QColor;
 class QContextMenuEvent;
 class QEvent;
 class QFocusEvent;
@@ -31,6 +31,22 @@ namespace bpr::qt {
 	using epoch_line_dispatch = std::function<void(
 		core::comparison_side,
 		core::comparison_anchor_identity)>;
+
+	/// \brief [[BPR-1557]]. The colours the handles and span are painted in.
+	struct epoch_line_colours
+	{
+		/// A bracket's face.
+		QColor Fill;
+		/// A bracket's edge.
+		QColor Outline;
+		/// The span's face and its edges.
+		QColor Span;
+		QColor SpanEdge;
+		/// A bracket under the pointer or being dragged.
+		QColor Hover;
+		/// The ring round the handle the arrow keys move.
+		QColor Ring;
+	};
 
 	/// \brief One place a handle can rest on: the pull request's base, or an
 	/// update's base or head. The core decides the places ([[BPR-1557]]).
@@ -113,6 +129,9 @@ namespace bpr::qt {
 		/// accent moved towards the ink until it stands 4.5:1 off the ground
 		/// and 3:1 off the track.
 		[[nodiscard]] auto handle_outline() const -> QColor;
+		/// \brief [[BPR-1557]] v003. The handles' and span's colours: v002's on
+		/// a light ground; on a dark one, a vivid colour from the accent's hue.
+		[[nodiscard]] auto handle_colours() const -> epoch_line_colours;
 		/// \brief WCAG 2 contrast ratio of two colours.
 		[[nodiscard]] static auto contrast_ratio(const QColor& aOne, const QColor& aOther) -> double;
 		/// \brief The handle under the pointer, if any.

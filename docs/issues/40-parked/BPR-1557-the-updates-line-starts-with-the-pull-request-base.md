@@ -209,7 +209,7 @@ handles were 7x13 hollow outlines in that colour.
 v001's host is stopped and its candidate released (session event 6); its
 Reject stays recorded. Its frozen root is removed.
 
-## Attended review v002 (pending)
+## Attended review v002
 
 - Session `66dd3c27654c930973d797eb9fea2e84`, fresh state
   `/Users/jaeger/.mask/bpr-1557-base-anchor-v002-20261016/attended-review`,
@@ -236,6 +236,25 @@ Reject stays recorded. Its frozen root is removed.
   ordinary-update-recreated and update-line public paths pass; clang-format 22
   and tidy clean on `epoch_line.cpp`.
 
-Next: read the decision (`status --after 3`). Accept: merge main into the
-branch, reseal the round-trip composition digest on the merged tree, rerun the
-focused rows and finish. Reject: its note shapes v003.
+## Owner verdict on v002, 2026-10-16
+
+Session `66dd3c27654c930973d797eb9fea2e84`, handed back at event 5; cursor 3
+to 5 read. `BPR-1557-base-anchor-v002` (fingerprint `b95dbd24edef…`):
+**Reject** (decision `e7311842-96a2-4d9b-87bf-d268ac96a6ae`, 20:57:06Z). Note,
+verbatim: "light v002 is okay but dark they need to be a different color so
+they stand out."
+
+## v003: a colour of their own on a dark ground
+
+- Light and High Contrast Light are v002's, pixel for pixel (offscreen 2x
+  renders compared).
+- On a dark ground (the ground darker than the ink): the brackets are the
+  accent's hue turned 20 degrees towards cyan (215 to 195), saturation 170,
+  full value, `#55d5ff` in Dark and High Contrast Dark, at least 7:1 off the
+  ground and the track and far from the selection navy. A rim darker than the
+  ground draws their edges, so the arms read as brackets round the span. The
+  span is that colour mixed 40% into the ground, with edges at 70%, a step
+  below the brackets. Hover fills a bracket with the ink; the focus ring is
+  the bright colour. The profile defines no link or attention colour (Qt's
+  defaults `#0000ff`/`#ff00ff` in every theme), so the hue comes from the
+  accent; amber stays "my last review"'s.
