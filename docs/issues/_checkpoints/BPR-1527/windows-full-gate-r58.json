@@ -1,0 +1,32 @@
+{
+  "schema": "bpr.complete-native-gate-binding.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "coordinator_amendment": "User observes Windows idle; explicitly resume useful complete normal Windows gate on current committed candidate. Preserve results/skips; no Windows/WSL overlap, no package/sign/publish or Mac0.2.1 changes.",
+  "candidate": "181b7bf03fe9852a8fec9cc7e234f4ebf622156f",
+  "code_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "root": "C:/Users/mikem/bpr-v021",
+  "branch": "codex/bpr1527-windows-v022-r17",
+  "task": "BPR-1527-full-windows-r58",
+  "wrapper_pid": 22200,
+  "session": "mikem Interactive Limited session1",
+  "started_utc": "2026-10-16T02:28:54.9564810Z",
+  "log": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-full-r58.log",
+  "active": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-full-r58.active.json",
+  "receipt": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-full-r58.receipt.json",
+  "suite_output": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-windows-full-r58-suite",
+  "command": [
+    "C:/Program Files/Python314/python.exe",
+    "scripts/run_test_suite.py",
+    "--preset",
+    "windows-dev",
+    "--jobs",
+    "4",
+    "--output-dir",
+    "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-windows-full-r58-suite"
+  ],
+  "prerequisites": "Preflight no runningBPRtask/nativebuild/test/WSL compiler-test workload; clean278f initial and originald52ref intact. Normal configure, force10changedobjects, full developer build and freshness/marker verification precede suite.",
+  "result": "ACTIVE; no build/gate result inferred",
+  "expected_registration": 705,
+  "limits": "Normal configured skips retained; no assertions, inputs, thresholds or resource-scheduling changes. Exact code bytes0769; later local checkpoint docs do not retag this181gate. Mac30normal courses still pending quiet interval."
+}

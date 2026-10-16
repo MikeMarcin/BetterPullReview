@@ -337,3 +337,20 @@ explicit in [the disposition](uiforetw-historical-disposition.json): original d5
 toolbar cause and actual compiled deferred-navigation control are demonstrated;
 R21's exact pre-paint substep is irrecoverable from aggregate output and remains
 unproven, without waiving any current assertion or supported platform.
+
+## Complete normal Windows gate, R58
+
+The coordinator explicitly resumes this owner to use the idle PC for the complete
+normal Windows gate on committed181b7bf03 (code0769), rather than parking solely
+on Mac CPU. Preflight finds no running BPR/native build/test or WSL compiler/test
+workload; clean278f and the original d52 preservation ref are intact. Unique
+Interactive Limited task `BPR-1527-full-windows-r58` starts wrapper22200/session1
+at2026-10-16T02:28:54.9564810Z. Normal configure, forced ten changed objects and
+full developer build/freshness/marker verification precede all705 normal registered
+tests via `run_test_suite.py --preset windows-dev --jobs 4`; serial GUI/performance
+scheduling, timeouts, assertions and configured skips remain unchanged.
+[The live binding](windows-full-gate-r58.json) names exact log/receipt/output paths.
+No gate result is inferred yet. This same owner retains the active command and
+source; do not dispatch a duplicate or a Windows/WSL competing command.
+Mac30course remains pending its quiet interval; no package, signing, publication
+or published Mac0.2.1 mutation is authorized.
