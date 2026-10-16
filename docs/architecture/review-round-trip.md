@@ -1063,7 +1063,7 @@ The **Saved comments** action on Finish review reads the exact account/PR store 
 A label is text at the start of the draft body. No store, draft record or
 window keeps a label, decoration or annotation beside that body; every reader
 recognizes the saved bytes again. `core::plan_feedback_draft_edit` turns one
-chip, menu or shortcode edit into the command the draft owner already accepts:
+chip or menu edit into the command the draft owner already accepts:
 an ordinary whole-body `edit` carrying the revision the author was shown and no
 composition link. It then travels the path any typed edit takes. A durable draft
 is committed by `review_composition_application_host::change_draft`, which

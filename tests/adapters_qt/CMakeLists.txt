@@ -1988,7 +1988,7 @@ foreach(cycle_scale IN ITEMS 1.0 2.0)
 endforeach()
 
 # [[BPR-1083]]. The twelve label marks: compiled glyphs against the accepted
-# path data, tints, shortcodes and names.
+# path data, tints, letters and names.
 bpr_add_executable(
     test_better_pull_review_qt_feedback_label_marks_tests
     feedback_label_marks_tests.cpp
@@ -2017,7 +2017,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "feedback-label-marks-tests:pass"
 )
 
-# [[BPR-1083]]. The label chip, menu, toggles, ⌘L/⌘0 and shortcodes in the
+# [[BPR-1083]]. The label chip, menu, toggles and ⌘L/⌘0 in the
 # composed review draft editor.
 bpr_add_executable(
     test_better_pull_review_qt_feedback_label_controls_tests

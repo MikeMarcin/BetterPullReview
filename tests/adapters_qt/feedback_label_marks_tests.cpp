@@ -1,7 +1,7 @@
 /// \file
 /// \brief [[BPR-1083]]. Proves the one resource vocabulary of the twelve label
 /// marks: the compiled glyphs equal the owner-accepted path data element by
-/// element, and the marks, tints, shortcodes and names follow the delivery
+/// element, and the marks, tints, letters and names follow the delivery
 /// contract (`docs/ux/conventional-comments-feedback.md`).
 
 #include "bpr/core/appearance_model.hpp"
@@ -215,26 +215,15 @@ namespace {
 		expect(elements == 29U, "all 29 elements are compared");
 	}
 
-	void test_shortcodes_are_the_contract_table()
+	void test_letters_are_the_contract_table()
 	{
-		const auto codes = std::array<std::string_view, 12U>{ "pr", "ni", "su", "is", "td", "qu", "th", "ch", "no", "ty", "po", "qb" };
-		auto       seen  = std::set<std::string_view>{ };
+		const auto letters = std::array<std::string_view, 12U>{ "pr", "ni", "su", "is", "td", "qu", "th", "ch", "no", "ty", "po", "qb" };
+		auto       seen    = std::set<std::string_view>{ };
 		for (std::size_t index = 0U; index < labels.size(); ++index) {
-			expect(qt::feedback_shortcode(labels[index]) == codes[index], "each label has the contract's code");
-			expect(qt::find_feedback_shortcode(codes[index]) == labels[index], "and the code names it");
-			seen.insert(codes[index]);
+			expect(qt::feedback_label_letters(labels[index]) == letters[index], "each label's Letters mark draws the contract's two letters");
+			seen.insert(letters[index]);
 		}
-		expect(seen.size() == 12U, "the twelve codes are distinct");
-		expect(!qt::find_feedback_shortcode("QU").has_value() && !qt::find_feedback_shortcode("q").has_value() && !qt::find_feedback_shortcode("zz").has_value(),
-			   "only an exact lowercase code names a label");
-		using L = core::feedback_label;
-		expect(qt::feedback_shortcode_matches("q") == std::vector{ L::question, L::quibble }, ":q offers question and quibble");
-		expect(qt::feedback_shortcode_matches("t") == std::vector{ L::todo, L::thought, L::typo }, ":t offers the three t codes in catalog order");
-		expect(qt::feedback_shortcode_matches("is") == std::vector{ L::issue }, ":is offers issue");
-		expect(qt::feedback_shortcode_matches("su") == std::vector{ L::suggestion }, ":su offers suggestion");
-		expect(qt::feedback_shortcode_matches("nit") == std::vector{ L::nitpick }, "a name prefix that is not a code is offered after the codes");
-		expect(qt::feedback_shortcode_matches("x").empty(), "nothing matches x");
-		expect(qt::feedback_shortcode_matches("") == std::vector<L>(labels.begin(), labels.end()), "a colon alone offers all twelve in catalog order");
+		expect(seen.size() == 12U, "the twelve letter pairs are distinct");
 	}
 
 	void test_the_tints_come_from_the_label_roles()
@@ -516,7 +505,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_glyphs_are_the_accepted_path_data();
-	test_shortcodes_are_the_contract_table();
+	test_letters_are_the_contract_table();
 	test_the_tints_come_from_the_label_roles();
 	test_marks_are_soft_or_filled_and_legible();
 	test_weights_and_the_if_minor_corner();

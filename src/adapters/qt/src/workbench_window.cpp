@@ -6214,7 +6214,6 @@ namespace bpr::qt {
 				OverviewPage->set_default_mode(Behaviour.OverviewCounts == application::review_overview_counts::all ? core::feedback_resolution_mode::all
 																													: core::feedback_resolution_mode::unresolved);
 			}
-			apply_label_helper();
 			apply_line_details();
 			apply_markdown_images();
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
@@ -7522,7 +7521,6 @@ namespace bpr::qt {
 			.Thread      = "review-thread:" + *draft->ReplyToThread,
 			.Body        = ReviewEditor->body_editor()->toPlainText(),
 			.Publishable = ReviewEditor->publish_action()->isEnabled() && !ReviewEditor->body_editor()->isReadOnly(),
-			.LabelHelper = ReviewEditor->label_controls()->helper(),
 		});
 	}
 
@@ -8785,7 +8783,6 @@ namespace bpr::qt {
 		cards->present_draft(draft_composer_presentation{
 			.Body        = body,
 			.Publishable = ReviewEditor->publish_action()->isEnabled(),
-			.LabelHelper = ReviewEditor->label_controls()->helper(),
 			.Editable    = !ReviewEditor->body_editor()->isReadOnly(),
 			.Lines       = words,
 			.Change      = std::move(change),
@@ -9395,7 +9392,10 @@ namespace bpr::qt {
 		FeedbackMarksPreview = new feedback_mark_preview{ BehaviourEditor };
 		// [[BPR-1088]]. The rest of the section the owner accepted (BPR-1079
 		// Settings v1, adjusted to Overview chips in v2): the label helper,
-		// off by default; where the Overview's counts start, Open by default;
+		// off by default, which since [[BPR-1565]] (owner, 2026-10-16: the
+		// `:xx:` codes removed) only decides whether a comment workshop
+		// request carries the Review feedback guidance ([[BPR-1091]]); where
+		// the Overview's counts start, Open by default;
 		// a link to the label tints; and the Overview chips, ticked and put in
 		// order. Each row dispatches the whole record and shows what the host
 		// publishes, so a refused or failed save reverts here.
@@ -9413,7 +9413,7 @@ namespace bpr::qt {
 		helperLayout->setContentsMargins(0, 0, 0, 0);
 		helperLayout->setSpacing(4);
 		helperLayout->addWidget(LabelHelperSwitch);
-		auto* const helperInfo = new info_glyph{ QStringLiteral("The label chip and :shortcodes: while writing. Off: write labels yourself; they still count."), helperRow };
+		auto* const helperInfo = new info_glyph{ QStringLiteral("Sends the Review feedback guidance with each comment workshop request. Off: requests go without it. Labels count either way."), helperRow };
 		helperInfo->setObjectName(QStringLiteral("labelHelperInfo"));
 		helperLayout->addWidget(helperInfo);
 		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
@@ -9615,17 +9615,6 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_images_shown(shown);
 		}
-	}
-
-	void workbench_window::apply_label_helper()
-	{
-		// [[BPR-1088]]. Only a published change reaches the editor, so the
-		// helper follows the profile's setting in every window of it.
-		if (ReviewEditor == nullptr || AppliedLabelHelper == std::optional{ Behaviour.LabelHelper }) {
-			return;
-		}
-		AppliedLabelHelper = Behaviour.LabelHelper;
-		ReviewEditor->set_label_helper(Behaviour.LabelHelper == application::review_label_helper::on);
 	}
 
 	void workbench_window::apply_behaviour_controls()

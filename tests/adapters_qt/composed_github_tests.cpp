@@ -3608,31 +3608,27 @@ namespace {
 		auto* const composer    = window.review_editor()->label_controls();
 		expect(replyBox != nullptr && replyBox->hasFocus() && replyLabels != nullptr && replyLabels != composer,
 			   "R opens the draft editor's reply in place, with label controls of its own text");
-		typeInto(replyBox, QStringLiteral(":"));
-		expect(!replyLabels->completion()->isVisible() && !composer->helper(),
-			   "negative control: with the label helper off, as the product ships, a lone colon opens nothing");
-		window.review_editor()->set_label_helper(true);
-		QApplication::processEvents();
-		expect(replyLabels->helper(), "turning the composer's helper on turns the open reply's on");
+		// [[BPR-1565]]. The `:xx:` codes are gone (owner, 2026-10-16): a typed
+		// code stays text in place and in the draft.
+		typeInto(replyBox, QStringLiteral(":qu: "));
+		expect(replyBox->toPlainText() == QStringLiteral(":qu: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral(":qu: ")
+				   && !replyLabels->state().Label.has_value() && replyLabels->statistics().Edits == 0U && composer->statistics().Edits == 0U,
+			   "negative control: a reply's :qu: stays as typed, in place and in its draft, with no label");
 		replyBox->clear();
 		QApplication::processEvents();
-		typeInto(replyBox, QStringLiteral(":"));
-		expect(replyLabels->completion()->isVisible() && replyLabels->completion()->count() == 12,
-			   "a lone colon in the reply opens the completion with every label");
-		expect(!composer->completion()->isVisible(), "negative control: the composer's own completion stays closed while the reply writes to its draft");
-		capture_layout_state(window, QStringLiteral("inline-reply-completion"));
-		typeInto(replyBox, QStringLiteral("qu:"));
+		// A label typed out in full labels the reply; the chip and its menu
+		// are proved in place by qt_conversation_cards_view.
+		typeInto(replyBox, QStringLiteral("question: "));
 		expect(replyBox->toPlainText() == QStringLiteral("question: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: "),
-			   "a reply with :qu: becomes question:, in place and in its draft");
-		expect(replyLabels->chip()->accessibleName() == QStringLiteral("Label: question") && composer->statistics().Shortcodes == 0U,
-			   "the reply's chip names the label; the code was replaced once, by the reply's own controls");
+			   "question typed out in full labels the reply, in place and in its draft");
+		expect(replyLabels->chip()->accessibleName() == QStringLiteral("Label: question") && composer->statistics().Edits == 0U,
+			   "the reply's chip names the label typed");
 		typeInto(replyBox, QStringLiteral("why"));
 		capture_layout_state(window, QStringLiteral("inline-reply-label"));
 		replyBox->clear();
 		QApplication::processEvents();
 		QApplication::sendEvent(replyBox, &escape);
 		QApplication::processEvents();
-		window.review_editor()->set_label_helper(false);
 		expect(cards->reply_editor() == nullptr, "the emptied reply gives itself up");
 
 		// RFC-BPR-0036 in the drawer ([[BPR-1290]] v005, after BPR-1299 found

@@ -14,9 +14,6 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
-#include <QListWidgetItem>
-#include <QMetaObject>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPixmap>
@@ -207,29 +204,7 @@ namespace bpr::qt {
 
 		Menu = new feedback_label_menu{ *this };
 
-		Completion = new QListWidget{ this };
-		Completion->setObjectName(QStringLiteral("feedbackLabelCompletion"));
-		Completion->setAccessibleName(QStringLiteral("Label completions"));
-		Completion->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
-		Completion->setAttribute(Qt::WA_ShowWithoutActivating);
-		Completion->setFocusPolicy(Qt::NoFocus);
-		Completion->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
-		Completion->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		Completion->hide();
-		anchor_tooltips(*Completion->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
-			const auto* const item = Completion->itemAt(aPosition);
-			if (item == nullptr) {
-				return std::nullopt;
-			}
-			return anchored_tooltip_target{ .Anchor = Completion->visualItemRect(item), .Text = item->toolTip() };
-		});
-		connect(Completion, &QListWidget::itemClicked, this, [this](QListWidgetItem* aItem) {
-			Completion->setCurrentItem(aItem);
-			take_completion();
-		});
-
 		Body->installEventFilter(this);
-		connect(Body->document(), &QTextDocument::contentsChange, this, &feedback_label_controls::on_contents_change);
 		connect(Body, &QPlainTextEdit::textChanged, this, &feedback_label_controls::on_text_changed);
 		refresh();
 	}
@@ -243,19 +218,6 @@ namespace bpr::qt {
 	{
 		Theme = aTheme;
 		refresh();
-	}
-
-	void feedback_label_controls::set_helper(const bool aEnabled)
-	{
-		Helper = aEnabled;
-		if (!Helper) {
-			hide_completion();
-		}
-	}
-
-	auto feedback_label_controls::helper() const noexcept -> bool
-	{
-		return Helper;
 	}
 
 	void feedback_label_controls::set_decoration_toggles(const bool aShown)
@@ -331,7 +293,7 @@ namespace bpr::qt {
 		State           = feedback_composition_state_of(Body->toPlainText());
 		const auto open = !Body->isReadOnly();
 		Chip->setEnabled(open);
-		const auto shortcutTip = QStringLiteral("Label (%1), or type a code such as :qu: at the start").arg(label_shortcut());
+		const auto shortcutTip = QStringLiteral("Label (%1)").arg(label_shortcut());
 		if (State.Label.has_value()) {
 			const auto name = feedback_label_text(*State.Label);
 			Chip->setText(name + QStringLiteral(" ▾"));
@@ -382,7 +344,6 @@ namespace bpr::qt {
 		if (Body->isReadOnly() || !Chip->isEnabled()) {
 			return;
 		}
-		hide_completion();
 		++Statistics.MenuOpens;
 		Menu->present(State, Theme);
 		Menu->adjustSize();
@@ -413,26 +374,8 @@ namespace bpr::qt {
 	auto feedback_label_controls::non_blocking_toggle() const noexcept -> QToolButton* { return NonBlocking; }
 	auto feedback_label_controls::if_minor_toggle() const noexcept -> QToolButton* { return IfMinor; }
 	auto feedback_label_controls::menu() const noexcept -> feedback_label_menu* { return Menu; }
-	auto feedback_label_controls::completion() const noexcept -> QListWidget* { return Completion; }
 	auto feedback_label_controls::last_refusal() const noexcept -> std::optional<core::feedback_edit_refusal> { return Refusal; }
 	auto feedback_label_controls::statistics() const noexcept -> feedback_label_control_statistics { return Statistics; }
-
-	auto feedback_label_controls::completion_labels() const -> std::vector<core::feedback_label>
-	{
-		auto labels = std::vector<core::feedback_label>{ };
-		for (int row = 0; row < Completion->count(); ++row) {
-			labels.push_back(label_at(static_cast<std::size_t>(Completion->item(row)->data(Qt::UserRole).toInt())));
-		}
-		return labels;
-	}
-
-	void feedback_label_controls::on_contents_change(const int aPosition, const int aRemoved, const int aAdded)
-	{
-		static_cast<void>(aPosition);
-		// One character typed. A paste, a deletion or a replacement is not
-		// typing, so it never completes or replaces a code.
-		Typed = !Editing && aRemoved == 0 && aAdded == 1;
-	}
 
 	void feedback_label_controls::on_text_changed()
 	{
@@ -440,150 +383,6 @@ namespace bpr::qt {
 			return;
 		}
 		refresh();
-		const auto typed = std::exchange(Typed, false);
-		if (!Helper || Body->isReadOnly()) {
-			hide_completion();
-			return;
-		}
-		const auto text = Body->toPlainText();
-		if (!text.startsWith(QLatin1Char{ ':' })) {
-			Dismissed = false;
-			hide_completion();
-			return;
-		}
-		if (!typed) {
-			hide_completion();
-			return;
-		}
-		auto letters = qsizetype{ 0 };
-		while (letters < 2 && 1 + letters < text.size() && text[1 + letters] >= QLatin1Char{ 'a' } && text[1 + letters] <= QLatin1Char{ 'z' }) {
-			++letters;
-		}
-		const auto fragment = text.mid(1, letters).toStdString();
-		const auto closing  = 1 + letters < text.size() && text[1 + letters] == QLatin1Char{ ':' };
-		const auto caret    = Body->textCursor().position();
-		if (closing && letters == 2 && caret == 4) {
-			hide_completion();
-			// The closing colon of an exact code replaces the code at once. The
-			// replacement waits for this change to finish, so it is its own
-			// edit and its own undo step.
-			if (const auto named = find_feedback_shortcode(fragment); named.has_value()) {
-				const auto code = text.left(4);
-				QMetaObject::invokeMethod(
-					this,
-					[this, code, chosen = *named] {
-						if (Body->toPlainText().startsWith(code)) {
-							replace_code(4, chosen);
-						}
-					},
-					Qt::QueuedConnection);
-			}
-			return;
-		}
-		// A colon alone opens completion with every label; letters narrow it.
-		if (!closing && caret == 1 + letters && !Dismissed) {
-			show_completion(feedback_shortcode_matches(fragment));
-			return;
-		}
-		hide_completion();
-	}
-
-	void feedback_label_controls::replace_code(const qsizetype aCodeLength, const core::feedback_label aLabel)
-	{
-		if (Body->isReadOnly()) {
-			return;
-		}
-		const auto text       = Body->toPlainText();
-		const auto rest       = utf8(text.mid(aCodeLength));
-		const auto annotation = core::recognize_feedback_prefix(rest);
-		// A code in front of an existing label replaces that label; it never
-		// adds a second prefix. Decorations already written are kept.
-		const auto decision = core::decide_feedback_composition_edit(core::feedback_header_edit_request{
-			.Body           = rest,
-			.Segment        = { },
-			.ExpectedDigest = annotation.BodyDigest,
-			.Edit           = { .Change = core::feedback_label_change::set, .Label = aLabel },
-		});
-		if (decision.Refusal != core::feedback_edit_refusal::none) {
-			Refusal = decision.Refusal;
-			++Statistics.Refusals;
-			if (StatusSink) {
-				StatusSink(refusal_text(decision.Refusal));
-			}
-			return;
-		}
-		auto end         = aCodeLength;
-		auto replacement = QString{ };
-		if (decision.Changed) {
-			replacement = QString::fromUtf8(rest.data(), static_cast<qsizetype>(decision.Replaced.Begin))
-				+ QString::fromUtf8(decision.Replacement.data(), static_cast<qsizetype>(decision.Replacement.size()));
-			end += feedback_text_index(rest, decision.Replaced.End);
-		}
-		auto cursor = QTextCursor{ Body->document() };
-		Editing     = true;
-		cursor.beginEditBlock();
-		cursor.setPosition(0);
-		cursor.setPosition(static_cast<int>(end), QTextCursor::KeepAnchor);
-		cursor.insertText(replacement);
-		cursor.endEditBlock();
-		Editing = false;
-		Refusal.reset();
-		++Statistics.Edits;
-		++Statistics.Shortcodes;
-		Dismissed = false;
-		hide_completion();
-		refresh();
-		place_caret_after_prefix();
-	}
-
-	void feedback_label_controls::show_completion(const std::vector<core::feedback_label>& aLabels)
-	{
-		if (aLabels.empty()) {
-			hide_completion();
-			return;
-		}
-		Completion->clear();
-		for (const auto label : aLabels) {
-			const auto code    = feedback_shortcode(label);
-			auto*      item    = new QListWidgetItem{ Completion };
-			const auto colours = feedback_mark_colours_for(Theme, label, Completion->palette());
-			item->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis{ }, colours, devicePixelRatioF()) });
-			item->setText(QStringLiteral(":%1:  %2").arg(QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size())), feedback_label_text(label)));
-			item->setToolTip(feedback_label_description(label));
-			item->setData(Qt::AccessibleTextRole, feedback_label_text(label));
-			item->setData(Qt::AccessibleDescriptionRole, feedback_label_description(label));
-			item->setData(Qt::UserRole, static_cast<int>(label));
-		}
-		Completion->setCurrentRow(0);
-		Completion->setToolTip(QStringLiteral("Tab or Enter replaces · : finishes a code · Esc keeps the text"));
-		const auto rows   = std::min(Completion->count(), 12);
-		const auto height = Completion->sizeHintForRow(0) * rows + 2 * Completion->frameWidth() + 2;
-		Completion->resize(std::max(240, Completion->sizeHintForColumn(0) + 2 * Completion->frameWidth() + 8), height);
-		Completion->move(Body->viewport()->mapToGlobal(Body->cursorRect().bottomLeft() + QPoint{ 0, 3 }));
-		Completion->show();
-		Completion->raise();
-	}
-
-	void feedback_label_controls::hide_completion()
-	{
-		Completion->hide();
-		Completion->clear();
-	}
-
-	void feedback_label_controls::take_completion()
-	{
-		const auto* const item = Completion->currentItem();
-		if (item == nullptr) {
-			hide_completion();
-			return;
-		}
-		const auto label = label_at(static_cast<std::size_t>(item->data(Qt::UserRole).toInt()));
-		const auto text  = Body->toPlainText();
-		auto       code  = qsizetype{ 1 };
-		while (code < 3 && code < text.size() && text[code] >= QLatin1Char{ 'a' } && text[code] <= QLatin1Char{ 'z' }) {
-			++code;
-		}
-		replace_code(code, label);
 	}
 
 	auto feedback_label_controls::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
@@ -600,10 +399,6 @@ namespace bpr::qt {
 				key->accept();
 				return true;
 			}
-			if (Completion->isVisible() && (key->key() == Qt::Key_Escape || key->key() == Qt::Key_Tab || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)) {
-				key->accept();
-				return true;
-			}
 		}
 		if (aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -611,30 +406,6 @@ namespace bpr::qt {
 				open_menu();
 				return true;
 			}
-			if (Completion->isVisible()) {
-				switch (key->key()) {
-				case Qt::Key_Up:
-					Completion->setCurrentRow(std::max(0, Completion->currentRow() - 1));
-					return true;
-				case Qt::Key_Down:
-					Completion->setCurrentRow(std::min(Completion->count() - 1, Completion->currentRow() + 1));
-					return true;
-				case Qt::Key_Tab:
-				case Qt::Key_Return:
-				case Qt::Key_Enter:
-					take_completion();
-					return true;
-				case Qt::Key_Escape:
-					Dismissed = true;
-					hide_completion();
-					return true;
-				default:
-					break;
-				}
-			}
-		}
-		if (aEvent->type() == QEvent::FocusOut) {
-			hide_completion();
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
@@ -675,17 +446,16 @@ namespace bpr::qt {
 		auto* const grid = new QGridLayout{ };
 		grid->setSpacing(2);
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
-			const auto label  = label_at(index);
-			const auto code   = feedback_shortcode(label);
-			auto*      button = new QToolButton{ this };
+			const auto  label  = label_at(index);
+			auto* const button = new QToolButton{ this };
 			button->setObjectName(QStringLiteral("feedbackLabelMenu_%1").arg(feedback_label_text(label)));
-			button->setText(QStringLiteral("%1  :%2:").arg(feedback_label_text(label), QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size()))));
+			button->setText(feedback_label_text(label));
 			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			button->setCheckable(true);
 			button->setAutoRaise(true);
 			button->setIconSize(mark_icon_size());
 			button->setAccessibleName(feedback_label_text(label));
-			button->setAccessibleDescription(QStringLiteral("%1 Code :%2:").arg(feedback_label_description(label), QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size()))));
+			button->setAccessibleDescription(feedback_label_description(label));
 			button->setToolTip(feedback_label_description(label));
 			button->setFocusPolicy(Qt::StrongFocus);
 			anchor_tooltips(*button);

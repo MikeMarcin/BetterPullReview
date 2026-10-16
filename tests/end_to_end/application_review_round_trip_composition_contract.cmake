@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"19fc076bb10e19fb344634b0e5cef588090831b2d2dea0718a8b282c40007cc3"
+		"bfb39dccd3ac348374781512793e5cabada8007e306f24f1a4bd1f8379c02bdb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a0e81f95f35b17694b1a27e84774ad0e57404bc9bb18f16fb55c8ae8f4fcf268"
+        "2aae81117feee1a1b2994d18d3016e4de3ab1a3f4397ad085a21cb6327609d59"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2633,7 +2633,21 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # BPR_PRINT_PINNED_DIGESTS. No grant, provider, credential, transport,
 # publication or production mutation-branch change.
 
-# [[BPR-1544]] reseal over main at 05e32be79 (its merge reseal's pins), recomputed on
+# [[BPR-1565]] reseal over main at 05e32be79, after the merge reseal above. The
+# owner removed the comment editor's typed `:xx:` label codes on 2026-10-16.
+# github_application.cpp, in its tests-on label-authoring course only: the
+# `:qu:` phase now types `:qu: ` and the subject with the label helper on,
+# checks the text stays as typed with no label and no control edit, takes
+# the code out with one selection and Backspace, then goes on to the chip as
+# before; one comment explains why the course still turns the helper on.
+# main.cpp prints the renamed evidence bit (CodeStaysLiteral, in the same
+# place) and github_application_fixture_access.hpp names it. Test builds
+# only: no grant, target, provider, credential, transport, GitHub write,
+# mutation or publication path changes; the production mutation-branch pin
+# is unchanged; the full application and production-manifest digests are
+# refreshed. Self-review on BPR-1565.
+
+# [[BPR-1544]] reseal over main at 7132f6356 (BPR-1565's pins), recomputed on
 # the tree that merges this card onto it. The constructed markdown-html-v1
 # fixture joins the same four test-build tables as markdown-parity-v1 did for
 # BPR-1543, sharing overview-labels-v1's descriptor with its own contract

@@ -7859,11 +7859,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				});
 #if defined(BPR_BUILD_TESTING)
-			// [[BPR-1083]], [[BPR-1088]]. An attended look at the shortcodes, and
-			// the label-authoring probe, turn the helper on through the
-			// profile's own setting: the write the Comment labels › Label helper
-			// switch makes, so every window's comment editor follows the
-			// persisted preference exactly as it does for a reviewer.
+			// [[BPR-1083]], [[BPR-1088]]. `--label-helper`, the attended
+			// workshop look and the label-authoring probe turn the helper on
+			// through the profile's own setting: the write the Comment labels ›
+			// Label helper switch makes. Since [[BPR-1565]] the helper only
+			// sends the Review feedback guidance with a workshop request; the
+			// probe keeps it on to show a typed `:qu:` stays text even so.
 			if (Profile->LabelHelper && !Profile->LabelHelperRequested && Profile->WorkbenchPreferences) {
 				Profile->LabelHelperRequested = true;
 				auto* const preferences       = Profile->WorkbenchPreferences.get();
@@ -18682,7 +18683,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_file,
 				awaiting_marks,
 				awaiting_line_draft,
-				awaiting_shortcode,
+				awaiting_literal_code,
 				awaiting_chip,
 				awaiting_shortcut,
 				awaiting_published,
@@ -28527,26 +28528,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			probe.Evidence.CommentEditable = true;
 			body->setFocus();
-			probe.Typing = QStringLiteral(":qu:");
-			probe.Phase  = state_type::phase::awaiting_shortcode;
+			// [[BPR-1565]]. The `:xx:` codes are gone (owner, 2026-10-16): a
+			// typed `:qu:` stays the text it is, with the helper on.
+			probe.Typing = QStringLiteral(":qu: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			probe.Phase  = state_type::phase::awaiting_literal_code;
 			return result::pending;
 		}
-		case state_type::phase::awaiting_shortcode: {
+		case state_type::phase::awaiting_literal_code: {
+			const auto subjectText = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			const auto literal     = QStringLiteral(":qu: ") + subjectText;
 			note("body=" + text().toStdString() + " draft=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" })
-				 + " helper=" + std::to_string(controls->helper() ? 1 : 0) + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
-			// The replacement is queued after the closing colon's own change.
-			if (!typed() || (text() != QStringLiteral("question: ") && !text().startsWith(QStringLiteral("question: S")))) {
+				 + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (!typed()) {
 				return result::pending;
 			}
-			if (text() == QStringLiteral("question: ")) {
-				probe.Evidence.ShortcodeApplied = controls->state().Label == core::feedback_label::question;
-				probe.Typing                    = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			if (text() == literal) {
+				probe.Evidence.CodeStaysLiteral = !controls->state().Label.has_value() && controls->statistics().Edits == 0U;
+				render("editor-literal-code");
+				// The reviewer takes the code out by hand: one selection and
+				// Backspace, so the draft follows as typing does.
+				auto cursor = body->textCursor();
+				cursor.setPosition(0);
+				cursor.setPosition(5, QTextCursor::KeepAnchor);
+				body->setTextCursor(cursor);
+				key(Qt::Key_Backspace, Qt::NoModifier, QString{ });
 				return result::pending;
 			}
-			if (text() != QStringLiteral("question: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()))) {
-				return result::pending;
+			if (text() != subjectText) {
+				return fail("literal-code-changed body=" + text().toStdString());
 			}
-			render("editor-shortcode");
 			controls->chip()->click();
 			QCoreApplication::processEvents();
 			auto* const choice = controls->menu() != nullptr ? controls->menu()->label_button(core::feedback_label::suggestion) : nullptr;
@@ -28746,7 +28756,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == replyBody;
 			render("reply-in-place-native");
 			const auto& evidence = probe.Evidence;
-			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.CodeStaysLiteral
 				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked && evidence.PatchMarkedNative
 				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
 			if (!all) {

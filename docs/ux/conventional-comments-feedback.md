@@ -38,19 +38,22 @@ and [BPR-1080](../issues/60-done/BPR-1080-develop-all-twelve-reusable-label-icon
 
 ## The label vocabulary
 
-### Labels and codes
+### Labels and letters
 
 The twelve labels are `core::feedback_label`, in catalog order. Each has one
-icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
+icon, one tint role and two letters, which the Letters mark style draws
+(owner, BPR-1079 v2; BPR-1080 v1 to v4). Until [[BPR-1565]] the letters were
+also typed codes, `:qu:` for question; the owner removed the codes on
+2026-10-16 (see Composition).
 
-| Label | Code | Glyph | Label | Code | Glyph |
+| Label | Letters | Glyph | Label | Letters | Glyph |
 |---|---|---|---|---|---|
-| praise | `:pr:` | heart | chore | `:ch:` | broom |
-| nitpick | `:ni:` | loupe | note | `:no:` | information i |
-| suggestion | `:su:` | light bulb | typo | `:ty:` | Abc over a squiggle |
-| issue | `:is:` | exclamation mark | polish | `:po:` | sparkles |
-| todo | `:td:` | ticked box | quibble | `:qb:` | small wobble |
-| question | `:qu:` | question mark | thought | `:th:` | thought cloud |
+| praise | `pr` | heart | chore | `ch` | broom |
+| nitpick | `ni` | loupe | note | `no` | information i |
+| suggestion | `su` | light bulb | typo | `ty` | Abc over a squiggle |
+| issue | `is` | exclamation mark | polish | `po` | sparkles |
+| todo | `td` | ticked box | quibble | `qb` | small wobble |
+| question | `qu` | question mark | thought | `th` | thought cloud |
 
 ### The mark
 
@@ -126,7 +129,7 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   own tooltip and goes when the pointer leaves the mark, on a press, a key or
   the wheel. This holds everywhere a mark has a tooltip: the preview, thread
   cards (a rail names its post at the post's mark) and drawer entries, the
-  reader's mark, the chip, the menu's entries and toggles, and completion.
+  reader's mark, the chip, and the menu's entries and toggles.
   Since [[BPR-1354]] every tooltip in the application is placed this way (the
   workbench specification's primary actions state the rule).
   Code: `anchored_tooltip` in the Qt adapter.
@@ -140,7 +143,7 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
 - **Style: icons or letters** (owner, 2026-10-05, in chat, verbatim: "i
   think settings should also have a toggle to switch between the icons and
   the shortcode icons, because i liked both of them."). Icons, the default,
-  are the twelve glyphs below. Letters put the label's two-letter code (`pr`,
+  are the twelve glyphs below. Letters put the label's two letters (`pr`,
   `ni`, `su`, `is`, `td`, `qu`, `th`, `ch`, `no`, `ty`, `po`, `qb`) in the
   same mark, with the same tints, blocking fill, size and accessible names.
   The choice is the Label marks row of Reviews & queue › Comment labels, kept
@@ -152,7 +155,7 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   `mark-preview-v002`: "There should be individual tooltips instead of one
   giant tooltip."), right below the mark (owner, `preview-tooltips-v003`),
   and it applies everywhere a mark is drawn: threads, the chip and its menu,
-  completion, and the Overview chips and Label key when BPR-1087 and BPR-1089
+  and the Overview chips and Label key when BPR-1087 and BPR-1089
   draw them through `feedback_mark_theme`.
 
 ### Tints
@@ -227,11 +230,11 @@ Consumers: the inline composition page and reply drafts
 (`review_draft_editor`, over the shared draft services of BPR-1082).
 
 - **Chip and menu** (owner, authoring A). The editor's tool row starts with
-  a label chip, "Plain ▾" or the current label. Its tooltip reads "Label (⌘L),
-  or type a code such as :qu: at the start". Clicking it, or ⌘L in the editor,
+  a label chip, "Plain ▾" or the current label. Its tooltip reads "Label
+  (⌘L)". Clicking it, or ⌘L in the editor,
   opens the menu:
   - "Plain comment" first, with ⌘0;
-  - a 3×4 grid of the twelve marks with their names and codes, each with its
+  - a 3×4 grid of the twelve marks with their names, each with its
     catalog description as a tooltip;
   - the decorations under "Adds": blocking, non-blocking and if-minor, then a
     toggle for each custom decoration written, then a field that takes a new
@@ -253,22 +256,20 @@ Consumers: the inline composition page and reply drafts
   every copy of it. Code: `core::feedback_decoration_change` in
   `decide_feedback_header_edit`, so a menu choice and a header typed by hand
   are still the same draft.
-- **Shortcodes** (owner, v2). They work only at the very start of the
-  comment:
-  - A colon alone opens completion with all twelve labels in catalog order
-    (owner, `shortcodes-v002`, verbatim: "I feel like since it's only the
-    first character that does this replacement just typing : should be
-    enough to open suggestions."). Each letter typed after it narrows the
-    list, codes first. ↑ and ↓ move through it, and Tab or Enter takes the
-    highlighted label. Before v003 a colon and one letter opened it.
-  - The closing colon of an exact code replaces the code at once.
-  - A code in front of an existing label replaces that label; it never adds a
-    second prefix.
-  - Esc, an unknown code or pasted text leaves the text alone. GitHub's own
-    `:emoji:` codes elsewhere are never touched.
-- **One edit** (owner, existing). Every chip, menu and shortcode change is
-  one draft edit through `core::decide_feedback_header_edit`. It is one undo
-  step, and ⌘Z right after a shortcode restores the literal code. Plain
+- **No typed codes** (owner, 2026-10-16; [[BPR-1565]]; RFC-BPR-0048 owner
+  amendment 1). The owner, verbatim: "I think we can get rid of our custom
+  shortcodes for the conventional comment tags... they don't add much over
+  just typing it out yourself and the dropdown picker is convenient enough."
+  From BPR-1079 v2 until then, `:qu:` and the other eleven two-letter codes
+  typed at the very start of a comment became their label, and a colon there
+  opened a completion list. Both are gone: a colon opens nothing, and `:qu:`
+  is the text typed, wherever it is. A label is typed out in full or chosen
+  with the chip or ⌘L. A draft written before the change that still holds a
+  code keeps it as literal text; nothing rewrites it. No code is an emoji
+  shortcode of GitHub's (gemoji), so the Markdown reader shows `:qu:` as
+  written, as GitHub does.
+- **One edit** (owner, existing). Every chip and menu change is one draft
+  edit through `core::decide_feedback_header_edit`. It is one undo step. Plain
   removes only the recognized prefix. Malformed leading syntax is never
   deleted. A stale body revision is refused or offered as a conflict
   (RFC-BPR-0048).
@@ -285,11 +286,14 @@ Consumers: the inline composition page and reply drafts
 - **A gap between mark and word** (owner, BPR-1091 v002, [[BPR-1346]]). The
   chip, Plain and every label in its menu leave 4 logical pixels between the
   mark and the word, carried by the mark's icon so the macOS style cannot
-  close it. The completion list's rows already leave a gap of their own.
-- **Helper off by default** (owner, Settings v1). With the label helper off,
-  there is no completion or replacement, and `:qu:` is plain text. A label
-  typed out in full counts either way. The last `(blocking)` used is never
-  carried to the next comment (RFC-BPR-0048).
+  close it.
+- **Helper off by default** (owner, Settings v1). Until [[BPR-1565]] the
+  label helper turned the typed codes and their completion on. It no longer
+  touches the editor: it only decides whether a comment workshop request
+  carries the Review feedback guidance ([[BPR-1091]]). The chip, menu and ⌘L
+  work with it on or off, and a label typed out in full counts either way.
+  The last `(blocking)` used is never carried to the next comment
+  (RFC-BPR-0048).
 - **Shown while writing** (owner, v4). The label appears as the highlighted
   words at the start of the field, its decorations included, and the mark
   and rail follow them.
@@ -308,38 +312,37 @@ Consumers: the inline composition page and reply drafts
   specification's reservation of that menu for labels is withdrawn.
 - **As built** (BPR-1083). `feedback_label_controls` is the editor's tool row,
   directly above the field and the next tab stop after it. The menu is a popup:
-  Plain comment, the grid with each label's mark, name, code and catalog
+  Plain comment, the grid with each label's mark, name and catalog
   description, and the three decorations under Adds; arrow keys move through
   it, Return or Space chooses, Esc closes. Every change is one edit block of
   the field's text, so one undo step, and the editor's ordinary typed path
   sends it to the draft owner as one whole-body edit, the command
-  `plan_feedback_draft_edit` plans for the same label. Completion is a list
-  under the caret that never takes focus. The helper follows Reviews & queue
-  › Comment labels › Label helper (BPR-1088): the window hands the comment
-  editor the published choice, so every window of the profile follows a
-  saved change. A tests-on fixture launch with `--label-helper` writes that
-  same preference through the profile's host.
-- **One edit with the draft owner at a time** (derived, BPR-1083 v002). The
-  replacement of a leading code follows its closing colon at once, while the
-  colon's own edit can still be with the draft owner (the private-review
-  draft path answers asynchronously). It used to go on the revision that edit
-  was based on and was refused as "Draft changed in another window". The
-  editor now holds a change made while an edit is unanswered and sends it on
-  the revision accepted; with no answer within half a second it goes as
-  before. The composed `application_label_authoring_contract` found it.
+  `plan_feedback_draft_edit` plans for the same label. A tests-on fixture
+  launch with `--label-helper` writes the Label helper preference through
+  the profile's host.
+- **One edit with the draft owner at a time** (derived, BPR-1083 v002). A
+  chip or menu change can follow a typed edit that is still with the draft
+  owner (the private-review draft path answers asynchronously). It used to
+  go on the revision that edit was based on and was refused as "Draft
+  changed in another window". The editor now holds a change made while an
+  edit is unanswered and sends it on the revision accepted; with no answer
+  within half a second it goes as before. The composed
+  `application_label_authoring_contract` found it with the typed codes
+  [[BPR-1565]] removed.
 - **Attended setup** (BPR-1083 v002). A tests-on `--attended-launch` with
   `--attended-open-file PATH` signs in with the fixture's account, opens the
   fixture pull request from the Home bar and selects `PATH` in Review, then
   prints `ATTENDED_FILE_SHOWN:PATH`. Without it the window opens on Home,
   whose bar reads a pull request in public preview, where comments are
   read-only (the owner's `chip-menu-v001` rejection). The automated
-  `--label-authoring-probe` course drives the same path through Comment,
-  `:qu:`, the chip, ⌘L, Publish and the refreshed thread's mark.
+  `--label-authoring-probe` course drives the same path through Comment, a
+  typed `:qu:` that stays text (with the helper on), the chip, ⌘L, Publish
+  and the refreshed thread's mark.
 
 - **Suggested changes** (BPR-1084; RFC-BPR-0048 R12, R13; RFC-BPR-0050
   R32). A label and a suggested change are independent: an `issue` may carry
   one, a `suggestion` may be prose only, and no label is read from a fence or
-  writes one. Every chip, menu, decoration and shortcode edit replaces only
+  writes one. Every chip, menu and decoration edit replaces only
   the header's bytes; the fence, its range, the replacement, tabs, empty
   (deletion) fences and two fences in one body stay byte for byte, and the
   draft's line and thread do not move (`core_feedback_suggestion_preservation`).
@@ -473,7 +476,7 @@ in `pull_request_overview_page`. The figures come from
     collection, unknown labels, unknown resolution or unknown file. A blank
     cell means a complete zero and nothing else (derived from R24 and R26).
 - **Label key** (owner). ⌥K, or a keyboard-reachable Label key button, lists
-  all twelve marks with their names and codes. A tooltip is never the only way
+  all twelve marks with their names. A tooltip is never the only way
   to learn a mark.
 - **Drill-down** (owner). Activating a chip opens Discuss filtered to that
   scope, label and mode, which are the same conversations the number counted.
@@ -548,7 +551,7 @@ in `pull_request_overview_page`. The figures come from
     Every tooltip is anchored to its chip.
   - **Beside the Files heading.** Open (with the round open mark) and All,
     the ? chip and the Label key (Alt+K; ⌥K on macOS, as its tooltip says).
-    The Label key is a list of the twelve marks with names and codes, Other
+    The Label key is a list of the twelve marks with their names, Other
     labels, Comments, the four state marks, ? and the keys that reach a chip. The Label key and the Comments and
     Sort by menus are windows of their own and propagate the page's palette
     (`Qt::WA_WindowPropagation`), so they show the theme the window shows; in
@@ -675,7 +678,8 @@ derived and may be revised with a recorded reason.
 Consumer: `settings_window`, page Reviews & queue, section Comment labels
 (owner, Settings v1, adjusted to Overview B in v2). The section holds:
 
-- the label helper, off by default;
+- the label helper, off by default (since [[BPR-1565]] it only sends the
+  Review feedback guidance with a comment workshop request);
 - Label marks, Icons or Letters (owner, 2026-10-05; BPR-1083 adds this row and
   the Comment labels group, beside Drawers, on the review-behaviour record);
 - the default count, Open;
@@ -688,8 +692,10 @@ The values persist through the existing typed profile settings store, and the
 Comments drawer's own filter is not touched.
 
 - **As built** (BPR-1088). The rows, in the design's order: **Label helper**
-  (a switch, with an info glyph saying "The label chip and :shortcodes: while
-  writing. Off: write labels yourself; they still count."), **Label marks**
+  (a switch, with an info glyph saying "Sends the Review feedback guidance
+  with each comment workshop request. Off: requests go without it. Labels
+  count either way.", since [[BPR-1565]]; it had said "The label chip and
+  :shortcodes: while writing"), **Label marks**
   (BPR-1083, unchanged), **Overview counts** (Open or All, with an info glyph
   saying the Overview starts there and switching on an Overview changes only
   that view), **Mark colours** (the link "Appearance › Colours ›", tooltip
@@ -721,7 +727,8 @@ These are owner rules, unchanged from BPR-1079.
 
 - **Counting.** One conversation counts once, classified by its root.
 - **Public text.** A label is public text at the start of the comment. The
-  preview shows exactly what GitHub gets. A shortcode is never sent.
+  preview shows exactly what GitHub gets. Text such as `:qu:` is sent as
+  typed ([[BPR-1565]]).
 - **Native decisions.** No label resolves, approves or requests changes.
 - **Uncounted.** Drafts, private notes and pending posts are never counted.
 

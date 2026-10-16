@@ -167,6 +167,41 @@ label while that request is in flight cannot turn a retransmission into a new
 undetected post. Follow existing transaction and idempotency mechanisms rather
 than inventing a label-specific journal.
 
+## Owner amendment 1 (2026-10-16): no typed label codes
+
+The owner, in chat on 2026-10-16, verbatim: "I think we can get rid of our
+custom shortcodes for the conventional comment tags... they don't add much
+over just typing it out yourself and the dropdown picker is convenient
+enough." [[BPR-1565]] carries it out.
+
+- **Removed.** The comment editor's leading `:xx:` codes (`:qu:` for
+  question and the eleven others, from BPR-1079 v2 and [[BPR-1083]]) and the
+  completion list a colon at the start opened. This was the typed half of
+  the convention-assisted composition above. A label is now typed out in
+  full, or chosen with the label chip and its menu (⌘L opens it; ⌘0 in the
+  open menu is Plain), in the composer and in a reply written in place.
+- **Kept.** The chip, its menu, the decoration toggles, keyboard access to
+  all twelve labels and Plain, recognition of any label typed in full, and
+  the one-edit, one-undo-step draft path (R09, R10). The Letters mark style
+  still draws each label's two letters (`qu`); they are no longer typed
+  codes.
+- **Existing drafts.** A draft that holds a code typed while the feature
+  still existed and the helper was off, or pasted, keeps it as literal text;
+  nothing migrates or rewrites drafts, and the text is published as written.
+  No code is a GitHub emoji shortcode (gemoji 4.1.0 has none of the twelve),
+  so GitHub and the Markdown reader both show it as written.
+- **The remembered authoring preference.** The profile's Label helper stays,
+  off by default, with its stored value and `bpr tour hooks` listing
+  unchanged. With nothing left to turn on in the editor, it now decides only
+  whether a comment workshop request carries the Review feedback guidance
+  ([[BPR-1091]]), as it already did; its Settings sentence says so.
+
+- **AM1-01:** Qt, reply-in-place and composed tests show `:qu:` and the
+  other codes typed at the start of a comment, with the helper on, stay as
+  typed with no label, no list and no control edit (the negative control for
+  the removed behaviour), while the chip, its menu, ⌘L and ⌘0 still set every
+  label and Plain in one edit.
+
 ## Acceptance criteria
 
 - R09: Ordinary and conventional human-only authoring work without any agent or mandatory label.
