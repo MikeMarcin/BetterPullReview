@@ -951,7 +951,10 @@ namespace bpr::core {
 		}
 
 		/// \brief [[BPR-1557]]. What Whole PR compares from, whatever is
-		/// selected: the latest live epoch's base, as `select_pair` resolves it.
+		/// selected: today the latest live epoch's base. `select_pair`'s Whole
+		/// PR takes its left side from here and the Updates line starts with
+		/// the same anchor, so a change to the base the comparison uses moves
+		/// the line's base with it.
 		[[nodiscard]] auto pull_request_base(
 			const pull_request_authority& aAuthority,
 			const comparison_candidates&  aCandidates) noexcept -> std::optional<comparison_anchor>
@@ -1004,15 +1007,18 @@ namespace bpr::core {
 				*aCandidates.LatestLive, comparison_anchor_kind::epoch_head);
 
 			switch (named.Alias) {
-			case named_comparison::whole_pr:
+			case named_comparison::whole_pr: {
+				const auto base = pull_request_base(aAuthority, aCandidates);
+				if (!base) {
+					return { .Reason = epoch_reason_code::unavailable };
+				}
 				return {
 					.Pair = comparison_pair{
-						.Left = epoch_anchor(
-							*aCandidates.LatestLive,
-							comparison_anchor_kind::epoch_base),
+						.Left  = *base,
 						.Right = latestHead,
 					},
 				};
+			}
 			case named_comparison::previous_upload_to_latest:
 				if (aCandidates.PreviousDistinctHead.has_value()
 					&& !valid_summary(

@@ -40,8 +40,9 @@ whatever the PR's merge base is, no?"
 ## Design
 
 - **The core names the base.** Every comparison resolution publishes
-  `PullRequestBase`, the anchor Whole PR compares from, whatever is selected:
-  the newest live epoch's base. When the base branch moved or a force push
+  `PullRequestBase`, the anchor Whole PR compares from, whatever is selected,
+  from the one function Whole PR's left side also takes (`pull_request_base`):
+  today the newest live epoch's base. When the base branch moved or a force push
   rebased the branch, the newest live epoch has a new base and the anchor
   follows it. An imported epoch is never it.
 - **The core decides the line's places** (`bpr/core/update_line.hpp`):
@@ -65,8 +66,9 @@ whatever the PR's merge base is, no?"
   compares that update to the head (an interdiff); the right handle never
   takes it; Alt+1 returns to it through the core. An older history page keeps
   it at the line's start.
-- **Words.** Tooltip: "Base of the pull request: commit … on the base branch,
-  as GitHub recorded it (seen here …). Whole PR compares from here." The
+- **Words.** Tooltip: "Base of the pull request: commit … (seen here …).
+  Whole PR compares from here.", which claims nothing about how the base was
+  chosen. The
   line's accessible name says where both handles are ("Updates line: from the
   pull request base 1a2b3c4 to update 3 of 3, …"). The label is "Base", not
   "Merge base", because the anchor is the base GitHub records, not a computed
@@ -97,7 +99,53 @@ whatever the PR's merge base is, no?"
   the left handle on the pull request's base and the right on the newest
   update.
 
+## How the comparison's base is chosen today (for the base-semantics work)
+
+Found while placing the anchor, 2026-10-16. The coordinator then gave the
+Whole PR base and merge-base semantics to a separate implementer (the owner
+reported a wrong default diff on a pull request that merged main several
+times); this card stays presentational.
+
+- **Read.** Each live read takes GitHub's own base commit for the pull
+  request: GraphQL `baseRefOid` / REST `base.sha`
+  (`src/adapters/github/src/github_paged_read.cpp`, the `BaseOid` of the
+  pull-request snapshot), and `github_window_read_host.cpp` hands it over as
+  the accepted revision's `Base` with `BaseRef` (`refs/heads/<baseRefName>`).
+  That is the base branch's tip as GitHub last recorded it for the pull
+  request, not a merge base and not the first epoch's parent.
+- **Captured per live epoch.** The catalogue records `Base` with each live
+  epoch when it is observed (`review_epoch_summary::Base`); it is not
+  recomputed later. A new head or a moved base appends a live epoch whose
+  cause says so (`base_oid_changed`, `base_branch_changed`).
+- **Whole PR.** The core resolves Whole PR as the latest live epoch's
+  `epoch_base` anchor to its `epoch_head` (`select_pair` in
+  `src/core/src/epoch_transition.cpp`); after this card both that and the
+  line's base come from one function there, `pull_request_base`, so a change
+  of basis moves the line's base with it. The selected diff then compares
+  those two exact commits, two-dot; nothing substitutes a merge base
+  (`docs/architecture/git-and-epoch-model.md`, "The friendly `Branch base`
+  label resolves to the latest live epoch's accepted base-tip anchor. It is
+  not a computed merge base").
+- **Merge base exists only for comment numbering.** The host derives the
+  unique merge base of the head and the base tip through the cache
+  (`derive_comparison_base`, `epoch_application_host.cpp`, the
+  `github_base_numbering` request) only to decide whether a base-side line can
+  take a GitHub `LEFT` comment; it is unavailable on a sparse review.
+  RFC-BPR-0029 Decision 4 keeps any computed merge base labelled as a derived
+  comparison base, never as the historical base.
+- **Measured.** On `MikeMarcin/BPR-Test#74` (feature branched from `main`,
+  base branch `bpr-1557-base` one commit ahead): GitHub's `base.sha` was
+  `75e23497520d`, the compare API's merge base `e2a44aa8fef7`; the shipped
+  composition's Whole PR compared from `75e23497520d`. When the base has moved
+  past the merge base, a two-dot diff from the tip shows the base branch's own
+  changes reversed, which is the owner-deferred anomaly [[BPR-0944]]
+  describes.
+
 ## Boundaries
+
+The anchor is presentational: it shows whatever base the core's Whole PR
+uses, and its tooltip claims nothing about how that base was chosen. Its
+position and label follow the base-semantics fix.
 
 The core decides, the host performs, Qt presents. No host, provider, Git or
 storage behaviour changes: the comparison still compares exactly the anchors

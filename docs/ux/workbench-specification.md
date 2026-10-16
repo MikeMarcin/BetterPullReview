@@ -296,10 +296,12 @@ loading or an unreadable pair uses that summary when folded and the track when o
 **The line starts with the pull request's base** ([[BPR-1557]]; the owner,
 2026-10-16, on both handles stacked on the newest update: "Surely the left
 side should be at whatever the PR's merge base is, no?"). Every comparison
-resolution names, whatever is selected, the anchor Whole PR compares from:
-the newest live epoch's `Branch base` (below), which follows the base when
-the base branch moves or a force push rebases the branch, and is never an
-imported epoch's. The line draws it as a post at the track's start, labelled
+resolution names, whatever is selected, the anchor Whole PR compares from,
+from the same core function Whole PR's left side takes: today the newest live
+epoch's `Branch base` (below), which follows the base when the base branch
+moves or a force push rebases the branch, and is never an imported epoch's.
+The line only presents it: when the base Whole PR uses changes, the line's
+base changes with it. The line draws it as a post at the track's start, labelled
 "Base", and spreads the updates over the rest, so one update sits at the far
 end. Whole PR puts the left handle on the post (drawn through it in the
 accent) and the right on the newest update, with the accent span between
@@ -308,13 +310,13 @@ stop for Left and Right and a drag; a click on it, its label or its menu's
 Compare from here compares from it, and the menu copies its commit; the
 right handle never takes it, and an older history page keeps it at the start.
 An older update's own base, which Show this update alone compares from, keeps
-its place just before that update. The tooltip names the commit, "as GitHub
-recorded it", and that Whole PR compares from here; the line's accessible
-name says where both handles are. It is labelled Base, not Merge base: it is
-the base GitHub records, not a computed merge base, and whether Whole PR
-should compare from the merge base is [[BPR-0944]]'s open decision. The core
-decides the places, stops and steps (`bpr/core/update_line.hpp`); the line
-draws.
+its place just before that update. The tooltip names the commit and that
+Whole PR compares from here, and claims nothing about how the base was
+chosen; the line's accessible name says where both handles are. It is
+labelled Base, not Merge base, because today it is the base GitHub records,
+not a computed merge base; which base Whole PR should compare from is
+[[BPR-0944]]'s decision. The core decides the places, stops and steps
+(`bpr/core/update_line.hpp`); the line draws.
 
 **Document tabs fill the comparison's header** ([[BPR-1132]]), replacing
 its status row. Each tab keeps an exact file, comparison and semantic reading

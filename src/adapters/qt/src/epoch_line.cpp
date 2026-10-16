@@ -249,8 +249,9 @@ namespace bpr::qt {
 		if (!PullRequestBase) {
 			return QString{ };
 		}
-		auto text = QStringLiteral("Base of the pull request: commit %1 on the base branch, as GitHub recorded it")
-						.arg(short_oid(PullRequestBase->Commit));
+		// Only what the core published: the commit Whole PR compares from. How
+		// that base is chosen is the core's, so the words make no claim about it.
+		auto text = QStringLiteral("Base of the pull request: commit %1").arg(short_oid(PullRequestBase->Commit));
 		if (BaseObservedAt) {
 			text.append(QStringLiteral(" (seen here %1)")
 							.arg(QLocale{ }.toString(QDateTime::fromMSecsSinceEpoch(BaseObservedAt->value(), QTimeZone::UTC).toLocalTime(), QLocale::ShortFormat)));
