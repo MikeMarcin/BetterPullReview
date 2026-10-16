@@ -1085,6 +1085,12 @@ arrive before the replacement diff and stay attached through the bounded Qt
 turns that install a large document. Leaving that context clears them, and a
 publication for neither current blob is discarded. [[BPR-1382]] exercises both
 panes through Next/Previous navigation, including cached large-file revisits.
+A publication colours every side whose blob it names, so a pure rename, whose
+two sides share one coalesced classification, colours both panes whichever of
+the classification and the diff answers first. Leaving a comparison retires its
+in-flight classifications with the blob reads it stops, so a later request for
+the same blob is submitted afresh rather than joined to a stopped read
+([[BPR-1558]]).
 
 The syntax adapter implements the host's classification port through
 KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
