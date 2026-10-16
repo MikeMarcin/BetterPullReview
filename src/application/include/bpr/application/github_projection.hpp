@@ -8,6 +8,7 @@
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/home_open.hpp"
+#include "bpr/core/markdown_image.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 #include "bpr/core/review_queue.hpp"
 
@@ -15,8 +16,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <variant>
 #include <vector>
 
@@ -241,6 +244,63 @@ namespace bpr::application {
 		auto operator<=>(const github_conversation_projection&) const = default;
 	};
 
+	/// \brief RFC-BPR-0084. One decoded frame: premultiplied ARGB, 32 bits per
+	/// pixel in native byte order, rows packed (`Width * Scale * 4` bytes each).
+	struct markdown_image_frame
+	{
+		std::vector<std::uint8_t> Pixels;
+		/// Display time of an animation frame; zero for a still image.
+		std::uint32_t DelayMs = 0U;
+
+		auto operator==(const markdown_image_frame&) const -> bool = default;
+	};
+
+	/// \brief RFC-BPR-0084. An image decoded within the bounds, ready to draw.
+	struct markdown_decoded_image
+	{
+		/// The natural size in logical pixels, as a browser lays it out.
+		std::uint32_t Width  = 0U;
+		std::uint32_t Height = 0U;
+		/// Pixels per logical pixel in each frame: 1 for a raster image, 2 for
+		/// an SVG rasterized for high-density screens.
+		std::uint32_t                     Scale = 1U;
+		std::vector<markdown_image_frame> Frames;
+
+		[[nodiscard]] auto bytes() const noexcept -> std::size_t
+		{
+			std::size_t total = 0U;
+			for (const auto& frame : Frames) {
+				total += frame.Pixels.size();
+			}
+			return total;
+		}
+
+		auto operator==(const markdown_decoded_image&) const -> bool = default;
+	};
+
+	/// \brief RFC-BPR-0084. The state of one image of one rendered body.
+	/// \details Carries no address, header or credential: the reader matches it
+	/// to its own reference by body identity, ordinal and the source text it
+	/// sent, and draws the shared pixels when loaded.
+	struct markdown_image_projection
+	{
+		core::markdown_context                        Context;
+		std::string                                   Body;
+		std::uint32_t                                 Ordinal = 0U;
+		std::string                                   Source;
+		core::markdown_image_state                    State = core::markdown_image_state::loading;
+		std::shared_ptr<const markdown_decoded_image> Image;
+
+		auto operator<=>(const markdown_image_projection& aOther) const
+		{
+			return std::tie(Context, Body, Ordinal, Source, State) <=> std::tie(aOther.Context, aOther.Body, aOther.Ordinal, aOther.Source, aOther.State);
+		}
+		auto operator==(const markdown_image_projection& aOther) const -> bool
+		{
+			return (*this <=> aOther) == 0 && Image == aOther.Image;
+		}
+	};
+
 	/// \brief Describes the github pull request projection record.
 	struct github_pull_request_projection
 	{
@@ -328,6 +388,8 @@ namespace bpr::application {
 		bool                                             PreserveWindowNavigation = false;
 		std::optional<cached_review_source_projection>   CachedSource             = std::nullopt;
 		std::optional<github_cached_overview_projection> CachedOverview           = std::nullopt;
+		/// RFC-BPR-0084. Images of this window's rendered bodies that changed state.
+		std::vector<markdown_image_projection> Images{ };
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};

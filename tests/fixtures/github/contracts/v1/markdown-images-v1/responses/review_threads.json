@@ -1,0 +1,96 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_nested-folders",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/reference.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/v2/endpoints.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.vert",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/bloom.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/slider.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/engine/renderer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/build/scripts/package.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/nested-folders:21:files",
+						"hasNextPage": false
+					},
+					"totalCount": 17
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_21",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

@@ -1093,6 +1093,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_comments:
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 			case read_operation::list_requested_reviewers:
 				result.PullRequestNumber = aContext.Number.value();
 				break;
@@ -1221,6 +1222,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 			case read_operation::list_requested_reviewers:
 				return std::nullopt;
 			}
@@ -4463,6 +4465,70 @@ namespace bpr::adapters::github::detail {
 			return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };
 		}
 	} // namespace
+
+	auto perform_markdown_image_resolution(github_wire_transport_port& aTransport, const validated_github_host_profile& aProfile,
+										   const application::markdown_image_resolution_request& aRequest, const std::stop_token aStop,
+										   const github_paged_read_limits& aLimits) noexcept -> github_markdown_image_resolution_result
+	{
+		try {
+			const auto server        = aProfile.server_contract() == application::github_server_contract::github_com_2022_11_28 ? server_contract::github_com : server_contract::ghes_3_18;
+			auto       rates         = application::github_rate_limit_state{ };
+			auto       limits        = aLimits;
+			limits.MaximumTotalPages = 1U;
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, nullptr };
+			auto                      semantic = semantic_request_for(server, aRequest.Context, read_operation::resolve_body_images);
+			semantic.Nodes                     = aRequest.Nodes;
+			const auto page                    = execution.fetch(semantic);
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			const auto malformed = [&execution] { return execution.terminal_failure(application::github_provider_failure::malformed_response); };
+			if (!json_is_object(page->Document)) {
+				return malformed();
+			}
+			const auto data = json_member(json_object(page->Document), "data");
+			if (!json_is_object(data)) {
+				return malformed();
+			}
+			const auto fields     = json_object(data);
+			const auto repository = json_member(fields, "repository");
+			const auto nodes      = json_member(fields, "nodes");
+			if (!json_is_object(repository) || !json_is_array(nodes) || text(json_member(json_object(repository), "id")) != aRequest.RepositoryNode) {
+				return malformed();
+			}
+			const auto pull = json_member(json_object(repository), "pullRequest");
+			if (!json_is_object(pull) || text(json_member(json_object(pull), "id")) != aRequest.PullRequestNode) {
+				return malformed();
+			}
+			const auto answered = json_array(nodes);
+			if (answered.size() != aRequest.Nodes.size()) {
+				return malformed();
+			}
+			auto result = github_markdown_image_resolution{ };
+			for (std::size_t index = 0; index < answered.size(); ++index) {
+				auto body = application::markdown_image_resolved_body{ .Node = aRequest.Nodes[index], .Served = { } };
+				if (!json_is_null(answered[index])) {
+					if (!json_is_object(answered[index])) {
+						return malformed();
+					}
+					const auto node = json_object(answered[index]);
+					const auto html = json_member(node, "bodyHTML");
+					if (!one_of(json_member(node, "__typename"), { "PullRequest", "IssueComment", "PullRequestReview", "PullRequestReviewComment" })
+						|| text(json_member(node, "id")) != aRequest.Nodes[index] || !json_is_string(html)) {
+						return malformed();
+					}
+					if (auto served = core::served_markdown_images(text(html))) {
+						body.Served = std::move(*served);
+					}
+				}
+				result.Bodies.push_back(std::move(body));
+			}
+			result.RateLimits = std::move(rates);
+			return result;
+		} catch (...) {
+			return std::unexpected{ github_paged_read_failure{ provider_error(application::github_provider_failure::response_limit) } };
+		}
+	}
 
 	auto perform_personal_discovery_read(
 		github_wire_transport_port&                    aTransport,

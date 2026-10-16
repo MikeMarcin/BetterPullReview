@@ -14,6 +14,8 @@ add_library(
     better_pull_review_application
     STATIC
         src/source_search_host.cpp
+        src/markdown_image_service.cpp
+        src/markdown_image_window.cpp
         src/source_match_execution.cpp
         src/source_pr_search_execution.cpp
         src/remembered_connection_host.cpp

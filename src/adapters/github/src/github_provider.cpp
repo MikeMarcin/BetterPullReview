@@ -58,6 +58,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_pull_request_timeline:
 				return application::diagnostic_paged_operation::list_pull_request_timeline;
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
@@ -219,6 +220,8 @@ namespace bpr::adapters::github::detail {
 			pull_request,
 			/// [[BPR-0988]].
 			discovery,
+			/// RFC-BPR-0084.
+			image_resolution,
 		};
 
 		using provider_parent_context = std::variant<core::github_session_request_context,
@@ -248,6 +251,16 @@ namespace bpr::adapters::github::detail {
 			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
 			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
 			bool                                                                     Closing = false;
+			/// RFC-BPR-0084. Serial image lanes, each with its own media
+			/// transport per profile, touched only on that lane.
+			struct media_lane
+			{
+				application::effect_executor*                             Executor = nullptr;
+				std::map<std::uint64_t, github_provider::media_performer> Transports;
+				std::atomic<std::size_t>                                  Queued{ 0U };
+			};
+			std::vector<std::unique_ptr<media_lane>> MediaLanes;
+			github_provider::media_transport_factory MediaFactory;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -2545,6 +2558,209 @@ namespace bpr::adapters::github::detail {
 			} else {
 				delivery->deliver(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
 			}
+		}
+	}
+
+	void github_provider::resolve(application::markdown_image_resolution_request                         aRequest,
+								  std::function<void(application::markdown_image_resolution_completion)> aCompletion)
+	{
+		const auto unavailable = [&aRequest, &aCompletion](const application::github_provider_failure aFailure) {
+			aCompletion(application::markdown_image_resolution_error{ .Request = std::move(aRequest), .Error = provider_error(aFailure) });
+		};
+		// Only an authenticated reader has GitHub's signed addresses for it.
+		if (Implementation == nullptr || Implementation->State->ReadAuthority != github_provider_read_authority::authenticated) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		const auto state   = Implementation->State;
+		const auto profile = find_exact_profile(*state, aRequest.ProfileAuthority);
+		if (profile == nullptr) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		const auto accountTransport = exact_account_transport(aRequest.AccountTransport, aRequest.ProfileAuthority,
+															  aRequest.AuthenticationSession.value_or(aRequest.Context.ApplicationSession),
+															  aRequest.Context.IdentityGeneration, aRequest.Context.Account);
+		if (accountTransport == nullptr) {
+			unavailable(application::github_provider_failure::unavailable);
+			return;
+		}
+		std::shared_ptr<provider_completion_delivery<std::function<void(application::markdown_image_resolution_completion)>>> delivery;
+		try {
+			delivery = make_delivery(std::move(aCompletion));
+		} catch (...) {
+			aCompletion(application::markdown_image_resolution_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			return;
+		}
+		const auto jobResult = make_job(state, provider_phase::image_resolution, aRequest.Context, application::github_provider_attempt{ 1U });
+		if (!jobResult.has_value()) {
+			if (jobResult.error() == make_job_failure::closing) {
+				delivery->deliver(application::markdown_image_resolution_cancelled{ .Request = std::move(aRequest) });
+			} else {
+				delivery->deliver(application::markdown_image_resolution_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			}
+			return;
+		}
+		const auto& job = *jobResult;
+		try {
+			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
+				try {
+					auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
+					if (!operation) {
+						finish_job(state, job);
+						delivery->deliver(application::markdown_image_resolution_error{ .Request = aRequest, .Error = operation.error() });
+						return;
+					}
+					const auto transport = *operation ? *operation : accountTransport->Transport;
+					auto       result    = job->Stop.stop_requested()
+						? github_markdown_image_resolution_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
+						: perform_markdown_image_resolution(*transport, *profile, aRequest, job->Stop.get_token());
+					const auto was       = finish_job(state, job);
+					if (was || (!result.has_value() && std::holds_alternative<github_paged_read_cancelled>(result.error()))) {
+						delivery->deliver(application::markdown_image_resolution_cancelled{ .Request = aRequest });
+						return;
+					}
+					if (!result.has_value()) {
+						const auto* error = std::get_if<application::github_provider_error>(&result.error());
+						delivery->deliver(application::markdown_image_resolution_error{
+							.Request = aRequest,
+							.Error   = error != nullptr && application::valid(*error) ? *error : provider_error(application::github_provider_failure::malformed_response),
+						});
+						return;
+					}
+					delivery->deliver(application::markdown_image_resolution_success{ .Request = aRequest, .Bodies = std::move(result->Bodies), .RateLimits = std::move(result->RateLimits) });
+				} catch (...) {
+					static_cast<void>(finish_job(state, job));
+					delivery->deliver(application::markdown_image_resolution_error{ .Request = aRequest, .Error = provider_error(application::github_provider_failure::response_limit) });
+				}
+			});
+		} catch (...) {
+			if (stop_after_failed_post(state, job)) {
+				delivery->deliver(application::markdown_image_resolution_cancelled{ .Request = std::move(aRequest) });
+			} else {
+				delivery->deliver(application::markdown_image_resolution_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
+			}
+		}
+	}
+
+	void github_provider::cancel_resolution(const application::markdown_image_resolution_request& aRequest)
+	{
+		if (Implementation == nullptr) {
+			return;
+		}
+		const auto             state   = Implementation->State;
+		const auto             context = provider_parent_context{ aRequest.Context };
+		const std::scoped_lock lock{ state->Mutex };
+		for (const auto& job : state->Jobs) {
+			if (job->Phase == provider_phase::image_resolution && job->Context == context) {
+				job->Stop.request_stop();
+			}
+		}
+	}
+
+	auto make_native_markdown_image_media_factory() -> github_provider::media_transport_factory
+	{
+		return [](const validated_github_host_profile& aProfile) -> github_provider::media_performer {
+			auto transport = make_native_https_media_transport(aProfile);
+			if (!transport) {
+				return { };
+			}
+			auto shared = std::shared_ptr<native_https_transport>{ std::move(*transport) };
+			return [shared](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) {
+				return shared->perform_markdown_image(aRequest, std::move(aStop));
+			};
+		};
+	}
+
+	void github_provider::configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory)
+	{
+		if (Implementation == nullptr) {
+			return;
+		}
+		const auto             state = Implementation->State;
+		const std::scoped_lock lock{ state->Mutex };
+		state->MediaLanes.clear();
+		for (auto* const lane : aLanes) {
+			if (lane != nullptr) {
+				auto entry      = std::make_unique<provider_state::media_lane>();
+				entry->Executor = lane;
+				state->MediaLanes.push_back(std::move(entry));
+			}
+		}
+		state->MediaFactory = std::move(aFactory);
+	}
+
+	void github_provider::fetch(application::markdown_image_fetch_request                     aRequest,
+								std::stop_token                                               aStop,
+								std::function<void(application::markdown_image_fetch_result)> aCompletion)
+	{
+		auto delivery = std::shared_ptr<provider_completion_delivery<std::function<void(application::markdown_image_fetch_result)>>>{ };
+		try {
+			delivery = make_delivery(std::move(aCompletion));
+		} catch (...) {
+			return;
+		}
+		const auto failed = [&delivery] { delivery->deliver(application::markdown_image_fetch_result{ std::unexpected{ core::markdown_image_state::failed } }); };
+		if (Implementation == nullptr || Implementation->State->ReadAuthority != github_provider_read_authority::authenticated) {
+			failed();
+			return;
+		}
+		const auto state   = Implementation->State;
+		const auto profile = find_exact_profile(*state, aRequest.ProfileAuthority);
+		if (profile == nullptr || aRequest.Policy.Hostname != std::string{ aRequest.ProfileAuthority.Hostname.value() }) {
+			failed();
+			return;
+		}
+		try {
+			if (aRequest.First.Credential) {
+				// Only the exact accepted account's own native transport holds
+				// the credential; a CLI profile's does not, so its hop goes out
+				// credential-free below.
+				const auto account = exact_account_transport(aRequest.AccountTransport, aRequest.ProfileAuthority,
+															 aRequest.AuthenticationSession.value_or(core::application_session_id{ }),
+															 aRequest.IdentityGeneration, aRequest.Account);
+				const auto native  = account ? std::dynamic_pointer_cast<native_https_transport>(account->Transport) : nullptr;
+				if (native != nullptr) {
+					state->Effects->post([native, aRequest, aStop, delivery] {
+						delivery->deliver(native->perform_markdown_image(aRequest, aStop));
+					});
+					return;
+				}
+				aRequest.First.Credential           = false;
+				aRequest.Policy.CredentialAvailable = false;
+			}
+			provider_state::media_lane* lane = nullptr;
+			{
+				const std::scoped_lock lock{ state->Mutex };
+				for (const auto& candidate : state->MediaLanes) {
+					if (lane == nullptr || candidate->Queued.load() < lane->Queued.load()) {
+						lane = candidate.get();
+					}
+				}
+			}
+			if (lane == nullptr || !state->MediaFactory) {
+				failed();
+				return;
+			}
+			++lane->Queued;
+			lane->Executor->post([state, lane, profile, aRequest, aStop, delivery] {
+				auto result = application::markdown_image_fetch_result{ std::unexpected{ core::markdown_image_state::failed } };
+				try {
+					const auto key  = profile->profile().value();
+					auto&      slot = lane->Transports[key];
+					if (!slot) {
+						slot = state->MediaFactory(*profile);
+					}
+					if (slot) {
+						result = slot(aRequest, aStop);
+					}
+				} catch (...) {
+				}
+				--lane->Queued;
+				delivery->deliver(std::move(result));
+			});
+		} catch (...) {
+			failed();
 		}
 	}
 

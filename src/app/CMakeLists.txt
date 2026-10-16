@@ -245,6 +245,9 @@ if(BPR_BUILD_QT)
                 # cannot see the declarations and does not link the symbols.
                 BPR_NATIVE_HTTPS_TESTING=1
                 "BPR_GITHUB_CONTRACT_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1\""
+                # RFC-BPR-0084. GitHub's rendering and served images of the
+                # markdown-images contract, beside the contract tree.
+                "BPR_GITHUB_MARKDOWN_IMAGES_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/markdown-images/v1\""
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
                 # RFC-BPR-0017. The promoted signed-out bodies. The recorded
                 # public-path fixture serves the inline review conversation

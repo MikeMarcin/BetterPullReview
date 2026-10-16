@@ -1,0 +1,69 @@
+{
+	"images": [
+		{
+			"address": "https://private-user-images.githubusercontent.com/90001/90000001-5b1d1c1e-0f2a-4c3b-9d4e-000000000001.png?jwt=fixture",
+			"content_type": "image/png",
+			"file": "attachment-1.png"
+		},
+		{
+			"address": "https://private-user-images.githubusercontent.com/90001/90000002-5b1d1c1e-0f2a-4c3b-9d4e-000000000002.png?jwt=fixture",
+			"content_type": "image/png",
+			"file": "attachment-2.png"
+		},
+		{
+			"address": "https://private-user-images.githubusercontent.com/90001/90000003-5b1d1c1e-0f2a-4c3b-9d4e-000000000003.png?jwt=fixture",
+			"content_type": "image/png",
+			"file": "attachment-3.png"
+		},
+		{
+			"address": "https://private-user-images.githubusercontent.com/90001/90000004-5b1d1c1e-0f2a-4c3b-9d4e-000000000004.png?jwt=fixture",
+			"content_type": "image/png",
+			"file": "attachment-4.png"
+		},
+		{
+			"address": "https://private-user-images.githubusercontent.com/90001/90000005-5b1d1c1e-0f2a-4c3b-9d4e-000000000005.png?jwt=fixture",
+			"content_type": "image/png",
+			"file": "attachment-5.png"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/3aa4f1e400000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f62616467652e737667",
+			"content_type": "image/svg+xml; charset=utf-8",
+			"file": "badge.svg"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/3364ee7000000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f646963652e706e67",
+			"content_type": "image/png",
+			"file": "dice.png"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/75526c1d00000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f666c6f7765722e706e67",
+			"content_type": "image/png",
+			"file": "flower.png"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/7a19e7b400000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f6c6f6164696e672e676966",
+			"content_type": "image/gif",
+			"file": "loading.gif"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/bcca65b300000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f7370696e6e65722e676966",
+			"content_type": "image/gif",
+			"file": "spinner.gif"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/4cf3b81600000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f73756e7365742e77656270",
+			"content_type": "image/webp",
+			"file": "sunset.webp"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/d25cd49000000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f7468656d652d6461726b2e706e67",
+			"content_type": "image/png",
+			"file": "theme-dark.png"
+		},
+		{
+			"address": "https://camo.githubusercontent.com/b44d364400000000000000000000000000000000000000000000000000000000/68747470733a2f2f696d616765732e6578616d706c652e696e76616c69642f7468656d652d6c696768742e706e67",
+			"content_type": "image/png",
+			"file": "theme-light.png"
+		}
+	]
+}

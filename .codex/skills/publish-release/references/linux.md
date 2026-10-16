@@ -14,6 +14,25 @@ even when the station's login shell finds them; resolve tools through that
 configured environment and pass absolute source/build/output paths. The
 2026-10-11 focused course used `wsl --exec bash -lc` and required no installation.
 
+For Mac-to-Windows SSH dispatch, start PowerShell in an accessible Windows
+directory (`Set-Location C:/`) before invoking WSL. The 2026-10-16 preparation
+observed `Wsl/ERROR_PATH_NOT_FOUND` with a direct SSH launch; the explicit
+Windows directory and `wsl.exe -d Ubuntu --exec bash -l ABSOLUTE_SCRIPT` worked.
+Put a multi-command course in that script rather than nesting shell quotations
+across SSH, PowerShell and Bash. Append the producer's approved local patchelf
+directory when it is absent from the login PATH; do not install or replace tools
+merely because a bare dispatch cannot find them.
+
+Unversioned readiness may check the baseline, toolchain, public-key digest and
+focused packaging contracts without producing a release. Native Windows
+`release_gpg_vault.py validate --config ABSOLUTE_CONFIG` checks the scoped key,
+protection and agent configuration without retrieving the credential, unlocking
+or signing. Its success does not qualify credential retrieval from that remote
+logon. Preserve the existing successful enrollment; no passphrase prompt is
+needed for these checks. The current
+[readiness record](../../../../docs/verification/ubuntu-release-readiness-20261016.md)
+binds the observed producer and remaining release requirements.
+
 Require the package guide's native C++23 toolchain, Python 3.10+, Qt producer
 SPDX, `patchelf`, `readelf`, `ldd`, libsecret/libxcb development files and
 native packaging tools. Run the normal native test gate, then:

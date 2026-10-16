@@ -133,6 +133,12 @@ the functional core or Qt presentation adapter.
   loopback proxy and fixture-CA seam must remain private to test-enabled
   builds; Qt-owned Authorization and parser buffers are not claimed precisely
   wipeable or hard-bounded. Query-bearing redirects fail closed.
+- RFC-BPR-0084's body images use native HTTPS's `markdown_image` surface
+  only: the credential-free media binding, or a GHES account binding for its
+  own host. Every redirect is re-admitted by `core::admit_markdown_image_redirect`;
+  the authorization header is built only on a hop the core marked and only to
+  the profile's exact host or its `media.` host. Resolution is the closed
+  `resolve_body_images` GraphQL read; its `bodyHTML` never leaves the adapter.
 - Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v2
   contract is the exact default file-based Keychain, one generic-password
   item, and noninteractive `SecItem` operations. Do not add data-protection,

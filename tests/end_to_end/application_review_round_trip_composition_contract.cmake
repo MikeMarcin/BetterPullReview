@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"35fa42bafd4f7aee53f338a40f5080409decaee7426c5b1be83840a3b175c5d1"
+		"fc35d33a25a4d970c82c29421b53e9ee871bad511aad290333db0a99e8b9f58d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "04292d256c31316808b703ac6e6ef5f9afea83dd3e7872ee28118ca74d532b65"
+        "78559ef1554ac45bd79e996123842305ac8a40ee6fbd9bfa1f5b388fb5732509"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2578,7 +2578,7 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
 
-# [[BPR-1558]] reseal over main bd04bf3df, whose own pins match its tree.
+# [[BPR-1558]] reseal over main 1e5c35b7f, whose own pins match its tree.
 # github_application.cpp hands one syntax classification to every comparison
 # side whose blob it names (a pure rename's two panes share one classification),
 # and clear_diff_selection retires the appearance host's in-flight

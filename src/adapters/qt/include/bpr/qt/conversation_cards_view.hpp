@@ -491,6 +491,15 @@ namespace bpr::qt {
 		/// \brief Link destinations in a post, with the post's identity, for
 		/// the application's admission ([[BPR-0456]]).
 		void set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0084. Asks for a published post's images by post identity.
+		void set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch);
+		/// \brief Shows one image answer in the open thread's post it names.
+		void apply_markdown_image(const application::markdown_image_projection& aImage);
+		/// \brief Asks again for the open thread's images still loading.
+		void request_images();
+		/// \brief RFC-BPR-0084 Q3. Shows or hides images in every post, the
+		/// open thread's now and any thread opened later.
+		void set_images_shown(bool aShown);
 		/// \brief [[BPR-1290]]. Shows the reply editor at the foot of the open
 		/// thread and gives it focus.
 		void begin_reply(const std::string& aThread);
@@ -657,26 +666,28 @@ namespace bpr::qt {
 		std::vector<qsizetype>          RetainedLeads;
 		feedback_mark_theme             MarkTheme;
 		/// [[BPR-0972]]. The first read state of each thread.
-		std::unordered_map<std::string, std::size_t>                ReadStateByThread;
-		mutable std::optional<std::vector<std::string>>             UnreadThreads;
-		mutable std::map<core::file_identity, std::size_t>          UnreadThreadsByFile;
-		std::uint64_t                                               LayoutNodesVisited = 0U;
-		std::vector<thread_card>                                    Cards;
-		std::optional<core::file_identity>                          AnchorFile;
-		std::optional<core::review_comment_draft>                   Draft;
-		std::vector<core::review_comment_draft>                     SavedDrafts;
-		std::vector<core::reply_draft_decision>                     UnsentReplies;
-		std::optional<core::file_comparison_digest>                 CurrentComparison;
-		card_line_locator                                           Locator;
-		card_thread_dispatch                                        ThreadDispatch;
-		card_action_dispatch                                        ActionDispatch;
-		defect_badges                                               DefectBadges;
-		std::function<void(QMenu&, const std::string&)>             ContextMenuBuilder;
-		std::function<void()>                                       MarksObserver;
-		std::function<bool(QWheelEvent&)>                           ScrollForward;
-		std::function<void(const std::string&, const std::string&)> LinkDispatch;
-		std::function<void(const std::string&, const QString&)>     ReplyTextDispatch;
-		std::optional<thread_reply_presentation>                    Reply;
+		std::unordered_map<std::string, std::size_t>                                         ReadStateByThread;
+		mutable std::optional<std::vector<std::string>>                                      UnreadThreads;
+		mutable std::map<core::file_identity, std::size_t>                                   UnreadThreadsByFile;
+		std::uint64_t                                                                        LayoutNodesVisited = 0U;
+		std::vector<thread_card>                                                             Cards;
+		std::optional<core::file_identity>                                                   AnchorFile;
+		std::optional<core::review_comment_draft>                                            Draft;
+		std::vector<core::review_comment_draft>                                              SavedDrafts;
+		std::vector<core::reply_draft_decision>                                              UnsentReplies;
+		std::optional<core::file_comparison_digest>                                          CurrentComparison;
+		card_line_locator                                                                    Locator;
+		card_thread_dispatch                                                                 ThreadDispatch;
+		card_action_dispatch                                                                 ActionDispatch;
+		defect_badges                                                                        DefectBadges;
+		std::function<void(QMenu&, const std::string&)>                                      ContextMenuBuilder;
+		std::function<void()>                                                                MarksObserver;
+		std::function<bool(QWheelEvent&)>                                                    ScrollForward;
+		std::function<void(const std::string&, const std::string&)>                          LinkDispatch;
+		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageDispatch;
+		bool                                                                                 ImagesShown = true;
+		std::function<void(const std::string&, const QString&)>                              ReplyTextDispatch;
+		std::optional<thread_reply_presentation>                                             Reply;
 		/// [[BPR-1212]]. My draft is open and being written in the drawer.
 		bool                                       Writing = false;
 		std::optional<draft_composer_presentation> Composer;
