@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-15","owner_note":"At least on dark theme I'm finding it quite hard to see a selected block (eg a word double clicked) in the middle of a change diff on the main pane. Partially because of the line highlight color, but I don't think that's the only cause. Actually it's not so easy to see even on unchanged lines. The single line details pane shows it much more clearly for some reason.","governing_rfc":"RFC-BPR-0006","related_rfcs":["RFC-BPR-0028","RFC-BPR-0034"],"related_cards":["BPR-1212","BPR-1156","BPR-1334","BPR-1503","BPR-1534"],"reservation":"docs/issues/_reservations/BPR-1533--BPR-1533--5c45415baeca.json","requested_skill":"frontend-design"}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200} line-kinds course: Light, Dark, HC Light, HC Dark x unchanged, removed, added, changed, focused and unfocused: fill is code_selection_background, 45-102 sRGB units from the ground (Dark 1.46-1.79:1 on the selected line, 2.38:1 off it); baseline paint fails (17-29 units, 0 inside a change)."}},{"criterion":"AC2","outcome":"pass","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"command","detail":"qt_code_sample_painter: append_text_selection_ranges keeps a readable role exactly, moves a faint one, every run at the variant's text floor; BPR-1212 syntax course expects the selection ink, not HighlightedText, and fails against the wash."}},{"criterion":"AC3","outcome":"pass","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"command","detail":"28/28 focused ctest rows incl. application_source_find x3 (current match takes no selection), application_line_details_public_path, qt_workbench_window_scale_{100,125,200}, review-tour, overview, appearance; clang-format 22, clang-tidy, DOCUMENTATION_OK."}},{"criterion":"AC4","outcome":"pending","revision":"c84681b0a09ed2935f0f098cbdeb777b1ae95a14","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in fresh session 7c8004e6428577726d1ce8825ee1dff5, candidate BPR-1533-selection-v001, fingerprint cfc14897d92f544bd5d618d95f1c6ce05f3eedf9543295dec3b4e48ae7a7b36c, cursor 8; frozen root bpr1533-selection-v001.u0prev45."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200} line-kinds course at c7b84c309: four variants x unchanged, removed, added, changed, focused and unfocused: fill is the theme selection fill (Light #9FC4EE, others full strength), 56-102 sRGB units from the ground; baseline paint fails."}},{"criterion":"AC2","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"qt_code_sample_painter: helper keeps readable roles, moves faint ones, every run at the text floor, Light mix #9FC4EE and full strength elsewhere; BPR-1212 syntax course expects the selection ink; Light selected type 4.50:1."}},{"criterion":"AC3","outcome":"pass","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"command","detail":"13/13 focused rows at c7b84c309 incl. application_source_find x3, application_line_details_public_path, qt_workbench_window_scale_{100,125,200}; clang-format 22, clang-tidy, DOCUMENTATION_OK."}},{"criterion":"AC4","outcome":"pending","revision":"c7b84c309b4ea84dbb56868065f0ebfb387d15e0","evidence":{"kind":"freeform","detail":"v001 rejected (session 7c8004e6..., event 9: 'It feels slightly overdone on the light.'). v002 Accept/Reject pending in fresh session e78b03cc6c44fc4e078c1654d392c8eb, candidate BPR-1533-selection-v002, fingerprint a4666b1fea0c0a5c0b758d2f302014293e54f06022beb360504d48d71fe86e5b, cursor 4; frozen root bpr1533-selection-v002.y_w8x0ux."}}]
 ---
 
 # BPR-1533: A text selection in the comparison panes reads as clearly as in Line details, on every line kind
@@ -141,3 +141,57 @@ The review server (pid 70713) is handed to the coordinator.
 
 Next: on hand-back, an Accept merges this card's commit (with the shared
 helper) to `main` and finishes the card; a Reject's note becomes v002.
+
+## Owner verdict on v001 and candidate v002 — 2026-10-15
+
+In session `7c8004e6428577726d1ce8825ee1dff5` the owner rejected
+`BPR-1533-selection-v001` (event 9, fingerprint `cfc14897…`): "It feels
+slightly overdone on the light." and accepted [[BPR-1534]]'s candidate
+(event 10), handed back at event 11. [[BPR-1534]] is merged on `main` with
+the shared helper (`b38953f19`, `5bde3d8dd`, `1d2564527`) and Done. The v001
+server was stopped.
+
+The note faults Light only, so v002 changes Light only (frontend-design
+loaded first). `core::text_selection_fill_alpha` is 191 for the light variant
+and 255 otherwise, and `code_text_selection_fill` lays the pane's `Highlight`
+(`code_selection_background`) over its `Base` (`code_background`) at that
+opacity: one opaque colour, shared by the comparison panes and Line details.
+The built-in light `#7FB0E8` becomes `#9FC4EE` (luminance 0.41 to 0.53, near
+an ordinary light-mode selection). Glyph inks are chosen against the mixed
+fill. Strength chosen from computed candidates: 70% would put the added
+line's wash at 48 sRGB units; 75% keeps every ground at 56 or more. Dark and
+both high-contrast variants are pixel-identical to v001.
+
+| Light, selection against the ground beside it | v000 | v001 | v002 |
+|---|---|---|---|
+| Unchanged, selected line | 1.15:1, 27 | 1.73:1, 99 | 1.38:1, 60 |
+| Removed, selected line | 1.14:1, 29 | 1.65:1, 102 | 1.32:1, 64 |
+| Added, selected line | 1.16:1, 26 | 1.76:1, 93 | 1.40:1, 56 |
+| Part of a changed run, selected line | 1.00:1, 0 | 1.02:1, 48 | 1.28:1, 70 |
+| Not the selected line | 1.23:1, 43 | 2.26:1, 152 | 1.80:1, 114 |
+
+Candidate `c7b84c309` on `bpr-1533-selection` (rebased on `main` at
+`dd2f52691`): `9f55457be` (v001's panes change) and `c7b84c309` (v002).
+Checks at `c7b84c309`: 13 of 13 focused rows (`qt_diff_workbench_scale_{100,125,200}`,
+`qt_code_sample_painter`, `qt_appearance_profile`,
+`qt_workbench_window_scale_{100,125,200}`, `application_line_details_public_path`,
+`application_source_find` ×3, `application_cpp_identifier_appearance`);
+the line-kinds course now also checks that Light is a lighter mix and the other
+variants full strength; the selected type in Light reads at 4.50:1;
+clang-format 22 and clang-tidy clean; `DOCUMENTATION_OK`.
+
+Attended: fresh session `e78b03cc6c44fc4e078c1654d392c8eb` (state
+`/Users/jaeger/.codex/attended-review/bpr1533-v002-HvpcEu`), cursor 4, one Accept/Reject question on
+`BPR-1533-selection-v002` (fingerprint `a4666b1f…`), ready and protected, with
+a Light before / v001 / v002 sheet and a Dark sheet (v002 = v001), on the
+frozen root `/Users/jaeger/.codex/attended-builds/bpr1533-selection-v002.y_w8x0ux`
+(`c7b84c309`, `line-details-v1`, `src/report/query.cpp`; its `--check` reached
+`ATTENDED_FILE_SHOWN:src/report/query.cpp`; executable SHA-256
+`3e247b928697ae104b3c422145d6f21e30fc2b5b4417028a2feabc0b15e05565`). The
+review server (pid 38389) is handed to the coordinator. The v001 session's
+protections were released after v002 was presented (cursor 12, verdicts
+kept) and the v001 frozen root was removed.
+
+Next: on hand-back, an Accept merges `9f55457be` and `c7b84c309` to `main`
+and finishes the card; a Reject's note becomes v003.
+
