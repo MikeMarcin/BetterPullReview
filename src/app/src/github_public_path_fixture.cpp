@@ -442,9 +442,12 @@ namespace bpr::app::detail {
 			// [[BPR-1083]]. The nested-folders pull request, pack and identity
 			// alike, with its own contract: review threads whose posts carry the
 			// Conventional Comments labels (`scripts/build_conventional_comments_fixture.py`).
+			// [[BPR-1562]]: markdown-code-v1 is the same pull request with
+			// fenced code and suggestions (`scripts/build_markdown_code_fixture.py`).
 			case github_public_path_fixture::conventional_comments_v1:
+			case github_public_path_fixture::markdown_code_v1:
 				return {
-					.ContractDirectory   = "conventional-comments-v1",
+					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_code_v1 ? "markdown-code-v1" : "conventional-comments-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,
 					.AccountId           = core::github_account_id{ 1U },

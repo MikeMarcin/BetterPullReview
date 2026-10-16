@@ -1060,3 +1060,21 @@ target_link_libraries(test_better_pull_review_application_markdown_image_host_te
 bpr_enable_hardening(test_better_pull_review_application_markdown_image_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_markdown_image_host_tests)
 bpr_add_network_isolated_test(NAME application_markdown_image_host COMMAND test_better_pull_review_application_markdown_image_host_tests)
+
+# [[BPR-1562]]. The Markdown reader's code classification host.
+bpr_add_executable(
+    test_better_pull_review_application_markdown_code_syntax_host_tests
+    markdown_code_syntax_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_application_markdown_code_syntax_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_application_markdown_code_syntax_host_tests)
+bpr_enable_warnings(test_better_pull_review_application_markdown_code_syntax_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_markdown_code_syntax_host
+    COMMAND test_better_pull_review_application_markdown_code_syntax_host_tests
+)

@@ -5598,6 +5598,14 @@ foreach(source_file IN LISTS source_files)
         string(REPLACE "::fork()" "" contents "${contents}")
         string(REPLACE "::execv(argv[1], argv + 1)" "" contents "${contents}")
     endif()
+    if(relative_file STREQUAL "src/core/src/markdown_code.cpp")
+        # [[BPR-1562]]. GitHub's Linguist aliases name shells as languages a
+        # fenced block is coloured as; only those exact table rows are
+        # removed, so a process or shell call there still fails.
+        foreach(language_row IN ITEMS "{ \"bash\"," "{ \"cmd\"," "{ \"fish\", \"fish\"," "{ \"powershell\"," "{ \"pwsh\"," "{ \"sh\"," "{ \"zsh\",")
+            string(REPLACE "${language_row}" "" contents "${contents}")
+        endforeach()
+    endif()
     if(relative_file STREQUAL "src/adapters/qt/src/painted_glyph_icon.cpp")
         # [[BPR-1296]]. QIconEngine's required copy override is named clone;
         # only that exact declaration is removed, not the Linux process call.

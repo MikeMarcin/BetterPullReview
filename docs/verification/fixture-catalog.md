@@ -140,6 +140,19 @@ request comments, byte for byte. The hostile-HTML body holds forbidden byte
 patterns by design, so it is judged from its tests rather than served.
 Constructed, not recorded.
 
+### `markdown-code-v1`, fenced code and suggestions
+
+Added for [[BPR-1562]], [[BPR-1563]] and [[BPR-1564]], so language colours,
+diff blocks and suggested changes can be judged in the application beside
+GitHub. `scripts/build_markdown_code_fixture.py` copies the
+conventional-comments contract (the nested-folders pull request, pack and
+files) and serves `tests/fixtures/markdown/code-blocks-v1/pr-sample.md` as the
+description, that directory's diff body and a suggestion outside a line
+comment as two pull request comments, and five review threads suggesting
+changes to lines of `src/engine/renderer.cpp` and `src/main.cpp` (one line,
+two lines, an insertion, a deletion, one line made two). Constructed, not
+recorded.
+
 ### `conversations-v1`, prototype v2's pull request
 
 Added for [[BPR-1293]], so Threads (named Conversations until [[BPR-1341]]) can be judged against its prototype

@@ -35,6 +35,7 @@ add_library(
         src/cached_review_overview.cpp
         src/markdown_navigation.cpp
         src/markdown_image.cpp
+        src/markdown_code.cpp
         src/model.cpp
         src/review_composition.cpp
         src/review_cycle.cpp

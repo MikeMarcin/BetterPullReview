@@ -188,3 +188,36 @@ These criteria belong to the amendment's cards, not to the original closeout.
 - AM1-06: The listed HTML subset renders with its meaning; any other tag or attribute is shown literally or dropped as documented; hostile HTML loads nothing, runs nothing and gives no link outside host admission.
 - AM1-07: GitHub's common emoji shortcodes render as their emoji from a generated static table; unknown or coded shortcodes stay literal.
 - AM1-08: Each visible construct is accepted by the owner on a frozen build beside GitHub's rendering in Light and Dark, one question per construct; the reader design documents the dialect, fallbacks and limits.
+
+## Owner amendment 2 — 2026-10-16: fenced code as GitHub draws it
+
+The owner decided on 2026-10-16 that fenced code blocks in every body the
+shared reader shows (descriptions, comments, review summaries) should read as
+they do on GitHub: coloured by language, `diff` blocks coloured by line, and
+suggestion blocks in review comments shown as GitHub's **Suggested change**.
+"Syntax highlighting may reuse an existing capability but is not a
+prerequisite" gives way to the behaviour below for fenced blocks. Indented
+code blocks and inline code spans stay as they are, because GitHub does not
+colour them either. Amendment 1 and every original criterion hold: source,
+copy and publication keep the original bytes, and the work stays inside the
+preview budgets.
+
+GitHub's behaviour is observed, not assumed: its Markdown API in gfm mode for
+which info strings it highlights and how a `diff` block's lines are marked,
+and a review on MikeMarcin/BPR-Test#80 for the suggested-change view.
+
+| Card | Construct |
+|---|---|
+| [[BPR-1562]] | **Language colouring.** The info string's first word, case-insensitive, cut at its first comma, names a language as GitHub's Linguist does: by name, alias or, with a leading dot, extension (`cpp`, `c++`, `py`, `js`, `ts`, `rust`, `go`, `json`, `yaml`, `sh`, `bash`, `cmake` and the rest of the observed table). The core decides the language; the application host's classification lane classifies the block's text with the packaged definitions on its effect lane, through a host of its own over the same classifier, definitions and limits as the review panes, so it neither waits behind nor reorders their classifications; Qt draws the spans in the review panes' role colours. Colour arrives after the text without moving the reading position, is cached by the block's exact text and definition, and works offline. An unknown language, a language the packaged definitions do not cover, no info string, and a block over the limits stay plain with no message. |
+| [[BPR-1563]] | **Diff blocks.** `diff`, `patch` and `udiff` blocks mark their lines as GitHub's diff grammar does: added and removed lines (and their `+++`/`---` file headers) tinted behind the text, the `@@ … @@` range in the hunk-header colour, `diff --git` and `Index:` headers and separators in the constant colour. Every colour is the theme's: the diff roles' fills, inks held readable on them. |
+| [[BPR-1564]] | **Suggestion blocks.** In a comment on lines of a pull request, each `suggestion` block is a bordered **Suggested change** box: the commented lines as removed rows, then the block's lines as added rows, numbered from the first commented line, with the changed words of equal-count row pairs marked and the code coloured by the file's language, as on GitHub. The commented lines come from the compared head document when the thread is current on that file; otherwise the box holds the added rows alone. Read only: no apply or commit action, as no native apply exists ([RFC-BPR-0048](RFC-BPR-0048-feedback-authoring-native-github-integration.md) keeps the GitHub handoff). Outside a line comment (a description, issue comment or review summary) a `suggestion` block is plain code, as on GitHub. |
+
+### Amendment 2 acceptance
+
+These criteria belong to the amendment's cards, not to the original closeout.
+
+- AM2-01: Every fenced block GitHub highlights in the info-string fixture is coloured when the packaged definitions cover its language, and every block GitHub leaves plain stays plain; a coloured token has the review panes' colour for its role in all four themes; indented code, inline code and unknown languages are unchanged.
+- AM2-02: Colour arrives asynchronously with no change to the scroll position, selection, height or text; the same block text and language is classified once and then served from the cache; a theme change recolours without classifying again; nothing is fetched, and a block outside the limits stays plain.
+- AM2-03: Each line kind of a `diff`, `patch` or `udiff` block has GitHub's marking in theme colours readable at 4.5:1 (7:1 in high contrast); an indented diff and inline code are unchanged.
+- AM2-04: A suggestion in a current line comment shows the removed and added rows with numbers and changed-word marks as GitHub does; without the commented lines it shows the added rows; a deletion shows only removed rows; outside a line comment it is plain code; there is no apply action.
+- AM2-05: The owner accepts each feature (language colouring, diff blocks, suggestion blocks) on a frozen build beside GitHub's rendering in Light and Dark, one question each; the reader design documents the languages, limits and fallbacks.

@@ -1333,6 +1333,11 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
 		/// window's accepted Markdown context, to the application.
 		void set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch);
+		/// \brief [[BPR-1562]]. Sends the fenced code of the description and
+		/// the open thread's posts to the application's classification host.
+		void set_markdown_code_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		/// \brief Colours every reader of this window that shows the answer's code.
+		void apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
 		/// named pull request and builds its address.
 		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
@@ -2388,6 +2393,7 @@ namespace bpr::qt {
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::function<void(const core::markdown_image_intent&)>                      MarkdownImageDispatch;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)>  MarkdownCodeDispatch;
 		std::string                                                                  MarkdownAuthority;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;

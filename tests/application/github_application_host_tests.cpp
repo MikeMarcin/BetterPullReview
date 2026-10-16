@@ -1329,6 +1329,8 @@ namespace {
 					.OriginalLine = 37U,
 					.Outdated     = false,
 					.Deleted      = false,
+					// [[BPR-1564]]. A comment on lines 40 to 42.
+					.Observation = { .StartLine = 40U },
 				},
 				application::github_review_comment_record{
 					.Comment      = application::github_comment_id{ "review-comment-2" },
@@ -2279,6 +2281,8 @@ namespace {
 					== application::github_conversation_anchor_availability::current
 				&& thread.Resolved && !thread.Outdated,
 			"review thread projects its location and state");
+		expect(thread.StartLine == 40U && threadRoot.StartLine == 40U && !issueComment.StartLine.has_value() && !review.StartLine.has_value(),
+			   "a thread on several lines projects its first line on the thread and its comments");
 		expect(
 			threadRoot.Kind
 					== application::github_conversation_kind::review_comment

@@ -226,6 +226,15 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListIssueComments": "synthetic"},
     },
+    # [[BPR-1562]]. conventional-comments-v1 with fenced code in its
+    # description and comments and suggestions in its threads, two of them on
+    # several lines, written by scripts/build_markdown_code_fixture.py.
+    "markdown-code-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {"ListReviewThreads": "synthetic-ranges", "ListIssueComments": "synthetic"},
+    },
     # [[BPR-1544]]. The same contract with the GitHub-parity HTML, details
     # and emoji bodies, written by
     # scripts/build_markdown_html_fixture.py.
@@ -1232,9 +1241,14 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 path = FIXTURE_ROOT / fixture_name / "responses" / response_name
                 with self.subTest(fixture=fixture_name, operation=operation):
                     response = self.load_json(path)
+                    shape = fixture.get("response_fields", {}).get(operation)
                     expected = (
                         EXPECTED_RESPONSE_FIELDS[operation]
-                        if fixture.get("response_fields", {}).get(operation) == "synthetic"
+                        if shape == "synthetic"
+                        # [[BPR-1564]]. A comment on several lines names its
+                        # first line, as GitHub's GraphQL does.
+                        else EXPECTED_RESPONSE_FIELDS[operation] | {"startLine", "originalStartLine"}
+                        if shape == "synthetic-ranges"
                         else RECORDED_RESPONSE_FIELDS[operation]
                     )
                     if fixture_name in {"source-pr-search-v1", "source-pr-search-large-v1", "source-pr-search-later-v1", "source-pr-search-large-later-v1"} and operation == "ListPullRequestFiles":
