@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1541"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Show why a review submission is unknown on the compose page",
+  "created": "2026-10-16T02:32:58.961560+00:00",
+  "base": "1a2cc04b932175f5f1432605264c1d2bbc0c4edd"
+}
