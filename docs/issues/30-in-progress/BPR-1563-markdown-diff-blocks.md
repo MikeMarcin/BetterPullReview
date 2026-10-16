@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1563"
 title: "Markdown reader: diff and patch blocks coloured by line, as GitHub does"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
