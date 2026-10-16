@@ -232,6 +232,10 @@ namespace {
 			break;
 		case read_operation::get_repository:
 			break;
+		case read_operation::resolve_body_images:
+			semantic.PullRequestNumber = context.Number.value();
+			semantic.Nodes             = { "PR_kwDOA" };
+			break;
 		}
 		return semantic;
 	}
@@ -326,8 +330,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 11U && refused == 8U
-				   && all_read_operations.size() == 19U
+		expect(admitted == 11U && refused == 9U
+				   && all_read_operations.size() == 20U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

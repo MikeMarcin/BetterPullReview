@@ -1,5 +1,6 @@
 #include "github_read_contract.hpp"
 #include "bpr/core/json_preflight.hpp"
+#include "bpr/core/markdown_image.hpp"
 #include "github_graphql_operation_policy.hpp"
 #include "github_http_helpers.hpp"
 
@@ -275,6 +276,73 @@ namespace bpr::adapters::github::detail {
 			return std::move(*bytes);
 		}
 
+		/// RFC-BPR-0084. GitHub's rendering of the accepted pull request's bodies.
+		/// The repository and pull request scope the read to the accepted target;
+		/// `nodes` answers each body's `bodyHTML`, whose image sources are
+		/// GitHub's own served addresses.
+		constexpr std::string_view body_images_document = "query ResolveBodyImages($ids:[ID!]!,$name:String!,$number:Int!,$owner:String!)"
+														  "{repository(owner:$owner,name:$name){id pullRequest(number:$number){id}}"
+														  " nodes(ids:$ids){__typename ... on PullRequest{id bodyHTML} ... on IssueComment{id bodyHTML}"
+														  " ... on PullRequestReview{id bodyHTML} ... on PullRequestReviewComment{id bodyHTML}}}";
+
+		struct body_images_variables_json
+		{
+			std::vector<std::string_view> Ids;
+			std::string_view              Name;
+			std::uint32_t                 Number = 0U;
+			std::string_view              Owner;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"ids", &body_images_variables_json::Ids,
+					"name", &body_images_variables_json::Name,
+					"number", &body_images_variables_json::Number,
+					"owner", &body_images_variables_json::Owner);
+			};
+		};
+
+		struct body_images_query_json
+		{
+			std::string_view           Query;
+			body_images_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &body_images_query_json::Query, "variables", &body_images_query_json::Variables);
+			};
+		};
+
+		[[nodiscard]] auto body_images_query_body(const semantic_read_request& aRequest) -> std::expected<std::string, contract_failure>
+		{
+			auto document             = body_images_query_json{ };
+			document.Query            = body_images_document;
+			document.Variables.Ids    = { aRequest.Nodes.begin(), aRequest.Nodes.end() };
+			document.Variables.Name   = aRequest.Repository;
+			document.Variables.Number = aRequest.PullRequestNumber;
+			document.Variables.Owner  = aRequest.Owner;
+			auto bytes                = glz::write<read_request_json_options{ }>(document);
+			if (!bytes) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			return std::move(*bytes);
+		}
+
+		/// GraphQL node identities: 1 to 25 distinct opaque ASCII tokens.
+		[[nodiscard]] auto valid_body_nodes(const std::vector<std::string>& aNodes) -> bool
+		{
+			if (aNodes.empty() || aNodes.size() > core::markdown_image_bodies_per_resolution) {
+				return false;
+			}
+			for (std::size_t index = 0; index < aNodes.size(); ++index) {
+				const auto& node = aNodes[index];
+				if (node.empty() || node.size() > 128U
+					|| !std::ranges::all_of(node, [](const char aChar) { return (aChar >= 'a' && aChar <= 'z') || (aChar >= 'A' && aChar <= 'Z') || (aChar >= '0' && aChar <= '9') || aChar == '_' || aChar == '-' || aChar == '='; })
+					|| std::find(aNodes.begin(), aNodes.begin() + static_cast<std::ptrdiff_t>(index), node) != aNodes.begin() + static_cast<std::ptrdiff_t>(index)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		[[nodiscard]] auto bounded_graphql_token(
 			const std::string_view aValue,
 			const std::size_t      aMaximum) noexcept -> bool
@@ -462,6 +530,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_requested_reviewers:
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 				return true;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
@@ -498,6 +567,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_repository:
 			case read_operation::get_pull_request:
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 			case read_operation::get_branch_protection:
 				return 1U;
 			case read_operation::list_review_requests:
@@ -539,7 +609,8 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto validate_graphql_body(
 			const std::string_view aBody,
-			const bool             aPaged) -> std::expected<void, contract_failure>
+			const bool             aPaged,
+			const bool             aNodes = false) -> std::expected<void, contract_failure>
 		{
 			if (aBody.size() > maximum_fixture_body_bytes) {
 				return failure(contract_failure_code::response_limit);
@@ -570,7 +641,8 @@ namespace bpr::adapters::github::detail {
 
 			const auto& variables = document.Variables;
 			if (!variables.contains("owner") || !variables.contains("name")
-				|| !variables.contains("number") || (!aPaged && variables.size() != 3U)) {
+				|| !variables.contains("number") || (aNodes != variables.contains("ids"))
+				|| (!aPaged && variables.size() != (aNodes ? 4U : 3U))) {
 				return failure(contract_failure_code::unexpected_body);
 			}
 			std::string   owner;
@@ -1571,6 +1643,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
+			case read_operation::resolve_body_images:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
 			case read_operation::list_requested_reviewers:
@@ -1618,6 +1691,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_merge_assessment:  return "GetMergeAssessment";
 		case read_operation::list_branch_rules:     return "ListBranchRules";
 		case read_operation::get_branch_protection: return "GetBranchProtection";
+		case read_operation::resolve_body_images:   return "ResolveBodyImages";
 		}
 		return { };
 	}
@@ -1719,6 +1793,10 @@ namespace bpr::adapters::github::detail {
 		if ((aRequest.Operation != read_operation::list_review_requests && !aRequest.ReviewCursor.empty()) || (aRequest.Operation == read_operation::list_review_requests && ((aRequest.Page == 1U) != aRequest.ReviewCursor.empty() || (!aRequest.ReviewCursor.empty() && !bounded_graphql_token(aRequest.ReviewCursor, 1024U)))) || (aRequest.Operation != read_operation::list_review_threads && aRequest.GraphqlPage)) {
 			return failure(contract_failure_code::unexpected_body);
 		}
+		const auto images = aRequest.Operation == read_operation::resolve_body_images;
+		if ((images && !valid_body_nodes(aRequest.Nodes)) || (!images && !aRequest.Nodes.empty())) {
+			return failure(contract_failure_code::unexpected_body);
+		}
 		const auto prefix = path_prefix(aRequest.Server, graphql);
 		if (!prefix.has_value()) {
 			return std::unexpected{ prefix.error() };
@@ -1795,6 +1873,15 @@ namespace bpr::adapters::github::detail {
 			page.Kind        = github_graphql_page_kind::threads;
 			page.AfterCursor = aRequest.ReviewCursor;
 			auto body        = read_query_body(aRequest, query, aRequest.ReviewCursor.empty() ? nullptr : &page);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Path = std::string{ *prefix } + "/graphql";
+			result.Body = std::move(*body);
+			break;
+		}
+		case read_operation::resolve_body_images: {
+			auto body = body_images_query_body(aRequest);
 			if (!body) {
 				return std::unexpected{ body.error() };
 			}
@@ -1889,7 +1976,8 @@ namespace bpr::adapters::github::detail {
 			}
 			if (const auto validation = validate_graphql_body(
 					aRequest.Body,
-					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty());
+					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty(),
+					aRequest.Operation == read_operation::resolve_body_images);
 				!validation.has_value()) {
 				return validation;
 			}

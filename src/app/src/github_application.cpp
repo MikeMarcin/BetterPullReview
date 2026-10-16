@@ -5,12 +5,14 @@
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
@@ -116,6 +118,7 @@
 #include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
+#include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
@@ -1068,6 +1071,15 @@ namespace bpr::app {
 						github_com_2022_11_28,
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed Overview labels",
+				};
+			case detail::github_public_path_fixture::markdown_images_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed inline images",
 				};
 			case detail::github_public_path_fixture::conversations_v1:
 				return {
@@ -3963,6 +3975,15 @@ namespace bpr::app {
 		worker_executor AppearanceEffects;
 		worker_executor QueueEffects;
 		worker_executor ReviewMutationEffects;
+		/// RFC-BPR-0084. Body images: the decoder outlives the lanes that call
+		/// it; four serial fetch lanes, each with its own media transport, and
+		/// one decode lane; the profile's image service and cache. The disk
+		/// cache is used only on the decode lane, which is joined before it goes.
+		qt::markdown_image_decoder                                          ImageDecoder;
+		std::unique_ptr<application::markdown_image_disk_cache_port>        ImageDisk;
+		worker_executor                                                     ImageDecodeEffects;
+		std::array<worker_executor, core::markdown_image_fetch_concurrency> ImageFetchEffects;
+		std::unique_ptr<application::markdown_image_service>                Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -4516,7 +4537,23 @@ namespace bpr::app {
 			if (EpochActors) {
 				EpochActors->shutdown();
 			}
+			if (Images) {
+				Images->shutdown();
+			}
 		}
+		/// RFC-BPR-0084. A fixture run serves images from its pack and never the
+		/// network; every other run fetches through native HTTPS.
+		[[nodiscard]] auto markdown_image_media_factory(adapters::github::detail::github_provider::media_transport_factory aProduction)
+			-> adapters::github::detail::github_provider::media_transport_factory
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture) {
+				return Fixture->markdown_image_media_factory();
+			}
+#endif
+			return aProduction;
+		}
+
 		void poll_shutdown()
 		{
 			if (!ServicesClosing || ShutdownComplete) {
@@ -4528,7 +4565,11 @@ namespace bpr::app {
 			if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
-				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
+				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)
+				|| (Images && !Images->quiescent())) {
+				return;
+			}
+			if (!ImageDecodeEffects.idle() || std::ranges::any_of(ImageFetchEffects, [](const worker_executor& aLane) { return !aLane.idle(); })) {
 				return;
 			}
 			if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
@@ -4607,6 +4648,10 @@ namespace bpr::app {
 			ReviewMutationEffects.close_and_drain();
 			ReviewSubmissionEffects.close_and_drain();
 			ReviewLedgerEffects.close_and_drain();
+			for (auto& lane : ImageFetchEffects) {
+				lane.close_and_drain();
+			}
+			ImageDecodeEffects.close_and_drain();
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
@@ -4987,6 +5032,20 @@ namespace bpr::app {
 				throw std::runtime_error{ "GitHub provider composition failed" };
 			}
 			Provider = std::move(*provider);
+			// RFC-BPR-0084. Image fetches run on their own serial lanes, each
+			// with a credential-free media transport per profile; a credentialed
+			// GHES hop runs on the provider's lane through the account transport.
+			{
+				std::vector<application::effect_executor*> lanes;
+				lanes.reserve(ImageFetchEffects.size());
+				for (auto& lane : ImageFetchEffects) {
+					lanes.push_back(&lane);
+				}
+				Provider->configure_markdown_images(std::move(lanes), markdown_image_media_factory(adapters::github::detail::make_native_markdown_image_media_factory()));
+			}
+			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
+			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
+																			  core::markdown_image_memory_cache_bytes, ImageDisk.get());
 
 			// RFC-BPR-0017's credential-free read authority, over the same
 			// profiles and the same transport factory. A second provider
@@ -7383,7 +7442,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
 					schedule_link_location();
-					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests);
+					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests, Profile->Images.get(), Profile->Provider.get());
 			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 					WindowRead->read_cached_source(aPath.toStdString());
@@ -7393,6 +7452,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? WindowRead->open_markdown_link(aIntent, Profile->WindowBrowser)
 					: core::markdown_link_result::stale;
+			});
+			Window->set_markdown_image_dispatch([this, weak](const core::markdown_image_intent& aIntent) {
+				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
+					WindowRead->request_markdown_images(aIntent);
+				}
 			});
 			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)

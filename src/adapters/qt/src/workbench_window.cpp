@@ -6216,6 +6216,7 @@ namespace bpr::qt {
 			}
 			apply_label_helper();
 			apply_line_details();
+			apply_markdown_images();
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -9365,6 +9366,26 @@ namespace bpr::qt {
 				aNext.LineDetails       = application::review_behaviour_settings{ }.LineDetails;
 				aNext.CenterRibbonWidth = application::default_center_ribbon_width;
 			});
+		// RFC-BPR-0084 Q3. The owner, 2026-10-16, accepted a "Load images in
+		// descriptions and comments" preference, on by default.
+		auto* const imagesInfo = new info_glyph{ QStringLiteral("Images in pull request descriptions and comments load as they do on GitHub. Don't load: each stays a link with its description, and nothing is fetched."), BehaviourEditor };
+		imagesInfo->setObjectName(QStringLiteral("markdownImagesInfo"));
+		addGroup(
+			QStringLiteral("Descriptions and comments"),
+			QStringLiteral("resetDescriptionsAndComments"),
+			{
+				row{ 9U,
+					 QStringLiteral("Images"),
+					 QStringLiteral("markdownImages"),
+					 { { QStringLiteral("Load"), QStringLiteral("markdownImagesLoad") },
+					   { QStringLiteral("Don't load"), QStringLiteral("markdownImagesOff") } },
+					 imagesInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
+			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -9585,6 +9606,17 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::apply_markdown_images()
+	{
+		const auto shown = Behaviour.MarkdownImages == application::review_markdown_images::load;
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->set_images_shown(shown);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_images_shown(shown);
+		}
+	}
+
 	void workbench_window::apply_label_helper()
 	{
 		// [[BPR-1088]]. Only a published change reaches the editor, so the
@@ -9616,6 +9648,7 @@ namespace bpr::qt {
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
+		check(9U, static_cast<std::size_t>(Behaviour.MarkdownImages));
 		if (CenterRibbonWidth != nullptr) {
 			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
 		}
@@ -9656,6 +9689,7 @@ namespace bpr::qt {
 			.LabelColumns      = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
 			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
+			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 		};
 	}
 
@@ -10969,6 +11003,15 @@ namespace bpr::qt {
 		if (aUpdate.CachedSource && HasCachedOverview && !HasGithubPullRequest) {
 			OverviewPage->present_cached_source(*aUpdate.CachedSource);
 		}
+		// RFC-BPR-0084. Each answer reaches the body it names; a reader ignores
+		// one that is not for its current image.
+		for (const auto& image : aUpdate.Images) {
+			if (image.Body.empty()) {
+				OverviewPage->body_view()->apply_image(image);
+			} else {
+				ConversationPanel->apply_markdown_image(image);
+			}
+		}
 		if (aUpdate.Session.has_value()) {
 			// [[BPR-0803]]. A device flow still asking for its code when some
 			// other way in -- GitHub CLI above all -- has signed in is ended
@@ -11140,6 +11183,15 @@ namespace bpr::qt {
 			statusBar()->showMessage(message, 8000);
 		};
 		OverviewPage->body_view()->set_link_dispatch([dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		// RFC-BPR-0084. Images ask under this publication's context; a new
+		// context asks again for whatever is still loading.
+		const auto images = [this, context = aPullRequest.MarkdownContext](const std::string& aBody, std::vector<core::markdown_image_reference> aReferences) {
+			if (context && MarkdownImageDispatch) {
+				MarkdownImageDispatch({ .Context = *context, .Body = aBody, .References = std::move(aReferences) });
+			}
+		};
+		OverviewPage->body_view()->set_image_dispatch([images](std::vector<core::markdown_image_reference> aReferences) { images({ }, std::move(aReferences)); });
+		ConversationPanel->set_image_dispatch(images);
 		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
@@ -11246,6 +11298,10 @@ namespace bpr::qt {
 			ConversationPanel->present_notice(QString{ });
 		}
 		update_github_presentation_state();
+		// RFC-BPR-0084. Unchanged bodies keep their images; ones still loading
+		// ask again under the new context, which a cached image answers at once.
+		OverviewPage->body_view()->request_images();
+		ConversationPanel->request_images();
 		// [[BPR-0668]]. The line states what is open, so it is written when
 		// what is open changes, not only when a workbench projection lands.
 		// Guarded: this runs while the window is still being assembled.
@@ -11281,6 +11337,11 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch)
 	{
 		MarkdownDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch)
+	{
+		MarkdownImageDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch)

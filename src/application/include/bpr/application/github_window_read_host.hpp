@@ -8,6 +8,7 @@
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/markdown_image_window.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -84,15 +85,17 @@ namespace bpr::application {
 		github_window_read_host(core::bpr_window_context     aWindow,
 								core::application_session_id aSession, github_pull_request_port& aReads,
 								decision_executor& aDecision, publication aPublication,
-								github_epoch_handoff_port*             aEpochs         = nullptr,
-								github_pull_request_port*              aAnonymousReads = nullptr,
-								git_smart_transport_factory_port*      aAnonymousGit   = nullptr,
-								diagnostic_log_port*                   aLog            = nullptr,
-								cached_review_overview_port*           aOverviews      = nullptr,
-								effect_executor*                       aCacheEffects   = nullptr,
-								cached_review_source_port*             aSources        = nullptr,
-								std::shared_ptr<github_read_admission> aAdmission      = nullptr,
-								const body_digest_port*                aBodyDigests    = nullptr);
+								github_epoch_handoff_port*             aEpochs          = nullptr,
+								github_pull_request_port*              aAnonymousReads  = nullptr,
+								git_smart_transport_factory_port*      aAnonymousGit    = nullptr,
+								diagnostic_log_port*                   aLog             = nullptr,
+								cached_review_overview_port*           aOverviews       = nullptr,
+								effect_executor*                       aCacheEffects    = nullptr,
+								cached_review_source_port*             aSources         = nullptr,
+								std::shared_ptr<github_read_admission> aAdmission       = nullptr,
+								const body_digest_port*                aBodyDigests     = nullptr,
+								markdown_image_service*                aImages          = nullptr,
+								markdown_image_resolution_port*        aImageResolution = nullptr);
 		~github_window_read_host();
 		github_window_read_host(const github_window_read_host&)                                  = delete;
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;
@@ -118,6 +121,10 @@ namespace bpr::application {
 		/// authority's hostname and the accepted snapshot, never from remote or typed text.
 		[[nodiscard]] auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               read_cached_source(std::string aPath);
+		/// \brief RFC-BPR-0084. Admits a rendered body's image references against the
+		/// current publication and starts their resolution and loads; results arrive
+		/// as `github_presentation_update::Images`.
+		void               request_markdown_images(const core::markdown_image_intent& aIntent);
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;

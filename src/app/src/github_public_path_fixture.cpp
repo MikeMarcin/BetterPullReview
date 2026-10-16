@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -468,9 +469,12 @@ namespace bpr::app::detail {
 			// [[BPR-1089]]. The nested-folders pull request, pack and identity
 			// alike, with many labelled threads, pull request comments and
 			// review summaries (`scripts/build_overview_labels_fixture.py`).
+			// RFC-BPR-0084: markdown-images-v1 is the same pull request with
+			// image-bearing bodies (`scripts/build_markdown_images_fixture.py`).
 			case github_public_path_fixture::overview_labels_v1:
+			case github_public_path_fixture::markdown_images_v1:
 				return {
-					.ContractDirectory   = "overview-labels-v1",
+					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_images_v1 ? "markdown-images-v1" : "overview-labels-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,
 					.AccountId           = core::github_account_id{ 1U },
@@ -1731,9 +1735,12 @@ namespace bpr::app::detail {
 			// served with the mutation overlay rather than refused.
 			bool                                        RepeatReads = false;
 			std::shared_ptr<std::atomic<std::uint64_t>> RecentAccount;
-			bool                                        DistinctAccount      = false;
-			bool                                        UnboundViewer        = false;
-			std::size_t                                 AccountReadCalls     = 0U;
+			bool                                        DistinctAccount  = false;
+			bool                                        UnboundViewer    = false;
+			std::size_t                                 AccountReadCalls = 0U;
+			/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
+			std::atomic<std::size_t>                    MarkdownImageResolutions{ 0U };
+			std::atomic<std::size_t>                    MarkdownImageFetches{ 0U };
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
 			std::size_t                                 SmartDiscoveryCalls  = 0U;
@@ -2392,6 +2399,42 @@ namespace bpr::app::detail {
 			return wire_response{ .Status = 200, .Headers = response_headers(), .Body = QJsonDocument{ body }.toJson(QJsonDocument::Compact).toStdString(), .Completeness = page_completeness::complete };
 		}
 
+		/// RFC-BPR-0084. A pack's images, beside the contract tree:
+		/// `bodies.json` names the repository and pull request nodes and each
+		/// body node's rendered HTML; `manifest.json` maps each served address
+		/// to a file and type.
+		[[nodiscard]] auto markdown_images_root(const fixture_descriptor& aDescriptor) -> std::filesystem::path
+		{
+			return std::filesystem::path{ BPR_GITHUB_MARKDOWN_IMAGES_FIXTURE_ROOT } / aDescriptor.ContractDirectory;
+		}
+
+		[[nodiscard]] auto markdown_images_response(const fixture_descriptor& aDescriptor, const std::vector<std::string>& aNodes)
+			-> std::optional<std::string>
+		{
+			const auto path = markdown_images_root(aDescriptor) / "bodies.json";
+			if (!std::filesystem::is_regular_file(path)) {
+				return std::nullopt;
+			}
+			const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(read_all(path))).object();
+			const auto bodies   = document.value(QStringLiteral("bodies")).toObject();
+			QJsonArray nodes;
+			for (const auto& node : aNodes) {
+				const auto key  = QString::fromStdString(node);
+				const auto type = key.startsWith(QStringLiteral("PRRC_")) ? QStringLiteral("PullRequestReviewComment")
+					: key.startsWith(QStringLiteral("PRR_"))              ? QStringLiteral("PullRequestReview")
+					: key.startsWith(QStringLiteral("PR_"))               ? QStringLiteral("PullRequest")
+					: key.startsWith(QStringLiteral("IC_"))               ? QStringLiteral("IssueComment")
+																		  : QString{ };
+				if (type.isEmpty() || !bodies.contains(key)) {
+					nodes.append(QJsonValue{ QJsonValue::Null });
+					continue;
+				}
+				nodes.append(QJsonObject{ { "__typename", type }, { "id", key }, { "bodyHTML", bodies.value(key).toString() } });
+			}
+			const auto repository = QJsonObject{ { "id", document.value(QStringLiteral("repository")).toString() }, { "pullRequest", QJsonObject{ { "id", document.value(QStringLiteral("pullRequest")).toString() } } } };
+			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		class fixture_recorded_wire_transport final
 			: public github_wire_transport_port,
 			  public application::git_smart_transport_factory_port
@@ -2423,6 +2466,19 @@ namespace bpr::app::detail {
 					if (aStop.stop_requested()) {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 					}
+				}
+				if (aRequest.Wire.Operation == read_operation::resolve_body_images) {
+					if (!validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					++State->MarkdownImageResolutions;
+					auto body = markdown_images_response(State->Descriptor, aRequest.Wire.Semantic.Nodes);
+					if (!body) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
+					}
+					auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Body = std::move(*body), .Completeness = page_completeness::complete };
+					append_rate_limit_headers(response, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
 				if (auto summary = home_waiting_response(*State, aRequest)) {
 					if (!validate_github_wire_request(State->Profile, aRequest)) {
@@ -4711,6 +4767,42 @@ namespace bpr::app::detail {
 		return Implementation->Factory;
 	}
 
+	auto github_public_path_fixture_components::markdown_image_media_factory() const
+		-> adapters::github::detail::github_provider::media_transport_factory
+	{
+		const auto root      = markdown_images_root(Implementation->Recording->Descriptor);
+		auto       recording = Implementation->Recording;
+		return [root, recording](const adapters::github::validated_github_host_profile&) -> adapters::github::detail::github_provider::media_performer {
+			return [root, recording](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) -> application::markdown_image_fetch_result {
+				++recording->MarkdownImageFetches;
+				if (aStop.stop_requested() || !core::admit_markdown_image_fetch(aRequest.First.Address, aRequest.Policy)) {
+					return std::unexpected{ core::markdown_image_state::failed };
+				}
+				const auto manifest = root / "manifest.json";
+				if (!std::filesystem::is_regular_file(manifest)) {
+					return std::unexpected{ core::markdown_image_state::failed };
+				}
+				const auto images = QJsonDocument::fromJson(QByteArray::fromStdString(read_all(manifest))).object().value(QStringLiteral("images")).toArray();
+				for (const auto& entry : images) {
+					const auto image = entry.toObject();
+					if (image.value(QStringLiteral("address")).toString().toStdString() != aRequest.First.Address) {
+						continue;
+					}
+					const auto file = root / image.value(QStringLiteral("file")).toString().toStdString();
+					if (!std::filesystem::is_regular_file(file)) {
+						break;
+					}
+					auto bytes = read_all(file);
+					if (bytes.size() > aRequest.MaximumBytes) {
+						return std::unexpected{ core::markdown_image_state::too_large };
+					}
+					return application::markdown_image_fetched{ .Bytes = std::move(bytes), .ContentType = image.value(QStringLiteral("content_type")).toString().toStdString() };
+				}
+				return std::unexpected{ core::markdown_image_state::failed };
+			};
+		};
+	}
+
 	auto github_public_path_fixture_components::credential_vault() const noexcept
 		-> application::github_credential_vault_port&
 	{
@@ -4764,8 +4856,10 @@ namespace bpr::app::detail {
 			result.RecordingFailure           = Implementation->Recording->RecordingFailure;
 			result.AccountReadCount           = static_cast<int>(
 				Implementation->Recording->AccountReadCalls);
-			result.LastReadOperation = Implementation->Recording->LastReadOperation;
-			result.SmartAcquireCount = static_cast<int>(
+			result.MarkdownImageResolutions = Implementation->Recording->MarkdownImageResolutions.load();
+			result.MarkdownImageFetches     = Implementation->Recording->MarkdownImageFetches.load();
+			result.LastReadOperation        = Implementation->Recording->LastReadOperation;
+			result.SmartAcquireCount        = static_cast<int>(
 				Implementation->Recording->SmartAcquireCalls);
 			result.SmartAcquireRefusalCount = static_cast<int>(
 				Implementation->Recording->SmartAcquireRefusals);

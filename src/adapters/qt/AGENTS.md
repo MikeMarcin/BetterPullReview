@@ -20,6 +20,12 @@ themes, rendering mechanics, and event translation.
   `markdown_document::loadResource`: its exact guarded implementation returns
   a valid empty byte array for every resource and never inspects the address.
   Link destinations remain untrusted text gestures for application admission.
+  RFC-BPR-0084's images keep that rule: the reader sends image sources as
+  untrusted text and draws only the decoded pixels of
+  `application::markdown_image_projection` through its own text-object
+  handler; it never loads a resource, builds an address or receives one. The
+  decoder (`markdown_image_decoder`) reads bytes the host hands it, by
+  signature, and performs no effect.
 - Public-preview presentation receives only
   `bpr/application/public_preview_projection.hpp` in addition to the ordinary
   GitHub projection. Its explicit unavailable facts and semantic gestures must

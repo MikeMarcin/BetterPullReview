@@ -1329,6 +1329,9 @@ namespace bpr::qt {
 
 		/// \brief Binds explicit reader gestures to current-context application policy.
 		void set_markdown_link_dispatch(std::function<core::markdown_link_result(const core::markdown_link_intent&)> aDispatch);
+		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
+		/// window's accepted Markdown context, to the application.
+		void set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch);
 		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
 		/// named pull request and builds its address.
 		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
@@ -1670,6 +1673,8 @@ namespace bpr::qt {
 		void dispatch_line_details_toggle();
 		/// [[BPR-1334]]. Shows or hides Line details as published.
 		void apply_line_details();
+		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
+		void apply_markdown_images();
 		void apply_line_numbers();
 		void dispatch_one_pane_toggle();
 		void apply_one_pane();
@@ -2273,11 +2278,11 @@ namespace bpr::qt {
 		bool                                 ProviderResolvesThreads = false;
 		core::github_capabilities            Capabilities;
 		// [[BPR-0661]].
-		review_behaviour_dispatch                BehaviourDispatch;
-		application::review_behaviour_settings   Behaviour;
-		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 9> BehaviourOptions{ };
-		feedback_mark_preview*                   FeedbackMarksPreview = nullptr;
+		review_behaviour_dispatch                 BehaviourDispatch;
+		application::review_behaviour_settings    Behaviour;
+		QWidget*                                  BehaviourEditor = nullptr;
+		std::array<std::vector<QToolButton*>, 10> BehaviourOptions{ };
+		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
 		QCheckBox*                     LabelHelperSwitch    = nullptr;
@@ -2386,6 +2391,7 @@ namespace bpr::qt {
 		std::function<void(core::diagnostic_export_policy)> DiagnosticExporter;
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
+		std::function<void(const core::markdown_image_intent&)>                      MarkdownImageDispatch;
 		std::string                                                                  MarkdownAuthority;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;

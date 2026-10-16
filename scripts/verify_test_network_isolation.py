@@ -165,6 +165,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # share; both are registered uncontained and pass there.
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
+    # RFC-BPR-0084. The markdown-images course of the same setup-destination
+    # executable, registered uncontained like its siblings; not yet measured
+    # on the Windows station.
+    "application_markdown_images_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0084. The fixture's regeneration check runs the builder in a
+    # scratch root, as its github_recorded_fixture_contract sibling does.
+    "markdown_images_fixture_contract": "unmeasured (registered on macOS)",
+    "sqlite_markdown_image_disk_cache": "unmeasured (registered on macOS)",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private
@@ -1029,6 +1037,12 @@ MACOS_LOOPBACK_AUTHORITIES = {
     # value inside a response body the fixture itself serves.
     "native_https_device_authorization_fixture": 1,
     "github_device_authorization_refresh_contract": 1,
+    # RFC-BPR-0084. verify_native_https_images.py binds its one configured
+    # port at 127.0.0.1 as the CONNECT proxy and TLS origin for its fixture
+    # image authorities, refuses any other authority at CONNECT, and issues no
+    # outbound request; the camo, github.com and S3 hosts are names inside the
+    # tunnel only.
+    "native_https_image_fixture": 1,
     # BPR-0947, recorded by [[BPR-0854]]. verify_release_update_transport.py
     # binds its one configured port at 127.0.0.1 and is both the CONNECT proxy
     # and the TLS origin, under a fixture authority it generates. The executable

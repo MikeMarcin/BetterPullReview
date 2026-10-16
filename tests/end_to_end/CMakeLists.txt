@@ -3253,6 +3253,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_overview_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "overview-feedback-public-path:pass")
+# RFC-BPR-0084. markdown-images-v1's images resolved, fetched, decoded and
+# drawn in the description and in comments through the real composition.
+bpr_add_network_isolated_test(
+    NAME application_markdown_images_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --markdown-images
+)
+set_tests_properties(application_markdown_images_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "markdown-images-public-path:pass")
 # [[BPR-1089]]. overview-labels-v1, the pull request the owner's Overview look
 # opens: its counts in Open and All, Settings' chips in order, the ? count, and
 # the Label key, a Comments menu and Discuss's caption in the page's theme.
