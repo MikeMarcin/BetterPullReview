@@ -301,11 +301,23 @@ from the same core function Whole PR's left side takes: today the newest live
 epoch's `Branch base` (below), which follows the base when the base branch
 moves or a force push rebases the branch, and is never an imported epoch's.
 The line only presents it: when the base Whole PR uses changes, the line's
-base changes with it. The line draws it as a post at the track's start, labelled
-"Base", and spreads the updates over the rest, so one update sits at the far
-end. Whole PR puts the left handle on the post (drawn through it in the
-accent) and the right on the newest update, with the accent span between
-them; elsewhere the post is in the faint ink. It is the left handle's first
+base changes with it. The line draws it as a solid post in the ink at the
+track's start, labelled "Base", and spreads the updates over the rest, so one
+update sits at the far end. The handles are solid brackets, `[` on the left
+and `]` on the right, 15 pixels tall, their arms reaching round a filled span
+in the accent (v002; the owner, on v001's hollow handles: "I find these
+handles quite difficult to see"). The theme's accent is a selection colour
+that stands only 1.2:1 to 2.1:1 off the ground in the built-in themes, so the
+brackets and the span carry an outline: the accent moved towards the ink only
+as far as it must to stand 4.5:1 off the ground and 3:1 off the track. Each
+bracket stands on a ground-coloured halo, so neither the track nor a node
+runs into it, and a held update's node is its bracket's stem. Under the
+pointer, or while dragged, a bracket fills with its outline colour and the
+pointer shows sideways arrows; with the keyboard on the line, the handle the
+arrow keys move wears a ring. Whole PR puts the left bracket on the base and
+the right on the newest update. An update's own base sits 18 pixels before its
+node, so "Show this update alone" draws two brackets that never touch, and two
+handles on one place are drawn either side of it. It is the left handle's first
 stop for Left and Right and a drag; a click on it, its label or its menu's
 Compare from here compares from it, and the menu copies its commit; the
 right handle never takes it, and an older history page keeps it at the start.

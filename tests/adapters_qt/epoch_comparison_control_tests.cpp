@@ -1343,7 +1343,7 @@ namespace {
 			const auto inked  = [&](const double aX) {
 				auto best = std::numeric_limits<int>::max();
 				// Half-pixel steps over the handle's top rows and its side.
-				for (auto row = 4; row <= 10; ++row) {
+				for (auto row = 2; row <= 6; ++row) {
 					for (auto column = -3; column <= 3; ++column) {
 						const auto x     = aX + (0.5 * column);
 						const auto y     = 0.5 * row;
@@ -1354,9 +1354,11 @@ namespace {
 				return best;
 			};
 			const auto separation = std::abs(accent.red() - ground.red()) + std::abs(accent.green() - ground.green()) + std::abs(accent.blue() - ground.blue());
-			const auto leftEdge   = static_cast<double>(line->stop_position(*line->left_stop()).x()) - 3.5;
-			const auto rightEdge  = static_cast<double>(line->stop_position(*line->right_stop()).x()) + 3.5;
-			const auto emptyEdge  = static_cast<double>(line->node_centre(0U).x() + line->node_centre(1U).x()) / 2.0;
+			// [[BPR-1557]] v002: the handles are solid brackets whose stems,
+			// filled in the accent, stand on their anchors.
+			const auto leftEdge  = static_cast<double>(line->stop_position(*line->left_stop()).x()) - 1.0;
+			const auto rightEdge = static_cast<double>(line->stop_position(*line->right_stop()).x()) + 1.0;
+			const auto emptyEdge = static_cast<double>(line->node_centre(0U).x() + line->node_centre(1U).x()) / 2.0;
 			expect(separation >= 60 && inked(leftEdge) * 3 < separation && inked(rightEdge) * 3 < separation && inked(emptyEdge) * 3 >= separation * 2,
 				   theme + ": both handles are painted in the accent, which stands off the line's ground");
 
@@ -1513,11 +1515,42 @@ namespace {
 			const auto baseAt     = line->stop_position(*line->left_stop());
 			const auto rightAt    = line->stop_position(*line->right_stop());
 			expect(separation >= 60 && nearest(image, baseAt.x(), baseAt.y(), accent) * 3 < separation
-					   && nearest(image, baseAt.x() - 3.5, 4.0, accent) * 3 < separation
-					   && nearest(image, rightAt.x() + 3.5, 4.0, accent) * 3 < separation
+					   && nearest(image, rightAt.x(), rightAt.y(), accent) * 3 < separation
 					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, baseAt.y(), accent) * 3 < separation
-					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 3.0, accent) * 3 >= separation * 2,
-				   theme + ": the left handle holds the base's post in the accent, and the accent span runs from it to the newest update");
+					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 1.5, accent) * 3 >= separation * 2,
+				   theme + ": the left handle's stem stands on the base in the accent, and the accent span runs from it to the newest update");
+
+			// [[BPR-1557]] v002. The owner, on v001: "I find these handles quite
+			// difficult to see." The theme's accent stands as little as 1.2:1
+			// off the ground, so each handle and the span carry an outline that
+			// stands at least 4.5:1 off the ground and 3:1 off the track, drawn
+			// on the brackets' outer sides; a bracket's arms reach towards the
+			// other handle, `[` on the left and `]` on the right.
+			const auto outline = line->handle_outline();
+			const auto rule    = line->palette().color(QPalette::Active, QPalette::Mid);
+			const auto ink     = line->palette().color(QPalette::Active, QPalette::WindowText);
+			const auto edged   = [&](const QImage& aImage, const double aX, const double aY) {
+				return nearest(aImage, aX, aY, outline) * 3 < std::max(distance(outline, ground), 1);
+			};
+			expect(qt::epoch_line::contrast_ratio(outline, ground) >= 4.5 && qt::epoch_line::contrast_ratio(outline, rule) >= 3.0
+					   && edged(image, baseAt.x() - 2.5, 8.0) && edged(image, rightAt.x() + 2.5, 8.0)
+					   && nearest(image, baseAt.x() + 5.0, 2.0, accent) * 3 < separation && nearest(image, rightAt.x() - 5.0, 2.0, accent) * 3 < separation
+					   && nearest(image, rightAt.x() + 6.0, 2.0, accent) * 3 >= separation * 2
+					   && edged(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 5.5),
+				   theme + ": the brackets and the span are outlined at 4.5:1 off the ground and 3:1 off the track, and their arms point inwards");
+			expect(rightAt.x() - baseAt.x() > 100, theme + ": the whole PR's two handles stand far apart, never stacked on one node");
+
+			// Hover: a handle under the pointer fills with its outline colour
+			// and the pointer says it moves sideways; leaving clears it.
+			auto hover = QMouseEvent{ QEvent::MouseMove, QPointF{ rightAt }, QPointF{ line->mapToGlobal(rightAt) }, Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(line, &hover);
+			const auto hovered = line->grab().toImage();
+			expect(line->hovered_side() == core::comparison_side::right && line->cursor().shape() == Qt::SizeHorCursor
+					   && edged(hovered, rightAt.x(), rightAt.y()) && nearest(hovered, rightAt.x(), rightAt.y(), accent) * 3 >= separation,
+				   theme + ": a hovered handle fills with its outline colour under a sideways pointer");
+			auto away = QEvent{ QEvent::Leave };
+			QApplication::sendEvent(line, &away);
+			expect(!line->hovered_side() && line->cursor().shape() != Qt::SizeHorCursor, theme + ": leaving the line clears the hover");
 
 			// Drag the left handle off the base onto the oldest update: an
 			// interdiff from that update to the head.
@@ -1541,6 +1574,8 @@ namespace {
 			drag(rightAt, baseAt);
 			expect(chosen(core::comparison_side::right, anchor(first, core::comparison_anchor_kind::epoch_head).Identity),
 				   theme + ": the right handle dragged to the line's start stops on the oldest update, never the base");
+			expect(line->hovered_side() != core::comparison_side::right, theme + ": a handle released away from the pointer is no longer hovered");
+			QApplication::sendEvent(line, &away);
 
 			// The core's pair: the oldest update to the newest. The post is
 			// back in the faint ink and the keys reach the base again.
@@ -1551,8 +1586,11 @@ namespace {
 			QApplication::processEvents();
 			const auto apart = line->grab().toImage();
 			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 0U }
-					   && nearest(apart, baseAt.x(), baseAt.y(), accent) * 3 >= separation && nearest(apart, baseAt.x(), baseAt.y(), faint) * 3 < std::max(distance(faint, ground), 1),
-				   theme + ": with the left handle on an update the base's post is drawn in the faint ink, not the accent");
+					   && nearest(apart, baseAt.x(), baseAt.y(), ink) * 3 < distance(ink, ground) && qt::epoch_line::contrast_ratio(ink, ground) >= 4.5
+					   && nearest(apart, line->node_centre(0U).x() + 5.0, 2.0, accent) * 3 < separation
+					   && nearest(apart, line->node_centre(0U).x() - 6.0, 2.0, accent) * 3 >= separation * 2,
+				   theme + ": with the left handle on an update the base is a solid post in the ink, 4.5:1 off the ground, and the left bracket's arms point right");
+			static_cast<void>(faint);
 			line->setFocus(Qt::OtherFocusReason);
 			intents.clear();
 			auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
@@ -1563,6 +1601,17 @@ namespace {
 			QApplication::sendEvent(line, &shiftLeft);
 			expect(chosen(core::comparison_side::right, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
 				   theme + ": Shift+Left steps the right handle and never onto the base");
+			// Focus: the handle the arrow keys move (now the right one) wears a
+			// ring in the outline colour beside its outer side.
+			const auto rightNow = line->stop_position(*line->right_stop());
+			const auto focused  = line->grab().toImage();
+			line->clearFocus();
+			QApplication::processEvents();
+			const auto unfocused = line->grab().toImage();
+			expect(edged(focused, rightNow.x() + 6.5, 9.0) && !edged(unfocused, rightNow.x() + 6.5, 9.0),
+				   theme + ": with the keyboard on the line the handle it moves wears a visible ring");
+			line->setFocus(Qt::OtherFocusReason);
+			QApplication::processEvents();
 
 			// A click on the post compares from it; Cmd-click does nothing.
 			const auto click = [line](const QPoint& aAt, const Qt::KeyboardModifiers aModifiers) {
@@ -1593,6 +1642,31 @@ namespace {
 			expect(QApplication::clipboard()->text() == QString(40, QLatin1Char{ 'c' }), theme + ": Copy base commit copies its full commit");
 			menu->close();
 			delete menu;
+
+			// The stacked handles can't come back: one update alone (its own base
+			// and head) keeps the brackets apart, and two handles on one place
+			// stand either side of it.
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(second, core::comparison_anchor_kind::epoch_base).Identity, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+				{ .Left = anchor(second, core::comparison_anchor_kind::epoch_base), .Right = anchor(second, core::comparison_anchor_kind::epoch_head) },
+				true, core::epoch_reason_code::none, prBase));
+			QApplication::processEvents();
+			const auto aloneLeft  = line->stop_position(*line->left_stop());
+			const auto aloneRight = line->stop_position(*line->right_stop());
+			const auto alone      = line->grab().toImage();
+			expect(aloneRight.x() - aloneLeft.x() >= 18 && nearest(alone, aloneLeft.x(), 8.0, accent) * 3 < separation && nearest(alone, aloneRight.x(), 8.0, accent) * 3 < separation
+					   && nearest(alone, (aloneLeft.x() + aloneRight.x()) / 2.0, 1.5, accent) * 3 >= separation,
+				   theme + ": one update alone draws two separate brackets, not a stack");
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(second, core::comparison_anchor_kind::epoch_head).Identity, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+				{ .Left = anchor(second, core::comparison_anchor_kind::epoch_head), .Right = anchor(second, core::comparison_anchor_kind::epoch_head) },
+				true, core::epoch_reason_code::none, prBase));
+			QApplication::processEvents();
+			const auto same     = line->stop_position(*line->left_stop());
+			const auto coincide = line->grab().toImage();
+			expect(line->right_stop() && line->stop_position(*line->right_stop()) == same && nearest(coincide, same.x() - 4.0, 8.0, accent) * 3 < separation
+					   && nearest(coincide, same.x() + 4.0, 8.0, accent) * 3 < separation,
+				   theme + ": an identical pair draws both brackets, either side of the update");
 
 			// Alt+1 asks the core for the whole PR, which puts the left handle
 			// back on the base.

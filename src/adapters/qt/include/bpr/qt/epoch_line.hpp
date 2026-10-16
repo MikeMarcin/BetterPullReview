@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+class QColor;
 class QContextMenuEvent;
 class QEvent;
 class QFocusEvent;
@@ -108,6 +109,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1557]]. What the base says under its post, and its tooltip.
 		[[nodiscard]] auto base_label() const -> QString;
 		[[nodiscard]] auto base_tooltip() const -> QString;
+		/// \brief [[BPR-1557]] v002. The handles' and span's outline: the
+		/// accent moved towards the ink until it stands 4.5:1 off the ground
+		/// and 3:1 off the track.
+		[[nodiscard]] auto handle_outline() const -> QColor;
+		/// \brief WCAG 2 contrast ratio of two colours.
+		[[nodiscard]] static auto contrast_ratio(const QColor& aOne, const QColor& aOther) -> double;
+		/// \brief The handle under the pointer, if any.
+		[[nodiscard]] auto hovered_side() const noexcept -> std::optional<core::comparison_side>;
 		/// \brief Adopts the compared anchors the core published.
 		void set_selection(
 			std::optional<core::comparison_anchor_identity> aLeft,
@@ -158,6 +167,7 @@ namespace bpr::qt {
 		void mouseReleaseEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void contextMenuEvent(QContextMenuEvent* aEvent) override;
+		void leaveEvent(QEvent* aEvent) override;
 		void focusInEvent(QFocusEvent* aEvent) override;
 		void focusOutEvent(QFocusEvent* aEvent) override;
 
@@ -212,6 +222,7 @@ namespace bpr::qt {
 		epoch_line_dispatch                                                   Dispatch;
 		std::function<void(core::comparison_side, core::epoch_occurrence_id)> OccurrenceDispatch;
 		std::optional<core::comparison_side>                                  Dragging;
+		std::optional<core::comparison_side>                                  Hovered;
 		std::optional<epoch_line_stop>                                        DragStop;
 		core::comparison_side                                                 ActiveSide = core::comparison_side::left;
 		bool                                                                  Offered    = false;

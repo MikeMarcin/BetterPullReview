@@ -153,7 +153,7 @@ storage behaviour changes: the comparison still compares exactly the anchors
 it did. Whole PR's comparison basis (base tip or merge base) is
 [[BPR-0944]]'s and unchanged here.
 
-## Attended review v001 (pending)
+## Attended review v001
 
 - Session `d62ac57667ce277091d8684de8c34f0b`, fresh state
   `/Users/jaeger/.mask/bpr-1557-base-anchor-v001-20261016/attended-review`,
@@ -171,6 +171,37 @@ it did. Whole PR's comparison basis (base tip or merge base) is
 - Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v001.jaffeggk/launch.py`
   (`--next-push` for the second update).
 
-Next: read the decision (`status --after 3`). Accept: merge the branch with
-main, reseal the round-trip composition digest on the merged tree, rerun the
-focused rows and finish. Reject: its note shapes v002.
+## Owner verdict on v001, 2026-10-16
+
+Session `d62ac57667ce277091d8684de8c34f0b`, handed back at event 5; cursor 3
+to 5 read. `BPR-1557-base-anchor-v001` (fingerprint `bc56762e0c12…`),
+criterion `BPR-1557:owner`: **Reject** (decision
+`60120f22-bc68-467a-8aa0-08028b69c28b`, 19:52:15Z). Note, verbatim: "I find
+these handles quite difficult to see."
+
+Diagnosis: the line painted its handles and span in the palette's Highlight,
+a selection colour made to carry text. Measured against the line's ground it
+stands 2.11:1 (Light, `#7fb0e8` on `#f6f7f9`), 2.06:1 (Dark), 1.23:1 (High
+Contrast Light, `#ffe877` on white) and 1.59:1 (High Contrast Dark); the v001
+handles were 7x13 hollow outlines in that colour.
+
+## v002: brackets that stand off the line
+
+- Solid brackets, `[` on the left and `]` on the right, 15 pixels tall with a
+  5-pixel stem and 5-pixel arms reaching round the span, in the accent with
+  an outline: the accent moved towards the ink only as far as it must to
+  stand 4.5:1 off the ground and 3:1 off the track (7.2:1 and 3.1:1 in Light).
+  Each sits on a ground-coloured halo; a held node is its bracket's stem.
+- A filled 6-pixel span in the accent with outlined edges, on the half pixel
+  so the edges are crisp at every scale.
+- The base: a solid 4x13 post in the ink (13.8:1 to 21:1 off the ground).
+- Hover fills a bracket with its outline colour under a sideways-arrows
+  pointer; the hover clears on leaving and when a drag ends away from it.
+  With the keyboard on the line the handle the arrows move wears a ring.
+- No stack: Whole PR's handles are the line's two ends; an update's own base
+  sits 18 pixels before its node, so Show this update alone draws two
+  brackets that never touch; an identical pair is drawn either side of its
+  update.
+- Behaviour, keys, menus, accessibility and wording are v001's; the label
+  stays "Base" and the tooltip neutral until BPR-1560 moves the base to the
+  merge base through `pull_request_base`.
