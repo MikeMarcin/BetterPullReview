@@ -314,28 +314,28 @@ namespace {
 	void test_unknown_notices()
 	{
 		for (std::size_t index = 0U; index < review_submission_unknown_reason_count; ++index) {
-			const auto reason              = static_cast<review_submission_unknown_reason>(index);
-			auto       diagnosis           = review_submission_unknown_diagnosis{ .Reason = reason };
-			diagnosis.PostAnswer           = review_submission_post_answer::error_status;
-			diagnosis.PostStatusClass      = 5U;
-			diagnosis.HttpStatusClass      = 4U;
-			diagnosis.CommentsExpected     = 3U;
-			diagnosis.CommentsFound        = 3U;
-			diagnosis.CommentsMatched      = 2U;
-			diagnosis.CandidateReviews     = 1U;
-			diagnosis.PagesRead            = 2U;
-			const auto line                = notice(diagnosis);
-			const auto counted             = reason == review_submission_unknown_reason::comments_mismatch;
-			const auto classed             = reason == review_submission_unknown_reason::http_status;
+			const auto reason          = static_cast<review_submission_unknown_reason>(index);
+			auto       diagnosis       = review_submission_unknown_diagnosis{ .Reason = reason };
+			diagnosis.PostAnswer       = review_submission_post_answer::error_status;
+			diagnosis.PostStatusClass  = 5U;
+			diagnosis.HttpStatusClass  = 4U;
+			diagnosis.CommentsExpected = 3U;
+			diagnosis.CommentsFound    = 3U;
+			diagnosis.CommentsMatched  = 2U;
+			diagnosis.CandidateReviews = 1U;
+			diagnosis.PagesRead        = 2U;
+			const auto line            = notice(diagnosis);
+			const auto counted         = reason == review_submission_unknown_reason::comments_mismatch;
+			const auto classed         = reason == review_submission_unknown_reason::http_status;
 			expect(line.Reason == reason && (line.Count != review_submission_unknown_count::none) == counted && (line.StatusClass != 0U) == classed,
 				   "each reason keeps its line and only its own numbers");
 		}
-		auto mismatch             = review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::comments_mismatch, .CommentsExpected = 3U, .CommentsFound = 3U, .CommentsMatched = 2U };
-		auto line                 = notice(mismatch);
+		auto mismatch = review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::comments_mismatch, .CommentsExpected = 3U, .CommentsFound = 3U, .CommentsMatched = 2U };
+		auto line     = notice(mismatch);
 		expect(line.Count == review_submission_unknown_count::matched_of_carried && line.Value == 2U && line.Of == 3U, "as many held as carried: how many matched");
-		mismatch.CommentsFound    = 2U;
-		mismatch.CommentsMatched  = 0U;
-		line                      = notice(mismatch);
+		mismatch.CommentsFound   = 2U;
+		mismatch.CommentsMatched = 0U;
+		line                     = notice(mismatch);
 		expect(line.Count == review_submission_unknown_count::held_of_carried && line.Value == 2U && line.Of == 3U, "another number held: how many it holds");
 		mismatch.CommentsExpected = 0U;
 		mismatch.CommentsFound    = 0U;

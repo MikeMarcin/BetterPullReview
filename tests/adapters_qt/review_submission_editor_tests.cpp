@@ -15,9 +15,9 @@
 #include <QTextEdit>
 #include <QToolButton>
 #include <cstdlib>
+#include <iostream>
 #include <set>
 #include <string>
-#include <iostream>
 
 namespace {
 	using namespace bpr;
@@ -435,7 +435,7 @@ auto main(int argc, char** argv) -> int
 		editor.present(unknown);
 		QApplication::processEvents();
 		expect(editor.unknown_reason_label()->isHidden() && editor.status_label()->accessibleDescription().isEmpty(), "with no reason there is no reason line");
-		auto lines         = std::set<QString>{ };
+		auto       lines    = std::set<QString>{ };
 		const auto diagnose = [](const core::review_submission_unknown_reason aReason) {
 			auto value             = core::review_submission_unknown_diagnosis{ .Reason = aReason };
 			value.CommentsExpected = 3U;
@@ -450,8 +450,8 @@ auto main(int argc, char** argv) -> int
 			unknown.Unknown   = core::notice(diagnose(reason));
 			editor.present(unknown);
 			QApplication::processEvents();
-			const auto  text  = editor.unknown_reason_label()->text();
-			const auto  where = std::string{ " (" } + std::string{ core::name(reason) } + ")";
+			const auto text  = editor.unknown_reason_label()->text();
+			const auto where = std::string{ " (" } + std::string{ core::name(reason) } + ")";
 			expect(!editor.unknown_reason_label()->isHidden() && text == qt::review_submission_unknown_text(*unknown.Unknown) && !text.isEmpty() && text.endsWith(QLatin1Char{ '.' }) && text.size() <= 170,
 				   ("each reason shows its own short line" + where).c_str());
 			expect(editor.status_label()->accessibleDescription() == text, ("and the status's description says it" + where).c_str());
@@ -477,13 +477,13 @@ auto main(int argc, char** argv) -> int
 		}
 		expect(lines.size() == core::review_submission_unknown_reason_count, "all twenty reasons have a line");
 		// Counts only where they help, singular and plural.
-		auto counted             = diagnose(core::review_submission_unknown_reason::comments_mismatch);
-		unknown.Unknown          = core::notice(counted);
+		auto counted    = diagnose(core::review_submission_unknown_reason::comments_mismatch);
+		unknown.Unknown = core::notice(counted);
 		editor.present(unknown);
 		expect(editor.unknown_reason_label()->text().contains(QStringLiteral("only 2 of 3 comments matched")), "a mismatch says how many of the review's comments matched");
-		counted.CommentsFound    = 2U;
-		counted.CommentsMatched  = 0U;
-		unknown.Unknown          = core::notice(counted);
+		counted.CommentsFound   = 2U;
+		counted.CommentsMatched = 0U;
+		unknown.Unknown         = core::notice(counted);
 		editor.present(unknown);
 		expect(editor.unknown_reason_label()->text().contains(QStringLiteral("it holds 2 comments and this one has 3 comments")), "or how many it holds against how many this one has");
 		counted.CommentsExpected = 1U;

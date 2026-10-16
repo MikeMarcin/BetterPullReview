@@ -181,9 +181,9 @@ namespace bpr::app {
 		}
 		DraftBinding = Current->Binding;
 		Unknown.reset();
-		Draft        = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ NextDraft++ },
-													  .Target        = DraftBinding->Target.Semantic,
-													  .ActingAccount = DraftBinding->ActingIdentity.Account };
+		Draft = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ NextDraft++ },
+											   .Target        = DraftBinding->Target.Semantic,
+											   .ActingAccount = DraftBinding->ActingIdentity.Account };
 		Pending.reset();
 		Status = new_draft_status();
 		apply_review_comments();
@@ -291,10 +291,10 @@ namespace bpr::app {
 		NextDraft            = std::max(NextDraft, proposal.Draft.value() == std::numeric_limits<std::uint64_t>::max() ? proposal.Draft.value() : proposal.Draft.value() + 1U);
 		// [[BPR-1541]]. Its record says why it was left unknown, until the
 		// next Check status replaces it.
-		const auto kept      = KeptUnknown.find(aRequest.IdempotencyKey);
-		Unknown              = kept != KeptUnknown.end() ? std::optional{ kept->second } : std::nullopt;
-		Pending              = std::move(aRequest);
-		Status               = QStringLiteral("An unfinished review was restored. Check status before starting another review.");
+		const auto kept = KeptUnknown.find(aRequest.IdempotencyKey);
+		Unknown         = kept != KeptUnknown.end() ? std::optional{ kept->second } : std::nullopt;
+		Pending         = std::move(aRequest);
+		Status          = QStringLiteral("An unfinished review was restored. Check status before starting another review.");
 	}
 
 	auto review_submission_workflow::decided_controls() const -> core::review_submission_controls

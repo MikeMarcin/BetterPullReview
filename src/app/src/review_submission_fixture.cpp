@@ -601,6 +601,8 @@ namespace bpr::app::detail {
 			auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.mark_possibly_transmitted(aKey, aFingerprint); }
 			auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.resolve(aKey, aFingerprint, aReceipt); }
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.withdraw(aKey, aFingerprint); }
+			/// [[BPR-1540]]. Why an attempt is still unknown, kept in the same store.
+			auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_unknown(aKey, aFingerprint, aDiagnosis); }
 
 		private:
 			application::review_submission_recovery_port& Store;

@@ -29867,7 +29867,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// for a server error.
 		const auto unknownLine        = [](const core::review_submission_unknown_reason aReason) { return qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = aReason }); };
 		const auto unknownServerError = qt::review_submission_unknown_text(core::review_submission_unknown_notice{ .Reason = core::review_submission_unknown_reason::http_status, .StatusClass = 5U });
-		const auto     words = std::array{
+		const auto words              = std::array{
 			QStringLiteral("question: Where does this value come from? (BPR-1345 first)"),
 			QStringLiteral("nit: these two lines could be one. (BPR-1345 range)"),
 			QStringLiteral("BPR-1345: this one goes on its own."),
@@ -30339,7 +30339,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
 			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain || aCourse == course::kept ? state_type::phase::awaiting_held
-																														   : state_type::phase::awaiting_submitted;
+																																					  : state_type::phase::awaiting_submitted;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_submitted: {
@@ -30557,7 +30557,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1541]]. The list could not be reached: the page says so
 			// under the status, as part of its description, naming nothing.
 			{
-				const auto line           = summary->unknown_reason_label()->text();
+				const auto line            = summary->unknown_reason_label()->text();
 				probe.Evidence.ReasonShown = !summary->unknown_reason_label()->isHidden() && line == unknownLine(core::review_submission_unknown_reason::network)
 					&& summary->status_label()->accessibleDescription() == line && !line.contains(QStringLiteral("conventional")) && !line.contains(QStringLiteral("renderer"));
 				render(QStringLiteral("unknown-reason"), summary);
@@ -30616,10 +30616,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("restored-reason-not-the-kept-one");
 			}
 			{
-				const auto lock          = std::scoped_lock{ server.Mutex };
-				server.HideReviewReads   = true;
-				server.ReviewReadStatus  = 503;
-				server.StallReviewReads  = false;
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads  = true;
+				server.ReviewReadStatus = 503;
+				server.StallReviewReads = false;
 			}
 			server.ReadGate.notify_all();
 			probe.Waited = 0U;

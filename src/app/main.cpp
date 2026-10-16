@@ -232,6 +232,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-open-on-github" },
 		bpr::app::command_line_option{ .Name = "attended-open-settings" },
 		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5432,6 +5433,7 @@ namespace {
 	// (`--attended-open-pull-request`) it stops once the pull request is open.
 	void schedule_attended_preflight_look(bpr::app::github_application& aApplication, std::string aLook);
 	void schedule_attended_workshop_look(bpr::app::github_application& aApplication);
+	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5512,6 +5514,8 @@ namespace {
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
 					if (look == "workshop") {
 						schedule_attended_workshop_look(aApplication);
+					} else if (look == "unknown-review") {
+						schedule_attended_unknown_review_look(aApplication);
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
@@ -5633,6 +5637,36 @@ namespace {
 			window.settings_action()->trigger();
 			QTextStream{ stdout } << (window.settings()->isVisible() ? "ATTENDED_SETTINGS_SHOWN" : "ATTENDED_SETTINGS_FAILED") << '\n';
 		});
+	}
+
+	// [[BPR-1541]]. `--attended-unknown-review-look`: on
+	// conventional-comments-v1, once the file is shown, the start-a-review
+	// course's `kept` path runs in the open window: a review with one comment
+	// is submitted as Comment, its answer and the review list are lost, and
+	// the window stays on the held review, whose page says why its status is
+	// unknown. Nothing reaches GitHub; one line says where it got.
+	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(aApplication, bpr::app::detail::start_review_course::kept);
+			if (result == bpr::app::detail::start_review_probe_result::pending) {
+				return;
+			}
+			timer->stop();
+			timer->deleteLater();
+			if (result == bpr::app::detail::start_review_probe_result::passed) {
+				QTextStream{ stdout } << "ATTENDED_UNKNOWN_REVIEW_SHOWN\n";
+			} else {
+				QTextStream{ stdout } << "ATTENDED_UNKNOWN_REVIEW_FAILED:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::start_review_diagnostic(aApplication)) << '\n';
+			}
+			QTextStream{ stdout }.flush();
+		});
+		timer->start();
 	}
 
 	// [[BPR-1084]] and [[BPR-1085]]. `--attended-preflight-look`: on
@@ -9582,6 +9616,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
 		// the file, a seeded suggestion draft and, for `review`, the preflight.
 		const auto attendedPreflightLook = launch.value("--attended-preflight-look");
+		// [[BPR-1541]]. The held review that says why it is unknown.
+		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
 		const auto attendedReadState = launch.has("--attended-read-state");
 		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
@@ -9645,6 +9682,7 @@ auto main(int argc, char** argv) -> int
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
 					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
 			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))
+			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -10051,6 +10089,9 @@ auto main(int argc, char** argv) -> int
 					auto look = std::optional<std::string>{ };
 					if (attendedWorkshopAgent.has_value()) {
 						look = std::string{ "workshop" };
+					}
+					if (attendedUnknownReviewLook) {
+						look = std::string{ "unknown-review" };
 					}
 					if (attendedPreflightLook.has_value()) {
 						look = std::string{ *attendedPreflightLook };

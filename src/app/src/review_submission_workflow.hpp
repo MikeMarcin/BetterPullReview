@@ -125,7 +125,7 @@ namespace bpr::app {
 		/// [[BPR-1541]]. Why the shown submission is still unknown, from its
 		/// last Check status or, after a restart, its record; and what each
 		/// discovered attempt's record kept.
-		std::optional<core::review_submission_unknown_diagnosis>          Unknown;
+		std::optional<core::review_submission_unknown_diagnosis>         Unknown;
 		std::map<std::string, core::review_submission_unknown_diagnosis> KeptUnknown;
 	};
 	/// Tour composition reuses the summary host, exact grants and journal session.
