@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0fb8ea24c61b80e0e4979b658014a35446a2d3c2d7160abe036aecec8efc4921"
+		"b6fcb768f3f5b12cb5a686ab186892d8df602ab7aea26b07a7bacb16d3f9347d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "acca523561d088232bf128e1a768a5e5063a28c233e06fa111327da4dc3469ed"
+        "07250c9d0bb9374341ade6408802c798f6f695f36127be9bce8f978de7522865"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2577,3 +2577,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
+
+# [[BPR-1565]] reseal over main at 1e5c35b7f (the last matching pins). The
+# owner removed the comment editor's typed `:xx:` label codes on 2026-10-16.
+# github_application.cpp, in its tests-on label-authoring course only: the
+# `:qu:` phase now types `:qu: ` and the subject with the label helper on,
+# checks the text stays as typed with no label and no control edit, takes
+# the code out with one selection and Backspace, then goes on to the chip as
+# before; one comment explains why the course still turns the helper on.
+# main.cpp prints the renamed evidence bit (CodeStaysLiteral, in the same
+# place) and github_application_fixture_access.hpp names it. Test builds
+# only: no grant, target, provider, credential, transport, GitHub write,
+# mutation or publication path changes; the production mutation-branch pin
+# is unchanged; the full application and production-manifest digests are
+# refreshed. Self-review on BPR-1565.
