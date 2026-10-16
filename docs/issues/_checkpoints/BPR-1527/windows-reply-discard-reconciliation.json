@@ -1,0 +1,48 @@
+{
+  "schema": "bpr.reply-discard-reconciliation.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "candidate": "df589f417c372531c39adb3367f4bb5e98fb0da5",
+  "baseline": "7aaf76a30e3fb449fded1d4455a2854522a303ee",
+  "actual_failure": "WSL R51 existing reply-draft deleted-thread subcourse fails7.45s; R52 original/traced/restored normal repeats all fail with evidence1111101, saved draft drafting and kept note present after confirmation.",
+  "trace": "R52 actual compiled host trace: visible/enabled confirmation accepts; exact draft1 revision2 core discard command admitted while PrivateDraftsReady0/private binding0. No PrivateReview mutation is posted. SharedDrafts::apply deliberately refuses durable_required; the fallback loses the action.",
+  "restoration": "R52 Ready/exit0; original app/private-workflow source bytes restored; exact objects and app executable invalidated/recompiled/relinked, object times checked, temporary markers absent; clean7aaf. Test failures remain failures.",
+  "repair": "Retain exact core-admitted command/CAS with shared owner and consumer, one pending intent per bounded owner draft; later explicit same-draft action replaces only that pending intent. Restore completion checks exact current owner/consumer/draft revision/scope before posting; scope replacement clears pending commands. No recomputed revision, blind cross-scope retry or remote publication.",
+  "regression_course": "Existing deleted-thread course holds private effect lane across real confirmation, verifies storage has not yet changed, releases it and retains original durable discard/zero-send evidence and budgets. QScopeGuard/failure cleanup releases the owned hold.",
+  "native_format": "Ubuntu26.04 user-space mirror, repository formatter22.1.8 checks1file; actual print-only CMake digests recorded, that mode verifies nothing.",
+  "pins": {
+    "full_application": "e9ba51661ca432bfa72bde3016dad69084a042fd755dd7f4444c74bf0e5d2ad3",
+    "production_app_manifest": "b1a9cabd301664576ba0df3887e719c6c7cd5196a9c591a6527a8ec8229fae64",
+    "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
+  },
+  "status": "R53 held-course/control/restoration, R54WSL22normal/static and R54b strict repair pass. Windows R55all9normal169s pass. Later Mac affected checks await explicit CPU release; InProgress, no release approval.",
+  "r53": {
+    "candidate": "df589f417c372531c39adb3367f4bb5e98fb0da5",
+    "state": "Ready/exit0; source clean/exact, mandatory forced restoration verified.",
+    "normal": "Original registered held-storage reply8.55s and pinned roundtrip1.90s pass.",
+    "negative": "Only product retained-command insertion removed; actual compiled/runtime BPR1527_REPLY_QUEUE_NEGATIVE witness, unchanged held reply fails7.43s at original phase9/evidence1111101. Expected exit8.",
+    "restoration": "Exact source hash restored; app object/exe removed/recompiled/relinked, source/object times verified, temporary marker absent; clean df589.",
+    "restored_normal": "Held reply8.65s and pinned roundtrip1.95s pass,2/2total10.62s.",
+    "limits": "Focused WSL engineering; no Windows acceptance of df589 or Mac/native release approval."
+  },
+  "current_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "r55": {
+    "candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+    "result": "Ready/exit0, stagecomplete, actualSource equals candidate, clean source. Interactive Limited mikem/session1.",
+    "provenance": "App/submission exact objects invalidated/touched/recompiled;5actual producers removed/relinked. Source/object times verified; temporary reply markers absent and held-probe marker present. Actual9course manifest retained.",
+    "seconds": {
+      "workshop": 9.31,
+      "agent_invocation": 25.61,
+      "roundtrip_pinned": 8.56,
+      "threaded_reply": 14.17,
+      "label_authoring": 16.19,
+      "refresh_pick": 13.03,
+      "reply_draft_held": 41.24,
+      "submission100": 24.94,
+      "cold_tour_both_origins": 15.87
+    },
+    "normal_total_seconds": 169.0,
+    "limits": "Focused Windows engineering, not full705-test release/package/trust approval. Earlier Qt/per-scale evidence binds unchanged components."
+  }
+}

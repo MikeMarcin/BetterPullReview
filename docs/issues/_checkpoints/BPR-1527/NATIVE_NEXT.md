@@ -1,126 +1,50 @@
-# BPR-1527 native continuation
+# BPR-1527 handoff continuation
 
-Mandate `authorized-release-continuation-final-gates-r3`; same sole implementer.
-Read [CURRENT.md](CURRENT.md) before dispatch. Current source candidate is
-`6747ca029b48c231539cb36360bcfc3e26173609`; the checkpoint upkeep commit
-changes documentation only. Intermediate `0f6d288b1` was falsified and superseded.
-BPR-1525/1526 remain Done; all BPR-1527 criteria/exits remain bound.
+Same owner/mandate `authorized-release-continuation-final-gates-r3`; twelve
+criteria and eleven exits. Read [CURRENT](CURRENT.md) and
+[current acceptance](native-current-acceptance-r67-r69.json) first.
 
-## Human-selected release boundary
+All owned native commands are complete and quiescent. Windows35, WSL12 and the
+single optimized Release cache-bytes course pass on exact aa6294c50; the latter
+passes270.16s at unchanged3420s. Preserve the original configured Debug skip.
+Canonical acceptance and docs-only finish hand back the branch for coordinator
+integration. Do not repeat completed courses absent a changed surface or actual
+failure. Mac CPU already returned to root; the serialized Windows/WSL slot is now
+released to the coordinator. No human criterion or review server is pending.
 
-0.2.1 is macOS-only. Windows fixes continue for 0.2.2; Windows/Ubuntu 0.2.1
-production is canceled/deferred. The prior common-source three-platform 0.2.1
-coupling is superseded by release-scope-amendment.json. BPR-1527 remains In
-Progress with all behavioral/timing and affected portability requirements.
-Mac focused acceptance may integrate now; full exact-final-source Mac release
-gate, packages and all security/legal/trust obligations remain root-owned.
+After quiescent engineering handoff, root owns Windows 0.2.2release preparation in
+its isolated publisher and the existing native producer. Bind final version,
+notes/source revision, binary, corresponding-source asset, SPDX and installed
+notices using publish-release. Our current native binaries still say0.2.1 and
+are engineering evidence only. Version/artifact edits require appropriate affected
+checks; no claim of uninterrupted705pass at a future revision follows from the
+source-scoped outage inventory and current affected35. Keep the configured Debug
+cache skip and its separately observed optimized supplement distinct.
 
-## Resource boundary
+Actual native context: Windows mikem Interactive Limited/session3,
+Visual Studio18 Community MSVC environment via
+`C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build/vcvars64.bat`,
+CMake `C:/Program Files/CMake/bin/cmake.exe`, Qt6.11.2 from the owned build cache,
+Python `C:/Program Files/Python314/python.exe`, preset`windows-dev`, Debug and
+single-target Release. External evidence base is
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease`.
+Use the preserved working interactive `-Command` scheduled-task wrapper; SSH
+session0 only dispatches/observes. Inspect actual task/receipt/process state before
+any run. Never duplicate a gate or overlap native Windows and WSL workloads.
 
-Mac final producer at `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`
-remains root-owned and is never modified or rebound by this implementer. After
-this docs handback root owns Mac CPU exclusively. The owned branch retains all
-Windows follow-up changes; project version remains 0.2.1 in this docs slice.
-Windows/WSL remain coordinator-owned while the final Windows suite runs. No
-remote process or producer mutation begins until explicit PC lease release.
-The separate `C:/code/git/BetterPullReview` station never belongs to this task.
-No auth, signout, reboot, signing or publication is authorized.
+WSL Ubuntu26.04 native source `/home/mmarcin/bpr-v021`, preset`dev`, existing
+process-local `/home/mmarcin/.local/bin` tools; configured CMake4.4.2 resides in
+`/home/mmarcin/.local/bpr-toolchain/cmake-4.4.2-linux-x86_64/bin`. Use Windows
+cwd`C:/Windows` and WSL`--cd /home/mmarcin` for permitted inventories, preserving
+actual exit codes. This proves affected portability, not desktop/vault acceptance.
 
-## First Windows 0.2.2 diagnostic after PC slot release
+Copy-Item preserves timestamps. If source is copied/restored, touch it, invalidate
+its exact owned object and every selected actual executable, rebuild/relink,
+check object>=source times and verify diagnostic markers absent. Actual manifest
+producer identity is required; a suite name or buildexit0 alone is insufficient.
 
-Preserve the failed producer's actual clean source/branch/history and complete
-failure artifacts before adopting the intentional candidate into the owned
-`C:/Users/mikem/bpr-v021` repair checkout. Inspect its real current state rather
-than assuming an old branch. Import the exact committed candidate on a fresh
-owned repair branch, leaving original d52 history and failed build evidence.
-Use ordinary developer tools/environment; do not edit a full-gate producer while
-its task/tree is active. Bind source, commands, task/PIDs and explicit receipt.
-
-The known completed launcher pattern is retained at
-`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1525-native-focused-r32.ps1`,
-task `BPR-1525-focused-r32`: Interactive Limited user mikem, session1; SSHsession0
-only dispatches/observes. Its MSVC vcvars64 setup is the ordinary developer setup.
-That wrapper guards old fb2e72778; do not dispatch it unchanged as new acceptance.
-Create an explicit BPR-1527 wrapper/task with the new source guard and preserve
-its original bytes. Root/native station own any launcher diagnosis until release.
-
-After intentional adoption and normal configuration:
-
-```powershell
-cmake --preset windows-dev
-cmake --build --preset windows-dev --parallel 8 --target test_better_pull_review_qt_workbench_window_tests
-ctest --test-dir build/windows-dev -C Debug --output-on-failure -j1 -R '^qt_workbench_title_row_scale_100$'
-```
-
-The existing assertion is unchanged. New bounded diagnostics name width, drawn
-identity, full tooltip, browser visibility/enabled and Home state. Distinguish
-actual lost local-cycle state from a source-backed adaptive-text oracle conflict;
-do not weaken identity/browser/Home/new-PR semantics. Current actual selectors
-are all nine title-row/open-on-GitHub/window100/125/200 courses, explicitly listed
-in `windows-local-cycle-amendment.json`. Recheck affected normal native courses
-only after the demonstrated cause is repaired.
-
-## Windows complete-workbench stability
-
-The original d52 normal200 course timed out120.03s. Prior focused119.08s is not
-stability evidence. Preserve whole inputs, cases, assertions and120s deadline.
-Old profiles are locators only: keyboard glyphs/gutter and divider are hot;
-BPR1525 already accepted the bounded native gutter-label cache. A second code
-text cache was rejected for limited benefit. Collect an exact-current-source
-bounded trace before selecting a new improvement. Diagnostic instrumentation is
-not duration acceptance; restore it and rebuild normal binaries. Final timing
-runs serialize all PC Windows/WSL builds/suites/performance work under ordinary
-prescribed resource exclusivity. Keep failed originals and actual overlap facts.
-
-Relevant normal targets are `test_better_pull_review_qt_diff_workbench_tests`,
-`test_better_pull_review_qt_diff_axis_tests` and
-`test_better_pull_review_qt_code_sample_painter_tests`; normal selectors include
-`qt_diff_workbench_scale_200` and100/125 siblings, four axis scales and native
-painter. Any painting repair preserves all native geometry/pixel/font controls.
-The nine local-cycle tests and relevant application contracts need the same
-accepted source; an isolated stale build is not acceptance. Root additionally
-reported the already-scoped Windows agent invocation course failing in 21.04s.
-Recheck that exact immutable-source public course and affected siblings; this is
-platform corroboration of AC3, not a new criterion or unsupported-mode exemption.
-
-## Ubuntu and final closeout
-
-After focused Windows work, serialize one Ubuntu26.04 WSL compile and meaningful
-affected-path run on the same PC. Root may have advanced
-`/home/mmarcin/bpr-v021`; inspect/preserve actual clean history before binding the
-exact common candidate on an owned repair branch. Compile app and affected public
-courses plus changed Qt paths; exercise typed reply, agent immutable source,
-tour zero receipts/held completion, Find geometry, scaling and affected painter/
-window contracts. No full Ubuntu release gate or package is dispatched by this
-leaf. Later follow-up source changes receive affected portability/Mac checks when
-coordinated; they never change or rebind the frozen Mac 0.2.1 producer.
-
-Current Mac source passes 20 normal affected courses in 180.33s, including both
-held-storage origin orderings. The superseded source fails the new reverse
-control in 26.06s. Meaningful old route/guard/layout and omitted/misplaced toolbar
-controls fail as required; restored candidate bytes are SHA256 checked. Fresh
-strict tidy passes all eight selected TUs, full format 22 passes 1542 files and
-architecture passes. Final checkpoint documentation results are in the evidence
-receipt; see CURRENT.md.
-The full app/manifest pins are reviewed and resealed; mutation branch unchanged.
-Finish static checks, self-review, explicit-path commits and canonical acceptance/
-finish only when all assigned native criteria are actually demonstrated.
-
-Root owns the full exact-final-source macOS-only 0.2.1 gate/packages, optimized
-Release cache-bytes supplement, corresponding source, SPDX, installed notices
-and release approval, with all native/security/legal gaps preserved. Windows
-0.2.2 follow-up will have its own exact-source native release requirements. No
-Windows/Ubuntu 0.2.1 release gate/package or shared Mac commit is promised.
-Focused checks do not replace required final gates.
-
-## Windows submission unit
-
-`windows-submission-amendment.json` binds the three actual 100/125/200 courses.
-The exact failure is before Comment or inline-draft creation: Files row zero
-dispatches selection, then right current-head line 29 is not selected. The
-FileSelections counter does not establish adopted material. Before repair, collect
-bounded exact selected file/context, current-result and semantic-index readiness,
-right document line count and any reentrant selection change. Do not infer a fix
-from the later reply materialization repair. Retain the 90s course deadline,
-normal queue budget and all pending-draft/stale-view/publication assertions.
-Mac original full d52 passed these courses; native Windows remains required.
+Preserve published Mac 0.2.1 code6747/docs c233/producer/tag. Never touch leased
+`C:/code/git/BetterPullReview`, authentication, security settings or reboot. No
+remaining human criterion/review server exists. Root owns signing/package/
+publication, native qualification gaps and sharedmain reconciliation. No new
+Ubuntu release or Mac package selection is authorized by this handoff.

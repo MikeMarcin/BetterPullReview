@@ -1,0 +1,250 @@
+{
+  "schema": "bpr.native-repair-verification.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "runtime": "rfc-implementer / gpt-6.1-sol / xhigh; no differing effective route exposed",
+  "release_target": "Windows0.2.2",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "original": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+  "original_full_result": "705accounted:679pass25fail1configured Debug cachebytes skip, exit8; failed/incomplete acceptance, not rerun by implementer",
+  "preservation": {
+    "ref": "preserve/bpr1527-v021-final-d52-r17",
+    "external_root": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-v021-d52-preserved-r17",
+    "contents": "Clean source/status/branch/history, complete original suite and CTest/build metadata retained before adoption",
+    "repair_branch": "codex/bpr1527-windows-v022-r17"
+  },
+  "native_context": "Interactive Limited mikem session1; ordinary windows-dev VS/MSBuild Debug, Qt6.11.2, offscreen, original scale/container registrations. All Windows/WSL builds/tests/performance serialized; no independent PC workload. Mac CPU root-owned.",
+  "cycle": {
+    "candidate": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+    "positive": "All9 normal title/browser/window100/125/200 pass728.19s, original thresholds/assertions except source-backed adaptive caption oracle",
+    "cause": "At902 native caption is A retain\u2026  \u00b7  Local cycle, tooltip retains full canonical title+badge, browser hidden/disabled, Home0. Existing production elides only title before exact badge. Old startsWith(full title) oracle contradicted native adaptive contract.",
+    "oracle": "Canonical exact tooltip, exact title or nonempty exact prefix plus ellipsis, exact Local cycle suffix, visible identity and original refused browser; all Home/newPR/width/scale controls retained",
+    "negative": "Deliberately discard cycle on samePR refresh: actual compiled product control fails exact assertion4.02s with browser exposed and PR identity. Source restored byte-for-byte; normal title100passes42.13s. First control failed C4189 compilation, retained as failed attempt, no negative acceptance."
+  },
+  "application_r21": {
+    "candidate": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+    "result": "12/18pass599.51s",
+    "pass": "agent,threadedreply,replydraft,progress,tour3,scaling,coldimport with BOTH held-origin directions and zero receipt,Find3",
+    "fail": "UIforETW primaryhighcontrastdark, label laterphase33, submission3, navigation lifetime. UIfor originally d52 passed primaryprofiles then failed later compact toolbar; new failure not proven inherited or introduced."
+  },
+  "r23": {
+    "candidate": "f0e7508f335f2909c861d83893ca86e971eb10b6",
+    "checks": "native clang-format22.1.8 threepaths,docgate,app/nav/submissionbuild pass",
+    "tests": "UIforETW48.87,roundtrip8.39,navigation93.92 pass; label42.43 andsubmission10042.08fail;3/5total235.92s",
+    "nav_cause": "Message emitted455ms before original post-render clock; original waits2607ms and observes3063ms after correct3000ms expiry. Newclock latches first exact message for each originating gesture, retains screenshots and unchanged2600/3600checks. Normal native course actually passes.",
+    "limits": "UIfor isolated pass does not close r21 different observed failure; label andsubmission remain open."
+  },
+  "r24": {
+    "mode": "Temporary bounded trace, not acceptance. Exact original source+normalapp restored after diagnostic, wrapperexit0/traceexit8",
+    "cause": "Label gen7 tabdriver selectedfile andwaitedmaterial; nextacceptedgen8retiresselection whileload/driverremainactive. keep1 cannotrestart becauseTabLoadblocks;gen9stillstuck. Current candidate abandons obsolete application presentation on accepted handoff, letting existing core activeview/Chosen and acceptedcomparison path restart.",
+    "limit": "Separate submission binary was not relinked with trace in r24, so no submissiontrace claim. r26 builds bothlinkedtargets."
+  },
+  "performance": {
+    "baseline": "R35 fresh normal uninstru\u00admented current pre-repair whole200119.35s; original d52 fullgate120.03timeout remains failed.",
+    "candidate": "851 current R46 normal complete100/125/20093.64/104.43/108.10s; restored200108.34s, unchanged120.",
+    "scope": "Windows AMD64, MSVC Debug windows-dev, Qt6.11.2 normal offscreen registrations/environment/container, serial tests and no independent PC/WSL workload. Full input/assertions retained plus actual native-frame oracle.",
+    "negative": "Only frame repaint removed; actual normal course fails26.34s on2pixel native frame strip; exact source/object/exe restored and positive verified.",
+    "limits": "Focused source-backed improvement accepted; final release gate/package approval not supplied. Appropriate other native/static acceptance remains pending."
+  },
+  "current_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "current_source_status": "Code0769, appdf589/Qt851/Find7aaf bytes. Current Windows9normal169s, WSL22normal plus naming-only submission4.46s and strict10TUs/architecture/format/doc67 pass. Later Mac acceptance/final freeze not supplied.",
+  "pending": "Explicit coordinator Mac engineering CPU release and actual later affected lifecycle/Qt/Find/held-reply checks, then canonical finish of all11criteria/10exits. Final notes source-only doc validation precedes handback; private final-documentation.receipt.json binds exact commit/result. No release approval.",
+  "private_evidence": ".mask/sessions/BPR-1527/evidence/windows-v022-active/; preserved UTF16 originals and UTF8 derived logs, receipts, individual LastTest copies. Transient logs excluded from Git.",
+  "r26": {
+    "candidate": "94ff0ce288947241d20a8892a01a37fde29e0101",
+    "positive": "Native normal4/5courses, label16.05,published20.10,refreshpick13.00,roundtrip8.11; canonicaldigestsagree,format22/docgatepass",
+    "negative": "Submission100stillfails noactive/no selected; exactduration inpreservedlog",
+    "diagnostic_limit": "Both executables relinked with bounded trace but standalone submission has no terminal-diagnostics owner, so no trace delivered. r28 uses temporary bounded stderr only; not acceptance. Source/normal binaries restored after r26."
+  },
+  "incremental_audit": "windows-native-incremental-audit.json supersedes old normal-binary/exact-source wording. r27whole118.39 instrumented; r29/r32 provisional; r26temporarytrace never compiled. Preserve originals. r34 repairs by exact owned object/executable invalidation, source touch, object time checks and binary/runtime witnesses.",
+  "r34": {
+    "candidate": "ccf70c3121a792342a95c786677679663c5cb801",
+    "normal": "12selected raw passes;10current producers at the time. Cold-import and agent-invocation standalone rows were not explicitly relinked, so their current-source acceptance is withdrawn and replaced by R35/R50 respectively. Forced source-bearing app/Qt/QtDiff/submission objects and selected executables verified.",
+    "positive_current": "UIfor48.25,roundtrip7.91,label16.09,published19.95,refreshpick12.99,submission3 24.50/25.33/27.57,header20.40,nav94.27. Raw agent25.03 is historical/stale producer, replaced by R50.",
+    "negative_choice": "Deliberate missing guard compiled; actual runtime witness exact_chosen1/active0/pending0 and exact authority assertion fail; exit8 expected.",
+    "deferred_oracle": "One-turn legitimate host-command deferral + old synchronous probe actually compiled/witnessed and fails7.25s at phase5,next0,pending_navigation1. Same deferral + current completion-observed probe binary witness and ordinary UIfor course pass49.21s, all original semantic/pixel/geometry/height/16toolbar markers retained. This does not identify historical r21 exact substep.",
+    "restoration": "Source exactSHA8656771498362b6676d23e5c41dcc124ae2512ae403821041dae376a64f0e2d0, composition .obj invalidated/recompiled, app/submission executables deleted/relinked; object time >=source checked. Normal pinned roundtrip8.57pass, branch clean, task Ready/exit0."
+  },
+  "r35": {
+    "candidate": "ccf70c3121a792342a95c786677679663c5cb801",
+    "provenance": "Normal source/object timestamps verified; temporary diagnostic/control markers absent from QtDiff binary. Explicitly rebuilt test_review_tour_composition_public_path, replacing the stale cold-import producer selected in r34.",
+    "cold_import": "Original absolute zero-receipt and both held-origin ordering controls pass15.53s.",
+    "performance": "Fresh uninstrumented normal complete200 passes119.35s under original120s deadline and prescribed exclusivity. Tiny headroom is not a stability repair.",
+    "command_state": "Ready/exit0; no restoration ambiguity."
+  },
+  "r33": {
+    "candidate": "ccf70c3121a792342a95c786677679663c5cb801",
+    "mode": "Temporary atomic native-top-line/fractional-offset experiment, not adopted. Exact affected object/executable invalidation and timestamp checks at every source copy/restoration.",
+    "observations": "Split viewport moves152 to2 per180-key case; unified262 unchanged. Split elapsed6.389/6.387/6.633/6.647s to6.368/6.390/6.612/6.633s; paint area and row work unchanged.",
+    "whole200": "Genuine uninstrumented normal fullcourse trial119.57s versus119.35s freshbaseline. No useful improvement; reject as AC6 repair. Original120s/input/assertions/env/container unchanged.",
+    "restoration": "Normal source SHA and object timestamps verified after forced exact rebuild; keyboard/text diagnostic markers absent. Native task Ready/exit0 and no ctest/cmake/ninja/cl remains.",
+    "followup": "Qt6.11.2 source does not support invalid rectangle from an empty cursor as general cause. Temporary r36 checks whether masked overscan overlaps a higher scrollbar sibling and prevents native scroll reuse; not selected production."
+  },
+  "r36": {
+    "mode": "Temporary public native scroll diagnosis; no product acceptance",
+    "observed": "Masked overscan overlaps higher qt_scrollarea_hcontainer. Opaque background/auto-fill valid. First180-key case90 full updateRequests,139scroll events.",
+    "failed_attempt": "Hardcoded external PNG path refused by normal containment. Do not broaden ACL. Test stopped afterfirstcase; finally forced exactnormal source/object/exe restoration verified, task Ready/exit1.",
+    "next": "r37 uses configured BPR_QT_DIFF_WORKBENCH_RENDER_PATH. Existing containment stays intact."
+  },
+  "r37": {
+    "mode": "Temporary constructor viewport raise only, not adopted",
+    "observations": "Normal Qt layout raises the horizontal container afterward: higher overlap remains in all6actualtrial cases. Damage unchanged. All6baseline/trial PNGs byte-identical via existing contained render path.",
+    "whole200": "Actual uninstrumented fulltrial passes119.64s, no useful margin versus119.35normalbaseline. Reject trial; this does not falsify the Qt overlap implementation, because ordering change did not persist.",
+    "state": "Exact normal source/object/executable restoration verified, task Ready/exit0.",
+    "next": "Measure native horizontal auto-reveal/rollback around line cursor update, narrowly scoped horizontal signal hold only if actually demonstrated. Whole200 deadline/input/assertions remain unchanged."
+  },
+  "r38": {
+    "mode": "Temporary scoped horizontal scroll signal hold only; not adopted",
+    "baseline": "90 native horizontal value changes per180-key case =45jump/rollback pairs. Split1021/0pixels, unified589/0pixels.",
+    "trial": "Horizontal events90to0; full updateRequests90to0; six baseline/trial fresh-render PNGs byte-identical. Split paintedarea24768128to23873024, unified45757360to42669440; genuine whole200118.65s versus119.35normalbaseline.",
+    "disposition": "Insufficient useful stability margin; no production change selected. Exact normal source/object/exe restoration verified; Ready/exit0.",
+    "capture_limit": "QWidget grab produces a fresh render. r39 additionally reads actual completed offscreen backing pixels within public QBackingStore beginPaint(empty)/paintDevice/endPaint, without caching its device pointer or reading owner desktop."
+  },
+  "r39": {
+    "mode": "Normal unchanged baseline keyboard profile with actual completed backing-image and fresh-render captures. Trial construction failed missing QScopedValueRollback include in diagnostic source; not product evidence.",
+    "baseline": "Same180-key6cases pass43.07s; twelve captures preserved.",
+    "restoration": "Exact normal source/object/exe forced restore verified; Ready/exit1."
+  },
+  "r40": {
+    "mode": "Temporary split-only exact overscan plus atomic frame placement.",
+    "performance": "Split6.4-6.7s to4.1-4.3s; source rows~4200 to~760-1900, nativepaintarea24768128 to9899008. No useful newregionfilter selected.",
+    "pixels": "Six fresh renders identical, but3actual backing images differ in2physicalpixel-high parent frame strip. Fullcourse not run; trial rejected.",
+    "restoration": "Exact normal forced restore verified; Ready/exit1."
+  },
+  "r41": {
+    "mode": "Same temporary trial plus narrow parent-frame strip repaint after native rectangle scroll.",
+    "pixels": "All6actual completed backing images and6fresh renders byte-identical to original baseline. No region-filter change.",
+    "whole200": "Original complete course FAILS52.76s at unchanged Down-from-far-below edge-flush assertion. No adoption or whole-course timing pass.",
+    "restoration": "Exact normal source/object/exe forced restoration verified, Ready/exit0 with wholeExit8."
+  },
+  "r43": {
+    "mode": "Unchanged isolated far-navigation diagnosis, not wholecourse acceptance.",
+    "baseline": "Original normal source all6cases passes; firstsplit target2001 bar1975, visible441x378, rowbottom398 equalsvisiblebottom398.",
+    "counterexamples": "Both trimmed variants (with/withoutatomicframe) fail firstsplit: mask0x0, visible0x0,bar0, row809. This falsifies atomicordering attribution.",
+    "cause": "At offset0, trimmed placement equals native geometry; old early-return omits initial explicit mask. Native Qt empty mask means no clipping, but this workbench requires its explicit displayed-area mask for navigation geometry.",
+    "restoration": "Exact forced normal source/object/exe restoration verifies; all diagnostic markers absent; task Ready/exit0."
+  },
+  "r44": {
+    "mode": "Temporary algorithm prototype, normal Windows registration/environment/120s, no committed new-oracle acceptance.",
+    "far": "Original unchanged6far cases pass4.45s; exact target/edge positions match normal baseline after mask-equality initialization correction.",
+    "pixels": "All6completed actual-backing images plus6fresh renders byte-identical to original normal baseline. No region filtering or native quality/font change.",
+    "whole200": "Original complete uninstrumented200 passes108.02s versus verified119.35s normal baseline:11.33s/9.49% faster under unchanged120s and prescribed exclusivity.",
+    "mechanism": "Split viewport adds only actual fractional offset to extent, avoiding overlap that disables native scroll reuse. Shared frame retains residual atomically. Exact mask equality prevents omitted initial mask. Narrow parent-frame strip repaint restores pixels touched by native rectangle blit outside viewport mask. Unified native vertical scrollbar extent stays unchanged.",
+    "restoration": "Exact original normal source/object/exe forced rebuild and markerabsence verified; Ready/exit0, wholeExit0."
+  },
+  "r45": {
+    "mode": "Native format-only SSH session0, no test/appearance acceptance.",
+    "result": "clang-format22.1.8 via repository format.py formats/checks2proposal paths in private mirrored formatter root with exact repository .clang-format; producer source/branch unchanged.",
+    "product_sha256": "7125a7b06c96a6a22ce9391537848c8c3256a3dfd25fa46975931aef363c0df5",
+    "test_sha256": "af8733ad4229636d3c802cc9f4a1ac3129988c67cea6bdb79e50fc39ed9c1f90"
+  },
+  "r46": {
+    "candidate": "851c2d1510b986e0c11dd4e7ff8c670ec894b3b7",
+    "normal": "8/8pass315.60s total wall time; workbench100/125/20093.64/104.43/108.10s unchanged120. Axis100/125/150/2001.79/1.80/1.83/1.88s; painter1.95s.",
+    "provenance": "Exact current Qt/test owned .obj invalidated/touched/recompiled, all3selected executables removed/relinked; object times verified, new frame oracle marker present and all temporary profile/far markers absent.",
+    "negative": "Only production covered-frame repaint removed; unchanged normal course actually compiled and fails26.34s with BPR1527_SOURCE_FRAME_MISMATCH diffLeftSource pixels0,40,958,2. Expected exit8.",
+    "restoration": "Exact851 source restored, owned Qt .obj/exe invalidated/touched/rebuilt, object time and binary markers verify; normal complete200passes108.34s. Source clean; task Ready/exit0.",
+    "static": "Full clang-format22.1.8 check1542files, documentation gate and67verifier units pass. Strict changedTUs/architecture/portable/appintegration remain pending."
+  },
+  "r47": {
+    "candidate": "851c2d1510b986e0c11dd4e7ff8c670ec894b3b7",
+    "result": "COMPLETE Ready/exit1;24accounted21rawpass3Findfail.19passes are current rebuilt producers;2agent/workshop passes provisional per selected-producer audit.",
+    "valid": "Current-producer window100,UIfor,roundtrip,threaded,label,file-switch,refreshpick,replydraft,progress,tour3,submission3,scaling,coldbothheld-origincontrols,header,navigation pass.",
+    "find": "All3fail old physicalviewport-size proxy after query. Normative actual display/layout diagnosis R48 below."
+  },
+  "selected_producer_audit": "windows-selected-producer-audit.json supersedes r34/r35/r47 current-agent and r47current-workshop claims; two old standalone executables were omitted. Rawresults preserved; R50 actual targets/objects/producers must replace them.",
+  "r48": {
+    "result": "Actual diagnostic compiled/witnessed: outerpanes143x632unchanged; physicalrightviewport105x616to105x617. Both displayed rectangles exact before/after: left37,1,105,616 andright208,1,105,616.",
+    "contract": "BPR1503 requires unchanged pane layout/height; RFC0073 distinguishes actual clipped edge from overscan. Four-rectangle oracle retains both outerpanes and adds both actual clipped display positions/sizes; originalasserttexts and allFindinput/focus/fit/selection/geometry contracts remain. No threshold/requirement waiver.",
+    "restoration": "Forced exact normal SourceFind test object/exe restoration and markerabsence verify; Ready/exit0,diagnosticExit8."
+  },
+  "r50": {
+    "candidate": "7aaf76a30e3fb449fded1d4455a2854522a303ee",
+    "result": "Ready/exit0; complete and actualSource equals candidate; Windows Interactive Limited mikem/session1.",
+    "producers": "Force CPP objects and executables for actual Find, agent invocation and agent finding/workshop targets; verify actual selected manifest and source/object times.",
+    "normal_first_seconds": {
+      "workshop": 9.24,
+      "agent_invocation": 25.7,
+      "Find100": 33.32,
+      "Find125": 33.95,
+      "Find200": 36.62
+    },
+    "negative": {
+      "product_only": "Place Find bar in the workbench layout; unchanged normal test and display metric.",
+      "result": "Expected exit8 in7.47s, BPR1527_FIND_LAYOUT_NEGATIVE delivered and original opening-Find geometry assertion fails."
+    },
+    "restoration": "Exact Qt source hash restored; forced Qt object and all3executables relinked; object time >=source; both temporary markers absent; clean source.",
+    "normal_restored_seconds": {
+      "workshop": 9.31,
+      "agent_invocation": 25.91,
+      "Find100": 33.4,
+      "Find125": 33.86,
+      "Find200": 36.94
+    },
+    "restored_total_seconds": 139.6,
+    "limits": "Focused engineering acceptance only; original d52 failures remain failed. R47 stale-agent claims replaced only by these actual producers."
+  },
+  "r51": {
+    "state": "Ready/exit1 after actual compile and22normal courses:21pass1reply-draft failure,186.84s. Static/strict stages not reached.",
+    "candidate": "7aaf76a30e3fb449fded1d4455a2854522a303ee",
+    "actual_baseline": "fb2e72778d3c61de6ec6723dffc16a1212ab5c31, clean codex/bpr1525-wsl-native-repair-r2, ancestor of candidate",
+    "preservation": "preserve/bpr1527-v021-ubuntu-fb2-r51 plus original branch and /home/mmarcin/.local/state/BetterPullReviewRelease/bpr1527-v022-r51/baseline metadata",
+    "repair_branch": "codex/bpr1527-wsl-v022-r51",
+    "environment": "Ubuntu26.04 WSL2 x86_64, GCC15.2, Qt6.11.2, CMake4.4.2, Ninja1.13.2, Python3.13.15; normal dev Debug; no competing Windows/Mac workload",
+    "scope": "Force all10changed TU objects, rebuild12actual producers,22normal affected courses serially; architecture/fullformat22/doc67 then user-private clang-tidy22.1.8 strict10TUs. Read actualreceipt before claims.",
+    "limits": "No Ubuntu0.2.1 release gate, desktop/vault acceptance or release approval.",
+    "failure": "Deleted-thread reply subcourse: copied words and confirmation reached, durable shared draft remains drafting and kept note remains; evidence1111101, phase9. Earlier refresh/edited/write/restart subcourses pass. Original source7aaf and complete raw retained; later portability failure within existing AC2."
+  },
+  "r52": {
+    "state": "Ready/exit0; exact restoration verified",
+    "tests": "Three normal reply courses fail before/with/after trace; actual failure not waived.",
+    "cause": "R52 actual compiled host trace: visible/enabled confirmation accepts; exact draft1 revision2 core discard command admitted while PrivateDraftsReady0/private binding0. No PrivateReview mutation is posted. SharedDrafts::apply deliberately refuses durable_required; the fallback loses the action.",
+    "restoration": "R52 Ready/exit0; original app/private-workflow source bytes restored; exact objects and app executable invalidated/recompiled/relinked, object times checked, temporary markers absent; clean7aaf. Test failures remain failures."
+  },
+  "r53": {
+    "candidate": "df589f417c372531c39adb3367f4bb5e98fb0da5",
+    "state": "Ready/exit0; source clean/exact, mandatory forced restoration verified.",
+    "normal": "Original registered held-storage reply8.55s and pinned roundtrip1.90s pass.",
+    "negative": "Only product retained-command insertion removed; actual compiled/runtime BPR1527_REPLY_QUEUE_NEGATIVE witness, unchanged held reply fails7.43s at original phase9/evidence1111101. Expected exit8.",
+    "restoration": "Exact source hash restored; app object/exe removed/recompiled/relinked, source/object times verified, temporary marker absent; clean df589.",
+    "restored_normal": "Held reply8.65s and pinned roundtrip1.95s pass,2/2total10.62s.",
+    "limits": "Focused WSL engineering; no Windows acceptance of df589 or Mac/native release approval."
+  },
+  "r54": {
+    "candidate": "df589f417c372531c39adb3367f4bb5e98fb0da5",
+    "state": "Ready/exit1:22normal/architecture/fullformat22/doc67pass; strict analyses all10 and fails only pre-existing submission refresh_until naming. Nine unchanged TUs pass; failed original retained.",
+    "compile": "Force all10changed BPR1527 TUs plus production diff_line_matcher, relink12actual selected producers, verify object times/source hashes and actual22command manifest.",
+    "normal": "22/22normal registered/sandboxed public courses pass188.97s; matcher2.73s, completeQt20015.61s, actual agent10.20s/workshop1.88s, held reply8.61s, original receipt origins, navigation26.78s andFind3pass.",
+    "architecture": "Application/provider/Qt boundary verifier passes.",
+    "remaining": "Failed original naming diagnostic retained; R54b repairs/rechecks only submission, reusing9unchanged clean TUs."
+  },
+  "r54b": {
+    "candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+    "state": "Ready/exit0; clean source and all commands complete.",
+    "scope": "Only refresh_until declaration/four calls renamed refreshUntil plus formatter alignment. Original d52 contains the old name; no semantics, assertions, input or budget changed.",
+    "native_format": "Repository22.1.8 formats/checks only changed submission path in user-private mirror, then dry-runs current source.",
+    "provenance": "Exact submission object/executable removed, source touched, producer compiled/relinked and source/object times verified.",
+    "normal": "Original registered application_review_submission_composition_public_path passes4.46s.",
+    "strict": "clang-tidy22.1.8 real compdb, warnings-as-errors*, actual1selected TU passes. Combined with9unchanged clean R54 TUs, all10changed BPR1527 TUs pass without new suppressions.",
+    "architecture": "Application/provider/Qt boundaries pass current source."
+  },
+  "r55": {
+    "candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+    "result": "Ready/exit0, stagecomplete, actualSource equals candidate, clean source. Interactive Limited mikem/session1.",
+    "provenance": "App/submission exact objects invalidated/touched/recompiled;5actual producers removed/relinked. Source/object times verified; temporary reply markers absent and held-probe marker present. Actual9course manifest retained.",
+    "seconds": {
+      "workshop": 9.31,
+      "agent_invocation": 25.61,
+      "roundtrip_pinned": 8.56,
+      "threaded_reply": 14.17,
+      "label_authoring": 16.19,
+      "refresh_pick": 13.03,
+      "reply_draft_held": 41.24,
+      "submission100": 24.94,
+      "cold_tour_both_origins": 15.87
+    },
+    "normal_total_seconds": 169.0,
+    "limits": "Focused Windows engineering, not full705-test release/package/trust approval. Earlier Qt/per-scale evidence binds unchanged components."
+  },
+  "command_state": "R55Ready/0 and R54bReady/0; no native build/test/analyzer remains. Final notes source-only validation before handback; Mac slot pending."
+}

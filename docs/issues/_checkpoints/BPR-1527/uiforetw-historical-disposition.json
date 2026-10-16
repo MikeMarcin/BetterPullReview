@@ -1,0 +1,32 @@
+{
+  "schema": "bpr.historical-failure-disposition.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "course": "application_uiforetw_selected_diff_contract",
+  "original_final_gate": {
+    "candidate": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
+    "platform": "macOS",
+    "cause": "The exact compact toolbar-order oracle omitted the shipped Accept file action. All shipped16controls are required in their exact order; no control is removed.",
+    "acceptance": "Corrected6747 Mac normal course passes; omitted and misplaced Accept controls each fail. Original exact failed gate remains preserved.",
+    "evidence": "mac-candidate-verification.json"
+  },
+  "later_windows_r21": {
+    "candidate": "ccfc96137636c87ad4df59671eb7bccf8559688f",
+    "original_private_log": ".mask/sessions/BPR-1527/evidence/windows-v022-active/r21-eighteen-courses-LastTest.log",
+    "observed": "Primary high_contrast_dark capture fails after RC gesture/blob/intraline evidence, before RcRolePaint evidence. expired0, elapsed4275ms, stage2. No change-walk or role-paint-stall diagnostic.",
+    "source_analysis": "At that candidate the RC branch requires Next/Previous actions and their exact host effects synchronously, before its later reveal/paint checks. The preserved aggregate output cannot distinguish navigation admission/completion predicates from an earlier bounded reveal failure. A missing RcRolePaint verdict does not establish a paint failure.",
+    "classification": "Exact historical substep is unproven and cannot be reconstructed uniquely from the retained output. Do not label inherited/regression or unsupported-platform refusal. This uncertainty remains in the record; no current failure is suppressed."
+  },
+  "discriminating_control": {
+    "evidence": "windows-native-verification.json r34.deferred_oracle",
+    "result": "Actual compiled one-turn legitimate host deferral plus old synchronous probe fails7.25s at phase5,next0,pending_navigation1. Same deferral plus current completion-observed probe passes49.21s.",
+    "meaning": "Demonstrates the old synchronous oracle is invalid for the supported retained-command lifecycle. Does not prove the exact r21 lost substep."
+  },
+  "current_contract": {
+    "candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+    "behavior": "Issue Next/Previous once each, retain original semantic selection/dispatch identity, observe exact one-forward/one-reverse completion. Duplicate dispatch, wrong selection, actual role pixels, geometry, height, complete16toolbar order and all original waits/budgets remain asserted.",
+    "native_windows": "Proper current-source app R34 UIfor48.25s and R47 UIfor48.65s pass; same app UIfor bytes retained through df589.",
+    "portable": "R54 WSL normal UIfor14.50s passes on exact production df589.",
+    "mac": "R59 complete normal course passes20.5664s on unchanged0769code, all original profiles/geometry/navigation/pixels/16controls retained. See mac-local-recovery-r59.json; full30result still fails only unrelated Qt200source-edge assertion. Historical R21 exact-substep uncertainty is not recast as a current UIfor failure.",
+    "limits": "No standalone isolated pass is claimed as a historical cause proof; direct source and actual compiled controls establish the supported contract correction."
+  }
+}

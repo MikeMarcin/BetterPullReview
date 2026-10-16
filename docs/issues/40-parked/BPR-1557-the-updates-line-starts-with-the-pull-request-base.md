@@ -153,7 +153,7 @@ storage behaviour changes: the comparison still compares exactly the anchors
 it did. Whole PR's comparison basis (base tip or merge base) is
 [[BPR-0944]]'s and unchanged here.
 
-## Attended review v001 (pending)
+## Attended review v001
 
 - Session `d62ac57667ce277091d8684de8c34f0b`, fresh state
   `/Users/jaeger/.mask/bpr-1557-base-anchor-v001-20261016/attended-review`,
@@ -171,6 +171,71 @@ it did. Whole PR's comparison basis (base tip or merge base) is
 - Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v001.jaffeggk/launch.py`
   (`--next-push` for the second update).
 
-Next: read the decision (`status --after 3`). Accept: merge the branch with
-main, reseal the round-trip composition digest on the merged tree, rerun the
-focused rows and finish. Reject: its note shapes v002.
+## Owner verdict on v001, 2026-10-16
+
+Session `d62ac57667ce277091d8684de8c34f0b`, handed back at event 5; cursor 3
+to 5 read. `BPR-1557-base-anchor-v001` (fingerprint `bc56762e0c12…`),
+criterion `BPR-1557:owner`: **Reject** (decision
+`60120f22-bc68-467a-8aa0-08028b69c28b`, 19:52:15Z). Note, verbatim: "I find
+these handles quite difficult to see."
+
+Diagnosis: the line painted its handles and span in the palette's Highlight,
+a selection colour made to carry text. Measured against the line's ground it
+stands 2.11:1 (Light, `#7fb0e8` on `#f6f7f9`), 2.06:1 (Dark), 1.23:1 (High
+Contrast Light, `#ffe877` on white) and 1.59:1 (High Contrast Dark); the v001
+handles were 7x13 hollow outlines in that colour.
+
+## v002: brackets that stand off the line
+
+- Solid brackets, `[` on the left and `]` on the right, 15 pixels tall with a
+  5-pixel stem and 5-pixel arms reaching round the span, in the accent with
+  an outline: the accent moved towards the ink only as far as it must to
+  stand 4.5:1 off the ground and 3:1 off the track (7.2:1 and 3.1:1 in Light).
+  Each sits on a ground-coloured halo; a held node is its bracket's stem.
+- A filled 6-pixel span in the accent with outlined edges, on the half pixel
+  so the edges are crisp at every scale.
+- The base: a solid 4x13 post in the ink (13.8:1 to 21:1 off the ground).
+- Hover fills a bracket with its outline colour under a sideways-arrows
+  pointer; the hover clears on leaving and when a drag ends away from it.
+  With the keyboard on the line the handle the arrows move wears a ring.
+- No stack: Whole PR's handles are the line's two ends; an update's own base
+  sits 18 pixels before its node, so Show this update alone draws two
+  brackets that never touch; an identical pair is drawn either side of its
+  update.
+- Behaviour, keys, menus, accessibility and wording are v001's; the label
+  stays "Base" and the tooltip neutral until BPR-1560 moves the base to the
+  merge base through `pull_request_base`.
+
+v001's host is stopped and its candidate released (session event 6); its
+Reject stays recorded. Its frozen root is removed.
+
+## Attended review v002 (pending)
+
+- Session `66dd3c27654c930973d797eb9fea2e84`, fresh state
+  `/Users/jaeger/.mask/bpr-1557-base-anchor-v002-20261016/attended-review`,
+  checkout `.claude/worktrees/bpr-1557-base-anchor`, event cursor 3.
+- Candidate `BPR-1557-base-anchor-v002` (revision `frozen-d3b2e36ed-v002`,
+  fingerprint `b95dbd24edef…`), criterion `BPR-1557:owner`: the Updates line's
+  handles are easy to see at a glance, with the left on the pull request's
+  base and the right on the newest update. Inline 2x offscreen renders: before
+  (main), v001 and v002 in Light and Dark, one update and three; v002 in both
+  high-contrast themes and with keyboard focus.
+- Frozen root `/Users/jaeger/bpr1557-base-anchor-v002.kg9vgygo` from
+  `d3b2e36ed` (fixture `conventional-comments-v1`, file
+  `src/engine/renderer.cpp`, `--next-push`); executable SHA-256
+  `172834c0d855d75a0b6a32f1e23b27c5ecf3ad7cc677a1eee951e6e76e42bc51`; its own
+  check showed the file on head `b20cb443…` and the pushed head `cd24836c…`.
+- Launch: `python3 /Users/jaeger/bpr1557-base-anchor-v002.kg9vgygo/launch.py`
+  (`--next-push` for the second update).
+- Verification on `d3b2e36ed`: `qt_epoch_comparison_scale_{100,125,200}` (the
+  v002 checks: outline contrast, outer-side outline, arm direction, hover and
+  its clearing, focus ring, the two stack cases) with a negative control (the
+  outline as the bare accent fails them); `qt_workbench_window_scale_{100,125,200}`,
+  `core_update_line`, `core_epoch_policy`, `application_epoch_host`, the
+  workbench and round-trip composition contracts and the anonymous preview,
+  ordinary-update-recreated and update-line public paths pass; clang-format 22
+  and tidy clean on `epoch_line.cpp`.
+
+Next: read the decision (`status --after 3`). Accept: merge main into the
+branch, reseal the round-trip composition digest on the merged tree, rerun the
+focused rows and finish. Reject: its note shapes v003.

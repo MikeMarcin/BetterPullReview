@@ -105,6 +105,61 @@ class ReleaseSecurityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "fixture-symbol"):
                 package.check_payload(image(), symbols)
 
+    def test_declared_private_dll_needs_exact_bytes_and_full_bound_map(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            build, installed = root / "build", root / "installed"
+            build.mkdir()
+            installed.mkdir()
+            producer, binary = build / "bpr_xdiff.dll", installed / "bpr_xdiff.dll"
+            payload = bytearray(image())
+            struct.pack_into("<H", payload, 86, 0x2002)
+            producer.write_bytes(payload)
+            binary.write_bytes(payload)
+            info = {"platform": "Windows", "app": str(build / "app.exe"), "helpers": [],
+                    "private_libraries": {binary.name: str(producer)}}
+            declared = tuple(package.runtime.private_library_producers(info))
+            bound_map = map_text("xdl_diff").replace(" app\n", " bpr_xdiff\n")
+            link_map = producer.with_suffix(".map")
+            with patch.object(pe.shutil, "which", return_value="undname"):
+                with self.assertRaisesRegex(ValueError, "producer-map-missing"):
+                    pe.inspect(binary, info, private_producers=declared)
+                link_map.write_text(bound_map)
+                table = pe.inspect(binary, info, private_producers=declared)
+                self.assertIn("xdl_diff", table.symbols)
+                self.assertIn("bound full link /MAP", table.inspector)
+                link_map.write_text(bound_map.replace(" bpr_xdiff\n", " other\n"))
+                with self.assertRaisesRegex(ValueError, "map-image-mismatch"):
+                    pe.inspect(binary, info, private_producers=declared)
+                link_map.write_text(bound_map)
+                binary.write_bytes(payload + b"substituted")
+                with self.assertRaisesRegex(ValueError, "producer-byte-mismatch"):
+                    pe.inspect(binary, info, private_producers=declared)
+                binary.write_bytes(image())
+                with self.assertRaisesRegex(ValueError, "private-producer-not-dll"):
+                    pe.inspect(binary, info, private_producers=declared)
+                binary.write_bytes(payload)
+                link_map.write_text(bound_map.replace("xdl_diff", "github_public_path_fixture"))
+                table = pe.inspect(binary, info, private_producers=declared)
+                with self.assertRaisesRegex(ValueError, "fixture-symbol"):
+                    package.check_payload(bytes(payload), table.symbols)
+
+    def test_identical_unknown_dll_still_has_no_producer_authority(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            qt = root / "qt"
+            (qt / "sbom").mkdir(parents=True)
+            (qt / "sbom/qtbase-6.11.2.spdx.json").write_text('{"files":[]}')
+            binary = root / "unknown.dll"
+            binary.write_bytes(image())
+            producer = root / "bpr_xdiff.dll"
+            producer.write_bytes(image())
+            info = {"platform": "Windows", "app": str(root / "app.exe"), "helpers": [],
+                    "qt_root": str(qt), "qt_version": "6.11.2",
+                    "private_libraries": {producer.name: str(producer)}}
+            with self.assertRaisesRegex(ValueError, "undeclared-pe-producer"):
+                pe.inspect(binary, info, root, private_producers=tuple(package.runtime.private_library_producers(info)))
+
     def test_linker_only_cfg_indexes_are_bound_and_still_scanned(self):
         with ContainedTemporaryDirectory() as directory:
             producer = Path(directory) / "app.exe"

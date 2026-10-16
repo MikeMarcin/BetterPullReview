@@ -94,12 +94,16 @@ python packaging/package.py --build build/windows-app-release `
   --azure-metadata 'C:\absolute\metadata.json' --publisher 'Michael Marcin'
 ```
 
-The driver builds first, signs the `app` and `helpers` recorded in
-`_bpr/package-inputs.json`, then lets CPack stage the signed bytes and generate
+The driver builds first, signs the `app`, `helpers` and declared source-built
+`private_libraries` recorded in `_bpr/package-inputs.json`, then lets CPack stage the signed bytes and generate
 SPDX. It requires byte-identical staged images and verifies their Authenticode
 publisher, chain and timestamp. It preserves upstream Qt/CRT bytes and signatures.
 The finished MSI is signed last; final hashes/provenance are written afterward.
 Retain signed producer images and matching linker maps for the PE audit.
+The xdiff DLL requires its own full map and signing receipt, like the EXEs.
+Reconfigure older builds to emit its exact producer declaration; no DLL filename
+alone supplies producer authority. Unknown DLLs, changed producer bytes and
+missing or mismatched full maps remain audit failures.
 
 Outputs include MSI, runtime ZIP for inventory auditing, SPDX, separate source
 ZIP, checksums, provenance and `*.msi.release.json`. Unsigned preparation remains
