@@ -402,9 +402,9 @@ namespace {
 	void test_comparison_base_survives_a_restart()
 	{
 		temporary_directory root;
-		auto                store = storage(root.Path);
-		auto                input = request();
-		input.IdempotencyKey      = "review-on-a-merge-base";
+		auto                store                   = storage(root.Path);
+		auto                input                   = request();
+		input.IdempotencyKey                        = "review-on-a-merge-base";
 		input.LiveBinding->Target.ComparisonBaseOid = commit(0x12U);
 		auto comment                                = core::review_submission_comment{ };
 		comment.Draft                               = core::review_draft_id{ 9U };
@@ -429,8 +429,8 @@ namespace {
 			expect(loaded && *loaded && (**loaded).Request == attempt && (**loaded).Request.LiveBinding->Target.ComparisonBaseOid == commit(0x12U),
 				   "after a restart the comparison base reads back exactly");
 		}
-		auto moved                                  = *input.LiveBinding;
-		moved.Target.ComparisonBaseOid              = commit(0x13U);
+		auto moved                     = *input.LiveBinding;
+		moved.Target.ComparisonBaseOid = commit(0x13U);
 		expect(application::same_review_submission_identity(*input.LiveBinding, moved), "a merge base that moved is the same submission");
 		auto plain = request();
 		expect(application::comparison_base(plain.LiveBinding->Target) == plain.LiveBinding->Target.BaseOid, "without one LEFT lines are numbered in the recorded base");

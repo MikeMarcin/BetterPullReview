@@ -9757,9 +9757,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& comparison = selected.Request.Diff.Comparison;
 			const auto& snapshot   = *WindowRead->accepted_snapshot();
 			const auto  base       = core::parse_git_commit_oid(
-                snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
-					   ? snapshot.MergeBaseOid->value()
-					   : snapshot.PullRequest.BaseOid.value());
+				snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+					? snapshot.MergeBaseOid->value()
+					: snapshot.PullRequest.BaseOid.value());
 			if (!base || !selected.LeftPath || !selected.Key.LeftBlob || !conversation_endpoint_is_current(comparison, core::diff_side::right)) {
 				return std::nullopt;
 			}

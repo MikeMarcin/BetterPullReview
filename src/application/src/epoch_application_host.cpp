@@ -9398,14 +9398,14 @@ namespace bpr::application {
 							// an explicitly chosen one is.
 							const auto previousHead = candidates.PreviousDistinctHead
 								? std::optional{ core::comparison_anchor{
-									  .Identity = { .Authority   = candidates.PreviousDistinctHead->Id.Authority,
-													.Incarnation = candidates.PreviousDistinctHead->Id.Incarnation,
-													.Kind        = core::comparison_anchor_kind::epoch_head,
-													.Epoch       = candidates.PreviousDistinctHead->Id.Ordinal },
+									  .Identity     = { .Authority   = candidates.PreviousDistinctHead->Id.Authority,
+														.Incarnation = candidates.PreviousDistinctHead->Id.Incarnation,
+														.Kind        = core::comparison_anchor_kind::epoch_head,
+														.Epoch       = candidates.PreviousDistinctHead->Id.Ordinal },
 									  .Commit       = candidates.PreviousDistinctHead->Head,
 									  .Availability = candidates.PreviousDistinctHead->HeadAvailability } }
 								: std::nullopt;
-							exact = matchesSparseAnchor(candidates.ExplicitLeft)
+							exact                   = matchesSparseAnchor(candidates.ExplicitLeft)
 								|| matchesSparseAnchor(candidates.ExplicitRight) || matchesSparseAnchor(previousHead);
 						}
 						verified.emplace_back(aCommit, exact);

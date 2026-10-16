@@ -4094,11 +4094,11 @@ namespace bpr::adapters::github::detail {
 			if (!execution.bind_repository(aRepository)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			auto semantic    = semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::get_merge_base);
+			auto semantic      = semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::get_merge_base);
 			semantic.BaseOid   = aBasis.BaseRef.empty() ? aBasis.BaseOid : std::string{ };
 			semantic.BranchRef = aBasis.BaseRef;
 			semantic.HeadOid   = std::string{ aHead };
-			auto page        = execution.fetch(semantic);
+			auto page          = execution.fetch(semantic);
 			if (!page) {
 				return std::unexpected{ page.error() };
 			}

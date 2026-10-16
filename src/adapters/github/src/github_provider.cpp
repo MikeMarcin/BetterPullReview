@@ -15,13 +15,13 @@
 #include <functional>
 #include <limits>
 #include <map>
-#include <tuple>
 #include <mutex>
 #include <new>
 #include <optional>
 #include <ranges>
 #include <stop_token>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -256,8 +256,8 @@ namespace bpr::adapters::github::detail {
 			/// answers are kept, never failures. An open pull request's basis is
 			/// its branch, which moves, so it is asked on every read.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
-			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
-			bool                                                                     Closing = false;
+			std::atomic<std::uint64_t>                                                                               NextSnapshot{ 1U };
+			bool                                                                                                     Closing = false;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -2454,9 +2454,9 @@ namespace bpr::adapters::github::detail {
 								.BaseRef = open ? result->PullRequest.BaseRef : std::string{ },
 								.BaseOid = std::string{ result->PullRequest.BaseOid.value() },
 							};
-							const auto key = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(),
-														 basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
-							auto known = std::optional<std::pair<std::string, std::string>>{ };
+							const auto key   = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(),
+														   basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
+							auto       known = std::optional<std::pair<std::string, std::string>>{ };
 							if (!open) {
 								std::scoped_lock lock{ state->Mutex };
 								if (const auto found = state->MergeBases.find(key); found != state->MergeBases.end()) {

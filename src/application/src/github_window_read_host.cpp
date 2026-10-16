@@ -478,8 +478,8 @@ namespace bpr::application {
 			}
 			publish_and_execute(output);
 		}
-		void               observe_provider_error(const github_provider_error& aError) { static_cast<void>(merge(RateLimits, aError.RateLimits)); }
-		void               publish_error_advisory(const github_provider_error& aError) { LastError = aError; }
+		void observe_provider_error(const github_provider_error& aError) { static_cast<void>(merge(RateLimits, aError.RateLimits)); }
+		void publish_error_advisory(const github_provider_error& aError) { LastError = aError; }
 		/// \brief [[BPR-1560]]. The commit the review compares from, as text:
 		/// the merge base GitHub named, else the recorded base. The cached
 		/// overview reads its historical source at the same pair the retained
@@ -592,7 +592,7 @@ namespace bpr::application {
 			};
 			handoff.RecordedBase = *base;
 			handoff.BaseBasis    = mergeBase ? core::comparison_base_basis::merge_base : core::comparison_base_basis::recorded_base;
-			handoff.Shape = accepted_pull_request_shape{
+			handoff.Shape        = accepted_pull_request_shape{
 				.FileCount           = aSnapshot.Files.size(),
 				.ReturnedCommitCount = aSnapshot.Commits.size(),
 				.ReportedCommitCount = aSnapshot.PullRequest.ReportedCommitCount,

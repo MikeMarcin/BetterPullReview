@@ -1773,12 +1773,12 @@ namespace bpr::app::detail {
 			bool                                             LargeReviewRepeatReads = false;
 			bool                                             CliEnabled             = false;
 			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
-			bool                                             RefuseFirstSmartAcquire  = false;
+			bool                                             RefuseFirstSmartAcquire = false;
 			/// [[BPR-1560]]. Compare reads answered, and whether they fail.
-			std::size_t MergeBaseReads       = 0U;
-			bool        MergeBaseUnavailable = false;
-			bool                                             FirstSmartAcquireRefused = false;
-			std::optional<core::application_session_id>      AuthenticationSession;
+			std::size_t                                 MergeBaseReads           = 0U;
+			bool                                        MergeBaseUnavailable     = false;
+			bool                                        FirstSmartAcquireRefused = false;
+			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.

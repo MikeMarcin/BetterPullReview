@@ -1110,7 +1110,8 @@ namespace bpr::adapters::sqlite {
 			submission_writer out;
 			const auto&       target         = aRequest.LiveBinding->Target;
 			const auto        comparisonBase = application::comparison_base(target) != target.BaseOid;
-			out.integer(comparisonBase ? 3U : aRequest.Proposal.Comments.empty() ? 1U : 2U);
+			out.integer(comparisonBase ? 3U : aRequest.Proposal.Comments.empty() ? 1U
+																				 : 2U);
 			const auto& proposal = aRequest.Proposal;
 			const auto& actor    = aRequest.LiveBinding->ActingIdentity;
 			out.integer(proposal.Draft.value());

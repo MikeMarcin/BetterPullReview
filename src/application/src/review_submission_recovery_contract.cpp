@@ -106,8 +106,8 @@ namespace bpr::application {
 		// [[BPR-1560]]. The merge base moves with the base the same way.
 		left.Target.ComparisonBaseOid = aRight.Target.ComparisonBaseOid;
 		left.Target.BaseRef           = aRight.Target.BaseRef;
-		left.Target.HeadRef               = aRight.Target.HeadRef;
-		left.Target.Open                  = aRight.Target.Open;
+		left.Target.HeadRef           = aRight.Target.HeadRef;
+		left.Target.Open              = aRight.Target.Open;
 		return left == aRight;
 	}
 	auto valid(const review_submission_recovery_record& aRecord) -> bool

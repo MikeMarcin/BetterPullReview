@@ -1483,7 +1483,7 @@ namespace {
 		expect(compile_staged_review_request(input).has_value(), "left source binds exact base while batch commit remains head");
 		// [[BPR-1560]]. With a merge base apart from the recorded base, a LEFT
 		// line is numbered in the merge base and only there.
-		auto mergeBased                                   = input;
+		auto mergeBased                             = input;
 		mergeBased.Binding.Target.ComparisonBaseOid = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x5aU } };
 		expect(!compile_staged_review_request(mergeBased), "a LEFT line on the recorded base is refused when GitHub numbers LEFT in the merge base");
 		mergeBased.Lines[0].Source.Commit = mergeBased.Binding.Target.ComparisonBaseOid;

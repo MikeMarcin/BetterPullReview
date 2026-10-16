@@ -2555,9 +2555,9 @@ namespace {
 		const auto previous     = summary(owner, ownerCatalog, 7, 10U, 20U);
 		const auto latest       = summary(owner, ownerCatalog, 8, 11U, 30U);
 		const auto candidates   = comparison_candidates{
-			  .Catalog              = ownerCatalog,
-			  .LatestLive           = latest,
-			  .PreviousDistinctHead = previous,
+			.Catalog              = ownerCatalog,
+			.LatestLive           = latest,
+			.PreviousDistinctHead = previous,
 		};
 
 		const auto named = resolve_comparison(owner, named_selection(named_comparison::whole_pr), candidates, comparison_base_basis::merge_base);
@@ -2578,8 +2578,8 @@ namespace {
 		const auto previousHead = anchor(previous, comparison_anchor_kind::epoch_head);
 		const auto latestBase   = anchor(latest, comparison_anchor_kind::epoch_base);
 		const auto exact        = resolve_comparison(owner, explicit_selection(latestBase.Identity, previousHead.Identity),
-														 comparison_candidates{ .Catalog = ownerCatalog, .ExplicitLeft = latestBase, .ExplicitRight = previousHead },
-														 comparison_base_basis::recorded_base);
+													 comparison_candidates{ .Catalog = ownerCatalog, .ExplicitLeft = latestBase, .ExplicitRight = previousHead },
+													 comparison_base_basis::recorded_base);
 		expect(exact.Reason == epoch_reason_code::none && exact.Pair && available_for_diff(*exact.Pair),
 			   "an exact pair the reviewer chose stays exactly what was chosen");
 
@@ -2592,13 +2592,13 @@ namespace {
 		expect(changed != epoch_transition_output{ } && fixture.State.AcceptedBasis == comparison_base_basis::recorded_base,
 			   "the same revision without a named merge base is accepted again");
 
-		auto ready          = make_ready_fixture();
+		auto ready                = make_ready_fixture();
 		ready.State.AcceptedBasis = comparison_base_basis::recorded_base;
-		const auto select   = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::previous_upload_to_latest, .ExpectedCatalogRevision = ready.Catalog.Revision });
-		const auto* toUpload = request_from<resolve_comparison_request>(select);
+		const auto  select        = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::previous_upload_to_latest, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toUpload      = request_from<resolve_comparison_request>(select);
 		expect(toUpload != nullptr, "an interdiff selection asks for resolution");
 		static_cast<void>(transition(ready.State, comparison_resolved_event{ .Context = toUpload->Context, .Candidates = { .Catalog = ready.Catalog, .LatestLive = ready.Epoch } }));
-		const auto whole   = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::whole_pr, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto  whole   = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::whole_pr, .ExpectedCatalogRevision = ready.Catalog.Revision });
 		const auto* toWhole = request_from<resolve_comparison_request>(whole);
 		expect(toWhole != nullptr, "Whole PR asks for resolution");
 		const auto resolved = transition(ready.State, comparison_resolved_event{ .Context = toWhole->Context, .Candidates = { .Catalog = ready.Catalog, .LatestLive = ready.Epoch } });

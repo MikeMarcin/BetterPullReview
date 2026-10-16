@@ -32,11 +32,11 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_line.hpp"
+#include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
-#include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -495,7 +495,7 @@ namespace {
 				const auto& path = files[index].Path;
 				const auto  row  = aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(path));
 				aWindow.files_drawer()->contents_view()->setCurrentIndex(row);
-				const auto shownHere = [&] { return interdiff() && path_of() == path; };
+				const auto shownHere  = [&] { return interdiff() && path_of() == path; };
 				const auto absentHere = [&] {
 					return absent() && surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(path);
 				};
@@ -509,7 +509,7 @@ namespace {
 				}
 				const auto& context = *surface->current_context();
 				const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
-                    return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
+					return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
 				};
 				between << "{\"path\":" << json_text(path) << ",\"state\":\"shown\",\"left_blob\":" << blob(context.Key.LeftBlob) << ",\"right_blob\":" << blob(context.Key.RightBlob)
 						<< ",\"removed\":" << changed_lines(*surface->current_result(), core::diff_side::left)

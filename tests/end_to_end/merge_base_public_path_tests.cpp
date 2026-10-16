@@ -95,11 +95,11 @@ namespace {
 		options.MergeBaseUnavailable = aMergeBaseUnavailable;
 		auto terminal                = false;
 		auto startup                 = access::start(app::detail::github_public_path_fixture::merge_base_v1, options, [&](auto aResult) {
-            terminal = true;
-            if (aResult) {
-                aCourse.Application = std::move(*aResult);
-            }
-        });
+			terminal = true;
+			if (aResult) {
+				aCourse.Application = std::move(*aResult);
+			}
+		});
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "composed startup terminal");
 		expect(aCourse.Application != nullptr, "composition starts");
 		aCourse.Application->show();
@@ -142,8 +142,8 @@ namespace {
 	/// GitHub's Files changed for M...H, line for line.
 	void whole_pr_is_githubs_files_changed()
 	{
-		auto  run    = course{ };
-		auto& window = start(run, false);
+		auto                                                 run    = course{ };
+		auto&                                                window = start(run, false);
 		const std::map<std::string, std::pair<lines, lines>> github{
 			{ "a.txt", { { { 2U, "a line 2" }, { 12U, "a line 12" } }, { { 2U, "a line 2 PR-1" }, { 12U, "a line 12 PR-3" } } } },
 			{ "b.txt", { { { 3U, "b line 3" } }, { { 3U, "b line 3 PR-2" } } } },

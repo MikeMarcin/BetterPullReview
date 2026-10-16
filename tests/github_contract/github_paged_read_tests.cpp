@@ -3514,8 +3514,8 @@ namespace {
 		const auto     branch    = github_merge_base_basis{ .BaseRef = "release/2.0", .BaseOid = std::string{ recorded } };
 		const auto     exact     = github_merge_base_basis{ .BaseOid = std::string{ recorded } };
 		const auto     read      = [](merge_base_fixture_transport& aTransport, const github_merge_base_basis& aBasis, const validated_github_host_profile& aProfile,
-                             const application::github_pull_request_provider_request& aRequest, const github_provider_read_authority aAuthority = github_provider_read_authority::authenticated) {
-            return perform_github_merge_base_read(aTransport, aProfile, aRequest, core::repository_id{ 101U }, aBasis, head_oid, { }, { }, aAuthority);
+									  const application::github_pull_request_provider_request& aRequest, const github_provider_read_authority aAuthority = github_provider_read_authority::authenticated) {
+			return perform_github_merge_base_read(aTransport, aProfile, aRequest, core::repository_id{ 101U }, aBasis, head_oid, { }, { }, aAuthority);
 		};
 
 		// An open pull request: its head against its base branch, by name.
@@ -3541,8 +3541,8 @@ namespace {
 		expect(!read(other, exact, profile(), provider_request()), "an answer about another base commit is refused");
 
 		const auto refused = [&](std::string aBody, const int aStatus, const char* aMessage) {
-			auto scripted = merge_base_fixture_transport{ };
-			auto response = success_response(std::move(aBody));
+			auto scripted   = merge_base_fixture_transport{ };
+			auto response   = success_response(std::move(aBody));
 			response.Status = aStatus;
 			scripted.Responses.push_back(std::move(response));
 			const auto result = read(scripted, branch, profile(), provider_request());

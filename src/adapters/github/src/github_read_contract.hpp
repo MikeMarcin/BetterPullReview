@@ -176,12 +176,12 @@ namespace bpr::adapters::github::detail {
 
 	struct semantic_read_request
 	{
-		server_contract                            Server    = server_contract::github_com;
-		read_operation                             Operation = read_operation::get_viewer_identity;
-		std::string                                Owner;
-		std::string                                Repository;
-		std::uint32_t                              PullRequestNumber = 0;
-		std::string                                HeadOid;
+		server_contract Server    = server_contract::github_com;
+		read_operation  Operation = read_operation::get_viewer_identity;
+		std::string     Owner;
+		std::string     Repository;
+		std::uint32_t   PullRequestNumber = 0;
+		std::string     HeadOid;
 		/// [[BPR-1560]]. The commit the merge-base read compares with
 		/// `HeadOid` when it does not name the base branch in `BranchRef`;
 		/// empty for every other operation.
