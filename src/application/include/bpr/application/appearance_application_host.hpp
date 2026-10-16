@@ -87,6 +87,10 @@ namespace bpr::application {
 		// Answers from the retained cache when the key is present and runs the
 		// classification port only when it is not.
 		void classify(token_span_cache_key aKey);
+		/// \brief [[BPR-1558]]. Retires the classifications in flight and nothing
+		/// else; settings, import and export work continue. A later request for
+		/// the same key is submitted afresh instead of joining a retired one.
+		void cancel_classifications();
 		void cancel();
 		void shutdown();
 

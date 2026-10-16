@@ -159,6 +159,7 @@ namespace bpr::application {
 		}
 	}
 	void appearance_application_host::classify(token_span_cache_key aKey) { Implementation->Classification.classify(std::move(aKey)); }
+	void appearance_application_host::cancel_classifications() { Implementation->Classification.cancel(); }
 	void appearance_application_host::cancel()
 	{
 		if (Implementation->OwnPreferences) {

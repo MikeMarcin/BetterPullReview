@@ -406,6 +406,18 @@ reuse of the same cached span objects without new classifications. This is
 offscreen fixture evidence; it does not claim an observation of the owner's
 running installation or change existing palette/native acceptance.
 
+## Identical-sides regression, 2026-10-16
+
+[[BPR-1558]] answers an owner report of a right pane left plain until the file
+was opened again. A comparison whose two sides are one blob (a pure rename)
+asks for one classification; its publication was handed to the first matching
+side only, so when it answered after the diff was on screen the right pane
+stayed plain. The `application_syntax_delivery` course holds the classifier's
+blob reads until the diff is shown and requires both panes to carry the one
+classification, and both panes of a file left and returned to mid-read to end
+coloured. It failed on the previous adoption. Offscreen fixture evidence, not
+an observation of the owner's installation.
+
 ## Closeout
 
 RFC-BPR-0006 is **`Auto-Verified` as of 2026-09-01**. The ordered chain

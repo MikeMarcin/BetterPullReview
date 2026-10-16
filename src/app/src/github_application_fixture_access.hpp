@@ -1520,6 +1520,11 @@ namespace bpr::app::detail {
 		/// while one is in flight.
 		static void               hold_review_mutation_terminals(github_application& aApplication, bool aHold);
 		[[nodiscard]] static auto held_review_mutation_terminals(const github_application& aApplication) -> std::size_t;
+		/// \brief [[BPR-1558]]. Holds, or releases, every syntax classifier
+		/// blob read at its start, as a slow read would hold it. A departure
+		/// from the comparison still ends a held read, as it ends a real one.
+		static void               hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

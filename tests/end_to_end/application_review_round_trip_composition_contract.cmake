@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4d84928a305d2d1e475dbb622242949eef93fa029ae922a99a9a691a3fad8ecf"
+		"fc35d33a25a4d970c82c29421b53e9ee871bad511aad290333db0a99e8b9f58d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a86dd8eebd93a3b1057c2b1370963647b187629f30686390ae9d43f8d132d395"
+        "78559ef1554ac45bd79e996123842305ac8a40ee6fbd9bfa1f5b388fb5732509"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2578,10 +2578,20 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
 
-# [[BPR-1543]] reseal over main at 5e340ee21 (RFC-BPR-0084's inline images
-# merged; the last matching pins), recomputed on the tree that merges this
-# card onto it (github_application.cpp 4d84928a..., production application
-# source a86dd8ee...). The constructed markdown-parity-v1 fixture
+# [[BPR-1558]] reseal over main 1e5c35b7f, whose own pins match its tree.
+# github_application.cpp hands one syntax classification to every comparison
+# side whose blob it names (a pure rename's two panes share one classification),
+# and clear_diff_selection retires the appearance host's in-flight
+# classifications beside the classifier blob bindings it already dropped. A
+# tests-on hold in the composition blob source and two fixture accessors
+# (github_application_fixture_access.hpp) let a course order classification
+# after the diff. Presentation delivery only: no grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1558.
+
+# [[BPR-1543]] reseal over main at ec097d8dc (RFC-BPR-0084's inline images
+# and BPR-1558 merged; the last matching pins), recomputed on the tree that
+# merges this card onto it. The constructed markdown-parity-v1 fixture
 # joins the test-build fixture enum (github_application_fixture_access.hpp),
 # the host-profile table (github_application.cpp), the served-fixture table
 # (github_public_path_fixture.cpp, sharing overview-labels-v1's descriptor with
