@@ -1125,14 +1125,23 @@ namespace bpr::qt {
 	{
 		const auto previousCatalog = HistoryModel->catalog();
 		HistoryModel->apply(aProjection);
-		AllowOccurrenceImport = aProjection.AllowOccurrenceImport;
+		// [[BPR-1553]]. Whether an update GitHub recorded, and this install
+		// has not imported, can be chosen is a fact of the occurrence history
+		// it arrives with, and only that projection carries it. Every other
+		// catalogue projection (an accepted epoch, a history page) carries the
+		// field's default, and taking it from them turned the permission off
+		// moments after the history granted it: on any review loaded with
+		// selected objects, which since 0bfcbaa9a is every review within the
+		// read limits, the handles had nowhere to go but the updates seen here.
 		if (aProjection.Replace && !aProjection.OccurrenceHistory) {
 			OccurrenceHistory.reset();
 			CurrentEpoch.reset();
+			AllowOccurrenceImport = false;
 		}
 		if (aProjection.OccurrenceHistory) {
-			OccurrenceHistory = aProjection.OccurrenceHistory;
-			CurrentEpoch      = aProjection.CurrentEpoch;
+			OccurrenceHistory     = aProjection.OccurrenceHistory;
+			CurrentEpoch          = aProjection.CurrentEpoch;
+			AllowOccurrenceImport = aProjection.AllowOccurrenceImport;
 		}
 		if (aProjection.Replace && !aProjection.Catalog) {
 			Continuation.reset();
@@ -1168,6 +1177,7 @@ namespace bpr::qt {
 			if (Authority && Authority != aProjection.Authority->Authority) {
 				OccurrenceHistory.reset();
 				CurrentEpoch.reset();
+				AllowOccurrenceImport = false;
 			}
 			Authority = aProjection.Authority->Authority;
 			// The head commit of my last review, for the line's amber tick.
@@ -1181,6 +1191,7 @@ namespace bpr::qt {
 				HistoryModel->clear();
 				OccurrenceHistory.reset();
 				CurrentEpoch.reset();
+				AllowOccurrenceImport = false;
 				Selection.reset();
 				Comparison.reset();
 				Continuation.reset();

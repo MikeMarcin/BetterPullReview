@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1553"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Updates line: GitHub-recorded updates selectable again; both handles draggable (owner report 2026-10-16)",
+  "created": "2026-10-16T14:59:12.119880+00:00",
+  "base": "9311e82a1750e5c21d7397e78730cc089b8400c6"
+}
