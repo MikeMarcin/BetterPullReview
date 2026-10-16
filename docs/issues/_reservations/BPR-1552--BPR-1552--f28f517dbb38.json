@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1552"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "qt_document_tabs duplicate-key check honours BPR-1532's tour reorder exception; label publication recovery triage",
+  "created": "2026-10-16T08:53:17.090517+00:00",
+  "base": "32e9bcc0b393955b2ffd8ef4e2a43646f074aee0"
+}

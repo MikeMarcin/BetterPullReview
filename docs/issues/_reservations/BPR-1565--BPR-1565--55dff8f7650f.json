@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1565"
+  ],
+  "reserve_for": "bpr-remove-label-shortcodes",
+  "purpose": "Remove the comment editor's :xx: label shortcodes (owner, 2026-10-16)",
+  "created": "2026-10-16T18:17:56.617957+00:00",
+  "base": "4f58e5fd7dca7f97533bb6a33582726d875aeaf5"
+}

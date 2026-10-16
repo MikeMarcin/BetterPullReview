@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1561-linux-cpack-fixture",
+  "scope": {
+    "issues": [
+      "BPR-1561"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "linux-cpack-fixture-repair",
+      "outcome": "The tiny native Linux fixture configures the current production install graph and preserves baseline and default-generator verification.",
+      "work": [
+        {
+          "issue": "BPR-1561"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The native fixture declares the required xdiff shared target without changing production install guards or existing baseline and CPack assertions.",
+        "Exact-candidate Ubuntu 26.04 native verification passes the Linux CPack test and package runtime contract, with a failing missing-target regression control.",
+        "Focused local checks and the documentation gate pass, the issue slice is committed, and task-owned commands and writers are quiescent."
+      ],
+      "boundary": "Unversioned readiness for the next coordinated release only. No version selection or bump, release build, production package or installation, signing or unlock, enrollment, tag, push, publication or desktop control; RFC0038/BPR0961/BPR0962 remain open."
+    }
+  ],
+  "unplanned_work": []
+}

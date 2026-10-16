@@ -933,6 +933,10 @@ namespace bpr::app::detail {
 		refused,
 		uncertain,
 		again,
+		/// [[BPR-1541]]. `uncertain` over a kept data root, stopped once the
+		/// unknown review shows why; `restored` reopens that root.
+		kept,
+		restored,
 	};
 
 	enum class start_review_probe_result {
@@ -1013,6 +1017,17 @@ namespace bpr::app::detail {
 		/// Check status found the review and marked the draft published,
 		/// with one review sent.
 		bool Reconciled = false;
+		// [[BPR-1541]].
+		/// The unknown review's page said why under its status, as part of
+		/// the status's description, with no identity.
+		bool ReasonShown = false;
+		/// Check status's next answer replaced the line with its own reason.
+		bool ReasonReplaced = false;
+		/// Once confirmed, no reason was shown.
+		bool ReasonCleared = false;
+		/// After a restart, the restored review showed the reason its record
+		/// kept before Check status answered.
+		bool ReasonRestored = false;
 
 		auto operator<=>(const start_review_probe_evidence&) const = default;
 	};
@@ -1509,6 +1524,11 @@ namespace bpr::app::detail {
 		/// while one is in flight.
 		static void               hold_review_mutation_terminals(github_application& aApplication, bool aHold);
 		[[nodiscard]] static auto held_review_mutation_terminals(const github_application& aApplication) -> std::size_t;
+		/// \brief [[BPR-1558]]. Holds, or releases, every syntax classifier
+		/// blob read at its start, as a slow read would hold it. A departure
+		/// from the comparison still ends a held read, as it ends a real one.
+		static void               hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;

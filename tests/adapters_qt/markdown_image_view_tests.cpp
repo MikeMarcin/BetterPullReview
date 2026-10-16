@@ -285,6 +285,34 @@ namespace {
 		expect(grew > 0 && after > before + 100, "in place, an arriving image grows the post's height for its width");
 		expect(post.heightForWidth(150) < after, "a narrower post scales its image down");
 	}
+
+	/// RFC-BPR-0084 Q3. The "Images in descriptions and comments" preference, live.
+	void check_images_shown()
+	{
+		qt::markdown_body_view view;
+		view.resize(600, 400);
+		view.show();
+		std::vector<std::vector<core::markdown_image_reference>> asked;
+		view.set_image_dispatch([&asked](std::vector<core::markdown_image_reference> aReferences) { asked.push_back(std::move(aReferences)); });
+		view.set_body("![Alt](https://e.example/a.png) and ![Two](https://e.example/b.png)\n", "shown");
+		settle();
+		expect(asked.size() == 1U && asked.back().size() == 2U, "on by default, the body asks for its images");
+		view.apply_image(answer(asked.back()[0], core::markdown_image_state::loaded, decoded(40, 20, { Qt::red })));
+		view.set_images_shown(false);
+		settle();
+		const auto text = view.rendered_view()->toPlainText();
+		expect(!view.images_shown() && text.contains(QStringLiteral("[Image: Alt — open image link]")) && text.contains(QStringLiteral("[Image: Two — open image link]")),
+			   "off, every image is its placeholder, loaded or not");
+		expect(view.image_store()->images().empty(), "off, no image object remains");
+		view.request_images();
+		view.set_body("![Three](https://e.example/c.png)\n", "shown-next");
+		settle();
+		expect(asked.size() == 1U, "off, nothing is asked for, even for a new body");
+		view.set_images_shown(true);
+		settle();
+		expect(asked.size() == 2U && asked.back().size() == 1U && asked.back().front().Source == "https://e.example/c.png", "on again, the body asks for its images");
+		expect(!view.rendered_view()->toPlainText().contains(QStringLiteral("[Image: Three")), "on again, the image is an object, not the placeholder");
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -293,6 +321,7 @@ try {
 	check_references_and_lifecycle();
 	check_without_dispatch_and_scroll();
 	check_in_place_height();
+	check_images_shown();
 	std::cout << "markdown-image-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

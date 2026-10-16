@@ -6216,6 +6216,7 @@ namespace bpr::qt {
 			}
 			apply_label_helper();
 			apply_line_details();
+			apply_markdown_images();
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -9365,6 +9366,26 @@ namespace bpr::qt {
 				aNext.LineDetails       = application::review_behaviour_settings{ }.LineDetails;
 				aNext.CenterRibbonWidth = application::default_center_ribbon_width;
 			});
+		// RFC-BPR-0084 Q3. The owner, 2026-10-16, accepted a "Load images in
+		// descriptions and comments" preference, on by default.
+		auto* const imagesInfo = new info_glyph{ QStringLiteral("Images in pull request descriptions and comments load as they do on GitHub. Don't load: each stays a link with its description, and nothing is fetched."), BehaviourEditor };
+		imagesInfo->setObjectName(QStringLiteral("markdownImagesInfo"));
+		addGroup(
+			QStringLiteral("Descriptions and comments"),
+			QStringLiteral("resetDescriptionsAndComments"),
+			{
+				row{ 9U,
+					 QStringLiteral("Images"),
+					 QStringLiteral("markdownImages"),
+					 { { QStringLiteral("Load"), QStringLiteral("markdownImagesLoad") },
+					   { QStringLiteral("Don't load"), QStringLiteral("markdownImagesOff") } },
+					 imagesInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
+			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -9585,6 +9606,17 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::apply_markdown_images()
+	{
+		const auto shown = Behaviour.MarkdownImages == application::review_markdown_images::load;
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->set_images_shown(shown);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_images_shown(shown);
+		}
+	}
+
 	void workbench_window::apply_label_helper()
 	{
 		// [[BPR-1088]]. Only a published change reaches the editor, so the
@@ -9616,6 +9648,7 @@ namespace bpr::qt {
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
+		check(9U, static_cast<std::size_t>(Behaviour.MarkdownImages));
 		if (CenterRibbonWidth != nullptr) {
 			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
 		}
@@ -9656,6 +9689,7 @@ namespace bpr::qt {
 			.LabelColumns      = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
 			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
+			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 		};
 	}
 

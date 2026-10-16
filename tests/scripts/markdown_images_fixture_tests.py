@@ -59,6 +59,8 @@ class MarkdownImagesFixtureTests(unittest.TestCase):
                 signature = SIGNATURES.get(entry["content_type"])
                 if signature is not None:
                     self.assertTrue(data.startswith(signature))
+                elif entry["content_type"] == "image/webp":
+                    self.assertTrue(data.startswith(b"RIFF") and data[8:12] == b"WEBP")
                 else:
                     self.assertTrue(entry["content_type"].startswith("image/svg+xml"))
         html = "".join(bodies["bodies"].values())

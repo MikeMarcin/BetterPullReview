@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1543"
 title: "Markdown reader GitHub parity: comments, line breaks, alerts and footnotes"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"owner decision 2026-10-16: close the GitHub-parity gaps in PR description and comment Markdown, as two sequential cards (this is card A)","governing_rfc":"RFC-BPR-0036","amendment":"RFC-BPR-0036 owner amendment 1 (2026-10-16)","criteria":["AM1-01","AM1-02","AM1-03","AM1-04","AM1-08"],"related_cards":["BPR-1544","BPR-1545","BPR-1548"],"reservation":"docs/issues/_reservations/BPR-1543--BPR-1544--05e6fe38f3d4.json","design_skill":"frontend-design:frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"qt_markdown_github_{1_0,1_25,2_0}: comments.md and comments-unclosed.md against GitHub's Markdown API rendering: hidden text absent in both, kept text (code span, fence, indented code, unclosed inline) present in both, an unclosed comment block hides the rest as on GitHub; source keeps the comment; negative control: Qt's own import shows it."}},{"criterion":"AC2","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"qt_markdown_github rows: 7 line separators for GitHub's 7 <br> in breaks.md and 4 for 4 in the PR template; paragraph, list item and quote keep one block; table 3x2, code lines, code span over two lines, setext heading unchanged; tab repair intact; an authored U+2008 turns breaks off."}},{"criterion":"AC3","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"qt_markdown_github rows: alert kinds and titles equal GitHub's sequence (note,tip,important,warning,caution,note); marker-with-text and in-list stay quotes; heading and table stay inside; title contrast >=4.5 (>=7 high contrast) in light, dark, high-contrast light and dark; Note bar pixel in its colour; plain quote has no bar."}},{"criterion":"AC4","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"qt_markdown_github rows: references [1],[2],[1] as GitHub numbers them; back references and items match GitHub's counts; Tab/Enter and click move between reference and back reference with zero application gestures; authored #fn-1 still dispatches; missing/coded reference literal, unused definition dropped; negative control: Qt alone makes the one-word definition a link."}},{"criterion":"AC5","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"Reserved-mark guards and leftover sweep; 64 KiB body with every construct renders in 45 ms; 85 composition rows pass; fuzz_markdown_view 15 min, 360,876 runs clean with the no-mark property."}},{"criterion":"AC6","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"command","detail":"clang-format 22.1.8 and clang-tidy 22 clean on touched files; verify_documentation DOCUMENTATION_OK; github_contract_fixture_security_tests OK; round-trip composition contract resealed (960a53b7.../8e2f29b9...) and all nine composition contracts pass."}},{"criterion":"AC7","outcome":"pending","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in session 6eb0a38e0bc7f9c5a1261b07f3e47c55, cursor 15: BPR-1543-comments-v001 (45b931cb...), -line-breaks-v001 (a764a2c3...), -alerts-v001 (b908869e...), -footnotes-v001 (19401136...), -underscore-emphasis-v001 (e6618af8...); frozen root /Users/jaeger/bpr-1543-markdown-parity-v001.e6tm3nsa (executable 02d0d2a3...), GitHub page vs app sheets in Light and Dark; live sample MikeMarcin/BPR-Test#72."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"qt_markdown_github rows compare comments.md and comments-unclosed.md with GitHub's Markdown API output: hidden text absent, code comments kept, an unclosed block hides the rest; negative control: Qt alone shows the comment. Passed on the merged tree."}},{"criterion":"AC2","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"Line separators equal GitHub's <br> count in breaks.md (7) and the PR template (4); lists, quotes and tables keep their structure; code, code spans, headings and the tab repair are unchanged."}},{"criterion":"AC3","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"Alert kinds and titles in GitHub's order; marker-with-text and in-list stay quotes; heading/table stay inside; title contrast >=4.5 (>=7 high contrast) in four themes; bar pixel colour checked."}},{"criterion":"AC4","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"References [1],[2],[1] as GitHub numbers them; back references and items match; Tab/Enter and click move within the body with zero application gestures; negative control: Qt alone links the one-word definition."}},{"criterion":"AC5","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"Reserved-mark guards and leftover sweep; 64 KiB body in 45 ms; full dev suite 749/755 on e37dbe99f with the six load-sensitive rows (large review x5, hide-drawers key) passing alone; 138 focused rows and all nine composition contracts on the final tree; fuzz campaign 5 clean."}},{"criterion":"AC6","outcome":"pass","revision":"11c131da0","evidence":{"kind":"command","detail":"clang-format 22 check passed on 1569 files; clang-tidy clean on touched files; verify_documentation DOCUMENTATION_OK; round-trip composition contract resealed over main ec097d8dc."}},{"criterion":"AC7","outcome":"pass","revision":"cb73ad0001560adb0b650a50764f6dc6378e3a23","evidence":{"kind":"observation","detail":"Owner accepted all five questions with no notes in attended session 6eb0a38e0bc7f9c5a1261b07f3e47c55 (comments 45b931cb, line breaks a764a2c3, alerts b908869e, footnotes 19401136, underscore emphasis e6618af8), handed back at cursor 21 on 2026-10-16."}}]
 ---
 
 # BPR-1543: Markdown reader GitHub parity: comments, line breaks, alerts and footnotes
@@ -147,7 +146,28 @@ Implementation is on branch `bpr-1543-gfm-parity`.
   cursor 15; one Accept/Reject each for comments, line breaks, alerts,
   footnotes and underscore emphasis, each with GitHub's page beside the app
   in Light and Dark.
-- **Next:** read the verdicts; on all five accepted, merge to main (reseal
-  the composition contract on the merged tree if needed) and finish this
-  card, which makes [[BPR-1544]] eligible. A rejection becomes v002 on this
-  branch.
+- **Owner verdicts (2026-10-16):** all five accepted with no notes —
+  comments `45b931cb`, line breaks `a764a2c3`, alerts `b908869e`, footnotes
+  `19401136`, underscore emphasis `e6618af8` — handed back at cursor 21, which
+  is consumed. The review host is stopped, the frozen root removed, and
+  BPR-Test#72 closed with its branch deleted.
+- **Landing (coordinator order):** after the inline-images work
+  (`bpr-markdown-images`, RFC-BPR-0084) is on main. The resolution is ready on
+  branch `bpr-1543-landing-trial` (`6d077f528`, this branch merged onto the
+  images branch at `7d2295c85`): parity presentation runs before images are
+  placed, `focus_link` keeps the image description, and the fixture tables,
+  docs and fuzz ledger keep both sides. Its full dev suite: 745 of 755, the 10
+  others being the stale `NEXT_ID` base (3), the unresealed contracts (2), a
+  load flake that passes alone (`application_diff_host`) and the four rows
+  main fixed in BPR-1552. `fbdb893e2` (the fuzz target's helper renamed apart
+  from `bpr::application`, which the images headers made ambiguous) must come
+  along.
+- **Landed (2026-10-16):** `11c131da0` merges `bpr-1543-landing-trial` onto
+  main at `ec097d8dc` (after RFC-BPR-0084 at `5e340ee21` and BPR-1558). Full
+  dev suite on `e37dbe99f`: 749 of 755, the six others
+  (`application_large_review_{responsiveness,launch,pathological,history}`,
+  `large_review_replay_contract`, `qt_hide_drawers_native_menu_key`) passing
+  when rerun serially; they are load-sensitive budget rows untouched by this
+  card. On the final tree after main moved: the round-trip contract resealed
+  (`87ad560e...`, `465b7af3...`), all nine composition contracts and 138
+  focused rows pass, documentation gate OK.

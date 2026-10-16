@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
+#include <chrono>
 #include <iterator>
 #include <string>
 
@@ -26,6 +27,10 @@ namespace bpr::app::detail {
 				, Binding{ std::move(aBinding) }
 				, Production{ make_production_review(State, *Store, Binding) }
 			{ }
+			auto last_unknown(const std::string& aKey, std::stop_token aStop) -> std::optional<core::review_submission_unknown_diagnosis> override
+			{
+				return Production->last_unknown(aKey, aStop);
+			}
 			auto admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> override
 			{
 				return Production->admitted(aKey, aStop);
@@ -245,6 +250,16 @@ namespace bpr::app::detail {
 				}
 				return "COMMENTED";
 			}
+			/// [[BPR-1552]]. The head \p aReview was submitted at; the bound head
+			/// for a review this server does not hold.
+			auto written_head(const application::review_database_id aReview) const -> core::git_commit_oid
+			{
+				if (State->StagedReview && State->StagedReview->Id == aReview) {
+					return State->StagedReview->Commit;
+				}
+				const auto review = std::ranges::find(State->PreviousReviews, aReview, &application::staged_review_entity::Id);
+				return review == State->PreviousReviews.end() ? Binding.Target.Semantic.ExpectedHead : review->Commit;
+			}
 			/// [[BPR-1367]]. As GitHub answers: a review's own comment list
 			/// (`aLines` false) carries no `line`, `side`, `start_line`,
 			/// `start_side` or `subject_type`, pending or submitted; only the
@@ -266,6 +281,14 @@ namespace bpr::app::detail {
 							result += ",\"subject_type\":\"line\",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
 							if (source.FirstLine != source.LastLine) {
 								result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
+							}
+							// [[BPR-1552]]. As GitHub answers after a push: `commit_id`
+							// follows the head, and where the comment was written
+							// stays on `original_commit_id`, the head its review was
+							// submitted at, and `original_line` (BPR-1538 matches it).
+							result += ",\"original_commit_id\":" + json_text(std::string{ core::canonical_hex(written_head(c.Review)).view() }) + ",\"original_line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
+							if (source.FirstLine != source.LastLine) {
+								result += ",\"original_start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1);
 							}
 						}
 					} else {
@@ -295,7 +318,15 @@ namespace bpr::app::detail {
 					// [[BPR-1345]]. The ordinary review list the submission
 					// session reads before and after its POST.
 					if (w.Path == pull() + "/reviews?per_page=100") {
+						// [[BPR-1541]]. Held until released, or until the
+						// operation is stopped.
+						while (State->StallReviewReads && !stop.stop_requested()) {
+							State->ReadGate.wait_for(lock, std::chrono::milliseconds{ 20 });
+						}
 						if (State->HideReviewReads) {
+							if (State->ReviewReadStatus != 0) {
+								return wire::github_mutation_wire_success{ .Response = { .Status = State->ReviewReadStatus, .Body = "{}" } };
+							}
 							return wire::github_mutation_wire_error{ };
 						}
 						std::string all = "[";
@@ -570,6 +601,8 @@ namespace bpr::app::detail {
 			auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.mark_possibly_transmitted(aKey, aFingerprint); }
 			auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.resolve(aKey, aFingerprint, aReceipt); }
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.withdraw(aKey, aFingerprint); }
+			/// [[BPR-1540]]. Why an attempt is still unknown, kept in the same store.
+			auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_unknown(aKey, aFingerprint, aDiagnosis); }
 
 		private:
 			application::review_submission_recovery_port& Store;
@@ -585,6 +618,7 @@ namespace bpr::app::detail {
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override { return Session.submit_and_reconcile(aRequest, aStop); }
 			auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override { return Session.reconcile(aRequest, aStop); }
 			auto admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> override { return Session.admitted(aKey, aStop); }
+			auto last_unknown(const std::string& aKey, std::stop_token aStop) -> std::optional<core::review_submission_unknown_diagnosis> override { return Session.last_unknown(aKey, aStop); }
 
 		private:
 			staged_fixture_wire             Wire;

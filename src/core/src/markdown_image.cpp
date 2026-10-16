@@ -939,6 +939,159 @@ namespace bpr::core {
 		return admissions;
 	}
 
+	auto markdown_svg_signature(const std::string_view aDocument) noexcept -> bool
+	{
+		auto text = aDocument;
+		if (text.starts_with("\xEF\xBB\xBF")) {
+			text.remove_prefix(3U);
+		}
+		// The prolog: whitespace, an XML declaration, comments and a doctype.
+		for (std::size_t guard = 0; guard < 64U; ++guard) {
+			const auto start = text.find_first_not_of(" \t\r\n");
+			if (start == std::string_view::npos) {
+				return false;
+			}
+			text.remove_prefix(start);
+			const auto skip = [&text](const std::string_view aOpen, const std::string_view aClose) {
+				if (!text.starts_with(aOpen)) {
+					return false;
+				}
+				const auto end = text.find(aClose, aOpen.size());
+				text           = end == std::string_view::npos ? std::string_view{ } : text.substr(end + aClose.size());
+				return true;
+			};
+			if (skip("<?", "?>") || skip("<!--", "-->")) {
+				continue;
+			}
+			// A doctype, with its internal subset if it has one.
+			if (text.starts_with("<!DOCTYPE") || text.starts_with("<!doctype")) {
+				const auto open = text.find_first_of("[>");
+				const auto end  = open != std::string_view::npos && text[open] == '[' ? text.find("]>", open) : open;
+				text            = end == std::string_view::npos ? std::string_view{ } : text.substr(end + (text[open] == '[' ? 2U : 1U));
+				continue;
+			}
+			break;
+		}
+		if (!text.starts_with("<svg")) {
+			return false;
+		}
+		return text.size() > 4U && (text[4] == '>' || text[4] == ' ' || text[4] == '\t' || text[4] == '\r' || text[4] == '\n' || text[4] == '/');
+	}
+
+	auto admit_markdown_svg(const std::string_view aDocument) -> std::expected<void, markdown_image_state>
+	{
+		if (!markdown_svg_signature(aDocument)) {
+			return std::unexpected{ markdown_image_state::unsupported };
+		}
+		if (aDocument.size() > markdown_image_svg_bytes) {
+			return std::unexpected{ markdown_image_state::too_large };
+		}
+		const auto lower = ascii_lower(std::string{ aDocument });
+		for (const auto word : { std::string_view{ "<!entity" }, std::string_view{ "<script" }, std::string_view{ "<foreignobject" },
+								 std::string_view{ "@import" }, std::string_view{ "@font-face" }, std::string_view{ "<font" },
+								 std::string_view{ "<iframe" }, std::string_view{ "javascript:" } }) {
+			if (lower.find(word) != std::string::npos) {
+				return std::unexpected{ markdown_image_state::blocked };
+			}
+		}
+		const auto blank = [](const char aChar) { return aChar == ' ' || aChar == '\t' || aChar == '\r' || aChar == '\n'; };
+		// Every href, with or without a namespace prefix, names the document or embedded pixels.
+		for (auto at = lower.find("href"); at != std::string::npos; at = lower.find("href", at + 4U)) {
+			auto index = at + 4U;
+			while (index < lower.size() && blank(lower[index])) {
+				++index;
+			}
+			if (index >= lower.size() || lower[index] != '=') {
+				continue;
+			}
+			++index;
+			while (index < lower.size() && blank(lower[index])) {
+				++index;
+			}
+			if (index >= lower.size() || (lower[index] != '"' && lower[index] != '\'')) {
+				return std::unexpected{ markdown_image_state::blocked };
+			}
+			auto value = std::string_view{ lower }.substr(index + 1U);
+			while (!value.empty() && blank(value.front())) {
+				value.remove_prefix(1U);
+			}
+			const auto embedded = std::ranges::any_of(std::array{ "data:image/png;", "data:image/jpeg;", "data:image/gif;", "data:image/webp;", "data:image/svg+xml;" },
+													  [value](const std::string_view aPrefix) { return value.starts_with(aPrefix); });
+			if (!value.starts_with('#') && !embedded) {
+				return std::unexpected{ markdown_image_state::blocked };
+			}
+		}
+		// Every CSS url() names a fragment of the document.
+		for (auto at = lower.find("url("); at != std::string::npos; at = lower.find("url(", at + 4U)) {
+			auto value = std::string_view{ lower }.substr(at + 4U);
+			while (!value.empty() && (blank(value.front()) || value.front() == '"' || value.front() == '\'')) {
+				value.remove_prefix(1U);
+			}
+			if (!value.starts_with('#')) {
+				return std::unexpected{ markdown_image_state::blocked };
+			}
+		}
+		// Elements and nesting, skipping comments, CDATA and processing instructions.
+		std::size_t elements = 0U;
+		std::size_t depth    = 0U;
+		for (auto at = aDocument.find('<'); at != std::string_view::npos; at = aDocument.find('<', at + 1U)) {
+			const auto rest  = aDocument.substr(at);
+			const auto close = [&](const std::string_view aClose) {
+				const auto end = aDocument.find(aClose, at);
+				at             = end == std::string_view::npos ? aDocument.size() - 1U : end + aClose.size() - 1U;
+			};
+			if (rest.starts_with("<!--")) {
+				close("-->");
+				continue;
+			}
+			if (rest.starts_with("<![CDATA[")) {
+				close("]]>");
+				continue;
+			}
+			if (rest.starts_with("<?")) {
+				close("?>");
+				continue;
+			}
+			if (rest.starts_with("<!")) {
+				// A doctype with an internal subset can declare entities.
+				const auto end = rest.find('>');
+				if (rest.substr(0U, end).find('[') != std::string_view::npos) {
+					return std::unexpected{ markdown_image_state::blocked };
+				}
+				close(">");
+				continue;
+			}
+			if (rest.starts_with("</")) {
+				depth = depth == 0U ? 0U : depth - 1U;
+				continue;
+			}
+			// An element: find its end outside quoted values.
+			auto quote = '\0';
+			auto end   = std::size_t{ 1 };
+			for (; end < rest.size(); ++end) {
+				const auto character = rest[end];
+				if (quote != '\0') {
+					quote = character == quote ? '\0' : quote;
+				} else if (character == '"' || character == '\'') {
+					quote = character;
+				} else if (character == '>') {
+					break;
+				}
+			}
+			if (end >= rest.size()) {
+				return std::unexpected{ markdown_image_state::failed };
+			}
+			if (++elements > markdown_image_svg_elements) {
+				return std::unexpected{ markdown_image_state::too_large };
+			}
+			if (rest[end - 1U] != '/' && ++depth > markdown_image_svg_depth) {
+				return std::unexpected{ markdown_image_state::too_large };
+			}
+			at += end;
+		}
+		return { };
+	}
+
 	auto markdown_image_cache_key(const std::string_view aHostname, const std::uint64_t aAccount, const markdown_image_source& aSource)
 		-> std::string
 	{

@@ -52,7 +52,7 @@ namespace {
 	/// \brief Restores the pre-twenty profile and pre-nineteen Home schema of a legacy fixture, preserving its rows.
 	[[nodiscard]] auto legacy_home_bound(sqlite3* aDatabase) -> sqlite3*
 	{
-		expect(sqlite3_exec(aDatabase, "ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width", nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture has no ribbon width column");
+		expect(sqlite3_exec(aDatabase, "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width", nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture has no image preference or ribbon width column");
 		const auto definition = scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='window_layout'");
 		expect(definition.has_value(), "legacy fixture Home table exists");
 		auto       sql   = *definition;
@@ -2224,7 +2224,7 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && db->store(chosen, { }), "an explicit 56-pixel choice stores");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width; UPDATE workbench_meta SET schema_format=19; PRAGMA user_version=19", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width; UPDATE workbench_meta SET schema_format=19; PRAGMA user_version=19", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "the actual pre-setting version-nineteen schema is seeded");
 		}
 		{
@@ -2244,6 +2244,40 @@ namespace {
 		auto reopened                      = workbench_settings_database::open(path, { });
 		chosen.Behaviour.CenterRibbonWidth = 256U;
 		expect(reopened && reopened->load({ }) == chosen, "the explicit choice remains intact across restart");
+	}
+
+	/// \brief RFC-BPR-0084 Q3. Version twenty-one's image preference: a
+	/// version-twenty profile migrates to Load and keeps every other choice;
+	/// Don't load round-trips; an unknown value is refused.
+	void test_markdown_images_migration_and_round_trip()
+	{
+		const auto scratch                 = scratch_directory{ };
+		const auto path                    = scratch.file("images-v20.sqlite3");
+		auto       chosen                  = settled_profile();
+		chosen.Behaviour.CenterRibbonWidth = 56U;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db && db->store(chosen, { }), "a version-twenty-one profile stores");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; UPDATE workbench_meta SET schema_format=20; PRAGMA user_version=20", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "the actual version-twenty schema is seeded");
+		}
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "version twenty migrates");
+			expect(db->load({ }) == chosen && chosen.Behaviour.MarkdownImages == application::review_markdown_images::load, "a migrated profile loads images and keeps every other choice");
+			chosen.Behaviour.MarkdownImages = application::review_markdown_images::off;
+			expect(db->store(chosen, { }) && db->load({ }) == chosen, "Don't load round-trips");
+			auto invalid                     = chosen;
+			invalid.Behaviour.MarkdownImages = static_cast<application::review_markdown_images>(2);
+			expect(!db->store(invalid, { }), "an unknown image preference cannot be written");
+		}
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened && reopened->load({ }) == chosen, "Don't load survives a restart");
+			expect(sqlite3_exec(reopened->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET markdown_images=2", nullptr, nullptr, nullptr) == SQLITE_OK, "a hostile value bypasses the check for the fixture");
+		}
+		auto refused = workbench_settings_database::open(path, { });
+		expect(!refused || !refused->load({ }), "a stored unknown image preference is refused");
 	}
 
 	void test_invalid_one_pane_window_is_refused()
@@ -2271,6 +2305,7 @@ try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authored_collapse_upgrade_and_independent_windows();
 	test_center_ribbon_width_migration_and_bounds();
+	test_markdown_images_migration_and_round_trip();
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();

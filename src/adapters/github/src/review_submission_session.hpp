@@ -18,6 +18,10 @@ namespace bpr::adapters::github::detail {
 		/// \brief [[BPR-1345]]. The request admitted under `aKey` in this
 		/// scope, or none. Reads the journal only.
 		[[nodiscard]] auto admitted(const std::string& aKey, std::stop_token aStop = { }) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>;
+		/// \brief [[BPR-1541]]. Why the unresolved attempt under `aKey` was last
+		/// left unknown, as its record in this scope keeps it. Reads the
+		/// journal only.
+		[[nodiscard]] auto last_unknown(const std::string& aKey, std::stop_token aStop = { }) -> std::optional<core::review_submission_unknown_diagnosis>;
 
 		[[nodiscard]] auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>;
 		[[nodiscard]] auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;

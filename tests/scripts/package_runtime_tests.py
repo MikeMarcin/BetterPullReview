@@ -42,7 +42,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "gemoji", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "gemoji", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
@@ -176,7 +176,7 @@ class PackageRuntimeTests(unittest.TestCase):
                 pass
             archive = Path(directory) / "empty.tar"
             archive.write_bytes(empty.getvalue())
-            with patch.object(runtime, "source_archives", return_value={"QtBase": archive, "KSyntaxHighlighting": archive}), \
+            with patch.object(runtime, "source_archives", return_value={"QtBase": archive, "QtSvg": archive, "QtImageFormats": archive, "KSyntaxHighlighting": archive}), \
                     patch.object(runtime, "prepare_source_asset", return_value=provenance), \
                     patch.object(runtime, "qt_records", return_value=records):
                 runtime.notices(build, info, root)
@@ -250,6 +250,7 @@ set(Qt6_DIR "{ROOT.as_posix()}/fixture-qt/lib/cmake/Qt6")
 set(BPR_PRODUCT_QT_VERSION 6.11.2)
 add_executable(app_better_pull_review fixture.cpp)
 add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
+add_library(better_pull_review_xdiff SHARED fixture.cpp)
 set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")
 include("{ROOT.as_posix()}/packaging/Install.cmake")
 ''')
@@ -326,12 +327,17 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 cache = build / "release-sources"
                 cache.mkdir()
                 declared = []
-                for name in ("QtBase", "KSyntaxHighlighting"):
+                for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting"):
                     path = cache / f"{name}-1.tar.gz"
                     with tarfile.open(path, "w:gz") as archive:
                         entry = tarfile.TarInfo(name + "/LICENSES/fixture.txt")
                         entry.size = 7
                         archive.addfile(entry, io.BytesIO(b"license"))
+                        if name == "QtImageFormats":
+                            # RFC-BPR-0084. libwebp's own licence inside qwebp.
+                            webp = tarfile.TarInfo(name + "/src/3rdparty/libwebp/COPYING")
+                            webp.size = 18
+                            archive.addfile(webp, io.BytesIO(b"libwebp-copying-ok"))
                     declared.append({"name": name, "version": "1", "url": "https://example.invalid/source.tar.gz", "sha256": runtime.digest(path)})
                 (build / "_bpr").mkdir()
                 (build / "_bpr/LibArchive-NOTICES.txt").write_text("LibArchive notice")
@@ -344,6 +350,8 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                       patch.dict(runtime.os.environ, {"BPR_MSVC_REDISTRIBUTION_NOTICE": str(msvc)}),
                       patch.object(runtime.urllib.request, "urlopen") as network):
                     runtime.notices(build, info, stage)
+                    notices = (runtime.legal_root(stage, info) / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
+                    self.assertIn("libwebp-copying-ok", notices, "libwebp's licence travels with qwebp")
                     provenance = runtime.installed_source_provenance(stage, info, "a" * 40)
                     asset = runtime.source_asset_path(build, info, "a" * 40)
                     runtime.verify_source_asset(asset, provenance)

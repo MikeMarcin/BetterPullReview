@@ -61,6 +61,8 @@ ALLOWED_PLUGIN_FILES = {
     # RFC-BPR-0084. Body images decode GIF and JPEG.
     pathlib.PurePosixPath("imageformats/libqgif.dylib"),
     pathlib.PurePosixPath("imageformats/libqjpeg.dylib"),
+    # RFC-BPR-0084 owner amendment 1: WebP.
+    pathlib.PurePosixPath("imageformats/libqwebp.dylib"),
 }
 MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
 MAXIMUM_IMAGE_BYTES = 16 * 1024 * 1024 * 1024

@@ -81,6 +81,20 @@ namespace {
 		for (const auto& linked : core::markdown_linked_images(aRaw)) {
 			fuzz::require(!linked.Source.empty() && !linked.Link.empty() && aRaw.find(linked.Link) != std::string_view::npos);
 		}
+		// RFC-BPR-0084 owner amendment 1. SVG admission never admits a
+		// document that is not one or that names anything outside itself.
+		if (const auto svg = core::admit_markdown_svg(aRaw); svg) {
+			fuzz::require(core::markdown_svg_signature(aRaw) && aRaw.size() <= core::markdown_image_svg_bytes);
+			auto lower = std::string{ aRaw };
+			for (auto& character : lower) {
+				character = character >= 'A' && character <= 'Z' ? static_cast<char>(character + ('a' - 'A')) : character;
+			}
+			for (const auto* refused : { "<script", "<!entity", "@import", "url(http", "href=\"http", "href='http", "href=\"file", "href='file" }) {
+				fuzz::require(lower.find(refused) == std::string::npos);
+			}
+		} else if (!core::markdown_svg_signature(aRaw)) {
+			fuzz::require(svg.error() == core::markdown_image_state::unsupported);
+		}
 		const auto served = core::served_markdown_images(aRaw);
 		fuzz::require(!served || served->size() <= core::markdown_image_served_tags_per_body);
 		const auto dotcom = core::markdown_image_fetch_policy{ .Contract = core::markdown_image_host_contract::github_com, .Hostname = "github.com", .CredentialAvailable = true };

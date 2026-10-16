@@ -1,5 +1,20 @@
 # RFC-BPR-0038 qualification ledger
 
+## Unversioned Ubuntu readiness refresh, 2026-10-16
+
+The owner selected readiness for the next coordinated release, with no version
+selected. The [producer record](ubuntu-release-readiness-20261016.md) binds
+Ubuntu 26.04 x86_64 WSL2 source `aa6294c50f95b51d95f7c7861d7430f89cdb2fdc`,
+available native tools/Qt SPDX, matching public-key exports and successful
+scoped GPG configuration validation without credential retrieval or signing.
+The focused packaging refresh exposed a missing xdiff shared target in the tiny
+CPack fixture; BPR-1561 restores it with existing assertions unchanged. Native
+verification of the repair plus unchanged passing contracts gives 66 passing
+cases and one explicit Windows-only skip. No full normal gate or final package
+was produced. Clean desktop/Secret Service, exact final-artifact trust,
+runtime/security and distribution obligations on BPR-0961/0962 remain open;
+existing released bytes are unchanged.
+
 ## 0.2.0 macOS release: xdiff LGPL arrangement approved, 2026-10-13
 
 The owner selected 0.2.0 (not 0.1.10, which was never released) for a

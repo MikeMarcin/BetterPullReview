@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1554",
+    "BPR-1555",
+    "BPR-1556"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0084 owner answers: Q1 SVG via QtSvg, Q2 WebP via qtimageformats, Q3 image preference",
+  "created": "2026-10-16T15:05:55.092037+00:00",
+  "base": "0bcc6951fbdae6cd2b490d75f10c20c38c65e73d"
+}

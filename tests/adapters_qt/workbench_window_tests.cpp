@@ -530,6 +530,22 @@ namespace {
 		publish_updates_line(aWindow, core::workbench_updates_line::folded);
 	}
 
+	/// \brief [[BPR-1532]]. Whether \p aKey on \p aAction is the one binding an
+	/// assembled window shares on purpose.
+	///
+	/// An ambiguous shortcut overload triggers neither action, so a window
+	/// binds each key once. The single exception: the tour outline's own
+	/// reorder keys, widget-scoped, are First and Last change's, and the window
+	/// unbinds those while focus is in the outline (test_change_end_keys_yield),
+	/// so Qt never sees both at once. Every "no key bound twice" check skips
+	/// exactly this pair and nothing else ([[BPR-1552]]).
+	[[nodiscard]] auto yields_to_tour_reorder(const QAction& aAction, const QKeySequence& aKey) -> bool
+	{
+		const auto reorder = aAction.objectName() == QStringLiteral("tourMoveUp") || aAction.objectName() == QStringLiteral("tourMoveDown");
+		return reorder && aAction.shortcutContext() == Qt::WidgetWithChildrenShortcut
+			&& (aKey == QKeySequence{ QStringLiteral("Alt+Shift+Up") } || aKey == QKeySequence{ QStringLiteral("Alt+Shift+Down") });
+	}
+
 	/// \brief Saves a window render beside the suite's other renders, when the
 	/// run names a render path.
 	void save_render(qt::workbench_window& aWindow, const QString& aSuffix)
@@ -6898,8 +6914,8 @@ namespace {
 		expect(window.close_tab_action()->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }, "platform Close Tab key is bound");
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* action : window.findChildren<QAction*>()) {
-			if (!action->shortcut().isEmpty()) {
-				expect(!sequences.contains(action->shortcut()), "assembled keys are unique");
+			if (!action->shortcut().isEmpty() && !yields_to_tour_reorder(*action, action->shortcut())) {
+				expect(!sequences.contains(action->shortcut()), "assembled keys are unique: " + action->shortcut().toString().toStdString());
 				sequences.push_back(action->shortcut());
 			}
 		}
@@ -7473,15 +7489,11 @@ namespace {
 		}
 
 		// An ambiguous shortcut overload triggers neither action, so one key
-		// sequence may never be offered twice in one window. [[BPR-1532]]: the
-		// tour outline's reorder keys are First and Last change's, and the
-		// window unbinds those while the outline has focus
-		// (test_change_end_keys_yield), so the two never match at once.
+		// sequence may never be offered twice in one window, except the pair
+		// the window yields to the tour outline (yields_to_tour_reorder).
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* const action : window.findChildren<QAction*>()) {
-			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
-				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
-			if (action->shortcut().isEmpty() || yieldedTo) {
+			if (action->shortcut().isEmpty() || yields_to_tour_reorder(*action, action->shortcut())) {
 				continue;
 			}
 			expect(!sequences.contains(action->shortcut()),
@@ -8617,17 +8629,12 @@ namespace {
 				   && zoomOut->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
 				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+0") } },
 			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘0 is Actual Size");
-		// [[BPR-1532]]. One pair is shared on purpose: the tour outline's own
-		// reorder keys, widget-scoped, are First and Last change's, and the
-		// window unbinds those while focus is in the outline (checked by
-		// test_change_end_keys_yield). Every other key is bound once.
-		const auto changeEndKeys = QList{ QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
-		auto       keys          = QList<QKeySequence>{ };
+		// Every key is bound once, except the pair the window yields to the
+		// tour outline (yields_to_tour_reorder).
+		auto keys = QList<QKeySequence>{ };
 		for (const auto* const action : window.findChildren<QAction*>()) {
-			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
-				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
 			for (const auto& key : action->shortcuts()) {
-				if (yieldedTo && changeEndKeys.contains(key)) {
+				if (yields_to_tour_reorder(*action, key)) {
 					continue;
 				}
 				expect(!keys.contains(key), "no key is bound twice in the assembled window: " + key.toString().toStdString());
@@ -11671,6 +11678,49 @@ namespace {
 		button("resetComparisonBehaviour")->click();
 		expect(records.size() == 3U && records.back().LineDetails == application::review_line_details::shown,
 			   "Reset on the Comparison group shows Line details again");
+		window.hide();
+	}
+
+	/// \brief RFC-BPR-0084 Q3. Settings' "Descriptions and comments: Images"
+	/// row is one profile preference; the window follows what the host publishes.
+	void test_markdown_images_preference_follows_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto button = [&window](const char* const aName) {
+			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Images row names its options");
+			return found;
+		};
+		auto* const body = window.overview_page()->body_view();
+		expect(button("markdownImagesLoad")->isChecked() && !button("markdownImagesOff")->isChecked() && body->images_shown(),
+			   "Images start on Load: images show by default");
+		expect(button("markdownImagesOff")->accessibleName() == QStringLiteral("Images: Don't load") && window.findChild<QToolButton*>(QStringLiteral("markdownImagesInfo")) != nullptr
+				   && window.findChild<QToolButton*>(QStringLiteral("resetDescriptionsAndComments")) != nullptr,
+			   "the row has accessible choices, an information glyph and its own Reset");
+		button("markdownImagesOff")->click();
+		expect(records.size() == 1U && records.back().MarkdownImages == application::review_markdown_images::off
+				   && records.back().LineDetails == application::review_behaviour_settings{ }.LineDetails,
+			   "Don't load dispatches the whole record with images off");
+		expect(body->images_shown(), "nothing changes until the host publishes the choice");
+		auto off           = application::review_behaviour_settings{ };
+		off.MarkdownImages = application::review_markdown_images::off;
+		window.publish(application::workbench_projection{ .Behaviour = off });
+		process_events();
+		expect(!body->images_shown() && button("markdownImagesOff")->isChecked(), "a published Don't load hides the description's images and moves the row");
+		button("resetDescriptionsAndComments")->click();
+		expect(records.size() == 2U && records.back().MarkdownImages == application::review_markdown_images::load,
+			   "Reset returns the row to Load");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(body->images_shown() && button("markdownImagesLoad")->isChecked(), "a published Load shows them again");
 		window.hide();
 	}
 
@@ -16050,6 +16100,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--center-ribbon-width"))) {
 		test_center_ribbon_width_settings_and_rendering();
 		test_line_details_view_menu_and_settings_follow_the_projection();
+		test_markdown_images_preference_follows_the_projection();
 		std::cout << "center-ribbon-width:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -16284,6 +16335,7 @@ auto main(int argc, char** argv) -> int
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
 	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
 	test_line_details_view_menu_and_settings_follow_the_projection();
+	test_markdown_images_preference_follows_the_projection();
 	test_continue_review_and_opening_honour_the_modality_preferences();
 	test_comments_filter_and_return_comparison_preferences_apply_on_open();
 	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();
