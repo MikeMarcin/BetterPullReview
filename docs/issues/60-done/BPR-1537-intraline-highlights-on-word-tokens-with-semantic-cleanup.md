@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1537"
 title: "Intraline highlights on word and punctuation tokens with semantic cleanup"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0082", "RFC-BPR-0004"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-15 (relayed by the coordinator)","owner_note":"I feel like the quality of intra-line diffs has gotten a lot worse from a human perspective since we changed algorithms.","governing_rfc":"RFC-BPR-0082","related_cards":["BPR-1481","BPR-1480","BPR-1485","BPR-1467"],"reservation":"docs/issues/_reservations/BPR-1537--BPR-1537--945227dd29b1.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"2429f4ea4","evidence":{"kind":"observation","detail":"8,104 one-for-one changed pairs mined from 3,000 commits (6,759 similar) plus a 37-pair curated corpus, run through the pre-BPR-1481 table, current dtl and the candidate; failure classes named with examples and metrics on the card (regions per pair 3.36/3.40/1.28; word cuts 64.5%/64.5%/11.2%)."}},{"criterion":"AC2","outcome":"pass","revision":"2429f4ea4","evidence":{"kind":"command","detail":"diff_intraline.cpp tokenises (word parts, spaces, operators, grapheme clusters), dtl over token middle, linear cleanup and rewrite fallback, granular step metering; dtl only in diff_intraline.cpp (architecture_boundaries passes), no new library; core_diff_intraline stop and budget tests pass."}},{"criterion":"AC3","outcome":"pass","revision":"1f078f0d5","evidence":{"kind":"command","detail":"Golden corpus with in-test character-level control (fails 28 of 37); negative control against main's engine fails at the first golden pair; core-only 275 rows at 2429f4ea4; merged-tree diff, Qt, public-path, fixture and composition rows, coding_format_check, documentation gate and tests pass; changed-source tidy shows only the existing exception-base pattern."}},{"criterion":"AC4","outcome":"pass","revision":"7bda4c32f","evidence":{"kind":"observation","detail":"Owner Accept in attended session cb6a3d6ecf93aa13c7276f81c5e83475, decision a8fb8649-a17d-4173-8188-7b78c785449f (2026-10-16T01:32:29Z), note 'whole words with cleanup is defintely better', on the frozen build of intraline-v1 and the old/current/candidate renders."}}]
 ---
 
 # BPR-1537: Intraline highlights on word and punctuation tokens with semantic cleanup
