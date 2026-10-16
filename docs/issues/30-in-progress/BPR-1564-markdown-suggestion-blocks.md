@@ -29,3 +29,17 @@ code coloured by the file's language.
   apply action.
 - **AC2:** gates and the reader's rows, as on [[BPR-1562]].
 - **AC3 (AM2-05), owner:** Accept/Reject beside GitHub in Light and Dark.
+
+## Design and evidence
+
+Shared with [[BPR-1562]] (design and evidence there). GitHub's box read from
+BPR-Test#80 (`code-blocks-v1/suggestions.github.html`): a 1 px rule and 6 px
+corners, the "Suggested change" header in the quiet ink, full-width rows in
+the diff fills with a darker number gutter, changed words on the intraline
+fill, code in the file's language. Commented lines come from the compared
+document (`core::suggestion_source_lines`, from GitHub's `start_line`, now in
+`github_conversation_projection`) while the thread is current on that file;
+otherwise the added rows alone. Read only: RFC-BPR-0048 keeps apply as a
+GitHub handoff, and no native apply exists. `qt_markdown_code_*` compares
+the four review suggestions row by row with GitHub (kind, number, text,
+marked word); `qt_conversation_cards_view` drives the drawer's locator.

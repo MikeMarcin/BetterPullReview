@@ -25,3 +25,16 @@ grammar does, in the theme's diff colours.
   themes; indented diff and inline code unchanged.
 - **AC2:** gates and the reader's rows, as on [[BPR-1562]].
 - **AC3 (AM2-05), owner:** Accept/Reject beside GitHub in Light and Dark.
+
+## Design and evidence
+
+Shared with [[BPR-1562]] (design and evidence there). GitHub's `source.diff`
+grammar, rule for rule (`core::markdown_diff_marks`), observed through its
+Markdown API on `code-blocks-v1/diff.md` and `diff-probe.md`. Added/removed
+lines and file headers: the diff roles' fills behind the text, the intraline
+hue held to 4.5:1 (7:1 high contrast) on the fill; `!` lines the moved fill
+and attention ink; the range bold in the hunk header ink; git/command headers
+and separators in the constant colour. `core_markdown_code` compares every
+diff line with GitHub's spans; `qt_markdown_code_*` checks each mark's fill and
+ink contrast in four themes and the painted fill's pixel. A diff block whose
+lines hold `-\t` no longer sends the body to source (the tab repair fix).

@@ -46,3 +46,57 @@ classifier, definitions and appearance effect lane, as the Review Cycle's
 code views do ([[BPR-1161]]). [[BPR-1559]]'s classifier fix reaches the
 reader with no change here. Landing waits for [[BPR-1543]], [[BPR-1544]] and
 [[BPR-1559]] on main; this branch is stacked on BPR-1544's.
+
+## Design
+
+The `frontend-design` skill was loaded before the visual choices. The brief
+pins the direction: GitHub's own rendering, in the app's theme roles, with no
+new colour. The full description is the reader design's
+[Fenced code](../../architecture/native-markdown.md#fenced-code-amendment-2).
+
+- **Core decides** (`core/markdown_code.*`): the fence scan (CommonMark
+  fences in quotes and list items, bounded), GitHub's language table checked
+  against its Markdown API, GitHub's diff grammar, the suggestion rows.
+- **Host performs** (`application/markdown_code_syntax.*`): a host of its own
+  over a `syntax_classification_application_host`, one classification at a
+  time, newest first, cached by text and definition; the composition gives it
+  a packaged classifier over the shared definitions on the appearance effect
+  lane. The panes' `appearance_application_host` ([[BPR-1558]]) is untouched.
+- **Qt presents** (`adapters/qt/markdown_code.*`): finds each block by its
+  lines in the imported document, draws spans as layout formats in the panes'
+  role colours, lays out suggestions, paints their box. The window relays the
+  overview's and the open thread's requests and hands every answer back.
+- **Found while building:** Qt's import keeps a tab after a code line's first
+  non-blank character, while the tab repair expanded all of them, so any diff
+  block with `-\t` sent the whole body to source. Fixed in `expanded_tabs`.
+  Qt also lays a document's first block at its top whatever its margin, so a
+  body that opens with a suggestion keeps the box's gap on its root frame.
+
+## Evidence (branch `bpr-1562-fenced-code`, stacked on BPR-1544's)
+
+- `core_markdown_code`: scan shapes and bounds; all 147 info strings of
+  `code-blocks-v1/languages.md` against GitHub's decision; every line of the
+  diff fixtures against GitHub's `pl-*` spans; suggestion rows against the
+  BPR-Test#80 review.
+- `application_markdown_code_syntax_host`: once per text and definition,
+  newest first, cache answers a second reader, plain/oversized/after-shutdown
+  refused, a failure ends only its text, waiting bounded.
+- `qt_markdown_code_{1_0,1_25,2_0}` through the composed classifier (packaged
+  definitions, the host, the reader): 100 of GitHub's coloured info strings
+  coloured in role colours; GitHub-plain ones and indented code plain;
+  arrival leaves scroll, selection, height and text unchanged; one
+  classification per text, the cache serves a second reader; a theme change
+  classifies nothing; negative controls (other text or language, no
+  dispatch); a 58 KB body of 103 blocks renders in 46 ms and is coloured by
+  359 ms (Debug -O0).
+- `application_github_host` (StartLine projection, negative control shown
+  failing), `qt_conversation_cards_view` (locator lines, outdated fallback,
+  pull request comment plain, code dispatched by file path).
+- `github_contract_fixture_security` with `markdown-code-v1`; the app renders
+  the fixture's description coloured offscreen (`--render-evidence`).
+- Related rows pass: reader, GitHub parity, composed markdown, drawer, long
+  thread, overview page, workbench window, syntax pane composition (50 rows).
+  `qt_composed_github_scale_*` fails on this base: BPR-1544's HTML subset
+  draws `<b>`, which that course expects literal (not this change).
+- `fuzz_markdown` selector 4: 10 minutes, 574,890 runs, clean.
+- clang-format 22, clang-tidy 22 clean on touched files; documentation gate OK.
