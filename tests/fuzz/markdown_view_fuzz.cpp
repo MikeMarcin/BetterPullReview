@@ -18,7 +18,7 @@
 #include <string>
 
 namespace {
-	auto application() -> QApplication&
+	auto fuzz_application() -> QApplication&
 	{
 		static int   argc     = 1;
 		static char  name[]   = "fuzz_markdown_view";
@@ -39,7 +39,7 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	if (aSize > 70000U) {
 		return 0;
 	}
-	static_cast<void>(application());
+	static_cast<void>(fuzz_application());
 	const std::string      body{ reinterpret_cast<const char*>(aData), aSize };
 	qt::markdown_body_view view;
 	view.set_body(body, "fuzz");
