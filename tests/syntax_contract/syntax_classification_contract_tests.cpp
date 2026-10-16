@@ -1168,8 +1168,100 @@ namespace {
 		auto old    = definition;
 		old.Version = ((syntax::cpp_identifier_heuristic_revision - 1U) << 16U) | (old.Version & 0xFFFFU);
 		expect(classifier.classify(request(blob(seed), old), { }).Status == app::syntax_classification_status::unavailable,
-			   "spans cached under revision 6 are refused");
+			   "spans cached under the previous revision are refused");
 		std::cout << "cpp-gap-contract:pass H1-H7 extern-c revision\n";
+	}
+
+	/// \brief [[BPR-1559]]: template calls, arguments and template types, through
+	/// the public classifier over a committed corpus. Every positive expectation
+	/// failed on revision 7.
+	void cpp_template_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role       = core::appearance_role;
+		const auto text  = read_fixture("cpp_templates.cpp");
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(140U);
+		blobs.install(oid, text);
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		const auto definition = aCatalog.definition_for_path("templates.cpp");
+		const auto whole      = classifier.classify(request(oid, definition), { });
+		expect(whole.Status == app::syntax_classification_status::available, "the template fixture classifies");
+		const auto is = [&](const std::string_view aMarker, const std::string_view aWord, const role aRole,
+							const std::size_t aOccurrence = 0U) {
+			return word_has_role(whole.Spans, text, line_of(text, aMarker), aWord, aRole, aOccurrence);
+		};
+		const auto function = role::syntax_function;
+		const auto type     = role::syntax_type;
+
+		expect(is("T10", "getComponent", function) && is("T10", "Type", type),
+			   "the owner's report: a free template call names its function and its type argument");
+		expect(is("T11", "getComponent", function) && is("T11", "Type", type)
+				   && is("T12", "getComponent", function) && is("T12", "Type", type),
+			   "member template calls through . and -> are functions with type arguments");
+		expect(is("T13", "engine", role::syntax_namespace) && is("T13", "getComponent", function)
+				   && is("T13", "Type", type),
+			   "a qualified template call keeps its namespace and names function and argument");
+		expect(is("T14", "get", function) && is("T14", "Node", type),
+			   "a call disambiguated by the template keyword is a function");
+		expect(is("T15", "make", function) && is("T15", "int", role::syntax_builtin),
+			   "a built-in type argument keeps the built-in role");
+		expect(is("T16", "ns", type) && is("T16", "Kind", type), "a qualified argument is a type at every step");
+		expect(is("T17", "Outer", type) && is("T17", "Inner", type) && is("T17", "A", type) && is("T17", "B", type),
+			   "nested argument lists, closed by >>>, name every argument a type");
+		expect(is("T18", "Factory", type) && is("T18", "Widget", type) && is("T18", "create", function),
+			   "a static member call through a template names the template, its argument and the call");
+		expect(is("T19", "Widget", type) && is("T19", "Gadget", type) && is("T19", "const", role::syntax_attribute),
+			   "pointer, reference and cv-qualified arguments are types");
+		expect(is("T20", "Shape", type) && is("T20", "3", role::syntax_number) && is("T20", "MAX_SIZE", role::syntax_macro),
+			   "non-type arguments keep their own roles: a number and an ALL_CAPS constant");
+		expect(is("T21", "std::make_unique", role::syntax_builtin) && is("T21", "Widget", type),
+			   "the grammar's role for a std:: name is kept and its argument is a type");
+		expect(is("T22", "Base", type), "a cast's target type is a type");
+		expect(is("T23", "Result", type), "a function type's result is a type, not a call");
+
+		expect(is("T00", "Component", type) && is("T00", "getComponent", function),
+			   "a namespace-scope template declaration names its type and function");
+		expect(is("T01", "T", type, 1U) && is("T01", "getComponent", function),
+			   "a template member declaration's single-capital return type is a type");
+		expect(is("T02", "T", type, 1U) && is("T02", "get", function), "a single-capital pointer type is a type");
+		expect(is("T03", "T", type) && is("T03", "Entity", type) && is("T03", "getComponent", function),
+			   "an out-of-line template definition names return type, class and function");
+		expect(is("T04", "Transform", type) && is("T04", "getComponent", function) && is("T04", "Transform", type, 1U),
+			   "an explicit specialization names its function and its argument");
+
+		expect(is("T30", "Foo", type) && is("T30", "Bar", type), "an instantiated template type and its argument are types");
+		expect(is("T31", "Key", type) && is("T31", "Value", type), "arguments of nested standard templates are types");
+		expect(is("T32", "Key", type) && is("T32", "Value", type), "arguments on both sides of a nested list are types");
+		expect(is("T33", "object_pool", type) && is("T33", "Element", type),
+			   "a lower-case template followed by a declarator is a type");
+		expect(is("T34", "Registry", type) && is("T34", "Plugin", type) && is("T34", "registry", function),
+			   "a reference to an instance names the template and its argument");
+
+		// Negative control: comparisons and shifts are never template lists.
+		for (const auto* const marker : { "N01", "N02", "N03", "N04", "N05", "N06", "N07", "N08", "N09" }) {
+			const auto line     = line_of(text, marker);
+			const auto inferred = std::count_if(whole.Spans.begin(), whole.Spans.end(), [line](const app::token_span& aSpan) {
+				return aSpan.Line == line && (aSpan.Role == role::syntax_function || aSpan.Role == role::syntax_type);
+			});
+			if (inferred != 0) {
+				std::cerr << "FAILED: comparison line " << marker << " carries an inferred role\n";
+			}
+			expect(inferred == 0, "a comparison or shift names no function or type");
+		}
+
+		// C has no templates, so it keeps its previous roles.
+		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
+		expect(asC.Status == app::syntax_classification_status::available, "the template fixture classifies as C");
+		expect(word_stays_normal(asC.Spans, text, line_of(text, "T10"), "getComponent")
+				   && word_stays_normal(asC.Spans, text, line_of(text, "T10"), "Type")
+				   && word_stays_normal(asC.Spans, text, line_of(text, "T03"), "T"),
+			   "C reads no template context and no single-capital type");
+
+		auto old    = definition;
+		old.Version = ((syntax::cpp_identifier_heuristic_revision - 1U) << 16U) | (old.Version & 0xFFFFU);
+		expect(classifier.classify(request(oid, old), { }).Status == app::syntax_classification_status::unavailable,
+			   "spans cached under revision 7 are refused");
+		std::cout << "cpp-template-contract:pass calls/arguments/types/comparisons/C/revision\n";
 	}
 
 } // namespace
@@ -1184,6 +1276,7 @@ try {
 	identifier_role_contract(catalog);
 	cpp_context_contract(catalog);
 	cpp_gap_contract(catalog);
+	cpp_template_contract(catalog);
 	builtin_type_contract(catalog);
 	windows_resource_contract(catalog);
 	plain_text_and_failure_contract(catalog);

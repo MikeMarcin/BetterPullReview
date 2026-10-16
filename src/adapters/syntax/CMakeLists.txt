@@ -11,6 +11,8 @@ add_library(
         src/packaged_syntax_classifier.cpp
         src/cpp_identifier_context.cpp
         src/cpp_identifier_context.hpp
+        src/cpp_template_arguments.cpp
+        src/cpp_template_arguments.hpp
 )
 add_library(
     BetterPullReview::AdapterSyntax

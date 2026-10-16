@@ -1,6 +1,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 
 #include "cpp_identifier_context.hpp"
+#include "cpp_template_arguments.hpp"
 
 #include <KSyntaxHighlighting/AbstractHighlighter>
 #include <KSyntaxHighlighting/Definition>
@@ -363,10 +364,18 @@ namespace bpr::adapters::syntax {
 		/// reference, a pointer or a template argument list is a type;
 		/// and an encoding prefix belongs to the literal it opens. Anything else
 		/// stays normal. BPR-0726.
+		///
+		/// C++ alone, which passes its line's template argument lists, also reads
+		/// template context after the macro convention: a name whose argument
+		/// list is followed by `(` is a function, and a template argument or a
+		/// template name used as a type is a type. A single capital, the usual
+		/// template parameter, is a type where a PascalCase word would be.
+		/// BPR-1559.
 		[[nodiscard]] auto identifier_role(
-			const QStringView aLine,
-			const qsizetype   aBegin,
-			const qsizetype   aEnd) noexcept -> core::appearance_role
+			const QStringView             aLine,
+			const qsizetype               aBegin,
+			const qsizetype               aEnd,
+			const cpp_template_arguments* aCppTemplates) noexcept -> core::appearance_role
 		{
 			const auto word = aLine.mid(aBegin, aEnd - aBegin);
 			if (aEnd < aLine.size() && is_literal_prefix(word)) {
@@ -385,6 +394,11 @@ namespace bpr::adapters::syntax {
 			if (is_macro_case(word)) {
 				return core::appearance_role::syntax_macro;
 			}
+			if (aCppTemplates != nullptr) {
+				if (const auto role = aCppTemplates->role_of(aBegin, aEnd)) {
+					return *role;
+				}
+			}
 			const auto next = skip_blanks(aLine, aEnd);
 			const auto unit = next < aLine.size() ? aLine[next].unicode() : u'\0';
 			if (unit == u'(') {
@@ -393,7 +407,9 @@ namespace bpr::adapters::syntax {
 			if (unit == u':' && next + 1 < aLine.size() && aLine[next + 1] == u':') {
 				return core::appearance_role::syntax_type;
 			}
-			if (is_pascal_case(word)
+			const auto parameter = aCppTemplates != nullptr && word.size() == 1
+				&& is_upper(word.front().unicode());
+			if ((is_pascal_case(word) || parameter)
 				&& (is_identifier_start(unit) || unit == u'&' || unit == u'*'
 					|| unit == u'<')) {
 				return core::appearance_role::syntax_type;
@@ -448,18 +464,22 @@ namespace bpr::adapters::syntax {
 		{
 		public:
 			span_collector(const std::size_t aMaximumSpans, const bool aIdentifierHeuristics,
-						   const bool aResourceKeywords)
+						   const bool aResourceKeywords, const bool aCppTemplates)
 				: MaximumSpans{ aMaximumSpans }
 				, IdentifierHeuristics{ aIdentifierHeuristics }
 				, ResourceKeywords{ aResourceKeywords }
+				, CppTemplates{ aCppTemplates }
 			{
 			}
 
 			void begin_line(
 				const std::uint32_t               aLine,
 				const QStringView                 aText,
-				const std::vector<std::uint32_t>* aByteOffsets) noexcept
+				const std::vector<std::uint32_t>* aByteOffsets)
 			{
+				if (CppTemplates) {
+					Templates.scan(aText);
+				}
 				const auto continued = ConditionalStart >= 0
 					&& (Text.endsWith(u"\\") || Text.endsWith(u"\\\r"));
 				Line             = aLine;
@@ -761,7 +781,7 @@ namespace bpr::adapters::syntax {
 					if (stop <= end) {
 						const auto role = ResourceKeywords
 							? resource_identifier_role(Text.mid(at, stop - at))
-							: identifier_role(Text, at, stop);
+							: identifier_role(Text, at, stop, CppTemplates ? &Templates : nullptr);
 						if (role != core::appearance_role::syntax_normal) {
 							OpenSpan = false;
 							append_units(at, stop, role);
@@ -897,6 +917,8 @@ namespace bpr::adapters::syntax {
 			std::size_t                       MaximumSpans         = 0U;
 			bool                              IdentifierHeuristics = false;
 			bool                              ResourceKeywords     = false;
+			bool                              CppTemplates         = false;
+			cpp_template_arguments            Templates;
 			QStringView                       Text;
 			const std::vector<std::uint32_t>* ByteOffsets      = nullptr;
 			std::uint32_t                     Line             = 0U;
@@ -1081,6 +1103,7 @@ namespace bpr::adapters::syntax {
 				aRequest.MaximumSpans,
 				uses_identifier_heuristics(aDefinitionName),
 				aDefinitionName == ResourceDefinitionName,
+				aDefinitionName == "C++",
 			};
 			if (aDefinitionName != plain_text_definition_name) {
 				collector.setDefinition(
