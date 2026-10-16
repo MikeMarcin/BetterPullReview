@@ -1515,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0fb8ea24c61b80e0e4979b658014a35446a2d3c2d7160abe036aecec8efc4921"
+		"4d84928a305d2d1e475dbb622242949eef93fa029ae922a99a9a691a3fad8ecf"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "acca523561d088232bf128e1a768a5e5063a28c233e06fa111327da4dc3469ed"
+        "a86dd8eebd93a3b1057c2b1370963647b187629f30686390ae9d43f8d132d395"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2578,8 +2578,10 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1537.
 
-# [[BPR-1543]] reseal over 63ba6d66a (the last matching pins) on the branch
-# tree based on main at 58dcf7e4d. The constructed markdown-parity-v1 fixture
+# [[BPR-1543]] reseal over main at 5e340ee21 (RFC-BPR-0084's inline images
+# merged; the last matching pins), recomputed on the tree that merges this
+# card onto it (github_application.cpp 4d84928a..., production application
+# source a86dd8ee...). The constructed markdown-parity-v1 fixture
 # joins the test-build fixture enum (github_application_fixture_access.hpp),
 # the host-profile table (github_application.cpp), the served-fixture table
 # (github_public_path_fixture.cpp, sharing overview-labels-v1's descriptor with
