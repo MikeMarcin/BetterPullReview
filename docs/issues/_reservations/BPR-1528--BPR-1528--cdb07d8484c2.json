@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1528"
+  ],
+  "reserve_for": "bpr-home-mine-colour",
+  "purpose": "Owner request 2026-10-15: header and rail colour for My pull requests on Home",
+  "created": "2026-10-15T21:11:11.505648+00:00",
+  "base": "c233c768327cd6c0cb6807860625ec12a9aeac14"
+}

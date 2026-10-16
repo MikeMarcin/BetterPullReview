@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1530"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review file tree shows a folder's file count only while it is collapsed",
+  "created": "2026-10-15T21:27:11.150192+00:00",
+  "base": "a1be1a1407a0341743b09cf8841d02c712debfda"
+}

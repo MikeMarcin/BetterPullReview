@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1538"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review submission reconciliation stays unknown on real pull requests",
+  "created": "2026-10-15T23:11:55.491437+00:00",
+  "base": "e38c4229fa7be6b55f8149d59064f57594ed6792"
+}
