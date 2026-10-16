@@ -19,8 +19,30 @@
   "design": {
     "frontend_design": "loaded before choosing the colour",
     "tone": "fourth built-in Home tone attention_tone::my_pull_requests, plum; header tint 0.18, rule 0.35, rail 0.6 like the state panels",
-    "colours": {"light": "#9A3FB0", "dark": "#CF86E8", "high_contrast_light": "#6B0080", "high_contrast_dark": "#E59CFF"},
-    "contrast_base_surface": {"light": [5.65, 5.27], "dark": [7.41, 6.40], "high_contrast_light": [10.84, 10.84], "high_contrast_dark": [10.53, 10.53]},
+    "colours": {
+      "light": "#9A3FB0",
+      "dark": "#CF86E8",
+      "high_contrast_light": "#6B0080",
+      "high_contrast_dark": "#E59CFF"
+    },
+    "contrast_base_surface": {
+      "light": [
+        5.65,
+        5.27
+      ],
+      "dark": [
+        7.41,
+        6.4
+      ],
+      "high_contrast_light": [
+        10.84,
+        10.84
+      ],
+      "high_contrast_dark": [
+        10.53,
+        10.53
+      ]
+    },
     "settings": "none: Home tones are built-in per variant and neither stored nor customisable (BPR-0776); no Appearance setting precedent exists"
   },
   "verification": {
@@ -43,16 +65,26 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1528-v001-3HQ11Q",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "c752a6404866ca55ac7600c163aec391",
-    "event_cursor": 3,
+    "event_cursor": 4,
     "candidate": "BPR-1528-mine-colour-v001",
     "fingerprint": "c64bd48ed0f200e40b5de4a8233f8139100d2f4707016d46b4cb537a9ccfb141",
-    "phase": "ready",
-    "protected": true,
-    "decision": null,
-    "server_pid": 7416,
+    "phase": "decided",
+    "protected": false,
+    "decision": {
+      "outcome": "accept",
+      "note": "",
+      "decision_id": "5492dc69-d79d-4c0a-9def-708766971283",
+      "saved_at": "2026-10-16T01:33:31Z"
+    },
+    "server_pid": null,
     "server_port": 59022,
     "complete_url": "Obtain from the session state's serve log; never commit the loopback bearer token."
   },
-  "pending": ["AC4 human: owner Accept/Reject of the exact frozen candidate"],
-  "next_action": "Coordinator waits on handed-back after cursor 3. Accept: merge bpr-1528-mine-colour to main, finish BPR-1528 done with AC4 evidence, stop server 7416, remove the frozen root with freeze_attended_build.py remove. Reject: a fresh implementer applies the note as v002."
+  "pending": [],
+  "next_action": "None: accepted, merged to main and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "main": "0b37d5438",
+    "merge": "b2da33635",
+    "verification": "qt_appearance_profile, qt_home_list_scale_100/125/200, application_personal_discovery_public_path, application_home_waiting_public_path: 6/6 pass; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
 }

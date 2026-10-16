@@ -96,3 +96,21 @@ was driven or captured; all renders were offscreen.
 
 Next: on hand-back after cursor 3, an Accept merges the branch, records AC4
 and finishes the card; a Reject's note becomes candidate v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:33:31Z: Accept**, no note (decision
+`5492dc69-d79d-4c0a-9def-708766971283`, event 4 of session
+`c752a6404866ca55ac7600c163aec391`), on candidate
+`BPR-1528-mine-colour-v001` at `4773c9cea`, fingerprint `c64bd48e…`. Event
+cursor consumed: 4.
+
+`main` at `0b37d5438` merged into the branch at `b2da33635` without
+conflicts. On the merged tree (`dev`, Debug): `qt_appearance_profile`,
+`qt_home_list_scale_{100,125,200}`,
+`application_personal_discovery_public_path` and
+`application_home_waiting_public_path` pass 6/6; clang-format 22.1.8
+`--dry-run -Werror` over the six touched C++ files is clean; the
+documentation gate prints `DOCUMENTATION_OK`. The review server (pid 7416)
+was stopped, the candidate's protection released and the frozen root
+removed.
