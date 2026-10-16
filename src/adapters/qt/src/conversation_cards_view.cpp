@@ -2987,11 +2987,6 @@ namespace bpr::qt {
 					return true;
 				}
 				if (key.key() == Qt::Key_Escape) {
-					// An open label completion is the label controls' to close
-					// first ([[BPR-1083]]); the reply keeps its text and focus.
-					if (const auto* const labels = OpenCard->label_controls(); labels != nullptr && labels->completion()->isVisible()) {
-						return false;
-					}
 					if (drafting) {
 						if (OpenCard->Action) {
 							OpenCard->Action(card_action::close_draft);

@@ -4948,7 +4948,7 @@ namespace {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
 				   << "LABEL_AUTHORING_EVIDENCE:" << evidence.ReviewEmptyDirected << evidence.FileShown << evidence.ThreadMarksDrawn << evidence.CommentEditable
-				   << evidence.ShortcodeApplied << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
+				   << evidence.CodeStaysLiteral << evidence.ChipApplied << evidence.ShortcutApplied << evidence.Published
 				   << evidence.PublishedMarked << evidence.PatchMarkedNative << evidence.PatchPublishedExact << evidence.ProseUnmarkedExact
 				   << evidence.RefusedTextKept << evidence.RefusedMarkedTextOnly << evidence.ReplyMarkedNative << evidence.IssueOffersTracking
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
@@ -8946,8 +8946,9 @@ auto main(int argc, char** argv) -> int
 			= launch.has("--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
 			= launch.has("--public-preview-unfetchable-first-head-course");
-		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
-		// the helper, and reads the pull request again after publishing.
+		// [[BPR-1083]]. The label-authoring course types `:qu:` with the helper
+		// on, to show it stays text ([[BPR-1565]]), and reads the pull request
+		// again after publishing.
 		const auto labelAuthoringProbe    = launch.has("--label-authoring-probe");
 		fixtureOptions.LabelHelper        = launch.has("--label-helper") || labelAuthoringProbe;
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
@@ -9118,6 +9119,40 @@ auto main(int argc, char** argv) -> int
 					.ExpectedAccountText            = "fixture-author (@fixture-author)",
 					.ExpectedConversationRows       = 2,
 					.ExpectedConversationIdentities = { "issue-comment:IC_mi_1", "issue-comment:IC_mi_2" },
+					.ExpectedThreadId               = std::nullopt,
+				};
+			} else if (*fixture == "markdown-parity-v1") {
+				// [[BPR-1543]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity Markdown fixtures; see
+				// `scripts/build_markdown_parity_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_parity_v1;
+				fixtureName            = "markdown-parity-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Move the cache writer onto the serialized lane",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 4,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mp_1", "issue-comment:IC_mp_2", "issue-comment:IC_mp_3", "issue-comment:IC_mp_4" },
+					.ExpectedThreadId               = std::nullopt,
+				};
+			} else if (*fixture == "markdown-html-v1") {
+				// [[BPR-1544]]. The nested-folders pull request whose bodies are
+				// the GitHub-parity HTML fixtures; see
+				// `scripts/build_markdown_html_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_html_v1;
+				fixtureName            = "markdown-html-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
+					.ExpectedTitle                  = "Speed up the cache writer and fix the crash on resume",
+					.ExpectedAccountText            = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows       = 3,
+					.ExpectedConversationIdentities = { "issue-comment:IC_mh_1", "issue-comment:IC_mh_2", "issue-comment:IC_mh_3" },
 					.ExpectedThreadId               = std::nullopt,
 				};
 			} else if (*fixture == "inline-drawer-v1") {

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1544"
 title: "Markdown reader GitHub parity: details, sanitised HTML and emoji shortcodes"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0036"]
 depends_on: ["BPR-1543"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"owner decision 2026-10-16: close the GitHub-parity gaps in PR description and comment Markdown, as two sequential cards (this is card B, after BPR-1543)","governing_rfc":"RFC-BPR-0036","amendment":"RFC-BPR-0036 owner amendment 1 (2026-10-16)","criteria":["AM1-05","AM1-06","AM1-07","AM1-08"],"related_cards":["BPR-1543","BPR-1545","BPR-1548"],"reservation":"docs/issues/_reservations/BPR-1543--BPR-1544--05e6fe38f3d4.json","design_skill":"frontend-design:frontend-design"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f8194005e","evidence":{"kind":"command","detail":"qt_markdown_github_html rows: details summaries equal GitHub's in order, only the open one open; closed content hidden; Tab/Enter and click toggle with accessible 'Collapsed/Expanded section'; Tab skips closed links; hidden tables lose borders; zero application gestures. Owner accepted (d37ed8c5)."}},{"criterion":"AC2","outcome":"pass","revision":"f8194005e","evidence":{"kind":"command","detail":"HTML sample formats, alignment, structure and links match GitHub's output; hostile body and 300 generated bodies: no resource load, no javascript/data/file/credential link, no handler/src/background/style attribute in the document, no leaked mark; core markdown_html_link_kept tested. Owner accepted inline (5096ee4f), structure (805b703d), <u> plain (e7746fdc) and unsafe HTML (1e47cfa0)."}},{"criterion":"AC3","outcome":"pass","revision":"f8194005e","evidence":{"kind":"command","detail":"Emoji line identical to GitHub's; unknown, coded, boundary-less and URL shortcodes stay literal; table generated from pinned gemoji 4.1.0 (MIT, retained). Owner accepted (490f9cbf)."}},{"criterion":"AC4","outcome":"pass","revision":"f8194005e","evidence":{"kind":"command","detail":"Full dev suite 752/759 on 5e64e9879, the seven others passing serially (composed <b> expectation updated); 123 focused rows and nine composition contracts on the final tree; contract resealed over main 7132f6356; clang-format 22 and tidy clean; documentation gate OK; fuzz campaign 6 clean."}},{"criterion":"AC5","outcome":"pass","revision":"fbdb893e2458ea372c3add20c345c08c0b5d1a39","evidence":{"kind":"observation","detail":"Owner accepted all six questions in attended session 09a88455155e35e5b06c2df811844364, handed back at cursor 25 on 2026-10-16; the details note about arrow size was answered by measurement (proportion matches GitHub's within 0.01-0.07 of cap height)."}}]
 ---
 
 # BPR-1544: Markdown reader GitHub parity: details, sanitised HTML and emoji shortcodes
@@ -91,5 +92,24 @@ rendering, inside the reader's inherited palette and fonts.
   unsafe HTML, emoji) on candidate `fbdb893e2`, frozen root
   `/Users/jaeger/bpr-1544-markdown-html-v001.hyrv2qbm` (executable
   `93239c1f...`, fixture `markdown-html-v1`); live sample BPR-Test#77.
-- **Next:** claim once BPR-1543 is Done, merge this branch onto main, reseal,
-  and finish on the owner's verdicts.
+- **Owner verdicts (2026-10-16):** all six accepted (details `d37ed8c5`,
+  inline HTML `5096ee4f`, HTML structure `805b703d`, `<u>` plain `e7746fdc`,
+  unsafe HTML `1e47cfa0`, emoji `490f9cbf`), handed back at cursor 25. Notes:
+  on details, "Do our disclosure arrows seem small? Is that just a font
+  difference?"; on emoji, "yes keep these", with a separate request (the
+  comment editor's label codes) that BPR-1565 carried out.
+- **The arrows, measured:** GitHub's marker (BPR-Test#77, headless Chrome)
+  is 8×9 px beside a 10 px capital at 100% and 16×18 beside 20 at 200%: 0.90
+  of the cap height. The reader's ▶ is 8×8 beside 9 (0.89) and 16×15 beside
+  18 (0.83). The proportion matches; the absolute difference is the reader's
+  smaller body text. The review sheets were composed before the triangle
+  became ▶ at 0.7 of the text (the frozen build already had it), so the sheet
+  showed the smaller ▸. No enlargement was needed.
+- **Landed:** `f8194005e` merges `bpr-1544-gfm-html` onto main at `7132f6356`.
+  Full dev suite on `5e64e9879`: 752 of 759; the seven others passed when
+  rerun serially, three of them (`qt_composed_github_scale_*`) after their
+  literal-`<b>` expectation was updated to the accepted rendering
+  (`2c38bd0fe`) and four load-sensitive budget rows. On the final tree:
+  round-trip contract resealed (`88e47223...`, `8702dac0...`), all nine
+  composition contracts and 123 focused rows pass, documentation and format
+  gates OK.

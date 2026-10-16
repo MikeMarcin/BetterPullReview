@@ -1095,6 +1095,24 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed inline images",
 				};
+			case detail::github_public_path_fixture::markdown_parity_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Markdown parity",
+				};
+			case detail::github_public_path_fixture::markdown_html_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Markdown HTML",
+				};
 			case detail::github_public_path_fixture::conversations_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -7215,6 +7233,15 @@ namespace bpr::app {
 			if (!showsTab) {
 				return;
 			}
+			// [[BPR-1527]]. A first file gesture can precede its accepted
+			// comparison. A reread may retire the workbench selection before
+			// that pair arrives, so open the core's retained explicit choice
+			// once the current catalogue admits it. Review entry alone has none.
+			if (const auto& tabs = TabHost->state(); !tabs.Active && tabs.Chosen
+				&& WorkbenchHost->state().Navigation && WorkbenchHost->contains_file(*tabs.Chosen)) {
+				TabHost->apply(core::open_in_active_tab_intent{ .File = *tabs.Chosen });
+				return;
+			}
 			const auto activeTab = [this]() -> const core::document_tab* {
 				const auto& tabs = TabHost->state();
 				return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
@@ -7848,11 +7875,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				});
 #if defined(BPR_BUILD_TESTING)
-			// [[BPR-1083]], [[BPR-1088]]. An attended look at the shortcodes, and
-			// the label-authoring probe, turn the helper on through the
-			// profile's own setting: the write the Comment labels › Label helper
-			// switch makes, so every window's comment editor follows the
-			// persisted preference exactly as it does for a reviewer.
+			// [[BPR-1083]], [[BPR-1088]]. `--label-helper`, the attended
+			// workshop look and the label-authoring probe turn the helper on
+			// through the profile's own setting: the write the Comment labels ›
+			// Label helper switch makes. Since [[BPR-1565]] the helper only
+			// sends the Review feedback guidance with a workshop request; the
+			// probe keeps it on to show a typed `:qu:` stays text even so.
 			if (Profile->LabelHelper && !Profile->LabelHelperRequested && Profile->WorkbenchPreferences) {
 				Profile->LabelHelperRequested = true;
 				auto* const preferences       = Profile->WorkbenchPreferences.get();
@@ -11398,6 +11426,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return true;
 		}
 
+		struct pending_unsent_reply_commands
+		{
+			std::shared_ptr<application::shared_draft_application_host> Owner;
+			application::shared_draft_consumer                          Consumer;
+			// One exact admitted command per draft in the bounded owner. A
+			// later explicit action on that draft replaces its pending intent.
+			std::map<core::review_draft_id, core::revisioned_review_draft_command> Commands;
+		};
+		std::optional<pending_unsent_reply_commands> PendingUnsentReplyCommands;
+
+		void change_unsent_reply(const core::revisioned_review_draft_command& aCommand)
+		{
+			const auto owner    = SharedDrafts;
+			const auto consumer = DraftConsumer;
+			PrivateReview->change_draft(aCommand, [this, owner, consumer](auto aCommit) {
+				if (!Closing && owner == SharedDrafts && consumer == DraftConsumer && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					present_saved_drafts();
+				}
+			});
+		}
+
+		/// [[BPR-1527]]. A visible kept reply can be acted on while a reread
+		/// reopens its private store. Keep its original command and CAS; a
+		/// different owner, consumer or draft revision never inherits it.
+		void flush_unsent_reply_commands()
+		{
+			if (!PendingUnsentReplyCommands) {
+				return;
+			}
+			if (Closing || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+				PendingUnsentReplyCommands.reset();
+				return;
+			}
+			if (!PrivateReview || !PrivateDraftsReady || !PrivateReview->binding()) {
+				return;
+			}
+			auto pending = std::exchange(PendingUnsentReplyCommands, std::nullopt);
+			for (const auto& [id, command] : pending->Commands) {
+				if (Closing || pending->Owner != SharedDrafts || pending->Consumer != DraftConsumer) {
+					return;
+				}
+				const auto current = SharedDrafts->read(DraftConsumer, id);
+				if (current.Accepted && current.Accepted->Revision == command.ExpectedRevision && current.Accepted->Scope == command.Scope) {
+					change_unsent_reply(command);
+				}
+			}
+		}
+
 		/// \brief [[BPR-1374]]. A kept reply's note: its words become a new
 		/// comment on its line, or it is discarded. Decided by the core
 		/// against the threads the server holds now; nothing is published.
@@ -11416,13 +11492,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!command) {
 				return;
 			}
-			if (PrivateReview && PrivateDraftsReady) {
-				const auto owner = SharedDrafts;
-				PrivateReview->change_draft(*command, [this, owner](auto aCommit) {
-					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
-						present_saved_drafts();
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || !PrivateReview->binding()) {
+					if (!PendingUnsentReplyCommands || PendingUnsentReplyCommands->Owner != SharedDrafts || PendingUnsentReplyCommands->Consumer != DraftConsumer) {
+						pending_unsent_reply_commands pending;
+						pending.Owner              = SharedDrafts;
+						pending.Consumer           = DraftConsumer;
+						PendingUnsentReplyCommands = std::move(pending);
 					}
-				});
+					PendingUnsentReplyCommands->Commands.insert_or_assign(aDraft, *command);
+				} else {
+					change_unsent_reply(*command);
+				}
 				return;
 			}
 			if (const auto outcome = SharedDrafts->apply(DraftConsumer, *command); !outcome.Failure && outcome.Accepted) {
@@ -11717,6 +11798,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (SharedDrafts && SharedDrafts->authority() == authority) {
 				return true;
 			}
+			PendingUnsentReplyCommands.reset();
 			if (SharedDrafts) {
 				SharedDrafts->detach(DraftConsumer);
 			}
@@ -13103,6 +13185,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							present_review_draft(*SelectedSemanticSelection);
 						}
 						resume_reply();
+						flush_unsent_reply_commands();
 					} else {
 						PrivateDraftsReady = false;
 					}
@@ -14205,6 +14288,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				load_defects();
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
+				// [[BPR-1527]]. This observation retires every workbench
+				// selection. A tab driver that already selected its file is
+				// waiting for retired material and cannot select it again.
+				// Let the accepted comparison and returned files restart that
+				// active view, rather than leave it blocking the owed refresh.
+				abandon_tab_load();
 				// [[BPR-1303]]. A refresh that moves the head changes the
 				// tab's comparison, and that reloads the tab; one that keeps
 				// the diff leaves the workbench with no file and is owed it.
@@ -14272,6 +14361,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++WorkbenchInvalidations;
 #endif
 				WorkbenchHost->invalidate(*authority);
+				// A pending first choice has no tab comparison to bind it.
+				// Only this exact revoked authority retires that ephemeral open.
+				if (TabHost && !TabHost->state().Active && TabHost->state().Chosen) {
+					TabHost->reset();
+				}
 			}
 			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
 				return aAuthority.Profile == aInvalidation.Profile
@@ -14293,6 +14387,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				suspend_review_tour();
 			}
 			if (retiresLedger) {
+				PendingUnsentReplyCommands.reset();
 				retire_review_ledger();
 				retire_review_mutation_host();
 				if (SharedDrafts) {
@@ -18445,6 +18540,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                                   SelectedDiffFailures     = 0U;
 			std::size_t                                   IntentDispatches         = 0U;
 			std::size_t                                   ChangeDispatches         = 0U;
+			std::optional<core::semantic_selection>       ChangeOrigin;
 			/// \brief [[BPR-0859]]. Ticks of the waits this probe bounds by
 			/// count and names itself: the panes, the role paint, the change
 			/// walk and the focused layout.
@@ -18619,7 +18715,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_file,
 				awaiting_marks,
 				awaiting_line_draft,
-				awaiting_shortcode,
+				awaiting_literal_code,
 				awaiting_chip,
 				awaiting_shortcut,
 				awaiting_published,
@@ -18732,12 +18828,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				passed,
 				failed,
 			};
-			detail::reply_draft_probe_evidence       Evidence;
-			std::optional<core::review_draft_id>     Draft;
-			detail::review_mutation_fixture_evidence Before;
-			std::size_t                              Waited = 0U;
-			phase                                    Phase  = phase::awaiting_file;
-			std::string                              Diagnostic;
+			detail::reply_draft_probe_evidence                Evidence;
+			std::optional<core::review_draft_id>              Draft;
+			detail::review_mutation_fixture_evidence          Before;
+			std::size_t                                       Waited = 0U;
+			phase                                             Phase  = phase::awaiting_file;
+			std::string                                       Diagnostic;
+			std::optional<QScopeGuard<std::function<void()>>> PrivateEffectsHold;
+			bool                                              HeldDiscard = false;
 		};
 		std::optional<reply_draft_probe_state> ReplyDraftProbe;
 		// [[BPR-1478]]. The course in which a reread lands just after the
@@ -21279,6 +21377,47 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.arg(course_surface_names(aStep.Needs), course_surface_names(missing), bound));
 		}
 		return report("COURSE_MODALITY_STALLED", bound);
+	}
+
+	auto detail::github_application_fixture_access::verify_pending_first_file_choice_invalidation(
+		github_application& aApplication) -> bool
+	{
+		auto* const owner = aApplication.Implementation.get();
+		if (!owner || !owner->TabHost || !owner->LastAcceptedHandoff || !owner->WorkbenchReview.exact(*owner->LastAcceptedHandoff)) {
+			return false;
+		}
+		const auto& tabs   = owner->TabHost->state();
+		const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		if (!active || !active->View.File) {
+			return false;
+		}
+		const auto  file    = *active->View.File;
+		const auto& handoff = *owner->LastAcceptedHandoff;
+		const auto  exact   = application::pull_request_authority_invalidation{
+			.ApplicationSession = handoff.ApplicationSession,
+			.Profile            = handoff.Profile,
+			.ProfileRevision    = handoff.ProfileRevision,
+			.Host               = handoff.Host,
+			.HostAuthority      = handoff.HostAuthority,
+			.Account            = handoff.Account,
+			.Viewer             = handoff.Viewer,
+			.Repository         = handoff.Repository,
+			.PullRequest        = handoff.PullRequest,
+			.IdentityGeneration = handoff.IdentityGeneration,
+			.Mode               = handoff.Mode,
+		};
+		// Arrange the core state already observed between the real first-file
+		// gesture and its comparison: an explicit choice, no tab or pair yet.
+		owner->TabHost->reset();
+		owner->TabHost->observe_file_choice(file);
+		auto foreign        = exact;
+		foreign.PullRequest = core::pull_request_id{ exact.PullRequest.value() == 1U ? 2U : 1U };
+		owner->invalidate(foreign);
+		if (tabs.Active || tabs.Chosen != std::optional{ file }) {
+			return false;
+		}
+		owner->invalidate(exact);
+		return !tabs.Active && !tabs.Pending && !tabs.Chosen;
 	}
 
 	auto detail::github_application_fixture_access::epoch_refresh_identity(
@@ -24734,6 +24873,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		auto&      probe = *implementation->UIforEtwSelectedDiffProbe;
 		const auto fail  = [&probe, implementation] {
+			const auto* const surface = implementation->Window->comparison_surface();
+			bpr::app::detail::terminal_text_stream{ }
+				<< "UIFORETW_PROBE_FAILURE:phase=" << static_cast<int>(probe.Phase)
+				<< " waits=" << static_cast<qulonglong>(probe.Waits)
+				<< " reveal_waits=" << static_cast<qulonglong>(probe.RevealWaits)
+				<< " next=" << probe.Evidence.NextChangeNavigation
+				<< " previous=" << probe.Evidence.PreviousChangeNavigation
+				<< " rc_revealed=" << probe.RcRevealed
+				<< " dispatches=" << static_cast<qulonglong>(implementation->WorkbenchChangeDispatches)
+				<< " baseline_dispatches=" << static_cast<qulonglong>(probe.ChangeDispatches)
+				<< " selection=" << (surface && surface->selection().has_value())
+				<< " geometry_pending=" << (surface && surface->geometry_pending())
+				<< " pending_navigation=" << implementation->PendingReviewNavigation.has_value()
+				<< " tab_pending=" << (implementation->TabHost && implementation->TabHost->state().Pending.has_value())
+				<< " tab_queued=" << implementation->TabAdvanceQueued << '\n';
 			probe.Evidence.FixtureDiffHelperUnused
 				= implementation->FixtureDiffHelperInvocations == 0U;
 			probe.Phase = state_type::phase::failed;
@@ -25143,30 +25297,42 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.RcIntralinePairs || !pairOne->Group.has_value()) {
 				return fail();
 			}
-			if (!probe.Evidence.NextChangeNavigation) {
-				auto* const nextChange     = window->next_change_action();
-				auto* const previousChange = window->previous_change_action();
-				const auto  before         = workbench->selection();
-				if (nextChange == nullptr || previousChange == nullptr
-					|| !nextChange->isEnabled() || !before.has_value()) {
+			if (!probe.ChangeOrigin) {
+				auto* const nextChange = window->next_change_action();
+				if (!nextChange || !window->previous_change_action()
+					|| !nextChange->isEnabled() || !workbench->selection()) {
 					return fail();
 				}
+				probe.ChangeOrigin     = workbench->selection();
 				probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 				nextChange->trigger();
+				return result::pending;
+			}
+			// [[BPR-1527]]. A navigation press may be retained until its tab
+			// restoration completes. Issue each gesture once, then observe its
+			// exact dispatch and semantic result on the normal completion lane.
+			if (!probe.Evidence.NextChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches) {
+					return wait("UIFORETW_RC_NEXT_CHANGE_STALLED", rcFacts);
+				}
+				auto* const previousChange = window->previous_change_action();
 				probe.Evidence.NextChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 1U
-					&& workbench->selection().has_value()
-					&& workbench->selection()->Group != before->Group
-					&& previousChange->isEnabled();
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U
+					&& workbench->selection() && workbench->selection()->Group != probe.ChangeOrigin->Group
+					&& previousChange && previousChange->isEnabled();
 				if (!probe.Evidence.NextChangeNavigation) {
 					return fail();
 				}
 				previousChange->trigger();
+				return result::pending;
+			}
+			if (!probe.Evidence.PreviousChangeNavigation) {
+				if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U) {
+					return wait("UIFORETW_RC_PREVIOUS_CHANGE_STALLED", rcFacts);
+				}
 				probe.Evidence.PreviousChangeNavigation
-					= implementation->WorkbenchChangeDispatches
-						== probe.ChangeDispatches + 2U
-					&& workbench->selection() == before;
+					= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 2U
+					&& workbench->selection() == probe.ChangeOrigin;
 				if (!probe.Evidence.PreviousChangeNavigation) {
 					return fail();
 				}
@@ -28394,26 +28560,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			probe.Evidence.CommentEditable = true;
 			body->setFocus();
-			probe.Typing = QStringLiteral(":qu:");
-			probe.Phase  = state_type::phase::awaiting_shortcode;
+			// [[BPR-1565]]. The `:xx:` codes are gone (owner, 2026-10-16): a
+			// typed `:qu:` stays the text it is, with the helper on.
+			probe.Typing = QStringLiteral(":qu: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			probe.Phase  = state_type::phase::awaiting_literal_code;
 			return result::pending;
 		}
-		case state_type::phase::awaiting_shortcode: {
+		case state_type::phase::awaiting_literal_code: {
+			const auto subjectText = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			const auto literal     = QStringLiteral(":qu: ") + subjectText;
 			note("body=" + text().toStdString() + " draft=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" })
-				 + " helper=" + std::to_string(controls->helper() ? 1 : 0) + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
-			// The replacement is queued after the closing colon's own change.
-			if (!typed() || (text() != QStringLiteral("question: ") && !text().startsWith(QStringLiteral("question: S")))) {
+				 + " typing=" + probe.Typing.toStdString() + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (!typed()) {
 				return result::pending;
 			}
-			if (text() == QStringLiteral("question: ")) {
-				probe.Evidence.ShortcodeApplied = controls->state().Label == core::feedback_label::question;
-				probe.Typing                    = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()));
+			if (text() == literal) {
+				probe.Evidence.CodeStaysLiteral = !controls->state().Label.has_value() && controls->statistics().Edits == 0U;
+				render("editor-literal-code");
+				// The reviewer takes the code out by hand: one selection and
+				// Backspace, so the draft follows as typing does.
+				auto cursor = body->textCursor();
+				cursor.setPosition(0);
+				cursor.setPosition(5, QTextCursor::KeepAnchor);
+				body->setTextCursor(cursor);
+				key(Qt::Key_Backspace, Qt::NoModifier, QString{ });
 				return result::pending;
 			}
-			if (text() != QStringLiteral("question: ") + QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size()))) {
-				return result::pending;
+			if (text() != subjectText) {
+				return fail("literal-code-changed body=" + text().toStdString());
 			}
-			render("editor-shortcode");
 			controls->chip()->click();
 			QCoreApplication::processEvents();
 			auto* const choice = controls->menu() != nullptr ? controls->menu()->label_button(core::feedback_label::suggestion) : nullptr;
@@ -28613,7 +28788,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == replyBody;
 			render("reply-in-place-native");
 			const auto& evidence = probe.Evidence;
-			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.ShortcodeApplied
+			const auto  all      = evidence.ReviewEmptyDirected && evidence.FileShown && evidence.ThreadMarksDrawn && evidence.CommentEditable && evidence.CodeStaysLiteral
 				&& evidence.ChipApplied && evidence.ShortcutApplied && evidence.Published && evidence.PublishedMarked && evidence.PatchMarkedNative
 				&& evidence.PatchPublishedExact && evidence.ProseUnmarkedExact && evidence.RefusedTextKept && evidence.RefusedMarkedTextOnly && evidence.ReplyMarkedNative;
 			if (!all) {
@@ -28820,8 +28995,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (const auto selected = surface->selection(); !selected || selected->PreferredLine.Side != core::diff_side::right || selected->PreferredLine.Line != *probe.Line) {
 					static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.Line));
 				}
-				const auto& draft = implementation->ReviewDraft;
-				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" }));
+				const auto& draft  = implementation->ReviewDraft;
+				const auto* active = implementation->TabHost && implementation->TabHost->state().Active
+					? core::find_tab(implementation->TabHost->state(), *implementation->TabHost->state().Active)
+					: nullptr;
+				note("line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) : std::string{ "-" })
+					 + " selected_file=" + std::to_string(implementation->WorkbenchHost->selected().has_value())
+					 + " active_tab=" + std::to_string(active != nullptr)
+					 + " tab_file=" + std::to_string(active && active->View.File.has_value())
+					 + " chosen=" + std::to_string(implementation->TabHost && implementation->TabHost->state().Chosen.has_value())
+					 + " material=" + std::to_string(implementation->ReviewSourceMaterial.has_value())
+					 + " tab_queued=" + std::to_string(implementation->TabAdvanceQueued));
 				if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right || draft->State != core::review_draft_state::drafting) {
 					return result::pending;
 				}
@@ -29422,6 +29606,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.PrivateEffectsHold.reset();
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
 			probe.Phase = state_type::phase::failed;
 			return result::failed;
@@ -29511,6 +29696,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
 		};
 		const auto finish = [&] {
+			if (aCourse == course::deleted && !probe.HeldDiscard) {
+				return fail("discard-not-held");
+			}
 			probe.Evidence.NothingSent = !sent();
 			const auto& evidence       = probe.Evidence;
 			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
@@ -29570,6 +29758,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				fixture.stage_server_root(std::string{ threadId }, std::nullopt, true);
 			} else if (aCourse == course::deleted || aCourse == course::kept) {
 				fixture.stage_server_thread_deleted(std::string{ threadId });
+			}
+			if (aCourse == course::deleted) {
+				// Hold only private storage, while the reread and visible note
+				// complete normally. Confirm must retain this exact discard.
+				probe.PrivateEffectsHold.emplace(hold_private_review_effects(aApplication));
 			}
 			window->github_refresh_action()->trigger();
 			probe.Waited = 0U;
@@ -29687,8 +29880,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (const auto stored = saved(); !stored || stored->Draft.State != core::review_draft_state::drafting) {
 				return fail("discarded-before-asked");
 			}
+			if (!probe.PrivateEffectsHold || implementation->PrivateDraftsReady || (implementation->PrivateReview && implementation->PrivateReview->binding())) {
+				return fail("discard-store-not-held");
+			}
 			yes->click();
 			QCoreApplication::processEvents();
+			const auto retained = saved();
+			probe.HeldDiscard   = retained && retained->Draft.State == core::review_draft_state::drafting;
+			probe.PrivateEffectsHold.reset();
+			if (!probe.HeldDiscard) {
+				return fail("discard-before-store-resumes");
+			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_discarded;
 			return result::pending;

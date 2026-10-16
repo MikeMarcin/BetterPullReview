@@ -209,7 +209,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto change_view() const noexcept -> QWidget*;
 		[[nodiscard]] auto reply_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto reply_field() const noexcept -> QAbstractButton*;
-		/// \brief The reply's label chip, menu and shortcodes: the composer's
+		/// \brief The reply's label chip and menu: the composer's
 		/// own [[BPR-1083]] controls on the reply's text. Null on a card that
 		/// takes no reply.
 		[[nodiscard]] auto label_controls() const noexcept -> feedback_label_controls*;

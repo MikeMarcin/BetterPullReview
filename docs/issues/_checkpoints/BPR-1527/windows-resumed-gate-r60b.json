@@ -1,0 +1,63 @@
+{
+  "schema": "bpr.native-resumed-gate.v1",
+  "mandate": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "candidate": "181b7bf03fe9852a8fec9cc7e234f4ebf622156f",
+  "code_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "original": {
+    "recorded": 538,
+    "passes": 535,
+    "failures": 2,
+    "interrupted": 1,
+    "never_completed": 167,
+    "failures_preserved": [
+      "application_diagnostic_subsystems10.3557ms",
+      "qt_diff_workbench_scale_125timeout120.03s"
+    ],
+    "interrupted_course": "application_agent_finding_composition_contract",
+    "result": "Outage interrupted; not an uninterrupted705gate"
+  },
+  "resumed": {
+    "task": "BPR-1527-resume-windows-r60b",
+    "actual_selection": 170,
+    "fixture_extras": [],
+    "registration_unchanged": true,
+    "counts": {
+      "passed": 168,
+      "skipped": 1,
+      "failed": 1
+    },
+    "wall_seconds": 792.2595428999921,
+    "ctest_exit": 8,
+    "wrapper_exit": 1,
+    "source_clean_after": true,
+    "whole125_seconds": 105.27,
+    "whole200_seconds": 107.98,
+    "failure": "application_diagnostic_subsystems, original10ms contract, observed10.3359ms",
+    "configured_skip": "application_large_review_cache_bytes, Debug; optimizedRelease supplement remains required"
+  },
+  "aggregate": {
+    "schema": "bpr.resumed-native-inventory.v1",
+    "candidate": "181b7bf03fe9852a8fec9cc7e234f4ebf622156f",
+    "code_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+    "registered": 705,
+    "complete_inventory": true,
+    "counts": {
+      "passed": 703,
+      "failed": 1,
+      "skipped": 1
+    },
+    "preserved_passes": 535,
+    "resumed_requested": 170,
+    "fixture_dependencies_added": [],
+    "scope": "Cross-outage resumed normal inventory, not an uninterrupted full run. Original538rows and failures retained."
+  },
+  "preservation": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-r60b-complete-preserved-r61 (+zip); originalR58 separately retained",
+  "private_evidence": ".mask/sessions/BPR-1527/evidence/windows-recovery-r60/r60b-complete",
+  "quiescence": "TaskReady and wrapper35696/runner16024/CTest28836 absent; no ctest/cmake/ninja/cl/MSBuild, WSL inventoryexit0nativeworkload[] before diagnostic dispatch",
+  "limits": [
+    "Cross-outage complete inventory; not uninterruptedfullpass",
+    "Mac Qt fix not yet adopted; changed affected source evidence must revalidate",
+    "No package/sign/publication or release approval"
+  ]
+}

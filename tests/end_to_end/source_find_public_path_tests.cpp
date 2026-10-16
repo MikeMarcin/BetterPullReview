@@ -74,14 +74,20 @@ namespace {
 		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal");
 		settle();
 	}
-	/// [[BPR-1503]]. Where the panes are and how much code they show, which a
-	/// floating Find must never change. (The viewport's offset is the shared
-	/// controller's alignment scroll, so only its size is compared.)
-	auto pane_geometry(qt::diff_workbench& aSurface) -> std::array<QRect, 3>
+	/// [[BPR-1503]], [[BPR-1527]]. Find leaves both pane layouts and
+	/// displayed source rectangles unchanged. Alignment scrolling can change
+	/// invisible overscan; its backing widget size is not a displayed extent.
+	auto pane_geometry(qt::diff_workbench& aSurface) -> std::array<QRect, 4>
 	{
+		const auto canvas = [&aSurface](const QPlainTextEdit& aPane) {
+			const auto* viewport = aPane.viewport();
+			const auto  mask     = viewport->mask();
+			const auto  clipped  = mask.isEmpty() ? viewport->rect() : viewport->rect().intersected(mask.boundingRect());
+			return QRect{ viewport->mapTo(&aSurface, clipped.topLeft()), clipped.size() };
+		};
 		return { QRect{ aSurface.left_pane()->mapTo(&aSurface, QPoint{ 0, 0 }), aSurface.left_pane()->size() },
 				 QRect{ aSurface.right_pane()->mapTo(&aSurface, QPoint{ 0, 0 }), aSurface.right_pane()->size() },
-				 QRect{ QPoint{ 0, 0 }, aSurface.right_pane()->viewport()->size() } };
+				 canvas(*aSurface.left_pane()), canvas(*aSurface.right_pane()) };
 	}
 	/// [[BPR-1503]]. The find widget floats over its pane's top-right corner.
 	void expect_floating(qt::diff_workbench& aSurface, qt::source_find_bar& aBar, const QPlainTextEdit& aPane, const char* aMessage)

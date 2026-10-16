@@ -1,0 +1,24 @@
+{
+  "schema": "bpr.shared-allocation-adoption.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "source_main": "6cf3c94b99e8d699eaa6b5c23d037b8a1d3377fe",
+  "previous_next_id": "BPR-1528",
+  "adopted_next_id": "BPR-1541",
+  "paths": [
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1528--BPR-1528--cdb07d8484c2.json",
+    "docs/issues/_reservations/BPR-1529--BPR-1529--1cf250f53166.json",
+    "docs/issues/_reservations/BPR-1530--BPR-1530--82f5f2096afd.json",
+    "docs/issues/_reservations/BPR-1531--BPR-1531--c72af4c619ef.json",
+    "docs/issues/_reservations/BPR-1532--BPR-1532--fc312ac373f6.json",
+    "docs/issues/_reservations/BPR-1533--BPR-1533--5c45415baeca.json",
+    "docs/issues/_reservations/BPR-1534--BPR-1534--78ec543a573a.json",
+    "docs/issues/_reservations/BPR-1535--BPR-1535--e5f2afb941c7.json",
+    "docs/issues/_reservations/BPR-1536--BPR-1536--f4c3a47480ed.json",
+    "docs/issues/_reservations/BPR-1537--BPR-1537--945227dd29b1.json",
+    "docs/issues/_reservations/BPR-1538--BPR-1538--35177d881942.json",
+    "docs/issues/_reservations/BPR-1539--BPR-1539--c153c05ee73e.json",
+    "docs/issues/_reservations/BPR-1540--BPR-1540--da4bf96619cc.json"
+  ],
+  "reason": "Existing BPR1527 finish must satisfy the shared historical high-water guard. Copy exact main counter and missing reservation receipts; no issue allocation, ID recycling or source integration."
+}

@@ -1,8 +1,9 @@
 /// \file
 /// \brief [[BPR-1083]]. Proves the selected authoring controls in the real
 /// comment editor: the label chip and its menu, the decoration toggles, ⌘L
-/// and ⌘0, and the leading `:xx:` shortcodes (RFC-BPR-0048 R09, R10;
-/// `docs/ux/conventional-comments-feedback.md`).
+/// and ⌘0 (RFC-BPR-0048 R09, R10; `docs/ux/conventional-comments-feedback.md`).
+/// [[BPR-1565]] removed the leading `:xx:` codes and their completion (owner,
+/// 2026-10-16): a typed code stays the text it is.
 /// \details Every check drives `review_draft_editor` as composed, with the
 /// revisioned dispatch the workbench gives it, and reads the commands it
 /// emits. A label chosen with a control must leave the editor exactly as the
@@ -180,8 +181,8 @@ namespace {
 		auto* const chip = f.controls()->chip();
 		expect(chip->text() == QStringLiteral("Plain ▾") && chip->accessibleName() == QStringLiteral("Label: Plain comment"),
 			   "a plain comment's chip reads Plain");
-		expect(chip->toolTip() == QStringLiteral("Label (%1), or type a code such as :qu: at the start").arg(QKeySequence{ Qt::CTRL | Qt::Key_L }.toString(QKeySequence::NativeText)),
-			   "its tooltip names ⌘L and the shortcodes");
+		expect(chip->toolTip() == QStringLiteral("Label (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_L }.toString(QKeySequence::NativeText)),
+			   "its tooltip names ⌘L and no typed code");
 		auto* next = f.body()->nextInFocusChain();
 		while (next != f.body() && (f.body()->isAncestorOf(next) || !(next->focusPolicy() & Qt::TabFocus) || !next->isVisibleTo(&f.Window))) {
 			next = next->nextInFocusChain();
@@ -197,8 +198,8 @@ namespace {
 		for (const auto label : { core::feedback_label::praise, core::feedback_label::issue, core::feedback_label::quibble }) {
 			const auto* const button = f.menu()->label_button(label);
 			expect(button != nullptr && button->accessibleName() == qt::feedback_label_text(label) && button->toolTip() == qt::feedback_label_description(label)
-					   && button->text().contains(QStringLiteral(":%1:").arg(QString::fromLatin1(qt::feedback_shortcode(label).data(), 2))) && !button->icon().isNull(),
-				   "each grid entry shows its mark, name and code, and its catalog description as a tooltip");
+					   && button->text() == qt::feedback_label_text(label) && button->accessibleDescription() == qt::feedback_label_description(label) && !button->icon().isNull(),
+				   "each grid entry shows its mark and name, no code, and its catalog description as a tooltip");
 		}
 		expect(!f.menu()->blocking_button()->isEnabled(), "the decorations wait for a label");
 
@@ -353,15 +354,6 @@ namespace {
 		expect_anchored(*praise, praise->rect(), qt::feedback_label_description(core::feedback_label::praise), "menu entry");
 		f.menu()->close();
 		settle();
-		f.controls()->set_helper(true);
-		f.body()->clear();
-		f.body()->setFocus();
-		type(f.body(), QStringLiteral(":"));
-		settle();
-		auto* const list = f.controls()->completion();
-		expect(list->isVisible() && list->count() == 12, "a colon opens completion");
-		const auto item = list->visualItemRect(list->item(1));
-		expect_anchored(*list->viewport(), item, qt::feedback_label_description(core::feedback_label::nitpick), "completion row");
 	}
 
 	void test_command_l_belongs_to_the_focused_editor()
@@ -492,154 +484,101 @@ namespace {
 			   "a label is not forced in front of a quote");
 	}
 
-	void test_shortcodes_complete_and_replace_at_the_start()
+	/// \brief Whether any label completion list is on screen. The controls
+	/// had one until [[BPR-1565]]; none may appear now.
+	[[nodiscard]] auto any_list_shown() -> bool
+	{
+		const auto widgets = QApplication::topLevelWidgets();
+		return std::ranges::any_of(widgets, [](const QWidget* const aWidget) {
+			return aWidget->isVisible() && (qobject_cast<const QListWidget*>(aWidget) != nullptr || aWidget->findChild<QListWidget*>() != nullptr);
+		});
+	}
+
+	/// \brief [[BPR-1565]]. The owner, 2026-10-16: "I think we can get rid of
+	/// our custom shortcodes for the conventional comment tags... they don't
+	/// add much over just typing it out yourself and the dropdown picker is
+	/// convenient enough." Negative control for the removed behaviour: every
+	/// former code, and a colon alone, stays the text typed, at the start or
+	/// anywhere, opens no list and makes no control edit.
+	void test_typed_codes_stay_text()
 	{
 		auto f = fixture{ "Fix it." };
-		f.Editor->set_label_helper(true);
-		auto* const completion = f.controls()->completion();
-		// The owner, shortcodes-v002: "just typing : should be enough to open
-		// suggestions." A colon alone at the start offers all twelve.
+		f.body()->setFocus();
 		caret_at(f.body(), 0);
 		type(f.body(), QStringLiteral(":"));
 		settle();
-		auto everyLabel = std::vector<core::feedback_label>{ };
-		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
-			everyLabel.push_back(static_cast<core::feedback_label>(index));
+		expect(f.text() == ":Fix it." && !any_list_shown(), "a colon alone at the start opens nothing");
+		key(f.body(), Qt::Key_Tab);
+		settle();
+		expect(f.text().starts_with(':') && !f.controls()->state().Label.has_value(), "and Tab takes no label");
+
+		for (const auto* const code : { ":qu:", ":is:", ":su:", ":ni:", ":pr:", ":zz:", ":+1:" }) {
+			f.body()->setPlainText(QStringLiteral("Fix it."));
+			settle();
+			const auto before = f.Commands.size();
+			caret_at(f.body(), 0);
+			type(f.body(), QString::fromLatin1(code));
+			settle();
+			expect(f.text() == std::string{ code } + "Fix it." && !f.controls()->state().Label.has_value() && !any_list_shown(),
+				   std::string{ code } + " typed at the start stays text, with no label and no list");
+			expect(f.Commands.size() == before + 4U && f.Commands.back().Command.Body == std::string{ code } + "Fix it.",
+				   "each keystroke is one ordinary edit, and the draft holds the code as typed");
 		}
-		expect(completion->isVisible() && f.controls()->completion_labels() == everyLabel && completion->currentRow() == 0,
-			   "a colon alone at the start opens completion with every label, in catalog order");
-		save_render(*completion, "completion-colon");
-		key(f.body(), Qt::Key_Down);
-		key(f.body(), Qt::Key_Down);
-		key(f.body(), Qt::Key_Down);
-		key(f.body(), Qt::Key_Tab);
-		settle();
-		expect(f.text() == "issue: Fix it." && !completion->isVisible(), "arrows and Tab take a label from the colon alone in one edit");
-		f.body()->undo();
-		settle();
-		expect(f.text() == ":Fix it.", "and one undo restores the colon");
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":"));
-		settle();
-		key(f.body(), Qt::Key_Escape);
-		settle();
-		expect(!completion->isVisible() && f.text() == ":Fix it.", "Esc after a colon alone leaves the text alone");
-		f.body()->setPlainText(QStringLiteral("Fix it "));
-		caret_at(f.body(), 7);
-		type(f.body(), QStringLiteral(":"));
-		settle();
-		expect(!completion->isVisible(), "a colon anywhere but the start opens nothing");
-
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":q"));
-		settle();
-		save_render(*completion, "completion");
-		expect(completion->isVisible() && f.controls()->completion_labels() == std::vector{ core::feedback_label::question, core::feedback_label::quibble },
-			   "a colon and one letter open completion, codes first");
-		key(f.body(), Qt::Key_Down);
-		expect(completion->currentRow() == 1, "Down moves to quibble");
-		key(f.body(), Qt::Key_Up);
-		expect(completion->currentRow() == 0, "Up moves back to question");
-		const auto typedCommands = f.Commands.size();
-		key(f.body(), Qt::Key_Tab);
-		settle();
-		expect(f.text() == "question: Fix it." && !completion->isVisible() && f.Commands.size() == typedCommands + 1U,
-			   "Tab takes the highlighted label in one draft edit");
-		f.body()->undo();
-		settle();
-		expect(f.text() == ":qFix it.", "⌘Z right after restores the literal code");
-
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":is:"));
-		settle();
-		expect(f.text() == "issue: Fix it.", "the closing colon of an exact code replaces it at once");
-		f.body()->undo();
-		settle();
-		expect(f.text() == ":is:Fix it.", "and one undo restores the literal :is:");
-
 		f.body()->setPlainText(QStringLiteral("question (blocking): Fix it."));
 		caret_at(f.body(), 0);
 		type(f.body(), QStringLiteral(":is:"));
 		settle();
-		expect(f.text() == "issue (blocking): Fix it.", "a code in front of a label replaces that label and never adds a second prefix");
-
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":q"));
-		settle();
-		key(f.body(), Qt::Key_Escape);
-		settle();
-		expect(!completion->isVisible() && f.text() == ":qFix it.", "Esc leaves the text alone");
-
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":zz:"));
-		settle();
-		expect(f.text() == ":zz:Fix it." && !completion->isVisible(), "an unknown code leaves the text alone");
-
-		f.body()->setPlainText(QStringLiteral("Fix it."));
-		caret_at(f.body(), 0);
-		f.body()->insertPlainText(QStringLiteral(":qu:"));
-		settle();
-		expect(f.text() == ":qu:Fix it." && !completion->isVisible(), "pasted text leaves the text alone");
-
+		expect(f.text() == ":is:question (blocking): Fix it.", "a code in front of a label no longer replaces it");
 		f.body()->setPlainText(QStringLiteral("Fix it "));
 		caret_at(f.body(), 7);
-		type(f.body(), QStringLiteral(":is:"));
+		type(f.body(), QStringLiteral(":is: :+1:"));
 		settle();
-		expect(f.text() == "Fix it :is:", "a code that is not at the very start, like GitHub's own :emoji:, is never touched");
-		expect(f.controls()->statistics().Shortcodes == 4U, "four codes were replaced");
+		expect(f.text() == "Fix it :is: :+1:", "codes and GitHub's own :emoji: elsewhere are text too");
+		expect(f.controls()->statistics().Edits == 0U, "no control edit was made");
 
-		auto off = fixture{ "Fix it." };
-		caret_at(off.body(), 0);
-		type(off.body(), QStringLiteral(":qu:"));
+		f.body()->setPlainText(QStringLiteral("question: typed in full"));
 		settle();
-		expect(off.text() == ":qu:Fix it." && !off.controls()->completion()->isVisible() && !off.controls()->helper(),
-			   "with the helper off, which is the default, :qu: is plain text");
-		off.body()->setPlainText(QStringLiteral("question: typed in full"));
-		settle();
-		expect(off.controls()->state().Label == core::feedback_label::question, "a label typed in full counts either way");
+		expect(f.controls()->state().Label == core::feedback_label::question, "a label typed in full is still recognized");
 	}
 
-	/// \brief Found by BPR-1083's composed label-authoring course: the
-	/// replacement of `:qu:` follows its closing colon at once, while the
-	/// colon's own edit can still be with the draft owner. It used to go on
-	/// the revision that edit was based on and was refused as "Draft changed in
-	/// another window". It now waits for the answer and goes on the revision
-	/// accepted; with no answer it goes as before.
-	void test_a_shortcode_waits_for_the_unanswered_colon()
+	/// \brief Found by BPR-1083's composed label-authoring course, with the
+	/// `:xx:` codes [[BPR-1565]] removed: a control edit can follow a typed
+	/// edit that is still with the draft owner. It used to go on the revision
+	/// that edit was based on and was refused as "Draft changed in another
+	/// window". It now waits for the answer and goes on the revision accepted;
+	/// with no answer it goes as before.
+	void test_a_label_chosen_while_typing_waits_for_the_unanswered_edit()
 	{
-		auto f = fixture{ "Fix it." };
-		f.Editor->set_label_helper(true);
-		caret_at(f.body(), 0);
-		type(f.body(), QStringLiteral(":qu"));
-		settle();
+		auto f = fixture{ "Fix it" };
+		caret_at(f.body(), 6);
 		f.Answering = false;
-		type(f.body(), QStringLiteral(":"));
+		type(f.body(), QStringLiteral("!"));
 		settle();
-		expect(f.text() == "question: Fix it." && f.Unanswered.size() == 1U && f.Unanswered.front().Command.Body == ":qu:Fix it.",
-			   "the closing colon's edit is with the owner and the replacement is on screen");
+		f.controls()->open_menu();
+		settle();
+		f.menu()->label_button(core::feedback_label::question)->click();
+		settle();
+		expect(f.text() == "question: Fix it!" && f.Unanswered.size() == 1U && f.Unanswered.front().Command.Body == "Fix it!",
+			   "the typed edit is with the owner and the label is on screen");
 		const auto sent    = f.Commands.size();
 		const auto pending = f.Unanswered.front();
 		f.Unanswered.clear();
 		f.Answering = true;
 		f.answer(pending);
 		settle();
-		expect(f.Commands.size() == sent + 1U && f.Commands.back().Command.Body == "question: Fix it."
-				   && f.Commands.back().ExpectedRevision == pending.ExpectedRevision + 1U && f.Latest.Draft.Body == "question: Fix it."
-				   && f.text() == "question: Fix it." && f.Editor->mutation_status_label()->text().isEmpty(),
-			   "the replacement then goes on the accepted revision, with no conflict and nothing undone");
+		expect(f.Commands.size() == sent + 1U && f.Commands.back().Command.Body == "question: Fix it!"
+				   && f.Commands.back().ExpectedRevision == pending.ExpectedRevision + 1U && f.Latest.Draft.Body == "question: Fix it!"
+				   && f.text() == "question: Fix it!" && f.Editor->mutation_status_label()->text().isEmpty(),
+			   "the label then goes on the accepted revision, with no conflict and nothing undone");
 
-		auto silent = fixture{ "Fix it." };
-		silent.Editor->set_label_helper(true);
-		caret_at(silent.body(), 0);
-		type(silent.body(), QStringLiteral(":qu"));
-		settle();
+		auto silent = fixture{ "Fix it" };
+		caret_at(silent.body(), 6);
 		silent.Answering = false;
-		type(silent.body(), QStringLiteral(":"));
+		type(silent.body(), QStringLiteral("!"));
+		settle();
+		silent.controls()->open_menu();
+		settle();
+		silent.menu()->label_button(core::feedback_label::question)->click();
 		settle();
 		const auto stale = silent.Unanswered.front().ExpectedRevision;
 		auto       clock = QElapsedTimer{ };
@@ -647,7 +586,7 @@ namespace {
 		while (silent.Unanswered.size() < 2U && clock.elapsed() < 2'000) {
 			QApplication::processEvents(QEventLoop::AllEvents, 50);
 		}
-		expect(silent.Unanswered.size() == 2U && silent.Unanswered.back().Command.Body == "question: Fix it."
+		expect(silent.Unanswered.size() == 2U && silent.Unanswered.back().Command.Body == "question: Fix it!"
 				   && silent.Unanswered.back().ExpectedRevision == stale,
 			   "with no answer, the waiting change still goes, as it did before");
 	}
@@ -760,8 +699,8 @@ auto main(int argc, char** argv) -> int
 	test_controls_and_typed_syntax_are_the_same_draft();
 	test_a_label_comes_first_on_an_empty_comment();
 	test_refusals_change_nothing();
-	test_shortcodes_complete_and_replace_at_the_start();
-	test_a_shortcode_waits_for_the_unanswered_colon();
+	test_typed_codes_stay_text();
+	test_a_label_chosen_while_typing_waits_for_the_unanswered_edit();
 	test_the_chip_keeps_its_size_when_narrow();
 	test_a_small_gap_between_the_mark_and_the_word();
 	std::cout << "feedback-label-controls-tests:pass\n";

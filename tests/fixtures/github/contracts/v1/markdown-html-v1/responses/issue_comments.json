@@ -1,0 +1,26 @@
+[
+	{
+		"body": "<details>\n<summary>Build log (click to expand)</summary>\n\n```text\n[1/3] Compiling cache_writer.cpp\n[2/3] Linking\n```\n\nThe log is **trimmed**.\n</details>\n\n<details open>\n<summary>Open by default</summary>\n\n- item one\n- item two\n</details>\n\n<details>\n<summary><b>Bold</b> summary with <code>code</code></summary>\nText right after the summary, no blank line.\n</details>\n\n<details>\nNo summary element here.\n</details>\n\n<details>\n<summary>Outer</summary>\n\n<details>\n<summary>Inner</summary>\n\nNested content.\n</details>\n</details>\n\nAfter the details.\n",
+		"node_id": "IC_mh_1",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "Line one<br>line two<br/>line three.\n\nH<sub>2</sub>O and E = mc<sup>2</sup>; press <kbd>Ctrl</kbd>+<kbd>C</kbd>.\n\n<b>bold</b> <strong>strong</strong> <i>italic</i> <em>em</em> <u>under</u> <s>struck</s> <del>deleted</del> <ins>inserted</ins> <code>code</code> <mark>mark</mark> <small>small</small> <span title=\"t\">span</span>\n\n<p align=\"center\">Centered paragraph</p>\n\n<div align=\"right\">Right-aligned div</div>\n\n<a href=\"https://example.invalid/docs\">An HTML link</a> and <a href=\"javascript:alert(1)\">a script link</a> and <a href=\"#section\">a fragment</a>.\n\n<hr>\n\n<blockquote>An HTML quote</blockquote>\n\n<ul><li>HTML list item one</li><li>item two</li></ul>\n\n<ol><li>first</li><li>second</li></ol>\n\n<h3>An HTML heading</h3>\n\n<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>a</td><td>1</td></tr></tbody></table>\n\n<pre>preformatted\n  text</pre>\n\n<script>alert('x')</script>\n<style>body { color: red }</style>\n<iframe src=\"https://example.invalid/embed\"></iframe>\n<form action=\"https://example.invalid\"><input type=\"text\" value=\"field\"><button>Send</button></form>\n<span onclick=\"alert(1)\" style=\"color:red\" class=\"c\" id=\"i\">attributes stripped</span>\n<font color=\"red\">font tag</font>\n<center>center tag</center>\n<custom-tag>custom element</custom-tag>\n<object data=\"x.swf\"></object>\n<svg><circle r=\"5\"/></svg>\n<math><mi>x</mi></math>\n\nText with a literal < sign and 3 > 2.\n",
+		"node_id": "IC_mh_2",
+		"user": {
+			"login": "jiayin",
+			"node_id": "U_fixture_jiayin"
+		}
+	},
+	{
+		"body": "Great work :+1: :tada: :rocket: :white_check_mark: :warning: :heart: :eyes: :thumbsup: :-1: :100: :smile:\n\nUnknown :notanemoji: and in code `:+1:` stay as written.\n\nAdjacent:smile:text and a time 10:30:45 and a URL https://example.invalid/:smile:/x.\n",
+		"node_id": "IC_mh_3",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	}
+]

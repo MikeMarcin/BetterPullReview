@@ -2432,7 +2432,7 @@ namespace bpr::qt {
 		connect(Uncertain, &QToolButton::clicked, this, [this] { drill(application::overview_feedback_row_kind::pull_request, { }, { .Kind = core::feedback_count_kind::uncertain }); });
 		LabelKey = folderButton(QStringLiteral("Label key"), QStringLiteral("overviewLabelKey"));
 		LabelKey->setToolTip(QStringLiteral("Label key (%1)").arg(QKeySequence{ Qt::ALT | Qt::Key_K }.toString(QKeySequence::NativeText)));
-		LabelKey->setAccessibleDescription(QStringLiteral("Lists every label mark with its name and shortcode, and the state marks"));
+		LabelKey->setAccessibleDescription(QStringLiteral("Lists every label mark with its name, and the state marks"));
 		anchor_tooltips(*LabelKey);
 		connect(LabelKey, &QToolButton::clicked, this, [this] { show_label_key(); });
 		auto* const keyShortcut = new QShortcut{ QKeySequence{ Qt::ALT | Qt::Key_K }, this };
@@ -3916,7 +3916,7 @@ namespace bpr::qt {
 	}
 
 	namespace {
-		/// [[BPR-1089]]. The Label key: every mark with its name and shortcode,
+		/// [[BPR-1089]]. The Label key: every mark with its name,
 		/// and what the other numbers and the round marks mean. A list, so the
 		/// keyboard and a screen reader can walk it; Escape closes it.
 		class overview_label_key final : public QFrame
@@ -3980,10 +3980,8 @@ namespace bpr::qt {
 		heading(QStringLiteral("Labels (the first comment of a thread)"));
 		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
 			const auto label = static_cast<core::feedback_label>(index);
-			const auto code  = QString::fromUtf8(feedback_shortcode(label).data(), static_cast<qsizetype>(feedback_shortcode(label).size()));
-			entry(QIcon{ feedback_mark_pixmap(label, { }, feedback_mark_colours_for(Colours.Marks, label, palette()), ratio) },
-				  QStringLiteral("%1   :%2:").arg(feedback_label_text(label), code), QStringLiteral("%1, shortcode %2: %3").arg(feedback_label_text(label), code, feedback_label_description(label)),
-				  feedback_label_description(label));
+			entry(QIcon{ feedback_mark_pixmap(label, { }, feedback_mark_colours_for(Colours.Marks, label, palette()), ratio) }, feedback_label_text(label),
+				  QStringLiteral("%1: %2").arg(feedback_label_text(label), feedback_label_description(label)), feedback_label_description(label));
 		}
 		heading(QStringLiteral("Other numbers"));
 		const auto ink    = palette().color(QPalette::Text);

@@ -5,8 +5,9 @@ cmake_minimum_required(VERSION 4.4.2)
 # fixture's account: Read with no file chosen shows the direction to open one
 # ([[BPR-1287]]), src/engine/renderer.cpp opens in Read with its labelled
 # threads marked, Comment opens an editable page on a line no thread is on,
-# `:qu:` typed into the empty body becomes `question: `, the chip's menu
-# makes it a suggestion and ⌘L's menu an issue, Publish posts it, and after
+# `:qu:` typed into the empty body with the label helper on stays that text
+# with no label ([[BPR-1565]] removed the codes), and once taken out by hand
+# the chip's menu makes the subject a suggestion and ⌘L's menu an issue, Publish posts it, and after
 # a refresh the new thread carries the issue mark.
 # [[BPR-1084]]. Then suggested changes on the same path: an issue with a
 # multiline suggestion on a free line is marked native before Publish and the

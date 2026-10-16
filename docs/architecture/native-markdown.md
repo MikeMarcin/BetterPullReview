@@ -10,11 +10,15 @@ The original provider body remains the authority for source, copy and publishing
 The renderer uses Qt's `QTextDocument::MarkdownDialectGitHub` with
 `MarkdownNoHTML`. Its declared subset is paragraphs, headings, emphasis, strong
 emphasis, quotes, ordered and unordered lists, fenced/indented code, inline code,
-thematic breaks, strikethrough, read-only tasks, tables and links. This is a
-bounded native subset, not GitHub visual parity. Math, Mermaid, video, active
-HTML, editing tools, footnote presentation and syntax highlighting are not part
-of this delivery. Unsupported syntax can always be read in **View source**.
-Raw HTML is displayed as literal text, never submitted to an HTML importer.
+thematic breaks, strikethrough, read-only tasks, tables and links. The owner's
+[amendment 1](../rfcs/RFC-BPR-0036-native-markdown-rendering.md#owner-amendment-1--2026-10-16-github-parity)
+adds GitHub's HTML comments, line breaks, alerts, footnotes, `<details>`,
+GitHub's sanitised HTML subset and emoji shortcodes
+([GitHub parity](#github-parity-amendment-1) below). Math, Mermaid, video,
+active HTML, editing tools and syntax highlighting are not part of this
+delivery. Unsupported syntax can always be read in **View source**. Qt's
+Markdown import still never reads HTML (`MarkdownNoHTML`); only HTML the
+reader has sanitized to its allow-list reaches Qt's HTML import.
 
 **View source** and **Rendered** retain separate reading positions and selections;
 the first switch uses approximate scroll fraction. **Copy source** copies the
@@ -138,6 +142,86 @@ destination. A partial rendered copy writes each image back as Markdown. The
 object type is a `QTextObjectInterface` handler found through `qt_metacast`, so
 the adapter needs no meta-object compiler and no `QUrl`.
 
+## GitHub parity (amendment 1)
+
+[[BPR-1543]] makes four constructs read as GitHub renders a pull request
+description or comment, checked against GitHub's own Markdown API output for
+the fixtures in `tests/fixtures/markdown/github-parity-v1`. The private
+`markdown_github` unit works on both sides of Qt's import:
+
+- **Preparation** rewrites the source line by line before `setMarkdown`. A
+  line classifier finds fenced and indented code, erring toward code, and an
+  inline scanner finds code spans as CommonMark pairs backtick runs. Code is
+  never rewritten.
+- **Presentation** turns the marks the preparation left into native document
+  structure after the import and the code-tab repair.
+
+Marks are U+2008 PUNCTUATION SPACE for a line break and the Unicode
+noncharacters U+FDE1 to U+FDEC for alerts and footnotes (Qt reserves U+FDD0
+and U+FDD1 for frames). A body that already holds U+2008 keeps its soft
+breaks; one that holds any of U+FDE0 to U+FDEF is read without alerts and
+footnotes. Authored text is therefore never taken for a mark, and no mark
+reaches the rendered document.
+
+| Construct | Rendered as |
+| --- | --- |
+| `<!-- … -->` | Hidden. A comment that starts a line is an HTML block and runs to its `-->` across blank lines, or to the end of the body when never closed, as on GitHub. Any other comment closes within its paragraph or stays literal. Comments in code stay. |
+| A single newline in a paragraph, list item, quote or footnote | A line separator in the same block, as GitHub's `<br>`. A written hard break (two spaces or a backslash) is the same separator; Qt otherwise splits the block, which in a list drew a second bullet. Headings, rules, table rows, reference definitions, code spans that cross the line, and code keep the newline. |
+| `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | A top-level quote whose first line is the marker alone and that has a line after it. Its title is GitHub's word in the kind's colour, semibold, without an icon; a 4 px bar in that colour runs down the left of the alert, which has no quote fill. A heading or table inside the alert, which Qt does not mark as quoted, stays inside it: the preparation ends the alert with a mark paragraph after the quote. A marker with text on its line, or inside a list, is a plain quote. |
+| `x[^label]` and `[^label]: text` | Definitions (top level, with indented or lazy continuation lines) move to a footnotes section after a rule at the end, numbered in the order of first reference; a definition nothing references is dropped and a reference with no definition stays literal. A reference is its raised number in brackets (`[1]`), as GitHub's stylesheet draws it; each footnote ends with GitHub's `↩` back references, the second and later numbered (`↩²`). |
+| `_text_` | Emphasis. Qt's dialect draws it underlined, which also read as a link. |
+
+Alert colours start from GitHub's own (`#0969da`, `#1a7f37`, `#8250df`,
+`#9a6700`, `#d1242f` on a light base; `#4493f8`, `#3fb950`, `#ab7df8`,
+`#d29922`, `#f85149` on a dark one) and move toward the text colour until they
+read at 4.5:1 on the reader's base, or 7:1 where the text itself is at 18:1
+or more (the high-contrast themes). The footnotes are set at 0.86 of the body
+size in the text colour 32% of the way to the base. On any dark base, not only
+in place, a link keeps its hue at a readable lightness: a footnote's raised
+number is a link.
+
+Footnote references and back references are in-body links. Their target is a
+character property only presentation sets, so an authored link such as
+`[x](#fn-1)` still goes to application admission. Enter or a click on one
+selects the other and scrolls the reader to it, so Enter there leads back and
+Tab continues from it; no gesture reaches the application. In place the reader
+does not scroll: a holder that is a `QScrollArea` is asked to show the target,
+and any other holder keeps its scroll position while the selection moves.
+Copying a partial rendered selection serializes the presented document, so it
+carries "Note" and the footnote numbers rather than the source syntax; a full
+selection still copies the original bytes.
+
+### `<details>`, the HTML subset and emoji ([[BPR-1544]])
+
+GitHub's renderer passes raw HTML through an allow-list. The reader keeps the
+same subset, compared with GitHub's own output for `details`, `html`, `emoji`,
+`hostile-html` and `pr-html` in the same fixture directory:
+
+| HTML | Rendered as |
+| --- | --- |
+| `<details>`, `<details open>` with `<summary>` | A section, closed unless `open`. Its summary leads with a disclosure triangle (▶ closed, ▼ open, at 0.7 of the text) in the text colour, and the whole summary is an in-body toggle: Tab reaches it, Enter or a click opens or closes it, and its accessible description says "Collapsed section" or "Expanded section". The section's blocks are hidden with Qt's block visibility, so its lists, code and tables keep their structure; a hidden table also gives up its borders and spacing. Tab skips links inside a closed section. A section without a summary is called "Details", as on GitHub. The Markdown between the tags reads, as GitHub's does when blank lines part it from them. Nested sections each keep their own state. Opening a section changes no text, so selection, links and the original bytes stay as they were. |
+| `b`, `strong`, `i`, `em`, `s`, `strike`, `del`, `ins`, `sub`, `sup`, `kbd`, `code`, `tt`, `samp`, `mark`, `br` | Inline formatting over the Markdown between the tags (`ins` underlines, as GitHub's browser does; `mark` is the base 30% toward the theme's warning colour, GitHub's attention tint). `kbd` is a key cap: the code font at 0.85, a fill 6% from the base toward the text, a hairline rounded edge 70% from the text toward the base, and a thin space inside each end. An unclosed tag ends with its paragraph. |
+| `p`, `div`, `h1`–`h6`, `hr`, `blockquote`, `ul`, `ol`, `li`, table tags, `pre`, `dl`, `dt`, `dd` | A top-level HTML block (to its blank line, or to `</pre>`) is sanitized and placed through Qt's HTML import: only `align` (on `p`, `div`, headings and cells) and `colspan`/`rowspan` (on cells) survive. A lone `<div align>` or `<p align>` followed by a blank line aligns the Markdown up to its lone closing tag, as GitHub's centered README headers do. `pre` reads as a code block. |
+| `a href` | A link only when core's `markdown_html_link_kept` says its destination could ever be admitted (HTTP(S), a fragment or a path, without credentials); otherwise its text alone, as GitHub drops a `javascript:` link. Activation still goes through application admission. GitHub keeps a credential-bearing link that the reader shows as text. |
+| `script`, `style`, `iframe`, `textarea`, `title`, `xmp`, `noembed`, `noframes`, `plaintext` | Visible text, as GFM's tag filter shows them. |
+| `img`, `picture`, `source`, and an `a` around one | Left as written for [RFC-BPR-0084](../rfcs/RFC-BPR-0084-inline-markdown-images.md), which places images in the presented document. |
+| `u`, `small`, `span`, `font`, `center`, `form`, `input`, `button`, `svg`, `object`, any other tag | The tag is dropped and its text kept, as GitHub's sanitizer does (GitHub strips `u`, though the amendment named it). |
+
+Every attribute other than those above is dropped, so no style, class, event
+handler, `src` or `background` reaches Qt. Qt's HTML import is given only
+structure tags; formatting travels as the reader's own marks (U+FDEB `<br>`,
+U+FDED and U+FDEE around a span, U+FDEF for a block). The resource denial of
+`markdown_document` still answers every request, and the hostile courses count
+none.
+
+Emoji shortcodes (`:+1:`, `:tada:`) come from a table of gemoji 4.1.0's 1,913
+aliases (MIT, `third_party/gemoji`), generated by
+`scripts/generate_markdown_emoji_table.py` into
+`src/adapters/qt/src/markdown_emoji_table.inc`; nothing is fetched. As GitHub's
+filter, a shortcode needs a boundary on both sides (`a:smile:b` and `10:30:45`
+stay), and code, URLs, link destinations and HTML tags are left as written.
+Shortcodes are replaced even in a body that holds a reserved mark.
+
 ## Bounds and lifecycle
 
 Provider descriptions are already admitted at 262,144 bytes. Preview adds these
@@ -154,7 +238,10 @@ and may refuse a document that a full Markdown parser could accept:
 | Pipes in any line | 32 |
 | Pipe-bearing lines × (maximum pipes + 1) | 1,024 |
 
-The bracket count spans source lines. Table budgeting bounds rectangular
+The budgets are measured on the original body, before the GitHub-parity
+preparation, which adds at most one mark to each line, a few characters to
+each alert and moves footnote definitions without copying them. The bracket
+count spans source lines. Table budgeting bounds rectangular
 expansion before Qt allocates native cells. Eager preparation was selected after
 measuring admitted long prose and rejected nesting. It runs synchronously on the
 GUI lane under these budgets: no worker, timer, late completion or cross-window

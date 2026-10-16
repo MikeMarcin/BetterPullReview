@@ -1,0 +1,15 @@
+{
+  "schema": "bpr.native-followup-observation.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "mac_boundary": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+  "release_target": "Windows0.2.2",
+  "reviewed_base": "69eb31fbc",
+  "full_application": "8656771498362b6676d23e5c41dcc124ae2512ae403821041dae376a64f0e2d0",
+  "production_app_manifest": "724c7055084d928a7857161ca8ee368fd468aac6b3217ba76b8a51cc4e5017c0",
+  "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df",
+  "digest_command": "cmake -DBPR_PRINT_PINNED_DIGESTS=ON -DBPR_SOURCE_ROOT=C:/Users/mikem/bpr-v021 -P tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+  "digest_mode": "Actual native clang-format22.1.8 threepaths then canonical CMake print-only, fullapp local SHA agrees; mutation branch unchanged",
+  "changed_source_scope": "Exact matching invalidation retires only no-active pending Chosen; bounded typed-port authority control; capture test waits once-issued exact semantic navigation completion. Existing first-file/refresh lifecycle source retained.",
+  "native_next": "Build/test formatted candidate: normal UIfor+submission3+label+roundtrip; compiled missing-authority-guard control and old/new deferred-navigation probe controls; strict/portability after performance repair",
+  "acceptance": "Earlier exact e9871a native12/12pass337.97s; new guards/probe/control not yet built/tested."
+}

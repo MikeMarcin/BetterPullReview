@@ -1,0 +1,131 @@
+{
+  "schema": "bpr.native-focused-repair.v1",
+  "mandate": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "route": {
+    "role": "rfc-implementer",
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh"
+  },
+  "source_basis": "b5838c2b5d178f5f9d7e99ab66727683b5eaf517",
+  "code_basis": "076922c1340086b02a706665b2de2c9cbc9f28fa",
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp"
+  ],
+  "source_sha256": {
+    "src/adapters/qt/src/diff_workbench.cpp": "f19893f69bf93451148dbf52590b7b23586cf7a283b33ff81c123b7477ee8732",
+    "tests/adapters_qt/diff_workbench_tests.cpp": "af8733ad4229636d3c802cc9f4a1ac3129988c67cea6bdb79e50fc39ed9c1f90"
+  },
+  "platform": "macOS26.6.2 arm64, Qt6.11.2 offscreen, inherited native style, DPR2 at200%",
+  "failure": {
+    "course": "qt_diff_workbench_scale_200",
+    "unchanged_assertion": "actual source bottom meets the native horizontal scrollbar, excluding overscan",
+    "context": "unequal comparison1, split mode, left pane",
+    "displayed_bottom": 364,
+    "horizontal_bar_top": 368,
+    "gap_logical_pixels": 3,
+    "diagnostic_seconds": 6.89
+  },
+  "controls": [
+    {
+      "variant": "6747 pre851 production and original test, unchanged existing assertions/inputs",
+      "outcome": "pass",
+      "seconds": 27.8
+    },
+    {
+      "variant": "pre851 plus only reduced split overscan, original test with once-per-case geometry output",
+      "outcome": "fail",
+      "seconds": 5.2,
+      "observation": "same comparison1 split-left gap3 logical pixels"
+    },
+    {
+      "variant": "0769 candidate plus conditional scalar diagnostics, all stronger frame assertions retained",
+      "outcome": "fail",
+      "observation": "same unchanged source-bottom assertion, before stronger frame oracle"
+    }
+  ],
+  "cause": "Reduced split overscan exposed a cached displayed clip whose bottom ends above the native horizontal scrollbar. Native scroll-area layout can reserve frame spacing before the bar; the earlier full-row overscan happened to retain the source extent through that boundary. Isolating the overscan delta alone reproduces the failure in the same native context.",
+  "fix": "For a visible split-pane horizontal scrollbar, anchor the displayed clip bottom to the actual scrollbar top minus one; use that bounded area for viewport placement/mask. Preserve offset-only overscan, atomic line/residual placement and parent-frame repair. Unified placement, native style, fonts, policy, test inputs and thresholds unchanged.",
+  "primary_reference": "https://raw.githubusercontent.com/qt/qtbase/v6.11.2/src/widgets/widgets/qabstractscrollarea.cpp (layoutChildren_helper computes style-dependent frame/viewport area and positions native scrollbar containers before viewport)",
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md; loaded before Qt repair; preserve inherited appearance",
+  "provenance": "Both exact owned Qt/test objects and selected executable removed before control and restoration builds; pristine candidate test restored byte-for-byte (af8733ad...). Temporary diagnostic/baseline variants remain private evidence only.",
+  "first_fixed_whole200_seconds": 16.77,
+  "focused": {
+    "ctest_exit": 0,
+    "wall_seconds": 102.62218887500057,
+    "counts": {
+      "passed": 11
+    },
+    "tests": [
+      {
+        "name": "qt_diff_workbench_scale_200",
+        "seconds": 18.9135,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_workbench_scale_125",
+        "seconds": 17.1015,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_workbench_scale_100",
+        "seconds": 16.8864,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find",
+        "seconds": 16.8374,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find_scale_1_25",
+        "seconds": 16.82,
+        "status": "passed"
+      },
+      {
+        "name": "application_source_find_scale_2_0",
+        "seconds": 12.1556,
+        "status": "passed"
+      },
+      {
+        "name": "qt_code_sample_painter",
+        "seconds": 1.31356,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_100",
+        "seconds": 0.921605,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_150",
+        "seconds": 0.549975,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_200",
+        "seconds": 0.53906,
+        "status": "passed"
+      },
+      {
+        "name": "qt_diff_axis_scale_125",
+        "seconds": 0.522184,
+        "status": "passed"
+      }
+    ]
+  },
+  "private_evidence": ".mask/sessions/BPR-1527/evidence/mac-native-r61",
+  "limits": [
+    "Windows R60b remains frozen181/code0769; Mac fix has not entered its producer.",
+    "Changed Qt behavior invalidates affected prior Qt/composition evidence for the new source; normal native Windows and affected portable checks remain required.",
+    "Published macOS0.2.1 source6747/c233 and producer untouched.",
+    "Not an unattended native appearance judgment or release approval."
+  ],
+  "static": {
+    "strict_tidy": "clang-tidy22.1.8, actual Qt TU, --warnings-as-errors; exit0,26non-user diagnostics suppressed by existing header filter, no new suppression",
+    "format": "Full coding_format_check clang-format22 gate exit0",
+    "documentation": "DOCUMENTATION_OK after adopting exact mainNEXT_ID1543+existing1542reservation; no newallocation",
+    "verifier_units": "67pass",
+    "architecture": "architecture_boundaries24.30s and architecture_boundary_contract222.06s pass; three-course static run290.61s exit0"
+  }
+}

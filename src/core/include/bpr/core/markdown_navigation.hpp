@@ -73,6 +73,14 @@ namespace bpr::core {
 	};
 
 	/// \brief Admits bounded HTTP(S) destinations or repository-root paths bound to the accepted head.
+	/// \brief [[BPR-1544]]. Whether an HTML link's destination could ever be
+	/// admitted: a bounded HTTP(S) address, a fragment, or a path without a
+	/// scheme, holding no control character, backslash or credential key.
+	/// \details GitHub drops the link of an `<a href>` it would not follow and
+	/// keeps the text; the reader asks this before it makes an HTML link.
+	/// Activation still goes through `admit_markdown_link`.
+	[[nodiscard]] auto markdown_html_link_kept(std::string_view aDestination) -> bool;
+
 	[[nodiscard]] auto admit_markdown_link(const markdown_link_intent&      aIntent,
 										   const markdown_link_observation& aObservation)
 		-> std::expected<markdown_destination, markdown_link_result>;

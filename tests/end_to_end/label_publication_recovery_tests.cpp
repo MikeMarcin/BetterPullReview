@@ -251,8 +251,8 @@ namespace {
 		expect(lost.NativePosts == 1U && lost.StoredComments == 1U && lost.LastBody == issue, "one write reached the server, with the labelled bytes");
 		expect(accepted_state(*editor) == core::review_draft_state::publishing && accepted_body(*editor) == issue, "the draft is held publishing, with the exact body it was prepared with");
 
-		// While the outcome is unknown, the label cannot change: not by the chip,
-		// not by typing, and not by a shortcode typed at the start of the body.
+		// While the outcome is unknown, the label cannot change: not by the chip
+		// and not by typing.
 		const auto chip = choose_label(*editor, core::feedback_label::question);
 		editor->body_editor()->setFocus();
 		auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Q, Qt::NoModifier, QStringLiteral("q") };

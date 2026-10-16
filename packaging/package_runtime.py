@@ -56,7 +56,7 @@ PRIVATE_LIBRARIES = {
 # list its copyright line names.
 NOTICE_FILES = (
     "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
-    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "fmt/LICENSE",
+    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "gemoji/LICENSE", "fmt/LICENSE",
     "sha1collisiondetection/LICENSE", "hacl-star/LICENSE", "rapidfuzz-cpp/LICENSE", "dtl/COPYING",
     "git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt",
 )
@@ -93,7 +93,32 @@ def inputs(build: Path) -> dict:
     qt_version = next(item["version"] for item in components(value) if item["name"] == "QtBase")
     if value["platform"] != platform.system() or value["qt_version"] != qt_version:
         raise ValueError("native platform and pinned Qt version must match package inputs")
+    if value["platform"] == "Windows":
+        for producer in private_library_producers(value):
+            if not producer.resolve().is_relative_to(build.resolve()):
+                raise ValueError("private-library producer is outside the selected build")
     return value
+
+
+def private_library_producers(info: dict) -> list[Path]:
+    """Source-built library identities come from the fixed runtime declaration.
+
+    The selected CMake graph emits their producer paths; a filename in an
+    inspected package cannot grant itself first-party producer authority.
+    File bytes and full native link evidence are checked separately.
+    """
+    declared = info.get("private_libraries")
+    if not isinstance(declared, dict) or set(declared) != set(PRIVATE_LIBRARIES[info["platform"]]):
+        raise ValueError("private-library producer declaration mismatch; reconfigure the selected build")
+    producers = []
+    for relative, value in declared.items():
+        if not isinstance(value, str):
+            raise ValueError("invalid private-library producer path")
+        producer = Path(value)
+        if not producer.is_absolute() or producer.name != Path(relative).name or producer.is_symlink():
+            raise ValueError("invalid private-library producer path")
+        producers.append(producer)
+    return producers
 
 
 # [[BPR-1179]]. The two removable component families a package was built with.

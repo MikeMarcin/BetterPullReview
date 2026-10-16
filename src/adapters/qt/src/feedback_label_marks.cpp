@@ -395,7 +395,7 @@ namespace bpr::qt {
 			return static_cast<std::size_t>(aLabel);
 		}
 
-		constexpr auto shortcodes = std::array<std::string_view, core::feedback_label_count>{
+		constexpr auto letters = std::array<std::string_view, core::feedback_label_count>{
 			"pr",
 			"ni",
 			"su",
@@ -454,44 +454,10 @@ namespace bpr::qt {
 		return glyphs[index];
 	}
 
-	auto feedback_shortcode(const core::feedback_label aLabel) noexcept -> std::string_view
+	auto feedback_label_letters(const core::feedback_label aLabel) noexcept -> std::string_view
 	{
 		const auto index = index_of(aLabel);
-		return index < shortcodes.size() ? shortcodes[index] : std::string_view{ };
-	}
-
-	auto find_feedback_shortcode(const std::string_view aCode) noexcept -> std::optional<core::feedback_label>
-	{
-		for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
-			if (shortcodes[index] == aCode) {
-				return label_at(index);
-			}
-		}
-		return std::nullopt;
-	}
-
-	auto feedback_shortcode_matches(const std::string_view aFragment) -> std::vector<core::feedback_label>
-	{
-		auto matches = std::vector<core::feedback_label>{ };
-		if (aFragment.empty()) {
-			// A colon alone offers every label (owner, shortcodes-v002).
-			for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
-				matches.push_back(label_at(index));
-			}
-			return matches;
-		}
-		for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
-			if (shortcodes[index].starts_with(aFragment)) {
-				matches.push_back(label_at(index));
-			}
-		}
-		for (std::size_t index = 0U; index < shortcodes.size(); ++index) {
-			const auto label = label_at(index);
-			if (core::stable_name(label).starts_with(aFragment) && std::ranges::count(matches, label) == 0) {
-				matches.push_back(label);
-			}
-		}
-		return matches;
+		return index < letters.size() ? letters[index] : std::string_view{ };
 	}
 
 	auto feedback_label_role(const core::feedback_label aLabel) noexcept -> core::appearance_role
@@ -651,7 +617,7 @@ namespace bpr::qt {
 
 	void paint_feedback_letters(QPainter& aPainter, const QRectF& aBox, const core::feedback_label aLabel, const QColor& aInk)
 	{
-		const auto code = feedback_shortcode(aLabel);
+		const auto code = feedback_label_letters(aLabel);
 		aPainter.save();
 		aPainter.setRenderHint(QPainter::TextAntialiasing, true);
 		auto font = aPainter.font();

@@ -297,10 +297,6 @@ namespace bpr::qt {
 		QString     Body;
 		/// The draft editor's Publish is enabled.
 		bool Publishable = false;
-		/// [[BPR-1290]]. The draft editor's label helper is on, so the reply
-		/// completes and replaces `:xx:` codes as the composer does
-		/// ([[BPR-1083]]); off, a label is typed in full.
-		bool LabelHelper = false;
 
 		auto operator==(const thread_reply_presentation&) const -> bool = default;
 	};
@@ -312,8 +308,6 @@ namespace bpr::qt {
 		QString Body;
 		/// The draft editor's Publish is enabled.
 		bool Publishable = false;
-		/// The label helper is on: `:xx:` codes complete and replace.
-		bool LabelHelper = false;
 		/// The draft can be written here. A draft whose retained text is in
 		/// conflict, or that cannot be edited, is read but not written.
 		bool Editable = true;
@@ -527,7 +521,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto draft_editor() const -> QPlainTextEdit*;
 		/// \brief [[BPR-1212]]. The identity the draft's note and composer carry.
 		[[nodiscard]] static auto draft_identity() -> const std::string&;
-		/// \brief The reply's label chip, menu and shortcodes ([[BPR-1083]]'s
+		/// \brief The reply's label chip and menu ([[BPR-1083]]'s
 		/// controls, as the composer has them), while a reply is shown.
 		[[nodiscard]] auto reply_label_controls() const -> feedback_label_controls*;
 		/// \brief The open thread's card, while one is open.

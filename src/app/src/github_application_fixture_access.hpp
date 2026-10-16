@@ -68,7 +68,7 @@ namespace bpr::app::detail {
 		cpp_identifiers_v1,
 		/// [[BPR-1083]]. The nested-folders pull request with review threads
 		/// whose posts carry every Conventional Comments label, for judging the
-		/// thread marks, the label chip and the shortcodes in the application.
+		/// thread marks and the label chip in the application.
 		conventional_comments_v1,
 		/// [[BPR-1290]]. conventional-comments-v1's files and threads plus a
 		/// 1557-line file with eight threads, for judging the inline drawer
@@ -94,6 +94,14 @@ namespace bpr::app::detail {
 		/// two pull request comments hold GitHub's image forms, served with
 		/// GitHub's rendering and the images it serves, for judging inline images.
 		markdown_images_v1,
+		/// [[BPR-1543]]. The nested-folders pull request whose description
+		/// and four pull request comments are the GitHub-parity Markdown
+		/// fixtures, for judging comments, line breaks, alerts and footnotes.
+		markdown_parity_v1,
+		/// [[BPR-1544]]. The nested-folders pull request whose description
+		/// and three pull request comments are the GitHub-parity HTML,
+		/// details and emoji fixtures.
+		markdown_html_v1,
 		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
 		/// base branch moved on, reverting nothing of the pull request's but
 		/// landing its `b.txt` change separately. GitHub's Files changed is
@@ -403,10 +411,11 @@ namespace bpr::app::detail {
 		// and the flow stays reachable through the self-test, so a graph that
 		// silently stopped composing the panel cannot pass for one that did.
 		bool DisableDeviceAuthorizationPanelComposition = false;
-		/// [[BPR-1083]]. Turns the label helper on for an attended look at the
-		/// shortcodes. Off by default, as the product is. Since [[BPR-1088]] it
-		/// writes the profile's Label helper preference, the Settings row's own
-		/// path, rather than reaching into the editor.
+		/// [[BPR-1083]]. Turns the label helper on. Off by default, as the
+		/// product is. Since [[BPR-1088]] it writes the profile's Label helper
+		/// preference, the Settings row's own path, rather than reaching into
+		/// the editor; since [[BPR-1565]] that preference only sends the Review
+		/// feedback guidance with a workshop request.
 		bool LabelHelper = false;
 		// RFC-BPR-0017. Forces the shipped public-preview selection available
 		// against the recorded fixture, so the composed credential-free
@@ -711,8 +720,9 @@ namespace bpr::app::detail {
 		bool ThreadMarksDrawn = false;
 		/// Comment opened an editable inline page in Read.
 		bool CommentEditable = false;
-		/// `:qu:` typed into an empty body became `question: `.
-		bool ShortcodeApplied = false;
+		/// [[BPR-1565]]. `:qu:` typed into an empty body stayed that text, with
+		/// no label and no control edit, while the label helper was on.
+		bool CodeStaysLiteral = false;
 		/// The chip's menu changed the label.
 		bool ChipApplied = false;
 		/// ⌘L in the body opened the menu, which changed it again.
@@ -1590,6 +1600,11 @@ namespace bpr::app::detail {
 		/// wrong modality from any other stall in one run.
 		[[nodiscard]] static auto course_modality_facts(
 			const github_application& aApplication) -> QString;
+		/// \brief Tests exact authority retirement of a retained first-file choice.
+		/// Uses the already-observed core pending state after the public course;
+		/// a foreign invalidation keeps it and its exact authority retires it.
+		[[nodiscard]] static auto verify_pending_first_file_choice_invalidation(
+			github_application& aApplication) -> bool;
 		/// \brief Observes the exact host, tab and displayed-publication identities.
 		[[nodiscard]] static auto epoch_refresh_identity(
 			const github_application& aApplication) -> epoch_refresh_identity_evidence;
@@ -1773,7 +1788,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto seed_attended_comment_draft(github_application& aApplication, core::diff_side aSide, const std::string& aBody)
 			-> fixture_file_reveal_result;
 		/// \brief [[BPR-1083]]. In Read on `src/engine/renderer.cpp`: the
-		/// thread marks, then a new comment labelled by `:qu:`, the chip and ⌘L,
+		/// thread marks, then a new comment where a typed `:qu:` stays text
+		/// ([[BPR-1565]]) and the chip and ⌘L label it,
 		/// published, and its mark after a refresh. Saves window renders into
 		/// `aEvidenceDirectory` when one is named.
 		[[nodiscard]] static auto exercise_label_authoring(github_application& aApplication, const std::optional<std::string>& aEvidenceDirectory, bool aLineDraftOnly = false)

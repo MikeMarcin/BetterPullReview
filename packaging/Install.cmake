@@ -44,7 +44,7 @@ foreach(bpr_package_helper IN LISTS bpr_package_helpers)
 endforeach()
 list(JOIN bpr_package_helper_files "," bpr_package_helper_files)
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/_bpr/package-inputs.json" CONTENT
-    "{\"schema\":\"bpr.package-inputs.v1\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${bpr_package_qt_version}\",\"qt_root\":\"${bpr_package_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_better_pull_review>\",\"helpers\":[${bpr_package_helper_files}],\"families\":{\"agent_integrations\":${bpr_package_agent_integrations},\"local_automation\":${bpr_package_local_automation}},\"variant\":\"${bpr_package_variant}\",\"target\":\"${bpr_package_target}\"}\n")
+    "{\"schema\":\"bpr.package-inputs.v1\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${bpr_package_qt_version}\",\"qt_root\":\"${bpr_package_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_better_pull_review>\",\"helpers\":[${bpr_package_helper_files}],\"private_libraries\":{\"$<$<PLATFORM_ID:Darwin>:Contents/Frameworks/>$<TARGET_FILE_NAME:better_pull_review_xdiff>\":\"$<TARGET_FILE:better_pull_review_xdiff>\"},\"families\":{\"agent_integrations\":${bpr_package_agent_integrations},\"local_automation\":${bpr_package_local_automation}},\"variant\":\"${bpr_package_variant}\",\"target\":\"${bpr_package_target}\"}\n")
 if(APPLE)
     # tools/release.sh remains the sole macOS deployment/DMG/ZIP pipeline.
     return()

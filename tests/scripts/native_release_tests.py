@@ -41,7 +41,7 @@ class NativeReleaseTests(unittest.TestCase):
         self.addCleanup(self.patches.stop)
         self.key = "B" * 40
 
-    def package(self, generator, signed=True, use_vault=False, vault_failure=False):
+    def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
@@ -51,6 +51,8 @@ class NativeReleaseTests(unittest.TestCase):
         image_suffix = ".exe" if system == "Windows" else ""
         app, helper = build / ("better_pull_review" + image_suffix), build / ("better_pull_review_agent_supervisor" + image_suffix)
         info.update(app=str(app), helpers=[str(helper)])
+        library = build / ("bpr_xdiff.dll" if system == "Windows" else "libbpr_xdiff.so")
+        info["private_libraries"] = {library.name: str(library)}
         source = runtime.source_asset_path(build, info, self.revision)
         source.parent.mkdir(parents=True)
         with zipfile.ZipFile(source, "w") as archive:
@@ -71,13 +73,16 @@ class NativeReleaseTests(unittest.TestCase):
                 self.events.append("build")
                 app.write_bytes(b"app")
                 helper.write_bytes(b"helper")
+                library.write_bytes(b"library")
                 return
             self.events.append("cpack")
             installed = output / "_CPack_Packages/runtime"
             legal = installed / "ThirdParty"
             legal.mkdir(parents=True)
-            for image in (app, helper):
+            for image in (app, helper, library):
                 shutil.copyfile(image, installed / image.name)
+            if tamper_library:
+                (installed / library.name).write_bytes(b"substituted library")
             (legal / "source-provenance.json").write_text(json.dumps(binding))
             for name in ("SOURCE-OFFERS.txt", "THIRD-PARTY-NOTICES.txt"):
                 (legal / name).write_text("\n".join(binding["asset"].values()))
@@ -124,7 +129,7 @@ class NativeReleaseTests(unittest.TestCase):
                 paths = release.verify(manifest, "1.2.3", self.revision)
                 self.assertIn(manifest, paths)
                 if generator == "WIX":
-                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe",
+                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe", "sign:bpr_xdiff.dll",
                                                    "cpack", "sign:" + manifest.name.removesuffix(".release.json")])
                 if generator == "RPM":
                     record = json.loads(manifest.read_text())
@@ -133,6 +138,19 @@ class NativeReleaseTests(unittest.TestCase):
     def test_unsigned_candidate_cannot_enter_publisher(self):
         manifest = self.package("WIX", signed=False)
         self.assertFalse(manifest.exists())
+
+    def test_changed_staged_library_is_refused_before_installer_signing(self):
+        with self.assertRaisesRegex(ValueError, "CPack changed a signed first-party image: bpr_xdiff.dll"):
+            self.package("WIX", tamper_library=True)
+        self.assertEqual(self.events[-1], "cpack")
+
+    def test_missing_library_receipt_is_refused_after_rehashing(self):
+        manifest = self.package("WIX")
+        record = json.loads(manifest.read_text())
+        record["firstPartyImages"].pop("bpr_xdiff.dll")
+        self.rehash(manifest, record)
+        with self.assertRaisesRegex(ValueError, "incomplete Authenticode"):
+            release.verify(manifest, "1.2.3", self.revision)
 
     def test_vault_unlock_precedes_build_and_scopes_every_detached_signature(self):
         manifest = self.package("DEB", use_vault=True)

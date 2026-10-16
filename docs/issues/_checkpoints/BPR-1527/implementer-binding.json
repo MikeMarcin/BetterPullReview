@@ -30,70 +30,82 @@
     "plan_id": "bpr-1527-final-native-release-contracts",
     "plan_path": "docs/rfcs/plans/bpr-1527-final-native-release-contracts/milestone-plan.json",
     "milestone_id": "final-composition-contracts",
-    "definition_fingerprint": "sha256:343e71c4c5ad82722c0726e08b5c0e3b65630440085d83d0291c21b6caabcab7",
+    "definition_fingerprint": "sha256:ef9aa296494dc2844135227b7bf4916b13cdc05f807eb05a7315c4a6b44bd477",
     "obligations": [
       {
         "id": "BPR-1527:AC1",
         "source": "BPR-1527",
         "selector": "AC1",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC2",
         "source": "BPR-1527",
         "selector": "AC2",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC3",
         "source": "BPR-1527",
         "selector": "AC3",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC4",
         "source": "BPR-1527",
         "selector": "AC4",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC5",
         "source": "BPR-1527",
         "selector": "AC5",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC6",
         "source": "BPR-1527",
         "selector": "AC6",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC7",
         "source": "BPR-1527",
         "selector": "AC7",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC8",
         "source": "BPR-1527",
         "selector": "AC8",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC9",
         "source": "BPR-1527",
         "selector": "AC9",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       },
       {
         "id": "BPR-1527:AC10",
         "source": "BPR-1527",
         "selector": "AC10",
-        "source_fingerprint": "sha256:0b6949a614ddcc84300593fbf523ccd106b6d1ea2f0a018a7bd3d2b1424e40b0"
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
+      },
+      {
+        "id": "BPR-1527:AC11",
+        "source": "BPR-1527",
+        "selector": "AC11",
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
+      },
+      {
+        "id": "BPR-1527:AC12",
+        "source": "BPR-1527",
+        "selector": "AC12",
+        "source_fingerprint": "sha256:213db4ea850b81005befdc6a861cb7efb165d02586876d2f6aacd9b037ad663d"
       }
     ],
-    "obligation_fingerprint": "sha256:399862ae27575aa5eef2670708fe037c2821e9450a4f1f1878c57b3c78001852",
+    "obligation_fingerprint": "sha256:c18aa8fd8b2a41fcbd92f2b69a3f15016ad70c695666f233537e02efe0762c1f",
     "exit_criteria": [
       {
         "id": "final-composition-contracts:exit:1",
@@ -130,6 +142,14 @@
       {
         "id": "final-composition-contracts:exit:9",
         "text": "Explain and repair application_review_submission_composition_public_path and its scale_125/scale_200 courses on native Windows; preserve exact current-head pending-draft selection and every submission, stale-selection, summary, recovery and authority assertion with unchanged budgets."
+      },
+      {
+        "id": "final-composition-contracts:exit:10",
+        "text": "Repair native Windows application_review_navigation_entry explanation lifetime without changing2600ms persistence,3600ms upper limit, three-second product policy, navigation/entry identities or complete-course assertions; retain failed original and meaningful cause evidence for0.2.2."
+      },
+      {
+        "id": "final-composition-contracts:exit:11",
+        "text": "Diagnose and repair application_diagnostic_subsystems and its existing diff-host mid-computation cancellation contract on native Windows, preserving original10.3557ms and resumed10.3359ms failures, unchanged10ms threshold, assertions, input, containment and abandonment/restart semantics; prove the actual cause and meaningful negative/current native acceptance."
       }
     ],
     "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
@@ -148,8 +168,8 @@
     "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
     "source_branch": "codex/v021-windows-gate-fixes",
-    "source_revision": "f8c6e053543d425162268be9e1754ebfd1d8a705",
+    "source_revision": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc",
     "workflow_branch": "codex/v021-windows-gate-fixes",
-    "workflow_revision": "f8c6e053543d425162268be9e1754ebfd1d8a705"
+    "workflow_revision": "aa6294c50f95b51d95f7c7861d7430f89cdb2fdc"
   }
 }

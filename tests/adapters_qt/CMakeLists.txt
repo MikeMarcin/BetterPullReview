@@ -1875,6 +1875,48 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# [[BPR-1543]]. GitHub parity: comments, line breaks, alerts and footnotes,
+# compared with GitHub's own rendering of each fixture.
+bpr_add_executable(test_better_pull_review_markdown_github_tests markdown_github_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_github_tests PRIVATE BetterPullReview::AdapterQt)
+target_compile_definitions(test_better_pull_review_markdown_github_tests PRIVATE
+    "BPR_MARKDOWN_PARITY_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/github-parity-v1\"")
+bpr_enable_hardening(test_better_pull_review_markdown_github_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_github_tests)
+foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" markdown_suffix "${markdown_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_github_${markdown_suffix}"
+        COMMAND test_better_pull_review_markdown_github_tests
+    )
+    set_tests_properties("qt_markdown_github_${markdown_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-github-${markdown_suffix}"
+        PASS_REGULAR_EXPRESSION "markdown-github-tests:pass"
+        TIMEOUT 60
+    )
+endforeach()
+
+# [[BPR-1544]]. GitHub parity: details, the sanitised HTML subset (with
+# hostile-HTML courses) and emoji shortcodes, compared with GitHub's rendering.
+bpr_add_executable(test_better_pull_review_markdown_github_html_tests markdown_github_html_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_github_html_tests PRIVATE BetterPullReview::AdapterQt)
+target_compile_definitions(test_better_pull_review_markdown_github_html_tests PRIVATE
+    "BPR_MARKDOWN_PARITY_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/github-parity-v1\"")
+bpr_enable_hardening(test_better_pull_review_markdown_github_html_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_github_html_tests)
+foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
+    string(REPLACE "." "_" markdown_suffix "${markdown_scale}")
+    bpr_add_network_isolated_test(
+        NAME "qt_markdown_github_html_${markdown_suffix}"
+        COMMAND test_better_pull_review_markdown_github_html_tests
+    )
+    set_tests_properties("qt_markdown_github_html_${markdown_suffix}" PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-github-html-${markdown_suffix}"
+        PASS_REGULAR_EXPRESSION "markdown-github-html-tests:pass"
+        TIMEOUT 120
+    )
+endforeach()
+
 bpr_add_executable(test_better_pull_review_composed_markdown_tests composed_markdown_tests.cpp)
 target_link_libraries(test_better_pull_review_composed_markdown_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_composed_markdown_tests)
@@ -1946,7 +1988,7 @@ foreach(cycle_scale IN ITEMS 1.0 2.0)
 endforeach()
 
 # [[BPR-1083]]. The twelve label marks: compiled glyphs against the accepted
-# path data, tints, shortcodes and names.
+# path data, tints, letters and names.
 bpr_add_executable(
     test_better_pull_review_qt_feedback_label_marks_tests
     feedback_label_marks_tests.cpp
@@ -1975,7 +2017,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "feedback-label-marks-tests:pass"
 )
 
-# [[BPR-1083]]. The label chip, menu, toggles, ⌘L/⌘0 and shortcodes in the
+# [[BPR-1083]]. The label chip, menu, toggles and ⌘L/⌘0 in the
 # composed review draft editor.
 bpr_add_executable(
     test_better_pull_review_qt_feedback_label_controls_tests

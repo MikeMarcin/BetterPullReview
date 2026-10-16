@@ -1,0 +1,165 @@
+{
+  "schema": "bpr.cancellation-repair.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate": "authorized-release-continuation-final-gates-r3",
+  "source_basis": "897df7ef08a56d59aeb3e827c09e8c20291b8a88",
+  "changed_production": "src/application/src/diff_application_host.cpp",
+  "production_sha256": "050b3be80e4c74c58ed52f356237e559da0b513844aef9a60105d171bb03e903",
+  "original_failures": [
+    {
+      "source": "181b7bf03/code0769",
+      "course": "application_diagnostic_subsystems",
+      "run": "R58",
+      "stop_ms": 10.3557
+    },
+    {
+      "source": "181b7bf03/code0769",
+      "course": "application_diagnostic_subsystems",
+      "run": "R60b",
+      "stop_ms": 10.3359
+    }
+  ],
+  "contract": "Original end-to-end timer starts before Host->request and ends after full effect returns, including dispatch, polling, matcher/callback teardown and core/effect cleanup. Unchanged strict10ms assertion, input, containment and abandonment/restart checks.",
+  "cause_and_fix": "The host reused the generic65536-step engine check interval although core unwind already consumes about4ms on native Windows. Weighted assembly work can add several milliseconds before observation. Select4096steps through the existing application-owned core control, leaving more native return-budget margin; the generic core default and algorithms remain unchanged. This does not bound an individual work unit, unwind or OS scheduling in wall time; actual complete-course acceptance remains required.",
+  "diagnostic_comparison": [
+    {
+      "run": 64,
+      "interval": 65536,
+      "total_stop_ms": [
+        4.891,
+        5.3396,
+        5.4052,
+        7.7891,
+        7.2267
+      ],
+      "core_unwind_ms": [
+        4.1788,
+        4.4521,
+        4.3731,
+        3.9944,
+        3.8515
+      ],
+      "remainder_ms": [
+        0.7122000000000002,
+        0.8875000000000002,
+        1.0320999999999998,
+        3.7947,
+        3.3752
+      ],
+      "max_total": 7.7891,
+      "max_remainder": 3.7947,
+      "median_total": 5.4052,
+      "limits": "Instrumented5samples, notnormalacceptance or universalp95. Remainder includes requestdispatch, polling and postcoreeffectcompletion; coreunwind measured firsttruepoll-to-compute-return."
+    },
+    {
+      "run": 65,
+      "interval": 4096,
+      "total_stop_ms": [
+        4.9019,
+        4.4728,
+        4.7259,
+        4.4216,
+        4.3723
+      ],
+      "core_unwind_ms": [
+        4.4769,
+        4.0864,
+        4.284,
+        3.7912,
+        3.992
+      ],
+      "remainder_ms": [
+        0.4250000000000007,
+        0.3864000000000001,
+        0.4419000000000004,
+        0.6303999999999998,
+        0.3803000000000001
+      ],
+      "max_total": 4.9019,
+      "max_remainder": 0.6303999999999998,
+      "median_total": 4.4728,
+      "limits": "Instrumented5samples, notnormalacceptance or universalp95. Remainder includes requestdispatch, polling and postcoreeffectcompletion; coreunwind measured firsttruepoll-to-compute-return."
+    }
+  ],
+  "trace_limits": "No trace failed10ms; extra callback trace and minimal trace may perturb scheduling. Exact phases of original10.3557/10.3359failures were not observed. Preserve originals; matched component evidence supports a scoped headroom improvement, not universalp95 or historical timing attribution beyond observed latency components.",
+  "negative": {
+    "platform": "macOS26.6.2 arm64/Qt6.11.2 inherited offscreen profile",
+    "variant": "disable intra-phase stop checks via existing interval control; original input/10ms assertion unchanged",
+    "actual_stop_ms": 242.502,
+    "ctest_exit": 8,
+    "marker": "BPR1527_POLL_DISABLED_CONTROL verified in actually compiled bad executable and runtime output",
+    "restored_stop_ms": 4.23042,
+    "restored_held_matcher_stop_ms": 0.633917,
+    "restored_ctest_exit": 0,
+    "provenance": {
+      "negative": {
+        "source": "5610c3dc037ea35f00f05a07ab7f6f3b2488f289a1703736b7568dd56203fcf9",
+        "object": "5b27309767ba1803cb74718efae49a96e56c7af02c60141d2fc74906cbf96fc3",
+        "executable": "87ed3078d63642e961849222f37316c8f76b394f2de912a7a77040c83ecc7823",
+        "ctest_exit": 8
+      },
+      "restoration": {
+        "source": "050b3be80e4c74c58ed52f356237e559da0b513844aef9a60105d171bb03e903",
+        "object": "651a98b295e6fb5c23fa946c6562260a901fd0718af6f404691962c249b6fcc5",
+        "executable": "023997a2d79f619b2cd1e667e9b1f21eb0b6d2484b6a11f815559f40a65c4fa0",
+        "ctest_exit": 0
+      }
+    }
+  },
+  "mac_current_public": {
+    "counts": {
+      "passed": 6
+    },
+    "wall_seconds": 82.33646370800125,
+    "ctest_exit": 0,
+    "source_sha256": {
+      "src/adapters/qt/src/diff_workbench.cpp": "f19893f69bf93451148dbf52590b7b23586cf7a283b33ff81c123b7477ee8732",
+      "src/application/src/diff_application_host.cpp": "050b3be80e4c74c58ed52f356237e559da0b513844aef9a60105d171bb03e903"
+    },
+    "tests": [
+      {
+        "name": "application_reply_draft_contract",
+        "seconds": 31.7499,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_submission_composition_public_path",
+        "seconds": 14.4502,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_tour_cold_import_public_path",
+        "seconds": 12.9555,
+        "status": "passed"
+      },
+      {
+        "name": "application_refresh_pick_contract",
+        "seconds": 10.9127,
+        "status": "passed"
+      },
+      {
+        "name": "application_review_round_trip_composition_contract",
+        "seconds": 8.05874,
+        "status": "passed"
+      },
+      {
+        "name": "application_diff_workbench_shutdown_public_path",
+        "seconds": 4.14647,
+        "status": "passed"
+      }
+    ]
+  },
+  "static": {
+    "strict": "actual hostTU clang-tidy22.1.8 --warnings-as-errors pass",
+    "architecture": "current architecture_boundaries28.43s pass; unchanged verifier selftests222.06s fromR61 reused",
+    "format": "full coding_format_check pass; currenttwo-gatewall74.82s",
+    "documentation": "current gate pending;67unchanged verifier units pass. SharedNEXT_ID advances independently; adopt only exact existing counter/receipts, never unrelatedsource."
+  },
+  "native_trace_state": "AllR62/R63/R64/R65 tasksReady, ownedPIDs absent and no nativecompiler/testworkload. Exact181source/object/executable force-restored after each; full raworiginals zipped externally and copied privately.",
+  "next": "Commit exact candidate, adopt only ownedWindowsbranch, force selectedproducers, run35ordinary affected normalcourses. Then serializeWSL affected acceptance and practical optimizedcache supplement; no package/sign/publication.",
+  "private_evidence": [
+    ".mask/sessions/BPR-1527/evidence/windows-recovery-r60",
+    ".mask/sessions/BPR-1527/evidence/mac-native-r65",
+    ".mask/sessions/BPR-1527/evidence/mac-native-r66"
+  ]
+}

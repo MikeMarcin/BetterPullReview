@@ -145,7 +145,8 @@ def verify(manifest: Path, version: str, revision: str) -> list[Path]:
     if provenance.get("firstPartyImages") != record["firstPartyImages"] or provenance.get("signatures") != producer_signatures:
         raise ValueError("native signing receipts differ from provenance")
     if platform == "Windows":
-        images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe"}
+        images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe",
+                  *runtime.PRIVATE_LIBRARIES["Windows"]}
         if info["families"]["agent_integrations"]:
             images.add("better_pull_review_mcp_context_helper.exe")
         receipts = record["firstPartyImages"]
