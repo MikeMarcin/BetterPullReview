@@ -101,6 +101,15 @@ every right blob exactly the head's.
   - `shared.txt`: GitHub `+1 -1`; shown `+4 -4` with main's lines 40, 55 and
     58 reverted.
   - `bpr1560_live_parity.py --pull 76`: FAIL, 10 differences.
+- **`base.sha` rule, measured** (github.com, 2026-10-16): after a push to the
+  base branch then an ordinary push to #76's head, `base.sha` stayed at the
+  tip from when #76 opened (not the new tip); a merge of the base into #75
+  moved `base.sha` together with the head in one observation (polled every
+  1-3 s, no window seen) to the merged commit; on a squash course (#78) a
+  force push set `base.sha` to the base tip at the push whether the squash sat
+  on the fork point (merge base two commits behind), on the tip, or on an older
+  base commit. In every state measured, compare's merge base against `base.sha`
+  equalled compare's merge base against the base branch tip.
 - **#75** (`bpr1560-feature`): four iterations, two merges from the base (one
   of an older base commit), main advancing in between. After each merge GitHub
   reset `base.sha` to the new merge base, so at the measured state the same

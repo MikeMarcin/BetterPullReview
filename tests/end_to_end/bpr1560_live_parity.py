@@ -157,10 +157,10 @@ def main() -> int:
                 facts = []
                 if entry.get("state") == "unavailable":
                     facts.append("the interdiff was not shown")
-                elif entry.get("state") == "absent-both":
-                    if left is not None or right is not None:
+                if entry.get("state") in ("unavailable", "absent-both"):
+                    if entry["state"] == "absent-both" and (left is not None or right is not None):
                         facts.append(f"said absent from both updates, but earlier={left} head={right}")
-                    print(f"  INTERDIFF {'MATCH' if not facts else 'DIFFERS'} {entry['path']} absent from both updates")
+                    print(f"  INTERDIFF {'MATCH' if not facts else 'DIFFERS'} {entry['path']} {entry['state']}")
                     for fact in facts:
                         print(f"      {fact}")
                         differences.append(f"interdiff {entry['path']}: {fact}")

@@ -497,7 +497,7 @@ namespace {
 				aWindow.files_drawer()->contents_view()->setCurrentIndex(row);
 				const auto shownHere  = [&] { return interdiff() && path_of() == path; };
 				const auto absentHere = [&] {
-					return absent() && surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(path);
+					return absent() && aWindow.files_drawer()->contents_view()->currentIndex() == row;
 				};
 				if (!wait_for([&] { return shownHere() || absentHere(); }, "the file's interdiff", std::chrono::seconds{ 60 })) {
 					between << "{\"path\":" << json_text(path) << ",\"state\":\"unavailable\"}\n";
