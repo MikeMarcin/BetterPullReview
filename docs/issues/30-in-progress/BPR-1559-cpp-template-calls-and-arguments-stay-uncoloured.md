@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1559"
 title: "C++ template calls and template arguments stay uncoloured"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
