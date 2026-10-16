@@ -147,7 +147,24 @@ Implementation is on branch `bpr-1543-gfm-parity`.
   cursor 15; one Accept/Reject each for comments, line breaks, alerts,
   footnotes and underscore emphasis, each with GitHub's page beside the app
   in Light and Dark.
-- **Next:** read the verdicts; on all five accepted, merge to main (reseal
-  the composition contract on the merged tree if needed) and finish this
-  card, which makes [[BPR-1544]] eligible. A rejection becomes v002 on this
-  branch.
+- **Owner verdicts (2026-10-16):** all five accepted with no notes —
+  comments `45b931cb`, line breaks `a764a2c3`, alerts `b908869e`, footnotes
+  `19401136`, underscore emphasis `e6618af8` — handed back at cursor 21, which
+  is consumed. The review host is stopped, the frozen root removed, and
+  BPR-Test#72 closed with its branch deleted.
+- **Landing (coordinator order):** after the inline-images work
+  (`bpr-markdown-images`, RFC-BPR-0084) is on main. The resolution is ready on
+  branch `bpr-1543-landing-trial` (`6d077f528`, this branch merged onto the
+  images branch at `7d2295c85`): parity presentation runs before images are
+  placed, `focus_link` keeps the image description, and the fixture tables,
+  docs and fuzz ledger keep both sides. Its full dev suite: 745 of 755, the 10
+  others being the stale `NEXT_ID` base (3), the unresealed contracts (2), a
+  load flake that passes alone (`application_diff_host`) and the four rows
+  main fixed in BPR-1552. `fbdb893e2` (the fuzz target's helper renamed apart
+  from `bpr::application`, which the images headers made ambiguous) must come
+  along.
+- **Next:** when `7d2295c85` is an ancestor of main, merge main into
+  `bpr-1543-landing-trial`, take the fuzz fix, reseal the round-trip
+  composition contract on that tree, run the full dev suite once and the
+  documentation gate, land it on main and finish this card. That makes
+  [[BPR-1544]] eligible.
