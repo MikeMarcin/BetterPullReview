@@ -26,6 +26,8 @@ namespace bpr::application {
 		std::uint64_t                     Account = 0U;
 		/// The resolution request without its nodes and sequence.
 		std::optional<markdown_image_resolution_request> Resolution;
+		/// A fetch request's authority fields, without its hop and policy.
+		markdown_image_fetch_request Fetch;
 	};
 
 	/// \brief RFC-BPR-0084. One window's image requests: admission, resolution

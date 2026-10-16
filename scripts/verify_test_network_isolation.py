@@ -1029,6 +1029,12 @@ MACOS_LOOPBACK_AUTHORITIES = {
     # value inside a response body the fixture itself serves.
     "native_https_device_authorization_fixture": 1,
     "github_device_authorization_refresh_contract": 1,
+    # RFC-BPR-0084. verify_native_https_images.py binds its one configured
+    # port at 127.0.0.1 as the CONNECT proxy and TLS origin for its fixture
+    # image authorities, refuses any other authority at CONNECT, and issues no
+    # outbound request; the camo, github.com and S3 hosts are names inside the
+    # tunnel only.
+    "native_https_image_fixture": 1,
     # BPR-0947, recorded by [[BPR-0854]]. verify_release_update_transport.py
     # binds its one configured port at 127.0.0.1 and is both the CONNECT proxy
     # and the TLS origin, under a fixture authority it generates. The executable

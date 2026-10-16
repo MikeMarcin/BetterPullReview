@@ -209,6 +209,13 @@ namespace {
 		expect(markdown_image_reserved_size({ .Width = pixels(1252), .Height = pixels(625) }, 626) == markdown_image_size{ 626, 313 }, "reserved box from both hints, clamped");
 		expect(!markdown_image_reserved_size({ .Width = pixels(10), .Height = std::nullopt }, 626), "no reserved box without both hints");
 		expect(!markdown_image_reserved_size({ .Width = pixels(10), .Height = percent(10) }, 626), "no reserved box for a percentage height");
+		expect(markdown_image_dimensions_admitted({ 16384, 2441 }), "largest side and under forty megapixels");
+		expect(!markdown_image_dimensions_admitted({ 16385, 1 }), "a side over the bound");
+		expect(!markdown_image_dimensions_admitted({ 8000, 5001 }), "over forty megapixels");
+		expect(!markdown_image_dimensions_admitted({ 0, 10 }), "an empty frame");
+		expect(markdown_image_animation_admitted(400, markdown_image_decoded_bytes), "animation at both bounds");
+		expect(!markdown_image_animation_admitted(401, 10), "too many frames");
+		expect(!markdown_image_animation_admitted(2, markdown_image_decoded_bytes + 1U), "too many decoded bytes");
 	}
 
 	void admission()

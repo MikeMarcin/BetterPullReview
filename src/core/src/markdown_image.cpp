@@ -781,6 +781,17 @@ namespace bpr::core {
 		return admit_hop(location, aPrevious.Credential, true, aPolicy, aPrevious.Hop + 1U);
 	}
 
+	auto markdown_image_dimensions_admitted(const markdown_image_size aSize) noexcept -> bool
+	{
+		return aSize.Width != 0U && aSize.Height != 0U && aSize.Width <= markdown_image_side_pixels && aSize.Height <= markdown_image_side_pixels
+			&& static_cast<std::uint64_t>(aSize.Width) * aSize.Height <= markdown_image_frame_pixels;
+	}
+
+	auto markdown_image_animation_admitted(const std::size_t aFrames, const std::size_t aDecodedBytes) noexcept -> bool
+	{
+		return aFrames <= markdown_image_animation_frames && aDecodedBytes <= markdown_image_decoded_bytes;
+	}
+
 	auto markdown_image_display_size(const markdown_image_size aNatural, const markdown_image_hints& aHints, const std::uint32_t aAvailableWidth)
 		-> markdown_image_size
 	{

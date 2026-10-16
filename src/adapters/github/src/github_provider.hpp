@@ -4,8 +4,10 @@
 #include "github_anonymous_read_admission.hpp"
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
+#include "native_https_transport.hpp"
 
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -164,7 +166,9 @@ namespace bpr::adapters::github::detail {
 	};
 
 	class github_provider final : public application::github_provider_port,
-								  public application::personal_discovery_port
+								  public application::personal_discovery_port,
+								  public application::markdown_image_resolution_port,
+								  public application::markdown_image_fetch_port
 	{
 	public:
 		class implementation;
@@ -215,6 +219,24 @@ namespace bpr::adapters::github::detail {
 		void discover(application::personal_discovery_request            aRequest,
 					  application::personal_discovery_completion_handler aCompletion) override;
 		void cancel_discovery(const application::personal_discovery_request& aRequest) override;
+		/// \brief RFC-BPR-0084. Reads GitHub's rendering of the accepted bodies
+		/// through the request's exact account transport; authenticated only.
+		void resolve(application::markdown_image_resolution_request                         aRequest,
+					 std::function<void(application::markdown_image_resolution_completion)> aCompletion) override;
+		void cancel_resolution(const application::markdown_image_resolution_request& aRequest) override;
+		/// \brief RFC-BPR-0084. Fetches one body image. A credentialed GHES hop
+		/// runs on the provider's own serial lane through the request's exact
+		/// native account transport; every other fetch runs on one of the
+		/// configured image lanes through that lane's credential-free media
+		/// transport for the profile. Unconfigured, every fetch fails.
+		void fetch(application::markdown_image_fetch_request                     aRequest,
+				   std::stop_token                                               aStop,
+				   std::function<void(application::markdown_image_fetch_result)> aCompletion) override;
+		/// \brief Builds one credential-free media transport for a profile.
+		using media_transport_factory = std::function<std::shared_ptr<native_https_transport>(const validated_github_host_profile&)>;
+		/// \brief RFC-BPR-0084. Gives image fetches their serial lanes, one media
+		/// transport per lane and profile. Call once, before any fetch.
+		void configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory);
 
 		void shutdown() noexcept;
 

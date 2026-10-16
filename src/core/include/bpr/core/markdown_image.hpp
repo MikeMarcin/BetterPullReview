@@ -211,6 +211,13 @@ namespace bpr::core {
 		auto operator==(const markdown_image_size&) const -> bool = default;
 	};
 
+	/// \brief Whether a decoded frame of this size is within the side and pixel bounds.
+	[[nodiscard]] auto markdown_image_dimensions_admitted(markdown_image_size aSize) noexcept -> bool;
+
+	/// \brief Whether an animation of this many frames and decoded bytes keeps
+	/// every frame; one beyond either bound keeps its first frame only.
+	[[nodiscard]] auto markdown_image_animation_admitted(std::size_t aFrames, std::size_t aDecodedBytes) noexcept -> bool;
+
 	/// \brief The displayed size: hints over the natural size, aspect kept, no wider than available.
 	[[nodiscard]] auto markdown_image_display_size(markdown_image_size aNatural, const markdown_image_hints& aHints,
 												   std::uint32_t aAvailableWidth) -> markdown_image_size;

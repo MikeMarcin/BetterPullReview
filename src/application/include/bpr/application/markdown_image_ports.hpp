@@ -34,6 +34,10 @@ namespace bpr::application {
 		std::optional<core::application_session_id> AuthenticationSession;
 		std::vector<std::string>                    Nodes;
 		std::uint64_t                               Sequence = 0U;
+		/// The accepted repository and pull request GraphQL identities the
+		/// answer must name.
+		std::string RepositoryNode;
+		std::string PullRequestNode;
 
 		auto operator<=>(const markdown_image_resolution_request&) const = default;
 	};
@@ -91,6 +95,13 @@ namespace bpr::application {
 		core::markdown_image_fetch_policy Policy;
 		std::size_t                       MaximumBytes = core::markdown_image_encoded_bytes;
 		std::uint32_t                     DeadlineMs   = core::markdown_image_fetch_deadline_ms;
+		/// The accepted profile and, for a credentialed GHES hop, the exact
+		/// account lease whose credential may ride it.
+		github_profile_authority                    ProfileAuthority;
+		github_account_transport                    AccountTransport;
+		std::optional<core::application_session_id> AuthenticationSession;
+		core::github_identity_generation            IdentityGeneration;
+		core::github_account_id                     Account;
 	};
 
 	/// \brief The bytes of a 200 response whose content type is an image.

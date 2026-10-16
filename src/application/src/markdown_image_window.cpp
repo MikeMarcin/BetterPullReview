@@ -272,14 +272,17 @@ namespace bpr::application {
 					it = Entries.erase(it);
 					continue;
 				}
-				auto       weak = weak_from_this();
-				const auto id   = it->Id;
-				it->Ticket      = Service->load({ .Key = key, .Fetch = { .First = *hop, .Policy = facts.Policy } },
-												[weak, id](const core::markdown_image_state aState, std::shared_ptr<const markdown_decoded_image> aImage) {
+				auto       weak  = weak_from_this();
+				const auto id    = it->Id;
+				auto       fetch = facts.Fetch;
+				fetch.First      = *hop;
+				fetch.Policy     = facts.Policy;
+				it->Ticket       = Service->load({ .Key = key, .Fetch = std::move(fetch) },
+												 [weak, id](const core::markdown_image_state aState, std::shared_ptr<const markdown_decoded_image> aImage) {
 											   if (const auto self = weak.lock()) {
 												   self->loaded(id, aState, std::move(aImage));
 											   }
-												});
+												 });
 				++it;
 			}
 			publish(std::move(results));

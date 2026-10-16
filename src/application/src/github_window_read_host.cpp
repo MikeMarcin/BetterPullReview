@@ -1548,11 +1548,18 @@ namespace bpr::application {
 					.IdentityGeneration  = State.IdentityGeneration,
 					.Generation          = State.PullRequestGeneration,
 				};
-				request.ProfileAuthority      = authority;
-				request.Viewer                = AcceptedSession->Viewer;
-				request.AccountTransport      = AccountTransport;
-				request.AuthenticationSession = Session->ApplicationSession;
-				facts.Resolution              = std::move(request);
+				request.ProfileAuthority          = authority;
+				request.Viewer                    = AcceptedSession->Viewer;
+				request.AccountTransport          = AccountTransport;
+				request.AuthenticationSession     = Session->ApplicationSession;
+				request.RepositoryNode            = std::string{ snapshot.Repository.Node.value() };
+				request.PullRequestNode           = std::string{ snapshot.PullRequest.Node.value() };
+				facts.Fetch.ProfileAuthority      = authority;
+				facts.Fetch.AccountTransport      = AccountTransport;
+				facts.Fetch.AuthenticationSession = Session->ApplicationSession;
+				facts.Fetch.IdentityGeneration    = State.IdentityGeneration;
+				facts.Fetch.Account               = snapshot.Account;
+				facts.Resolution                  = std::move(request);
 			}
 			return facts;
 		}
