@@ -3,7 +3,7 @@
 Mandate `authorized-release-continuation-final-gates-r3`; plan
 `bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
 Sole owner `/root/bpr1525_implementer`, rfc-implementer / gpt-6.1-sol / xhigh.
-All twelve criteria and eleven exits remain unchanged. BPR-1525/1526 remain Done.
+BPR-1527 is Done through canonical finish `7815a5395a2e8225070991a47e21343dc2d45fb9`; all twelve criteria and eleven exits are accepted without amendment. BPR-1525/1526 remain Done.
 
 ## Exact candidate and result
 
@@ -40,8 +40,8 @@ The single optimized Windows cache-bytes supplement R69 passes in270.16s,
 skip remains a skip. The Release course proves actual byte-pressure eviction,
 exact revisit and held supersession assertions; no entire Release matrix is claimed.
 All owned Windows PIDs are absent, all four recovery tasks are Ready, and both
-native Windows/WSL inventories are quiet at06:23:05Z. Only final docs/board commit
-remains before transfer; no native command or review server is active.
+native Windows/WSL inventories are quiet at06:23:05Z. Canonical finish commits the accepted criteria and docs-only handoff. No native
+command or review server is active; native ownership transfers to the coordinator.
 
 ## Preserved evidence and cause limits
 

@@ -457,5 +457,7 @@
     "mac": "All owned commands completed; CPU slot already returned to coordinator. No denied global process inspection or substitute used.",
     "ownership_transfer": "Release serialized Windows/WSL native slot to coordinator after canonical handoff; this owner will dispatch nothing further without new work."
   },
-  "engineering_result": "All12criteria/11exits accepted with explicit source-scoped reuse, original failures retained, canonical finish prepared after actual quiescence. Not release approval."
+  "engineering_result": "All12criteria/11exits accepted with explicit source-scoped reuse and original failures retained. Canonical finish7815a5395a2e8225070991a47e21343dc2d45fb9 moves BPR-1527 toDone after actual quiescence. Not release approval.",
+  "canonical_finish_revision": "7815a5395a2e8225070991a47e21343dc2d45fb9",
+  "checkpoint_consistency": "Formal milestone_checkpoint check action stop; engineering_acceptance not-evaluated. This validates binding/ownership consistency only; actual acceptance is the sole owner judgment recorded by canonical finish."
 }
