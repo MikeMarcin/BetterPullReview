@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1544"
 title: "Markdown reader GitHub parity: details, sanitised HTML and emoji shortcodes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: ["BPR-1543"]
 priority: "P2"
