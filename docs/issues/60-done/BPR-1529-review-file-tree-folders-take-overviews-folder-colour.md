@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1529"
 title: "Draw Review's file-tree folders in Overview's folder colour"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-15","owner_note":"For the file tree in review can we draw folders different to files, maybe the same color as they are in overview","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-0658","BPR-1213","BPR-1331","BPR-1363"],"reservation":"docs/issues/_reservations/BPR-1529--BPR-1529--1cf250f53166.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree test_folders_take_overviews_folder_ink: drawer folder names and Overview folder paths in PlaceholderText, no Text pixels, in Light, Dark, HC Light, HC Dark; file name keeps Text. Control with old Text ink fails."}},{"criterion":"AC2","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree, qt_files_tree_folder_rows_125/200, qt_pull_request_overview_page and folder_rows_125/200, qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100/125/200, application_github_public_path_nested_folders_v1: 13/13 pass."}},{"criterion":"AC3","outcome":"pending","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in fresh session 9b4f7e98ea5592bf28d39c59d06f3949, candidate BPR-1529-folder-colour-v001, fingerprint bd812f36f7f9b22da4386d2ae80c6903bfd935066bb688f72bd0e7f57f0ce264, cursor 6; frozen root bpr1529-folder-look-v001.r0_305or."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree test_folders_take_overviews_folder_ink: drawer folder names and Overview folder paths in PlaceholderText, no Text pixels, in Light, Dark, HC Light, HC Dark; file name keeps Text. Control with old Text ink fails."}},{"criterion":"AC2","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree, qt_files_tree_folder_rows_125/200, qt_pull_request_overview_page and folder_rows_125/200, qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100/125/200, application_github_public_path_nested_folders_v1: 13/13 pass."}},{"criterion":"AC3","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"observation","detail":"Owner Accept, no note, in attended session 9b4f7e98ea5592bf28d39c59d06f3949, decision 0a5ed949-c8bb-40ed-94ce-1b34e18b8978 (2026-10-16T01:34:08Z, event 7), on candidate BPR-1529-folder-colour-v001 fingerprint bd812f36, frozen root bpr1529-folder-look-v001.r0_305or. Merged tree a7506ceb9: focused rows 13/13 pass."}}]
 ---
 
 # BPR-1529: Draw Review's file-tree folders in Overview's folder colour
@@ -96,3 +95,25 @@ driven or captured; all renders were offscreen.
 
 Next: on hand-back after cursor 6, an Accept (with BPR-1530's verdict)
 merges the branch and finishes the card; a Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:08Z: Accept**, no note (decision
+`0a5ed949-c8bb-40ed-94ce-1b34e18b8978`, event 7 of session
+`9b4f7e98ea5592bf28d39c59d06f3949`), on candidate `BPR-1529-folder-colour-v001` at
+`0e4d1f893`, fingerprint `bd812f36…`. The session was handed back at event 9
+with nothing pending; event cursor consumed: 9. BPR-1529 and BPR-1530 share
+the one product commit and were both accepted, so it lands whole.
+
+`main` merged into the branch at `74e25c1d3` (through `0b37d5438`) and
+`a7506ceb9` (through `550da2cd0`, with BPR-1528 and BPR-1534) without
+conflicts. On the merged tree (`dev`, Debug): `qt_files_tree`,
+`qt_files_tree_folder_rows_{125,200}`, `qt_pull_request_overview_page`,
+`qt_pull_request_overview_folder_rows_{125,200}`,
+`qt_workbench_window_scale_{100,125,200}`,
+`qt_composed_github_scale_{100,125,200}` and
+`application_github_public_path_nested_folders_v1` pass 13/13 at both
+merges; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 48572) was stopped, both candidates' protection
+released and the frozen root removed.

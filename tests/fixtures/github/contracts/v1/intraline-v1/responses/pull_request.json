@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/intraline",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Constructed fixture: everyday changed lines, for judging intraline emphasis.\n",
+	"changed_files": 5,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "intraline",
+		"repo": {
+			"full_name": "bpr-fixtures/intraline",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_37",
+	"number": 37,
+	"state": "open",
+	"title": "Rename the comparison helpers and tidy their messages",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

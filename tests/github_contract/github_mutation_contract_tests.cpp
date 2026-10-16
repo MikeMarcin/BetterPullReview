@@ -1,6 +1,7 @@
 #include "canonical_json_expectations.hpp"
 #include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
+#include "github_review_list_shapes.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 
@@ -1497,6 +1498,63 @@ namespace {
 	// [[BPR-1367]]. The pull request's review comment collection is read
 	// page by page, at most `maximum_review_comment_collection_pages`, and
 	// other reviewers' comments in it are structure only.
+	/// [[BPR-1538]]. Pages as GitHub and GHES send them: complete comments,
+	/// 100 to a page, the next page named by the repository's number.
+	void test_real_collection_pages()
+	{
+		namespace shapes          = bpr::tests::github_shapes;
+		auto enterprise           = target();
+		enterprise.Hostname       = application::github_canonical_hostname{ "ghe.example.invalid" };
+		enterprise.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		const auto author         = shapes::user{ .Id = 23U, .NodeId = "MDQ6VXNlcjIz", .Login = "another-reviewer" };
+		const auto head           = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+		for (const auto& [selected, server] : { std::pair{ target(), shapes::github_com() }, std::pair{ enterprise, shapes::enterprise("ghe.example.invalid") } }) {
+			const auto pull  = shapes::pull{ .Server = server, .Owner = "MikeMarcin", .Name = "BPR-Test", .RepositoryId = selected.RepositoryDatabaseId, .Number = 1U };
+			const auto label = std::string{ selected.Hostname.value() } + ": ";
+			auto       body  = std::string{ "[" };
+			for (auto index = 0U; index < 100U; ++index) {
+				auto value           = shapes::comment{ };
+				value.Id             = 1'000U + index;
+				value.Review         = 500U;
+				value.Path           = "src/many.txt";
+				value.Body           = "An earlier comment on this line.";
+				value.Author         = author;
+				value.Commit         = head;
+				value.OriginalCommit = head;
+				value.Line           = index + 1U;
+				value.OriginalLine   = index + 1U;
+				if (index != 0U) {
+					body += ',';
+				}
+				body += shapes::comment_json(pull, value);
+			}
+			body += ']';
+			expect(body.size() > maximum_review_mutation_response_bytes, label + "a page of 100 complete comments is over the ordinary bound");
+			auto       response = review_mutation_wire_response{ .Status = 200, .Headers = { { .Name = "Link", .Value = "<" + pull.comments_page(2U) + ">; rel=\"next\", <" + pull.comments_page(2U) + ">; rel=\"last\"" } }, .Body = body };
+			const auto page     = parse_review_comment_collection(response, selected, 1U);
+			expect(page && page->Comments.size() == 100U && page->HasNext, label + "a full page is read and its next page, named by the repository's number, is owed");
+			expect(page && page->Comments.back().OriginalCommitId == head && page->Comments.back().OriginalLine == std::optional{ 99U } && !page->Comments.back().OriginalStartLine,
+				   label + "where each comment was written is kept");
+			response.Headers = { { .Name = "Link", .Value = "<" + pull.comments_page(1U) + ">; rel=\"prev\", <" + pull.comments_page(1U) + ">; rel=\"first\"" } };
+			expect(parse_review_comment_collection(response, selected, 2U).has_value(), label + "the last page's links back are read");
+			auto other         = pull;
+			other.RepositoryId = 999U;
+			response.Headers   = { { .Name = "Link", .Value = "<" + other.comments_page(2U) + ">; rel=\"next\"" } };
+			expect(!parse_review_comment_collection(response, selected, 1U), label + "another repository's number is never followed");
+			auto elsewhere   = pull;
+			elsewhere.Server = shapes::enterprise("evil.invalid");
+			response.Headers = { { .Name = "Link", .Value = "<" + elsewhere.comments_page(2U) + ">; rel=\"next\"" } };
+			expect(!parse_review_comment_collection(response, selected, 1U), label + "nor this repository's number on another origin");
+			response.Headers.clear();
+			response.Body = std::string(maximum_review_mutation_list_response_bytes + 1U, ' ');
+			expect(!parse_review_comment_collection(response, selected, 1U), label + "a page stays bounded");
+		}
+		expect(maximum_review_mutation_wire_response_bytes(review_mutation_operation::observe_review_comments) == maximum_review_mutation_list_response_bytes
+				   && maximum_review_mutation_wire_response_bytes(review_mutation_operation::observe_reviews) == maximum_review_mutation_list_response_bytes
+				   && maximum_review_mutation_wire_response_bytes(review_mutation_operation::create_review) == maximum_review_mutation_response_bytes,
+			   "only the two lists may carry a larger answer");
+	}
+
 	void test_review_comment_collection_pages()
 	{
 		constexpr auto collection = "/repos/MikeMarcin/BPR-Test/pulls/1/comments";
@@ -1522,6 +1580,7 @@ namespace {
 		expect(!parse_review_comment_collection(response, target(), maximum_review_comment_collection_pages), "a collection longer than the bound is refused, not read in part");
 		response.Headers = { { .Name = "Link", .Value = "<https://evil.invalid" + std::string{ collection } + "?per_page=100&page=2>; rel=\"next\"" } };
 		expect(!parse_review_comment_collection(response, target(), 1U), "a foreign continuation is never followed");
+		test_real_collection_pages();
 	}
 
 	void test_staged_response_contract()

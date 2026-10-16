@@ -1745,6 +1745,18 @@ namespace {
 				expect(observation.has_value(), "reconciliation observation compiles");
 				const auto result = transport.perform_review_mutation({ .Context = request.Context, .Wire = *observation }, { }, { });
 				expect(std::holds_alternative<github_mutation_wire_success>(result) && gh_arguments(*process.LastRequest)[6] == "GET" && process.LastRequest->StandardInput.empty(), "reconciliation uses bounded GET without write witness");
+				// [[BPR-1538]]. The review list and review comment reads may
+				// carry a full page of GitHub's objects; everything else keeps
+				// the ordinary bound.
+				const auto listed = observation->Operation == review_mutation_operation::observe_reviews || observation->Operation == review_mutation_operation::observe_review_comments;
+				expect(process.LastRequest->StandardOutputLimit == (listed ? maximum_review_mutation_list_response_bytes : maximum_review_mutation_response_bytes) + 32U * 1024U,
+					   "the standard output bound is the operation's answer bound");
+			}
+			{
+				const auto page = compile_review_comment_collection_request(binding.Target, profile->server_contract(), 2U);
+				expect(page.has_value() && std::holds_alternative<github_mutation_wire_success>(transport.perform_review_mutation({ .Context = request.Context, .Wire = *page }, { }, { }))
+						   && process.LastRequest->StandardOutputLimit == maximum_review_mutation_list_response_bytes + 32U * 1024U,
+					   "[[BPR-1538]] a page of the comment collection may carry a full page of GitHub's comments");
 			}
 			// Every GraphQL-rooted shape is refused before launch: the four
 			// the milestone never admitted, and [[BPR-0896]]'s thread

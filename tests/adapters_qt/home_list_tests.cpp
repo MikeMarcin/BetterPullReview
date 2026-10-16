@@ -646,7 +646,8 @@ namespace {
 		home.List.refresh();
 		settle(100);
 		auto* const authored = home.List.state_panel(qt::home_group::my_pull_requests);
-		expect(authored->isVisible() && authored->count() == 3 && !authored->tone().isValid(), "mixed-state authored section has three rows and a neutral theme header");
+		expect(authored->isVisible() && authored->count() == 3 && authored->tone() == qt::builtin_attention_color(qt::appearance_profile{ }.variant(), qt::attention_tone::my_pull_requests),
+			   "mixed-state authored section has three rows and its own header and rail tone [[BPR-1528]]");
 		expect(home.List.state_panel(qt::home_group::needs_you)->count() == 1 && home.List.state_panel(qt::home_group::waiting_on_others)->count() == 1, "Needs me counts only the other account and waiting-only keeps its panel");
 		expect(authored->summary().contains(QStringLiteral("1 needs action")) && authored->summary().contains(QStringLiteral("3 new comments")) && authored->summary().contains(QStringLiteral("1 unknown")), "collapsed authored summary preserves actionable, unread and unknown facts");
 		const auto row = home.List.state_model(qt::home_group::my_pull_requests)->index(0, 0);
@@ -692,6 +693,63 @@ namespace {
 		home.List.refresh();
 		settle(50);
 		expect(authored->isVisible() && !home.List.empty_sentence()->isVisible() && !home.List.state_panel(qt::home_group::needs_you)->isVisible(), "authored-only Home has its rows and no empty Needs me panel");
+	}
+
+	// [[BPR-1528]]. My pull requests draws its own tinted header and rail, at
+	// the strengths every state panel uses, as a panel and as a group's band;
+	// its rows keep their own state colours.
+	void test_my_pull_requests_has_its_own_header_and_rail()
+	{
+		home_fixture home;
+		auto         mine        = item(1, bucket::new_comments_or_author_replies, 3U);
+		mine.Membership.Authored = true;
+		home.Source.apply(std::array{ mine, item(2, bucket::initial_review_requested) });
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		home.List.refresh();
+		settle(100);
+
+		const auto  colours  = qt::home_state_colours_for(qt::appearance_profile{ });
+		auto* const authored = home.List.state_panel(qt::home_group::my_pull_requests);
+		auto* const needs    = home.List.state_panel(qt::home_group::needs_you);
+		expect(colours.MyPullRequests.isValid() && authored->tone() == colours.MyPullRequests,
+			   "My pull requests' panel takes its own tone");
+		expect(authored->tone() != needs->tone() && authored->tone() != colours.WaitingOnOthers && authored->tone() != colours.Following,
+			   "the tone is none of the three states'");
+
+		const auto base  = authored->palette().color(QPalette::Active, QPalette::Base);
+		const auto image = authored->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto pixel = [&image, ratio](const QPoint aPoint) {
+			return image.pixelColor(static_cast<int>(aPoint.x() * ratio), static_cast<int>(aPoint.y() * ratio));
+		};
+		const auto header = authored->header()->geometry();
+		const auto tint   = qt::mix_colour(colours.MyPullRequests, base, qt::home_strength::header);
+		const auto rail   = qt::mix_colour(colours.MyPullRequests, base, qt::home_strength::rail);
+		const auto empty  = QPoint{ header.right() - 24, header.center().y() };
+		const auto onRail = QPoint{ 1, header.bottom() + 12 };
+		if (!close_to(pixel(empty), tint, 10) || !close_to(pixel(onRail), rail, 10)) {
+			std::cerr << "authored header=" << pixel(empty).name().toStdString() << " expected=" << tint.name().toStdString()
+					  << " rail=" << pixel(onRail).name().toStdString() << " expected=" << rail.name().toStdString() << '\n';
+		}
+		expect(close_to(pixel(empty), tint, 10), "the header is tinted in My pull requests' tone");
+		expect(close_to(pixel(onRail), rail, 10), "the rail runs down the panel in My pull requests' tone");
+
+		const auto row = home.List.state_model(qt::home_group::my_pull_requests)->index(0, 0);
+		expect(row.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you)
+				   && colours.for_group(static_cast<qt::home_group>(row.data(qt::home_row_role::state).toInt())) == colours.NeedsMe,
+			   "the authored row's reason word keeps its own state colour");
+
+		home.List.set_grouping(application::home_grouping::repository);
+		home.List.set_state_headers(true);
+		home.List.refresh();
+		settle(100);
+		const auto groups = home.List.group_panels();
+		expect(!groups.empty(), "Repository grouping draws a group");
+		auto* const band = groups.empty() ? nullptr : home.List.band_panel(*groups.front(), qt::home_group::my_pull_requests);
+		expect(band != nullptr && band->tone() == colours.MyPullRequests, "inside a group the My pull requests band carries the same rail");
+		home.List.set_grouping(application::home_grouping::none);
+		home.List.refresh();
 	}
 
 	// Empty states are absent; an empty ready queue is one sentence linking to Repositories.
@@ -1764,6 +1822,7 @@ auto main(int argc, char** argv) -> int
 	const auto scrolledPath = renderPath.isEmpty() ? QString{ } : QString{ renderPath }.replace(QStringLiteral(".png"), QStringLiteral("-scrolled.png"));
 
 	test_authored_sections_in_every_home_arrangement(renderPath);
+	test_my_pull_requests_has_its_own_header_and_rail();
 	test_rows_follow_state_order_with_one_anatomy(renderPath);
 	test_colour_is_only_the_reason_word_and_the_rail();
 	test_rows_wrap_without_elision();

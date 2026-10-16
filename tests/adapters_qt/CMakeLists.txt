@@ -1243,6 +1243,18 @@ set_tests_properties(qt_review_state_icon PROPERTIES
     TIMEOUT 60
 )
 
+# [[BPR-1536]]. Option+character window, button and menu-bar keys step aside
+# in every widget that takes typed text on macOS, and work elsewhere.
+bpr_add_network_isolated_test(
+    NAME qt_option_keys_typing
+    COMMAND test_better_pull_review_qt_workbench_window_tests --option-keys
+)
+set_tests_properties(qt_option_keys_typing PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
+    PASS_REGULAR_EXPRESSION "option-keys:pass"
+    TIMEOUT 60
+)
+
 # [[BPR-1132]]. Rendered document header, tab keys, file gestures and older-pair notice.
 foreach(bpr_tab_scale IN ITEMS 100 125 200)
     math(EXPR bpr_tab_whole "${bpr_tab_scale} / 100")

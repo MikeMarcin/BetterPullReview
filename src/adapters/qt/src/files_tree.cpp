@@ -935,7 +935,12 @@ namespace bpr::qt {
 		};
 		auto details = std::array<detail, 3>{ };
 		if (folder) {
-			details[0] = { QString::number(aIndex.data(files_tree_model::file_count_role).toULongLong()), detailInk };
+			// [[BPR-1530]]. An open folder shows its files beneath it, so only
+			// a closed one draws its count; the accessible text keeps it.
+			const auto* const tree = qobject_cast<const QTreeView*>(option.widget);
+			if (tree == nullptr || !tree->isExpanded(aIndex)) {
+				details[0] = { QString::number(aIndex.data(files_tree_model::file_count_role).toULongLong()), detailInk };
+			}
 		} else {
 			const auto additions = aIndex.data(files_tree_model::additions_role).toULongLong();
 			const auto deletions = aIndex.data(files_tree_model::deletions_role).toULongLong();
@@ -967,7 +972,11 @@ namespace bpr::qt {
 			font.setWeight(QFont::DemiBold);
 		}
 		aPainter->setFont(font);
-		aPainter->setPen(ink);
+		// [[BPR-1529]]. A folder's name takes the ink Overview's folder rows
+		// draw their paths in (`overview_row_delegate::paint_folder`), so
+		// folders read apart from files the same way on both surfaces.
+		const auto group = (option.state & QStyle::State_Active) != 0 ? QPalette::Active : QPalette::Inactive;
+		aPainter->setPen(folder && !selected ? colours.color(group, QPalette::PlaceholderText) : ink);
 		const auto label = QRect{ rect.left(), rect.top(), std::max(0, detailLeft - rect.left()), rect.height() };
 		aPainter->drawText(label, Qt::AlignLeft | Qt::AlignVCenter,
 						   QFontMetrics{ font }.elidedText(aIndex.data(Qt::DisplayRole).toString(), Qt::ElideMiddle, label.width()));

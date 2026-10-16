@@ -153,6 +153,24 @@ comment. `application_line_details_public_path` reads the strip on it, and its
 recorded; its fixture test regenerates the construction and the served tree
 byte for byte.
 
+### `intraline-v1`, everyday changed lines
+
+Added for [[BPR-1537]], so intraline emphasis can be judged on the kinds of
+change a reviewer meets every day. No other fixture had more than a handful of
+similar pairs. `scripts/build_intraline_fixture.py` writes five files into
+`tests/fixtures/github/pull-requests/intraline-v1/construction.json`, each
+changed line a one-for-one replacement between unchanged lines: a C++ file with
+renamed identifiers and parameters, an inserted and a removed argument, edited
+strings, a changed operator, realigned spacing, changed numbers, swapped
+operands and a rewritten line; Markdown prose with a changed word, a rewritten
+clause, an added phrase, a moved link and a replaced sentence; JSON with a
+number, a revision hash and a string changed; Python with a renamed function,
+an added argument and an edited f-string; and accented, CJK, symbol and emoji
+text. The same pack and contract builders serve it as
+`bpr-fixtures/intraline#37` on github.com, signed in as `fixture-author`, with
+no review, thread or comment. Constructed, not recorded; its fixture test
+regenerates the construction and the served tree byte for byte.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

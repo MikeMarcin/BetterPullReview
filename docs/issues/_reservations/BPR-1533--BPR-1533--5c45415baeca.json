@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1533"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Text selection reads clearly in the comparison panes on every line kind (owner report 2026-10-15)",
+  "created": "2026-10-15T22:07:38.359255+00:00",
+  "base": "c2d6bb7ccabc9bd0af5204f5ad7bad1fa2459791"
+}

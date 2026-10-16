@@ -48,7 +48,9 @@
 	#include "bpr/qt/windows_caption_buttons.hpp"
 #endif
 
+#include <QAction>
 #include <QColor>
+#include <QKeySequence>
 #include <QList>
 #include <QMainWindow>
 #include <QPointer>
@@ -69,10 +71,10 @@ class QTabWidget;
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
-class QAction;
 class QCheckBox;
 class QComboBox;
 class QEvent;
@@ -916,7 +918,11 @@ namespace bpr::qt {
 		/// \brief Applies one navigation command after the host has restored Review's exact context.
 		void perform_review_navigation(core::workbench_command_id aCommand);
 		/// \brief Focuses visible Review content or the originating navigation control.
-		void               focus_review_navigation(core::workbench_command_id aCommand);
+		void focus_review_navigation(core::workbench_command_id aCommand);
+		/// \brief [[BPR-1539]]. Says that a retained navigation press took no
+		/// step because the active tab's exact view is unavailable, then focuses
+		/// as `focus_review_navigation` does.
+		void               refuse_review_navigation(core::workbench_command_id aCommand);
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1532]]. View > First change, Option-Shift-Up (Alt+Shift+Up).
@@ -1704,6 +1710,14 @@ namespace bpr::qt {
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
 		void               update_accept_file_shortcut();
+		/// [[BPR-1536]]. Re-reads whether the keyboard is in a widget that
+		/// takes typed text; when that changed, refreshes Accept file's key
+		/// and, on macOS, lifts the menu bar's Option+character keys while it
+		/// is and restores them after.
+		void update_typing_keys();
+		/// [[BPR-1536]]. An action's key as its tooltip names it, also while
+		/// typing has lifted the key from the menu bar.
+		[[nodiscard]] auto presented_key(const QAction* aAction) const -> QString;
 		void               classify_selected_conversation();
 		void               navigate_defect(int aDirection);
 		void               update_defect_surface();
@@ -2002,21 +2016,25 @@ namespace bpr::qt {
 		QAction* LineDetailsAction = nullptr;
 		/// [[BPR-1295]]. Hide Drawers, and the filter by which an editable
 		/// multi-line editor keeps its key.
-		QAction*                                                     ToggleDrawersAction  = nullptr;
-		QObject*                                                     EditorKeyYield       = nullptr;
-		QAction*                                                     ReviewDetailsAction  = nullptr;
-		QToolButton*                                                 AcceptFileButton     = nullptr;
-		QToolButton*                                                 ReviewControlsButton = nullptr;
-		QMenu*                                                       ReviewControlsMenu   = nullptr;
-		QWidget*                                                     ToolbarSpacer        = nullptr;
-		QLabel*                                                      StatusLabel          = nullptr;
-		QWidget*                                                     ReviewSurface        = nullptr;
-		std::optional<application::github_read_progress>             ReadProgress;
-		workbench_central_splitter*                                  CentralSplitter   = nullptr;
-		QWidget*                                                     CentreSurface     = nullptr;
-		diff_workbench*                                              ComparisonSurface = nullptr;
-		pull_request_overview_page*                                  OverviewPage      = nullptr;
-		std::optional<application::pull_request_overview_projection> PresentedOverview;
+		QAction* ToggleDrawersAction = nullptr;
+		QObject* EditorKeyYield      = nullptr;
+		/// [[BPR-1536]]. Whether the keyboard was last in a widget that takes
+		/// typed text, and the menu-bar keys lifted while it is.
+		bool                                                           TypingFocus = false;
+		std::vector<std::pair<QPointer<QAction>, QList<QKeySequence>>> LiftedOptionKeys;
+		QAction*                                                       ReviewDetailsAction  = nullptr;
+		QToolButton*                                                   AcceptFileButton     = nullptr;
+		QToolButton*                                                   ReviewControlsButton = nullptr;
+		QMenu*                                                         ReviewControlsMenu   = nullptr;
+		QWidget*                                                       ToolbarSpacer        = nullptr;
+		QLabel*                                                        StatusLabel          = nullptr;
+		QWidget*                                                       ReviewSurface        = nullptr;
+		std::optional<application::github_read_progress>               ReadProgress;
+		workbench_central_splitter*                                    CentralSplitter   = nullptr;
+		QWidget*                                                       CentreSurface     = nullptr;
+		diff_workbench*                                                ComparisonSurface = nullptr;
+		pull_request_overview_page*                                    OverviewPage      = nullptr;
+		std::optional<application::pull_request_overview_projection>   PresentedOverview;
 		/// [[BPR-0972]]. The presented overview's first row for each path.
 		std::unordered_map<std::string, std::size_t> PresentedOverviewRows;
 		bool                                         OverviewFileFactsDirty = true;
