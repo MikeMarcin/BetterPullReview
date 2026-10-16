@@ -1480,9 +1480,7 @@ namespace {
 		const auto head     = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 		const auto answered = [&](const std::string& aUrlHead, const std::string& aMergeBase) {
 			return parse_merge_base_observation(
-				{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } },
-				  .Body   = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + aUrlHead + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b')
-						  + "\"},\"merge_base_commit\":{\"sha\":\"" + aMergeBase + "\"},\"files\":[]}" },
+				{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + aUrlHead + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b') + "\"},\"merge_base_commit\":{\"sha\":\"" + aMergeBase + "\"},\"files\":[]}" },
 				target());
 		};
 		const auto named = answered(head, std::string(40U, 'c'));

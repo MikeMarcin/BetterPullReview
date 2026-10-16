@@ -229,7 +229,7 @@ namespace {
 		case review_mutation_operation::staged_create_issue_comment:   return "staged_create_issue_comment";
 		case review_mutation_operation::staged_update_issue_comment:   return "staged_update_issue_comment";
 		case review_mutation_operation::staged_update_pending_comment: return "staged_update_pending_comment";
-		case review_mutation_operation::observe_merge_base:             return "observe_merge_base";
+		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
 
 		case review_mutation_operation::observe_pull_request:           return "observe_pull_request";
 		case review_mutation_operation::observe_viewer:                 return "observe_viewer";
@@ -282,8 +282,7 @@ namespace {
 		}
 		const auto head      = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 		const auto mergeBase = aMoved ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
-		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + head
-																				 + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b') + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}" } };
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b') + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}" } };
 	}
 
 	struct transport final : github_mutation_wire_transport
@@ -295,7 +294,7 @@ namespace {
 		std::size_t                            Posts           = 0U;
 		std::size_t                            NewCount        = 1U;
 		bool                                   WrongRepository = false, MovedContext = false;
-		bool                                   MovedMergeBase = false;
+		bool                                   MovedMergeBase   = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		/// [[BPR-1345]]. The pull request's review comments, review 45's
@@ -962,9 +961,9 @@ namespace {
 			// Without a LEFT line nothing asks for the merge base.
 			temporary_directory root;
 			transport           wire;
-			wire.Request                  = carried();
+			wire.Request                   = carried();
 			wire.Request.Proposal.Comments = { first };
-			wire.Comments45               = "[" + listed_comment(901U, first) + "]";
+			wire.Comments45                = "[" + listed_comment(901U, first) + "]";
 			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
 			static_cast<void>(session.submit_and_reconcile(wire.Request));
 			expect(std::ranges::count(wire.Trace, review_mutation_operation::observe_merge_base) == 0, "a review with RIGHT lines only does not ask for the merge base");

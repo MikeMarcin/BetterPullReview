@@ -1795,13 +1795,13 @@ namespace bpr::app::detail {
 			/// [[BPR-1560]]. Compare reads answered, and whether they fail; the
 			/// pull request each role last served, to answer the read again that
 			/// confirms it, and whether the race course moves it in between.
-			std::size_t                  MergeBaseReads         = 0U;
-			std::size_t                  MergeBaseConfirmations = 0U;
-			bool                         MergeBaseUnavailable   = false;
-			bool                         MergeBaseRace          = false;
-			bool                         MergeBaseUnauthorized  = false;
-			std::map<int, bool>          ConfirmationPending;
-			std::map<int, wire_response> LastPullRequest;
+			std::size_t                                 MergeBaseReads         = 0U;
+			std::size_t                                 MergeBaseConfirmations = 0U;
+			bool                                        MergeBaseUnavailable   = false;
+			bool                                        MergeBaseRace          = false;
+			bool                                        MergeBaseUnauthorized  = false;
+			std::map<int, bool>                         ConfirmationPending;
+			std::map<int, wire_response>                LastPullRequest;
 			bool                                        FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
@@ -2691,7 +2691,7 @@ namespace bpr::app::detail {
 					State->ConfirmationPending[static_cast<int>(Role)] = true;
 					return github_wire_success{ .Correlation = aRequest.Correlation,
 												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable,
-																			 State->MergeBaseUnauthorized) };
+																				   State->MergeBaseUnauthorized) };
 				}
 				// [[BPR-1560]]. The pull request read again after the merge base
 				// is the one this snapshot served, unless the race course moves
@@ -2878,10 +2878,10 @@ namespace bpr::app::detail {
 				return github_wire_success{
 					.Correlation = aRequest.Correlation,
 					.Response    = [&] {
-                        if (aRequest.Wire.Operation == read_operation::get_pull_request) {
-                            State->LastPullRequest.insert_or_assign(static_cast<int>(Role), *response);
-                        }
-                        return std::move(*response);
+						if (aRequest.Wire.Operation == read_operation::get_pull_request) {
+							State->LastPullRequest.insert_or_assign(static_cast<int>(Role), *response);
+						}
+						return std::move(*response);
 					}(),
 				};
 			}
@@ -4344,8 +4344,7 @@ namespace bpr::app::detail {
 				if (wire.Operation == operation::observe_merge_base) {
 					// [[BPR-1560]]. The fixture's base branch has not moved: the
 					// merge base is the one the target's LEFT lines name.
-					object = { { "url", text("https://api.github.com/repos/" + target.Repository.Owner + "/" + target.Repository.Name + "/compare/" + target.BaseRef + "..."
-											 + std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() }) },
+					object = { { "url", text("https://api.github.com/repos/" + target.Repository.Owner + "/" + target.Repository.Name + "/compare/" + target.BaseRef + "..." + std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() }) },
 							   { "base_commit", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) } } },
 							   { "merge_base_commit", QJsonObject{ { "sha", text(core::canonical_hex(application::comparison_base(target)).view()) } } } };
 				} else if (wire.Operation == operation::observe_viewer) {

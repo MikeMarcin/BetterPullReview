@@ -6466,7 +6466,7 @@ namespace {
 		{
 			const auto importedEpoch = *linked.LocalEpoch;
 			const auto anchorOf      = [&](const core::comparison_anchor_kind aKind) {
-                return core::comparison_anchor_identity{ .Authority = importedEpoch.Authority, .Incarnation = importedEpoch.Incarnation, .Kind = aKind, .Epoch = importedEpoch.Ordinal };
+				return core::comparison_anchor_identity{ .Authority = importedEpoch.Authority, .Incarnation = importedEpoch.Incarnation, .Kind = aKind, .Epoch = importedEpoch.Ordinal };
 			};
 			value.Host->dispatch(core::select_comparison_anchors_intent{
 				.Left                    = anchorOf(core::comparison_anchor_kind::epoch_base),

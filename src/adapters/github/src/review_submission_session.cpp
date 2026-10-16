@@ -527,7 +527,7 @@ namespace bpr::adapters::github::detail {
 			const auto leftLine = std::ranges::any_of(aRequest.Proposal.Comments, [](const core::review_submission_comment& aComment) {
 				return aComment.Side == core::diff_side::left;
 			});
-			const auto current = observe_exact(aStop, false, leftLine);
+			const auto current  = observe_exact(aStop, false, leftLine);
 			if (!current) {
 				return withdrawn(result(aRequest, publication::definitely_not_published, current.error()));
 			}

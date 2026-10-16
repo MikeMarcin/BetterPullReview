@@ -3504,7 +3504,7 @@ namespace {
 	[[nodiscard]] auto compare_body(const std::string_view aBase, const std::string_view aMergeBase, const std::string_view aHead = head_oid) -> std::string
 	{
 		return R"({"url":"https://api.github.com/repos/octo-org/review-repository/compare/base...)" + std::string{ aHead }
-			+ R"(","status":"diverged","total_commits":3,"base_commit":{"sha":")" + std::string{ aBase } + R"("},"merge_base_commit":{"sha":")"
+		+ R"(","status":"diverged","total_commits":3,"base_commit":{"sha":")" + std::string{ aBase } + R"("},"merge_base_commit":{"sha":")"
 			+ std::string{ aMergeBase } + R"("},"commits":[],"files":[]})";
 	}
 

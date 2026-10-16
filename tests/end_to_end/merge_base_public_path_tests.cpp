@@ -90,13 +90,13 @@ namespace {
 	{
 		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
 		expect(dataRoot.has_value(), "private course root");
-		auto options                 = app::detail::github_public_path_fixture_options{ };
-		options.ApplicationDataRoot  = dataRoot;
-		options.MergeBaseUnavailable = aMergeBaseUnavailable;
-		options.MergeBaseRace        = aMergeBaseRace;
+		auto options                  = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot   = dataRoot;
+		options.MergeBaseUnavailable  = aMergeBaseUnavailable;
+		options.MergeBaseRace         = aMergeBaseRace;
 		options.MergeBaseUnauthorized = aUnauthorized;
-		auto terminal                = false;
-		auto startup                 = access::start(app::detail::github_public_path_fixture::merge_base_v1, options, [&](auto aResult) {
+		auto terminal                 = false;
+		auto startup                  = access::start(app::detail::github_public_path_fixture::merge_base_v1, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				aCourse.Application = std::move(*aResult);

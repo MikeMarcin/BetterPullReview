@@ -568,7 +568,7 @@ namespace {
 		case review_mutation_operation::staged_create_issue_comment:   return "staged_create_issue_comment";
 		case review_mutation_operation::staged_update_issue_comment:   return "staged_update_issue_comment";
 		case review_mutation_operation::staged_update_pending_comment: return "staged_update_pending_comment";
-		case review_mutation_operation::observe_merge_base:             return "observe_merge_base";
+		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";

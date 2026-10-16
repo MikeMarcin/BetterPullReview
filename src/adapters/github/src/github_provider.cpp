@@ -2474,9 +2474,9 @@ namespace bpr::adapters::github::detail {
 							const auto recorded  = std::string{ result->PullRequest.BaseOid.value() };
 							auto       stopError = std::optional<github_paged_read_failure>{ };
 							auto       observe   = [&](const application::github_rate_limit_state& aRates) {
-                                if (aRates.Core) {
-                                    result->RateLimits.Core = aRates.Core;
-                                }
+								if (aRates.Core) {
+									result->RateLimits.Core = aRates.Core;
+								}
 							};
 							const auto settle = [&](const github_paged_read_failure& aFailure) {
 								if (std::holds_alternative<github_paged_read_cancelled>(aFailure)) {

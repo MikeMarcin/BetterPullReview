@@ -2271,8 +2271,8 @@ namespace bpr::adapters::github::detail {
 			.Method    = http_method::get,
 			.Path      = std::string{ rest_prefix(aServer) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name)
 				+ "/compare/" + percent_encode(aTarget.BaseRef) + "..." + std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() } + "?page=2&per_page=1",
-			.Headers   = common_headers(),
-			.Body      = { },
+			.Headers = common_headers(),
+			.Body    = { },
 		};
 	}
 

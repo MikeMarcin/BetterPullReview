@@ -2608,10 +2608,10 @@ namespace {
 
 		// "Show this update alone" from the newest update's recorded base is
 		// refused the same way: the recorded base is never compared from.
-		const auto baseAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_base);
-		const auto headAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_head);
-		const auto alone      = transition(ready.State, select_comparison_anchors_intent{ .Left = baseAnchor.Identity, .Right = headAnchor.Identity, .ExpectedCatalogRevision = ready.Catalog.Revision });
-		const auto* toAlone   = request_from<resolve_comparison_request>(alone);
+		const auto  baseAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_base);
+		const auto  headAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_head);
+		const auto  alone      = transition(ready.State, select_comparison_anchors_intent{ .Left = baseAnchor.Identity, .Right = headAnchor.Identity, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toAlone    = request_from<resolve_comparison_request>(alone);
 		expect(toAlone != nullptr, "an exact pair asks for resolution");
 		const auto aloneResolved = transition(ready.State, comparison_resolved_event{ .Context = toAlone->Context, .Candidates = { .Catalog = ready.Catalog, .ExplicitLeft = baseAnchor, .ExplicitRight = headAnchor } });
 		expect(aloneResolved.Comparison && !aloneResolved.Comparison->AvailableForDiff

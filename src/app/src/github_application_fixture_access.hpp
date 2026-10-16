@@ -275,13 +275,13 @@ namespace bpr::app::detail {
 		std::string                TimelineCourse;
 		/// [[BPR-1560]]. GitHub's compare answers with a server error, so no
 		/// merge base is named for the pull request.
-		bool MergeBaseUnavailable           = false;
+		bool MergeBaseUnavailable = false;
 		/// [[BPR-1560]]. GitHub records another base for the pull request
 		/// between the snapshot and the read that confirms it.
 		bool MergeBaseRace = false;
 		/// [[BPR-1560]]. GitHub's compare answers that the credential is no
 		/// longer accepted.
-		bool MergeBaseUnauthorized = false;
+		bool MergeBaseUnauthorized          = false;
 		bool EmptyHistoricalTimeline        = false;
 		bool UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
@@ -532,8 +532,8 @@ namespace bpr::app::detail {
 		std::size_t MarkdownImageResolutions = 0U;
 		std::size_t MarkdownImageFetches     = 0U;
 		/// [[BPR-1560]]. Compare reads and pull request confirmations served.
-		std::size_t MergeBaseReads         = 0U;
-		std::size_t MergeBaseConfirmations = 0U;
+		std::size_t MergeBaseReads           = 0U;
+		std::size_t MergeBaseConfirmations   = 0U;
 		int         LastReadOperation        = -1;
 		int         SmartAcquireCount        = 0;
 		int         SmartAcquireRefusalCount = 0;

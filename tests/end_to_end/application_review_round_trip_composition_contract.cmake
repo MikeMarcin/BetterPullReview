@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"88e47223d463c402348d8d0ee42a6e098cff4b8c0c09a9d92dfe4a51541fb20d"
+		"c99673430cbd7907ad1c2eb877ad51632418c34de0f55054982bddfcde94acc1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8702dac0976f94e9a4fd608d0d0233ec6aceee97d7fad553efda765c35296e15"
+        "2beb74fd266de3eca89b968c61b94a7e2958f2bf180e5190b03aa80d155b4b53"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2665,7 +2665,9 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # compares the snapshot with the recorded base; BPR-1212 numbering answers
 # "same" without the cache for a left side that is the named merge base. No
 # grant, credential, transport, provider or mutation-branch pin changes; the
-# publication path's LEFT source check is the deliberate change. The full
+# publication path's LEFT source check is the deliberate change, and before
+# anything on a LEFT line is written the adapter's sessions ask GitHub's compare
+# for the current merge base and refuse a moved one (target_moved). The full
 # application and production-manifest digests are refreshed (main.cpp: the
 # public-preview rewritten-base course accepts Whole PR's honest
 # merge_base_unavailable, a base sharing no history with the head). Reviewed by the

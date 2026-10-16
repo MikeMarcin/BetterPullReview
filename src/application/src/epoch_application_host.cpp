@@ -9430,8 +9430,8 @@ namespace bpr::application {
 					// comparison base as its base, unproven for that head: its
 					// base is no anchor to compare from ("Show this update
 					// alone"). Its head stays comparable.
-					auto importedEpochs = std::optional<std::vector<core::epoch_ordinal>>{ };
-					const auto importedBase = [&](const core::comparison_anchor& aAnchor) {
+					auto       importedEpochs = std::optional<std::vector<core::epoch_ordinal>>{ };
+					const auto importedBase   = [&](const core::comparison_anchor& aAnchor) {
 						if (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
 							|| object_loading_for(context->Handoff.Shape) != pull_request_object_loading::selected_objects) {
 							return false;
