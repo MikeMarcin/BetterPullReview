@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1545"
 title: "Core policy for inline Markdown images"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0084"]
 depends_on: []
 metadata: {"mandate_revision":"inline-markdown-images-r1","milestone_plan":{"id":"inline-markdown-images-v1","path":"docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json"},"milestone":"image-policy-core"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"ca7c5a71dab33a2ee3ac46ab8f05b984c6ae7d42","evidence":{"kind":"command","detail":"ctest core_markdown_image (tests/core/markdown_image_tests.cpp, no QApplication): lengths, tag scanning incl. picture/anchor/entities/bounds, served HTML parsing and matching (camo canonical, attachment UUID, relative), blocked sources, GitHub.com host list and storage redirects, GHES credential origins, permanent credential drop, redirect bound, sizing, admission staleness and bounds. Negative control: mutating the credential-drop rule fails 'a dropped credential is never reattached'."}},{"criterion":"AC02","outcome":"pass","revision":"ca7c5a71dab33a2ee3ac46ab8f05b984c6ae7d42","evidence":{"kind":"command","detail":"core-only preset builds (728/728) and core markdown tests pass; core_dependency_boundary, core_boundary_contract, architecture_boundaries, architecture_boundary_contract pass in dev; no library added; clang-format 22 and clang-tidy clean on touched files."}}]
 ---
 
 # BPR-1545: Core policy for inline Markdown images
