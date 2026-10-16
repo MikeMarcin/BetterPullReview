@@ -860,6 +860,14 @@ namespace bpr::qt {
 		}
 	}
 
+	void conversation_cards_view::set_images_shown(const bool aShown)
+	{
+		ImagesShown = aShown;
+		if (OpenCard != nullptr) {
+			OpenCard->set_images_shown(aShown);
+		}
+	}
+
 	void conversation_cards_view::request_images()
 	{
 		if (OpenCard != nullptr) {
@@ -1740,6 +1748,7 @@ namespace bpr::qt {
 				ImageDispatch(aPost, std::move(aReferences));
 			}
 		};
+		OpenCard->set_images_shown(ImagesShown);
 		OpenCard->request_images();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {

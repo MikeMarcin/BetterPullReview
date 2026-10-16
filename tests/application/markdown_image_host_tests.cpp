@@ -199,12 +199,12 @@ namespace {
 			settle(decision, decodeLane);
 			return seen->State;
 		};
-		expect(failing("svg", markdown_image_fetched{ .Bytes = "<svg/>", .ContentType = "image/svg+xml; charset=utf-8" }) == core::markdown_image_state::unsupported, "SVG is unsupported without decoding");
+		expect(failing("svg", markdown_image_fetched{ .Bytes = "<svg/>", .ContentType = "image/svg+xml; charset=utf-8" }) == core::markdown_image_state::loaded, "an SVG type reaches the decoder (RFC-BPR-0084 Q1)");
 		expect(failing("html", markdown_image_fetched{ .Bytes = "<html>", .ContentType = "text/html" }) == core::markdown_image_state::unsupported, "a non-image type is unsupported");
 		expect(failing("huge", markdown_image_fetched{ .Bytes = std::string(core::markdown_image_encoded_bytes + 1U, 'x'), .ContentType = "image/png" }) == core::markdown_image_state::too_large, "over the byte bound is too large");
 		expect(failing("blocked", std::unexpected{ core::markdown_image_state::blocked }) == core::markdown_image_state::blocked, "a refused hop is blocked");
 		expect(failing("bad", markdown_image_fetched{ .Bytes = "bad", .ContentType = "IMAGE/PNG" }) == core::markdown_image_state::unsupported, "a decoder refusal ends the load");
-		expect(decoder.Calls == 1, "only an image type reaches the decoder");
+		expect(decoder.Calls == 2, "only image types reach the decoder");
 
 		for (const auto* key : { "x", "y", "z" }) {
 			auto seen = std::make_shared<outcome>();

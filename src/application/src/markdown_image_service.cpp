@@ -14,7 +14,7 @@
 namespace bpr::application {
 	namespace {
 		/// The content types a fetched image may declare; the decoder still
-		/// decides by signature. SVG is refused here without decoding.
+		/// decides by signature (an SVG only after the core admits it).
 		auto image_content_type(const std::string_view aType) -> bool
 		{
 			auto type = std::string{ aType.substr(0, aType.find(';')) };
@@ -22,7 +22,7 @@ namespace bpr::application {
 			while (!type.empty() && type.back() == ' ') {
 				type.pop_back();
 			}
-			return type.starts_with("image/") && type != "image/svg+xml";
+			return type.starts_with("image/");
 		}
 	} // namespace
 

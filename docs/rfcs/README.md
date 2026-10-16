@@ -605,6 +605,6 @@ Mandate `git-metadata-readers-r1` adopts RFC-DRAFT-0019. [Import and provenance]
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0084](RFC-BPR-0084-inline-markdown-images.md) | Show images in descriptions and comments the way GitHub does | In Progress | RFC-BPR-0036 |
+| [RFC-BPR-0084](RFC-BPR-0084-inline-markdown-images.md) | Show images in descriptions and comments the way GitHub does | Auto-Verified | Closed 2026-10-16 by [BPR-1550](../issues/60-done/BPR-1550-close-rfc-0084.md): live course on MikeMarcin/BPR-Test#73, owner accepted in attended session 8a5e3c24; owner amendment 1 adds SVG (QtSvg), WebP (qtimageformats' qwebp, libwebp) and the Load images preference (BPR-1554 to BPR-1556). Depends on RFC-BPR-0036 |
 
 Mandate `inline-markdown-images-r1` adopts RFC-DRAFT-0022 (owner decision 2026-10-16, overriding RFC-BPR-0036's no-automatic-image-fetch rule for image references only). [Import and provenance](assets/inline-markdown-images-v1.LIVE_IMPORT.md); [plan](plans/inline-markdown-images-v1/milestone-plan.json). Q1 (SVG), Q2 (WebP) and Q3 (a load-images preference) are open owner questions with recorded defaults.

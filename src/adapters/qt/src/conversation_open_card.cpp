@@ -1307,6 +1307,7 @@ namespace bpr::qt {
 			});
 			// RFC-BPR-0084. A published post's images load; a draft's stay text.
 			if (!aCard.Draft) {
+				view->reader()->set_images_shown(ImagesShown);
 				view->reader()->set_image_dispatch([this, id = post.Id](std::vector<core::markdown_image_reference> aReferences) {
 					if (ImageRequest) {
 						ImageRequest(id, std::move(aReferences));
@@ -1992,6 +1993,14 @@ namespace bpr::qt {
 	{
 		for (auto* const view : Posts) {
 			view->reader()->request_images();
+		}
+	}
+
+	void open_thread_card::set_images_shown(const bool aShown)
+	{
+		ImagesShown = aShown;
+		for (auto* const view : Posts) {
+			view->reader()->set_images_shown(aShown);
 		}
 	}
 } // namespace bpr::qt

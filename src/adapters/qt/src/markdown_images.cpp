@@ -124,10 +124,13 @@ namespace bpr::qt::detail {
 		{
 			std::vector<QImage> views;
 			views.reserve(aImage.Frames.size());
-			const auto width  = static_cast<int>(aImage.Width);
-			const auto height = static_cast<int>(aImage.Height);
+			if (aImage.Scale == 0U || aImage.Scale > 2U) {
+				return { };
+			}
+			const auto width  = static_cast<int>(aImage.Width * aImage.Scale);
+			const auto height = static_cast<int>(aImage.Height * aImage.Scale);
 			for (const auto& frame : aImage.Frames) {
-				if (frame.Pixels.size() != static_cast<std::size_t>(aImage.Width) * aImage.Height * 4U) {
+				if (frame.Pixels.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U) {
 					return { };
 				}
 				// A view of the shared pixels; the slot keeps them alive.

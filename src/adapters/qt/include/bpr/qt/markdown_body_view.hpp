@@ -57,6 +57,12 @@ namespace bpr::qt {
 		/// placeholder and nothing is asked for. The references are untrusted
 		/// source text in document order; answers come back by `apply_image`.
 		void set_image_dispatch(std::function<void(std::vector<core::markdown_image_reference>)> aDispatch);
+		/// \brief RFC-BPR-0084 Q3. Whether images load at all: the profile's
+		/// "Images in descriptions and comments" preference, on by default.
+		/// \details Off, every image is the accessible placeholder and nothing
+		/// is asked for; turned on again, the body renders its images and asks.
+		void               set_images_shown(bool aShown);
+		[[nodiscard]] auto images_shown() const noexcept -> bool;
 		/// \brief Asks again for every image still loading, after the holder's
 		/// accepted context changed.
 		void request_images();
@@ -128,6 +134,7 @@ namespace bpr::qt {
 		void               refresh_control_row();
 		void               show_context_menu(bool aSource, const QPoint& aPosition);
 		void               dispatch_images();
+		[[nodiscard]] auto has_images() const -> bool;
 		[[nodiscard]] auto selected_markdown(const QTextCursor& aCursor) const -> QString;
 		void               schedule_animation();
 		[[nodiscard]] auto dark_palette() const -> bool;
@@ -137,6 +144,7 @@ namespace bpr::qt {
 		std::function<void(const std::string&)>                          LinkDispatch;
 		std::function<void(QMenu&)>                                      ContextMenuBuilder;
 		std::function<void(std::vector<core::markdown_image_reference>)> ImageDispatch;
+		bool                                                             ImagesShown      = true;
 		detail::markdown_image_store*                                    Images           = nullptr;
 		QTimer*                                                          Animation        = nullptr;
 		std::int64_t                                                     AnimationStarted = 0;

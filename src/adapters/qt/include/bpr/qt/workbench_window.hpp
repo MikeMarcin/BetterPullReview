@@ -1673,6 +1673,8 @@ namespace bpr::qt {
 		void dispatch_line_details_toggle();
 		/// [[BPR-1334]]. Shows or hides Line details as published.
 		void apply_line_details();
+		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
+		void apply_markdown_images();
 		void apply_line_numbers();
 		void dispatch_one_pane_toggle();
 		void apply_one_pane();
@@ -2276,11 +2278,11 @@ namespace bpr::qt {
 		bool                                 ProviderResolvesThreads = false;
 		core::github_capabilities            Capabilities;
 		// [[BPR-0661]].
-		review_behaviour_dispatch                BehaviourDispatch;
-		application::review_behaviour_settings   Behaviour;
-		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 9> BehaviourOptions{ };
-		feedback_mark_preview*                   FeedbackMarksPreview = nullptr;
+		review_behaviour_dispatch                 BehaviourDispatch;
+		application::review_behaviour_settings    Behaviour;
+		QWidget*                                  BehaviourEditor = nullptr;
+		std::array<std::vector<QToolButton*>, 10> BehaviourOptions{ };
+		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
 		QCheckBox*                     LabelHelperSwitch    = nullptr;

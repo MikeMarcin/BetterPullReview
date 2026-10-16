@@ -1987,9 +1987,13 @@ through the exact account transport (`resolve_body_images`, a closed GraphQL
 and fetches through native HTTPS: a credential-free media binding per lane and
 profile, or, for a GHES credential origin, the account's own transport on the
 provider's serial lane. The Qt adapter decodes with Qt's PNG reader and the
-shipped `qgif` and `qjpeg` plugins (`qt::markdown_image_decoder`, signature
-chosen, bounds before allocation) and presents through the reader
+shipped `qgif`, `qjpeg` and `qwebp` plugins, and rasterizes core-admitted SVG
+with QtSvg's renderer (`qt::markdown_image_decoder`, signature chosen, bounds
+before allocation) and presents through the reader
 ([Images](native-markdown.md#images)). Qt never receives an address, signed
 address or credential. Composition builds the lanes, decoder, service and
 dispatch per profile and window; a fixture run serves `markdown-images-v1`'s
-recorded rendering and images and never the network.
+recorded rendering and images and never the network. Whether images load at all is the profile's workbench
+preference `review_markdown_images` (schema 21, Load by default): the Qt window
+applies a published change to its readers, and Don't load sends no image
+intent, so the host resolves and fetches nothing.

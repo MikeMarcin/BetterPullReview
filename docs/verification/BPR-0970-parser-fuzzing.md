@@ -191,7 +191,7 @@ in this graph.
 | Corpus | Seeds | Where they come from |
 |---|---|---|
 | `diff` | 12 | Hand-made pairs: identical, replaced, CRLF against LF, whitespace, NUL bytes, BOM, invalid UTF-8, a moved block, absent sides, the material path |
-| `markdown` | 25 | Hostile and ordinary link destinations; review Markdown from `docs/rfcs/assets/bpr-review-cycles-v1/examples` and `bpr-review-tour-v1/examples`; one regression seed; three image-markup and served-HTML seeds (RFC-BPR-0084) |
+| `markdown` | 26 | Hostile and ordinary link destinations; review Markdown from `docs/rfcs/assets/bpr-review-cycles-v1/examples` and `bpr-review-tour-v1/examples`; one regression seed; three image-markup and served-HTML seeds and one SVG badge seed (RFC-BPR-0084) |
 | `markdown_view` | 16 | Tables, fences with tabs, images, deep nesting, HTML, the tour examples; one regression seed; [[BPR-1543]]'s GitHub-parity bodies (comments, alerts, footnotes, a PR template, edge marks) |
 | `settings_theme` | 15 | The draft branch's five theme documents; cell rewrites of text, integers, NULL, blobs and invalid UTF-8 for both stores |
 | `github_api` | 95 | The recorded github.com contract responses (`tests/fixtures/github/contracts/v1/github-com`); capability fixtures, with and without rate-limit headers; the RFC-BPR-0017 signed-out captures; the draft branch's GraphQL documents; device-flow, mutation, staged-review and publication bodies shaped as the contract tests write them; `gh api --include` output; the eleven pages of `github_paged_read`'s success course, captured in request order from an uncommitted dump of its fixture transport, and the signed-out variant; timeline and discovery pages; one regression seed |
@@ -336,6 +336,15 @@ after a hop drops it. Three seeds (`markdown/image-upload`,
 2 keep their meaning (`% 4` instead of `% 3`; no seed began with 3).
 On 2026-10-16, seed 840084, from the checked-in corpus: 2,034,317 executions in
 301 s (6,758 exec/s), 22,713 new units, peak RSS 692 MB, clean.
+
+Owner amendment 1 adds SVG admission to the same selector: every payload is
+also offered to `admit_markdown_svg`, which must refuse anything without an
+`svg` root as unsupported and never admit a document holding a script, an
+entity declaration, `@import`, an external `url()` or an `http`/`file` `href`.
+One seed (`markdown/image-svg-badge`) holds a badge with fragment references
+and one external image. On 2026-10-16, seed 840085, from the checked-in corpus:
+2,611,624 executions in 301 s (8,676 exec/s), 26,074 new units, peak RSS
+701 MB, clean.
 
 ### Campaign 5: `fuzz_markdown_view` after [[BPR-1543]], 15 minutes
 

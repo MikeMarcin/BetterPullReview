@@ -919,7 +919,7 @@ namespace bpr::qt {
 				detail::present_github_markdown(*document, prepared);
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
-				if (ImageDispatch) {
+				if (ImageDispatch && ImagesShown) {
 					Images->place(*document, dark_palette(), core::markdown_linked_images(Body));
 				} else {
 					Images->clear();
@@ -1256,12 +1256,36 @@ namespace bpr::qt {
 		ImageDispatch    = std::move(aDispatch);
 		// A body read before there was anyone to ask holds placeholders; render
 		// it again so its images can load. Later bindings change nothing shown.
-		const auto marked = Body.find("![") != std::string::npos || Body.find("<img") != std::string::npos
-			|| Body.find("<IMG") != std::string::npos || Body.find("<picture") != std::string::npos;
-		if (first && marked && RenderedAvailable) {
+		if (first && ImagesShown && has_images() && RenderedAvailable) {
 			prepare_rendered();
 			height_changed();
 		}
+	}
+
+	auto markdown_body_view::has_images() const -> bool
+	{
+		return Body.find("![") != std::string::npos || Body.find("<img") != std::string::npos
+			|| Body.find("<IMG") != std::string::npos || Body.find("<picture") != std::string::npos;
+	}
+
+	void markdown_body_view::set_images_shown(const bool aShown)
+	{
+		if (ImagesShown == aShown) {
+			return;
+		}
+		ImagesShown = aShown;
+		// Without a holder to ask the body shows placeholders either way.
+		if (!ImageDispatch || !has_images() || !RenderedAvailable) {
+			return;
+		}
+		// Rendering again asks for the images when they are shown.
+		prepare_rendered();
+		height_changed();
+	}
+
+	auto markdown_body_view::images_shown() const noexcept -> bool
+	{
+		return ImagesShown;
 	}
 
 	void markdown_body_view::request_images()
@@ -1271,7 +1295,7 @@ namespace bpr::qt {
 
 	void markdown_body_view::dispatch_images()
 	{
-		if (!ImageDispatch || !RenderedAvailable) {
+		if (!ImageDispatch || !ImagesShown || !RenderedAvailable) {
 			return;
 		}
 		auto waiting = Images->waiting();

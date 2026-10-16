@@ -245,7 +245,7 @@ namespace bpr::application {
 	};
 
 	/// \brief RFC-BPR-0084. One decoded frame: premultiplied ARGB, 32 bits per
-	/// pixel in native byte order, rows packed (`Width * 4` bytes each).
+	/// pixel in native byte order, rows packed (`Width * Scale * 4` bytes each).
 	struct markdown_image_frame
 	{
 		std::vector<std::uint8_t> Pixels;
@@ -258,8 +258,12 @@ namespace bpr::application {
 	/// \brief RFC-BPR-0084. An image decoded within the bounds, ready to draw.
 	struct markdown_decoded_image
 	{
-		std::uint32_t                     Width  = 0U;
-		std::uint32_t                     Height = 0U;
+		/// The natural size in logical pixels, as a browser lays it out.
+		std::uint32_t Width  = 0U;
+		std::uint32_t Height = 0U;
+		/// Pixels per logical pixel in each frame: 1 for a raster image, 2 for
+		/// an SVG rasterized for high-density screens.
+		std::uint32_t                     Scale = 1U;
 		std::vector<markdown_image_frame> Frames;
 
 		[[nodiscard]] auto bytes() const noexcept -> std::size_t

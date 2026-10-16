@@ -117,6 +117,7 @@ verify_plugin_policy() {
     local allowed=(
         "imageformats/libqgif.dylib"
         "imageformats/libqjpeg.dylib"
+        "imageformats/libqwebp.dylib"
         "networkinformation/libqapplenetworkinformation.dylib"
         "platforms/libqcocoa.dylib"
         "styles/libqmacstyle.dylib"
@@ -150,6 +151,7 @@ verify_framework_policy() {
         "QtDBus.framework"
         "QtGui.framework"
         "QtNetwork.framework"
+        "QtSvg.framework"
         "QtWidgets.framework"
     )
     local framework
