@@ -53,20 +53,26 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1529-v001-LVAUv3",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "9b4f7e98ea5592bf28d39c59d06f3949",
-    "event_cursor": 6,
+    "event_cursor": 9,
     "candidates": {
       "BPR-1529-folder-colour-v001": "bd812f36f7f9b22da4386d2ae80c6903bfd935066bb688f72bd0e7f57f0ce264",
       "BPR-1530-folder-counts-v001": "b78c04404adb2a72df5184f69b8d8c8f5b0f0943aa5e808608fba49d1b3487cf"
     },
-    "phase": "ready",
-    "protected": true,
+    "phase": "decided",
+    "protected": false,
     "decisions": null,
-    "server_pid": 48572,
+    "server_pid": null,
     "server_port": 60136,
-    "complete_url": "Obtain from the session state's serve log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve log; never commit the loopback bearer token.",
+    "decision": "accept (no note)"
   },
-  "pending": [
-    "AC3 human: owner Accept/Reject of candidate BPR-1529-folder-colour-v001"
-  ],
-  "next_action": "Wait on handed-back after cursor 6. Accept on both: merge bpr-1529-folder-colour to main, finish BPR-1529 and BPR-1530 done, stop server 48572, remove the frozen root with freeze_attended_build.py remove. A Reject's note becomes v002 of that card only; the other card's verdict stays bound to 0e4d1f893."
+  "pending": [],
+  "next_action": "None: both accepted, merged to main and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "merges": [
+      "74e25c1d3",
+      "a7506ceb9"
+    ],
+    "verification": "13/13 focused rows pass at both merges; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
 }

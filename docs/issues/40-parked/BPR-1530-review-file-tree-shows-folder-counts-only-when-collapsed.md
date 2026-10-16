@@ -85,3 +85,25 @@ Gates, frozen build and server as recorded on [[BPR-1529]].
 
 Next: on hand-back after cursor 6, an Accept (with BPR-1529's verdict)
 merges the branch and finishes the card; a Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:37Z: Accept**, no note (decision
+`87c3af7b-3072-45c0-81f5-d631912996f6`, event 8 of session
+`9b4f7e98ea5592bf28d39c59d06f3949`), on candidate `BPR-1530-folder-counts-v001` at
+`0e4d1f893`, fingerprint `b78c0440…`. The session was handed back at event 9
+with nothing pending; event cursor consumed: 9. BPR-1529 and BPR-1530 share
+the one product commit and were both accepted, so it lands whole.
+
+`main` merged into the branch at `74e25c1d3` (through `0b37d5438`) and
+`a7506ceb9` (through `550da2cd0`, with BPR-1528 and BPR-1534) without
+conflicts. On the merged tree (`dev`, Debug): `qt_files_tree`,
+`qt_files_tree_folder_rows_{125,200}`, `qt_pull_request_overview_page`,
+`qt_pull_request_overview_folder_rows_{125,200}`,
+`qt_workbench_window_scale_{100,125,200}`,
+`qt_composed_github_scale_{100,125,200}` and
+`application_github_public_path_nested_folders_v1` pass 13/13 at both
+merges; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 48572) was stopped, both candidates' protection
+released and the frozen root removed.
