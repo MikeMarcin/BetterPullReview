@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1543"
 title: "Markdown reader GitHub parity: comments, line breaks, alerts and footnotes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
