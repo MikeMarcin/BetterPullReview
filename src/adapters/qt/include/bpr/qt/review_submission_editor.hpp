@@ -112,6 +112,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1541]]. Why the review is still unknown, under the
 		/// status; hidden when there is no reason.
 		[[nodiscard]] auto unknown_reason_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1541]] v002. The panel a review awaiting GitHub's
+		/// confirmation is shown in, under the title: its mark, its title,
+		/// why, what is safe, and Check status. Hidden otherwise.
+		[[nodiscard]] auto waiting_panel() const noexcept -> QWidget*;
+		[[nodiscard]] auto waiting_title_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto waiting_assurance_label() const noexcept -> QLabel*;
+		/// \brief Check status's button, in the panel.
+		[[nodiscard]] auto reconcile_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
 		/// the review carries line comments, else "Compose review".
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
@@ -174,6 +182,12 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		/// [[BPR-1541]] v002. Draws the waiting panel's mark and quieter words
+		/// in the current theme and attention colour.
+		void restyle_waiting();
+
+	protected:
+	private:
 		void                                                        present_preflight(const review_submission_editor_projection& aProjection);
 		void                                                        present_pending();
 		void                                                        present_verdicts();
@@ -205,6 +219,11 @@ namespace bpr::qt {
 		QTextEdit*                                                  Target          = nullptr;
 		QLabel*                                                     Status          = nullptr;
 		QLabel*                                                     UnknownReason   = nullptr;
+		QWidget*                                                    Waiting         = nullptr;
+		QLabel*                                                     WaitingMark     = nullptr;
+		QLabel*                                                     WaitingTitle    = nullptr;
+		QLabel*                                                     WaitingFallback = nullptr;
+		QLabel*                                                     WaitingAssure   = nullptr;
 		QLabel*                                                     DraftState      = nullptr;
 		QLabel*                                                     Title           = nullptr;
 		QLabel*                                                     Purpose         = nullptr;

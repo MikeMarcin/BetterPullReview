@@ -10,6 +10,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTextEdit>
@@ -40,6 +41,32 @@ auto main(int argc, char** argv) -> int
 																								 .ActingAccount = core::github_account_id{ 4U },
 																								 .Body          = "Literal <summary>" };
 	auto                                             projection = qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.com · owner/repository#17\nHead: abcdef0123456789abcdef0123456789abcdef01\nSubmitting as reviewer (account 4)"), .Status = QStringLiteral("Ready <literal>") };
+	// [[BPR-1541]] v002 comparison render: the unknown-status block in Light and Dark.
+	if (const auto look = qEnvironmentVariable("BPR_UNKNOWN_STATE_RENDER"); !look.isEmpty()) {
+		qt::review_submission_editor lookEditor{ [](auto) { } };
+		auto                         held = draft;
+		held.State                        = core::review_submission_state::submitting;
+		held.Attempt                      = core::review_submission_attempt_id{ 1U };
+		auto lookProjection               = qt::review_submission_editor_projection{ .Draft = held, .Controls = core::controls(held), .TargetDescription = projection.TargetDescription, .Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.") };
+		lookProjection.Unknown            = core::notice(core::review_submission_unknown_diagnosis{ .Reason = core::review_submission_unknown_reason::network });
+		lookEditor.resize(360, 620);
+		lookEditor.show();
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			lookEditor.setPalette(profile.derive(QApplication::palette()));
+			lookEditor.present(lookProjection);
+			for (auto turn = 0; turn < 4; ++turn) {
+				QApplication::processEvents();
+			}
+			auto canvas = QPixmap{ lookEditor.size() * lookEditor.devicePixelRatioF() };
+			canvas.setDevicePixelRatio(lookEditor.devicePixelRatioF());
+			canvas.fill(lookEditor.palette().color(QPalette::Window));
+			lookEditor.render(&canvas);
+			expect(canvas.save(look + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")), "comparison render saved");
+		}
+		return EXIT_SUCCESS;
+	}
 	editor.resize(300, 650);
 	editor.show();
 	QApplication::processEvents();
@@ -468,9 +495,10 @@ auto main(int argc, char** argv) -> int
 					auto profile = qt::appearance_profile{ };
 					profile.select_mode(mode);
 					editor.setPalette(profile.derive(QApplication::palette()));
+					editor.set_attention_colour(qt::to_presentation_color(qt::builtin_appearance_palette(mode == core::appearance_mode::light ? core::appearance_variant::light : core::appearance_variant::dark)[core::index_of(core::appearance_role::state_attention)]));
 					QApplication::processEvents();
-					expect(editor.grab().save(sheet + QStringLiteral("/") + QString::fromLatin1(core::name(reason).data(), static_cast<qsizetype>(core::name(reason).size())) + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")),
-						   "the sheet render is saved");
+					const auto file = sheet + QStringLiteral("/") + QString::fromLatin1(core::name(reason).data(), static_cast<qsizetype>(core::name(reason).size())) + QStringLiteral("-") + QString::fromLatin1(name);
+					expect(editor.grab().save(file + QStringLiteral(".png")) && editor.waiting_panel()->grab().save(file + QStringLiteral("-panel.png")), "the sheet render is saved");
 				}
 				editor.setPalette(QApplication::palette());
 			}
@@ -500,6 +528,81 @@ auto main(int argc, char** argv) -> int
 		unknown.Unknown         = core::notice(refused);
 		editor.present(unknown);
 		expect(four != editor.unknown_reason_label()->text() && !lines.contains(four) && four.contains(QStringLiteral("refused")), "a refused read and an unclassified error read differently from a server error");
+		// [[BPR-1541]] v002 (owner, v001: "This is pretty darned ugly, can we
+		// do better frontend ux design"). The whole waiting state is one calm
+		// panel under the title: its mark and title, why, what is safe, and
+		// Check status inside it; the status line, Discard and the old "in
+		// progress" sentence step aside, and the verdicts wait disabled.
+		{
+			auto* const panel = editor.waiting_panel();
+			unknown.Unknown   = core::notice(diagnose(core::review_submission_unknown_reason::network));
+			editor.present(unknown);
+			QApplication::processEvents();
+			expect(panel != nullptr && !panel->isHidden() && editor.waiting_title_label()->text() == QStringLiteral("We couldn't confirm this review"), "an unconfirmed review is told in the waiting panel, under its title");
+			expect(panel->isAncestorOf(editor.unknown_reason_label()) && panel->isAncestorOf(editor.reconcile_button()) && !editor.reconcile_button()->isHidden() && editor.reconcile_action()->isEnabled(),
+				   "the reason and Check status are the panel's own");
+			expect(editor.waiting_assurance_label()->text() == QStringLiteral("Nothing will be sent twice. Your review may already be on GitHub.") && !editor.waiting_assurance_label()->isHidden(),
+				   "and it says what is safe");
+			expect(editor.status_label()->isHidden() && editor.status_label()->text().startsWith(QStringLiteral("Review status is unknown.")) && editor.discard_button()->isHidden()
+					   && editor.findChild<QLabel*>(QStringLiteral("wholeReviewDraftState"))->isHidden(),
+				   "the status line, Discard and the in-progress sentence step aside");
+			for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
+				expect(!editor.disposition_button(disposition)->isEnabled(), "the verdicts wait, disabled");
+			}
+			const auto top = [&editor](const QWidget* aWidget) { return aWidget->mapTo(&editor, QPoint{ 0, 0 }).y(); };
+			expect(top(panel) > top(editor.title_label()) && top(panel) < top(editor.body_editor()) && top(panel) < top(editor.disposition_button(core::review_disposition::comment)),
+				   "the panel comes first, under the title and above the draft");
+			expect(panel->accessibleName() == editor.waiting_title_label()->text() && panel->accessibleDescription().contains(editor.unknown_reason_label()->text())
+					   && panel->accessibleDescription().contains(editor.waiting_assurance_label()->text()),
+				   "the panel's name is its title and its description says why and what is safe");
+			expect(panel->width() <= editor.width() && editor.unknown_reason_label()->wordWrap() && editor.waiting_assurance_label()->wordWrap(), "the panel fits the page and its words wrap");
+			expect(!editor.body_editor()->parentWidget()->isHidden() && editor.body_editor()->isReadOnly(), "a summary it carries is shown, read only");
+			auto blank        = unknown;
+			blank.Draft->Body = { };
+			editor.present(blank);
+			expect(editor.body_editor()->parentWidget()->isHidden(), "an empty summary is not offered as a field while it waits");
+			editor.present(unknown);
+			// No reason recorded: the panel still says plainly what happened.
+			unknown.Unknown.reset();
+			editor.present(unknown);
+			expect(!panel->isHidden() && editor.unknown_reason_label()->isHidden() && editor.findChild<QLabel*>(QStringLiteral("wholeReviewWaitingFallback"))->text() == QStringLiteral("GitHub didn't say whether it arrived."),
+				   "without a reason the panel says GitHub didn't say whether it arrived");
+			// While GitHub is asked, Check status cannot be pressed again.
+			auto checking               = unknown;
+			checking.Controls.Reconcile = false;
+			checking.Unknown            = core::notice(diagnose(core::review_submission_unknown_reason::review_not_listed));
+			editor.present(checking);
+			expect(!panel->isHidden() && editor.waiting_title_label()->text() == QStringLiteral("Waiting for GitHub to confirm this review…") && editor.reconcile_button()->isHidden()
+					   && !editor.unknown_reason_label()->isHidden() && editor.findChild<QLabel*>(QStringLiteral("wholeReviewWaitingFallback"))->isHidden(),
+				   "while it is asked, the panel waits, keeps the last reason, and offers no Check status");
+			// Calm in every theme: a theme-derived amber rail, never red; the
+			// words and Check status readable on the panel's ground.
+			for (const auto& [mode, variant] : { std::pair{ core::appearance_mode::light, core::appearance_variant::light }, std::pair{ core::appearance_mode::dark, core::appearance_variant::dark },
+												 std::pair{ core::appearance_mode::high_contrast_light, core::appearance_variant::high_contrast_light },
+												 std::pair{ core::appearance_mode::high_contrast_dark, core::appearance_variant::high_contrast_dark } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				editor.setPalette(profile.derive(QApplication::palette()));
+				// As the window gives it: the theme's own attention colour.
+				editor.set_attention_colour(qt::to_presentation_color(qt::builtin_appearance_palette(variant)[core::index_of(core::appearance_role::state_attention)]));
+				editor.present(unknown);
+				QApplication::processEvents();
+				const auto  attention = editor.attention_colour();
+				const auto& colours   = editor.palette();
+				const auto  base      = colours.color(QPalette::Active, QPalette::Base);
+				const auto  ground    = QColor::fromRgbF(base.redF() * 0.95F + attention.redF() * 0.05F, base.greenF() * 0.95F + attention.greenF() * 0.05F, base.blueF() * 0.95F + attention.blueF() * 0.05F);
+				const auto  hue       = attention.hslHue();
+				expect(hue >= 20 && hue <= 65, "the panel's accent is the theme's amber, not an alarm red");
+				const auto quiet = editor.waiting_assurance_label()->palette().color(QPalette::Active, QPalette::WindowText);
+				expect(qt::destructive_contrast(colours.color(QPalette::Active, QPalette::WindowText), ground) >= 4.5 && qt::destructive_contrast(quiet, ground) >= 4.5,
+					   "the panel's words read at 4.5:1 or better on its ground");
+				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
+				const auto fill      = QColor::fromRgbF(base.redF() * 0.84F + highlight.redF() * 0.16F, base.greenF() * 0.84F + highlight.greenF() * 0.16F, base.blueF() * 0.84F + highlight.blueF() * 0.16F);
+				expect(qt::destructive_contrast(colours.color(QPalette::Active, QPalette::ButtonText), fill) >= 4.5, "Check status's words read on its tint");
+				expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewWaitingMark"))->pixmap().isNull() == false, "the panel carries the page's unknown mark");
+			}
+			editor.setPalette(QApplication::palette());
+		}
 		// Readable in every theme: the line is drawn in the page's own text
 		// colour, as the status is.
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
@@ -521,12 +624,19 @@ auto main(int argc, char** argv) -> int
 		unknown.Unknown.reset();
 		editor.present(unknown);
 		expect(editor.unknown_reason_label()->isHidden() && editor.unknown_reason_label()->text().isEmpty() && editor.status_label()->accessibleDescription().isEmpty(), "a confirmed or cleared review shows no reason");
+		auto confirmedProjection     = unknown;
+		auto confirmed               = awaiting;
+		confirmed.State              = core::review_submission_state::submitted;
+		confirmedProjection.Draft    = confirmed;
+		confirmedProjection.Controls = core::controls(confirmed);
+		editor.present(confirmedProjection);
+		expect(editor.waiting_panel()->isHidden(), "a confirmed review shows no waiting panel");
 		auto drafting     = projection;
 		drafting.Draft    = draft;
 		drafting.Controls = core::controls(draft);
 		drafting.Unknown  = core::notice(diagnose(core::review_submission_unknown_reason::timeout));
 		editor.present(drafting);
-		expect(editor.unknown_reason_label()->isHidden(), "a draft being written never shows a reason");
+		expect(editor.unknown_reason_label()->isHidden() && editor.waiting_panel()->isHidden() && !editor.status_label()->isHidden(), "a draft being written never shows a reason or the waiting panel");
 	}
 	editor.present(projection);
 	expect(editor.title_label()->text() == QStringLiteral("Compose review") && !editor.pending_list()->isVisible() && !editor.carries_label()->isVisible()

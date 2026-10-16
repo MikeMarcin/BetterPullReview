@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPolygonF>
@@ -310,6 +311,130 @@ namespace bpr::qt {
 			}
 		};
 
+		/// [[BPR-1541]] v002. The panel a review awaiting GitHub's confirmation
+		/// sits in, under the page's title: the text ground warmed a little
+		/// toward the theme's attention colour, the page's hairline edge, and
+		/// the rail Home's sections carry on its leading side, the one accent. A caution, not an
+		/// alarm: nothing in it is red.
+		/// How far the waiting panel's ground leans toward the attention colour.
+		constexpr auto waiting_tint = 0.05;
+		class waiting_frame final : public QWidget
+		{
+		public:
+			explicit waiting_frame(QWidget* aParent)
+				: QWidget{ aParent }
+			{ }
+
+			void set_attention(const QColor& aColour)
+			{
+				Attention = aColour;
+				update();
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground = colours.color(QPalette::Active, QPalette::Base);
+				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				// One accent only: the rail. The edge is the page's own hairline.
+				painter.setPen(QPen{ blend(ground, colours.color(QPalette::Active, QPalette::Text), 0.16), 1.0 });
+				painter.setBrush(blend(ground, Attention, waiting_tint));
+				painter.drawRoundedRect(box, 6.0, 6.0);
+				auto edge = QPainterPath{ };
+				edge.addRoundedRect(box, 6.0, 6.0);
+				painter.setClipPath(edge);
+				painter.fillRect(QRectF{ box.left(), box.top(), 3.0, box.height() }, Attention);
+			}
+
+		private:
+			QColor Attention{ 0xB0, 0x7A, 0x12 };
+		};
+
+		/// [[BPR-1541]] v002. Check status, the panel's one action: the
+		/// highlight's tint and edge, as a verdict is drawn under the pointer.
+		class panel_action_button final : public QToolButton
+		{
+		public:
+			explicit panel_action_button(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setCursor(Qt::PointingHandCursor);
+				setFocusPolicy(Qt::StrongFocus);
+				setToolButtonStyle(Qt::ToolButtonTextOnly);
+				setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { metrics.horizontalAdvance(text()) + 28, std::max(30, metrics.height() + 14) };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				const auto ink       = colours.color(QPalette::Active, QPalette::ButtonText);
+				const auto ground    = colours.color(QPalette::Active, QPalette::Base);
+				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
+				const auto hovered   = isEnabled() && underMouse();
+				painter.setOpacity(isEnabled() ? 1.0 : 0.5);
+				painter.setPen(QPen{ highlight, 1.0 });
+				painter.setBrush(blend(ground, highlight, isDown() ? 0.34 : hovered ? 0.26
+																					: 0.16));
+				painter.drawRoundedRect(box, 6.0, 6.0);
+				auto medium = font();
+				medium.setWeight(QFont::Medium);
+				painter.setFont(medium);
+				painter.setPen(ink);
+				painter.drawText(rect(), Qt::AlignCenter, text());
+				painter.setOpacity(1.0);
+				if (hasFocus()) {
+					painter.setPen(QPen{ highlight, 2.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 6.0, 6.0);
+				}
+			}
+		};
+
+		/// [[BPR-1541]] v002. The page's "unknown" mark, a ring with a
+		/// question mark, as Compose review's preflight draws it, in the
+		/// attention colour.
+		[[nodiscard]] auto waiting_mark(const QColor& aInk, const qreal aRatio) -> QPixmap
+		{
+			constexpr auto size   = 18.0;
+			const auto     ratio  = std::max<qreal>(1.0, aRatio);
+			const auto     pixels = static_cast<int>(std::ceil(size * ratio));
+			auto           image  = QImage{ pixels, pixels, QImage::Format_ARGB32_Premultiplied };
+			image.fill(Qt::transparent);
+			image.setDevicePixelRatio(ratio);
+			{
+				auto painter = QPainter{ &image };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ aInk, 1.6 });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawEllipse(QRectF{ 1.3, 1.3, size - 2.6, size - 2.6 });
+				auto font = painter.font();
+				font.setPixelSize(11);
+				font.setBold(true);
+				painter.setFont(font);
+				painter.drawText(QRectF{ 0.0, 0.0, size, size }, Qt::AlignCenter, QStringLiteral("?"));
+			}
+			return QPixmap::fromImage(image);
+		}
+
 		/// [[BPR-1345]] v002. The box the pending comments sit in: the text
 		/// ground with a hairline edge, the one boxed thing on the page
 		/// besides the summary.
@@ -552,6 +677,59 @@ namespace bpr::qt {
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
 		layout->addWidget(Title);
+		// [[BPR-1541]] v002. A review awaiting GitHub's confirmation is the
+		// page's news, so it is said first, in one calm panel: the mark and a
+		// plain title, why, what is safe, and the one thing to do. The draft
+		// below is only context while it waits.
+		auto* const panel = new waiting_frame{ this };
+		Waiting           = panel;
+		Waiting->setObjectName(QStringLiteral("wholeReviewWaiting"));
+		auto* const panelRow = new QHBoxLayout{ Waiting };
+		panelRow->setContentsMargins(15, 12, 14, 13);
+		panelRow->setSpacing(10);
+		WaitingMark = new QLabel{ Waiting };
+		WaitingMark->setObjectName(QStringLiteral("wholeReviewWaitingMark"));
+		WaitingMark->setFixedSize(18, 18);
+		WaitingMark->setAccessibleName(tr("Status unknown"));
+		panelRow->addWidget(WaitingMark, 0, Qt::AlignTop);
+		auto* const panelText = new QVBoxLayout;
+		panelText->setContentsMargins(0, 0, 0, 0);
+		panelText->setSpacing(4);
+		WaitingTitle = new QLabel{ Waiting };
+		WaitingTitle->setObjectName(QStringLiteral("wholeReviewWaitingTitle"));
+		WaitingTitle->setTextFormat(Qt::PlainText);
+		WaitingTitle->setWordWrap(true);
+		auto waitingFont = WaitingTitle->font();
+		waitingFont.setWeight(QFont::DemiBold);
+		waitingFont.setPointSizeF(waitingFont.pointSizeF() * 1.08);
+		WaitingTitle->setFont(waitingFont);
+		WaitingTitle->setMinimumWidth(0);
+		WaitingTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		panelText->addWidget(WaitingTitle);
+		const auto words = [this](const QString& aName) {
+			auto* const label = new QLabel{ Waiting };
+			label->setObjectName(aName);
+			label->setTextFormat(Qt::PlainText);
+			label->setWordWrap(true);
+			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+			label->setMinimumWidth(0);
+			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			return label;
+		};
+		// [[BPR-1541]]. Why the review is still unknown, the panel's body.
+		UnknownReason = words(QStringLiteral("wholeReviewUnknownReason"));
+		UnknownReason->setAccessibleName(tr("Why the review status is unknown"));
+		UnknownReason->setVisible(false);
+		panelText->addWidget(UnknownReason);
+		WaitingFallback = words(QStringLiteral("wholeReviewWaitingFallback"));
+		panelText->addWidget(WaitingFallback);
+		WaitingAssure = words(QStringLiteral("wholeReviewWaitingAssurance"));
+		WaitingAssure->setText(tr("Nothing will be sent twice. Your review may already be on GitHub."));
+		panelText->addWidget(WaitingAssure);
+		panelText->addSpacing(6);
+		panelRow->addLayout(panelText, 1);
+		Waiting->hide();
+		layout->addWidget(Waiting);
 		auto* savedComments = new QToolButton(this);
 		savedComments->setObjectName(QStringLiteral("wholeReviewSavedComments"));
 		savedComments->setText(tr("Saved comments…"));
@@ -630,18 +808,9 @@ namespace bpr::qt {
 			connect(button, &QToolButton::clicked, this, [this, index] { submit_as(decision_order[index]); });
 		}
 		decision->addStretch();
-		Submit          = new QAction{ tr("Submit review"), this };
-		Discard         = new QAction{ tr("Discard"), this };
-		Reconcile       = new QAction{ tr("Check status"), this };
-		const auto flat = [this](QAction* aAction, const QString& aName) {
-			auto* button = new QToolButton{ this };
-			button->setObjectName(aName);
-			button->setDefaultAction(aAction);
-			button->setAutoRaise(true);
-			button->setFocusPolicy(Qt::StrongFocus);
-			button->setAccessibleName(aAction->text());
-			return button;
-		};
+		Submit    = new QAction{ tr("Submit review"), this };
+		Discard   = new QAction{ tr("Discard"), this };
+		Reconcile = new QAction{ tr("Check status"), this };
 		layout->addLayout(decision);
 		// Said once, briefly (owner: "nothing is published until..." twice),
 		// with Discard at the far end of the same line, quiet.
@@ -674,28 +843,19 @@ namespace bpr::qt {
 		Status->setMinimumWidth(0);
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		layout->addWidget(Status);
-		// [[BPR-1541]]. Why the review is still unknown, under the status it
-		// explains, in the same type and colour so it reads as its second
-		// sentence in every theme.
-		UnknownReason = new QLabel{ this };
-		UnknownReason->setObjectName(QStringLiteral("wholeReviewUnknownReason"));
-		UnknownReason->setAccessibleName(tr("Why the review status is unknown"));
-		UnknownReason->setTextFormat(Qt::PlainText);
-		UnknownReason->setWordWrap(true);
-		UnknownReason->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		UnknownReason->setMinimumWidth(0);
-		UnknownReason->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		UnknownReason->setVisible(false);
-		layout->addWidget(UnknownReason);
-		// Recovery appears only when it can be used.
-		Recovery            = new QWidget{ this };
+		// Recovery appears only when it can be used: Check status is the
+		// waiting panel's own action ([[BPR-1541]] v002).
+		Recovery            = new QWidget{ Waiting };
 		auto* const recover = new QHBoxLayout{ Recovery };
 		recover->setContentsMargins(0, 0, 0, 0);
-		ReconcileButton = flat(Reconcile, QStringLiteral("wholeReviewReconcile"));
-		ReconcileButton->setParent(Recovery);
+		auto* const check = new panel_action_button{ Recovery };
+		check->setObjectName(QStringLiteral("wholeReviewReconcile"));
+		check->setDefaultAction(Reconcile);
+		check->setAccessibleName(Reconcile->text());
+		ReconcileButton = check;
 		recover->addWidget(ReconcileButton);
 		recover->addStretch();
-		layout->addWidget(Recovery);
+		panelText->addWidget(Recovery);
 		// The host, the head and the account, behind a disclosure closed by
 		// default (owner: "These details on finish review should be hidden by
 		// default.").
@@ -738,6 +898,7 @@ namespace bpr::qt {
 		connect(Discard, &QAction::triggered, this, [this] { confirm_discard(); });
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
 		setFocusProxy(Body);
+		restyle_waiting();
 		present({ .Status = tr("Sign in and open an active pull request to write a review. Back returns to the pull request.") });
 	}
 	void review_submission_editor::present(const review_submission_editor_projection& aProjection)
@@ -754,7 +915,10 @@ namespace bpr::qt {
 		}
 		Details->setVisible(!aProjection.TargetDescription.isEmpty());
 		Target->setVisible(Details->isChecked() && !aProjection.TargetDescription.isEmpty());
-		Body->parentWidget()->setVisible(Draft.has_value());
+		// [[BPR-1541]] v002. While GitHub may hold the review, an empty
+		// summary is not offered as a field to write in.
+		const auto awaiting = Draft.has_value() && Draft->State == core::review_submission_state::submitting;
+		Body->parentWidget()->setVisible(Draft.has_value() && !(awaiting && text.isEmpty()));
 		Body->setVisible(Draft.has_value());
 		for (auto* button : Decisions) {
 			button->setVisible(Draft.has_value());
@@ -772,26 +936,35 @@ namespace bpr::qt {
 				state = Draft->Comments.empty() && core::kept(*Draft) ? tr("Your review draft is kept.") : QString{ };
 				break;
 			case core::review_submission_state::submitting:
-				state = tr("Submission is in progress or awaiting confirmation. Check status before trying again.");
-				break;
 			case core::review_submission_state::submitted:
 			case core::review_submission_state::discarded:
-				// [[BPR-1345]] v003. A finished review is not shown: the page
-				// closes, and the next review starts at once.
+				// [[BPR-1541]] v002. A review awaiting confirmation is said in
+				// the waiting panel. [[BPR-1345]] v003. A finished review is
+				// not shown: the page closes, and the next review starts at once.
 				break;
 			}
 		}
 		DraftState->setText(state);
 		DraftState->setVisible(!state.isEmpty());
 		Purpose->setVisible(drafting);
+		// [[BPR-1541]] v002. A review awaiting GitHub's confirmation is told in
+		// the waiting panel, not in the status line: its title, why, what is
+		// safe, and Check status when it can be used.
+		const auto waiting   = Draft.has_value() && Draft->State == core::review_submission_state::submitting;
+		const auto checkable = waiting && aProjection.Controls.Reconcile;
 		Status->setText(aProjection.Status);
-		Status->setVisible(!aProjection.Status.isEmpty());
-		// [[BPR-1541]]. Shown only for a review awaiting confirmation, and
-		// read as part of the status's description.
-		const auto unknown = aProjection.Unknown && Draft && Draft->State == core::review_submission_state::submitting ? review_submission_unknown_text(*aProjection.Unknown) : QString{ };
+		Status->setVisible(!aProjection.Status.isEmpty() && !waiting);
+		const auto unknown = aProjection.Unknown && waiting ? review_submission_unknown_text(*aProjection.Unknown) : QString{ };
 		UnknownReason->setText(unknown);
 		UnknownReason->setVisible(!unknown.isEmpty());
 		Status->setAccessibleDescription(unknown);
+		WaitingTitle->setText(checkable ? tr("We couldn't confirm this review") : tr("Waiting for GitHub to confirm this review…"));
+		const auto fallback = checkable && unknown.isEmpty() ? tr("GitHub didn't say whether it arrived.") : QString{ };
+		WaitingFallback->setText(fallback);
+		WaitingFallback->setVisible(!fallback.isEmpty());
+		Waiting->setVisible(waiting);
+		Waiting->setAccessibleName(WaitingTitle->text());
+		Waiting->setAccessibleDescription((unknown.isEmpty() ? fallback : unknown) + QStringLiteral(" ") + WaitingAssure->text());
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
 		Body->setReadOnly(!connected || !aProjection.Controls.Edit);
 		Submit->setEnabled(connected && aProjection.Controls.Submit);
@@ -799,7 +972,8 @@ namespace bpr::qt {
 		const auto carried = Draft.has_value() && !Draft->Comments.empty();
 		Discard->setText(carried ? tr("Discard review") : tr("Discard"));
 		DiscardButton->setAccessibleName(Discard->text());
-		DiscardButton->setVisible(Draft.has_value());
+		// Nothing can be discarded while GitHub may hold the review.
+		DiscardButton->setVisible(Draft.has_value() && !waiting);
 		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
 		ReconcileButton->setVisible(Reconcile->isEnabled());
 		Recovery->setVisible(Reconcile->isEnabled());
@@ -813,7 +987,8 @@ namespace bpr::qt {
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
 		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
 		const auto chosen       = Draft ? decisions_name(Draft->Disposition) : QString{ };
-		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ") + aProjection.Status + (unknown.isEmpty() ? QString{ } : QStringLiteral(" ") + unknown);
+		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ")
+			+ (waiting ? WaitingTitle->text() + QStringLiteral(". ") + Waiting->accessibleDescription() : aProjection.Status);
 		if (announcement != LastAnnouncement) {
 			LastAnnouncement = announcement;
 			QAccessibleAnnouncementEvent event{ this, announcement };
@@ -1123,6 +1298,9 @@ namespace bpr::qt {
 	void review_submission_editor::changeEvent(QEvent* const aEvent)
 	{
 		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::PaletteChange) {
+			restyle_waiting();
+		}
 		// A theme change redraws the icons in the new ink.
 		if (aEvent->type() == QEvent::PaletteChange && Pending != nullptr) {
 			for (auto* const remove : Pending->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
@@ -1190,6 +1368,27 @@ namespace bpr::qt {
 		Attention = aColour;
 		present_preflight(Shown);
 		present_verdicts();
+		restyle_waiting();
+	}
+	void review_submission_editor::restyle_waiting()
+	{
+		if (Waiting == nullptr) {
+			return;
+		}
+		const auto attention = attention_colour();
+		static_cast<waiting_frame*>(Waiting)->set_attention(attention);
+		WaitingMark->setPixmap(waiting_mark(attention, devicePixelRatioF()));
+		// What is safe, said more quietly than why: the text mixed a quarter
+		// toward the panel's ground, never below 4.5:1 against it.
+		const auto ground = blend(palette().color(QPalette::Active, QPalette::Base), attention, waiting_tint);
+		const auto text   = palette().color(QPalette::Active, QPalette::WindowText);
+		auto       quiet  = blend(text, ground, 0.28);
+		if (destructive_contrast(quiet, ground) < 4.5) {
+			quiet = text;
+		}
+		auto colours = WaitingAssure->palette();
+		colours.setColor(QPalette::WindowText, quiet);
+		WaitingAssure->setPalette(colours);
 	}
 	auto review_submission_editor::attention_colour() const -> QColor
 	{
@@ -1233,6 +1432,10 @@ namespace bpr::qt {
 	auto review_submission_editor::reconcile_action() const noexcept -> QAction* { return Reconcile; }
 	auto review_submission_editor::status_label() const noexcept -> QLabel* { return Status; }
 	auto review_submission_editor::unknown_reason_label() const noexcept -> QLabel* { return UnknownReason; }
+	auto review_submission_editor::waiting_panel() const noexcept -> QWidget* { return Waiting; }
+	auto review_submission_editor::waiting_title_label() const noexcept -> QLabel* { return WaitingTitle; }
+	auto review_submission_editor::waiting_assurance_label() const noexcept -> QLabel* { return WaitingAssure; }
+	auto review_submission_editor::reconcile_button() const noexcept -> QToolButton* { return ReconcileButton; }
 	auto review_submission_editor::target_editor() const noexcept -> QTextEdit* { return Target; }
 	auto review_submission_editor::shown_draft() const noexcept -> const std::optional<core::review_submission_draft>& { return Draft; }
 	auto review_submission_editor::shown_projection() const noexcept -> const review_submission_editor_projection& { return Shown; }

@@ -30561,6 +30561,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Evidence.ReasonShown = !summary->unknown_reason_label()->isHidden() && line == unknownLine(core::review_submission_unknown_reason::network)
 					&& summary->status_label()->accessibleDescription() == line && !line.contains(QStringLiteral("conventional")) && !line.contains(QStringLiteral("renderer"));
 				render(QStringLiteral("unknown-reason"), summary);
+				// [[BPR-1541]] v002. The held review in the window, in each theme.
+				renderThemes(QStringLiteral("unknown-status"));
 				if (!probe.Evidence.ReasonShown) {
 					return fail("unknown-reason-not-shown");
 				}
