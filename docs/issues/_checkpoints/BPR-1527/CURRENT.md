@@ -18,10 +18,11 @@ remain failed. No future Ubuntu release date or project-version change is inferr
 
 Mac accepted code/test source is `6747ca029b48c231539cb36360bcfc3e26173609`;
 docs-only handback boundary is `c233c768327cd6c0cb6807860625ec12a9aeac14`.
-All later branch commits are Windows follow-up and must not enter or rebind the
-Mac producer. Root exclusively owns Mac CPU and
-`/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`. This implementer runs no
-Mac build, test, format/tidy or performance workload without a new slot release.
+All later branch commits are follow-up and must not enter or rebind the published
+Mac producer `/Users/jaeger/Documents/Codex/releases/v0.2.1-macos`. After release
+and installation, the coordinator explicitly releases the Mac engineering CPU
+slot for affected checks in this owned worktree/build only. No new version,
+package or publication authority follows.
 
 Owned source: `/Users/jaeger/.codex/worktrees/v021-windows-gates/BetterPullReview`,
 branch `codex/v021-windows-gate-fixes`, current revision `076922c1340086b02a706665b2de2c9cbc9f28fa`.
@@ -285,8 +286,8 @@ result and final source/process inventory. Read the receipt; metadata alone is
 no verification. Code candidate stays076922c13; later notes commits change no
 production/test bytes and do not retag earlier binaries.
 
-The coordinator reports Mac0.2.1 published/installed and immutable. No explicit
-Mac engineering CPU release reached this implementer. BPR1527 therefore remains
+The coordinator reports Mac0.2.1 published/installed and immutable. At that R56
+boundary no Mac engineering CPU release had reached this implementer. BPR1527 therefore remained
 In Progress: later Mac lifecycle/Qt/Find/held-reply checks are still required under
 AC5 and all unchanged11criteria/10exits. Resume this same owner after an explicit
 slot release, in this owned worktree/build only. Never rebind the published Mac
@@ -307,3 +308,32 @@ The [binding upkeep receipt](binding-upkeep.json) preserves the prior binding an
 normalizes only the card's mutable progress heading to Execution record. All11
 criteria, every preceding scope/ownership/release amendment and all10exits are
 unchanged; the renewed source fingerprint is metadata upkeep, no acceptance waiver.
+
+## Resumed affected Mac acceptance, R57
+
+The same owner resumes after the explicit coordinator slot release. The old
+cache alias pointed through the published producer to the shared dependency
+cache. R57 copies missing pinned dependencies into the owned cache and rebinds
+only the owned build. Initial offline configuration correctly refuses an empty
+LibArchive cache entry; recursive cache completion then configures successfully.
+The normal dev build compiles/relinks all twelve actual selected producers,
+exit0; all ten changed BPR1527 objects have times at or after exact current
+sources. Critical source bytes equal076922c13. No published source/build is
+modified. Other agents' native CTest chains are observed, so GUI/timing acceptance
+waits for coordinated quiescence. No claimed normal-test result yet.
+
+R57 documentation precheck initially refuses stale NEXT_ID1528 against the shared
+1541high-water. Bounded7d70739e4 adopts exact main6cf3c94b9 counter1541 plus13
+missing reservation receipts; no new IDs are allocated. Documentation and67unit
+checks then pass. The prepared normal30course runner and its input/object/source
+manifest are preserved privately. Unrelated bpr1532/bpr1533/bpr1540 native
+chains overlap this granted interval; the coordinator receives exact PID/cwd
+observations. No unrelated command is stopped, and no GUI/timing acceptance is
+run under a falsely claimed quiet context. The same owner can dispatch the
+prepared command immediately after a coordinated quiet interval. BPR1527 remains
+InProgress; all11criteria/10exits remain, no canonical finish or new release
+authority. Own commands are quiescent. Historical UIforETW classification is
+explicit in [the disposition](uiforetw-historical-disposition.json): original d52
+toolbar cause and actual compiled deferred-navigation control are demonstrated;
+R21's exact pre-paint substep is irrecoverable from aggregate output and remains
+unproven, without waiving any current assertion or supported platform.

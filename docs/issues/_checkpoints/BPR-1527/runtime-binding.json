@@ -12,15 +12,16 @@
   "plan_checkpoint": "implementer-binding.json",
   "baseline": "d52f5bb1221e26dc00dbc9269c3ad0408b64548a",
   "allocation": "26fa0b98fde716b7aefffb92da0bae7676ab3c8e",
-  "command_state": "R55Ready/0 and R54bReady/0; no native build/test/analyzer remains. Final notes documentation validation/process inventory precedes handback; private receipt binds actual notes commit. No Mac engineering CPU release.",
-  "acceptance": "0769 Windows9normal169s, WSL22normal188.97s plus naming-only submission4.46s, strict10TUs (9unchanged+1repaired), architecture/format22/doc67pass. Earlier unchanged Qt/oracle evidence retained. Later Mac checks required; InProgress, no canonical finish/main integration/release approval.",
+  "command_state": "R57 owned12target Mac build complete/exit0;10changed objects fresh. Own commands quiescent.30course normal pass prepared but NOTRUN: unrelated bpr1532/bpr1533/bpr1540 native chains overlap the granted interval; coordinator notified. Published producer/tag immutable.",
+  "acceptance": "0769 Windows9normal169s, WSL22normal188.97s plus naming-only submission4.46s, strict10TUs/architecture/format22/doc67 pass. R57 Mac compile/link exactcode passes; runtime acceptance pending coordinated quiet interval. InProgress; no canonical finish/main integration/release approval.",
   "amendments": [
     "Coordinator explicitly adds final Windows d52 qt_diff_workbench_scale_200 TIMEOUT120.03 as sixth criterion/exit; preserve original five and unchanged120s deadline.",
     "Coordinator released owned-worktree Mac slot and added nine named courses after full734-accounted final result; all fourteen diagnostics read; prior six criteria/exits retained.",
     "Explicit coordinator additions enumerate nine actual Windows title-row/browser/window failures, each100/125/200, with unchanged same-PR/Home/new-PR requirements.",
     "Coordinator explicitly adds Windows review-submission composition 100/125/200 actual failures as AC10 / exit9; preserve prior nine criteria/eight exits and all budgets/assertions.",
     "Direct human/coordinator release-boundary amendment: macOS-only0.2.1; Windows/Ubuntu0.2.1 canceled/deferred; Windows fixes0.2.2. Supersede common-source0.2.1 coupling, retain all10 behavioral/timing criteria and9 exits; BPR-1527 In Progress. Root owns MacCPU/frozen producer after docs handback; no PCwork until explicit lease.",
-    "Coordinator finalWindows705=679pass25fail1skip; PCreleased; explicit navigation-entryAC11/exit10 addition for0.2.2 preservesprior10/9. Mac0.2.1 boundaryc233c7683 excludes laterWindowscommits."
+    "Coordinator finalWindows705=679pass25fail1skip; PCreleased; explicit navigation-entryAC11/exit10 addition for0.2.2 preservesprior10/9. Mac0.2.1 boundaryc233c7683 excludes laterWindowscommits.",
+    "Coordinator explicitly released Mac engineering CPU for remaining affected acceptance and historical UIforETW accounting; no new release/version/package/publication authority."
   ],
   "plan_definition_fingerprint": "sha256:97e2e4b0bde94fffa02a4e517723ef3bbd5feb9b00d6e02e748d056b34e4bc9e",
   "source_candidate": "076922c1340086b02a706665b2de2c9cbc9f28fa",

@@ -10,8 +10,9 @@ native receipt/task/process state before any dispatch.
 ## Resource and source boundaries
 
 0.2.1 is macOS-only. Mac code6747 plus docs boundaryc233 are immutable for this
-implementer. Root owns Mac CPU and its release producer; no Mac build, tests,
-performance or format/tidy starts without explicit release. Windows repairs
+implementer. Root owns its published release producer. The coordinator has now explicitly
+released the Mac engineering CPU slot for remaining owned-worktree checks;
+unrelated native chains currently prevent the prepared quiet GUI interval. Windows repairs
 are0.2.2 follow-up; project version stays0.2.1 until separately authorized.
 No Ubuntu release date, native desktop/vault pass or release approval is inferred.
 Root retains exact-final-source selected release gates/packages, optimized Release
@@ -112,3 +113,21 @@ Before return, finish all own commands and diagnostics, account for writers and
 protected candidates, and hand back quiescent exact source. Root coordinates main
 integration and later full Windows0.2.2 release gates/packages; focused engineering
 passes supply no release approval.
+
+## Coordinator resumption
+
+Mac release/install completed and the coordinator explicitly releases its
+engineering CPU slot to this same owner. Use only this owned worktree/build.
+R57 successfully binds an owned pinned dependency cache and builds all twelve
+actual selected targets; ten changed objects are fresh. Normal thirty-course
+Mac GUI/timing acceptance is prepared but waits for unrelated native CTests
+to finish. Published0.2.1 producer/tag remains immutable.
+
+The exact prepared continuation is `python3 /tmp/bpr1527-mac-r57-run.py`.
+It refuses while another native compiler/build/CTest is observed, verifies
+critical code hashes and runs all30 normal registered selectors serially with
+unchanged timeouts/environment/containment. Its private receipt/JUnit/LastTest
+land under `.mask/sessions/BPR-1527/evidence/mac-followup-r57/`. The script has
+not been dispatched; preflight is not a lease or a substitute for coordinating
+the quiet interval. After a real result, preserve any failure and finish all
+remaining criterion/exit, self-review, documentation and canonical board upkeep.
