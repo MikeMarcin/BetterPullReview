@@ -45,8 +45,11 @@ namespace bpr::adapters::syntax {
 	/// Revision 7 closes RFC-BPR-0081's confirmed gaps: inline and attributed
 	/// namespace heads, enum comparisons, X-macros in enum bodies, enums opened
 	/// in both conditional branches, brace-initialized shadows, non-ASCII
-	/// names and transparent `extern "C"` blocks (BPR-1474).
-	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 7U;
+	/// names and transparent `extern "C"` blocks (BPR-1474). Revision 8 reads
+	/// template argument lists: `getComponent<Type>()` names a function and a
+	/// type, a template name used as a type is a type, and a single capital is
+	/// a type where a PascalCase word would be (BPR-1559).
+	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 8U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///
