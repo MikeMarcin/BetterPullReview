@@ -132,3 +132,71 @@ this layer.
 TypeScript and C# share the C++ gap for type arguments (C# also for free
 generic calls); Rust, Swift, Kotlin and Go colour no calls at all, so their
 gap is general rather than generic-specific.
+
+## Evidence
+
+Implementation `ff7b83ea2` and `972819bb1`, merged with main at `007b39788`;
+macOS (Apple M4 Pro), 2026-10-16.
+
+- AC1: the root cause above was reproduced through the public classifier
+  before any change: on `auto a = getComponent<Type>();` revision 7
+  published no span for either word (only `auto` as a keyword).
+- AC2 and AC3: `cpp_template_contract` in
+  [`syntax_classification_contract_tests.cpp`](../../../tests/syntax_contract/syntax_classification_contract_tests.cpp)
+  classifies the committed corpus
+  [`cpp_templates.cpp`](../../../tests/fixtures/syntax/cpp_templates.cpp)
+  and pins every form at its exact range: free, `.`, `->`, qualified and
+  `template`-disambiguated calls (T10 to T14), built-in, qualified, nested
+  (`>>>`), pointer/reference/cv, non-type (number, ALL_CAPS) and function-type
+  arguments, a cast, a `std::` call, a known enumerator argument (T15 to T24),
+  declarations, an out-of-line definition and an explicit specialization (T00
+  to T04), and instantiated types including `std::vector<std::pair<Key,
+  Value>>` and a lower-case template (T30 to T34). Its negative control holds
+  nine comparison and shift lines (`a < b > c`, `i<n`, `a<b && c>d`,
+  `(a<b) + (c>d)`, `a<b || c>d`, `a<<b`, `a<=b`) with no function or type
+  role, and classifying the same corpus as C keeps `getComponent`, `Type` and
+  a lone `T` normal. A key carrying revision 7 is refused. With the
+  revision-7 sources restored the contract fails at its first expectation
+  (the owner's case) and passes at `ff7b83ea2`.
+  `test_template_call_roles_reach_the_pane` in
+  [`syntax_pane_composition_tests.cpp`](../../../tests/adapters_qt/syntax_pane_composition_tests.cpp)
+  classifies `getComponent<Type>()`, publishes it to a real `diff_workbench`
+  on the light profile and reads the painted foreground off the block layout:
+  the function colour on `getComponent`, the type colour on `Type`. It fails
+  on the revision-7 sources ("the template call's name is painted as a
+  function") and passes after.
+- Cost: the scan is one linear pass per C++ line, at most 5 bytes per unit of
+  the longest line. Interleaved timings against revision 7 on 1 MiB
+  single-line inputs (`a<` repeated, nested `a<…>`, mixed lists and
+  comparisons) are within 3%, and an 8 MiB realistic file is unchanged. A
+  randomized ASan and UBSan harness of 300,000 lines, querying every range
+  including out-of-bounds ones, reported nothing.
+- Suites at `007b39788` (`dev`, built with `-g0` for disk space; the build
+  type and tests are unchanged): `syntax_classification_contract`,
+  `syntax_refinement_cancellation`, `qt_syntax_pane_composition`,
+  `application_cpp_identifier_appearance`, `application_appearance_host`,
+  `qt_composed_github_scale_100` and `documentation_structure` pass.
+  The full `dev` suite was run once at the first merge with main (739 tests,
+  in stages because a complete `dev` tree is about 9 GB and the disk was
+  nearly full): 728 passed and 11 failed under parallel load or staging.
+  Rerun alone, `application_diff_host`,
+  `qt_composed_inline_drawer_scale_200`,
+  `qt_composed_long_thread_scale_100`, `qt_hide_drawers_native_menu_key`,
+  `application_review_tour_publication_reconciliation`,
+  `application_diagnostic_subsystems` and `application_private_review_native`
+  passed. `rfc0016_production_identity_security` failed only because of the
+  worktree's `.agents` link and passed without it. `documentation_structure`
+  was behind main's issue counter and passed after the merge.
+  `application_large_review_launch` failed on its process-to-main start-up
+  budget (1,031 ms against 100 ms) on a loaded machine, before any
+  classification runs. `live_mutation_isolation` could not run because it
+  reads every end-to-end binary at once and those were built and deleted in
+  batches. The change adds no network, process or mutation code.
+  `coding-format-check` (clang-format 22) passes; clang-tidy on the changed
+  sources reports only two existing naming notes in the Windows resource
+  contract. The documentation gate and its 67 tests pass.
+- The RFC-BPR-0081 evaluation harness (`BPR_BUILD_SYNTAX_EVALUATION`) was not
+  re-run. It scores namespace, enum and macro roles, which this change does
+  not paint, and `cpp_identifier_context.cpp` is unchanged.
+- No new role or colour, so the owner is not asked to judge one; the function
+  and type colours are the ones BPR-0726 and BPR-0738 settled.
