@@ -140,3 +140,36 @@ Verification at the candidate's sources (macOS arm64, dev preset):
   cursor 3. Checkpoint:
   [handoff](../_checkpoints/BPR-1532/handoff.json).
 
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:51Z: Accept**, no note (decision
+`e57ab0b1-42af-461a-b7c2-8a1de57be0ae`, event 4 of session
+`eb0e1b14042f51587e16ba8961e1a43c`), on candidate
+`BPR-1532-change-ends-v001` at `82b3ef02b`, fingerprint `3468c7c2…`.
+Event cursor consumed: 4.
+
+BPR-1531 and BPR-1536 landed first. `main` (through `236d02dd5`) merged
+into the branch at `82c831258`; the one conflict was the window test's mode
+dispatch, where `--change-end-keys` and BPR-1536's `--option-keys` now sit
+side by side. `workbench_window.cpp`, `desktop_menu_bar.cpp`,
+`github_application.cpp`, the test registrations and the shortcut table
+merged without conflict, and every accepted key keeps its binding: ⌥A and the
+Option-letter keys step aside in text input through BPR-1536's claim,
+⌥⇧↑/⌥⇧↓ step aside through this card's yield and the tour outline. BPR-1540
+then merged at `b2955c009` without conflict. On the merged tree (`dev`, Debug):
+`core_diff_semantics`, `core_workbench_interaction`,
+`qt_diff_workbench_scale_100`, `qt_dif_workshop_placement`,
+`qt_change_end_keys`, `qt_workbench_window_scale_{100,125,200}`,
+`qt_profile_management_window`, `qt_suggestion_editor_1_0`,
+`qt_composed_github_scale_100`, `application_profile_management_public_path`,
+`application_review_navigation_entry`, `qt_review_state_icon`,
+`qt_option_keys_typing`, `application_diff_zoom_public_path`,
+`qt_files_tree`, `qt_home_list_scale_100`, `qt_appearance_profile`,
+`application_review_ledger_composition_contract`, `architecture_boundaries`
+and `qt_workbench_focus_order_scale_100` pass 22/22, the contract and key
+rows again after BPR-1540; clang-format 22.1.8 `--dry-run -Werror` over the
+17 touched C++ files is clean; the documentation gate prints
+`DOCUMENTATION_OK`. The review server (pid 29433) was stopped, the
+candidate's protection released and the frozen root removed. The
+text-input predicate this card added is unified with BPR-1531's after landing.

@@ -63,23 +63,25 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1532-v001-n36fMK/attended-review",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "eb0e1b14042f51587e16ba8961e1a43c",
-    "event_cursor": 3,
+    "event_cursor": 4,
     "candidates": {
       "BPR-1532-change-ends-v001": "3468c7c29582f7d97cd64bc7e2fed024a73743bbded5774e258d6481a4249728"
     },
-    "phase": "ready",
-    "protected": true,
+    "phase": "decided",
+    "protected": false,
     "decisions": null,
-    "server_pid": 29433,
+    "server_pid": null,
     "server_port": 64096,
-    "complete_url": "Obtain from /Users/jaeger/.codex/attended-review/bpr1532-v001-n36fMK.serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from /Users/jaeger/.codex/attended-review/bpr1532-v001-n36fMK.serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), e57ab0b1-42af-461a-b7c2-8a1de57be0ae"
   },
-  "pending": [
-    "AC4 human: owner Accept/Reject of candidate BPR-1532-change-ends-v001"
-  ],
+  "pending": [],
   "merge_notes": [
     "workbench_window.cpp and workbench_window_tests.cpp also change in BPR-1531 (Alt+A, bpr-alt-a-accept). BPR-1532 keeps away from update_accept_file_shortcut. BPR-1531's takes_typed_text and this card's takes_typed_text_for_change_ends apply the same rule and can be merged into one helper at integration.",
     "BPR-1536 (Option-letter keys stepping aside in text input) may want to take over this card's typed-text guard."
   ],
-  "next_action": "On Accept: rebase bpr-1532-change-ends on main and resolve against BPR-1531. Rerun qt_change_end_keys, qt_workbench_window_scale_*, qt_profile_management_window, the core tests and the doc gate. Merge, then finish BPR-1532 with AC4 pass and remove the frozen root with freeze_attended_build.py remove. On Reject: apply the note on the branch and freeze a v002 in a new short session."
+  "next_action": "None: accepted, merged to main after BPR-1531 and BPR-1536 and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "verification": "22/22 focused and shared window/menu rows pass; conflict in workbench_window_tests.cpp mode dispatch resolved keeping both modes; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
 }
