@@ -923,7 +923,13 @@ namespace bpr::qt {
 			{
 				RetainedOffset    = std::max(0.0, aOffset);
 				const auto offset = std::max(0, qRound(RetainedOffset));
-				const auto area   = ViewportArea.isValid() ? ViewportArea : viewport()->geometry();
+				auto       area   = ViewportArea.isValid() ? ViewportArea : viewport()->geometry();
+				// Keep the displayed split source up to its native scrollbar.
+				// Native styles may leave frame spacing below the layout's
+				// viewport; bounded overscan must not turn that into a gap.
+				if (UnifiedRows == nullptr && horizontalScrollBar()->isVisible()) {
+					area.setBottom(horizontalScrollBar()->mapTo(this, QPoint{ }).y() - 1);
+				}
 				// The shared bar owns split-view extent. Only the displaced
 				// pixels need overscan: an extra row would overlap the horizontal
 				// bar and make Qt refuse backing-store scroll reuse. Unified

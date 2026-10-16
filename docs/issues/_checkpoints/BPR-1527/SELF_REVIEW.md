@@ -345,3 +345,18 @@ reservation are recorded, with no independent global-quiet/performance claim.
 All local commands finish and both own locks are available. R58 remote outcome is
 unverified after outage; Windows/SSH/WSL access is explicitly blocked. No canonical
 Done, source integration, published0.2.1 change or release approval is inferred.
+
+## R61 native Mac source-bottom correction
+
+Reviewed the narrow Qt difference over0769. The split displayed clip now ends at
+the actual visible horizontal bar, preserving the inherited original no-gap law
+while retaining offset-only overscan. Qt's native layout positions the bar before
+its viewport; querying its actual mapped boundary avoids a style-specific numeric
+constant. Unified geometry and font/style/scrollbar policy are unchanged. The
+exact original bottom assertion and later frame oracle are both retained; all11
+affected normal Mac courses pass. A compiled isolated overscan-only variant fails
+the same3pixel gap and pre851 production+original test passes in the same native
+context. Frontend-design was loaded; this repairs inherited appearance. Temporary
+variants were force-restored, with exact object/executable regeneration. New Qt
+source is not in the frozen181Windows continuation; affected native/portable
+acceptance and cancellation work remain required.

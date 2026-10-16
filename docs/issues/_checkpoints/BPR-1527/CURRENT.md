@@ -4,35 +4,54 @@ Mandate `authorized-release-continuation-final-gates-r3`; plan
 `bpr-1527-final-native-release-contracts` / `final-composition-contracts`.
 Sole engineering owner `/root/bpr1525_implementer`, native rfc-implementer /
 gpt-6.1-sol / xhigh; no differing effective route exposed, no subagents.
-BPR-1527 remains In Progress with eleven criteria and ten exits. BPR-1525/1526
+BPR-1527 remains In Progress with twelve criteria and eleven exits; the latest diagnostic amendment preserves all prior11/10. BPR-1525/1526
 remain Done. Every behavioral, native and timing requirement remains in force.
 
-## Current frontier after Mac-local recovery R59
+## Current frontier after authorized native recovery R60b/R61
 
-Mac30normal courses are complete: **29pass/1fail/0skip, CTestexit8,272.59s**
-on unchanged code076922c13. All fourteen original Mac failures now pass, including
-UIforETW20.57s, held-storage reply16.06s and Find3scales14.03/11.80/12.25s.
-The sole failure is the normal complete200% workbench course,6.89s, at the unchanged
-"actual source bottom meets the native horizontal scrollbar, excluding overscan"
-assertion. This prevents affected Mac acceptance; it is not a timeout or a failure
-of the newly added backing-frame oracle, which has not yet executed in that case.
-[The R59record](mac-local-recovery-r59.json) preserves all30 outcomes and limits.
+The coordinator relayed renewed human Windows-release authorization, superseding
+only the historical outage access restriction. The same owner may inspect/run
+Windows/WSL and repair the Mac200 source-bottom regression. Actual new denials
+remain binding; no authentication, settings, signing, package or publication
+change is authorized here. Root owns final0.2.2 version/distribution. Published
+Mac0.2.1 remains immutable. No denied Mac process inventory or substitute is used.
 
-This recovery is **Mac-local acceptance/checkpoint only**. No Windows/SSH/WSL
-execution, inspection, reconnect or settings change is authorized. R58 current
-outcome remains unverified after outage; earlier Running records are historical.
-Published0.2.1 producer/tag stays untouched. No source/assertion/input/threshold,
-style, policy, version, package or publication change is made. No ps or alternate
-process inventory is attempted. The coordinated Mac reservation/own locks are
-recorded; independent global quiet and Mac performance improvement are not claimed.
+R58 interruption is reconciled and preserved:538recorded rows =535pass,
+2real failures (diagnostic10.3557ms and Qt125timeout120.03s),1interrupt;
+167uncompleted. The normal R60b continuation requests exactly170courses, with
+unchanged705registration, no fixture extras and no repeated valid regular pass.
+`BPR-1527-resume-windows-r60b` ran as mikem Interactive Limited/session3,
+wrapper35696/runner16024/CTest28836; external log
+`C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr1527-native-resume-r60b.log`.
+[Complete R60b collection](windows-resumed-gate-r60b.json) is now170accounted:
+168pass/1diagnostic failure/1configured Debug cache-bytes skip, CTestexit8,
+wrapper1,792.26s. With535preserved passes, the cross-outage aggregate is
+703pass/1fail/1skip. Whole125/200 pass105.27/107.98s; diagnostic repeats10.3359ms.
+TaskReady and recorded PIDs absent; full originals are preserved before native
+producer mutation. Original R58failed/interrupted rows remain failed/interrupted.
+No uninterrupted705pass or release approval is claimed. The first R60guard failed
+before CTest due to inherited WSL cwd, retained as prerequisite failure; explicit
+accessible cwd fixed inventory without ACL/settings changes.
+[The explicit diagnostic scope amendment](diagnostic-scope-amendment-r61.json)
+adds AC12/exit11 after collection, retaining prior11/10 and unchanged10ms contract.
+NativeR62temporary host trace now runs on the same181basis, force-compiling the
+actual producer and force-restoring source/object/executable before completion;
+trace timing is diagnostic only. Windows/WSL native inventory was empty before
+its unique interactive dispatch. No concurrent native PC command is started.
 
-Local runner31957/CTest31969 and unifiedexec42844 finishedexit8; both owned locks
-are available again. No local native command or review server remains. Next bounded
-engineering work needs exact side/mode/clip/bar visibility/coordinates at the
-unchanged assertion, then same-context old/current production evidence. The
-851viewport/overscan delta is relevant but not a proven historical cause. Preserve
-the failed result; do not waive the assertion or use Windows/WSL passes as Mac proof.
-BPR1527 remains InProgress with all11criteria/10exits; no canonical finish is claimed.
+[Mac source-bottom repair](mac-source-bottom-repair-r61.json) preserves the R59
+29pass/1fail inventory and actual native counterexamples. Reduced split overscan
+alone reproduces the3logical-pixel gap above the scrollbar in the unequal split
+left pane; original pre851 production+test passes27.80s in the same context.
+The narrow repair anchors the displayed split clip to the actual visible native
+horizontal scrollbar. Current strengthened test is restored byte-for-byte; no
+threshold, input, frame assertion, style or font change. All11affected normal Mac
+courses pass102.62s (whole100/125/200=16.89/17.10/18.91s, axes4,painter,Find3).
+StrictQtTU22, full format22, both architecture courses, documentation and67verifier units pass. All temporary probes are removed
+from tracked source; only the narrow production Qt correction remains modified.
+Windows181/code0769 stays frozen during R60b; native adoption/rebuild waits for
+quiescence. Changed Qt behavior requires affected current-source acceptance on
+Windows/portable paths; earlier evidence keeps its original scope.
 
 ## Release and source boundary
 

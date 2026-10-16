@@ -34,6 +34,8 @@ BPR-1525 and BPR-1526 remain Done with their original acceptance intact.
 
 - AC11: Diagnose and repair the final Windows application_review_navigation_entry bound-message lifetime failure, preserving exact Review entry, file/pair/semantic position, all command routes and the existing approximately three-second explanation lifetime with unchanged 2600ms persistence and 3600ms upper checks; pass the normal native course for0.2.2 after PC release.
 
+- AC12: Diagnose and repair application_diagnostic_subsystems and its existing diff-host mid-computation cancellation contract on native Windows, preserving actual10.3557ms and resumed10.3359ms failures, unchanged10ms threshold, all inputs/assertions/containment and abandonment/restart semantics; establish the actual cause, useful negative controls and current native acceptance.
+
 ## Explicit scope amendment
 
 The coordinator explicitly added the sixth criterion after the final Windows gate timed out at
@@ -166,3 +168,25 @@ retains exact results, constraints and next diagnosis. No product/assertion/styl
 threshold or policy change is made. Local commands/owned locks are finished;
 BPR1527 remains InProgress with all eleven criteria/ten exits. Published0.2.1
 stays untouched; no new release, install, publication or deletion authority.
+
+## R60b complete continuation and diagnostic scope amendment
+
+The coordinator explicitly added AC12/exit11 under the existing r3 mandate, with
+all preceding eleven criteria and ten exits unchanged. Renewed human Windows
+release authorization supersedes the outage access restriction; actual denials
+remain binding. Root retains final0.2.2 version/package/sign/publication. R60b
+collects all170pending/failed/interrupted normal courses on frozen181/code0769:
+168pass/1diagnostic failure/1configured Debug skip. With535preserved valid passes,
+705are accounted as703pass/1fail/1skip across outage; no uninterrupted705pass or
+release approval is claimed. Qt125/200 pass105.27/107.98s at unchanged120s.
+The original R58failed/interrupted rows remain preserved. Diagnostic10.3359ms
+reproduces the original10.3557ms failure against the unchanged10ms law; source
+diagnosis and actual repair acceptance remain open. All task/process originals
+are preserved before producer changes.
+
+The separately authorized Mac200 source-bottom repair and its native controls are
+[recorded here](../_checkpoints/BPR-1527/mac-source-bottom-repair-r61.json): reduced
+split overscan alone reproduces a3logical-pixel gap; original pre851 passes in the
+same native context. The narrow actual-scrollbar-boundary correction passes all11
+affected normal Mac courses, with original bottom assertion and stronger frame
+oracle intact. Windows/portable acceptance on the repaired source remains due.
