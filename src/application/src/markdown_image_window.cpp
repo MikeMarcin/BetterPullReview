@@ -107,8 +107,8 @@ namespace bpr::application {
 			for (auto it = Entries.begin(); it != Entries.end();) {
 				const auto still = it->Body == aIntent.Body
 					&& std::ranges::any_of(aIntent.References, [&it](const core::markdown_image_reference& aReference) {
-						   return aReference.Ordinal == it->Ordinal && aReference.Source == it->Source.Written;
-					   });
+									   return aReference.Ordinal == it->Ordinal && aReference.Source == it->Source.Written;
+								   });
 				if (it->Body == aIntent.Body && !still) {
 					cancel_entry(*it);
 					it = Entries.erase(it);

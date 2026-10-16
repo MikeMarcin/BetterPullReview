@@ -4,9 +4,11 @@
 //
 // Input: [selector] then the payload. Selector 0 admits the payload as a link
 // destination under a fixed observation; 1 does the same with the payload's
-// first two parts as hostname and owner; anything else maps the payload as a
-// tour document.
+// first two parts as hostname and owner; 3 reads the payload as a body's image
+// markup and as GitHub's rendered HTML, and admits what it finds (RFC-BPR-0084);
+// anything else maps the payload as a tour document.
 
+#include "bpr/core/markdown_image.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 #include "fuzz_support.hpp"
@@ -62,6 +64,59 @@ namespace {
 		observation.Context.reset();
 		const auto stale = core::admit_markdown_link(intent, observation);
 		fuzz::require(!stale && stale.error() == core::markdown_link_result::stale);
+	}
+
+	/// RFC-BPR-0084. Image markup, served HTML and the admissions over them.
+	auto images(const std::string_view aRaw) -> void
+	{
+		const auto spans = core::scan_html_images(aRaw);
+		fuzz::require(spans.size() <= core::markdown_image_references_per_body);
+		auto previous = std::size_t{ 0 };
+		for (const auto& span : spans) {
+			// Spans are ordered, disjoint, start at a tag and never decode longer.
+			fuzz::require(span.Begin >= previous && span.Begin < span.End && span.End <= aRaw.size() && aRaw[span.Begin] == '<');
+			fuzz::require(span.Source.size() <= span.End - span.Begin && span.Alt.size() <= span.End - span.Begin);
+			previous = span.End;
+		}
+		for (const auto& linked : core::markdown_linked_images(aRaw)) {
+			fuzz::require(!linked.Source.empty() && !linked.Link.empty() && aRaw.find(linked.Link) != std::string_view::npos);
+		}
+		const auto served = core::served_markdown_images(aRaw);
+		fuzz::require(!served || served->size() <= core::markdown_image_served_tags_per_body);
+		const auto dotcom = core::markdown_image_fetch_policy{ .Contract = core::markdown_image_host_contract::github_com, .Hostname = "github.com", .CredentialAvailable = true };
+		const auto ghes   = core::markdown_image_fetch_policy{ .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.invalid", .CredentialAvailable = true };
+		const auto check  = [&](const std::string_view aAddress) {
+			for (const auto* policy : { &dotcom, &ghes }) {
+				const auto hop = core::admit_markdown_image_fetch(aAddress, *policy);
+				if (!hop) {
+					continue;
+				}
+				// An admitted hop is HTTPS and printable; GitHub.com never sends the credential.
+				auto scheme = std::string{ hop->Address.substr(0U, 8U) };
+				for (auto& character : scheme) {
+					character = character >= 'A' && character <= 'Z' ? static_cast<char>(character + ('a' - 'A')) : character;
+				}
+				fuzz::require(scheme == "https://");
+				fuzz::require(policy->Contract == core::markdown_image_host_contract::ghes || !hop->Credential);
+				const auto next = core::admit_markdown_image_redirect(*hop, aRaw.substr(0U, 512U), *policy);
+				if (next) {
+					fuzz::require(next->Hop == hop->Hop + 1U && (hop->Credential || !next->Credential));
+					fuzz::require(policy->Contract == core::markdown_image_host_contract::ghes || !next->Credential);
+				}
+			}
+		};
+		for (const auto& span : spans) {
+			const auto source = core::admit_markdown_image_source(span.Source, "github.com");
+			if (source && source->Kind == core::markdown_image_source_kind::attachment) {
+				fuzz::require(source->Canonical.size() == 36U);
+			}
+			if (source && served) {
+				if (const auto match = core::match_served_markdown_image(*source, *served)) {
+					check(*match);
+				}
+			}
+			check(span.Source);
+		}
 	}
 
 	auto within(const core::tour_text_span aSpan, const std::string_view aRaw) -> bool
@@ -122,7 +177,7 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	if (input.rest().size() > 16384U) {
 		return 0;
 	}
-	switch (selector % 3U) {
+	switch (selector % 4U) {
 	case 0U:
 		admit(input.text(), "example.invalid", "owner");
 		break;
@@ -132,6 +187,9 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 		admit(destination, host, owner);
 		break;
 	}
+	case 3U:
+		images(input.text());
+		break;
 	default:
 		tour(input.text(), choice);
 		break;

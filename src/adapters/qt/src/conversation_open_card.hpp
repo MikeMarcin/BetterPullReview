@@ -234,8 +234,8 @@ namespace bpr::qt {
 		/// \brief Shows one image answer in the post it names.
 		void apply_image(const application::markdown_image_projection& aImage);
 		/// \brief Asks again for every published post's images still loading.
-		void request_images();
-		std::function<void(const QString&)>                     ReplyText;
+		void                                request_images();
+		std::function<void(const QString&)> ReplyText;
 		/// [[BPR-1212]]. Each edit of my draft written in the composer.
 		std::function<void(const QString&)> DraftText;
 		std::function<void()>               HeightChanged;

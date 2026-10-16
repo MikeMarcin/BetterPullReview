@@ -5,6 +5,7 @@
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
@@ -12,7 +13,6 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
-#include "bpr/application/markdown_image_service.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
@@ -3977,10 +3977,10 @@ namespace bpr::app {
 		/// RFC-BPR-0084. Body images: the decoder outlives the lanes that call
 		/// it; four serial fetch lanes, each with its own media transport, and
 		/// one decode lane; the profile's image service and cache.
-		qt::markdown_image_decoder                           ImageDecoder;
-		worker_executor                                      ImageDecodeEffects;
+		qt::markdown_image_decoder                                          ImageDecoder;
+		worker_executor                                                     ImageDecodeEffects;
 		std::array<worker_executor, core::markdown_image_fetch_concurrency> ImageFetchEffects;
-		std::unique_ptr<application::markdown_image_service> Images;
+		std::unique_ptr<application::markdown_image_service>                Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -5034,6 +5034,7 @@ namespace bpr::app {
 			// GHES hop runs on the provider's lane through the account transport.
 			{
 				std::vector<application::effect_executor*> lanes;
+				lanes.reserve(ImageFetchEffects.size());
 				for (auto& lane : ImageFetchEffects) {
 					lanes.push_back(&lane);
 				}

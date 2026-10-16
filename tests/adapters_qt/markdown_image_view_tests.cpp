@@ -1,8 +1,8 @@
 // RFC-BPR-0084. Images in the Markdown reader: which references it sends,
 // the loading box, reflow on arrival, sizing, HiDPI drawing, animation,
 // fallback text, links, copy and stale answers.
-#include "../support/test_expectation.hpp"
 #include "../../src/adapters/qt/src/markdown_images.hpp"
+#include "../support/test_expectation.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -33,15 +33,18 @@ namespace {
 
 	constexpr auto attachment = "https://github.com/user-attachments/assets/25addea2-357a-42c0-a1c8-fba0163382cc";
 
-	const auto body = std::string{ "# Screenshots\n\n" }
+	auto body_text() -> std::string
+	{
+		return std::string{ "# Screenshots\n\n" }
 		+ "Before the change:\n\n![Before the change](" + attachment + ")\n\n"
-		+ "<img width=\"400\" height=\"120\" alt=\"Sized upload\" src=\"https://github.com/user-attachments/assets/00000000-357a-42c0-a1c8-fba0163382cc\" />\n\n"
-		+ "A badge [![build](https://img.shields.io/badge/build-passing-green.png)](https://ci.example/run) inline, and `<img src=\"code.png\">` in code.\n\n"
-		+ "- A list item with <a href=\"https://example.org/full\"><img src=\"https://e.example/thumb.png\" alt=\"Thumbnail\" width=\"50%\"></a>\n\n"
-		+ "| Before | After |\n|---|---|\n| ![left](https://e.example/left.png) | ![right](https://e.example/right.png) |\n\n"
-		+ "<picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://e.example/dark.png\"><img src=\"https://e.example/light.png\" alt=\"Themed\"></picture>\n\n"
-		+ "![Spinner](https://e.example/spinner.gif) ![Diagram](https://e.example/diagram.svg) ![Inline data](data:image/png;base64,AAAA)\n\n"
-		+ "The final paragraph.\n";
+			+ "<img width=\"400\" height=\"120\" alt=\"Sized upload\" src=\"https://github.com/user-attachments/assets/00000000-357a-42c0-a1c8-fba0163382cc\" />\n\n"
+			+ "A badge [![build](https://img.shields.io/badge/build-passing-green.png)](https://ci.example/run) inline, and `<img src=\"code.png\">` in code.\n\n"
+			+ "- A list item with <a href=\"https://example.org/full\"><img src=\"https://e.example/thumb.png\" alt=\"Thumbnail\" width=\"50%\"></a>\n\n"
+			+ "| Before | After |\n|---|---|\n| ![left](https://e.example/left.png) | ![right](https://e.example/right.png) |\n\n"
+			+ "<picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://e.example/dark.png\"><img src=\"https://e.example/light.png\" alt=\"Themed\"></picture>\n\n"
+			+ "![Spinner](https://e.example/spinner.gif) ![Diagram](https://e.example/diagram.svg) ![Inline data](data:image/png;base64,AAAA)\n\n"
+			+ "The final paragraph.\n";
+	}
 
 	void settle()
 	{
@@ -104,10 +107,10 @@ namespace {
 		settle();
 		std::vector<std::vector<core::markdown_image_reference>> asked;
 		view.set_image_dispatch([&asked](std::vector<core::markdown_image_reference> aReferences) { asked.push_back(std::move(aReferences)); });
-		view.set_body(body, "description");
+		view.set_body(body_text(), "description");
 		settle();
 		expect(asked.size() == 1U, "one request for the body's images");
-		const auto references = asked.front();
+		const auto               references = asked.front();
 		std::vector<std::string> sources;
 		for (const auto& reference : references) {
 			sources.push_back(reference.Source);
@@ -145,7 +148,7 @@ namespace {
 		// The first image arrives: 1252 x 625, wider than the reader.
 		view.apply_image(answer(references[0], core::markdown_image_state::loaded, decoded(1252, 625, { QColor{ 30, 120, 220 } })));
 		settle();
-		const auto first = object_rect(view, 0U);
+		const auto first     = object_rect(view, 0U);
 		const auto available = view.rendered_view()->document()->textWidth() - 2.0 * view.rendered_view()->document()->documentMargin();
 		expect(first.width() <= available + 0.5 && first.width() > available - 2.0, "an image wider than the reader fits its width");
 		expect(qAbs(first.height() - first.width() * 625.0 / 1252.0) <= 1.0, "aspect ratio kept");
@@ -188,7 +191,7 @@ namespace {
 		expect(anchorOf(0U) == QString::fromUtf8(attachment) && anchorOf(2U) == QStringLiteral("https://ci.example/run"), "image objects carry their link destination");
 
 		// Animation moves frames while visible.
-		const auto frameBefore = store->images()[7].Frame;
+		const auto    frameBefore = store->images()[7].Frame;
 		QElapsedTimer wait;
 		wait.start();
 		while (store->images()[7].Frame == frameBefore && wait.elapsed() < 2000) {
@@ -197,15 +200,15 @@ namespace {
 		expect(store->images()[7].Frame != frameBefore, "an animated GIF animates");
 
 		// Stale and duplicate answers change nothing.
-		auto stale   = answer(references[0], core::markdown_image_state::failed);
-		stale.Source = "https://e.example/other.png";
+		auto stale              = answer(references[0], core::markdown_image_state::failed);
+		stale.Source            = "https://e.example/other.png";
 		const auto heightBefore = document->size().height();
 		view.apply_image(stale);
 		view.apply_image(answer(references[0], core::markdown_image_state::failed));
 		expect(document->size().height() == heightBefore && store->images()[0].State == core::markdown_image_state::loaded, "a stale or repeated answer is ignored");
 		view.request_images();
 		expect(asked.size() == 1U, "nothing is asked again once every image has an answer");
-		view.set_body(body, "description");
+		view.set_body(body_text(), "description");
 		expect(asked.size() == 1U, "an unchanged body asks nothing");
 
 		// Copy of a partial selection writes the images back as Markdown.
@@ -241,15 +244,15 @@ namespace {
 		view.show();
 		std::vector<core::markdown_image_reference> asked;
 		view.set_image_dispatch([&asked](std::vector<core::markdown_image_reference> aReferences) { asked = std::move(aReferences); });
-		std::string long_body = "![Top](https://e.example/top.png)\n\n";
+		std::string longBody = "![Top](https://e.example/top.png)\n\n";
 		for (int index = 0; index < 60; ++index) {
-			long_body += "Paragraph " + std::to_string(index) + " of the long body.\n\n";
+			longBody += "Paragraph " + std::to_string(index) + " of the long body.\n\n";
 		}
-		view.set_body(long_body, "long");
+		view.set_body(longBody, "long");
 		settle();
 		auto* scroll = view.rendered_view()->verticalScrollBar();
 		scroll->setValue(scroll->maximum() / 2);
-		const auto cursor = view.rendered_view()->cursorForPosition(QPoint{ 10, 10 });
+		const auto cursor     = view.rendered_view()->cursorForPosition(QPoint{ 10, 10 });
 		const auto readBefore = cursor.position();
 		view.apply_image(answer(asked.front(), core::markdown_image_state::loaded, decoded(500, 400, { Qt::blue })));
 		settle();

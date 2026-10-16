@@ -169,6 +169,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # executable, registered uncontained like its siblings; not yet measured
     # on the Windows station.
     "application_markdown_images_public_path": "unmeasured (registered on macOS)",
+    # RFC-BPR-0084. The fixture's regeneration check runs the builder in a
+    # scratch root, as its github_recorded_fixture_contract sibling does.
+    "markdown_images_fixture_contract": "unmeasured (registered on macOS)",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private

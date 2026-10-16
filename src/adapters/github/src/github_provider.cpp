@@ -255,9 +255,9 @@ namespace bpr::adapters::github::detail {
 			/// transport per profile, touched only on that lane.
 			struct media_lane
 			{
-				application::effect_executor*                                    Executor = nullptr;
+				application::effect_executor*                             Executor = nullptr;
 				std::map<std::uint64_t, github_provider::media_performer> Transports;
-				std::atomic<std::size_t>                                         Queued{ 0U };
+				std::atomic<std::size_t>                                  Queued{ 0U };
 			};
 			std::vector<std::unique_ptr<media_lane>> MediaLanes;
 			github_provider::media_transport_factory MediaFactory;

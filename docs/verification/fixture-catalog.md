@@ -171,6 +171,27 @@ text. The same pack and contract builders serve it as
 no review, thread or comment. Constructed, not recorded; its fixture test
 regenerates the construction and the served tree byte for byte.
 
+### `markdown-images-v1`, images in a description and comments
+
+Added for [RFC-BPR-0084](../rfcs/RFC-BPR-0084-inline-markdown-images.md), so
+inline images can be judged beside GitHub's own presentation.
+`scripts/build_markdown_images_fixture.py` copies the nested-folders contract
+(`bpr-fixtures/nested-folders#21`, signed in as `fixture-author`) and gives it a
+description with five uploaded attachments (one `<img width>`, two in a
+table), a proxied transparent PNG, a linked image, an animated GIF at a set
+height, a `<picture>` with a dark source, an SVG badge and an `<img>` in code,
+and two pull request comments: an attachment at a set width, and an animated
+GIF beside an image that is gone. Beside the contract, under
+`tests/fixtures/github/markdown-images/v1/markdown-images-v1/`, it writes what
+GitHub's rendering serves for them: `bodies.json` (each node's `bodyHTML`, with
+camo and `private-user-images` addresses signed `jwt=fixture`), `manifest.json`
+(each served address's file and content type) and the images, drawn from code.
+A fixture run answers `resolve_body_images` from `bodies.json` and image
+fetches from `manifest.json`, never the network; `missing.png` has no file and
+fails. Every name, address and image is synthetic. `markdown_images_fixture_contract`
+regenerates both trees byte for byte and checks they agree;
+`application_markdown_images_public_path` opens it through the real composition.
+
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,
 transport metadata, remote URLs, patches, source content, email addresses,

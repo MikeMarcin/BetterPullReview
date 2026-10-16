@@ -652,10 +652,10 @@ namespace bpr::core {
 	auto markdown_linked_images(const std::string_view aMarkdown) -> std::vector<markdown_linked_image>
 	{
 		std::vector<markdown_linked_image> found;
-		auto                               fence      = std::string_view{ };
-		auto                               offset     = std::size_t{ 0 };
-		const auto                         text       = aMarkdown.substr(0, std::min(aMarkdown.size(), maximum_scanned_bytes));
-		const auto                         maximum    = 4U * markdown_image_references_per_body;
+		auto                               fence   = std::string_view{ };
+		auto                               offset  = std::size_t{ 0 };
+		const auto                         text    = aMarkdown.substr(0, std::min(aMarkdown.size(), maximum_scanned_bytes));
+		const auto                         maximum = 4U * markdown_image_references_per_body;
 		while (offset < text.size() && found.size() < maximum) {
 			const auto end  = text.find('\n', offset);
 			auto       line = text.substr(offset, end == std::string_view::npos ? text.size() - offset : end - offset);

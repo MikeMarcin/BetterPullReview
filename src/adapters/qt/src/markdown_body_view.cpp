@@ -1113,7 +1113,7 @@ namespace bpr::qt {
 	auto markdown_body_view::selected_markdown(const QTextCursor& aCursor) const -> QString
 	{
 		// Qt serializes an image object as U+FFFC; each becomes its Markdown again.
-		auto       markdown = QTextDocumentFragment{ aCursor }.toMarkdown(markdown_features);
+		auto        markdown = QTextDocumentFragment{ aCursor }.toMarkdown(markdown_features);
 		const auto* document = Rendered->document();
 		auto        from     = qsizetype{ 0 };
 		for (auto position = aCursor.selectionStart(); position < aCursor.selectionEnd(); ++position) {

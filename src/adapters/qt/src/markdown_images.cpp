@@ -9,6 +9,7 @@
 #include <QTextDocument>
 #include <QTextFragment>
 #include <QTextList>
+#include <QTextOption>
 #include <QTextTable>
 #include <QWidget>
 
@@ -63,8 +64,8 @@ namespace bpr::qt::detail {
 				if (!format.isImageFormat()) {
 					continue;
 				}
-				const auto image = format.toImageFormat();
-				auto       found = candidate{ .Position = fragment.position(), .Length = fragment.length(), .Slot = { } };
+				const auto image      = format.toImageFormat();
+				auto       found      = candidate{ .Position = fragment.position(), .Length = fragment.length(), .Slot = { } };
 				found.Slot.Source     = image.name();
 				found.Slot.Alt        = image.stringProperty(QTextFormat::ImageAltText);
 				found.Slot.Link       = format.isAnchor() ? format.anchorHref() : QString{ };
@@ -90,7 +91,7 @@ namespace bpr::qt::detail {
 				return;
 			}
 			// The scanner reads UTF-8; map each UTF-8 byte back to its UTF-16 index.
-			std::string           bytes;
+			std::string            bytes;
 			std::vector<qsizetype> index;
 			for (qsizetype position = 0; position < text.size(); ++position) {
 				const auto pair  = text[position].isHighSurrogate() && position + 1 < text.size() && text[position + 1].isLowSurrogate();
@@ -103,13 +104,14 @@ namespace bpr::qt::detail {
 			}
 			index.push_back(text.size());
 			for (auto& span : core::scan_html_images(bytes)) {
-				const auto begin = index[span.Begin];
-				const auto end   = index[span.End];
-				auto       found = candidate{ .Position = aBlock.position() + static_cast<int>(begin), .Length = static_cast<int>(end - begin), .Slot = { } };
+				const auto begin      = index[span.Begin];
+				const auto end        = index[span.End];
+				auto       found      = candidate{ .Position = aBlock.position() + static_cast<int>(begin), .Length = static_cast<int>(end - begin), .Slot = { } };
 				found.Slot.Fallback   = text_of(span.Source);
 				found.Slot.Light      = span.LightSource ? text_of(*span.LightSource) : QString{ };
 				found.Slot.Dark       = span.DarkSource ? text_of(*span.DarkSource) : QString{ };
-				found.Slot.Source     = aDark && !found.Slot.Dark.isEmpty() ? found.Slot.Dark : !aDark && !found.Slot.Light.isEmpty() ? found.Slot.Light : found.Slot.Fallback;
+				found.Slot.Source     = aDark && !found.Slot.Dark.isEmpty() ? found.Slot.Dark : !aDark && !found.Slot.Light.isEmpty() ? found.Slot.Light
+																																	  : found.Slot.Fallback;
 				found.Slot.Alt        = text_of(span.Alt);
 				found.Slot.Link       = span.Link ? text_of(*span.Link) : QString{ };
 				found.Slot.Hints      = span.Hints;
@@ -171,7 +173,7 @@ namespace bpr::qt::detail {
 			collect_markdown_images(block, found);
 			// Each Markdown image takes the next unused link written around its source.
 			for (auto index = before; index < found.size(); ++index) {
-				auto& slot = found[index].Slot;
+				auto&      slot   = found[index].Slot;
 				const auto source = slot.Source.toStdString();
 				const auto link   = std::ranges::find(aLinked, source, &core::markdown_linked_image::Source);
 				if (slot.Link.isEmpty() && link != aLinked.end()) {
@@ -368,8 +370,10 @@ namespace bpr::qt::detail {
 			const auto inner   = aRect.adjusted(8.0, 0.0, -8.0, 0.0);
 			const auto shown   = metrics.elidedText(label, Qt::ElideRight, std::max(0.0, inner.width()));
 			const auto tall    = aRect.height() > metrics.height() * 2.5;
-			const auto flags   = static_cast<int>(tall ? Qt::AlignCenter : (Qt::AlignLeft | Qt::AlignVCenter)) | static_cast<int>(Qt::TextSingleLine);
-			aPainter->drawText(inner, flags, shown);
+			const auto flags   = tall ? Qt::AlignCenter : (Qt::AlignLeft | Qt::AlignVCenter);
+			auto       option  = QTextOption{ flags };
+			option.setWrapMode(QTextOption::NoWrap);
+			aPainter->drawText(inner, shown, option);
 		}
 		aPainter->restore();
 	}
@@ -412,7 +416,8 @@ namespace bpr::qt::detail {
 			if (slot.Light.isEmpty() && slot.Dark.isEmpty()) {
 				continue;
 			}
-			const auto chosen = aDark && !slot.Dark.isEmpty() ? slot.Dark : !aDark && !slot.Light.isEmpty() ? slot.Light : slot.Fallback;
+			const auto chosen = aDark && !slot.Dark.isEmpty() ? slot.Dark : !aDark && !slot.Light.isEmpty() ? slot.Light
+																											: slot.Fallback;
 			if (chosen == slot.Source || (slot.State != core::markdown_image_state::loading && slot.State != core::markdown_image_state::loaded)) {
 				continue;
 			}

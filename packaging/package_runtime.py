@@ -26,11 +26,15 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 LINUX_TARGETS = {"DEB": "linux-ubuntu-26.04-x64", "RPM": "linux-rhel-10-x64"}
 QT_LIBRARIES = {"Core", "Gui", "Widgets", "Network", "DBus", "OpenGL", "XcbQpa"}
+# RFC-BPR-0084. GIF and JPEG decode body images; PNG is built into QtGui.
 PLUGINS = {
     "Darwin": ["platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib",
-               "networkinformation/libqapplenetworkinformation.dylib", "tls/libqsecuretransportbackend.dylib"],
-    "Windows": ["platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "tls/qschannelbackend.dll"],
-    "Linux": ["platforms/libqxcb.so", "tls/libqopensslbackend.so"],
+               "networkinformation/libqapplenetworkinformation.dylib", "tls/libqsecuretransportbackend.dylib",
+               "imageformats/libqgif.dylib", "imageformats/libqjpeg.dylib"],
+    "Windows": ["platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "tls/qschannelbackend.dll",
+                "imageformats/qgif.dll", "imageformats/qjpeg.dll"],
+    "Linux": ["platforms/libqxcb.so", "tls/libqopensslbackend.so",
+              "imageformats/libqgif.so", "imageformats/libqjpeg.so"],
 }
 CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(?:_1|_threads)?|concrt140)\.dll", re.I)
 # Declared non-binary runtime files beside the application. [[BPR-0974]]: the

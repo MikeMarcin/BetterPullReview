@@ -4,8 +4,8 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/markdown_image.hpp"
 
-#include <QObject>
 #include <QImage>
+#include <QObject>
 #include <QPixmap>
 #include <QPointer>
 #include <QSizeF>
@@ -37,7 +37,7 @@ namespace bpr::qt::detail {
 	/// \brief One image of the current document.
 	struct markdown_image_slot
 	{
-		std::uint32_t              Ordinal = 0U;
+		std::uint32_t Ordinal = 0U;
 		/// The source as written: the reference the reader sent the host.
 		QString                    Source;
 		QString                    Alt;
@@ -76,7 +76,7 @@ namespace bpr::qt::detail {
 		/// `aLinked` pairs Markdown images with the links Qt's import drops.
 		void place(QTextDocument& aDocument, bool aDark, std::vector<core::markdown_linked_image> aLinked = { });
 		/// \brief Forgets every image.
-		void clear();
+		void               clear();
 		[[nodiscard]] auto images() const noexcept -> const std::vector<markdown_image_slot>&;
 		/// \brief The references still waiting for an answer, as the host takes them.
 		[[nodiscard]] auto waiting() const -> std::vector<core::markdown_image_reference>;

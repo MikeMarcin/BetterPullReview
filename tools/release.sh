@@ -115,6 +115,8 @@ verify_plugin_policy() {
     local bundle="$1"
     local plugins="${bundle}/Contents/PlugIns"
     local allowed=(
+        "imageformats/libqgif.dylib"
+        "imageformats/libqjpeg.dylib"
         "networkinformation/libqapplenetworkinformation.dylib"
         "platforms/libqcocoa.dylib"
         "styles/libqmacstyle.dylib"

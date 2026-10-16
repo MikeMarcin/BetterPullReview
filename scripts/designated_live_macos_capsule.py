@@ -58,6 +58,9 @@ ALLOWED_PLUGIN_FILES = {
     pathlib.PurePosixPath("styles/libqmacstyle.dylib"),
     pathlib.PurePosixPath("tls/libqsecuretransportbackend.dylib"),
     pathlib.PurePosixPath("networkinformation/libqapplenetworkinformation.dylib"),
+    # RFC-BPR-0084. Body images decode GIF and JPEG.
+    pathlib.PurePosixPath("imageformats/libqgif.dylib"),
+    pathlib.PurePosixPath("imageformats/libqjpeg.dylib"),
 }
 MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
 MAXIMUM_IMAGE_BYTES = 16 * 1024 * 1024 * 1024

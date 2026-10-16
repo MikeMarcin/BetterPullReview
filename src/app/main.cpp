@@ -9054,9 +9054,9 @@ auto main(int argc, char** argv) -> int
 				fixtureName            = "markdown-images-v1";
 				expectedActiveHostText = "github.com";
 				fixtureExpectations    = {
-					.Owner                    = "bpr-fixtures",
-					.Repository               = "nested-folders",
-					.Number                   = 21,
+					.Owner                          = "bpr-fixtures",
+					.Repository                     = "nested-folders",
+					.Number                         = 21,
 					.ExpectedTitle                  = "Show the weekly export summary as a card",
 					.ExpectedAccountText            = "fixture-author (@fixture-author)",
 					.ExpectedConversationRows       = 2,

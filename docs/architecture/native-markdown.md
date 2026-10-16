@@ -37,13 +37,14 @@ An empty body has an explicit empty state. A refused rendering budget or an
 unverified whitespace mapping shows the complete original source and an
 explanation. No prefix is silently presented as the complete body.
 
-Images become native text placeholders with alternative text and an explicit
-open-image-link gesture. No image is fetched. The private `markdown_document`
-returns a valid empty byte array from every resource request. Returning an
-invalid variant would permit Qt's document/global resource-provider fallback;
-that is deliberately forbidden. The architecture guard permits only the exact
-unnamed address parameter of this unconditional override. No widget acquires an
-opener, filesystem capability or network capability.
+Images are shown inline under [RFC-BPR-0084](../rfcs/RFC-BPR-0084-inline-markdown-images.md);
+see [Images](#images) below. Qt's own resource loading is never used for them:
+the private `markdown_document` still returns a valid empty byte array from
+every resource request. Returning an invalid variant would permit Qt's
+document/global resource-provider fallback; that is deliberately forbidden. The
+architecture guard permits only the exact unnamed address parameter of this
+unconditional override. No widget acquires an opener, filesystem capability or
+network capability.
 
 All destinations remain untrusted strings. Tab visits link text and shows its
 destination; Enter or a deliberate click emits that string to application
@@ -82,6 +83,50 @@ fall back to source. This limitation is part of acceptance, not a claim of full
 whitespace fidelity in every Markdown construct. Non-list blocks also have
 inherited task markers removed; Qt otherwise carries the last task marker into
 later code/table/paragraph blocks.
+
+## Images
+
+RFC-BPR-0084 shows images the way GitHub does. A reader whose holder gives it
+an image dispatch (`set_image_dispatch`) replaces each image of the imported
+document with one object character drawn by `detail::markdown_image_store`
+(`src/adapters/qt/src/markdown_images.*`): Markdown `![alt](src)` and
+reference images, and GitHub's `<img src alt width height>` in prose, lists,
+quotes and table cells, found by the core's bounded `scan_html_images`. An
+`<a href>` around exactly one image makes it a linked image; a `<picture>`
+whose `<source>`s select only by `prefers-color-scheme` shows the source for the
+reader's palette, and a theme change asks again. Qt's Markdown import drops a
+link written around an image, so `core::markdown_linked_images` pairs each
+`[![alt](src)](link)` in the source with its image. An `<img>` in code stays
+text. Without a dispatch (tour previews, local drafts, dialogs) every image
+stays the text placeholder `[Image: alt — open image link]` and nothing is
+asked for.
+
+The reader sends `{ordinal, source}` references, untrusted text in document
+order; the holder adds its body identity and the window's Markdown context.
+Answers (`application::markdown_image_projection`) carry the body identity,
+ordinal, the source as sent, a state and shared decoded pixels, never an
+address or credential; a reader ignores one that does not name an image of its
+current body. While loading, an image is a quiet rounded box in a tint of the
+palette's text over its base: `width` and `height` reserve its size, otherwise
+it is one line as wide as its alternative text. When pixels arrive the body
+reflows once; an image above the reading position moves the scroll by its
+growth so the text being read stays put, and selections keep their positions.
+Sizing follows GitHub (`core::markdown_image_display_size`): natural pixel size
+in logical pixels, `width`/`height` in pixels or a width percentage of the
+reader, aspect ratio kept, never wider than the text width (a table cell's
+share of it). Frames draw at the screen's device pixel ratio from a cached
+scaled pixmap; an uploaded attachment's corners are rounded by 6 px as on
+GitHub. An animated GIF animates with its delays (a delay of 10 ms or less
+shows for 100 ms, as in browsers) while the reader is visible. A failed,
+blocked, too-large, unsupported (SVG, WebP) or over-limit image is replaced by
+the placeholder text, with the reason in parentheses for the last three.
+
+An image object carries its link (or its own source) as anchor, so Tab, Enter
+and a click reach it through the same untrusted-destination path as links;
+Tab sets the reader's accessible description to the placeholder text and the
+destination. A partial rendered copy writes each image back as Markdown. The
+object type is a `QTextObjectInterface` handler found through `qt_metacast`, so
+the adapter needs no meta-object compiler and no `QUrl`.
 
 ## Bounds and lifecycle
 

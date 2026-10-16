@@ -549,6 +549,26 @@ every blocker without privileged helpers or weakened security.
 ## Network handling
 
 The redirect and system-trust containment below applies to native HTTPS.
+
+RFC-BPR-0084 adds one bounded exception to "validated GitHub origins": body
+images. The owner accepted on 2026-10-16 that images in descriptions and
+comments load automatically, as on GitHub. A fetch goes only to an address
+GitHub's own rendering of that body serves, read through the profile's account
+transport. On GitHub.com that is GitHub's own image hosts (camo for every
+external image, signed `private-user-images` addresses for attachments, and the
+named GitHub content hosts), with redirects only to GitHub's S3 asset buckets,
+never with a credential: the signed address carries the reader's
+authorization, and camo keeps external image hosts from seeing the reader's
+address. On GHES the credential reaches only the profile's exact host and its
+`media.` host, is dropped for good at the first hop elsewhere, and other HTTPS
+image hosts are fetched credential-free; without an image proxy those hosts see
+the reader's address and the time of reading, as a browser's would. Every hop is
+re-admitted by the core (`admit_markdown_image_redirect`), HTTPS on port 443
+only, at most three redirects, 10 MiB, 20 seconds, status 200, no cookie, no
+referrer, identity encoding; the decoder trusts signatures, not labels, and
+reads PNG, JPEG and GIF only within pixel, side, frame and decoded-byte bounds.
+SVG and WebP are not decoded. `tests/scripts/verify_native_https_images.py`
+proves the credential and redirect rules on loopback.
 The explicit CLI profile requests the validated host but delegates actual
 redirect, socket and certificate behavior to configured `gh`, with the
 uncontained risks described above.

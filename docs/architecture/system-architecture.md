@@ -1957,3 +1957,33 @@ restart/freshness behavior and qualification boundaries.
 The core owns bounded selected-connection state, ordering, replacement and stale-result admission. A profile-owned application capability supplies serialized metadata effects; SQLite owns token-free transactional snapshots under the existing private root. The startup effect loads metadata before authentication selection. Composition reconstructs stable transport/account identities above retained allocator counters and shares one validation across windows. The profile-owned remembered connection host keeps logical selections separate from the last committed snapshot; a single writer rebases each admitted operation on that durable revision after a refused write. Successful authenticated selection triggers a prompt save independently of window layout; orderly Quit drains admitted saves. A disabled-reuse row suppresses old device resume. No storage record is an authenticated authority. Accepted-session projections alone may trigger remembering; an invalidation projection cannot reuse the retiring model. Exact-host setup supplies a remembered-revalidation fact to core, which selects authentication before private reading. BPR-1409 integrates these runtime paths; [BPR-1410 qualification](../verification/RFC-BPR-0071.md) covers fresh processes, replacement, retirement and persistence refusal.
 
 A native sign-in begins on a profile that composition mints before the account is known. Once the host's bootstrap `/user` names the account, and before any vault write, core's `adopt_native_connection` decides whether this BPR profile already holds that account's own native identity on the same server: the same host ID, hostname, server, numeric account and login, selected or retired. Composition re-binds the enrollment to that identity when its profile is registered in the running process, and the host restarts the same material there; `/user` must then name the same account. The authority-scoped private state saved under the identity, such as an exact retained comparison, therefore resumes. The snapshot retains up to sixteen retired native identities that another account's native selection displaced. The update check admits a returning identity only exactly as it was retired. A CLI selection or Forget drops the server's retired identities, so a native sign-in that replaces CLI, and every different account, still receive a fresh identity. Startup rebuilds only the selected connection's profile, so after a restart an earlier retired profile is not re-bound and that sign-in keeps a fresh identity ([BPR-1494](../issues/60-done/BPR-1494-a-returning-account-does-not-resume-its-retained-comparison.md)).
+
+## Inline Markdown image allocation (RFC-BPR-0084)
+
+The core decides (`bpr/core/markdown_image.hpp`): which image references of a
+rendered body are admitted, the bounded `<img>`/`<picture>`/`<a>` recognizer,
+how a reference matches the address GitHub's own rendering serves for it (a
+camo `data-canonical-src`, an attachment's UUID, or the exact address), whether
+a fetch and each redirect hop are admitted and may carry the profile's
+credential, the displayed size, the bounds, and the cache identity. The
+application host performs: `markdown_image_window` (one per window read host)
+admits a body's references against the accepted Markdown context, batches the
+bodies a turn asks for into one GraphQL resolution through the GitHub provider
+(`markdown_image_resolution_port`), and loads each served address through the
+profile's `markdown_image_service`, which runs at most four fetches on serial
+image lanes (`markdown_image_fetch_port`), decodes on its own lane
+(`markdown_image_decoder_port`) and keeps a 256 MiB least-recently-used decoded
+cache keyed by host, account and canonical source. A changed scope (window,
+session, identity, account or pull request) cancels earlier work; a body's
+repeated request keeps what it still asks for. The GitHub adapter resolves
+through the exact account transport (`resolve_body_images`, a closed GraphQL
+`nodes` query of `bodyHTML` scoped to the accepted repository and pull request)
+and fetches through native HTTPS: a credential-free media binding per lane and
+profile, or, for a GHES credential origin, the account's own transport on the
+provider's serial lane. The Qt adapter decodes with Qt's PNG reader and the
+shipped `qgif` and `qjpeg` plugins (`qt::markdown_image_decoder`, signature
+chosen, bounds before allocation) and presents through the reader
+([Images](native-markdown.md#images)). Qt never receives an address, signed
+address or credential. Composition builds the lanes, decoder, service and
+dispatch per profile and window; a fixture run serves `markdown-images-v1`'s
+recorded rendering and images and never the network.

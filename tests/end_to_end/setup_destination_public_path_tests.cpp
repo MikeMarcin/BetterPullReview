@@ -1,6 +1,6 @@
+#include "../../src/adapters/qt/src/markdown_images.hpp"
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
-#include "../../src/adapters/qt/src/markdown_images.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -14,9 +14,9 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
-#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_refusal.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -704,8 +704,7 @@ namespace {
 		wait_for([&] { return body->isVisible() && settled(*body); }, "every description image has an answer", [&] {
 			for (const auto& image : body->image_store()->images()) {
 				std::cerr << "image " << image.Ordinal << " " << image.Source.toStdString() << " state=" << static_cast<int>(image.State) << '\n';
-			}
-		});
+			} });
 		const auto& images = body->image_store()->images();
 		expect(images.size() == 9U, "nine description images; the <img> in code is not one");
 		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
