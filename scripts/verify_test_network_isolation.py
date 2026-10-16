@@ -165,6 +165,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # share; both are registered uncontained and pass there.
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
+    # RFC-BPR-0084. The markdown-images course of the same setup-destination
+    # executable, registered uncontained like its siblings; not yet measured
+    # on the Windows station.
+    "application_markdown_images_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private
