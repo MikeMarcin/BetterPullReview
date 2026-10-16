@@ -95,7 +95,8 @@ version-bound source ZIP and source revision provenance. Linux also emits
 for inventory auditing, not a qualified portable install. Unsigned preparation
 is the default. Optional Windows `--signtool`, `--azure-dlib`, `--azure-metadata`
 and `--publisher` must be supplied together: the driver signs first-party
-producer images after building and before CPack inventory generation, verifies
+producer images, including the declared source-built xdiff DLL, after building
+and before CPack inventory generation, verifies
 staged bytes, then signs the MSI before final hashing. Linux `--gpg-key` takes an
 approved full fingerprint; RPM is signed/verified first, then final products and
 metadata receive verified detached signatures. Neither route provisions keys,
@@ -187,6 +188,14 @@ its 16-image Windows audit passes for the recorded unsigned artifact. The map is
 trusted build evidence, not publisher trust or proof of complete CFG call-site
 coverage. That artifact also predates the separate-source disposition: a revised
 native MSI still needs production and qualification.
+
+Current Windows producer inputs also bind the fixed private-library package
+identity to its exact CMake target file. The source-built xdiff DLL requires a
+byte-identical producer, full public/static linker map and the same signing and
+staged-byte receipts as the application/helpers. Reconfigure older builds before
+production; an unknown DLL, a foreign build path or missing map is refused.
+This does not change xdiff's separate LGPL library/source arrangement or establish
+independent package trust.
 
 Uninstalling program files does not purge profiles, credentials, exported user
 files, desktop registry or update-recovery records. Storage & privacy's explicit

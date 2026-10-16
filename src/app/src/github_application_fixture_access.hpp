@@ -94,6 +94,10 @@ namespace bpr::app::detail {
 		/// two pull request comments hold GitHub's image forms, served with
 		/// GitHub's rendering and the images it serves, for judging inline images.
 		markdown_images_v1,
+		/// [[BPR-1543]]. The nested-folders pull request whose description
+		/// and four pull request comments are the GitHub-parity Markdown
+		/// fixtures, for judging comments, line breaks, alerts and footnotes.
+		markdown_parity_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -1575,6 +1579,11 @@ namespace bpr::app::detail {
 		/// wrong modality from any other stall in one run.
 		[[nodiscard]] static auto course_modality_facts(
 			const github_application& aApplication) -> QString;
+		/// \brief Tests exact authority retirement of a retained first-file choice.
+		/// Uses the already-observed core pending state after the public course;
+		/// a foreign invalidation keeps it and its exact authority retires it.
+		[[nodiscard]] static auto verify_pending_first_file_choice_invalidation(
+			github_application& aApplication) -> bool;
 		/// \brief Observes the exact host, tab and displayed-publication identities.
 		[[nodiscard]] static auto epoch_refresh_identity(
 			const github_application& aApplication) -> epoch_refresh_identity_evidence;

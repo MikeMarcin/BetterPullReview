@@ -13,9 +13,11 @@ function(bpr_enable_hardening target)
         # refuses the combination.
         target_link_options("${target}" PRIVATE /guard:cf /INCREMENTAL:NO /DYNAMICBASE /HIGHENTROPYVA /NXCOMPAT)
         get_target_property(target_type "${target}" TYPE)
-        if(target_type STREQUAL "EXECUTABLE")
+        if(target_type STREQUAL "EXECUTABLE" OR target_type STREQUAL "SHARED_LIBRARY")
             # Keep complete public/static link evidence outside the installed payload.
             target_link_options("${target}" PRIVATE /MAP)
+        endif()
+        if(target_type STREQUAL "EXECUTABLE")
             # [[BPR-0974]]. A Release image names its program database, as the
             # Debug image and every Qt DLL beside it do: a CodeView record whose
             # path is the bare file name (/PDBALTPATH), so no build path ships,

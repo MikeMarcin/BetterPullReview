@@ -14760,12 +14760,23 @@ namespace {
 			window.choose_home(false);
 			process_events();
 			expectCurrent();
-			window.show_local_cycle(QStringLiteral("A retained local cycle"));
+			const auto cycleTitle = QStringLiteral("A retained local cycle");
+			const auto cycleBadge = QStringLiteral("  ·  Local cycle");
+			window.show_local_cycle(cycleTitle);
 			accepted.Title           = "Updated behind the local cycle";
 			accepted.MarkdownContext = page_context(4U);
 			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
 			process_events();
-			const auto retainedCycle = window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("A retained local cycle"))
+			// The native title may elide at the platform floor. Its full tooltip
+			// still names this exact cycle, and the visible prefix and badge must
+			// belong to it rather than to the PR updated behind it.
+			const auto caption    = window.identity_label()->text();
+			const auto drawnTitle = caption.endsWith(cycleBadge) ? caption.chopped(cycleBadge.size()) : QString{ };
+			const auto prefix     = drawnTitle.endsWith(QChar{ 0x2026 }) ? drawnTitle.chopped(1) : QString{ };
+			const auto namesCycle = drawnTitle == cycleTitle
+				|| (!prefix.isEmpty() && prefix.size() < cycleTitle.size() && cycleTitle.startsWith(prefix));
+			const auto retainedCycle = window.identity_label()->isVisible() && namesCycle
+				&& window.identity_label()->toolTip() == cycleTitle + cycleBadge
 				&& !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled();
 			if (!retainedCycle) {
 				std::cerr << "local-cycle-republication width=" << window.width()

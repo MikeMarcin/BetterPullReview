@@ -226,6 +226,15 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListIssueComments": "synthetic"},
     },
+    # [[BPR-1543]]. The nested-folders contract with the GitHub-parity
+    # Markdown bodies as its description and pull request comments, written
+    # by scripts/build_markdown_parity_fixture.py.
+    "markdown-parity-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {"ListIssueComments": "synthetic"},
+    },
     # [[BPR-1293]]. Prototype v2's pull request, written by
     # scripts/build_conversations_fixture.py.
     "conversations-v1": {

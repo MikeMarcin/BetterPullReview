@@ -948,8 +948,11 @@ namespace bpr::application {
 				if (stop.stop_requested()) {
 					return stopped();
 				}
-				auto       check    = stop_token_check{ stop };
-				auto       control  = core::diff_compute_control{ .Stop = &check };
+				auto check = stop_token_check{ stop };
+				// [[BPR-1527]]. Leave time to abandon and destroy a stopped
+				// computation inside the host's 10 ms return budget. The generic
+				// engine interval can span many weighted assembly records.
+				auto       control  = core::diff_compute_control{ .Stop = &check, .CheckInterval = 4U * 1024U };
 				auto       matching = abandonable_diff_line_matching{ aMatcher, stop };
 				const auto input    = core::diff_compute_input{
 					.Key        = key,

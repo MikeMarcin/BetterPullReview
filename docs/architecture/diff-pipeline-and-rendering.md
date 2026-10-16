@@ -222,8 +222,10 @@ Cancellation may stop computation or merely suppress publication. Stale rejectio
 `diff_compute_control` (a caller's `diff_compute_stop` predicate and a check
 interval). The engine reads no clock or thread primitive: it counts steps
 (matrix cells, move-detection work, bytes scanned or normalized, weighted
-validation records) and polls the predicate every 64 Ki of them, so a stop is
-honoured within the interval plus the largest single increment.
+validation records) and polls the predicate every configured interval (64 Ki
+steps by default), so a stop is honoured within that interval plus the largest
+single increment. [[BPR-1527]] The diff host selects 4 Ki steps, leaving time for
+abandonment cleanup within its unchanged 10 ms return budget.
 `build_diff_semantic_index` has a stoppable overload too.
 
 [[BPR-1485]] A stop abandons the computation (RFC-BPR-0082, the owner's
@@ -241,9 +243,9 @@ any option other than exact comparison it is given each line already
 normalized as the engine normalizes it, with no xdiff whitespace flag, and the
 engine checks every match against its own line classes. xdiff cannot be
 interrupted, so the host runs it on a thread of its own with its own copy of
-both sides and polls the stop while it waits (every millisecond); a stop
-returns at once and abandons that thread, which runs on detached and whose
-result is discarded. The pairing, intraline and move budgets are unchanged and
+both sides and waits for completion or a stop notification; a stop returns
+at once and abandons that thread, which runs on detached and whose result is
+discarded. The pairing, intraline and move budgets are unchanged and
 may still make an alignment approximate.
 
 ### 3.3 Selected application and Git cache composition

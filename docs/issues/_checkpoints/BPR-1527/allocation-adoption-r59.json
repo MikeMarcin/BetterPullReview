@@ -1,0 +1,12 @@
+{
+  "schema": "bpr.shared-allocation-adoption.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "source_main": "9d805bc35c9b75f469332d3cd142824716882737",
+  "previous_next_id": "BPR-1541",
+  "adopted_next_id": "BPR-1542",
+  "paths": [
+    "docs/issues/NEXT_ID",
+    "docs/issues/_reservations/BPR-1541--BPR-1541--c23556c64e37.json"
+  ],
+  "reason": "Mac-local checkpoint documentation gate refuses old1541counter against shared1542high-water. Adopt exact current-main counter and missing reservation receipt only; no new ID allocation, source integration, policy or Windows access."
+}
