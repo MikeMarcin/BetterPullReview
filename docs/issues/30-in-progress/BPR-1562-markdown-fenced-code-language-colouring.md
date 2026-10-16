@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1562"
 title: "Markdown reader: fenced code coloured by language, as GitHub does"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0036"]
 depends_on: []
 priority: "P2"
