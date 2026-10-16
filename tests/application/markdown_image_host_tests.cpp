@@ -4,7 +4,9 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -77,6 +79,25 @@ namespace {
 		void cancel_resolution(const markdown_image_resolution_request& aRequest) override
 		{
 			Cancelled.push_back(aRequest);
+		}
+	};
+
+	/// The profile's disk, kept across two services as across a restart.
+	struct fake_disk final : markdown_image_disk_cache_port
+	{
+		std::map<std::string, std::string> Stored;
+		int                                Loads = 0;
+
+		[[nodiscard]] auto load(const std::string& aKey, std::stop_token) -> std::optional<std::string> override
+		{
+			++Loads;
+			const auto found = Stored.find(aKey);
+			return found == Stored.end() ? std::nullopt : std::optional<std::string>{ found->second };
+		}
+		auto store(const std::string& aKey, const std::string_view aBytes, std::stop_token) -> bool override
+		{
+			Stored[aKey] = std::string{ aBytes };
+			return true;
 		}
 	};
 
@@ -223,7 +244,8 @@ namespace {
 		fake_fetch                             Fetch;
 		fake_decoder                           Decoder;
 		fake_resolution                        Resolution;
-		markdown_image_service                 Service{ Decision, DecodeLane, &Fetch, &Decoder };
+		markdown_image_disk_cache_port*        Disk = nullptr;
+		markdown_image_service                 Service{ Decision, DecodeLane, &Fetch, &Decoder, core::markdown_image_memory_cache_bytes, Disk };
 		core::markdown_context                 Context{ { core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 3 } }, core::application_session_id{ 4 }, core::github_identity_generation{ 5 }, core::provider_snapshot_id{ 6 }, 7 };
 		std::string                            Scope     = "scope-1";
 		bool                                   Available = true;
@@ -231,7 +253,8 @@ namespace {
 		std::vector<markdown_image_projection> Published;
 		std::unique_ptr<markdown_image_window> Window;
 
-		window_fixture()
+		explicit window_fixture(markdown_image_disk_cache_port* aDisk = nullptr)
+			: Disk{ aDisk }
 		{
 			Window = std::make_unique<markdown_image_window>(
 				Decision, &Service, &Resolution,
@@ -407,6 +430,49 @@ namespace {
 		ghes.resolve(0, { { .Node = "PR_node", .Served = { { .Source = "https://ghe.example/user-attachments/assets/25addea2-357a-42c0-a1c8-fba0163382cc", .Canonical = { } } } } });
 		expect(ghes.Fetch.Calls.size() == 1U && ghes.Fetch.Calls[0].Request.First.Credential && ghes.Fetch.Calls[0].Request.Policy.Hostname == "ghe.example", "a GHES attachment on its own host carries the credential");
 	}
+	void window_restart_from_disk()
+	{
+		fake_disk disk;
+		{
+			window_fixture first{ &disk };
+			first.Window->request(first.intent("", { std::string{ attachment_address }, "https://e.example/bad.png" }));
+			expect(first.Published.empty(), "a disk probe never answers inline");
+			first.settle();
+			expect(disk.Loads == 2 && first.Resolution.Calls.size() == 1U, "two misses go on to one resolution");
+			first.resolve(0, { { .Node = "PR_node", .Served = { { .Source = std::string{ signed_served }, .Canonical = { } }, { .Source = "https://camo.githubusercontent.com/b", .Canonical = "https://e.example/bad.png" } } } });
+			first.Fetch.ok(0);
+			first.Fetch.ok(1, "bad");
+			first.settle();
+			expect(std::ranges::count(first.Published, core::markdown_image_state::loaded, &markdown_image_projection::State) == 1, "the good image loaded");
+			expect(disk.Stored.size() == 1U, "only bytes that decoded are stored");
+			for (const auto& [key, bytes] : disk.Stored) {
+				expect(key.find("jwt") == std::string::npos && key.find("private-user-images") == std::string::npos, "the disk key never holds a signed served address");
+			}
+			first.Window->shutdown();
+			first.Service.shutdown();
+			first.settle();
+		}
+		window_fixture second{ &disk };
+		second.Window->request(second.intent("", { std::string{ attachment_address } }));
+		second.settle();
+		expect(second.Published.size() == 1U && second.Published[0].State == core::markdown_image_state::loaded && second.Published[0].Image != nullptr, "a restarted profile shows the cached image");
+		expect(second.Resolution.Calls.empty() && second.Fetch.Calls.empty(), "and makes no request for it");
+		expect(second.Service.cached_bytes() == 400U, "the disk hit joins the memory cache");
+		second.Published.clear();
+		second.Window->request(second.intent("issue-comment:IC_1", { std::string{ attachment_address } }));
+		expect(second.Published.size() == 1U && second.Published[0].State == core::markdown_image_state::loaded, "after that the memory cache answers at once");
+
+		window_fixture other{ &disk };
+		other.Window->request(other.intent("", { std::string{ attachment_address } }));
+		other.Window->request(other.intent("", { "https://e.example/next.png" }));
+		other.settle();
+		expect(std::ranges::none_of(other.Published, [](const auto& aImage) { return aImage.Ordinal == 0U && aImage.Source == attachment_address && aImage.State == core::markdown_image_state::loaded; }),
+			   "a superseded probe publishes nothing");
+		expect(other.Resolution.Calls.size() == 1U && other.Resolution.Calls[0].Request.Nodes == std::vector<std::string>{ "PR_node" }, "the new reference goes on to resolution");
+		other.Resolution.Calls[0].Complete(markdown_image_resolution_cancelled{ .Request = other.Resolution.Calls[0].Request });
+		other.settle();
+		expect(other.Window->quiescent() && other.Service.quiescent(), "probes settle");
+	}
 } // namespace
 
 int main()
@@ -417,5 +483,6 @@ int main()
 	window_refusals();
 	window_supersession();
 	window_bounds();
+	window_restart_from_disk();
 	return EXIT_SUCCESS;
 }

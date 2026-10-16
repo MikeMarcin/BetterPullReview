@@ -1406,3 +1406,34 @@ bpr_add_network_isolated_test(
     NAME github_markdown_image_resolution
     COMMAND test_better_pull_review_markdown_image_resolution_tests
 )
+
+# RFC-BPR-0084. The live image course's process. CTest runs only its offline
+# request compilation; tests/scripts/markdown_image_live_course.py drives it
+# against MikeMarcin/BPR-Test by hand.
+bpr_add_executable(test_better_pull_review_markdown_image_live_course markdown_image_live_course.cpp)
+target_link_libraries(
+    test_better_pull_review_markdown_image_live_course
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::AdapterQt
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+)
+target_include_directories(
+    test_better_pull_review_markdown_image_live_course
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(test_better_pull_review_markdown_image_live_course)
+bpr_enable_warnings(test_better_pull_review_markdown_image_live_course)
+bpr_add_network_isolated_test(
+    NAME markdown_image_live_course_request
+    COMMAND test_better_pull_review_markdown_image_live_course --resolution-body MikeMarcin BPR-Test 73 PR_kwDOTyvof88AAAABIypVGw
+)
+set_tests_properties(
+    markdown_image_live_course_request
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "query ResolveBodyImages"
+        TIMEOUT 30
+)

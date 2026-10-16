@@ -172,13 +172,32 @@ namespace bpr::application {
 					immediate.push_back(projection(facts, aIntent.Body, admission.Ordinal, written, core::markdown_image_state::over_limit));
 					continue;
 				}
-				Entries.push_back({ .Id = NextId++, .Body = aIntent.Body, .Ordinal = admission.Ordinal, .Source = *admission.Source, .Node = *node, .Ticket = std::nullopt });
-				if (std::ranges::find(Unresolved, *node) == Unresolved.end()) {
-					Unresolved.push_back(*node);
+				auto& item = Entries.emplace_back(entry{ .Id = NextId++, .Body = aIntent.Body, .Ordinal = admission.Ordinal, .Source = *admission.Source, .Node = *node, .Ticket = std::nullopt });
+				// A profile's disk cache answers before any request: a restarted
+				// application shows what it already holds without asking GitHub.
+				if (admission.Source->Kind != core::markdown_image_source_kind::repository_relative && Service->persistent()) {
+					auto       weak = weak_from_this();
+					const auto id   = item.Id;
+					item.Ticket     = Service->probe(core::markdown_image_cache_key(facts.Policy.Hostname, facts.Account, *admission.Source),
+													 [weak, id](std::shared_ptr<const markdown_decoded_image> aImage) {
+													 if (const auto self = weak.lock()) {
+														 self->probed(id, std::move(aImage));
+													 }
+													 });
+					continue;
 				}
+				unresolved(*node);
 			}
 			publish(std::move(immediate));
-			if (!Unresolved.empty() && !FlushPosted) {
+		}
+
+		/// Queues a body for resolution in this turn's flush.
+		void unresolved(const std::string& aNode)
+		{
+			if (std::ranges::find(Unresolved, aNode) == Unresolved.end()) {
+				Unresolved.push_back(aNode);
+			}
+			if (!FlushPosted) {
 				FlushPosted = true;
 				auto weak   = weak_from_this();
 				Decision.post([weak] {
@@ -187,6 +206,28 @@ namespace bpr::application {
 					}
 				});
 			}
+		}
+
+		/// A disk probe's answer: a hit is shown, a miss goes on to resolution.
+		void probed(const std::uint64_t aId, std::shared_ptr<const markdown_decoded_image> aImage)
+		{
+			const auto found = std::ranges::find(Entries, aId, &entry::Id);
+			if (found == Entries.end() || Closed) {
+				return;
+			}
+			const auto facts = current_facts();
+			if (facts.Scope != Scope) {
+				return;
+			}
+			if (aImage != nullptr) {
+				std::vector<markdown_image_projection> results;
+				results.push_back(projection(facts, std::move(found->Body), found->Ordinal, std::move(found->Source.Written), core::markdown_image_state::loaded, std::move(aImage)));
+				Entries.erase(found);
+				publish(std::move(results));
+				return;
+			}
+			found->Ticket.reset();
+			unresolved(found->Node);
 		}
 
 		/// Resolves every body asked for in this turn, in batches.

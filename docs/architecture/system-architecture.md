@@ -1973,7 +1973,13 @@ bodies a turn asks for into one GraphQL resolution through the GitHub provider
 profile's `markdown_image_service`, which runs at most four fetches on serial
 image lanes (`markdown_image_fetch_port`), decodes on its own lane
 (`markdown_image_decoder_port`) and keeps a 256 MiB least-recently-used decoded
-cache keyed by host, account and canonical source. A changed scope (window,
+cache keyed by host, account and canonical source. Bytes that decoded are also
+kept on disk (`markdown_image_disk_cache_port`, the SQLite adapter's
+owner-private `state/v1/markdown-images.sqlite3`): 128 MiB least recently used,
+an entry expiring seven days after its last use, keyed only by a SHA-256 digest
+of the cache identity and removed by profile purge. Before a body is resolved,
+each absolute or attachment reference is looked up there on the decode lane, so
+a restarted application shows a cached image without a request. A changed scope (window,
 session, identity, account or pull request) cancels earlier work; a body's
 repeated request keeps what it still asks for. The GitHub adapter resolves
 through the exact account transport (`resolve_body_images`, a closed GraphQL

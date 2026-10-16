@@ -118,6 +118,7 @@
 #include "tour_owner_service.hpp"
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
+#include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
@@ -3976,8 +3977,10 @@ namespace bpr::app {
 		worker_executor ReviewMutationEffects;
 		/// RFC-BPR-0084. Body images: the decoder outlives the lanes that call
 		/// it; four serial fetch lanes, each with its own media transport, and
-		/// one decode lane; the profile's image service and cache.
+		/// one decode lane; the profile's image service and cache. The disk
+		/// cache is used only on the decode lane, which is joined before it goes.
 		qt::markdown_image_decoder                                          ImageDecoder;
+		std::unique_ptr<application::markdown_image_disk_cache_port>        ImageDisk;
 		worker_executor                                                     ImageDecodeEffects;
 		std::array<worker_executor, core::markdown_image_fetch_concurrency> ImageFetchEffects;
 		std::unique_ptr<application::markdown_image_service>                Images;
@@ -5040,7 +5043,9 @@ namespace bpr::app {
 				}
 				Provider->configure_markdown_images(std::move(lanes), markdown_image_media_factory(adapters::github::detail::make_native_markdown_image_media_factory()));
 			}
-			Images = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder);
+			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
+			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
+																			  core::markdown_image_memory_cache_bytes, ImageDisk.get());
 
 			// RFC-BPR-0017's credential-free read authority, over the same
 			// profiles and the same transport factory. A second provider

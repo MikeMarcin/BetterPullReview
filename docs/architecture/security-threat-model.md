@@ -568,7 +568,10 @@ only, at most three redirects, 10 MiB, 20 seconds, status 200, no cookie, no
 referrer, identity encoding; the decoder trusts signatures, not labels, and
 reads PNG, JPEG and GIF only within pixel, side, frame and decoded-byte bounds.
 SVG and WebP are not decoded. `tests/scripts/verify_native_https_images.py`
-proves the credential and redirect rules on loopback.
+proves the credential and redirect rules on loopback. Images that decoded,
+private attachments included, are kept in the profile's owner-private
+`state/v1/markdown-images.sqlite3` (128 MiB, seven days after last use, keyed by
+a digest, never a served address); profile purge removes it.
 The explicit CLI profile requests the validated host but delegates actual
 redirect, socket and certificate behavior to configured `gh`, with the
 uncontained risks described above.

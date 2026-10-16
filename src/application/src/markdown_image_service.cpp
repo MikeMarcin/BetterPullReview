@@ -4,6 +4,7 @@
 #include <deque>
 #include <list>
 #include <map>
+#include <optional>
 #include <stop_token>
 #include <string_view>
 #include <unordered_map>
@@ -42,11 +43,12 @@ namespace bpr::application {
 		};
 
 		state(decision_executor& aDecision, effect_executor& aDecode, markdown_image_fetch_port* aFetch,
-			  const markdown_image_decoder_port* aDecoder, const std::size_t aCacheBytes)
+			  const markdown_image_decoder_port* aDecoder, const std::size_t aCacheBytes, markdown_image_disk_cache_port* aDisk)
 			: Decision{ aDecision }
 			, Decode{ aDecode }
 			, Fetch{ aFetch }
 			, Decoder{ aDecoder }
+			, Disk{ aDisk }
 			, CacheLimit{ aCacheBytes }
 		{
 		}
@@ -55,17 +57,20 @@ namespace bpr::application {
 		effect_executor&                                                  Decode;
 		markdown_image_fetch_port*                                        Fetch;
 		const markdown_image_decoder_port*                                Decoder;
+		markdown_image_disk_cache_port*                                   Disk;
 		std::size_t                                                       CacheLimit;
 		std::list<cache_entry>                                            Recent;
 		std::unordered_map<std::string, std::list<cache_entry>::iterator> Cache;
 		std::size_t                                                       CacheBytes = 0U;
 		std::unordered_map<std::string, load>                             Loads;
 		std::unordered_map<std::uint64_t, std::string>                    Tickets;
-		std::deque<std::string>                                           Queue;
-		std::size_t                                                       Active     = 0U;
-		std::size_t                                                       Decoding   = 0U;
-		std::uint64_t                                                     NextTicket = 1U;
-		bool                                                              Closed     = false;
+		/// Disk probes still running, by ticket; cancelling one stops it.
+		std::unordered_map<std::uint64_t, std::stop_source> Probes;
+		std::deque<std::string>                             Queue;
+		std::size_t                                         Active     = 0U;
+		std::size_t                                         Decoding   = 0U;
+		std::uint64_t                                       NextTicket = 1U;
+		bool                                                Closed     = false;
 
 		auto cached(const std::string& aKey) -> std::shared_ptr<const markdown_decoded_image>
 		{
@@ -173,12 +178,17 @@ namespace bpr::application {
 			auto        weak    = weak_from_this();
 			auto*       lane    = &Decision;
 			const auto* decoder = Decoder;
+			auto*       disk    = Disk;
 			try {
-				Decode.post([weak, lane, decoder, key = aKey, token = aToken, bytes = std::move(aBytes)]() mutable {
+				Decode.post([weak, lane, decoder, disk, key = aKey, token = aToken, bytes = std::move(aBytes)]() mutable {
 					auto result = std::expected<markdown_decoded_image, core::markdown_image_state>{ std::unexpected{ core::markdown_image_state::failed } };
 					if (!token.stop_requested()) {
 						try {
 							result = decoder->decode(bytes);
+							// Only bytes that decoded are kept; a failed store is a later miss.
+							if (result && disk != nullptr) {
+								static_cast<void>(disk->store(key, bytes, token));
+							}
 						} catch (...) {
 							result = std::unexpected{ core::markdown_image_state::failed };
 						}
@@ -210,11 +220,73 @@ namespace bpr::application {
 			remember(aKey, image);
 			finish(aKey, core::markdown_image_state::loaded, std::move(image));
 		}
+
+		/// Reads one key back from disk and decodes it, on the decode lane.
+		void read_back(const std::uint64_t aTicket, const std::string& aKey, probe_subscriber aSubscriber)
+		{
+			auto&       stop    = Probes.emplace(aTicket, std::stop_source{ }).first->second;
+			auto        weak    = weak_from_this();
+			auto*       lane    = &Decision;
+			const auto* decoder = Decoder;
+			auto*       disk    = Disk;
+			auto        failed  = aSubscriber;
+			++Decoding;
+			try {
+				Decode.post([weak, lane, decoder, disk, aTicket, key = aKey, token = stop.get_token(), subscriber = std::move(aSubscriber)]() mutable {
+					std::optional<markdown_decoded_image> image;
+					if (!token.stop_requested()) {
+						try {
+							if (auto bytes = disk->load(key, token); bytes && !token.stop_requested()) {
+								if (auto decoded = decoder->decode(*bytes)) {
+									image = std::move(*decoded);
+								}
+							}
+						} catch (...) {
+							image.reset();
+						}
+					}
+					lane->post([weak, aTicket, readKey = std::move(key), readSubscriber = std::move(subscriber), readImage = std::move(image)]() mutable {
+						if (const auto self = weak.lock()) {
+							self->read(aTicket, readKey, std::move(readSubscriber), std::move(readImage));
+						}
+					});
+				});
+			} catch (...) {
+				--Decoding;
+				Probes.erase(aTicket);
+				Decision.post([subscriber = std::move(failed)] {
+					if (subscriber) {
+						subscriber(nullptr);
+					}
+				});
+			}
+		}
+
+		void read(const std::uint64_t aTicket, const std::string& aKey, const probe_subscriber& aSubscriber, std::optional<markdown_decoded_image> aImage)
+		{
+			--Decoding;
+			// A cancelled probe has left Probes and delivers nothing.
+			if (Closed || Probes.erase(aTicket) == 0U) {
+				return;
+			}
+			auto image = std::shared_ptr<const markdown_decoded_image>{ };
+			if (aImage) {
+				image = cached(aKey);
+				if (image == nullptr) {
+					image = std::make_shared<const markdown_decoded_image>(std::move(*aImage));
+					remember(aKey, image);
+				}
+			}
+			if (aSubscriber) {
+				aSubscriber(std::move(image));
+			}
+		}
 	};
 
 	markdown_image_service::markdown_image_service(decision_executor& aDecision, effect_executor& aDecode, markdown_image_fetch_port* aFetch,
-												   const markdown_image_decoder_port* aDecoder, const std::size_t aCacheBytes)
-		: State{ std::make_shared<state>(aDecision, aDecode, aFetch, aDecoder, aCacheBytes) }
+												   const markdown_image_decoder_port* aDecoder, const std::size_t aCacheBytes,
+												   markdown_image_disk_cache_port* aDisk)
+		: State{ std::make_shared<state>(aDecision, aDecode, aFetch, aDecoder, aCacheBytes, aDisk) }
 	{
 	}
 
@@ -269,9 +341,39 @@ namespace bpr::application {
 		return ticket;
 	}
 
+	auto markdown_image_service::persistent() const noexcept -> bool
+	{
+		return available() && State->Disk != nullptr;
+	}
+
+	auto markdown_image_service::probe(const std::string& aKey, probe_subscriber aSubscriber) -> std::uint64_t
+	{
+		auto&      lane   = *State;
+		const auto ticket = lane.NextTicket++;
+		auto       hit    = lane.cached(aKey);
+		if (hit != nullptr || !persistent()) {
+			auto weak = std::weak_ptr<state>{ State };
+			lane.Probes.emplace(ticket, std::stop_source{ });
+			lane.Decision.post([weak, ticket, subscriber = std::move(aSubscriber), image = std::move(hit)] {
+				const auto self = weak.lock();
+				if (self && !self->Closed && self->Probes.erase(ticket) != 0U && subscriber) {
+					subscriber(image);
+				}
+			});
+			return ticket;
+		}
+		lane.read_back(ticket, aKey, std::move(aSubscriber));
+		return ticket;
+	}
+
 	void markdown_image_service::cancel(const std::uint64_t aTicket)
 	{
-		auto&      state = *State;
+		auto& state = *State;
+		if (const auto probe = state.Probes.find(aTicket); probe != state.Probes.end()) {
+			probe->second.request_stop();
+			state.Probes.erase(probe);
+			return;
+		}
 		const auto entry = state.Tickets.find(aTicket);
 		if (entry == state.Tickets.end()) {
 			return;
@@ -301,6 +403,10 @@ namespace bpr::application {
 			load.Stop.request_stop();
 		}
 		state.Loads.clear();
+		for (auto& [ticket, stop] : state.Probes) {
+			stop.request_stop();
+		}
+		state.Probes.clear();
 		state.Tickets.clear();
 		state.Queue.clear();
 	}

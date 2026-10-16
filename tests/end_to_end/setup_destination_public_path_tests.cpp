@@ -753,8 +753,40 @@ namespace {
 		cards->open_thread("issue-comment:IC_mi_1");
 		wait_for([&] { return post("Narrow layout") != nullptr && settled(*post("Narrow layout")); }, "the reopened comment's image is answered from the cache");
 		expect(state(*post("Narrow layout"), 0U) == core::markdown_image_state::loaded, "the reopened comment's attachment shows again");
+		const auto first = github_application_fixture_access::evidence(*owner);
+		expect(first.MarkdownImageResolutions >= 1U && first.MarkdownImageFetches >= 10U, "the first run resolved and fetched its images");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images course quiescence");
+		owner.reset();
+
+		// RFC-BPR-0084 AC06. A restart on the same profile shows what decoded
+		// from the disk cache: only the SVG badge, which was never stored, is
+		// fetched again.
+		terminal     = false;
+		auto restart = github_application_fixture_access::start(app::detail::github_public_path_fixture::markdown_images_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && restart && restart->is_quiescent(); }, "markdown-images restart");
+		expect(owner != nullptr, "markdown-images restarted application");
+		auto& again = owner->window();
+		again.resize(1400, 1000);
+		again.show();
+		again.github_connect_action()->trigger();
+		wait_for([&] { return again.github_status_text() == "GitHub account connected." && again.github_open_action()->isEnabled(); }, "markdown-images restart connection");
+		submit(again, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const reread = again.overview_page()->body_view();
+		wait_for([&] { return reread->isVisible() && settled(*reread); }, "every description image has an answer after the restart");
+		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
+			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
+		}
+		expect(state(*reread, 8U) == core::markdown_image_state::unsupported, "the SVG badge is still unsupported");
+		const auto second = github_application_fixture_access::evidence(*owner);
+		expect(second.MarkdownImageFetches == 1U, "after the restart only the never-cached SVG is fetched");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images restart quiescence");
 	}
 
 	// [[BPR-1089]]. The owner's Overview look opens overview-labels-v1: 34

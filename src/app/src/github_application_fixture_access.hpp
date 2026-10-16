@@ -505,12 +505,15 @@ namespace bpr::app::detail {
 		bool        SecretRetained             = false;
 		int         RecordingFailure           = -1;
 		int         AccountReadCount           = 0;
-		int         LastReadOperation          = -1;
-		int         SmartAcquireCount          = 0;
-		int         SmartAcquireRefusalCount   = 0;
-		int         SmartDiscoveryCount        = 0;
-		int         SmartLsRefsCount           = 0;
-		int         SmartFetchCount            = 0;
+		/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
+		std::size_t MarkdownImageResolutions = 0U;
+		std::size_t MarkdownImageFetches     = 0U;
+		int         LastReadOperation        = -1;
+		int         SmartAcquireCount        = 0;
+		int         SmartAcquireRefusalCount = 0;
+		int         SmartDiscoveryCount      = 0;
+		int         SmartLsRefsCount         = 0;
+		int         SmartFetchCount          = 0;
 		std::string BaseOid;
 		std::string HeadOneOid;
 		std::string HeadTwoOid;

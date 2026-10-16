@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -1734,9 +1735,12 @@ namespace bpr::app::detail {
 			// served with the mutation overlay rather than refused.
 			bool                                        RepeatReads = false;
 			std::shared_ptr<std::atomic<std::uint64_t>> RecentAccount;
-			bool                                        DistinctAccount      = false;
-			bool                                        UnboundViewer        = false;
-			std::size_t                                 AccountReadCalls     = 0U;
+			bool                                        DistinctAccount  = false;
+			bool                                        UnboundViewer    = false;
+			std::size_t                                 AccountReadCalls = 0U;
+			/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
+			std::atomic<std::size_t>                    MarkdownImageResolutions{ 0U };
+			std::atomic<std::size_t>                    MarkdownImageFetches{ 0U };
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
 			std::size_t                                 SmartDiscoveryCalls  = 0U;
@@ -2467,6 +2471,7 @@ namespace bpr::app::detail {
 					if (!validate_github_wire_request(State->Profile, aRequest)) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
+					++State->MarkdownImageResolutions;
 					auto body = markdown_images_response(State->Descriptor, aRequest.Wire.Semantic.Nodes);
 					if (!body) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
@@ -4765,9 +4770,11 @@ namespace bpr::app::detail {
 	auto github_public_path_fixture_components::markdown_image_media_factory() const
 		-> adapters::github::detail::github_provider::media_transport_factory
 	{
-		const auto root = markdown_images_root(Implementation->Recording->Descriptor);
-		return [root](const adapters::github::validated_github_host_profile&) -> adapters::github::detail::github_provider::media_performer {
-			return [root](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) -> application::markdown_image_fetch_result {
+		const auto root      = markdown_images_root(Implementation->Recording->Descriptor);
+		auto       recording = Implementation->Recording;
+		return [root, recording](const adapters::github::validated_github_host_profile&) -> adapters::github::detail::github_provider::media_performer {
+			return [root, recording](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) -> application::markdown_image_fetch_result {
+				++recording->MarkdownImageFetches;
 				if (aStop.stop_requested() || !core::admit_markdown_image_fetch(aRequest.First.Address, aRequest.Policy)) {
 					return std::unexpected{ core::markdown_image_state::failed };
 				}
@@ -4849,8 +4856,10 @@ namespace bpr::app::detail {
 			result.RecordingFailure           = Implementation->Recording->RecordingFailure;
 			result.AccountReadCount           = static_cast<int>(
 				Implementation->Recording->AccountReadCalls);
-			result.LastReadOperation = Implementation->Recording->LastReadOperation;
-			result.SmartAcquireCount = static_cast<int>(
+			result.MarkdownImageResolutions = Implementation->Recording->MarkdownImageResolutions.load();
+			result.MarkdownImageFetches     = Implementation->Recording->MarkdownImageFetches.load();
+			result.LastReadOperation        = Implementation->Recording->LastReadOperation;
+			result.SmartAcquireCount        = static_cast<int>(
 				Implementation->Recording->SmartAcquireCalls);
 			result.SmartAcquireRefusalCount = static_cast<int>(
 				Implementation->Recording->SmartAcquireRefusals);

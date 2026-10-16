@@ -139,6 +139,26 @@ namespace bpr::application {
 			-> std::expected<markdown_decoded_image, core::markdown_image_state>
 			= 0;
 	};
+
+	/// \brief RFC-BPR-0084. The profile's encoded image cache on disk.
+	///
+	/// \details Keys are `core::markdown_image_cache_key`s, already isolated by
+	/// host and account; the store keeps only a digest of each. It holds encoded
+	/// bytes that decoded successfully, at most
+	/// `core::markdown_image_disk_cache_bytes` of them, evicts the least
+	/// recently used first and expires an entry
+	/// `core::markdown_image_disk_cache_days` after its last use. Called only on
+	/// the service's decode lane, never on the GUI or decision lane; a failure
+	/// is a miss, never an error the reader sees.
+	class markdown_image_disk_cache_port
+	{
+	public:
+		virtual ~markdown_image_disk_cache_port() = default;
+		/// \brief The bytes stored for `aKey`, marking the entry used; nothing on a miss.
+		[[nodiscard]] virtual auto load(const std::string& aKey, std::stop_token aStop) -> std::optional<std::string> = 0;
+		/// \brief Stores `aBytes` for `aKey`, evicting to stay within the bound.
+		virtual auto store(const std::string& aKey, std::string_view aBytes, std::stop_token aStop) -> bool = 0;
+	};
 } // namespace bpr::application
 
 #endif
