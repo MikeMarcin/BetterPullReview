@@ -147,6 +147,9 @@ namespace bpr::qt {
 			std::pair{ QStringLiteral("&Next file"), QStringLiteral("Ctrl+Alt+Down") },
 			std::pair{ QStringLiteral("Pre&vious change"), QStringLiteral("Alt+Up") },
 			std::pair{ QStringLiteral("Ne&xt change"), QStringLiteral("Alt+Down") },
+			// [[BPR-1532]]. First and Last change, after Next change.
+			std::pair{ QStringLiteral("Fi&rst change"), QStringLiteral("Alt+Shift+Up") },
+			std::pair{ QStringLiteral("Last c&hange"), QStringLiteral("Alt+Shift+Down") },
 		};
 		for (const auto& [name, key] : navigation) {
 			auto* const action = ViewMenu->addAction(name);

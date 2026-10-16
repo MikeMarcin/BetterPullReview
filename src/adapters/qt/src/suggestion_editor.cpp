@@ -782,6 +782,14 @@ namespace bpr::qt {
 				aEvent->accept();
 				return true;
 			}
+			// [[BPR-1532]]. Alt+Shift+Arrow is the box gesture, read-only too,
+			// so a window command on Alt+Shift+Up or Alt+Shift+Down (First and
+			// Last change) never takes it from here.
+			const auto modifiers = key->modifiers();
+			if (arrow_motion(key->key()) && modifiers.testFlag(Qt::AltModifier) && modifiers.testFlag(Qt::ShiftModifier)) {
+				aEvent->accept();
+				return true;
+			}
 		}
 		return QAbstractScrollArea::event(aEvent);
 	}

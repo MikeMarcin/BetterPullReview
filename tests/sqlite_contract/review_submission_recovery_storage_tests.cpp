@@ -157,7 +157,7 @@ namespace {
 				expect(saved.has_value(), "v3 receipt saved");
 			}
 			store.reset();
-			execute_sql(database(root), "DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+			execute_sql(database(root), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 			store = storage(root.Path);
 			expect(store->load(expected.Request.IdempotencyKey).value() == *saved, "v4 migration retains exact whole-review witness or receipt");
 		}
@@ -199,9 +199,76 @@ namespace {
 		const auto          original = record();
 		expect(store->admit(original).has_value(), "v4 summary exists");
 		store.reset();
-		execute_sql(database(root), "DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
+		execute_sql(database(root), "DROP TABLE submission_unknown; DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
 		store = storage(root.Path);
 		expect(store->load(original.Request.IdempotencyKey).value() == original && store->pending_staged()->empty(), "v4 migration preserves existing summary and admits empty staged table");
+	}
+
+	/// [[BPR-1540]]. Why an unresolved attempt is still unknown is kept with
+	/// it, replaced by the next reason, cleared when it resolves, and gone
+	/// with a withdrawn attempt. A v5 journal gains the table.
+	void test_unknown_reason_is_kept_with_the_attempt()
+	{
+		temporary_directory root;
+		auto                store    = storage(root.Path);
+		const auto          expected = record();
+		auto                first    = core::review_submission_unknown_diagnosis{ };
+		first.Reason                 = core::review_submission_unknown_reason::comment_page_too_large;
+		first.PostAnswer             = core::review_submission_post_answer::error_status;
+		first.PostStatusClass        = 5U;
+		first.CommentsExpected       = 3U;
+		first.PagesRead              = 1U;
+		expect(!store->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first), "no reason is kept for an attempt never admitted");
+		expect(store->admit(expected).has_value() && store->mark_possibly_transmitted(expected.Request.IdempotencyKey, expected.RequestFingerprint).has_value(), "the attempt is admitted and possibly sent");
+		auto wrong = expected.RequestFingerprint;
+		wrong[0] ^= 1U;
+		expect(!store->note_unknown(expected.Request.IdempotencyKey, wrong, first), "nor for another fingerprint");
+		auto invalid            = first;
+		invalid.CommentsMatched = 4U;
+		expect(!store->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, invalid), "nor an invalid diagnosis");
+		expect(store->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first).has_value(), "the reason is kept");
+		store.reset();
+		store       = storage(root.Path);
+		auto loaded = store->load(expected.Request.IdempotencyKey);
+		expect(loaded && *loaded && (**loaded).LastUnknown == std::optional{ first }, "the reason survives a restart with the attempt");
+		auto second   = first;
+		second.Reason = core::review_submission_unknown_reason::review_not_listed;
+		expect(store->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, second).has_value(), "a later reason is kept");
+		loaded = store->load(expected.Request.IdempotencyKey);
+		expect(loaded && *loaded && (**loaded).LastUnknown == std::optional{ second }, "and replaces the earlier one");
+		const auto pending = store->pending();
+		expect(pending && pending->size() == 1U && pending->front().LastUnknown == std::optional{ second }, "discovery carries it");
+		store.reset();
+		execute_sql(database(root), "PRAGMA ignore_check_constraints=ON; UPDATE submission_unknown SET reason=99");
+		store = storage(root.Path);
+		expect(!store->load(expected.Request.IdempotencyKey), "a reason outside the set fails closed");
+		store.reset();
+		execute_sql(database(root), "PRAGMA ignore_check_constraints=OFF; UPDATE submission_unknown SET reason=0");
+		store             = storage(root.Path);
+		const auto solved = store->resolve(expected.Request.IdempotencyKey, expected.RequestFingerprint, receipt());
+		loaded            = store->load(expected.Request.IdempotencyKey);
+		expect(solved && !solved->LastUnknown && loaded && *loaded && !(**loaded).LastUnknown, "a resolved attempt is no longer unknown");
+		expect(!store->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first), "and takes no reason");
+		{
+			temporary_directory other;
+			auto                withdrawn = storage(other.Path);
+			expect(withdrawn->admit(expected).has_value() && withdrawn->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first).has_value(), "a prepared attempt takes a reason");
+			expect(withdrawn->withdraw(expected.Request.IdempotencyKey, expected.RequestFingerprint).has_value(), "and is withdrawn with it");
+			const auto again = withdrawn->admit(expected);
+			const auto fresh = withdrawn->load(expected.Request.IdempotencyKey);
+			expect(again && again->Inserted && fresh && *fresh && !(**fresh).LastUnknown, "nothing of the withdrawn attempt's reason is left behind");
+		}
+		{
+			temporary_directory older;
+			auto                migrated = storage(older.Path);
+			expect(migrated->admit(expected).has_value(), "a v5 attempt exists");
+			migrated.reset();
+			execute_sql(database(older), "DROP TABLE submission_unknown; PRAGMA user_version=5; UPDATE recovery_meta SET schema_format=5;");
+			migrated = storage(older.Path);
+			expect(migrated->load(expected.Request.IdempotencyKey).value() == expected
+					   && migrated->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first).has_value(),
+				   "v5 migrates to v6 keeping the attempt and taking reasons");
+		}
 	}
 
 	void test_integrity_and_schema()
@@ -217,7 +284,7 @@ namespace {
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
 			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
-		for (const auto* mutation : { "PRAGMA user_version = 6", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT" }) {
+		for (const auto* mutation : { "PRAGMA user_version = 7", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT", "ALTER TABLE submission_unknown ADD COLUMN detail TEXT" }) {
 			temporary_directory root;
 			auto                store = storage(root.Path);
 			store.reset();
@@ -336,6 +403,7 @@ try {
 	test_version_three_migration_preserves_whole_reviews();
 	test_integrity_and_schema();
 	test_capacity_and_baseline_validation();
+	test_unknown_reason_is_kept_with_the_attempt();
 	std::cout << "review-submission-recovery-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

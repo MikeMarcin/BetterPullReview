@@ -1,0 +1,63 @@
+{
+  "assignment": "BPR-1536",
+  "mandate": "Owner approval 2026-10-15 (relayed by the coordinator): fix Option-R (Compose review) taking over typing ® in a comment box; make it step aside in every text-input widget with the BPR-1531 typing-widget rule, shared; audit every Alt/Option shortcut in the window and menu bar and fix any others that steal typing.",
+  "governing_rfc": "RFC-BPR-0052 (Option-R/Option-C keys); RFC-BPR-0074 editor rule; RFC-BPR-0028",
+  "merge_after": "BPR-1531",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr-alt-a-accept/BetterPullReview",
+  "branch": "bpr-1536-option-keys",
+  "branch_base": "bpr-alt-a-accept a51990fd7985c62d872ade1fb522ef5b93d83d89 (BPR-1531 candidate), merged with main",
+  "product_commit": "53f9a260f",
+  "source_candidate": "c8af0248007a6b66a44da1ab508dfcb57fefaafe",
+  "changed_paths": [
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "tests/adapters_qt/workbench_window_tests.cpp"
+  ],
+  "verification": {
+    "focused": "ctest qt_option_keys_typing, qt_review_state_icon, qt_workbench_focus_order_scale_100, application_review_ledger_composition_contract, application_source_find, application_source_pr_find: pass",
+    "wide": "ctest -R 'qt_workbench|qt_review_state|qt_option|header_source|zoom|key|suggestion|review_cycle|qt_document_tabs|qt_composition': 98 pass; qt_hide_drawers_native_menu_key not run (opens windows on the live desktop)",
+    "negative_controls": {
+      "pre_change_baseline": "with neither the Option claim nor menu lifting, ⌥R, ⌥T, ⌥⇧T, ⌥⇧1, ⌥⇧2, ⌥⇧3, ⌥⇧R, ⌥⇧5 fire from every editor kind and ⌥⇧4 opens the progress menu",
+      "no_option_claim": "fails 'an Option key in a text widget fires nothing: toggleWorkbenchFilesDrawerAction Alt+Shift+1'",
+      "no_menu_lifting": "fails 'while a text widget has the keyboard the native menu bar carries no Option+character key'",
+      "no_imenabled_refresh": "fails 'a reader made editable under focus lifts the menu bar's keys'"
+    },
+    "format": "clang-format 22.1.8 over the three C++ files: clean",
+    "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors over workbench_window.cpp and workbench_window_tests.cpp: pass",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests OK",
+    "build": "dev preset configured with -g0 to fit disk; build tree removed after verification"
+  },
+  "audit_bindings": 18,
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1536-option-keys-v001.ld3sbmrn",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1536-option-keys-v001.ld3sbmrn/launch.py",
+    "source_commit": "c8af0248007a6b66a44da1ab508dfcb57fefaafe",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+    "executable_sha256": "e7d4d52cf09d5c00f5fd18faaa5e693aa45b80caabcc59580640ccb2af338573"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1536-v001-a1MODa",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "6b0c2511ffb1e73c98b891f2543a9094",
+    "event_cursor": 8,
+    "candidates": {
+      "BPR-1536-option-keys-v001": "883a941bfeac305f57f5d2ed7ba4b171c1869ae518ae2c773adbb6e5e1325fd6"
+    },
+    "phase": "decided",
+    "protected": false,
+    "decisions": null,
+    "server_pid": null,
+    "server_port": 65507,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), d0c379b8-f776-4eae-a4c0-966cfacf5761"
+  },
+  "pending": [],
+  "next_action": "None: accepted, merged to main after BPR-1531 and finished Done; server stopped, protection released, frozen root removed.",
+  "merged_tree": {
+    "verification": "15/15 focused and shared window/menu rows pass; clang-format 22.1.8 clean; DOCUMENTATION_OK"
+  }
+}

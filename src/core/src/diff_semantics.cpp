@@ -682,6 +682,30 @@ namespace bpr::core {
 		};
 	}
 
+	auto navigate_outermost_change(const diff_semantic_index&           aIndex,
+								   const std::optional<change_group_id> aCurrent,
+								   const change_navigation_direction    aDirection)
+		-> change_navigation_result
+	{
+		if (!valid_semantic_result(aIndex) || (aDirection != change_navigation_direction::previous && aDirection != change_navigation_direction::next)) {
+			return { };
+		}
+		const auto& groups = aIndex.diff().Alignment.Groups;
+		if (groups.empty()) {
+			return { .Outcome = change_navigation_outcome::no_changes };
+		}
+		const auto first  = aDirection == change_navigation_direction::previous;
+		const auto target = first ? std::size_t{ 0U } : groups.size() - 1U;
+		const auto there  = aCurrent.has_value() && *aCurrent == groups[target].Id;
+		return {
+			.Outcome = !there ? change_navigation_outcome::selected
+				: first       ? change_navigation_outcome::at_start
+							  : change_navigation_outcome::at_end,
+			.Group   = groups[target].Id,
+			.Index   = static_cast<std::uint32_t>(target),
+		};
+	}
+
 	auto navigate_change(const computed_file_diff&            aDiff,
 						 const std::optional<change_group_id> aCurrent,
 						 const change_navigation_direction    aDirection,

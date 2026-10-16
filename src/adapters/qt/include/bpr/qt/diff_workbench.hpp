@@ -417,6 +417,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto navigate_change(
 			core::change_navigation_direction aDirection,
 			core::change_navigation_policy    aPolicy) -> bool;
+		/// \brief [[BPR-1532]]. Applies First change (`previous`) or Last
+		/// change (`next`).
+		///
+		/// \details The core decides the end. An end already selected is kept
+		/// and scrolled back into view, so the gesture always shows that change.
+		/// Returns whether the selection changed.
+		[[nodiscard]] auto navigate_outermost_change(core::change_navigation_direction aDirection) -> bool;
 		[[nodiscard]] auto shared_scrollbar() const noexcept -> QScrollBar*;
 		[[nodiscard]] auto comparison_splitter() const noexcept
 			-> diff_comparison_splitter*;

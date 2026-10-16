@@ -10,11 +10,13 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                        aLease,
 		detail::github_mutation_wire_transport&                       aTransport,
 		detail::live_review_mutation_configuration                    aConfiguration,
-		std::unique_ptr<application::review_submission_recovery_port> aRecovery) noexcept
+		std::unique_ptr<application::review_submission_recovery_port> aRecovery,
+		std::shared_ptr<application::diagnostic_log_port>             aLog) noexcept
 		: Session{ aTransport,
 				   std::move(aConfiguration),
 				   std::move(aLease),
-				   std::move(aRecovery) }
+				   std::move(aRecovery),
+				   std::move(aLog) }
 	{
 	}
 
@@ -34,7 +36,8 @@ namespace bpr::adapters::github {
 		application::review_mutation_transport                        aLease,
 		application::review_mutation_target_binding                   aTarget,
 		application::review_mutation_acting_identity                  aActingIdentity,
-		std::unique_ptr<application::review_submission_recovery_port> aRecovery) noexcept
+		std::unique_ptr<application::review_submission_recovery_port> aRecovery,
+		std::shared_ptr<application::diagnostic_log_port>             aLog) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_submission_provider>,
 			application::review_mutation_failure>
@@ -54,6 +57,7 @@ namespace bpr::adapters::github {
 			*admission->Transport,
 			std::move(admission->Configuration),
 			std::move(aRecovery),
+			std::move(aLog),
 		};
 		if (provider == nullptr) {
 			return std::unexpected(application::review_mutation_failure::unavailable);

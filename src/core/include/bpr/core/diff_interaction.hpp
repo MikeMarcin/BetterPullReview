@@ -30,10 +30,16 @@ namespace bpr::core {
 		auto operator<=>(const select_diff_group_intent&) const = default;
 	};
 
+	/// \brief One change-navigation gesture.
+	///
+	/// \details [[BPR-1532]]. `Reach` distinguishes Previous and Next change
+	/// (`adjacent`, under `Policy`) from First and Last change (`outermost`,
+	/// where `Direction` names the end and `Policy` is not consulted).
 	struct navigate_diff_change_intent
 	{
 		change_navigation_direction Direction = change_navigation_direction::next;
 		change_navigation_policy    Policy    = change_navigation_policy::stop;
+		change_navigation_reach     Reach     = change_navigation_reach::adjacent;
 
 		auto operator<=>(const navigate_diff_change_intent&) const = default;
 	};

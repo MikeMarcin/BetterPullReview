@@ -261,6 +261,17 @@ namespace bpr::core {
 		wrap,
 	};
 
+	/// \brief [[BPR-1532]]. How far one change-navigation gesture reaches.
+	///
+	/// \details `adjacent` is Previous and Next change: the neighbouring
+	/// change, bounded or wrapped by the policy. `outermost` is First and Last
+	/// change: the first change for `previous` and the last for `next`, from
+	/// any selection; the policy does not apply.
+	enum class change_navigation_reach : std::uint8_t {
+		adjacent,
+		outermost,
+	};
+
 	enum class change_navigation_outcome : std::uint8_t {
 		selected,
 		at_start,
@@ -290,6 +301,18 @@ namespace bpr::core {
 									   std::optional<change_group_id> aCurrent,
 									   change_navigation_direction    aDirection,
 									   change_navigation_policy       aPolicy)
+		-> change_navigation_result;
+
+	/// \brief [[BPR-1532]]. The first or the last change of this comparison.
+	///
+	/// \details `previous` reaches the first change group and `next` the last,
+	/// whatever `aCurrent` is. When `aCurrent` already names that group the
+	/// outcome is `at_start` or `at_end` and still carries it, so the caller
+	/// can keep and reveal it. A comparison without changes answers
+	/// `no_changes`; an invalid result or direction fails closed.
+	[[nodiscard]] auto navigate_outermost_change(const diff_semantic_index&     aIndex,
+												 std::optional<change_group_id> aCurrent,
+												 change_navigation_direction    aDirection)
 		-> change_navigation_result;
 
 	/// \brief Navigates from an exact source line in this immutable comparison.

@@ -26,6 +26,7 @@
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -7472,10 +7473,15 @@ namespace {
 		}
 
 		// An ambiguous shortcut overload triggers neither action, so one key
-		// sequence may never be offered twice in one window.
+		// sequence may never be offered twice in one window. [[BPR-1532]]: the
+		// tour outline's reorder keys are First and Last change's, and the
+		// window unbinds those while the outline has focus
+		// (test_change_end_keys_yield), so the two never match at once.
 		auto sequences = QList<QKeySequence>{ };
 		for (auto* const action : window.findChildren<QAction*>()) {
-			if (action->shortcut().isEmpty()) {
+			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
+				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
+			if (action->shortcut().isEmpty() || yieldedTo) {
 				continue;
 			}
 			expect(!sequences.contains(action->shortcut()),
@@ -7656,7 +7662,50 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1531]]. Option-A (Alt+A) as the platform delivers it, with
+	/// the text it types: on macOS the Cocoa plugin offers the A key (virtual
+	/// key 0), Option and "å" to the shortcut map before the text input
+	/// system; elsewhere it is one window-system key press, which Qt offers
+	/// to the map before the focus widget. Returns whether the map took it.
+	auto option_a(qt::workbench_window& aWindow) -> bool
+	{
+		const auto typed = QStringLiteral("å");
+#if defined(__APPLE__)
+		if (QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, Qt::Key_A, Qt::AltModifier, 0U, 0U, 0U, typed)) {
+			QApplication::processEvents();
+			return true;
+		}
+#endif
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, Qt::Key_A, Qt::AltModifier, typed);
+			QApplication::processEvents();
+		}
+		return false;
+	}
+
+	/// \brief [[BPR-1531]]. The letter a label's mnemonic gives: the character
+	/// after its first single '&', upper case, or nothing. Computed here
+	/// because Qt registers mnemonics on Windows and Linux only.
+	[[nodiscard]] auto mnemonic_letter(const QString& aText) -> QChar
+	{
+		for (qsizetype index = 0; index + 1 < aText.size(); ++index) {
+			if (aText[index] == QLatin1Char{ '&' }) {
+				if (aText[index + 1] != QLatin1Char{ '&' }) {
+					return aText[index + 1].toUpper();
+				}
+				++index;
+			}
+		}
+		return QChar{ };
+	}
+
 	/// \brief [[BPR-1515]]. Accept's key reaches the retained action, and never its inverse.
+	///
+	/// \details [[BPR-1531]]. The key is Option-A (Alt+A), replacing
+	/// Command-Shift-A (Ctrl+Shift+A). Option-A types "å", so every widget in
+	/// the window that takes typed text keeps it, including one that begins
+	/// taking text while it has focus.
 	void test_file_accept_shortcut_is_accept_only_and_yields_to_editors()
 	{
 		qt::workbench_window window;
@@ -7669,8 +7718,9 @@ namespace {
 		process_events();
 		auto* const action  = window.accept_action();
 		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto  binding = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
-		const auto  press   = [&] { window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier); };
+		const auto  binding = QKeySequence{ QStringLiteral("Alt+A") };
+		const auto  retired = QKeySequence{ QStringLiteral("Ctrl+Shift+A") };
+		const auto  press   = [&] { return option_a(window); };
 		button->setFocus();
 		press();
 		expect(dispatched.empty() && !action->isEnabled(), "no current material offers no acceptance key");
@@ -7679,10 +7729,17 @@ namespace {
 		window.publish(application::project_file_receipt_actions(receipt));
 		button->setFocus();
 		process_events();
+#if defined(__APPLE__)
+		const auto shown = QStringLiteral("⌥A");
+#else
+		const auto shown = QStringLiteral("Alt+A");
+#endif
 		expect(action->shortcut() == binding && action->shortcutContext() == Qt::WindowShortcut && !action->autoRepeat()
 				   && action->isShortcutVisibleInContextMenu() && window.review_controls_menu()->actions().contains(action)
-				   && button->toolTip().contains(binding.toString(QKeySequence::NativeText)),
-			   "the existing Accept menu item and direct button expose the platform key without key repeat");
+				   && binding.toString(QKeySequence::NativeText) == shown
+				   && button->toolTip().startsWith(QStringLiteral("Accept file (%1)").arg(shown))
+				   && button->accessibleDescription() == button->toolTip(),
+			   "the Accept menu item and direct button name Option-A (Alt+A) without key repeat");
 		for (auto* const other : window.findChildren<QAction*>()) {
 			if (other != action) {
 				expect(!other->shortcuts().contains(binding), "no assembled action collides with Accept file");
@@ -7691,11 +7748,25 @@ namespace {
 		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
 			expect(!shortcut->keys().contains(binding), "no widget shortcut collides with Accept file");
 		}
+		// Windows and Linux bind Alt and a label's mnemonic; none may be A.
+		for (auto* const bar : window.findChildren<QMenuBar*>()) {
+			for (auto* const menu : bar->actions()) {
+				expect(mnemonic_letter(menu->text()) != QLatin1Char{ 'A' }, "no menu title's mnemonic is Alt+A");
+			}
+		}
+		for (auto* const other : window.findChildren<QAbstractButton*>()) {
+			expect(mnemonic_letter(other->text()) != QLatin1Char{ 'A' }, "no button's mnemonic is Alt+A");
+		}
+		for (auto* const label : window.findChildren<QLabel*>()) {
+			expect(label->buddy() == nullptr || mnemonic_letter(label->text()) != QLatin1Char{ 'A' }, "no label's mnemonic is Alt+A");
+		}
 		save_render(window, QStringLiteral("file-accept-shortcut"));
+		window_key(window, Qt::Key_A, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(action->shortcut() != retired && dispatched.empty(), "the replaced Command-Shift-A (Ctrl+Shift+A) no longer accepts");
 		press();
 		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
 				   && !window.review_controls_menu()->isVisible(),
-			   "actual window-system key delivery accepts exactly the current file without a menu");
+			   "Option-A through the window system accepts exactly the current file without a menu");
 		receipt = core::apply(receipt, dispatched.back()).Receipt;
 		window.publish(application::project_file_receipt_actions(receipt));
 		press();
@@ -7717,23 +7788,54 @@ namespace {
 		expect(dispatched.size() == 2U && !action->isEnabled(), "an explicit disabled projection keeps its refusal through key delivery and focus");
 		window.publish(application::project_file_receipt_actions(receipt));
 
-		// All editable fields keep the key, including native menu equivalents.
+		// Every widget that takes typed text keeps Option-A and receives "å".
+		const auto     typed = QStringLiteral("å");
 		QLineEdit      line{ &window };
 		QPlainTextEdit plain{ &window };
 		QTextEdit      rich{ &window };
-		for (auto* const editor : std::array<QWidget*, 3>{ &line, &plain, &rich }) {
+		QComboBox      combo{ &window };
+		combo.setEditable(true);
+		qt::suggestion_editor suggestion{ &window };
+		suggestion.set_read_only(false);
+		const auto textOf = [&](const QWidget* const aEditor) -> QString {
+			if (aEditor == &line) {
+				return line.text();
+			}
+			if (aEditor == &plain) {
+				return plain.toPlainText();
+			}
+			if (aEditor == &rich) {
+				return rich.toPlainText();
+			}
+			if (aEditor == &combo) {
+				return combo.currentText();
+			}
+			return QString::fromStdString(suggestion.text());
+		};
+		for (auto* const editor : std::array<QWidget*, 5>{ &line, &plain, &rich, &combo, &suggestion }) {
 			editor->show();
 			editor->setFocus();
 			process_events();
-			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "editable single and multi-line fields keep Accept's key");
-			press();
-			expect(dispatched.size() == 2U, "typing in a field cannot Accept a file");
+			expect(QApplication::focusWidget() == editor && action->shortcut().isEmpty(), "a widget that takes typed text unbinds Accept's key");
+			expect(!press() && dispatched.size() == 2U && textOf(editor) == typed, "Option-A in a text field types its character and accepts nothing");
 		}
 		line.setText(QStringLiteral("keep text editing"));
 		line.setFocus();
 		process_events();
 		window_key(window, Qt::Key_A, Qt::ControlModifier);
 		expect(line.selectedText() == line.text() && dispatched.size() == 2U, "ordinary Select All keeps its text editing behavior");
+
+		// A reader that becomes an editor in place, as the Review Cycle reader
+		// becomes the suggestion editor, claims the key when it arrives.
+		suggestion.set_text("");
+		suggestion.set_read_only(true);
+		button->setFocus();
+		suggestion.setFocus();
+		process_events();
+		expect(action->shortcut() == binding, "a read-only reader keeps Accept's key");
+		suggestion.set_read_only(false);
+		expect(!press() && dispatched.size() == 2U && suggestion.text() == typed.toStdString(),
+			   "a reader made editable under focus types the character and accepts nothing");
 		button->setFocus();
 		process_events();
 		expect(action->shortcut() == binding, "leaving an editor restores the discoverable Accept key");
@@ -7743,14 +7845,289 @@ namespace {
 		expect(dispatched.size() == 2U, "authority replacement clears the old file's key eligibility");
 		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
 		window.publish(application::project_file_receipt_actions(receipt));
+		// Read-only text, such as a code pane, keeps the key.
+		QPlainTextEdit reading{ &window };
+		reading.setReadOnly(true);
+		reading.setPlainText(QStringLiteral("const int answer = 42;"));
+		reading.show();
+		reading.setFocus();
+		process_events();
 		press();
 		expect(dispatched.size() == 3U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material
-				   && dispatched.back().Kind == core::file_receipt_command_kind::accept,
-			   "the restored key targets only the replacement file and epoch material");
+				   && dispatched.back().Kind == core::file_receipt_command_kind::accept
+				   && reading.toPlainText() == QStringLiteral("const int answer = 42;"),
+			   "from read-only text the restored key accepts only the replacement file and epoch material");
 		window.clear_review_ledger(true);
 		press();
 		expect(dispatched.size() == 3U && !action->isEnabled(), "an unavailable ledger cannot Accept through its key");
 		window.hide();
+	}
+
+	/// \brief [[BPR-1536]]. An Option key as macOS delivers it: the Cocoa
+	/// plugin offers the key, Option and the typed text to the shortcut map
+	/// before the text input system, and a declined offer goes on to the focus
+	/// widget. Returns whether the map took it.
+	auto option_key(qt::workbench_window& aWindow, const QKeyCombination aKey, const QString& aText) -> bool
+	{
+		if (QWindowSystemInterface::handleShortcutEvent(aWindow.windowHandle(), 0UL, static_cast<int>(aKey.key()), aKey.keyboardModifiers(), 0U, 0U, 0U, aText)) {
+			QApplication::processEvents();
+			return true;
+		}
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWindow.windowHandle(), type, static_cast<int>(aKey.key()), aKey.keyboardModifiers(), aText);
+			QApplication::processEvents();
+		}
+		return false;
+	}
+
+	/// \brief [[BPR-1536]]. What an Option key types on a US macOS layout;
+	/// empty for a dead key, which types nothing until the next key.
+	[[nodiscard]] auto us_option_text(const QKeyCombination aKey) -> QString
+	{
+		const auto shifted = aKey.keyboardModifiers().testFlag(Qt::ShiftModifier);
+		switch (aKey.key()) {
+		case Qt::Key_A: return shifted ? QStringLiteral("Å") : QStringLiteral("å");
+		case Qt::Key_C: return shifted ? QStringLiteral("Ç") : QStringLiteral("ç");
+		case Qt::Key_K: return shifted ? QString{ } : QStringLiteral("˚");
+		case Qt::Key_N: return shifted ? QStringLiteral("˜") : QString{ };
+		case Qt::Key_O: return shifted ? QStringLiteral("Ø") : QStringLiteral("ø");
+		case Qt::Key_R: return shifted ? QStringLiteral("‰") : QStringLiteral("®");
+		case Qt::Key_T: return shifted ? QStringLiteral("ˇ") : QStringLiteral("†");
+		case Qt::Key_U: return shifted ? QStringLiteral("¨") : QString{ };
+		case Qt::Key_1: return shifted ? QStringLiteral("⁄") : QStringLiteral("¡");
+		case Qt::Key_2: return shifted ? QStringLiteral("€") : QStringLiteral("™");
+		case Qt::Key_3: return shifted ? QStringLiteral("‹") : QStringLiteral("£");
+		case Qt::Key_4: return shifted ? QStringLiteral("›") : QStringLiteral("¢");
+		case Qt::Key_5: return shifted ? QStringLiteral("ﬁ") : QStringLiteral("∞");
+		default:        return QString{ };
+		}
+	}
+
+	/// \brief [[BPR-1536]]. Every Option+character key in the window: Option,
+	/// alone or with Shift, and a key that types on macOS.
+	[[nodiscard]] auto is_option_character(const QKeySequence& aKey) -> bool
+	{
+		if (aKey.count() != 1) {
+			return false;
+		}
+		const auto modifiers = aKey[0].keyboardModifiers();
+		const auto key       = aKey[0].key();
+		return (modifiers == Qt::AltModifier || modifiers == (Qt::AltModifier | Qt::ShiftModifier)) && key >= Qt::Key_Space && key < Qt::Key_Escape;
+	}
+
+	/// \brief [[BPR-1536]]. The owner, 2026-10-15: Option-R in a comment box
+	/// opened Compose review instead of typing "®". Every Option+character
+	/// window, button and menu-bar key steps aside on macOS while the keyboard
+	/// is in a widget that takes typed text, and works everywhere else.
+	void test_option_keys_step_aside_in_text_input()
+	{
+#if defined(__APPLE__)
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		window.publish(every_primary_command_offered());
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		auto* const compose = window.findChild<QAction*>(QStringLiteral("composeReviewAction"));
+		auto* const button  = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		expect(compose != nullptr && button != nullptr && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") },
+			   "Compose review is Option-R");
+
+		// The audit: every Option+character binding the window holds, each
+		// enabled, each counted if it fires.
+		struct binding
+		{
+			QString              Owner;
+			QKeySequence         Key;
+			std::shared_ptr<int> Fired;
+			QPointer<QObject>    Source;
+		};
+		auto       bindings = std::vector<binding>{ };
+		const auto count    = [&bindings](QObject* const aSource, const QKeySequence& aKey) {
+			bindings.push_back({ .Owner = aSource->objectName(), .Key = aKey, .Fired = std::make_shared<int>(0), .Source = aSource });
+			return bindings.back().Fired;
+		};
+		for (auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& key : action->shortcuts()) {
+				if (is_option_character(key)) {
+					const auto fired = count(action, key);
+					QObject::connect(action, &QAction::triggered, &window, [fired] { ++*fired; });
+				}
+			}
+		}
+		for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+			for (const auto& key : shortcut->keys()) {
+				if (is_option_character(key)) {
+					const auto fired = count(shortcut, key);
+					QObject::connect(shortcut, &QShortcut::activated, &window, [fired] { ++*fired; });
+					QObject::connect(shortcut, &QShortcut::activatedAmbiguously, &window, [fired] { ++*fired; });
+				}
+			}
+		}
+		for (auto* const other : window.findChildren<QAbstractButton*>()) {
+			if (is_option_character(other->shortcut())) {
+				const auto fired = count(other, other->shortcut());
+				QObject::connect(other, &QAbstractButton::pressed, &window, [fired] { ++*fired; });
+			}
+		}
+		// Each binding is offered enabled, as it would be when its command is
+		// available, so a binding's own state cannot hide a steal.
+		const auto enable = [](const binding& aEntry) {
+			if (aEntry.Source != nullptr) {
+				aEntry.Source->setProperty("enabled", true);
+			}
+		};
+		for (const auto& entry : bindings) {
+			std::cout << "option-keys audit: " << entry.Owner.toStdString() << ' ' << entry.Key.toString(QKeySequence::NativeText).toStdString() << '\n';
+		}
+		expect(bindings.size() >= 10U, "the audit finds the window's Option+character keys");
+		const auto fired = [&bindings] {
+			return std::ranges::any_of(bindings, [](const binding& aEntry) { return *aEntry.Fired != 0; });
+		};
+		const auto firedNames = [&bindings] {
+			auto names = std::string{ };
+			for (const auto& entry : bindings) {
+				if (*entry.Fired != 0) {
+					names += entry.Owner.toStdString() + ' ' + entry.Key.toString().toStdString() + "; ";
+				}
+			}
+			return names;
+		};
+		auto* const menuBar        = window.menuBar();
+		const auto  menuOptionKeys = [menuBar] {
+			auto found   = 0;
+			auto pending = menuBar->actions();
+			while (!pending.isEmpty()) {
+				auto* const action = pending.takeLast();
+				if (action->menu() != nullptr) {
+					pending.append(action->menu()->actions());
+					continue;
+				}
+				found += static_cast<int>(std::ranges::count_if(action->shortcuts(), is_option_character));
+			}
+			return found;
+		};
+		const auto menuKeys = menuOptionKeys();
+		expect(menuKeys >= 5, "the menu bar carries Option+character keys");
+
+		// Each kind of widget that takes typed text keeps every Option key.
+		QLineEdit      line{ &window };
+		QPlainTextEdit plain{ &window };
+		QTextEdit      rich{ &window };
+		QComboBox      combo{ &window };
+		combo.setEditable(true);
+		qt::suggestion_editor suggestion{ &window };
+		suggestion.set_read_only(false);
+		const auto textOf = [&](const QWidget* const aEditor) -> QString {
+			if (aEditor == &line) {
+				return line.text();
+			}
+			if (aEditor == &plain) {
+				return plain.toPlainText();
+			}
+			if (aEditor == &rich) {
+				return rich.toPlainText();
+			}
+			if (aEditor == &combo) {
+				return combo.currentText();
+			}
+			return QString::fromStdString(suggestion.text());
+		};
+		const auto clear = [&] {
+			line.clear();
+			plain.clear();
+			rich.clear();
+			combo.setEditText(QString{ });
+			suggestion.set_text("");
+		};
+		for (auto* const editor : std::array<QWidget*, 5>{ &line, &plain, &rich, &combo, &suggestion }) {
+			editor->show();
+			editor->setFocus();
+			process_events();
+			expect(QApplication::focusWidget() == editor && menuOptionKeys() == 0 && compose->shortcut().isEmpty(),
+				   "while a text widget has the keyboard the native menu bar carries no Option+character key");
+			QMetaObject::invokeMethod(window.findChild<QMenu*>(QStringLiteral("commentMenu")), "aboutToShow");
+			expect(window.findChild<QAction*>(QStringLiteral("composeInlineDraftAction"))->toolTip().contains(QStringLiteral("(⌥C)")),
+				   "a tooltip refreshed while typing still names the lifted key");
+			for (const auto& entry : bindings) {
+				clear();
+				enable(entry);
+				const auto typed = us_option_text(entry.Key[0]);
+				expect(!option_key(window, entry.Key[0], typed) && !fired(), ("an Option key in a text widget fires nothing: " + firedNames()).c_str());
+				expect(textOf(editor) == typed, "the text widget receives what the Option key types");
+			}
+		}
+
+		// A widget-scoped key fires from a text field inside its widget: the
+		// comparison control's Option-1 to 3 have its revision fields, the
+		// Overview's Option-K its page. A stand-in scope shows the field keeps
+		// the key and the scope's other widgets still have it.
+		QWidget     scope{ &window };
+		QLineEdit   inside{ &scope };
+		QPushButton beside{ QStringLiteral("Beside"), &scope };
+		beside.move(0, 40);
+		QShortcut scoped{ QKeySequence{ QStringLiteral("Alt+1") }, &scope };
+		scoped.setContext(Qt::WidgetWithChildrenShortcut);
+		auto scopedFired = 0;
+		QObject::connect(&scoped, &QShortcut::activated, &window, [&scopedFired] { ++scopedFired; });
+		scope.setGeometry(0, 0, 200, 80);
+		scope.show();
+		inside.setFocus();
+		process_events();
+		expect(!option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_1 }, QStringLiteral("¡")) && scopedFired == 0 && inside.text() == QStringLiteral("¡"),
+			   "a text field inside a widget-scoped key's widget keeps the key");
+		beside.setFocus();
+		process_events();
+		expect(option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_1 }, QStringLiteral("¡")) && scopedFired == 1,
+			   "the scope's other widgets keep its key");
+		scope.hide();
+
+		// A reader that becomes an editor in place gives up the keys at once.
+		suggestion.set_text("");
+		suggestion.set_read_only(true);
+		button->setFocus();
+		suggestion.setFocus();
+		process_events();
+		expect(menuOptionKeys() == menuKeys && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }, "read-only text keeps the menu bar's keys");
+		suggestion.set_read_only(false);
+		process_events();
+		expect(menuOptionKeys() == 0, "a reader made editable under focus lifts the menu bar's keys");
+		expect(!option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_R }, QStringLiteral("®")) && !fired()
+				   && suggestion.text() == QStringLiteral("®").toStdString(),
+			   "a reader made editable under focus types ® and composes nothing");
+		suggestion.set_read_only(true);
+		process_events();
+		expect(menuOptionKeys() == menuKeys, "the reader again keeps the menu bar's keys");
+
+		// Keys that do not type keep working in an editor's neighbourhood: a
+		// non-character Option key and a Command-Option key are untouched.
+		plain.setFocus();
+		process_events();
+		auto untouched = 0;
+		for (auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& key : action->shortcuts()) {
+				// [[BPR-1535]]. Command-Option-0 is bound to nothing now, so
+				// Next file's Command-Option-Down stands for the Command-Option keys.
+				untouched += key == QKeySequence{ QStringLiteral("Alt+Down") } || key == QKeySequence{ QStringLiteral("Ctrl+Alt+Down") } ? 1 : 0;
+			}
+		}
+		expect(untouched >= 2, "Option-Down and Command-Option-Down keep their bindings while typing");
+
+		// Outside text input Option-R composes, and the menu bar has its keys.
+		button->setFocus();
+		process_events();
+		expect(menuOptionKeys() == menuKeys && compose->shortcut() == QKeySequence{ QStringLiteral("Alt+R") },
+			   "leaving the text widget restores every menu-bar key");
+		compose->setEnabled(true);
+		auto composed = 0;
+		QObject::connect(compose, &QAction::triggered, &window, [&composed] { ++composed; });
+		expect(option_key(window, QKeyCombination{ Qt::AltModifier, Qt::Key_R }, QStringLiteral("®")) && composed == 1,
+			   "outside text input Option-R still opens Compose review");
+		window.hide();
+#endif
 	}
 
 	/// [[BPR-1331]]. The image an icon paints at the review bar's size.
@@ -8240,9 +8617,19 @@ namespace {
 				   && zoomOut->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
 				   && actualSize->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+0") } },
 			   "⌘= and ⌘+ zoom in, ⌘− zooms out and ⌘0 is Actual Size");
-		auto keys = QList<QKeySequence>{ };
+		// [[BPR-1532]]. One pair is shared on purpose: the tour outline's own
+		// reorder keys, widget-scoped, are First and Last change's, and the
+		// window unbinds those while focus is in the outline (checked by
+		// test_change_end_keys_yield). Every other key is bound once.
+		const auto changeEndKeys = QList{ QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
+		auto       keys          = QList<QKeySequence>{ };
 		for (const auto* const action : window.findChildren<QAction*>()) {
+			const auto yieldedTo = action->shortcutContext() == Qt::WidgetWithChildrenShortcut
+				&& (action->objectName() == QStringLiteral("tourMoveUp") || action->objectName() == QStringLiteral("tourMoveDown"));
 			for (const auto& key : action->shortcuts()) {
+				if (yieldedTo && changeEndKeys.contains(key)) {
+					continue;
+				}
 				expect(!keys.contains(key), "no key is bound twice in the assembled window: " + key.toString().toStdString());
 				keys.push_back(key);
 			}
@@ -9848,6 +10235,243 @@ namespace {
 		expect(loads == 1 && returns == 1 && files() == filesBefore + 2,
 			   "Option-Command-Page Down and Page Up load earlier epochs and return to the newest");
 		save_render(window, QStringLiteral("change-keys"));
+		window.hide();
+	}
+
+	/// \brief [[BPR-1532]]. Commands with First and Last change set as given.
+	[[nodiscard]] auto with_change_ends(application::workbench_projection         aProjection,
+										const core::workbench_command_projection& aFirst,
+										const core::workbench_command_projection& aLast) -> application::workbench_projection
+	{
+		aProjection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::first_change)] = aFirst;
+		aProjection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::last_change)]  = aLast;
+		return aProjection;
+	}
+
+	/// \brief [[BPR-1532]]. The owner, 2026-10-15: Option-Shift-Up and
+	/// Option-Shift-Down (Alt+Shift+Up and Alt+Shift+Down) go to the first and
+	/// the last change in the current file.
+	///
+	/// \details Both View menu items, after Next change, with their keys and
+	/// unused mnemonics; the keys from the code send the outermost change
+	/// intent, a disabled command sends nothing, and an end already selected
+	/// is revealed again. The keys yield to every widget that takes typed
+	/// text (a line field, a note, the suggestion editor) and to the tour
+	/// outline's own reorder keys, which still reorder there.
+	void test_change_end_keys_yield()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) { log.Workbench.push_back(aIntent); },
+			[&log](core::navigate_diff_change_intent aIntent) { log.Change.push_back(aIntent); }
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file = core::file_identity_of("src/file.cpp");
+		auto       text = std::string{ };
+		for (auto line = 0U; line < 400U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto changed = text;
+		changed.replace(changed.find("line 4\n"), 7U, "line four\n");
+		changed.replace(changed.find("line 200\n"), 9U, "line two hundred\n");
+		changed.replace(changed.find("line 390\n"), 9U, "line three ninety\n");
+		auto first      = with_change_ends(every_primary_command_offered(), offered(core::workbench_command_id::first_change), offered(core::workbench_command_id::last_change));
+		first.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U } };
+		first.Files     = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" } };
+		window.publish(first);
+		auto* const surface = publish_fixture(window, computed_comparison(text, changed, 0U, file));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		auto* const firstChange = window.first_change_action();
+		auto* const lastChange  = window.last_change_action();
+		const auto  up          = QKeySequence{ QStringLiteral("Alt+Shift+Up") };
+		const auto  down        = QKeySequence{ QStringLiteral("Alt+Shift+Down") };
+
+		// The menu, the keys and their names.
+		const auto view = window.view_menu()->actions();
+		expect(firstChange != nullptr && lastChange != nullptr && firstChange->text() == QStringLiteral("Fi&rst change") && lastChange->text() == QStringLiteral("Last c&hange")
+				   && view.indexOf(firstChange) == view.indexOf(window.next_change_action()) + 1 && view.indexOf(lastChange) == view.indexOf(firstChange) + 1,
+			   "View offers First change and Last change right after Next change");
+		const auto mnemonic = [](const QString& aText) {
+			const auto at = aText.indexOf(QLatin1Char{ '&' });
+			return at >= 0 && at + 1 < aText.size() && aText[at + 1] != QLatin1Char{ '&' } ? aText[at + 1].toLower() : QChar{ };
+		};
+		expect(std::ranges::count_if(view, [&](const QAction* const aAction) { return mnemonic(aAction->text()) == QLatin1Char{ 'r' }; }) == 1
+				   && std::ranges::count_if(view, [&](const QAction* const aAction) { return mnemonic(aAction->text()) == QLatin1Char{ 'h' }; }) == 1,
+			   "their mnemonics R and H are used by nothing else in View");
+		expect(firstChange->shortcuts() == QList{ up } && lastChange->shortcuts() == QList{ down } && firstChange->shortcutContext() == Qt::WindowShortcut,
+			   "Option-Shift-Up is First change and Option-Shift-Down Last change, window-wide");
+		expect(firstChange->isEnabled() && lastChange->isEnabled()
+				   && firstChange->toolTip() == QStringLiteral("First change (%1)").arg(up.toString(QKeySequence::NativeText))
+				   && lastChange->toolTip() == QStringLiteral("Last change (%1)").arg(down.toString(QKeySequence::NativeText)),
+			   "offered, each tooltip names it and its key");
+#if defined(Q_OS_MACOS)
+		expect(firstChange->toolTip() == QStringLiteral("First change (⌥⇧↑)") && lastChange->toolTip() == QStringLiteral("Last change (⌥⇧↓)"),
+			   "on macOS the keys are written as the menus write them");
+#endif
+		// Among Qt's standard keys only an editor's selection to the start and
+		// end of its paragraph (macOS) holds these keys.
+		for (auto standard = 1; standard < 128; ++standard) {
+			const auto key = static_cast<QKeySequence::StandardKey>(standard);
+			for (const auto& binding : QKeySequence::keyBindings(key)) {
+				expect((binding != up && binding != down) || key == QKeySequence::SelectStartOfBlock || key == QKeySequence::SelectEndOfBlock,
+					   "standard key " + std::to_string(standard) + " also holds " + binding.toString(QKeySequence::PortableText).toStdString());
+			}
+		}
+
+		// From the code the keys send the outermost change intent.
+		auto* const code = surface->right_pane();
+		code->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QApplication::focusWidget() == code && firstChange->shortcut() == up, "the code has the keyboard and the keys are bound");
+		const auto workbenchBefore = log.Workbench.size();
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier | Qt::KeypadModifier);
+		const auto outermost = [](const core::navigate_diff_change_intent& aIntent, const core::change_navigation_direction aDirection) {
+			return aIntent.Reach == core::change_navigation_reach::outermost && aIntent.Direction == aDirection;
+		};
+		expect(log.Change.size() == 3U && outermost(log.Change[0], core::change_navigation_direction::next)
+				   && outermost(log.Change[1], core::change_navigation_direction::previous) && outermost(log.Change[2], core::change_navigation_direction::next)
+				   && QApplication::focusWidget() == code && log.Workbench.size() == workbenchBefore,
+			   "Option-Shift-Down, Option-Shift-Up and the keypad-marked Option-Shift-Down in the code are Last, First and Last change");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
+		expect(log.Change.size() == 4U && log.Change.back().Reach == core::change_navigation_reach::adjacent,
+			   "Option-Down is still the adjacent Next change");
+		lastChange->trigger();
+		expect(log.Change.size() == 5U && outermost(log.Change.back(), core::change_navigation_direction::next), "the menu item sends the same gesture");
+
+		// The comparison reaches the end the core decides, and an end already
+		// selected is shown again.
+		const auto& groups = surface->current_result()->Alignment.Groups;
+		expect(groups.size() == 3U, "the comparison has three changes");
+		auto* const bar = surface->shared_scrollbar();
+		expect(surface->navigate_outermost_change(core::change_navigation_direction::next) && surface->selection() && surface->selection()->Group == groups.back().Id,
+			   "Last change selects the last of three changes");
+		bar->setValue(bar->minimum());
+		process_events();
+		const auto top = bar->value();
+		expect(!surface->navigate_outermost_change(core::change_navigation_direction::next) && surface->selection()->Group == groups.back().Id,
+			   "pressed again on the last change, the selection is kept");
+		process_events();
+		expect(bar->value() > top, "and the last change is scrolled back into view");
+		expect(surface->navigate_outermost_change(core::change_navigation_direction::previous) && surface->selection()->Group == groups.front().Id,
+			   "First change selects the first change, not the neighbour of the last");
+
+		// A command the core disables sends nothing and says why.
+		window.publish(with_change_ends(every_primary_command_offered(), refused(core::workbench_command_id::first_change, core::workbench_reason_code::no_changes),
+										refused(core::workbench_command_id::last_change, core::workbench_reason_code::no_changes)));
+		process_events();
+		const auto before = log.Change.size();
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		lastChange->trigger();
+		expect(!firstChange->isEnabled() && !lastChange->isEnabled() && log.Change.size() == before
+				   && !firstChange->statusTip().isEmpty() && firstChange->statusTip() == lastChange->statusTip() && firstChange->toolTip().contains(QLatin1Char{ '\n' }),
+			   "disabled, neither the key nor the menu sends a gesture, and the tooltip names the reason");
+		window.publish(with_change_ends(every_primary_command_offered(), offered(core::workbench_command_id::first_change), offered(core::workbench_command_id::last_change)));
+		process_events();
+
+		// A line field keeps the keys.
+		const auto  gestures = std::pair{ log.Change.size(), log.Workbench.size() };
+		auto* const filter   = window.files_filter();
+		filter->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(filter->isVisible() && QApplication::focusWidget() == filter && firstChange->shortcut().isEmpty() && lastChange->shortcut().isEmpty() && firstChange->isEnabled(),
+			   "in an editable line field the keys are unbound, and the menu items stay");
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && filter->hasFocus(), "there Option-Shift-Up takes no gesture");
+		filter->setReadOnly(true);
+		code->setFocus(Qt::OtherFocusReason);
+		filter->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(firstChange->shortcut() == up, "a read-only field is not typed in, so the keys stay bound there");
+		filter->setReadOnly(false);
+
+		// A note being written keeps them for its own selection.
+		window.ai_tools_action()->setChecked(true);
+		window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+		process_events();
+		window.private_notes()->present({ .Scope = 1U, .Available = true });
+		window.private_notes()->new_review_action()->trigger();
+		process_events();
+		auto* const note = window.private_notes()->body_editor();
+		note->setFocus(Qt::OtherFocusReason);
+		note->setPlainText(QStringLiteral("first line\nsecond line\n\nthird paragraph"));
+		process_events();
+		expect(QApplication::focusWidget() == note && firstChange->shortcut().isEmpty(), "a note being written has the keyboard and the keys are unbound");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && note->hasFocus(), "in a note the keys take no gesture");
+		window.ai_tools_action()->setChecked(false);
+		process_events();
+
+		// The suggestion editor's box gesture is the same keys; it keeps them
+		// written and read-only alike.
+		auto* const suggestion = new qt::suggestion_editor{ window.comparison_surface() };
+		suggestion->setGeometry(0, 0, 400, 120);
+		suggestion->set_text("auto a = 1;\nauto b = 2;\nauto c = 3;\n");
+		suggestion->show();
+		suggestion->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QApplication::focusWidget() == suggestion && firstChange->shortcut().isEmpty(), "the suggestion editor takes text, so the keys are unbound");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		expect(suggestion->model().state().Carets.size() == 2U && log.Change.size() == gestures.first, "Option-Shift-Down there adds a box caret and takes no gesture");
+		suggestion->set_read_only(true);
+		code->setFocus(Qt::OtherFocusReason);
+		suggestion->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(QApplication::focusWidget() == suggestion && firstChange->shortcut() == up, "read-only, it takes no text, so the keys are bound");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		expect(log.Change.size() == gestures.first, "and its own box gesture still claims Option-Shift-Down before the window can");
+		delete suggestion;
+		process_events();
+
+		// The tour outline reorders on the same keys.
+		auto* const editor = window.tour_editor();
+		auto        moves  = std::vector<std::size_t>{ };
+		editor->set_dispatch([&moves](const core::tour_command& aCommand) {
+			if (aCommand.Kind == core::tour_command_kind::move) {
+				moves.push_back(aCommand.Position);
+			} },
+							 [](qt::tour_editor_action) { });
+		auto tour       = tests::review_tour_fixture();
+		auto second     = tour.Stops.front();
+		second.Id       = core::tour_stop_id{ 2 };
+		second.Title    = "How";
+		tour.LastStopId = 2;
+		tour.Stops.push_back(second);
+		application::tour_presentation presentation;
+		presentation.Draft = std::make_shared<const core::review_tour>(tour);
+		editor->present(presentation);
+		window.open_review_tour();
+		editor->show_stops();
+		process_events();
+		auto* const outline = editor->outline();
+		outline->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+		outline->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(outline->isVisible() && outline->count() == 2 && outline->hasFocus() && firstChange->shortcut().isEmpty() && lastChange->shortcut().isEmpty(),
+			   "with the tour outline focused, the window's keys step aside for its own");
+		window_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		expect(moves == std::vector<std::size_t>{ 0U } && log.Change.size() == gestures.first, "Option-Shift-Up on the second stop moves it first and navigates nothing");
+		outline->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
+		window_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		expect(moves == std::vector<std::size_t>{ 0U, 1U } && log.Change.size() == gestures.first, "Option-Shift-Down on the first stop moves it down and navigates nothing");
+		// Negative control: bound in the window as well, the two claims are
+		// ambiguous and neither runs.
+		firstChange->setShortcut(up);
+		outline->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+		window_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		expect(moves.size() == 2U && log.Change.size() == gestures.first, "a window key on the outline's own makes the press reorder nothing");
+		code->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(firstChange->shortcut() == up && lastChange->shortcut() == down, "away from the outline the keys are the window's again");
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
+		expect(log.Change.size() == gestures.first + 1U && outermost(log.Change.back(), core::change_navigation_direction::previous) && moves.size() == 2U,
+			   "and from the code Option-Shift-Up is First change again");
 		window.hide();
 	}
 
@@ -15449,6 +16073,17 @@ auto main(int argc, char** argv) -> int
 		std::cout << "dif-workshop-placement:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--change-end-keys"))) {
+		// [[BPR-1532]]. First and Last change: menus, keys and their yields.
+		test_change_end_keys_yield();
+		std::cout << "change-end-keys:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--option-keys"))) {
+		test_option_keys_step_aside_in_text_input();
+		std::cout << "option-keys:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
 		test_file_accept_is_one_click_and_keeps_projected_eligibility();
 		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
@@ -15634,6 +16269,7 @@ auto main(int argc, char** argv) -> int
 	test_change_arrows_are_bounded_and_always_enabled();
 	test_strip_tooltips_sit_directly_below_their_controls();
 	test_change_keys_are_named_and_yield_in_editors();
+	test_change_end_keys_yield();
 	test_code_zoom_commands_keys_and_collisions();
 	test_home_key_shows_home_from_every_surface();
 	test_defect_queue_navigation_and_semantic_dispatch();

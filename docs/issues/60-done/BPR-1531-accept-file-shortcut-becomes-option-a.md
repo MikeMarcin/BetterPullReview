@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1531"
 title: "Accept file's shortcut becomes Option-A (Alt+A), replacing Command-Shift-A"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-15","owner_note":"Replace the Accept file shortcut Ctrl+Shift+A (Command-Shift-A on macOS) with Alt+A (Option-A on macOS). Replace, not add.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0007","RFC-BPR-0074"],"related_cards":["BPR-1507","BPR-1515"],"reservation":"docs/issues/_reservations/BPR-1531--BPR-1531--c72af4c619ef.json"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"qt_review_state_icon: Option-A delivered as Cocoa does (Key_A, Option, text å, virtual key 0) accepts exactly the current file/material without a menu, also from read-only text; Ctrl+Shift+A dispatches nothing. Control with the old binding fails. application_review_ledger_composition_contract delivers Option-A in the composed app (REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK)."}},{"criterion":"AC2","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"Same test: QLineEdit, QPlainTextEdit, QTextEdit, editable QComboBox and suggestion_editor unbind the key and receive å; a reader made editable under focus types å and accepts nothing. Controls: old guard and missing ShortcutOverride claim each fail."}},{"criterion":"AC3","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"Same test: menu and tooltip show ⌥A (Alt+A elsewhere); no action, QShortcut, menu-title, button or buddy-label mnemonic uses Alt+A; BPR-1515 eligibility and repeat cases unchanged. 97 related tests pass; format, tidy and documentation gates pass."}},{"criterion":"AC4","outcome":"pending","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in session 203673dc69e83ec6df55581a9dc16e5a, candidate BPR-1531-option-a-v001, fingerprint f239492a9a2843c5e6bc4fb08955101078e7f3097128b48974f5d6d0433341f2, cursor 4; frozen root bpr1531-option-a-v001.mcd5e3o5."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"qt_review_state_icon: Option-A delivered as Cocoa does (Key_A, Option, text å, virtual key 0) accepts exactly the current file/material without a menu, also from read-only text; Ctrl+Shift+A dispatches nothing. Control with the old binding fails. application_review_ledger_composition_contract delivers Option-A in the composed app (REVIEW_LEDGER_ACCEPT_SHORTCUT_REPEAT_OK)."}},{"criterion":"AC2","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"Same test: QLineEdit, QPlainTextEdit, QTextEdit, editable QComboBox and suggestion_editor unbind the key and receive å; a reader made editable under focus types å and accepts nothing. Controls: old guard and missing ShortcutOverride claim each fail."}},{"criterion":"AC3","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"command","detail":"Same test: menu and tooltip show ⌥A (Alt+A elsewhere); no action, QShortcut, menu-title, button or buddy-label mnemonic uses Alt+A; BPR-1515 eligibility and repeat cases unchanged. 97 related tests pass; format, tidy and documentation gates pass."}},{"criterion":"AC4","outcome":"pass","revision":"a51990fd7985c62d872ade1fb522ef5b93d83d89","evidence":{"kind":"observation","detail":"Owner Accept, no note, in attended session 203673dc69e83ec6df55581a9dc16e5a, decision 1ad7b8d2-df3b-4be1-a1d1-1590ae78a37e (2026-10-16T01:34:45Z, event 5), on candidate BPR-1531-option-a-v001 fingerprint f239492a, frozen root bpr1531-option-a-v001.mcd5e3o5. Merged tree on main through 32890abb4: 14/14 focused and shared window/menu rows pass."}}]
 ---
 
 # BPR-1531: Accept file's shortcut becomes Option-A (Alt+A), replacing Command-Shift-A
@@ -125,3 +124,27 @@ That is a separate owner decision if it matters.
 
 Next: on hand-back after cursor 4, an Accept merges `bpr-alt-a-accept` into
 main and finishes the card; a Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:45Z: Accept**, no note (decision
+`1ad7b8d2-df3b-4be1-a1d1-1590ae78a37e`, event 5 of session
+`203673dc69e83ec6df55581a9dc16e5a`), on candidate
+`BPR-1531-option-a-v001` at `a51990fd7`, fingerprint `f239492a…`. Event
+cursor consumed: 5.
+
+`main` (through `32890abb4`, with BPR-1528, BPR-1529, BPR-1530 and
+BPR-1534) merged into `bpr-alt-a-accept` at `ee5129876` without conflicts. On
+the merged tree (`dev`, Debug): `qt_review_state_icon`,
+`application_review_ledger_composition_contract`,
+`qt_workbench_focus_order_scale_100`, `architecture_boundaries`,
+`application_accepted_file_in_overview`,
+`application_diff_zoom_public_path`,
+`application_header_source_navigation`,
+`qt_workbench_window_scale_{100,125,200}`, `qt_profile_management_window`,
+`qt_files_tree`, `qt_home_list_scale_100` and `qt_appearance_profile` pass
+14/14; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 57648) was stopped, the candidate's protection
+released and the frozen root removed. BPR-1536 builds on this branch and lands
+after it.

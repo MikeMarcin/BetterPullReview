@@ -97,11 +97,99 @@ namespace {
 			expect(QDir{ }.mkpath(root) && aWindow.grab().save(root + QLatin1Char{ '/' } + aName + QStringLiteral(".png")), "full composed window rendered");
 		}
 	}
+
+	/// [[BPR-1539]]. Opening another pull request from Home, pasted twice as
+	/// the owner did, starts its tabs again. The previous pull request's tab
+	/// named a comparison the core never admits for the next one, so every
+	/// file and change arrow refused its press while the tree still chose files.
+	void run_pull_request_switch_course()
+	{
+		QTemporaryDir temporary{ QDir::tempPath() + QStringLiteral("/bpr-review-navigation-switch-XXXXXX") };
+		const auto    dataRoot = e2e::private_data_root(temporary);
+		expect(dataRoot.has_value(), "private switch course root");
+		auto options                   = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot    = dataRoot;
+		options.IndependentWindowReads = true;
+		options.RepeatReadSessions     = true;
+		std::unique_ptr<app::github_application> application;
+		bool                                     terminal = false;
+		auto                                     startup  = access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup->is_quiescent(); }, "switch course startup terminal");
+		expect(application != nullptr, "switch course composition starts");
+		application->show();
+		auto& window = application->window();
+		window.resize(1280, 860);
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "switch course account connects");
+		const auto paste = [&](const QString& aText) {
+			window.home_open_bar()->setText(aText);
+			window.home_open_action()->trigger();
+		};
+		const auto settled = [&] { return !access::epoch_refresh_identity(*application).TabPending && window.comparison_surface()->current_result() != nullptr; };
+		paste(QStringLiteral("octo-org/review-repository#17"));
+		wait_for([&] { return !window.showing_home() && window.next_file_action()->isEnabled(); }, "first pull request opens");
+		window.next_file_action()->trigger();
+		wait_for([&] { return window.current_modality() == qt::review_modality::review && settled() && !window.document_tabs()->tabs().empty(); }, "first pull request reads a file in a Review tab");
+		const auto first     = access::epoch_refresh_identity(*application);
+		const auto firstFile = first.SelectedFile;
+		expect(first.AcceptedComparison.has_value(), "first pull request has an accepted comparison");
+		const auto firstAuthority = first.AcceptedComparison->Left.Identity.Authority;
+		expect(firstFile.has_value(), "first pull request's file is selected");
+
+		window.choose_home(true);
+		settle();
+		paste(QStringLiteral("octo-org/review-repository#18"));
+		paste(QStringLiteral("octo-org/review-repository#18"));
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return !window.showing_home() && window.next_file_action()->isEnabled() && identity.AcceptedComparison && identity.AcceptedComparison->Left.Identity.Authority != firstAuthority; }, "second pull request opens after a repeated paste");
+		settle();
+		expect(window.document_tabs()->tabs().empty(), "another pull request starts without the previous pull request's tabs");
+
+		window.choose_modality(qt::review_modality::review);
+		settle();
+		window.next_file_action()->trigger();
+		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return settled() && identity.SelectedFile.has_value() && identity.ActiveTab && identity.ActiveTab->View.File == identity.SelectedFile && identity.AcceptedComparison == std::optional{ identity.ActiveTab->View.Comparison } && identity.ActiveTab->State == core::document_tab_view_state::ready; }, "Next file opens the second pull request's first file in its own tab");
+		// The synthetic pull request has one file, so the file arrows state
+		// their bounds; the refused press of the defect stated nothing.
+		const auto secondFile = access::epoch_refresh_identity(*application).SelectedFile;
+		for (const auto& [action, bound] : { std::pair{ window.next_file_action(), QStringLiteral("Last file in this pull request.") }, std::pair{ window.previous_file_action(), QStringLiteral("First file in this pull request.") } }) {
+			window.statusBar()->clearMessage();
+			action->trigger();
+			wait_for([&] { return window.statusBar()->currentMessage() == bound; }, "file arrow states its bound in the second pull request");
+			expect(access::epoch_refresh_identity(*application).SelectedFile == secondFile, "bounded file arrow keeps the file");
+		}
+		auto* surface = window.comparison_surface();
+		expect(surface->current_result() && !surface->current_result()->Alignment.Groups.empty(), "second pull request's file has changes");
+		while (surface->navigate_change(core::change_navigation_direction::previous, core::change_navigation_policy::stop)) { }
+		settle();
+		const auto groups = surface->current_result()->Alignment.Groups.size();
+		const auto start  = group_ordinal(window);
+		window.statusBar()->clearMessage();
+		window.next_change_action()->trigger();
+		if (groups > 1U) {
+			wait_for([&] { return group_ordinal(window) == start + 1U; }, "Next change steps within the second pull request");
+			window.previous_change_action()->trigger();
+			wait_for([&] { return group_ordinal(window) == start; }, "Previous change steps back within the second pull request");
+		} else {
+			wait_for([&] { return window.statusBar()->currentMessage() == QStringLiteral("Last change in this file."); }, "Next change states its bound in the second pull request");
+		}
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "switch course drains all commands");
+		application.reset();
+		expect(e2e::remove_course_root(temporary), "switch course root removed");
+		std::cout << "pull request switch course passed\n"
+				  << std::flush;
+	}
 }
 
 int main(int aArgc, char** aArgv)
 {
-	QApplication  qtApplication{ aArgc, aArgv };
+	QApplication qtApplication{ aArgc, aArgv };
+	run_pull_request_switch_course();
 	const auto    cancellationOnly = QCoreApplication::arguments().contains(QStringLiteral("--cancellation-only"));
 	QTemporaryDir temporary{ QDir::tempPath() + QStringLiteral("/bpr-review-navigation-XXXXXX") };
 	const auto    dataRoot = e2e::private_data_root(temporary);
@@ -347,8 +435,10 @@ int main(int aArgc, char** aArgv)
 	for (const auto command : { 1U, 3U }) {
 		window.choose_modality(qt::review_modality::overview);
 		wait_for([&] { return shown(window, missingFile) && access::epoch_refresh_identity(*application).AcceptedComparison != oldPair; }, "newer Overview can read added file");
+		window.statusBar()->clearMessage();
 		actions[command]->trigger();
 		wait_for([&] { const auto identity = access::epoch_refresh_identity(*application); return identity.ActiveTab && identity.ActiveTab->View.File == missingFile && identity.AcceptedComparison == oldPair && !identity.TabPending && !window.comparison_surface()->current_result() && window.comparison_surface()->status_text() == QStringLiteral("The selected file is absent from both revisions."); }, "unavailable exact Review material refuses retained file/change step without newer fallback");
+		wait_for([&] { return window.statusBar()->currentMessage() == QStringLiteral("This tab's file is unavailable. Choose another file or comparison."); }, "refused navigation press states why it took no step");
 		expect(QApplication::focusWidget() == window.review_bar()->widgetForAction(actions[command]), "unavailable Review focuses originating visible control");
 	}
 	render(window, QStringLiteral("05-unavailable-exact-material"));

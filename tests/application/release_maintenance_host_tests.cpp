@@ -205,6 +205,39 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1540]]. A review submission's reason exports as its closed
+	/// domain, name and counts-only line; anything else in it is omitted.
+	void test_review_submission_reason_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view failure : { "comment_page_too_large", "review_not_listed", "rate_limited", "PRIVATE_CANARY" }) {
+				for (const std::string_view detail : { "review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1",
+													   "review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1 host=PRIVATE_HOST",
+													   "review_submission=PRIVATE_REPOSITORY post=not_sent post_class=0 http_class=0 expected=0 found=0 matched=0 candidates=0 pages=0" }) {
+					auto       line    = structured_line(1U, true);
+					const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+						const auto at = line.find(aFrom);
+						expect(at != std::string::npos, "review submission fixture field exists");
+						line.replace(at, aFrom.size(), aTo);
+					};
+					replace(R"("event":"github.capability.failed")", R"("event":"github.review_submission.failed")");
+					replace(R"("op":"github.capability")", R"("op":"github.review_submission")");
+					replace(R"("http_status":403)", R"("http_status":0)");
+					replace(R"("failure_domain":"none","failure":"none")", R"("failure_domain":"review_submission","failure":")" + std::string{ failure } + "\"");
+					const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+					line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+					const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+					const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+					const bool                                   known    = failure != "PRIVATE_CANARY";
+					const bool                                   exact    = !detail.contains("PRIVATE");
+					expect(document && document->Descriptor.Records == (known ? 1U : 0U), "a review submission record exports only with a closed reason");
+					expect(!known || (document->Bytes.find(detail) != std::string::npos) == exact, "and keeps exactly its counts-only line");
+					expect(document->Bytes.find("PRIVATE_") == std::string::npos, "and nothing private");
+				}
+			}
+		}
+	}
+
 	void test_git_capability_step_export()
 	{
 		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
@@ -418,6 +451,7 @@ auto main() -> int
 {
 	test_parser();
 	test_actor_conflict_export();
+	test_review_submission_reason_export();
 	test_git_capability_step_export();
 	test_git_tool_failure_export();
 	test_rich_export();

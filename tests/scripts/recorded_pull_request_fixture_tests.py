@@ -302,6 +302,14 @@ CONSTRUCTIONS = (
         "Files": 4,
         "Folders": 4,
     },
+    # [[BPR-1537]]. Five files of everyday changed lines, for intraline
+    # emphasis.
+    {
+        "Directory": "intraline-v1",
+        "Generator": "scripts/build_intraline_fixture.py",
+        "Files": 5,
+        "Folders": 5,
+    },
 )
 
 

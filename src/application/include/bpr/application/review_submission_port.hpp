@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_submission_contract.hpp"
 #include "bpr/application/staged_review_publication.hpp"
+#include "bpr/core/review_submission_unknown.hpp"
 
 namespace bpr::application {
 
@@ -19,6 +20,9 @@ namespace bpr::application {
 		std::optional<review_submission_receipt> Receipt;
 		review_mutation_failure                  Failure   = review_mutation_failure::unavailable;
 		bool                                     Duplicate = false;
+		/// [[BPR-1540]]. Why an indeterminate result is unknown, as the host
+		/// established it; none for any other result.
+		std::optional<core::review_submission_unknown_diagnosis> Unknown;
 	};
 
 	/// \brief Executes or reconciles one immutable whole-review attempt.

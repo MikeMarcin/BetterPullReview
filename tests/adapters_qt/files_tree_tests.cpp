@@ -1,6 +1,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
 #include <QApplication>
@@ -797,11 +798,289 @@ namespace {
 		expect(checked >= 3, "top-level and nested drawer folders were checked");
 	}
 
+	/// \brief [[BPR-1529]]. Ink pixels of a logical area of a grab.
+	[[nodiscard]] auto ink_in(const QImage& aImage, const QRect& aLogical, const QColor& aColour) -> int
+	{
+		const auto ratio = aImage.devicePixelRatio();
+		const auto area  = QRect{ QPoint{ static_cast<int>(aLogical.left() * ratio), static_cast<int>(aLogical.top() * ratio) },
+								  QPoint{ static_cast<int>(((aLogical.right() + 1) * ratio) - 1), static_cast<int>(((aLogical.bottom() + 1) * ratio) - 1) } }
+							   .intersected(aImage.rect());
+		return pixels(aImage, area, aColour);
+	}
+
+	/// \brief [[BPR-1529]]. The owner, 2026-10-15: "For the file tree in
+	/// review can we draw folders different to files, maybe the same color as
+	/// they are in overview". Under one appearance profile, in every variant,
+	/// the drawer's folder names and Overview's folder paths are drawn in the
+	/// same ink, the palette's `PlaceholderText`, and neither in the ordinary
+	/// `Text` the drawer's file names keep.
+	void test_folders_take_overviews_folder_ink()
+	{
+		const auto          paths = std::vector<std::string>{ "docs/api/reference.md", "docs/guide.md", "src/engine/renderer.cpp", "src/main.cpp", "README.md" };
+		qt::files_tree_view view;
+		view.resize(360, 300);
+		auto rows = std::vector<qt::workbench_drawer_row>{ };
+		for (const auto& path : paths) {
+			rows.push_back(file(path));
+		}
+		view.apply(rows);
+
+		auto projected           = application::pull_request_overview_projection{ };
+		projected.Owner          = "MikeMarcin";
+		projected.RepositoryName = "BPR-Test";
+		projected.Number         = core::pull_request_number{ 1U };
+		projected.Title          = "Folders";
+		for (const auto& path : paths) {
+			const auto slash = path.rfind('/');
+			projected.Files.push_back(application::overview_file_row{
+				.Path      = path,
+				.Folder    = slash == std::string::npos ? std::string{ } : path.substr(0U, slash),
+				.Name      = slash == std::string::npos ? path : path.substr(slash + 1U),
+				.Operation = application::overview_file_operation::modified,
+				.Additions = 1U,
+			});
+		}
+		projected.Progress.FilesTotal = projected.Files.size();
+		qt::pull_request_overview_page page;
+		page.resize(1100, 640);
+		page.present(projected);
+		view.show();
+		page.show();
+		QApplication::processEvents();
+
+		auto* const tree     = view.tree_model();
+		auto* const overview = page.file_model();
+		auto* const files    = page.files_view();
+		auto        bold     = view.font();
+		bold.setWeight(QFont::DemiBold);
+		auto checked = 0;
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark,
+								 core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(view);
+			view.adopt_appearance(profile);
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			view.expandAll();
+			view.clearSelection();
+			view.setCurrentIndex({ });
+			files->clearSelection();
+			files->setCurrentIndex({ });
+			QApplication::processEvents();
+			const auto folderInk = view.palette().color(QPalette::Active, QPalette::PlaceholderText);
+			const auto fileInk   = view.palette().color(QPalette::Active, QPalette::Text);
+			expect(files->palette().color(QPalette::Active, QPalette::PlaceholderText) == folderInk,
+				   "Overview and the drawer read one folder ink under one profile");
+			expect(std::abs(folderInk.red() - fileInk.red()) + std::abs(folderInk.green() - fileInk.green()) + std::abs(folderInk.blue() - fileInk.blue()) >= 96,
+				   "the folder ink is far enough from the file ink to tell apart");
+
+			const auto drawer = view.viewport()->grab().toImage();
+			const auto name   = [&](const QModelIndex& aIndex, const QFont& aFont) {
+				const auto rect = view.visualRect(aIndex);
+				return QRect{ rect.left() + 4, rect.top(), QFontMetrics{ aFont }.horizontalAdvance(aIndex.data().toString()), rect.height() };
+			};
+			for (auto row = 0; row < tree->rowCount(); ++row) {
+				const auto index = tree->index(row, 0);
+				if (index.data(qt::files_tree_model::folder_role).toBool()) {
+					const auto area = name(index, bold);
+					expect(ink_in(drawer, area, folderInk) > 8, "a drawer folder's name is drawn in Overview's folder ink");
+					expect(ink_in(drawer, area, fileInk) == 0, "a drawer folder's name is not drawn in the file ink");
+					++checked;
+				}
+			}
+			const auto readme = tree->index_for_file(core::file_identity_of("README.md"));
+			auto       nameAt = view.visualRect(readme);
+			nameAt.setLeft(nameAt.left() + 4 + qt::files_tree_delegate::name_inset);
+			nameAt.setWidth(QFontMetrics{ view.font() }.horizontalAdvance(readme.data().toString()));
+			expect(ink_in(drawer, nameAt, fileInk) > 8, "a drawer file's name keeps the ordinary text ink");
+
+			const auto overviewImage = files->viewport()->grab().toImage();
+			auto       overviewRows  = 0;
+			for (auto row = 0; row < overview->rowCount(); ++row) {
+				const auto folder = overview->index(row, qt::overview_file_model::operation_column);
+				if (!folder.data(qt::overview_file_model::folder_role).toBool()) {
+					continue;
+				}
+				const auto cell = files->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
+				expect(ink_in(overviewImage, cell, folderInk) > 8 && ink_in(overviewImage, cell, fileInk) == 0,
+					   "Overview's folder path is drawn in the same folder ink");
+				++overviewRows;
+			}
+			expect(overviewRows == 5, "Overview's five folder rows, the root's \"/\" among them, were checked");
+			if (const auto root = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT"); !root.isEmpty()) {
+				expect(view.grab().save(root + QStringLiteral("/folders-drawer-%1.png").arg(static_cast<int>(mode))), "capture the drawer's folders");
+				expect(files->grab().save(root + QStringLiteral("/folders-overview-%1.png").arg(static_cast<int>(mode))), "capture Overview's folders");
+			}
+		}
+		expect(checked == 4 * 2, "both top-level drawer folders were checked in all four variants");
+	}
+
+	/// \brief [[BPR-1530]]. The owner, 2026-10-15: "I think the file count on
+	/// folders in the file tree explorer is a bit too noisy. Lets hide that
+	/// and only show it when the folder is collapsed." A folder row draws its
+	/// count only while collapsed, and follows every way of opening and
+	/// closing it; its accessible text keeps the count throughout.
+	void test_folder_counts_show_only_while_collapsed()
+	{
+		qt::files_tree_view view;
+		view.resize(360, 300);
+		view.apply({ file("docs/api/reference.md"), file("docs/guide.md"), file("src/main.cpp"), file("README.md") });
+		view.show();
+		QApplication::processEvents();
+		auto* const model = view.tree_model();
+		const auto  docs  = model->index(0, 0);
+		const auto  src   = model->index(1, 0);
+		expect(docs.data().toString() == QStringLiteral("docs") && src.data().toString() == QStringLiteral("src"), "the two top folders lead the tree");
+		auto small = view.font();
+		small.setPointSizeF(small.pointSizeF() * 0.85);
+		// Any ink in the slot at the row's right edge where a count is drawn.
+		const auto counted = [&](const QModelIndex& aFolder) {
+			QApplication::processEvents();
+			const auto image  = view.viewport()->grab().toImage();
+			const auto rect   = view.visualRect(aFolder);
+			const auto width  = QFontMetrics{ small }.horizontalAdvance(aFolder.data(qt::files_tree_model::file_count_role).toString());
+			const auto ratio  = image.devicePixelRatio();
+			const auto ground = view.palette().color(QPalette::Base);
+			for (auto y = static_cast<int>((rect.top() + 1) * ratio); y < static_cast<int>((rect.bottom() - 1) * ratio); ++y) {
+				for (auto x = static_cast<int>((rect.right() - 4 - width - 1) * ratio); x < static_cast<int>((rect.right() - 3) * ratio); ++x) {
+					const auto pixel = image.pixelColor(x, y);
+					if (std::abs(pixel.red() - ground.red()) + std::abs(pixel.green() - ground.green()) + std::abs(pixel.blue() - ground.blue()) > 60) {
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+		const auto accessible = [&](const QModelIndex& aFolder) {
+			return aFolder.data(Qt::AccessibleTextRole).toString().endsWith(QStringLiteral(", %1 files").arg(aFolder.data(qt::files_tree_model::file_count_role).toULongLong()));
+		};
+		const auto press = [&](const QModelIndex& aFolder, const Qt::Key aKey) {
+			view.setCurrentIndex(aFolder);
+			QKeyEvent event{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(&view, &event);
+		};
+		expect(view.isExpanded(docs) && view.isExpanded(src), "new folders start open");
+		expect(!counted(docs) && !counted(src), "an open folder draws no count");
+		expect(accessible(docs) && accessible(src), "an open folder's accessible text keeps its count");
+
+		view.collapseAll();
+		expect(counted(docs) && counted(src), "collapse-all brings every folder's count back");
+		expect(accessible(docs), "a closed folder's accessible text keeps its count");
+		view.expandAll();
+		expect(!counted(docs) && !counted(src), "expand-all hides every count");
+
+		click_row(view, docs, true);
+		expect(!view.isExpanded(docs) && counted(docs) && !counted(src), "closing a folder by mouse shows its count and no other's");
+		click_row(view, docs, true);
+		expect(view.isExpanded(docs) && !counted(docs), "opening it by mouse hides the count again");
+
+		press(src, Qt::Key_Left);
+		expect(!view.isExpanded(src) && counted(src), "Left closes a folder and shows its count");
+		press(src, Qt::Key_Right);
+		expect(view.isExpanded(src) && !counted(src), "Right opens a folder and hides its count");
+		press(src, Qt::Key_Space);
+		expect(!view.isExpanded(src) && counted(src), "Space toggles a folder closed and shows its count");
+		press(src, Qt::Key_Space);
+		expect(view.isExpanded(src) && !counted(src), "Space toggles it open and hides its count");
+		if (const auto root = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT"); !root.isEmpty()) {
+			view.clearSelection();
+			view.setCurrentIndex({ });
+			expect(view.grab().save(root + QStringLiteral("/counts-expanded.png")), "capture open folders");
+			view.collapseAll();
+			QApplication::processEvents();
+			expect(view.grab().save(root + QStringLiteral("/counts-collapsed.png")), "capture closed folders");
+		}
+	}
+
+	/// \brief [[BPR-1529]] and [[BPR-1530]]. Offscreen renders for the
+	/// owner's look: the nested-folders pull request's drawer, open and partly
+	/// closed, and its Overview files, in Light and Dark.
+	void render_folder_looks(const QString& aRoot)
+	{
+		const auto paths = std::vector<std::string>{
+			"README.md", "docs/api/reference.md", "docs/api/v2/endpoints.md", "docs/guide.md", "src/engine/renderer.cpp",
+			"src/engine/renderer.h", "src/engine/shaders/basic.frag", "src/engine/shaders/basic.vert",
+			"src/engine/shaders/post/bloom.frag", "src/engine/shaders/post/tonemap.frag", "src/main.cpp",
+			"src/ui/widgets/button.cpp", "src/ui/widgets/button.h", "src/ui/widgets/slider.cpp",
+			"tests/engine/renderer_tests.cpp", "tests/ui/widgets/button_tests.cpp", "tools/build/scripts/package.py"
+		};
+		auto rows                = std::vector<qt::workbench_drawer_row>{ };
+		auto overviews           = std::vector<application::overview_file_row>{ };
+		auto projected           = application::pull_request_overview_projection{ };
+		projected.Owner          = "MikeMarcin";
+		projected.RepositoryName = "BPR-Test";
+		projected.Number         = core::pull_request_number{ 1U };
+		projected.Title          = "Nested folders";
+		for (const auto& path : paths) {
+			rows.push_back(file(path));
+			const auto slash = path.rfind('/');
+			auto       row   = overview(path, 4U, path.ends_with(".h") ? 0U : 1U, application::overview_change_since_review::unchanged, core::file_read_state::unread, std::nullopt);
+			row.Folder       = slash == std::string::npos ? std::string{ } : path.substr(0U, slash);
+			row.Mark         = core::file_progress_mark::unread;
+			overviews.push_back(row);
+			projected.Files.push_back(row);
+		}
+		projected.Progress.FilesTotal = projected.Files.size();
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			qt::files_tree_view inks;
+			profile.apply_to(inks);
+			const auto& palette = inks.palette();
+			std::cout << "inks mode=" << static_cast<int>(mode) << " text=" << palette.color(QPalette::Text).name().toStdString()
+					  << " folder=" << palette.color(QPalette::PlaceholderText).name().toStdString()
+					  << " base=" << palette.color(QPalette::Base).name().toStdString() << '\n';
+		}
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			qt::files_tree_view view;
+			view.resize(300, 470);
+			view.apply(rows);
+			view.apply_overview(overviews);
+			profile.apply_to(view);
+			view.adopt_appearance(profile);
+			view.show();
+			view.expandAll();
+			view.select_file(core::file_identity_of("src/engine/renderer.cpp"));
+			QApplication::processEvents();
+			expect(view.grab().save(aRoot + QStringLiteral("/drawer-open-%1.png").arg(name)), "render the open drawer");
+			auto* const model = view.tree_model();
+			for (auto row = 0; row < model->rowCount(); ++row) {
+				const auto top = model->index(row, 0);
+				if (top.data(qt::files_tree_model::folder_role).toBool() && top.data().toString() != QStringLiteral("src")) {
+					view.collapse(top);
+				}
+			}
+			view.collapse(model->parent(model->index_for_file(core::file_identity_of("src/ui/widgets/button.cpp"))));
+			QApplication::processEvents();
+			expect(view.grab().save(aRoot + QStringLiteral("/drawer-mixed-%1.png").arg(name)), "render the partly closed drawer");
+
+			qt::pull_request_overview_page page;
+			page.resize(900, 560);
+			page.present(projected);
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			page.show();
+			page.files_view()->clearSelection();
+			page.files_view()->setCurrentIndex({ });
+			QApplication::processEvents();
+			expect(page.files_view()->grab().save(aRoot + QStringLiteral("/overview-files-%1.png").arg(name)), "render Overview's files");
+		}
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	// [[BPR-1529]] and [[BPR-1530]]. Renders for the owner's look; no checks.
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-looks") {
+		render_folder_looks(QString::fromLocal8Bit(argv[2]));
+		std::cout << "files-tree-render-looks:done\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1363]]. The 125% and 200% rows run the folder rows at their scale.
 	if (argc > 1 && std::string_view{ argv[1] } == "--folder-rows") {
 		test_folder_disclosure_never_moves_the_column();
@@ -822,6 +1101,8 @@ auto main(int argc, char** argv) -> int
 	test_folders_are_nonselectable_across_gestures_and_rebuilds();
 	test_operation_colours_and_accessible_names();
 	test_file_marks_are_the_review_bar_family();
+	test_folders_take_overviews_folder_ink();
+	test_folder_counts_show_only_while_collapsed();
 	std::cout << "files-tree-tests:pass\n";
 	return EXIT_SUCCESS;
 }

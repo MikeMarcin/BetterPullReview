@@ -214,10 +214,16 @@ the selected exact file material and becomes **Revoke acceptance** after the
 saved receipt arrives. It is disabled while no comparison is selected, private
 progress is unavailable, or the file is excluded. The adjacent state menu keeps
 Seen, Read, acceptance and exclusion actions; use Include there before accepting
-an excluded file. **Command+Shift+A** on macOS (**Ctrl+Shift+A** elsewhere)
-accepts the current file without opening the menu ([[BPR-1515]]). The menu and
-Accept tooltip show the key. It works outside editable text fields and never
-revokes an accepted file; use Revoke acceptance explicitly. Opening or seeing
+an excluded file. **Option-A** on macOS (**Alt+A** elsewhere) accepts the
+current file without opening the menu ([[BPR-1515]]; the owner replaced
+Command-Shift-A with it on 2026-10-15, [[BPR-1531]]). The menu and Accept
+tooltip show the key. It works outside text input and never revokes an
+accepted file; use Revoke acceptance explicitly. Wherever the reviewer can
+type (a field, a comment, reply or note editor, an editable list, the Review
+Cycle suggestion editor) the key is the editor's, so Option-A still types
+`å` there. On macOS the key is the one labelled A in the current layout; a
+non-Latin layout whose A key types another letter does not offer it.
+Opening or seeing
 a file does not accept it. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
@@ -609,7 +615,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   colour rule: lines added are green and removed red (the theme's accepted
   and defect inks). Otherwise colour means state and nothing else: the reason word, and
   either a 3-point mark at the row's left or the rail of the panel holding
-  it. Row text wraps rather than eliding, and the style paints its own
+  it. The rail and header of My pull requests are the one section colour. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.
 - **One selection, and the open review** ([[BPR-1365]], the owner,
   2026-10-09: "Separate problem: the color of recent is the same as the
@@ -632,9 +638,13 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   row.
 - **Panels.** With State headers on — the default — each state is a bordered
   card with a rail in its colour and a tinted header carrying the name and
-  the count. My pull requests uses a neutral header because its rows carry
-  different states; their reason words keep their existing state colours and
-  their sentences identify the PR as mine alongside the observed activity.
+  the count. My pull requests has its own plum header and rail ([[BPR-1528]],
+  the owner, 2026-10-15: "Can we add a header and rail color for my reviews on
+  the home"), a fourth built-in Home tone per variant that, like the other
+  three, is neither stored nor customisable. It marks the section, not a
+  state: its rows carry different states, their reason words keep their
+  existing state colours and their sentences identify the PR as mine
+  alongside the observed activity.
   Its collapsed summary names actionable and unread activity, retaining unknown
   detail distinctly. Its own collapse starts expanded on upgrade and then
   persists per window independently of Waiting on others. A header sticks to the top of the scroll area while its panel is
@@ -1092,6 +1102,13 @@ pressed before its load settles. Source failure cannot strand ordinary file
 navigation; change navigation still needs the file's comparison material
 ([[BPR-1517]]).
 
+A press refused because the active tab's exact view is unavailable shows
+"This tab's file is unavailable. Choose another file or comparison." for the
+same three seconds as a bound, so an arrow never silently does nothing. The
+document tabs belong to the pull request they were opened in: opening another
+pull request, from Home or a link, starts its tabs again even though the open
+first retires the shown pull request ([[BPR-1539]]).
+
 Every tooltip in the application shows directly below the control it names,
 left edges aligned and four pixels apart, or directly above it where below
 would leave the screen, moved left only to stay on the screen
@@ -1136,6 +1153,29 @@ bottom and top: Command-Down and Command-Up on macOS, Ctrl+End and Ctrl+Home on
 Windows and Linux (`QKeySequence::MoveToEndOfDocument` and
 `MoveToStartOfDocument`).
 
+**First and Last change** ([[BPR-1532]], the owner, 2026-10-15).
+Option-Shift-Up and Option-Shift-Down (Alt+Shift+Up and Alt+Shift+Down) go to
+the first and the last change in the current file. A change is what
+Option-Up and Option-Down step through: one change group of the file's exact
+comparison, in its order; the comparison shows the whole file and folds or
+hides no change, in two panes and in one. The core decides the end through the
+change-navigation transition with an outermost reach, from a change, an
+unchanged line or no selection; pressed on that end it keeps the selection and
+brings the change back into view, with no bound message. The commands are
+**View > First change** and **Last change** (mnemonics R and H) after Next
+change, in the window and on the empty desktop's bar, and have no review-bar
+button. Unlike the four
+arrows they are disabled in Review where nothing can be reached (no open
+comparison, or one with no changes), the tooltip naming why. From Overview,
+Discuss or Threads they enter Review first, as the arrows do
+(RFC-BPR-0076), and a Review file without changes shows the three-second
+message. The keys are unbound while the focused widget takes typed text (an
+editable line or multi-line editor, an editable combo box, a spin box, the
+suggestion editor), where they extend the selection on macOS; the suggestion
+editor claims them as its box gesture, read-only too. They are unbound as well
+while the focus is in a widget that binds the same key itself: the tour
+outline reorders stops on them.
+
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation
@@ -1173,6 +1213,8 @@ never invents enabled state.
 | In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
+| View > First change in the file ([[BPR-1532]]) | `Alt+Shift+Up` (⌥⇧↑) |
+| View > Last change in the file ([[BPR-1532]]) | `Alt+Shift+Down` (⌥⇧↓) |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
 | Toggle files drawer | `Alt+Shift+1` |
@@ -1241,8 +1283,9 @@ the accessible status. Where a pane is too narrow, the panel extends left over
 its neighbour, then tightens its spacing, then lets Find in Selection give way
 to ⌥L, keeping every other control at the supported minimum window width.
 Native UI font and inherited palette roles supply the panel. ⌥C and ⌥R stay
-Comment and Compose review everywhere (owner, 2026-10-14); Match case and
-Regular expression take no key.
+Comment and Compose review (owner, 2026-10-14); Match case and Regular
+expression take no key. Inside the query, as in every text field, ⌥C and ⌥R
+type `ç` and `®` ([[BPR-1536]]); ⌥W and ⌥L stay the query's own toggles.
 
 Selected source text seeds the query, then a word at a real text caret, then
 the retained query. As in VS Code, the seeded occurrence is the current match
@@ -1306,7 +1349,10 @@ the composed epoch control already holds `Alt+1` through `Alt+3` with
 widget-with-children context. Both bindings match whenever that control has
 focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
 plain-`Alt` form produced two silently dead toggles. No key sequence may be
-duplicated anywhere in the assembled window.
+duplicated anywhere in the assembled window, with one exception: the tour
+outline's widget-scoped reorder keys are First and Last change's, and the
+window unbinds those two while the outline has focus ([[BPR-1532]]), so the
+two never match at once.
 
 `Ctrl+B` is Qt's standard Bold key, which no Qt text widget acts on, so a
 window shortcut would fire inside a composer. An editable multi-line editor
@@ -1510,7 +1556,9 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   through the same format ranges. The change highlight is a background under
   them, so a changed token keeps its own colour, moved only as far as it must
   to stay readable on the fill, as in the panes. A cut row is coloured only as
-  far as it is shown. A text
+  far as it is shown. A text selection in Line details is drawn as the panes
+  draw theirs, solid in the selection colour with each glyph keeping its
+  syntax colour ([[BPR-1534]]). A text
   selection across lines that holds the current line shows each selected
   line's pair, up to sixteen, then how many more were selected. An unchanged
   line shows both versions plainly. A removed or added line shows its own row
@@ -1613,6 +1661,15 @@ tree, Home or a URL, so an earlier row is never left current to swallow the
 gesture that would open it. The filters, the files order selector and Clear
 filter are declared focus stops ahead of their trees.
 
+In the files tree a folder's name is DemiBold in the muted ink Overview's
+folder rows draw their paths in, the palette's placeholder text, so folders
+read apart from files on both surfaces ([[BPR-1529]]); file names keep the
+ordinary text ink. A folder draws its file count at the row's right edge only
+while it is collapsed: an open folder shows its files instead, and the count
+returns when it closes by mouse, keyboard or collapse-all ([[BPR-1530]]). The
+folder's accessible text names its count either way. Overview's folder rows
+keep their count slot ([[BPR-1363]]).
+
 Both drawers are independently collapsible and resizable. Collapsing hides the
 panel rather than resizing it to zero, because a splitter distributes a hidden
 child's space among its remaining children; that is what actually returns the
@@ -1652,6 +1709,20 @@ its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
 entered from the keyboard would be ([[BPR-1022]]). `Alt` used as a modifier
 (any chord above, `Alt+Space`, `Alt+F4`, AltGr text entry or an Alt-click)
 opens nothing.
+
+**Option keys and typing** ([[BPR-1536]]). On macOS Option with a character
+key types (`®`, `ç`, `†`, `¡`) or starts a dead key (`˜` before `n`). While
+the keyboard is in a widget that takes typed text (a field, a comment, reply,
+note or composer editor, an editable list, the Review Cycle suggestion editor,
+the find query), every Option+character window, button and menu key is that
+widget's: ⌥R types `®` instead of composing, ⌥⇧1 types `⁄` instead of hiding
+Files. The widget claims the key when it arrives, and the menu bar lifts its
+Option+character keys until the keyboard leaves, because AppKit fires a
+native menu item's key before Qt sees it ([[BPR-1295]]); tooltips keep naming
+the key. Elsewhere, including read-only code, the keys work as listed. Option
+with an arrow, Page Up or Down or Return, and Command-Option keys, are not
+text and are unchanged. On Windows and Linux Alt is a command key and keeps
+these commands in editors; text input there is AltGr ([[BPR-1336]]).
 
 The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench

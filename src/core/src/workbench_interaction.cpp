@@ -205,6 +205,36 @@ namespace bpr::core {
 			return bounded_command(aId, plan_change_navigation(aState, aDirection));
 		}
 
+		/// \brief [[BPR-1532]]. First or Last change.
+		///
+		/// \details The end of the change order is reachable from any
+		/// position, so neither end is a bound: on the first change, First
+		/// change selects it again and brings it back into view. What is
+		/// left is whether there is an order at all. In Review the cursor is
+		/// the active tab's exact comparison, and a file without one or
+		/// without changes disables the command. Elsewhere the press enters
+		/// Review first ([[BPR-1417]]) and its context is decided there, so
+		/// the window's comparison is only the bound the tooltip names.
+		[[nodiscard]] constexpr auto change_end_command(
+			const workbench_interaction_state& aState,
+			const workbench_command_id         aId) noexcept
+			-> workbench_command_projection
+		{
+			auto rejection = workbench_reason_code::none;
+			if (!aState.Navigation.has_value()) {
+				rejection = workbench_reason_code::no_active_workbench;
+			} else if (!aState.Change.has_value()) {
+				rejection = workbench_reason_code::no_open_comparison;
+			} else if (aState.Change->ChangeCount == 0U) {
+				rejection = workbench_reason_code::no_changes;
+			}
+			if (rejection != workbench_reason_code::none
+				&& (rejection == workbench_reason_code::no_active_workbench || aState.Modality == workbench_modality::review)) {
+				return { .Id = aId, .Enabled = false, .DisabledReason = rejection };
+			}
+			return bounded_command(aId, rejection);
+		}
+
 		/// \brief [[BPR-0675]]. A drawer can always be collapsed.
 		///
 		/// \details A drawer is not the comparison. It holds the pull
@@ -808,6 +838,8 @@ namespace bpr::core {
 				drawer_command(aState, workbench_command_id::toggle_updates_line),
 				drawers_command(aState),
 				header_source_command(aState),
+				change_end_command(aState, workbench_command_id::first_change),
+				change_end_command(aState, workbench_command_id::last_change),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

@@ -11,10 +11,12 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <map>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -1238,74 +1240,70 @@ namespace bpr::core {
 											diff_components* const       aComponents = nullptr)
 			-> std::optional<std::vector<std::pair<byte_span, byte_span>>>
 		{
-			auto leftScalars  = std::vector<unicode_scalar>{ };
-			auto rightScalars = std::vector<unicode_scalar>{ };
-			static_cast<void>(valid_utf8(line_bytes(aLeft, aLeftLine), &leftScalars));
-			static_cast<void>(
-				valid_utf8(line_bytes(aRight, aRightLine), &rightScalars));
-			// The scalar values that a component and dtl compare.
-			const auto values = [](const std::vector<unicode_scalar>& aScalars) {
-				auto result = std::vector<std::uint32_t>{ };
-				result.reserve(aScalars.size());
-				for (const auto& scalar : aScalars) {
-					result.push_back(scalar.Value);
-				}
-				return result;
-			};
-			const auto leftValues  = values(leftScalars);
-			const auto rightValues = values(rightScalars);
-			aMeter.tick(leftValues.size() + rightValues.size());
-			auto matches = std::optional<std::vector<std::pair<std::size_t, std::size_t>>>{ };
+			const auto leftBytes  = line_bytes(aLeft, aLeftLine);
+			const auto rightBytes = line_bytes(aRight, aRightLine);
 			if (aComponents != nullptr) {
-				// [[BPR-1465]] A component's matched scalars, checked before use.
+				// [[BPR-1465]] An evaluation component's matched scalars, checked
+				// before use, give the gaps between them as they are. A
+				// component that declines leaves the engine's own comparison.
+				auto leftScalars  = std::vector<unicode_scalar>{ };
+				auto rightScalars = std::vector<unicode_scalar>{ };
+				static_cast<void>(valid_utf8(leftBytes, &leftScalars));
+				static_cast<void>(valid_utf8(rightBytes, &rightScalars));
+				const auto values = [](const std::vector<unicode_scalar>& aScalars) {
+					auto result = std::vector<std::uint32_t>{ };
+					result.reserve(aScalars.size());
+					for (const auto& scalar : aScalars) {
+						result.push_back(scalar.Value);
+					}
+					return result;
+				};
+				const auto leftValues  = values(leftScalars);
+				const auto rightValues = values(rightScalars);
+				aMeter.tick(leftValues.size() + rightValues.size());
 				auto       meter    = component_meter{ aMeter };
 				const auto supplied = aComponents->intraline_matches(leftValues, rightValues, meter);
 				if (supplied.has_value()) {
 					if (!valid_supplied_matches(*supplied, leftValues, rightValues)) {
 						throw invalid_component_result{ };
 					}
-					matches.emplace();
-					matches->reserve(supplied->size());
+					auto result     = std::vector<std::pair<byte_span, byte_span>>{ };
+					auto priorLeft  = std::uint64_t{ 0U };
+					auto priorRight = std::uint64_t{ 0U };
 					for (const auto& match : *supplied) {
-						matches->emplace_back(match.Left, match.Right);
+						const auto leftBegin  = leftScalars[match.Left].Begin;
+						const auto rightBegin = rightScalars[match.Right].Begin;
+						if (priorLeft != leftBegin || priorRight != rightBegin) {
+							result.emplace_back(byte_span{ priorLeft, leftBegin }, byte_span{ priorRight, rightBegin });
+						}
+						priorLeft  = leftScalars[match.Left].End;
+						priorRight = rightScalars[match.Right].End;
 					}
+					if (priorLeft != leftBytes.size() || priorRight != rightBytes.size()) {
+						result.emplace_back(byte_span{ priorLeft, leftBytes.size() }, byte_span{ priorRight, rightBytes.size() });
+					}
+					return result;
 				}
 			}
-			if (!matches.has_value()) {
-				// [[BPR-1481]] dtl's common scalars, charged to the step meter but
-				// not to the matrix budget, which pairing then has to itself. A
-				// pair too large for dtl keeps the budgeted table below.
-				matches = detail::intraline_common_scalars(leftValues, rightValues, aMeter);
+			// [[BPR-1537]] dtl's common tokens, charged to the step meter but not
+			// to the matrix budget, which pairing then has to itself, cleaned up
+			// into changed words. A pair too large for dtl compares its tokens
+			// in the budgeted table instead; a budget that refuses the table
+			// leaves the pair without emphasis.
+			const auto text = [](const std::span<const std::uint8_t> aBytes) {
+				return std::string_view{ reinterpret_cast<const char*>(aBytes.data()), aBytes.size() };
+			};
+			const auto pair   = detail::prepare_intraline_pair(text(leftBytes), text(rightBytes), aMeter);
+			auto       common = detail::intraline_common_elements(pair.left_middle(), pair.right_middle(), aMeter);
+			if (!common.has_value()) {
+				common = lcs_matches(pair.left_middle(), pair.right_middle(), std::equal_to<>{ }, aBudget, aMeter);
 			}
-			if (!matches.has_value()) {
-				matches = lcs_matches(
-					leftScalars,
-					rightScalars,
-					[](const unicode_scalar& aLhs, const unicode_scalar& aRhs) { return aLhs.Value == aRhs.Value; },
-					aBudget,
-					aMeter);
-			}
-			if (!matches.has_value()) {
+			if (!common.has_value()) {
 				return std::nullopt;
 			}
-			const auto leftSize   = static_cast<std::uint64_t>(line_bytes(aLeft, aLeftLine).size());
-			const auto rightSize  = static_cast<std::uint64_t>(line_bytes(aRight, aRightLine).size());
-			auto       result     = std::vector<std::pair<byte_span, byte_span>>{ };
-			auto       priorLeft  = std::uint64_t{ 0U };
-			auto       priorRight = std::uint64_t{ 0U };
-			for (const auto& [leftIndex, rightIndex] : *matches) {
-				const auto leftBegin  = leftScalars[leftIndex].Begin;
-				const auto rightBegin = rightScalars[rightIndex].Begin;
-				if (priorLeft != leftBegin || priorRight != rightBegin) {
-					result.emplace_back(byte_span{ priorLeft, leftBegin },
-										byte_span{ priorRight, rightBegin });
-				}
-				priorLeft  = leftScalars[leftIndex].End;
-				priorRight = rightScalars[rightIndex].End;
-			}
-			if (priorLeft != leftSize || priorRight != rightSize) {
-				result.emplace_back(byte_span{ priorLeft, leftSize },
-									byte_span{ priorRight, rightSize });
+			auto result = std::vector<std::pair<byte_span, byte_span>>{ };
+			for (const auto& region : detail::intraline_regions(pair, *common, aMeter)) {
+				result.emplace_back(byte_span{ region.LeftBegin, region.LeftEnd }, byte_span{ region.RightBegin, region.RightEnd });
 			}
 			return result;
 		}

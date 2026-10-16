@@ -3380,6 +3380,21 @@ comparison. Nested catalog recovery currently retains its mapped core reason,
 so its earlier adapter detail may already be unavailable. Logging refusal or
 backpressure does not change the history result.
 
+A submitted review whose outcome stays unknown, on Submit or Check status,
+records one `github.review_submission.failed` event ([[BPR-1540]]). Its
+`failure_domain` is `review_submission`, its `failure` is one of the closed
+reasons in `bpr/core/review_submission_unknown.hpp` (for example
+`review_not_listed`, `comment_page_too_large`, `comment_page_link_refused`,
+`comments_mismatch`, `rate_limited`, `account_mismatch`), and its detail is
+one line of fixed keys and decimal counts:
+`review_submission=REASON post=ANSWER post_class=N http_class=N expected=N
+found=N matched=N candidates=N pages=N`. It carries no host, repository, URL,
+account name, path, token or comment words, so it is safe for a protected
+GitHub Enterprise Server. The export keeps that line only when it parses back
+exactly. The same reason is kept with the unresolved attempt in
+`review-mutation-recovery.sqlite3` (`submission_unknown`, schema 6) and is
+cleared when the attempt resolves or is withdrawn.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts
@@ -3629,18 +3644,22 @@ only, and AC06 Accept of the render set, session
 archive SHA-256, size and the BSD-3-Clause `COPYING`, honors the offline cache,
 and re-extracts only the `dtl/` headers and `COPYING` under `build/_bpr/dtl`.
 It is part of the Qt-free core graph and on the owner's core allow-list as
-`BetterPullReview::Dtl`. `intraline_common_scalars` in
+`BetterPullReview::Dtl`. `intraline_common_elements` in
 `src/core/src/diff_intraline.cpp` runs `dtl::Diff` (O(NP)) over one similar
-pair's Unicode scalars; the ranges are the gaps between its common scalars.
-Each comparison is a step of the engine's meter, counted in batches of 4,096,
+pair; since [[BPR-1537]] its elements are the pair's tokens (word parts, space
+runs, operators, punctuation and wide-character clusters) between their common
+prefix and suffix, and the ranges are the cleaned-up changes between its common
+tokens. Each comparison is a step of the engine's meter, counted in batches of 4,096,
 and the matrix budget is not charged, so `MatrixCellsConsumed` is pairing's
 alone. A stop is caught inside the comparator, which then reports every pair
 equal so dtl finishes in one pass; the result is dropped and the stop thrown
 again, so no stop unwinds through dtl's plain `new[]`. dtl 1.21 restarts past
-2,000,000 path points on a path that can join unequal scalars: a pair whose
-(left + 1) x (right + 1) grid is that large keeps the budgeted character table,
-and every common scalar dtl returns is checked before use. `core_diff_intraline`
-covers the ranges, the budget, the large-pair table and a stop inside dtl.
+2,000,000 path points on a path that can join unequal elements: a pair whose
+(left + 1) x (right + 1) token grid is that large compares its tokens in the
+budgeted table instead, and every common element dtl returns is checked before
+use. `core_diff_intraline` covers the ranges, a golden corpus of changed lines
+with a character-level control, the budget, the large-pair table and a stop
+inside dtl.
 License and provenance are under `third_party/dtl/`.
 
 [[BPR-1498]] extends the approval (owner Accept, 2026-10-13) to the Review

@@ -70,14 +70,38 @@ before publishing. Retained-result validation also proves normalized equality
 for every equal segment, accepted exact pair, and exact move relation, so a
 stale or mutated document cannot preserve a false exact correspondence.
 
-[[BPR-1481]] A similar pair's intraline ranges are the gaps between dtl's
-common scalars of its two lines (RFC-BPR-0082), computed in
-`src/core/src/diff_intraline.cpp`, the one source that names dtl. dtl compares
-one line pair, never a file's lines. Its comparisons are counted by the step
-meter but charged nothing from the matrix budget, so pairing has that budget to
-itself and a pair is left without emphasis only when pairing exhausted it. A
-pair whose (left + 1) x (right + 1) grid reaches dtl's 2,000,000 path-point
-restart bound keeps the budgeted character table instead.
+[[BPR-1481]] A similar pair's intraline ranges come from dtl's comparison of
+its two lines (RFC-BPR-0082), computed in `src/core/src/diff_intraline.cpp`,
+the one diff source that names dtl. dtl compares one line pair, never a file's
+lines. Its comparisons are counted by the step meter but charged nothing from
+the matrix budget, so pairing has that budget to itself and a pair is left
+without emphasis only when pairing exhausted it. A pair whose
+(left + 1) x (right + 1) token grid reaches dtl's 2,000,000 path-point restart
+bound compares its tokens in the budgeted table instead.
+
+[[BPR-1537]] dtl compares tokens, not characters, so the emphasis reads as
+changed words. A token is a word part (a lowercase run, a capitalised word, an
+uppercase acronym, a digit run; `_` is a token of its own), a run of spaces and
+tabs, an ASCII operator run such as `!=` or `->`, or one other character: a
+wide (East Asian) character or a punctuation, symbol or emoji grapheme cluster.
+The common token prefix and suffix are matched first, dtl compares the middle,
+and the edit script is cleaned up in linear passes:
+
+- an equality between two changes joins them when it is no longer, in
+  scalars, than the larger side of either change (diff-match-patch's semantic
+  rule) or when it lies inside one word on both lines, but only when both
+  lines change beside it, so an insertion never marks unchanged words on the
+  other line;
+- a change that replaces part of a word on both lines takes the rest of that
+  word when the rest is at most two scalars;
+- when the unchanged tokens keep under 40% of the shorter line's non-space
+  scalars, the line was rewritten, and the emphasis is one change from the
+  first changed token to the last;
+- a change of spacing alone is trimmed to the spaces and tabs that changed.
+
+Every span ends on a token boundary, which is a scalar boundary and never
+inside a grapheme cluster outside a word. An evaluation component that
+supplies its own matched scalars ([[BPR-1465]]) is used as it is.
 
 The live `diff_semantics` core boundary validates an immutable result once and
 builds retained segment, group, pair, move, and intraline indexes for repeated

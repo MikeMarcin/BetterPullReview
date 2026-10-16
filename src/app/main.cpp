@@ -9002,6 +9002,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "intraline-v1") {
+				// [[BPR-1537]]. Constructed everyday changed lines for judging
+				// intraline emphasis; see `scripts/build_intraline_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::intraline_v1;
+				fixtureName            = "intraline-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "intraline",
+					.Number                   = 37,
+					.ExpectedTitle            = "Rename the comparison helpers and tidy their messages",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "conventional-comments-v1") {
 				// [[BPR-1083]]. The nested-folders pull request with labelled
 				// review threads; see `scripts/build_conventional_comments_fixture.py`.

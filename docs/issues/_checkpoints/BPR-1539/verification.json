@@ -1,0 +1,13 @@
+{
+  "criterion": "AC2-AC4",
+  "outcome": "pass",
+  "revision": "6ea8f221f9fa5b23a4f12937e8d353a108df5d04",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/dev\", \"-R\", \"^(application_review_navigation_entry|application_document_tabs_restoration_public_path)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 53.234,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/bpr-nav-dead/BetterPullReview/build/dev\n    Start 681: application_document_tabs_restoration_public_path\n1/2 Test #681: application_document_tabs_restoration_public_path ...   Passed   23.45 sec\n    Start 714: application_review_navigation_entry\n2/2 Test #714: application_review_navigation_entry .................   Passed   29.71 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated                    =  53.16 sec*proc (2 tests)\nbpr_serial_gui                          =  53.16 sec*proc (2 tests)\nbpr_windows_uncontained_registration    =  53.16 sec*proc (2 tests)\n\nTotal Test time (real) =  53.21 sec\n",
+    "stderr_tail": ""
+  }
+}

@@ -26,8 +26,20 @@
 #include <vector>
 
 namespace bpr::adapters::github::detail {
-	inline constexpr std::size_t maximum_review_mutation_body_bytes          = 64U * 1024U;
-	inline constexpr std::size_t maximum_review_mutation_response_bytes      = 256U * 1024U;
+	inline constexpr std::size_t maximum_review_mutation_body_bytes     = 64U * 1024U;
+	inline constexpr std::size_t maximum_review_mutation_response_bytes = 256U * 1024U;
+	/// \brief [[BPR-1538]]. One page of 100 reviews or review comments, as
+	/// GitHub answers it. A review comment carries its user, links, reactions
+	/// and the diff hunk up to its line: 3 to 4 KiB and about 62 JSON values
+	/// each on MikeMarcin/BPR-Test#70, 380 KB for a page of 100, and more where
+	/// a hunk is long. The ordinary 256 KiB and 4,096-value bounds refused a
+	/// page from about 66 comments, so a review with comments on a busy pull
+	/// request stayed unknown on every Check status. Under the native
+	/// transport's 4 MiB response ceiling and, with its headers, under the
+	/// 4 MiB a `gh api --include` answer may print.
+	inline constexpr std::size_t maximum_review_mutation_list_response_bytes = 3U * 1024U * 1024U;
+	/// \brief [[BPR-1538]]. The JSON values one such page may hold.
+	inline constexpr std::size_t maximum_review_mutation_list_values         = 32U * 1024U;
 	inline constexpr std::size_t maximum_review_mutation_idempotency_records = 1'024U;
 
 	enum class review_mutation_operation : std::uint8_t {
@@ -93,6 +105,12 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto review_mutation_exchange_for(
 		review_mutation_operation aOperation) noexcept
 		-> std::optional<review_mutation_exchange>;
+	/// \brief [[BPR-1538]]. The largest response body one operation's
+	/// exchange may carry: a page of the review list or of the review comment
+	/// collection may carry `maximum_review_mutation_list_response_bytes`,
+	/// everything else `maximum_review_mutation_response_bytes`.
+	[[nodiscard]] auto maximum_review_mutation_wire_response_bytes(
+		review_mutation_operation aOperation) noexcept -> std::size_t;
 
 	enum class review_mutation_contract_failure : std::uint8_t {
 		invalid_request,
@@ -106,6 +124,8 @@ namespace bpr::adapters::github::detail {
 		identity_mismatch,
 		response_limit,
 		target_unavailable,
+		/// [[BPR-1540]]. A paged list continues past the pages it may read.
+		collection_limit,
 	};
 
 	/// \brief Carries one whole-review summary without a source-line anchor.
@@ -407,9 +427,15 @@ namespace bpr::adapters::github::detail {
 		std::optional<core::diff_side> StartSide;
 		std::string                    Body;
 		std::string                    CommitId;
-		std::uint64_t                  Author = 0U;
-		std::string                    AuthorNodeId;
-		std::string                    Login;
+		/// [[BPR-1538]]. Where the comment was written: the commit, line and
+		/// first line it was created on. GitHub keeps them when a push moves
+		/// the comment or leaves it outdated, as `commit_id` and `line` are not.
+		std::string                  OriginalCommitId;
+		std::optional<std::uint32_t> OriginalLine;
+		std::optional<std::uint32_t> OriginalStartLine;
+		std::uint64_t                Author = 0U;
+		std::string                  AuthorNodeId;
+		std::string                  Login;
 		/// A comment on a line or range, not on the file.
 		bool OnLine = false;
 		bool Reply  = false;

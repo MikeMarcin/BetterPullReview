@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1530"
 title: "Show a Review file-tree folder's file count only while it is collapsed"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-15","owner_note":"I think the file count on folders in the file tree explorer is a bit too noisy. Lets hide that and only show it when the folder is collapsed.","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-0658","BPR-1363","BPR-1529"],"reservation":"docs/issues/_reservations/BPR-1530--BPR-1530--82f5f2096afd.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree test_folder_counts_show_only_while_collapsed: count slot inked only on collapsed folders across new-folder open, collapse-all, expand-all, mouse branch clicks, Left, Right and Space. Control with always-drawn counts fails."}},{"criterion":"AC2","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"Same test keeps 'name, N files' accessible text open and closed; BPR-1529's AC2 suites pass 13/13."}},{"criterion":"AC3","outcome":"pending","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending in session 9b4f7e98ea5592bf28d39c59d06f3949, candidate BPR-1530-folder-counts-v001, fingerprint b78c04404adb2a72df5184f69b8d8c8f5b0f0943aa5e808608fba49d1b3487cf, cursor 6; frozen root bpr1529-folder-look-v001.r0_305or."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"qt_files_tree test_folder_counts_show_only_while_collapsed: count slot inked only on collapsed folders across new-folder open, collapse-all, expand-all, mouse branch clicks, Left, Right and Space. Control with always-drawn counts fails."}},{"criterion":"AC2","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"command","detail":"Same test keeps 'name, N files' accessible text open and closed; BPR-1529's AC2 suites pass 13/13."}},{"criterion":"AC3","outcome":"pass","revision":"0e4d1f89385ca1cbcd64113908d8717b3eda4324","evidence":{"kind":"observation","detail":"Owner Accept, no note, in attended session 9b4f7e98ea5592bf28d39c59d06f3949, decision 87c3af7b-3072-45c0-81f5-d631912996f6 (2026-10-16T01:34:37Z, event 8), on candidate BPR-1530-folder-counts-v001 fingerprint b78c0440, frozen root bpr1529-folder-look-v001.r0_305or. Merged tree a7506ceb9: focused rows 13/13 pass."}}]
 ---
 
 # BPR-1530: Show a Review file-tree folder's file count only while it is collapsed
@@ -85,3 +84,25 @@ Gates, frozen build and server as recorded on [[BPR-1529]].
 
 Next: on hand-back after cursor 6, an Accept (with BPR-1529's verdict)
 merges the branch and finishes the card; a Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:34:37Z: Accept**, no note (decision
+`87c3af7b-3072-45c0-81f5-d631912996f6`, event 8 of session
+`9b4f7e98ea5592bf28d39c59d06f3949`), on candidate `BPR-1530-folder-counts-v001` at
+`0e4d1f893`, fingerprint `b78c0440…`. The session was handed back at event 9
+with nothing pending; event cursor consumed: 9. BPR-1529 and BPR-1530 share
+the one product commit and were both accepted, so it lands whole.
+
+`main` merged into the branch at `74e25c1d3` (through `0b37d5438`) and
+`a7506ceb9` (through `550da2cd0`, with BPR-1528 and BPR-1534) without
+conflicts. On the merged tree (`dev`, Debug): `qt_files_tree`,
+`qt_files_tree_folder_rows_{125,200}`, `qt_pull_request_overview_page`,
+`qt_pull_request_overview_folder_rows_{125,200}`,
+`qt_workbench_window_scale_{100,125,200}`,
+`qt_composed_github_scale_{100,125,200}` and
+`application_github_public_path_nested_folders_v1` pass 13/13 at both
+merges; clang-format 22.1.8 `--dry-run -Werror` over the three touched C++
+files is clean; the documentation gate prints `DOCUMENTATION_OK` on main.
+The review server (pid 48572) was stopped, both candidates' protection
+released and the frozen root removed.

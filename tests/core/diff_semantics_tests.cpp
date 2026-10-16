@@ -501,6 +501,72 @@ namespace {
 			   "stale and out-of-range source origins fail closed");
 	}
 
+	/// \brief [[BPR-1532]]. First and Last change reach the ends of the
+	/// change order from anywhere, and keep an end already selected.
+	void test_outermost_change_navigation()
+	{
+		const auto diff  = run("prefix\nold\nmiddle a\nmiddle b\nremove\nbetween\nold last\nsuffix\n",
+							   "prefix\nnew\nextra one\nextra two\nmiddle a\nmiddle b\nbetween\nnew last\nsuffix\n");
+		const auto index = build_diff_semantic_index(std::make_shared<const computed_file_diff>(diff));
+		expect(index && diff.Alignment.Groups.size() == 3U, "outermost fixture has three changes, so an end is not a neighbour of the other");
+		const auto& groups = diff.Alignment.Groups;
+		const auto  first  = select_group(*index, groups.front().Id);
+		const auto  last   = select_group(*index, groups.back().Id);
+
+		// Every origin: no selection, each change, and unchanged lines before,
+		// between and after the changes on both sides.
+		auto origins = std::vector<std::optional<semantic_selection>>{ std::nullopt };
+		for (const auto& group : groups) {
+			origins.push_back(select_group(*index, group.Id));
+		}
+		for (const auto side : { diff_side::left, diff_side::right }) {
+			for (const auto source : { 0U, side == diff_side::left ? 5U : 6U, side == diff_side::left ? 7U : 8U }) {
+				origins.push_back(select_line(*index, line(diff, side, source)));
+			}
+		}
+		for (const auto& origin : origins) {
+			for (const auto policy : { change_navigation_policy::stop, change_navigation_policy::wrap }) {
+				for (const auto direction : { change_navigation_direction::previous, change_navigation_direction::next }) {
+					auto       state = diff_interaction_state{ .Selection = origin };
+					const auto at    = direction == change_navigation_direction::previous ? first : last;
+					static_cast<void>(transition(state, *index, navigate_diff_change_intent{ .Direction = direction, .Policy = policy, .Reach = change_navigation_reach::outermost }));
+					expect(state.Selection == at,
+						   "First change selects the first change and Last change the last, from any origin and under either policy");
+					expect(!transition(state, *index, navigate_diff_change_intent{ .Direction = direction, .Policy = policy, .Reach = change_navigation_reach::outermost }) && state.Selection == at,
+						   "pressed again at that end, the selection is kept");
+				}
+			}
+		}
+
+		const auto atFirst = navigate_outermost_change(*index, groups.front().Id, change_navigation_direction::previous);
+		const auto toLast  = navigate_outermost_change(*index, groups.front().Id, change_navigation_direction::next);
+		const auto atLast  = navigate_outermost_change(*index, groups.back().Id, change_navigation_direction::next);
+		const auto fresh   = navigate_outermost_change(*index, std::nullopt, change_navigation_direction::previous);
+		expect(atFirst.Outcome == change_navigation_outcome::at_start && atFirst.Group == groups.front().Id && atFirst.Index == 0U
+				   && toLast.Outcome == change_navigation_outcome::selected && toLast.Group == groups.back().Id && toLast.Index == 2U
+				   && atLast.Outcome == change_navigation_outcome::at_end && atLast.Group == groups.back().Id
+				   && fresh.Outcome == change_navigation_outcome::selected && fresh.Group == groups.front().Id,
+			   "the outermost answer names the end, and says when the selection is already there");
+		expect(navigate_outermost_change(*index, std::nullopt, static_cast<change_navigation_direction>(7U)).Outcome == change_navigation_outcome::invalid_selection,
+			   "an unknown direction fails closed");
+
+		const auto same      = run("one\ntwo\n", "one\ntwo\n");
+		const auto unchanged = build_diff_semantic_index(std::make_shared<const computed_file_diff>(same));
+		expect(unchanged && same.Alignment.Groups.empty(), "the unchanged fixture has no change");
+		auto       state    = diff_interaction_state{ .Selection = select_line(*unchanged, line(same, diff_side::right, 1U)) };
+		const auto original = state.Selection;
+		expect(navigate_outermost_change(*unchanged, std::nullopt, change_navigation_direction::next).Outcome == change_navigation_outcome::no_changes
+				   && !transition(state, *unchanged, navigate_diff_change_intent{ .Direction = change_navigation_direction::next, .Reach = change_navigation_reach::outermost })
+				   && state.Selection == original,
+			   "a comparison without changes reaches nothing and keeps the selected line");
+
+		// The adjacent reach is unchanged: from the first change, Next change
+		// is the second, not the last.
+		auto adjacent = diff_interaction_state{ .Selection = first };
+		static_cast<void>(transition(adjacent, *index, navigate_diff_change_intent{ .Direction = change_navigation_direction::next }));
+		expect(adjacent.Selection == select_group(*index, groups[1].Id), "Next change still steps one change");
+	}
+
 	auto test_compact_interaction_transition() -> void
 	{
 		const auto diff = run(
@@ -887,10 +953,10 @@ namespace {
 			   "a cut inside a two-byte character moves back to the character's start");
 		expect(cut.Rows[0].Emphasis.empty() && cut.Rows[1].Emphasis.empty(),
 			   "a change wholly past the cut is not drawn inside the shown part");
-		const auto clipDiff = run("abXdefghij\n", "abYdefghij\n");
+		const auto clipDiff = run("ab X defgh\n", "ab Y defgh\n");
 		const auto clipped  = line_details(indexed(clipDiff), diff_side::left, line_span{ 0U, 1U },
 										   line_details_limits{ .MaximumLines = 16U, .MaximumLineBytes = 4U });
-		expect(clipped.Rows.size() == 2U && clipped.Rows[0].Emphasis == std::vector{ byte_span{ 2U, 3U } }
+		expect(clipped.Rows.size() == 2U && clipped.Rows[0].Emphasis == std::vector{ byte_span{ 3U, 4U } }
 				   && clipped.Rows[0].OmittedBytes == 6U,
 			   "a change inside the shown part keeps its emphasis");
 		const auto huge     = std::string(100'000U, 'x');
@@ -929,6 +995,7 @@ int main()
 	test_unavailable_and_fail_closed();
 	test_move_relation_stays_secondary();
 	test_change_navigation_from_source_line();
+	test_outermost_change_navigation();
 	test_compact_interaction_transition();
 	test_indexed_semantics_at_scale();
 	test_generated_properties();

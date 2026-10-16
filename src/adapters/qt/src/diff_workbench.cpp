@@ -4940,6 +4940,38 @@ namespace bpr::qt {
 		return changed;
 	}
 
+	auto diff_workbench::navigate_outermost_change(const core::change_navigation_direction aDirection) -> bool
+	{
+		clear_conversation_anchor();
+		if (!CurrentResult || !SemanticIndex) {
+			return false;
+		}
+		++Statistics.SemanticQueries;
+		const auto changed = core::transition(
+			Interaction,
+			*SemanticIndex,
+			core::navigate_diff_change_intent{
+				.Direction = aDirection,
+				.Reach     = core::change_navigation_reach::outermost,
+			});
+		// Unchanged with a selected group is the end itself: the transition
+		// selects it from anywhere else, and a file without changes leaves no
+		// group selected.
+		const auto reached = Interaction.Selection.has_value() && Interaction.Selection->Group.has_value();
+		if (changed) {
+			++Statistics.SelectionChanges;
+		}
+		if (changed || reached) {
+			apply_interaction(true, changed);
+		}
+		if (changed) {
+			emit_selection(true);
+		} else if (reached) {
+			emit_reading_gesture();
+		}
+		return changed;
+	}
+
 	void diff_workbench::synchronize_geometry_selection(const bool aReveal)
 	{
 		auto readingPreserved = false;

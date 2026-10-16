@@ -723,6 +723,29 @@ The initial supported list is one complete page of at most 100 reviews;
 Link headers or response limits refuse submission/reconciliation rather than
 pretend that a partial baseline is complete.
 
+A review that carries line comments ([[BPR-1345]]) is also held to the pull
+request's comment collection: the new review must hold exactly its comments.
+The review list and each collection page are bounded at 3 MiB and 32,768 JSON
+values, not the ordinary 256 KiB and 4,096, because GitHub lists every
+comment with its user, links, reactions and diff hunk (about 380 KB for a page
+of 100); the configured `gh` takes that bound per operation. A collection page
+may name its successor by repository name or by this repository's number
+(`/repositories/ID/…`, GitHub's own form, under `/api/v3` on GHES). Each
+comment is matched where it was written: `original_commit_id` at the request's
+head, `original_line` and `original_start_line`, side, path and words, so
+Check status still confirms a review after a push has moved or outdated its
+comments ([[BPR-1538]]).
+
+An indeterminate result names why it is unknown ([[BPR-1540]]): the first
+read that stopped the reconciliation, as one of the core's closed
+`review_submission_unknown_reason` values, with what GitHub answered the POST
+and counts of comments carried, held and matched, new reviews of mine and
+comment pages read. The session fills it, keeps it with the unresolved
+attempt (schema 6 `submission_unknown`, replaced by each Check status and
+removed on resolution or withdrawal) and writes it to the diagnostics log as a
+counts-only `github.review_submission` event. It never decides publication;
+an unknown outcome stays unknown and sends nothing.
+
 SQLite schema v3 adds `submission_attempt` and `submission_baseline` beside the
 existing comment tables in `review-mutation-recovery.sqlite3`. A versioned,
 bounded binary snapshot preserves the complete request and full uint64 IDs.

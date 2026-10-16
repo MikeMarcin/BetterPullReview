@@ -1,0 +1,47 @@
+[
+	{
+		"additions": 4,
+		"changes": 8,
+		"deletions": 4,
+		"filename": "config/review.json",
+		"patch": "@@ -1,8 +1,8 @@\n {\n \t\"schema\": \"review/v2\",\n-\t\"retries\": 2,\n+\t\"retries\": 3,\n \t\"timeoutSeconds\": 45,\n-\t\"source_revision\": \"9013e16833a6076e26120a12e5e98dd119b2ac39\",\n-\t\"theme\": \"comfortable\",\n-\t\"message\": \"My pull request; Nothing about it has been read yet.\"\n+\t\"source_revision\": \"fb2e72778d3c61de6ec6723dffc16a1212ab5c31\",\n+\t\"theme\": \"compact\",\n+\t\"message\": \"My pull request; nothing about it has been read yet.\"\n }",
+		"sha": "aabe27f85320af42ae4ee9f7593f1a68d47a4586",
+		"status": "modified"
+	},
+	{
+		"additions": 6,
+		"changes": 12,
+		"deletions": 6,
+		"filename": "docs/review-guide.md",
+		"patch": "@@ -2,14 +2,14 @@\n \n Open the pull request from Home and choose a file in the Overview.\n \n-If an export fails, the report shows an error and you can try again.\n+If an export fails, the report says which step failed and why, and you can try again.\n \n-Pending drafts are notes at their lines named \"Pending in your review\".\n+Pending drafts are notes at their lines tagged \"Pending in your review\" in the writing blue.\n \n-See [the card](../issues/30-in-progress/BPR-1188-close-rfc-0055.md) for the remaining steps.\n+See [the card](../issues/60-done/BPR-1188-close-rfc-0055.md) for the remaining steps.\n \n-Exports older than thirty days are deleted.\n+Exports older than ninety days are deleted.\n \n-This is the last change in this comparison.\n+Last change in the pull request.\n \n-Keyboard: Next change (\u2318\u2193) and Previous change (\u2318\u2191).\n+Keyboard: Next change (\u2325\u2193) and Previous change (\u2325\u2191).",
+		"sha": "1a1f8c178f77d3699b8bdfb387bba6831a95edbd",
+		"status": "modified"
+	},
+	{
+		"additions": 4,
+		"changes": 8,
+		"deletions": 4,
+		"filename": "locale/messages.txt",
+		"patch": "@@ -1,7 +1,7 @@\n-greeting = Bonjour, voulez-vous un caf\u00e9 cr\u00e8me ?\n+greeting = Bonjour, voulez-vous un caf\u00e9 noir ?\n \n-saved_view = \u4fdd\u5b58\u3055\u308c\u305f\u30d3\u30e5\u30fc\n+saved_view = \u4fdd\u5b58\u3057\u305f\u8868\u793a\n \n-status = done \ud83d\udc69\u200d\ud83d\udcbb today\n+status = done \ud83e\uddd1\u200d\ud83d\udd27 today\n \n-arrow = Next change (\u2318\u2193)\n+arrow = Next change (\u2325\u2193)",
+		"sha": "c4a1318dd0fdb38180a9d669cdf9ce89896efcc2",
+		"status": "modified"
+	},
+	{
+		"additions": 21,
+		"changes": 42,
+		"deletions": 21,
+		"filename": "src/review/comparison.cpp",
+		"patch": "@@ -1,50 +1,50 @@\n #include \"review/comparison.h\"\n \n #include \"review/diff_engine.h\"\n-#include <QKeyEvent>\n+#include <QKeySequence>\n \n namespace review {\n \t// Compares one file of the pull request and keeps the result for the panes.\n \tauto compare_file(const file_input& input, const components& parts, stop_token stop) -> comparison\n \t{\n-\t\tconst auto result = compute_file_diff(input, parts);\n+\t\tconst auto outcome = compute_file_diff(input, parts);\n \n-\t\tauto conversationCount = model->rowCount();\n+\t\tauto threadCount = model->rowCount();\n \n-\t\tconst auto leftScalars = decode(input.LeftBytes);\n+\t\tconst auto leftValues = decode(input.LeftBytes);\n \n-\t\tconst auto outcome = run_tool(process, configuration, std::move(invocation), stop);\n+\t\tconst auto outcome = run_tool(process, configuration, std::move(invocation), stop, account);\n \n-\t\tsetSizePolicy(QSizePolicy::Expanding, expanded ? QSizePolicy::Expanding : QSizePolicy::Fixed);\n+\t\tsetSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);\n \n-\t\tlabel->setText(tr(\"Show the conversation drawer at its saved width.\"));\n+\t\tlabel->setText(tr(\"Show the comments drawer at its saved width.\"));\n \n-\t\tview->setToolTip(QStringLiteral(\"Only conversations with a label\"));\n+\t\tview->setToolTip(QStringLiteral(\"Only threads with a label\"));\n \n-\t\tif (result.Publication != published && observed) {\n+\t\tif (result.Publication == published && observed) {\n \n-\t\tif (index != 0U && match.Left <= previous.Left) {\n+\t\tif (index != 0U && match.Left < previous.Left) {\n \n-\t\tstd::uint64_t     LargestPollDelay = 0U;\n+\t\tstd::uint64_t LargestPollDelay = 0U;\n \n-\t\tconstexpr auto StoreFiles = std::array<std::string_view, 11U>{\n+\t\tconstexpr auto StoreFiles = std::array<std::string_view, 12U>{\n \n-\t\treturn a.width() < b.width() && a.height() < b.height();\n+\t\treturn a.height() < b.height() && a.width() < b.width();\n \n-\t\tconst auto [left, right] = std::pair{ first, second };\n+\t\tconst auto [right, left] = std::pair{ second, first };\n \n-\t\t// The checks that need no text, then a fresh progress holding copies\n+\t\t// The checks that need no text. A comparison they finish yields its\n \n-\t\tif (pattern.front() == '/') {\n+\t\tif (path.Pattern.empty()) {\n \n-\t\tauto recieved = queue.take();\n+\t\tauto received = queue.take();\n \n-\t\tusing size_type = std::size_t;\n+\t\tusing size_type = std::uint64_t;\n \n-\t\ttransport{ *cloud, *configuration, process };\n+\t\ttransport{ *cloud, scoped(*configuration, *cloud), process, account() };\n \n-\t\treturn comparison{ result, conversationCount };\n+\t\treturn comparison{ outcome, threadCount };\n \t}\n \n-\tvoid set_dispatch(private_dispatch dispatch) { Dispatch = std::move(dispatch); }\n+\tvoid set_dispatch(private_dispatch aDispatch) { Dispatch = std::move(aDispatch); }\n } // namespace review",
+		"sha": "af130636f5c969aa08251843b10c9c200aa12153",
+		"status": "modified"
+	},
+	{
+		"additions": 4,
+		"changes": 8,
+		"deletions": 4,
+		"filename": "tools/report.py",
+		"patch": "@@ -1,12 +1,12 @@\n import sys\n \n \n-def summarize_counts(rows, limit):\n+def summarise_counts(rows, limit):\n     total = sum(row.count for row in rows)\n-    print(f\"Read {total} rows from {len(rows)} files\")\n+    print(f\"Read {total} rows across {len(rows)} changed files\")\n     return total\n \n \n def main():\n-    rows = load_rows(sys.argv[1])\n-    return summarize_counts(rows, 100)\n+    rows = load_rows(sys.argv[1], encoding=\"utf-8\")\n+    return summarise_counts(rows, 100)",
+		"sha": "b007acac668e6c641c412104c58440000ddd0030",
+		"status": "modified"
+	}
+]

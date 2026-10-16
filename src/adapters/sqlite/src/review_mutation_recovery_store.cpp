@@ -23,7 +23,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 5 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 6 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -102,6 +102,21 @@ namespace bpr::adapters::sqlite {
 							  "record_digest BLOB NOT NULL CHECK(length(record_digest)=32),"
 							  "state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 1),"
 							  "PRIMARY KEY(scope_id,publication_key)) STRICT" },
+			// [[BPR-1540]]. Why an unresolved submission is still unknown:
+			// enums and counts only, replaced by each reconciliation.
+			std::string_view{ "CREATE TABLE submission_unknown("
+							  "scope_id INTEGER NOT NULL,idempotency_key TEXT NOT NULL,"
+							  "reason INTEGER NOT NULL CHECK(reason BETWEEN 0 AND 19),"
+							  "post_answer INTEGER NOT NULL CHECK(post_answer BETWEEN 0 AND 3),"
+							  "post_class INTEGER NOT NULL CHECK(post_class BETWEEN 0 AND 5),"
+							  "http_class INTEGER NOT NULL CHECK(http_class BETWEEN 0 AND 5),"
+							  "expected INTEGER NOT NULL CHECK(expected BETWEEN 0 AND 65535),"
+							  "found INTEGER NOT NULL CHECK(found BETWEEN 0 AND 65535),"
+							  "matched INTEGER NOT NULL CHECK(matched BETWEEN 0 AND 65535),"
+							  "candidates INTEGER NOT NULL CHECK(candidates BETWEEN 0 AND 65535),"
+							  "pages INTEGER NOT NULL CHECK(pages BETWEEN 0 AND 65535),"
+							  "PRIMARY KEY(scope_id,idempotency_key),"
+							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -142,6 +157,17 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
 			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
 			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+		};
+		constexpr std::array RecoverySchemaVersion6{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
 		};
 		[[nodiscard]] auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>;
 		[[nodiscard]] auto decode_publication(std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>;
@@ -1517,6 +1543,8 @@ namespace bpr::adapters::sqlite {
 					}
 					candidate.State   = application::review_mutation_recovery_state::succeeded;
 					candidate.Receipt = aReceipt;
+					// [[BPR-1540]]. A resolved attempt is no longer unknown.
+					candidate.LastUnknown.reset();
 					if (!application::valid(candidate)) {
 						return std::unexpected(failure::conflict);
 					}
@@ -1526,7 +1554,47 @@ namespace bpr::adapters::sqlite {
 					if (!update || !bind_blob(update->Value, 1, id.Bytes) || !bind_text(update->Value, 2, aReceipt.ReviewNodeId) || !scope_key(update->Value, 3, aKey) || ::sqlite3_step(update->Value) != SQLITE_DONE || ::sqlite3_changes(Database) != 1) {
 						return std::unexpected(failure::unavailable);
 					}
+					auto known = detail::prepare(Database, "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2");
+					if (!known || !scope_key(known->Value, 1, aKey) || ::sqlite3_step(known->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
 					return candidate;
+				});
+			}
+
+			auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				if (!core::valid(aDiagnosis)) {
+					return std::unexpected(failure::conflict);
+				}
+				return transaction<void>([&]() -> std::expected<void, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded) {
+						return std::unexpected(loaded.error());
+					}
+					if (!*loaded || (**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved) {
+						return std::unexpected(failure::conflict);
+					}
+					auto upsert = detail::prepare(Database,
+												  "INSERT INTO submission_unknown(scope_id,idempotency_key,reason,post_answer,post_class,http_class,expected,found,matched,candidates,pages) "
+												  "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(scope_id,idempotency_key) DO UPDATE SET "
+												  "reason=excluded.reason,post_answer=excluded.post_answer,post_class=excluded.post_class,http_class=excluded.http_class,"
+												  "expected=excluded.expected,found=excluded.found,matched=excluded.matched,candidates=excluded.candidates,pages=excluded.pages");
+					if (!upsert || !scope_key(upsert->Value, 1, aKey)) {
+						return std::unexpected(failure::unavailable);
+					}
+					const auto values = std::array<std::int64_t, 9>{ static_cast<std::int64_t>(aDiagnosis.Reason), static_cast<std::int64_t>(aDiagnosis.PostAnswer), aDiagnosis.PostStatusClass, aDiagnosis.HttpStatusClass,
+																	 aDiagnosis.CommentsExpected, aDiagnosis.CommentsFound, aDiagnosis.CommentsMatched, aDiagnosis.CandidateReviews, aDiagnosis.PagesRead };
+					for (std::size_t index = 0U; index < values.size(); ++index) {
+						if (::sqlite3_bind_int64(upsert->Value, static_cast<int>(index) + 3, values[index]) != SQLITE_OK) {
+							return std::unexpected(failure::unavailable);
+						}
+					}
+					if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return { };
 				});
 			}
 
@@ -1552,7 +1620,7 @@ namespace bpr::adapters::sqlite {
 					if ((**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved || (**loaded).Receipt) {
 						return std::unexpected(failure::conflict);
 					}
-					for (const auto* statement : { "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
+					for (const auto* statement : { "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
 						auto erase = detail::prepare(Database, statement);
 						if (!erase || !scope_key(erase->Value, 1, aKey) || ::sqlite3_step(erase->Value) != SQLITE_DONE) {
 							return std::unexpected(failure::unavailable);
@@ -1692,7 +1760,35 @@ namespace bpr::adapters::sqlite {
 				} else if (::sqlite3_column_type(query->Value, 4) != SQLITE_NULL || ::sqlite3_column_type(query->Value, 5) != SQLITE_NULL) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				if (::sqlite3_step(query->Value) != SQLITE_DONE || !application::valid(value)) {
+				if (::sqlite3_step(query->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				// [[BPR-1540]]. Why the attempt is still unknown, if recorded.
+				auto unknown = detail::prepare(Database, "SELECT reason,post_answer,post_class,http_class,expected,found,matched,candidates,pages FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2");
+				if (!unknown || !scope_key(unknown->Value, 1, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto noted = ::sqlite3_step(unknown->Value);
+				if (noted == SQLITE_ROW) {
+					auto       diagnosis       = core::review_submission_unknown_diagnosis{ };
+					const auto column          = [&unknown](const int aIndex) { return ::sqlite3_column_int64(unknown->Value, aIndex); };
+					diagnosis.Reason           = static_cast<core::review_submission_unknown_reason>(column(0));
+					diagnosis.PostAnswer       = static_cast<core::review_submission_post_answer>(column(1));
+					diagnosis.PostStatusClass  = static_cast<std::uint8_t>(column(2));
+					diagnosis.HttpStatusClass  = static_cast<std::uint8_t>(column(3));
+					diagnosis.CommentsExpected = static_cast<std::uint16_t>(column(4));
+					diagnosis.CommentsFound    = static_cast<std::uint16_t>(column(5));
+					diagnosis.CommentsMatched  = static_cast<std::uint16_t>(column(6));
+					diagnosis.CandidateReviews = static_cast<std::uint16_t>(column(7));
+					diagnosis.PagesRead        = static_cast<std::uint16_t>(column(8));
+					if (::sqlite3_step(unknown->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.LastUnknown = diagnosis;
+				} else if (noted != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				if (!application::valid(value)) {
 					return std::unexpected(failure::integrity_failure);
 				}
 				return std::optional{ std::move(value) };
@@ -1724,7 +1820,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,5)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,6)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1735,7 +1831,8 @@ namespace bpr::adapters::sqlite {
 					auto schema = *version == 1 ? validate_schema(aDatabase, RecoverySchemaVersion1) : *version == 2 ? validate_schema(aDatabase, RecoverySchemaVersion2)
 						: *version == 3                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion3)
 						: *version == 4                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion4)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion5);
+						: *version == 5                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion5)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion6);
 					if (!schema) {
 						return schema;
 					}
@@ -1751,14 +1848,17 @@ namespace bpr::adapters::sqlite {
 					if (*version < 5 && !detail::execute(aDatabase, RecoverySchema[7])) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 5 WHERE singleton = 1")) {
+					if (*version < 6 && !detail::execute(aDatabase, RecoverySchema[8])) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 6 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 5")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 6")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion5);
+				return validate_schema(aDatabase, RecoverySchemaVersion6);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {

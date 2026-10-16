@@ -366,9 +366,14 @@ namespace bpr::core {
 		/// [[BPR-1295]]. Hide or show every drawer; offered in Review only.
 		toggle_drawers,
 		go_to_header_source,
+		/// [[BPR-1532]]. The first and the last change of the current file.
+		/// Unlike the four arrows they are disabled in Review where nothing
+		/// can be reached: no open comparison, or one with no changes.
+		first_change,
+		last_change,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 12U;
+	inline constexpr std::size_t workbench_command_count = 14U;
 
 	/// \brief Describes the workbench command projection record.
 	///
