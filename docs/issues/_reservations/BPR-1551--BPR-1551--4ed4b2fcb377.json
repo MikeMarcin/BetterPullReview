@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1551"
+  ],
+  "reserve_for": "bpr-v022-pe-private-library-verifier",
+  "purpose": "Bind declared source-built shared-library producer, full PE map and signing coverage for Windows release audit",
+  "created": "2026-10-16T06:41:13.568452+00:00",
+  "base": "7d6d05c4ae840de91dc5544ec03e1df2b7a1fb6c"
+}
