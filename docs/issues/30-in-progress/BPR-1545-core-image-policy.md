@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1545"
 title: "Core policy for inline Markdown images"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0084"]
 depends_on: []
 metadata: {"mandate_revision":"inline-markdown-images-r1","milestone_plan":{"id":"inline-markdown-images-v1","path":"docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json"},"milestone":"image-policy-core"}
