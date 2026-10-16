@@ -1,0 +1,14 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-1545",
+    "DRAFT-0002": "BPR-1546",
+    "DRAFT-0003": "BPR-1547",
+    "DRAFT-0004": "BPR-1548",
+    "DRAFT-0005": "BPR-1549",
+    "DRAFT-0006": "BPR-1550",
+    "RFC-DRAFT-0022": "RFC-BPR-0084"
+  },
+  "plan_path": "docs/rfcs/plans/inline-markdown-images-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "61fe96c3ad6d1e86a1ec51d06feb4aa9092e1afc7c3413f5ff52c12f3e1398d0"
+}

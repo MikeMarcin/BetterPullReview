@@ -600,3 +600,11 @@ Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018. [Import and provenanc
 | [RFC-BPR-0083](RFC-BPR-0083-git-metadata-readers.md) | Evaluate replacements for the hand-written Git metadata readers | In Progress | RFC-BPR-0054 |
 
 Mandate `git-metadata-readers-r1` adopts RFC-DRAFT-0019. [Import and provenance](assets/git-metadata-readers-v1.LIVE_IMPORT.md); [plan](plans/git-metadata-readers-v1/milestone-plan.json). The owner answered Q2 (a) on 2026-10-13; Q3 is unanswered.
+
+## Inline images in Markdown bodies
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0084](RFC-BPR-0084-inline-markdown-images.md) | Show images in descriptions and comments the way GitHub does | In Progress | RFC-BPR-0036 |
+
+Mandate `inline-markdown-images-r1` adopts RFC-DRAFT-0022 (owner decision 2026-10-16, overriding RFC-BPR-0036's no-automatic-image-fetch rule for image references only). [Import and provenance](assets/inline-markdown-images-v1.LIVE_IMPORT.md); [plan](plans/inline-markdown-images-v1/milestone-plan.json). Q1 (SVG), Q2 (WebP) and Q3 (a load-images preference) are open owner questions with recorded defaults.
