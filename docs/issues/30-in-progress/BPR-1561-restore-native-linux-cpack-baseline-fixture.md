@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1561"
 title: "Restore the native Linux CPack baseline fixture"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 platforms: ["linux"]
