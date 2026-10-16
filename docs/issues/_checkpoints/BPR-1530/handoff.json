@@ -1,0 +1,72 @@
+{
+  "assignment": "BPR-1530",
+  "mandate": "Owner request 2026-10-15: \"I think the file count on folders in the file tree explorer is a bit too noisy. Lets hide that and only show it when the folder is collapsed.\"",
+  "governing_rfc": "RFC-BPR-0028 (owner amendment recorded on the RFC)",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1529-folder-colour/BetterPullReview",
+  "branch": "bpr-1529-folder-colour",
+  "baseline": "1c2fee23bff947b8085761a8fafd2024004c0dde",
+  "source_candidate": "0e4d1f89385ca1cbcd64113908d8717b3eda4324",
+  "shared_candidate": "BPR-1529 and BPR-1530 share one commit and one frozen build; each has its own question",
+  "changed_paths": [
+    "docs/rfcs/RFC-BPR-0028-review-workbench-direction.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/files_tree.hpp",
+    "src/adapters/qt/src/files_tree.cpp",
+    "tests/adapters_qt/files_tree_tests.cpp"
+  ],
+  "design": {
+    "frontend_design": "loaded before design work",
+    "folder_ink": "palette PlaceholderText (Overview's folder ink), DemiBold; file names keep Text; selected keeps HighlightedText",
+    "folder_ink_values": {
+      "light": "#8f9193 on #ffffff",
+      "dark": "#747679 on #0d1117",
+      "high_contrast_light": "#7f7f7f on #ffffff",
+      "high_contrast_dark": "#7f7f7f on #000000"
+    },
+    "folder_ink_contrast": {
+      "light": 3.16,
+      "dark": 4.15,
+      "high_contrast_light": 4.0,
+      "high_contrast_dark": 5.24
+    },
+    "counts": "a folder draws its count only while its QTreeView has it collapsed; AccessibleTextRole keeps 'name, N files'; Overview's count slot unchanged"
+  },
+  "verification": {
+    "focused": "ctest qt_files_tree, qt_files_tree_folder_rows_125/200, qt_pull_request_overview_page, qt_pull_request_overview_folder_rows_125/200, qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100/125/200, application_github_public_path_nested_folders_v1: 13/13 pass at 0e4d1f893 sources",
+    "negative_control_1529": "setPen(ink) for folders fails 'a drawer folder's name is not drawn in the file ink'",
+    "negative_control_1530": "always-drawn counts fail 'an open folder draws no count'",
+    "format": "clang-format 22.1.8 dry run over files_tree.cpp, files_tree.hpp, files_tree_tests.cpp: clean",
+    "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors over files_tree.cpp and files_tree_tests.cpp: clang-tidy passed",
+    "documentation": "verify_documentation.py --root <worktree> DOCUMENTATION_OK; verify_documentation_tests 67 pass",
+    "renders": "better_pull_review_qt_files_tree_tests --render-looks DIR, QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2: before from baseline files_tree.cpp, colour-only from candidate with counts always drawn, after from candidate; same harness"
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1529-folder-look-v001.r0_305or",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1529-folder-look-v001.r0_305or/launch.py",
+    "source_commit": "0e4d1f89385ca1cbcd64113908d8717b3eda4324",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+    "executable_sha256": "840c9d325a6fef29d0b840d0f78b6fb472b9b9a8dcfc8413e77eec113e77b764"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1529-v001-LVAUv3",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "9b4f7e98ea5592bf28d39c59d06f3949",
+    "event_cursor": 6,
+    "candidates": {
+      "BPR-1529-folder-colour-v001": "bd812f36f7f9b22da4386d2ae80c6903bfd935066bb688f72bd0e7f57f0ce264",
+      "BPR-1530-folder-counts-v001": "b78c04404adb2a72df5184f69b8d8c8f5b0f0943aa5e808608fba49d1b3487cf"
+    },
+    "phase": "ready",
+    "protected": true,
+    "decisions": null,
+    "server_pid": 48572,
+    "server_port": 60136,
+    "complete_url": "Obtain from the session state's serve log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC3 human: owner Accept/Reject of candidate BPR-1530-folder-counts-v001"
+  ],
+  "next_action": "As BPR-1529: same session, branch, frozen root and server; merge only when both verdicts allow it, or split the commit if one is rejected."
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1539"
+  ],
+  "reserve_for": "bpr-nav-dead-buttons",
+  "purpose": "Navigation arrows dead after opening another pull request from Home",
+  "created": "2026-10-15T23:22:59.370967+00:00",
+  "base": "8adfd004e1114910671f284368906d59982554fa"
+}

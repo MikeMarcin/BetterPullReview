@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1535"
+  ],
+  "reserve_for": "home-key-move",
+  "purpose": "",
+  "created": "2026-10-15T22:25:07.845690+00:00",
+  "base": "aba5cb0a74a8dcefbd6b490a38c95e97e9c5cbf1"
+}

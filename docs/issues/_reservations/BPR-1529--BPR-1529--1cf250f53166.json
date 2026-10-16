@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1529"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review file tree folders drawn in Overview's folder colour",
+  "created": "2026-10-15T21:25:08.873124+00:00",
+  "base": "c5492146693ee2582ac2cf6c02943a478ebd8b26"
+}

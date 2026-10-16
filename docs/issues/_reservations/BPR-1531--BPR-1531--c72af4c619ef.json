@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1531"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Accept file shortcut becomes Option-A (Alt+A), replacing Command-Shift-A",
+  "created": "2026-10-15T21:48:25.235707+00:00",
+  "base": "25ee239d880d01be0f777e536346540d5303d085"
+}
