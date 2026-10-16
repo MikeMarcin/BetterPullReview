@@ -883,33 +883,6 @@ namespace bpr::qt {
 			return { QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
 		}
 
-		/// \brief [[BPR-1532]]. Whether a widget takes typed text, where
-		/// Option-Shift-Up and Option-Shift-Down extend the selection (macOS)
-		/// or make box carets (the suggestion editor).
-		///
-		/// \details Editable line and multi-line editors, and any other widget
-		/// Qt routes text input to: editable combo boxes, spin boxes and the
-		/// Review Cycle suggestion editor carry `WA_InputMethodEnabled`, which
-		/// Qt clears when they are read-only. An item view carries it whenever
-		/// its current item is editable, and is not one; the read-only
-		/// comparison panes are not either.
-		[[nodiscard]] auto takes_typed_text_for_change_ends(const QWidget* const aWidget) -> bool
-		{
-			if (aWidget == nullptr || qobject_cast<const QAbstractItemView*>(aWidget) != nullptr) {
-				return false;
-			}
-			if (const auto* const plain = qobject_cast<const QPlainTextEdit*>(aWidget); plain != nullptr) {
-				return !plain->isReadOnly();
-			}
-			if (const auto* const rich = qobject_cast<const QTextEdit*>(aWidget); rich != nullptr) {
-				return !rich->isReadOnly();
-			}
-			if (const auto* const line = qobject_cast<const QLineEdit*>(aWidget); line != nullptr) {
-				return !line->isReadOnly();
-			}
-			return aWidget->testAttribute(Qt::WA_InputMethodEnabled);
-		}
-
 		/// \brief [[BPR-1532]]. Whether the focused widget, or a widget between
 		/// it and the window, binds `aKey` with a widget-scoped shortcut of its
 		/// own, as the tour editor's stop outline binds Option-Shift-Up to
@@ -964,22 +937,33 @@ namespace bpr::qt {
 			return QKeySequence{ QStringLiteral("Alt+A") };
 		}
 
-		/// \brief [[BPR-1531]]. Whether a focused widget takes typed text: an
-		/// editable line or multi-line editor, or any other widget Qt routes
-		/// text input to, such as an editable combo box, a spin box or the
-		/// Review Cycle suggestion editor. Qt marks exactly those with
-		/// `WA_InputMethodEnabled` and clears it when they are read-only. An
-		/// item view is not one: Qt marks it whenever its current item is
-		/// editable, even with no edit trigger, and an edit in progress has
-		/// its own focused editor.
+		/// \brief [[BPR-1531]] [[BPR-1532]] [[BPR-1536]]. Whether a focused
+		/// widget takes typed text: an editable line or multi-line editor, or any
+		/// other widget Qt routes text input to, such as an editable combo box, a
+		/// spin box or the Review Cycle suggestion editor. There Option-A and,
+		/// on macOS, every Option+character key type text, and Option-Shift-Up
+		/// and Option-Shift-Down extend the selection (macOS) or make box carets
+		/// (the suggestion editor), so the window's commands on those keys step
+		/// aside.
+		///
+		/// \details A line or multi-line editor takes text when it is not
+		/// read-only. Any other widget does when Qt marks it with
+		/// `WA_InputMethodEnabled`, which Qt clears when it is read-only. An item
+		/// view is not one: Qt marks it whenever its current item is editable,
+		/// even with no edit trigger, and an edit in progress has its own focused
+		/// editor. The read-only comparison panes are not one either.
 		[[nodiscard]] auto takes_typed_text(const QWidget* const aWidget) -> bool
 		{
 			if (aWidget == nullptr || qobject_cast<const QAbstractItemView*>(aWidget) != nullptr) {
 				return false;
 			}
-			const auto* const line = qobject_cast<const QLineEdit*>(aWidget);
-			return editable_multi_line(aWidget) || (line != nullptr && !line->isReadOnly())
-				|| aWidget->testAttribute(Qt::WA_InputMethodEnabled);
+			if (qobject_cast<const QPlainTextEdit*>(aWidget) != nullptr || qobject_cast<const QTextEdit*>(aWidget) != nullptr) {
+				return editable_multi_line(aWidget);
+			}
+			if (const auto* const line = qobject_cast<const QLineEdit*>(aWidget); line != nullptr) {
+				return !line->isReadOnly();
+			}
+			return aWidget->testAttribute(Qt::WA_InputMethodEnabled);
 		}
 
 		/// \brief [[BPR-1536]]. Whether Option with a character key types text
@@ -10698,7 +10682,7 @@ namespace bpr::qt {
 			if (ChangeEnds[index].Action == nullptr) {
 				continue;
 			}
-			const auto yields = inside && (takes_typed_text_for_change_ends(focused) || binds_key_nearer(focused, this, keys[index]));
+			const auto yields = inside && (takes_typed_text(focused) || binds_key_nearer(focused, this, keys[index]));
 			ChangeEnds[index].Action->setShortcut(yields ? QKeySequence{ } : keys[index]);
 		}
 		describe_change_ends();
