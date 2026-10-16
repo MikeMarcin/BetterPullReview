@@ -2473,15 +2473,18 @@ namespace {
 		};
 		auto* const longBodyView = longPost() != nullptr ? longPost()->findChild<QTextEdit*>(QStringLiteral("threadPostBody")) : nullptr;
 		auto* const longReader   = longPost() != nullptr ? dynamic_cast<qt::markdown_body_view*>(longPost()->findChild<QWidget*>(QStringLiteral("threadPostReader"))) : nullptr;
-		// RFC-BPR-0036: the post reads through the shared reader, where raw
-		// HTML stays literal text and the source keeps every byte.
+		// RFC-BPR-0036: the post reads through the shared reader and the
+		// source keeps every byte. Since amendment 1 ([[BPR-1544]]) GitHub's
+		// HTML subset reads as GitHub draws it: the unclosed <b> makes its
+		// paragraph bold and is not shown.
+		const auto boldStart = longBodyView != nullptr ? longBodyView->document()->find(QStringLiteral("& literal markup")).charFormat() : QTextCharFormat{ };
 		expect(
 			longIndex.data(qt::github_conversation_model::body_role).toString() == literal
 				&& longBodyView != nullptr && longReader != nullptr && longBodyView->isReadOnly()
-				&& longBodyView->toPlainText().startsWith(QStringLiteral("<b>& literal markup remains text."))
+				&& longBodyView->toPlainText().startsWith(QStringLiteral("& literal markup remains text.")) && boldStart.fontWeight() >= QFont::Bold
 				&& longBodyView->toPlainText().endsWith(QStringLiteral("without clipping or elision."))
 				&& QString::fromStdString(longReader->original_body()) == literal,
-			"conversation content in the open thread: HTML is not interpreted, nothing is elided, and the source is exact");
+			"conversation content in the open thread: GitHub's HTML reads as GitHub draws it, nothing is elided, and the source is exact");
 
 		const auto measureHeight = [&longPost](const int aWidth) {
 			auto* const post = longPost();
