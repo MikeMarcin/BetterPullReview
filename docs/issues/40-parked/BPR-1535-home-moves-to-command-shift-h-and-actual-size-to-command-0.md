@@ -105,3 +105,35 @@ Next: on hand-back after cursor 4, an Accept rebases `bpr-1535-home-key` onto
 main (BPR-1531, BPR-1532 and BPR-1536 also edit `workbench_window.cpp` and
 the key table), reruns the focused tests, merges and finishes the card; a
 Reject's note becomes v002.
+
+## Closeout — 2026-10-16
+
+**Owner decision, 2026-10-16T01:37:35Z: Accept**, no note (decision
+`b9df337d-69f1-41b0-b4e9-a32f108bf44d`, event 5 of session
+`96a82a58bc3aad238c97b09cc3cc2b22`), on candidate
+`BPR-1535-home-key-v001` at `0c450bcfa`, fingerprint `6067f20c…`. The
+session was handed back at event 6 with nothing pending; event cursor
+consumed: 6.
+
+BPR-1531, BPR-1536 and BPR-1532 landed first, then the shared text-input
+predicate (`1dde04281`). `main` merged into the branch at `08b7dc614`. Two test
+files conflicted: the resident View menu's zoom rows now sit two further down
+after First and Last change, with Actual Size on Ctrl+0; the window's
+no-duplicate-key check keeps BPR-1532's tour-outline exception with Actual
+Size on Ctrl+0. BPR-1536's "keys that do not type" check had counted
+Command-Option-0, which this card unbinds; it now counts Next file's
+Command-Option-Down. The final key set has no collision: ⌥A, the Option-letter
+keys, ⌥⇧↑/⌥⇧↓ (shared only with the tour outline, which the window yields to),
+⌘⇧H and ⌘0 are each bound once in the assembled window, the resident menu bar
+binds no key twice, and inside the open label menu ⌘0 stays Plain. On the
+merged tree (`dev`, Debug): `qt_workbench_window_scale_{100,125,200}`,
+`application_diff_zoom_public_path`, `qt_composed_github_scale_100`,
+`qt_profile_management_window`, `qt_feedback_label_controls`,
+`qt_appearance_settings_panel`, `architecture_boundaries`,
+`qt_review_state_icon`, `qt_option_keys_typing`, `qt_change_end_keys`,
+`qt_files_tree`, `qt_home_list_scale_100`, `qt_appearance_profile` and the
+BPR-1531/1532/1536 rows pass 28/28; clang-format 22.1.8 is clean and
+clang-tidy passes on the two resolved test files; the documentation gate
+prints `DOCUMENTATION_OK`. `test_review_cycle_two_round_public_path` is still
+outside the dev graph and was not compiled. The review server (pid 70256) was
+stopped, the candidate's protection released and the frozen root removed.

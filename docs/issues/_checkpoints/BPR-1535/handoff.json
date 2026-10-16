@@ -53,22 +53,24 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1535-v001-8fBoSC",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "96a82a58bc3aad238c97b09cc3cc2b22",
-    "event_cursor": 4,
+    "event_cursor": 6,
     "candidates": {
       "BPR-1535-home-key-v001": "6067f20c636ed95a975dd3facad403ece3c8757871e065210eccd34dbe009611"
     },
-    "phase": "ready",
-    "protected": true,
+    "phase": "decided",
+    "protected": false,
     "decisions": null,
-    "server_pid": 70256,
+    "server_pid": null,
     "server_port": 64627,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), b9df337d-69f1-41b0-b4e9-a32f108bf44d"
   },
-  "pending": [
-    "AC4 human: owner Accept/Reject of candidate BPR-1535-home-key-v001"
-  ],
+  "pending": [],
   "uncertainties": [
     "Native macOS menu: Actual Size's Command-0 key equivalent versus the open label menu's Plain was reasoned from Qt 6.10.0 qcocoansmenu.mm (focus object offered ShortcutOverride first), not observed; the cocoa course needs the owner's desktop."
   ],
-  "next_action": "On hand-back after cursor 4: Accept rebases bpr-1535-home-key onto main (BPR-1531, BPR-1532, BPR-1536 also edit workbench_window.cpp and the key table), reruns the focused tests, merges, finishes the card Done and removes the frozen root and the worktree's build/dev; Reject's note becomes v002 on the same branch."
+  "next_action": "None: accepted, merged to main after BPR-1531, BPR-1536 and BPR-1532 and finished Done; server stopped, protection released, frozen root and build/dev removed.",
+  "merged_tree": {
+    "verification": "28/28 focused and shared window/menu rows pass; conflicts in profile_management_window_tests.cpp and workbench_window_tests.cpp resolved; BPR-1536 check retargeted to Command-Option-Down; clang-format 22.1.8 and clang-tidy clean on resolved files; DOCUMENTATION_OK"
+  }
 }
