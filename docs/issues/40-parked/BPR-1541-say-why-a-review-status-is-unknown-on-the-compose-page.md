@@ -237,3 +237,24 @@ asked in session `639b1472456536d8c47dcbda99a91f2d` with one Accept/Reject
 question. The question carries before / v001 / v002 renders in Light and Dark,
 the window in Light and Dark, and the 20-line v002 sheet. The v001 host was
 stopped, its candidate released, and its frozen root removed.
+
+## Closeout
+
+The owner accepted v002 with no note: candidate `BPR-1541-waiting-panel-v002`
+(`8ef3e435a`), decision `97d7d431`, at event 5 of session
+`639b1472456536d8c47dcbda99a91f2d`. The branch was rebased onto `main` three
+times as `main` moved and landed by fast-forward.
+
+On the merged tree:
+
+- The full `ctest --preset dev` passed 738 of 739 rows. The one failure,
+  `documentation_structure`, was `NEXT_ID` falling behind another branch's
+  reservation. It passes after the final rebase, and so does
+  `documentation_issue_graph_contract`.
+- The round-trip composition contract passes with the pins resealed on the
+  branch. `main` had not changed `github_application.cpp` or the production
+  app sources since.
+- The documentation gate passes.
+
+The review host was stopped and the v002 candidate released. The frozen roots
+for v001 and v002 were removed.
