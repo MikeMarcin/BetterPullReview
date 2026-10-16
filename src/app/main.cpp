@@ -1281,7 +1281,7 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
-		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain|again`.
+		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain|again|kept|restored`.
 		std::optional<bpr::app::detail::start_review_course> StartReviewCourse;
 		bool                                                 StartReviewPassed = false;
 		bpr::app::detail::start_review_probe_evidence        StartReviewEvidence;
@@ -3706,6 +3706,7 @@ namespace {
 			// same head over the same data root, whose objects are already held.
 			// [[BPR-1374]]. So does the unsent-reply course's restart.
 			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
+					|| aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::restored }
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
 				? 0
 				: aRun.MaintenanceProbe
@@ -4989,7 +4990,14 @@ namespace {
 					   << evidence.SecondDiscard << evidence.AgainStarted << evidence.AgainOffered << evidence.AgainSubmitted << '\n';
 				break;
 			case bpr::app::detail::start_review_course::uncertain:
-				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.Reconciled << '\n';
+				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.ReasonShown << evidence.ReasonReplaced << evidence.Reconciled
+					   << evidence.ReasonCleared << '\n';
+				break;
+			case bpr::app::detail::start_review_course::kept:
+				stream << "START_REVIEW_KEPT_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.ReasonShown << '\n';
+				break;
+			case bpr::app::detail::start_review_course::restored:
+				stream << "START_REVIEW_RESTORED_EVIDENCE:" << evidence.ReasonRestored << evidence.ReasonReplaced << '\n';
 				break;
 			}
 			stream << "START_REVIEW_DIAGNOSTIC:" << QString::fromStdString(aRun.StartReviewDiagnostic) << '\n';
@@ -8911,6 +8919,13 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1345]]. The start-a-review course reads again after publishing.
 		const auto startReviewCourse      = launch.value("--start-review-course");
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
+		// [[BPR-1541]]. The restored course holds the review list's reads, so
+		// the restarted window shows the reason its record kept before Check
+		// status answers.
+		if (startReviewCourse == std::optional<std::string_view>{ "restored" }) {
+			fixtureOptions.ReviewSubmissionServer                   = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.ReviewSubmissionServer->StallReviewReads = true;
+		}
 		// [[BPR-1478]]. The refresh-pick course reads the pull request again.
 		const auto refreshPickCourseName = launch.value("--refresh-pick-course");
 		auto       refreshPickCourse     = std::optional<bpr::app::detail::refresh_pick_course>{ };
@@ -9997,6 +10012,8 @@ auto main(int argc, char** argv) -> int
 									: startReviewCourse == std::optional<std::string_view>{ "refused" }                                                                                                                                                                   ? std::optional{ bpr::app::detail::start_review_course::refused }
 									: startReviewCourse == std::optional<std::string_view>{ "uncertain" }                                                                                                                                                                 ? std::optional{ bpr::app::detail::start_review_course::uncertain }
 									: startReviewCourse == std::optional<std::string_view>{ "again" }                                                                                                                                                                     ? std::optional{ bpr::app::detail::start_review_course::again }
+									: startReviewCourse == std::optional<std::string_view>{ "kept" }                                                                                                                                                                      ? std::optional{ bpr::app::detail::start_review_course::kept }
+									: startReviewCourse == std::optional<std::string_view>{ "restored" }                                                                                                                                                                  ? std::optional{ bpr::app::detail::start_review_course::restored }
 																																																																		  : std::nullopt,
 								.ReplyDraftCourse                = replyDraftCourse,
 								.RefreshPickCourse               = refreshPickCourse,

@@ -1,4 +1,5 @@
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -14,6 +15,8 @@
 #include <QTextEdit>
 #include <QToolButton>
 #include <cstdlib>
+#include <set>
+#include <string>
 #include <iostream>
 
 namespace {
@@ -414,6 +417,116 @@ auto main(int argc, char** argv) -> int
 		expect(heard == std::vector<std::size_t>{ 2U } && live.confirmed_submissions() == 1U && live.last_submitted() == confirmedDraft,
 			   "a confirmed review is announced once, with its comment count");
 		live.hide();
+	}
+	// [[BPR-1541]]. Under "Review status is unknown", one line says why, in a
+	// reviewer's words, from the notice the core chose: every reason its own
+	// line, counts only where the notice carries them, no identity, part of
+	// the status's description, wrapping, readable in every theme, and gone
+	// when there is no reason or the review is not awaiting confirmation.
+	{
+		auto awaiting    = draft;
+		awaiting.State   = core::review_submission_state::submitting;
+		awaiting.Attempt = core::review_submission_attempt_id{ 1U };
+		auto unknown     = projection;
+		unknown.Draft    = awaiting;
+		unknown.Controls = core::controls(awaiting);
+		unknown.Status   = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
+		editor.resize(300, 700);
+		editor.present(unknown);
+		QApplication::processEvents();
+		expect(editor.unknown_reason_label()->isHidden() && editor.status_label()->accessibleDescription().isEmpty(), "with no reason there is no reason line");
+		auto lines         = std::set<QString>{ };
+		const auto diagnose = [](const core::review_submission_unknown_reason aReason) {
+			auto value             = core::review_submission_unknown_diagnosis{ .Reason = aReason };
+			value.CommentsExpected = 3U;
+			value.CommentsFound    = 3U;
+			value.CommentsMatched  = 2U;
+			value.HttpStatusClass  = aReason == core::review_submission_unknown_reason::http_status ? std::uint8_t{ 5U } : std::uint8_t{ 0U };
+			return value;
+		};
+		const auto sheet = qEnvironmentVariable("BPR_UNKNOWN_REASON_SHEET");
+		for (std::size_t index = 0U; index < core::review_submission_unknown_reason_count; ++index) {
+			const auto reason = static_cast<core::review_submission_unknown_reason>(index);
+			unknown.Unknown   = core::notice(diagnose(reason));
+			editor.present(unknown);
+			QApplication::processEvents();
+			const auto  text  = editor.unknown_reason_label()->text();
+			const auto  where = std::string{ " (" } + std::string{ core::name(reason) } + ")";
+			expect(!editor.unknown_reason_label()->isHidden() && text == qt::review_submission_unknown_text(*unknown.Unknown) && !text.isEmpty() && text.endsWith(QLatin1Char{ '.' }) && text.size() <= 170,
+				   ("each reason shows its own short line" + where).c_str());
+			expect(editor.status_label()->accessibleDescription() == text, ("and the status's description says it" + where).c_str());
+			expect(lines.insert(text).second, ("no two reasons share a line" + where).c_str());
+			for (const auto* secret : { "github.com", "owner", "repository#", "reviewer", "abcdef", "account 4", "Literal" }) {
+				expect(!text.contains(QString::fromLatin1(secret)), ("and it names no host, repository, account, head or words" + where).c_str());
+			}
+			expect(editor.unknown_reason_label()->wordWrap() && editor.unknown_reason_label()->width() <= editor.width()
+					   && editor.unknown_reason_label()->heightForWidth(editor.unknown_reason_label()->width()) <= editor.unknown_reason_label()->height(),
+				   ("and it wraps inside the page" + where).c_str());
+			if (!sheet.isEmpty()) {
+				// The attended render sheet: each line in Light and Dark.
+				for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+					auto profile = qt::appearance_profile{ };
+					profile.select_mode(mode);
+					editor.setPalette(profile.derive(QApplication::palette()));
+					QApplication::processEvents();
+					expect(editor.grab().save(sheet + QStringLiteral("/") + QString::fromLatin1(core::name(reason).data(), static_cast<qsizetype>(core::name(reason).size())) + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")),
+						   "the sheet render is saved");
+				}
+				editor.setPalette(QApplication::palette());
+			}
+		}
+		expect(lines.size() == core::review_submission_unknown_reason_count, "all twenty reasons have a line");
+		// Counts only where they help, singular and plural.
+		auto counted             = diagnose(core::review_submission_unknown_reason::comments_mismatch);
+		unknown.Unknown          = core::notice(counted);
+		editor.present(unknown);
+		expect(editor.unknown_reason_label()->text().contains(QStringLiteral("only 2 of 3 comments matched")), "a mismatch says how many of the review's comments matched");
+		counted.CommentsFound    = 2U;
+		counted.CommentsMatched  = 0U;
+		unknown.Unknown          = core::notice(counted);
+		editor.present(unknown);
+		expect(editor.unknown_reason_label()->text().contains(QStringLiteral("it holds 2 comments and this one has 3 comments")), "or how many it holds against how many this one has");
+		counted.CommentsExpected = 1U;
+		counted.CommentsFound    = 1U;
+		unknown.Unknown          = core::notice(counted);
+		editor.present(unknown);
+		expect(editor.unknown_reason_label()->text().contains(QStringLiteral("only 0 of 1 comment matched")), "one comment is said in the singular");
+		auto refused            = diagnose(core::review_submission_unknown_reason::http_status);
+		refused.HttpStatusClass = 4U;
+		unknown.Unknown         = core::notice(refused);
+		editor.present(unknown);
+		const auto four         = editor.unknown_reason_label()->text();
+		refused.HttpStatusClass = 0U;
+		unknown.Unknown         = core::notice(refused);
+		editor.present(unknown);
+		expect(four != editor.unknown_reason_label()->text() && !lines.contains(four) && four.contains(QStringLiteral("refused")), "a refused read and an unclassified error read differently from a server error");
+		// Readable in every theme: the line is drawn in the page's own text
+		// colour, as the status is.
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			editor.setPalette(profile.derive(QApplication::palette()));
+			QApplication::processEvents();
+			const auto& palette = editor.unknown_reason_label()->palette();
+			const auto  ink     = palette.color(QPalette::Active, editor.unknown_reason_label()->foregroundRole());
+			const auto  paper   = palette.color(QPalette::Active, QPalette::Window);
+			expect(editor.unknown_reason_label()->foregroundRole() == editor.status_label()->foregroundRole()
+					   && ink == editor.status_label()->palette().color(QPalette::Active, editor.status_label()->foregroundRole())
+					   && qt::destructive_contrast(ink, paper) >= 4.5,
+				   "the reason is drawn as the status is, readable on the page");
+		}
+		editor.setPalette(QApplication::palette());
+		// Negative controls: no reason, or a review not awaiting confirmation,
+		// shows none.
+		unknown.Unknown.reset();
+		editor.present(unknown);
+		expect(editor.unknown_reason_label()->isHidden() && editor.unknown_reason_label()->text().isEmpty() && editor.status_label()->accessibleDescription().isEmpty(), "a confirmed or cleared review shows no reason");
+		auto drafting     = projection;
+		drafting.Draft    = draft;
+		drafting.Controls = core::controls(draft);
+		drafting.Unknown  = core::notice(diagnose(core::review_submission_unknown_reason::timeout));
+		editor.present(drafting);
+		expect(editor.unknown_reason_label()->isHidden(), "a draft being written never shows a reason");
 	}
 	editor.present(projection);
 	expect(editor.title_label()->text() == QStringLiteral("Compose review") && !editor.pending_list()->isVisible() && !editor.carries_label()->isVisible()

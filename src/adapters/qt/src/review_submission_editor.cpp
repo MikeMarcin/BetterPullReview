@@ -463,6 +463,72 @@ namespace bpr::qt {
 		return lines.join(QLatin1Char{ '\n' });
 	}
 
+	auto review_submission_unknown_text(const core::review_submission_unknown_notice& aNotice) -> QString
+	{
+		// [[BPR-1541]]. What happened, then what to do, in a reviewer's words.
+		// Only the counts the notice carries; never a host, repository,
+		// account, path or comment.
+		using reason        = core::review_submission_unknown_reason;
+		const auto comments = [](const std::uint16_t aCount) {
+			return aCount == 1U ? review_submission_editor::tr("1 comment") : review_submission_editor::tr("%1 comments").arg(aCount);
+		};
+		switch (aNotice.Reason) {
+		case reason::review_not_listed:
+			return review_submission_editor::tr("GitHub hasn't listed this review yet. Check status again in a moment.");
+		case reason::several_reviews_listed:
+			return review_submission_editor::tr("GitHub lists more than one matching review from you, so this one can't be picked out. Look at the pull request on GitHub.");
+		case reason::review_list_unreadable:
+			return review_submission_editor::tr("GitHub's list of reviews couldn't be read. Check status again; if this repeats, look at the pull request on GitHub.");
+		case reason::review_list_too_large:
+			return review_submission_editor::tr("This pull request's list of reviews is too large to read here. Look at the pull request on GitHub.");
+		case reason::review_list_paged:
+			return review_submission_editor::tr("This pull request has more than 100 reviews, more than can be read here. Look at the pull request on GitHub.");
+		case reason::comment_page_unreadable:
+			return review_submission_editor::tr("A page of this pull request's comments couldn't be read. Check status again; if this repeats, look at the pull request on GitHub.");
+		case reason::comment_page_too_large:
+			return review_submission_editor::tr("A page of this pull request's comments is too large to read here. Look at the pull request on GitHub.");
+		case reason::comment_page_link_refused:
+			return review_submission_editor::tr("GitHub pointed to a next page of comments that isn't this pull request's, so it wasn't read. Look at the pull request on GitHub.");
+		case reason::comment_collection_too_long:
+			return review_submission_editor::tr("This pull request has more than 1,000 comments, more than can be read here. Look at the pull request on GitHub.");
+		case reason::comments_mismatch:
+			if (aNotice.Count == core::review_submission_unknown_count::matched_of_carried) {
+				return review_submission_editor::tr("A new review from you was found, but only %1 of %2 matched. Look at it on GitHub before submitting anything.").arg(aNotice.Value).arg(comments(aNotice.Of));
+			}
+			if (aNotice.Count == core::review_submission_unknown_count::held_of_carried) {
+				return review_submission_editor::tr("A new review from you was found, but it holds %1 and this one has %2. Look at it on GitHub before submitting anything.").arg(comments(aNotice.Value), comments(aNotice.Of));
+			}
+			return review_submission_editor::tr("A new review from you was found, but its comments don't match this one. Look at it on GitHub before submitting anything.");
+		case reason::comment_moved_without_original_position:
+			return review_submission_editor::tr("A comment moved after a new commit, and GitHub doesn't say where it was written. Look at the review on GitHub.");
+		case reason::http_status:
+			if (aNotice.StatusClass == 5U) {
+				return review_submission_editor::tr("GitHub had a server error. Check status again in a few minutes.");
+			}
+			if (aNotice.StatusClass == 4U) {
+				return review_submission_editor::tr("GitHub refused to show this pull request's reviews. Make sure you can still open it, then check status again.");
+			}
+			return review_submission_editor::tr("GitHub answered with an error. Check status again.");
+		case reason::rate_limited:
+			return review_submission_editor::tr("GitHub's rate limit for your account was reached. Check status again later.");
+		case reason::timeout:
+			return review_submission_editor::tr("GitHub took too long to answer. Check status again.");
+		case reason::network:
+			return review_submission_editor::tr("GitHub couldn't be reached. Check your connection, then check status again.");
+		case reason::account_mismatch:
+			return review_submission_editor::tr("The account signed in now isn't the one that submitted this review. Sign in with that account, then check status.");
+		case reason::pull_request_mismatch:
+			return review_submission_editor::tr("This pull request no longer matches the one the review was sent to. Look at the pull request on GitHub.");
+		case reason::connection_unavailable:
+			return review_submission_editor::tr("There's no connection to GitHub for this account right now. Sign in again, then check status.");
+		case reason::local_record_unavailable:
+			return review_submission_editor::tr("This computer's record of the submission couldn't be read. Look at the pull request on GitHub.");
+		case reason::cancelled:
+			return review_submission_editor::tr("The check stopped before it finished. Check status again.");
+		}
+		return { };
+	}
+
 	review_submission_editor::review_submission_editor(review_submission_editor_dispatch aDispatch, QWidget* aParent)
 		: QWidget{ aParent }
 		, Dispatch{ std::move(aDispatch) }
@@ -608,6 +674,19 @@ namespace bpr::qt {
 		Status->setMinimumWidth(0);
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		layout->addWidget(Status);
+		// [[BPR-1541]]. Why the review is still unknown, under the status it
+		// explains, in the same type and colour so it reads as its second
+		// sentence in every theme.
+		UnknownReason = new QLabel{ this };
+		UnknownReason->setObjectName(QStringLiteral("wholeReviewUnknownReason"));
+		UnknownReason->setAccessibleName(tr("Why the review status is unknown"));
+		UnknownReason->setTextFormat(Qt::PlainText);
+		UnknownReason->setWordWrap(true);
+		UnknownReason->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		UnknownReason->setMinimumWidth(0);
+		UnknownReason->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		UnknownReason->setVisible(false);
+		layout->addWidget(UnknownReason);
 		// Recovery appears only when it can be used.
 		Recovery            = new QWidget{ this };
 		auto* const recover = new QHBoxLayout{ Recovery };
@@ -707,6 +786,12 @@ namespace bpr::qt {
 		Purpose->setVisible(drafting);
 		Status->setText(aProjection.Status);
 		Status->setVisible(!aProjection.Status.isEmpty());
+		// [[BPR-1541]]. Shown only for a review awaiting confirmation, and
+		// read as part of the status's description.
+		const auto unknown = aProjection.Unknown && Draft && Draft->State == core::review_submission_state::submitting ? review_submission_unknown_text(*aProjection.Unknown) : QString{ };
+		UnknownReason->setText(unknown);
+		UnknownReason->setVisible(!unknown.isEmpty());
+		Status->setAccessibleDescription(unknown);
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
 		Body->setReadOnly(!connected || !aProjection.Controls.Edit);
 		Submit->setEnabled(connected && aProjection.Controls.Submit);
@@ -728,7 +813,7 @@ namespace bpr::qt {
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
 		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
 		const auto chosen       = Draft ? decisions_name(Draft->Disposition) : QString{ };
-		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ") + aProjection.Status;
+		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ") + aProjection.Status + (unknown.isEmpty() ? QString{ } : QStringLiteral(" ") + unknown);
 		if (announcement != LastAnnouncement) {
 			LastAnnouncement = announcement;
 			QAccessibleAnnouncementEvent event{ this, announcement };
@@ -1147,6 +1232,7 @@ namespace bpr::qt {
 	auto review_submission_editor::discard_action() const noexcept -> QAction* { return Discard; }
 	auto review_submission_editor::reconcile_action() const noexcept -> QAction* { return Reconcile; }
 	auto review_submission_editor::status_label() const noexcept -> QLabel* { return Status; }
+	auto review_submission_editor::unknown_reason_label() const noexcept -> QLabel* { return UnknownReason; }
 	auto review_submission_editor::target_editor() const noexcept -> QTextEdit* { return Target; }
 	auto review_submission_editor::shown_draft() const noexcept -> const std::optional<core::review_submission_draft>& { return Draft; }
 	auto review_submission_editor::shown_projection() const noexcept -> const review_submission_editor_projection& { return Shown; }

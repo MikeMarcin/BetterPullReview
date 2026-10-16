@@ -180,6 +180,7 @@ namespace bpr::app {
 			return;
 		}
 		DraftBinding = Current->Binding;
+		Unknown.reset();
 		Draft        = core::review_submission_draft{ .Id            = core::review_submission_draft_id{ NextDraft++ },
 													  .Target        = DraftBinding->Target.Semantic,
 													  .ActingAccount = DraftBinding->ActingIdentity.Account };
@@ -288,6 +289,10 @@ namespace bpr::app {
 		Draft                = core::review_submission_draft{ .Id = proposal.Draft, .Target = proposal.Target, .ActingAccount = proposal.ActingAccount, .Body = proposal.Body, .Disposition = proposal.Disposition, .State = draft_state::submitting, .Attempt = proposal.Attempt, .Comments = proposal.Comments };
 		DraftBinding         = aRequest.LiveBinding;
 		NextDraft            = std::max(NextDraft, proposal.Draft.value() == std::numeric_limits<std::uint64_t>::max() ? proposal.Draft.value() : proposal.Draft.value() + 1U);
+		// [[BPR-1541]]. Its record says why it was left unknown, until the
+		// next Check status replaces it.
+		const auto kept      = KeptUnknown.find(aRequest.IdempotencyKey);
+		Unknown              = kept != KeptUnknown.end() ? std::optional{ kept->second } : std::nullopt;
 		Pending              = std::move(aRequest);
 		Status               = QStringLiteral("An unfinished review was restored. Check status before starting another review.");
 	}
@@ -400,7 +405,8 @@ namespace bpr::app {
 						 .Status            = std::move(status),
 						 .Preflight         = Preflight,
 						 .References        = PreflightReferences,
-						 .Prepared          = Draft ? core::prepare_review_decision(*Draft, Selection) : std::nullopt });
+						 .Prepared          = Draft ? core::prepare_review_decision(*Draft, Selection) : std::nullopt,
+						 .Unknown           = Unknown && Pending ? std::optional{ core::notice(*Unknown) } : std::nullopt });
 	}
 
 	void review_submission_workflow::complete(command_kind aKind)
@@ -505,6 +511,7 @@ namespace bpr::app {
 																	   .IdempotencyKey = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString(),
 																	   .LiveBinding    = DraftBinding };
 				Pending      = request;
+				Unknown.reset();
 				if (!request.Proposal.Comments.empty() && LockComments) {
 					// Every carried draft is held for this submission, durably,
 					// before anything can be sent.
@@ -632,7 +639,13 @@ namespace bpr::app {
 			return;
 		}
 		if (const auto* discovery = std::get_if<application::review_submission_discovery>(&aTerminal.Outcome)) {
-			Ready = discovery->has_value();
+			Ready       = discovery->has_value();
+			KeptUnknown = aTerminal.Unknown;
+			if (Pending && !Unknown) {
+				if (const auto kept = KeptUnknown.find(Pending->IdempotencyKey); kept != KeptUnknown.end()) {
+					Unknown = kept->second;
+				}
+			}
 			if (!Ready) {
 				Status = QStringLiteral("Review recovery is unavailable. Refresh the pull request to try again.");
 			} else {
@@ -658,6 +671,7 @@ namespace bpr::app {
 			if (result->Publication == application::review_submission_publication::published
 				&& result->Receipt && application::valid(*result->Receipt, *Pending)) {
 				const auto submitted = *Pending;
+				Unknown.reset();
 				complete(command_kind::complete_submit);
 				std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
 				Pending.reset();
@@ -674,6 +688,7 @@ namespace bpr::app {
 				next_review();
 			} else if (result->Publication == application::review_submission_publication::definitely_not_published) {
 				const auto refused = *Pending;
+				Unknown.reset();
 				complete(command_kind::fail_submit);
 				std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
 				Pending.reset();
@@ -693,6 +708,8 @@ namespace bpr::app {
 				// authority it runs under. Once it finds the review published,
 				// that answer rereads.
 				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
+				// [[BPR-1541]]. Each answer replaces the reason.
+				Unknown = result->Unknown;
 			}
 		}
 		if (!Context) {

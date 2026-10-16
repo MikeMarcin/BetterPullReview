@@ -81,6 +81,21 @@ namespace bpr::core {
 		return index < reason_names.size() ? reason_names[index] : std::string_view{ };
 	}
 
+	auto notice(const review_submission_unknown_diagnosis& aDiagnosis) noexcept -> review_submission_unknown_notice
+	{
+		auto result = review_submission_unknown_notice{ .Reason = aDiagnosis.Reason };
+		if (aDiagnosis.Reason == review_submission_unknown_reason::comments_mismatch && aDiagnosis.CommentsExpected != 0U) {
+			const auto held = aDiagnosis.CommentsFound != aDiagnosis.CommentsExpected;
+			result.Count    = held ? review_submission_unknown_count::held_of_carried : review_submission_unknown_count::matched_of_carried;
+			result.Value    = held ? aDiagnosis.CommentsFound : aDiagnosis.CommentsMatched;
+			result.Of       = aDiagnosis.CommentsExpected;
+		}
+		if (aDiagnosis.Reason == review_submission_unknown_reason::http_status && (aDiagnosis.HttpStatusClass == 4U || aDiagnosis.HttpStatusClass == 5U)) {
+			result.StatusClass = aDiagnosis.HttpStatusClass;
+		}
+		return result;
+	}
+
 	auto name(const review_submission_post_answer aAnswer) noexcept -> std::string_view
 	{
 		const auto index = static_cast<std::size_t>(aAnswer);
