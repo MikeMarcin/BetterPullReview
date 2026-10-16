@@ -501,6 +501,23 @@ namespace {
 		}
 		aView.setPalette(inherited);
 		aView.resize(740, 900);
+		// In place, as a post in the Comments drawer reads.
+		auto        holder = QWidget{ };
+		auto* const post   = new qt::markdown_body_view{ &holder };
+		post->set_in_place(true);
+		holder.show();
+		for (const auto& [mode, name] : themes) {
+			holder.setPalette(palette_of(mode));
+			holder.setAutoFillBackground(true);
+			for (const auto& page : { QStringLiteral("comments"), QStringLiteral("breaks"), QStringLiteral("alerts"), QStringLiteral("footnotes") }) {
+				post->set_body(fixture(page), (QStringLiteral("in-place:") + page + QLatin1Char{ ':' } + QString::fromLatin1(name)).toStdString());
+				const auto height = post->heightForWidth(480);
+				holder.resize(496, height + 16);
+				post->setGeometry(8, 8, 480, height);
+				settle();
+				expect(holder.grab().save(root + QStringLiteral("/in-place-") + page + QLatin1Char{ '-' } + QString::fromLatin1(name) + QStringLiteral(".png")), "save in-place capture");
+			}
+		}
 	}
 } // namespace
 
