@@ -212,7 +212,7 @@ namespace {
 		expect(!visible_block(document, QStringLiteral("[1/3] Compiling")) && !visible_block(document, QStringLiteral("trimmed")), "a closed section hides its code and text");
 		expect(visible_block(document, QStringLiteral("item one")) && visible_block(document, QStringLiteral("After the details.")), "an open section and what follows show");
 		expect(!visible_block(document, QStringLiteral("Inner")) && !visible_block(document, QStringLiteral("Nested content.")), "a closed outer section hides an inner one");
-		expect(block_containing(document, QStringLiteral("Build log")).text().startsWith(QStringLiteral("▸ ")) && block_containing(document, QStringLiteral("Open by default")).text().startsWith(QStringLiteral("▾ ")), "the triangle says closed or open");
+		expect(block_containing(document, QStringLiteral("Build log")).text().startsWith(QStringLiteral("\u25B6 ")) && block_containing(document, QStringLiteral("Open by default")).text().startsWith(QStringLiteral("\u25BC ")), "the triangle says closed or open");
 		expect(format_of(document, QStringLiteral("Bold")).fontWeight() >= QFont::Bold && format_of(document, QStringLiteral("code")).fontFixedPitch(), "a summary's own HTML formatting reads");
 		expect(reserved_marks(document) == 0, "no mark reaches the reader");
 
@@ -544,7 +544,7 @@ namespace {
 			const auto palette = palette_of(mode);
 			aView.setPalette(palette);
 			holder.setPalette(palette);
-			for (const auto& page : { QStringLiteral("pr-html"), QStringLiteral("details"), QStringLiteral("html"), QStringLiteral("emoji") }) {
+			for (const auto& page : { QStringLiteral("pr-html"), QStringLiteral("details"), QStringLiteral("html"), QStringLiteral("emoji"), QStringLiteral("hostile-html") }) {
 				aView.resize(720, 400);
 				show(aView, fixture(page), (page + QLatin1Char{ ':' } + QString::fromLatin1(name)).toStdString());
 				save(aView, aView, page + QLatin1Char{ '-' } + QString::fromLatin1(name), false);

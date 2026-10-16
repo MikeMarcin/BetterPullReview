@@ -327,7 +327,7 @@ namespace bpr::qt::detail {
 				result += aValue.mid(at, length);
 			} else {
 				const auto valid = code != 0 && code <= 0x10FFFF && (code < 0xD800 || code > 0xDFFF);
-				result += QString::fromUcs4(valid ? &code : U"�", 1);
+				result += QString::fromUcs4(valid ? &code : U"\uFFFD", 1);
 			}
 			at += length;
 		}

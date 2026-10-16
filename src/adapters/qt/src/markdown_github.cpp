@@ -1412,8 +1412,8 @@ namespace bpr::qt::detail {
 
 		auto disclosure(const bool aOpen) -> QString
 		{
-			// U+25BE and U+25B8, the small triangles a browser draws.
-			return aOpen ? QStringLiteral("▾ ") : QStringLiteral("▸ ");
+			// U+25BC and U+25B6, drawn at 0.7 of the text as a browser's marker.
+			return aOpen ? QStringLiteral("\u25BC ") : QStringLiteral("\u25B6 ");
 		}
 
 		auto summary_format(const int aId, const bool aOpen) -> QTextCharFormat
@@ -1774,6 +1774,16 @@ namespace bpr::qt::detail {
 			}
 			const auto title = alert > 0 && format.boolProperty(markdown_alert_title_property);
 			fragments.clear();
+			if (format.hasProperty(markdown_details_property) && block.length() > 2) {
+				// The disclosure triangle at 0.7 of the text, as a browser's marker.
+				auto marker = block.begin().fragment().charFormat();
+				if (aStyle.Base.pointSizeF() > 0.0) {
+					marker.setFontPointSize(aStyle.Base.pointSizeF() * 0.7);
+				}
+				marker.setForeground(aStyle.Ink);
+				marker.setFontUnderline(false);
+				fragments.push_back({ .Position = block.position(), .Length = 1, .Format = marker });
+			}
 			for (auto it = block.begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
 				auto       chars    = fragment.charFormat();
