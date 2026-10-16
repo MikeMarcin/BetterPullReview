@@ -202,27 +202,44 @@ numbers are kept here).
   `017af0a` (GitHub's basis, files unchanged), compare against the branch
   names the head itself (`behind`, an empty diff), which is why a closed pull
   request asks against its recorded base.
-- **Squash course** (`bpr1560_live_course.py`, #82, signed in, sparse, one data
-  root across all steps): Whole PR matches GitHub on every file in every step
-  (modified, added, renamed with no change, removed) including the squash on
-  the fork point (`base.sha` = tip, merge base two commits behind) and the
-  squash onto an older base commit (`base.sha` = tip, merge base one behind);
-  the interdiff from the previous update matches both heads' blobs from step 2
-  on (absent-from-both files reported as such). Step 3's first run failed once
-  in Git acquisition (transport `response_limit` while the composition
-  contracts ran beside it); forcing the same head again on the same data root
-  passed (Whole PR 6/6, interdiff shown). Not reproduced; recorded.
-- **Gates so far.** clang-format 22 clean; clang-tidy clean on the 17 changed
-  sources (warnings as errors); `DOCUMENTATION_OK`; composition contracts pass
-  after a reseal (`application_review_round_trip_composition_contract`,
-  `application_composition_contract`); focused suites pass:
-  `core_epoch_policy`, `github_read_contract`,
-  `github_anonymous_read_contract`, `github_paged_read`,
-  `native_https_anonymous_read_contract`, `github_mutation_contract`,
-  `sqlite_review_submission_recovery_storage`, `application_github_contract`,
-  `application_epoch_host`, `application_epoch_contract`,
-  `application_review_submission_composition_public_path`,
-  `application_review_submission_cli_ordinary`.
+- **Squash course** (`bpr1560_live_course.py --prefix bpr1560-sq5`, #83,
+  signed in, sparse, one data root across all steps): every step passes
+  (`summary: 1-open=ok, 2-merged=ok, 3-squash-fork-point=ok,
+  4-squash-on-tip=ok, 5-squash-on-older-base=ok`). Whole PR shows GitHub's
+  status and lines on every file (modified, added, renamed with no change,
+  removed), including the squash on the fork point (`base.sha` = tip, merge
+  base two commits behind) and the squash onto an older base commit
+  (`base.sha` = tip, merge base one behind); the interdiff from the previous
+  update shows both heads' blobs for every file from step 2 on, a file both
+  updates lack reported as such. An earlier run (#82) failed step 3 once in
+  Git acquisition (transport `response_limit` while the composition contracts
+  ran beside it); forcing the same head again on the same data root passed.
+  Not reproduced since; recorded.
+- **Squash course negative control** (`--negative-control`, #84, the handoff
+  given the recorded base): the mismatch is reproduced exactly where GitHub's
+  `base.sha` is ahead of the merge base, the squash on the fork point (step 3)
+  and the squash onto an older base commit (step 5), the owner's state; where
+  `base.sha` is the merge base (steps 1, 2, 4) the two agree.
+- **Merged #75** (closed, merged): Whole PR PASS 3/3 against GitHub, asked
+  against the recorded base.
+- **Gates.** One full `ctest --preset dev` on `d8cdf5970` (main merged at
+  `ec097d8dc`): 746/754 passed. The eight failures and their dispositions:
+  `coding_format_check` (the merge's `github_provider.cpp` alignment,
+  reformatted), `github_contract_fixture_security` and
+  `test_network_isolation_manifest` (the new fixture tree and test row
+  registered), `application_logging` (an unknown `GetMergeBase` name dropped
+  the read's log record; added to both name tables),
+  `application_epoch_portable_occurrence_two_catalogues` (the rewritten-base
+  course's base shares no history with the head, so GitHub's compare finds no
+  merge base and Whole PR is now honestly unavailable; the course accepts that
+  state with its reason), and `git_process_contract` (timeout under load),
+  `application_label_authoring_contract`, `application_terminal_diagnostics`
+  (load). All eight pass on `2aade62c1`, as do the nine composition contracts
+  after the reseal. clang-format 22 clean; clang-tidy clean (warnings as
+  errors) on every changed source except four findings in `src/app/main.cpp`
+  on lines this change does not touch (identifier naming at 2194 and 9664, an
+  optional conversion at 10143, a use after move at 10151, from `bf04e3918f`
+  and earlier); `DOCUMENTATION_OK`.
 
 ## Not changed, deliberately
 
