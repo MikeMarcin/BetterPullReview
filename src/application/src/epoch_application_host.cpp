@@ -6748,6 +6748,7 @@ namespace bpr::application {
 								.ApplicationSession = authorityContext->Handoff.ApplicationSession,
 								.Authority          = authorityContext->Authority,
 								.Revision           = authorityContext->Revision,
+								.Basis              = authorityContext->Handoff.BaseBasis,
 							},
 							[&](const core::epoch_transition_output&) {
 								accepted = aHost.State.Authority
@@ -7344,6 +7345,7 @@ namespace bpr::application {
 										.ApplicationSession = context->Handoff.ApplicationSession,
 										.Authority          = context->Authority,
 										.Revision           = nextRevision,
+										.Basis              = context->Handoff.BaseBasis,
 									});
 								if (aHost.State.AcceptedRevision
 									!= std::optional{ nextRevision }) {

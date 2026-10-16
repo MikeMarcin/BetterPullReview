@@ -364,8 +364,11 @@ namespace {
 		case read_operation::search_personal_pull_requests:
 			request.SearchTerms = "author:octo-reviewer";
 			break;
+		case read_operation::get_merge_base:
+			request.BaseOid = "1111111111111111111111111111111111111111";
+			break;
 		}
-		if (aOperation == read_operation::list_checks) {
+		if (aOperation == read_operation::list_checks || aOperation == read_operation::get_merge_base) {
 			request.HeadOid = "0123456789abcdef0123456789abcdef01234567";
 		}
 		if (aOperation == read_operation::search_pull_requests) {

@@ -471,6 +471,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
+			case read_operation::get_merge_base:
 				return false;
 			}
 			return false;
@@ -499,6 +500,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_pull_request:
 			case read_operation::get_merge_assessment:
 			case read_operation::get_branch_protection:
+			case read_operation::get_merge_base:
 				return 1U;
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
@@ -1544,6 +1546,8 @@ namespace bpr::adapters::github::detail {
 			switch (aOperation) {
 			case read_operation::list_pull_request_timeline:
 				return false; // Timeline normalization belongs to the bounded production pager.
+			case read_operation::get_merge_base:
+				return false; // [[BPR-1560]]. Read and bound by its own production reader.
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
 			case read_operation::get_repository:
@@ -1618,6 +1622,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_merge_assessment:  return "GetMergeAssessment";
 		case read_operation::list_branch_rules:     return "ListBranchRules";
 		case read_operation::get_branch_protection: return "GetBranchProtection";
+		case read_operation::get_merge_base:        return "GetMergeBase";
 		}
 		return { };
 	}
@@ -1683,10 +1688,13 @@ namespace bpr::adapters::github::detail {
 		if (aRequest.Page == 0U || aRequest.Page > maximumOperationPage) {
 			return failure(contract_failure_code::invalid_page);
 		}
-		const auto headOidRequired = (aRequest.Operation == read_operation::list_checks || aRequest.Operation == read_operation::list_commit_statuses);
+		const auto mergeBase       = aRequest.Operation == read_operation::get_merge_base;
+		const auto headOidRequired = (aRequest.Operation == read_operation::list_checks || aRequest.Operation == read_operation::list_commit_statuses || mergeBase);
 		if (
 			(headOidRequired && !hexadecimal_oid(aRequest.HeadOid))
-			|| (!headOidRequired && !aRequest.HeadOid.empty())) {
+			|| (!headOidRequired && !aRequest.HeadOid.empty())
+			|| (mergeBase && aRequest.BranchRef.empty() && (!hexadecimal_oid(aRequest.BaseOid) || aRequest.BaseOid.size() != aRequest.HeadOid.size()))
+			|| ((!mergeBase || !aRequest.BranchRef.empty()) && !aRequest.BaseOid.empty())) {
 			return failure(contract_failure_code::invalid_commit_oid);
 		}
 		const auto searchTermsRequired = aRequest.Operation == read_operation::search_pull_requests;
@@ -1712,7 +1720,10 @@ namespace bpr::adapters::github::detail {
 				&& aRequest.Page != 1U)) {
 			return failure(contract_failure_code::unexpected_body);
 		}
-		const auto branch = aRequest.Operation == read_operation::list_branch_rules || aRequest.Operation == read_operation::get_branch_protection;
+		// [[BPR-1560]]. The merge-base read names its base either by the base
+		// branch (an open pull request: its current tip) or by a commit.
+		const auto branch = aRequest.Operation == read_operation::list_branch_rules || aRequest.Operation == read_operation::get_branch_protection
+			|| (aRequest.Operation == read_operation::get_merge_base && !aRequest.BranchRef.empty());
 		if ((branch && (aRequest.BranchRef.empty() || aRequest.BranchRef.size() > 256U || std::ranges::any_of(aRequest.BranchRef, [](unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; }))) || (!branch && !aRequest.BranchRef.empty())) {
 			return failure(contract_failure_code::invalid_repository);
 		}
@@ -1849,6 +1860,13 @@ namespace bpr::adapters::github::detail {
 		}
 		case read_operation::list_requested_reviewers:
 			result.Path = pull_request_path(*prefix, aRequest) + "/requested_reviewers";
+			break;
+		case read_operation::get_merge_base:
+			// [[BPR-1560]]. Page 2 of one commit per page carries the merge
+			// base and base commit but no file list, which only page 1 has, so
+			// the answer stays small however large the pull request is.
+			result.Path  = repository_path(*prefix, aRequest) + "/compare/" + (aRequest.BranchRef.empty() ? aRequest.BaseOid : percent_encode(aRequest.BranchRef)) + "..." + aRequest.HeadOid;
+			result.Query = "page=2&per_page=1";
 			break;
 		}
 

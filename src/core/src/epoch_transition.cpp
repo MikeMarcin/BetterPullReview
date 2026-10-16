@@ -1055,7 +1055,8 @@ namespace bpr::core {
 				return reject(epoch_reason_code::invalid_revision);
 			}
 			if (aState.Authority == aEvent.Authority
-				&& aState.AcceptedRevision == aEvent.Revision) {
+				&& aState.AcceptedRevision == aEvent.Revision
+				&& aState.AcceptedBasis == aEvent.Basis) {
 				return { };
 			}
 
@@ -1097,6 +1098,7 @@ namespace bpr::core {
 			}
 			aState.Authority        = aEvent.Authority;
 			aState.AcceptedRevision = aEvent.Revision;
+			aState.AcceptedBasis    = aEvent.Basis;
 			aState.PendingIngestion.reset();
 
 			if (authorityChanged) {
@@ -1568,9 +1570,10 @@ namespace bpr::core {
 			}
 
 			const auto resolution = resolve_comparison(
-				*aState.Authority, aState.RequestedSelection, aEvent.Candidates);
+				*aState.Authority, aState.RequestedSelection, aEvent.Candidates, aState.AcceptedBasis);
 			if (resolution.Reason != epoch_reason_code::none
-				&& resolution.Reason != epoch_reason_code::unavailable) {
+				&& resolution.Reason != epoch_reason_code::unavailable
+				&& resolution.Reason != epoch_reason_code::merge_base_unavailable) {
 				auto output = epoch_transition_output{ };
 				aState.PendingComparison.reset();
 				diagnose(output, resolution.Reason);
@@ -1610,6 +1613,11 @@ namespace bpr::core {
 				.AvailableForDiff = resolution.Pair.has_value() && available_for_diff(*resolution.Pair),
 			};
 			output.Changed = epoch_changed_domain::comparison;
+			if (resolution.Reason == epoch_reason_code::merge_base_unavailable) {
+				// Says why Whole PR shows nothing rather than leaving the
+				// generic unavailable state ([[BPR-1560]]).
+				diagnose(output, resolution.Reason);
+			}
 			set_status(
 				aState,
 				output,
@@ -2892,14 +2900,24 @@ namespace bpr::core {
 	auto resolve_comparison(
 		const pull_request_authority& aAuthority,
 		const comparison_selection&   aSelection,
-		const comparison_candidates&  aCandidates) noexcept -> resolved_comparison
+		const comparison_candidates&  aCandidates,
+		const comparison_base_basis   aBasis) noexcept -> resolved_comparison
 	{
-		if (!valid(aAuthority) || !valid(aCandidates.Catalog)) {
+		if (!valid(aAuthority) || !valid(aCandidates.Catalog)
+			|| (aBasis != comparison_base_basis::merge_base && aBasis != comparison_base_basis::recorded_base)) {
 			return { .Reason = epoch_reason_code::invalid_observation };
 		}
-		const auto resolution = select_pair(aAuthority, aSelection, aCandidates);
+		auto resolution = select_pair(aAuthority, aSelection, aCandidates);
 		if (!resolution.Pair.has_value()) {
 			return resolution;
+		}
+		const auto* const named = std::get_if<named_comparison_selection>(&aSelection);
+		if (aBasis == comparison_base_basis::recorded_base && named != nullptr
+			&& named->Alias == named_comparison::whole_pr) {
+			// [[BPR-1560]]. The recorded base is retained, never compared from:
+			// a two-dot diff from it is not GitHub's Files changed.
+			resolution.Pair->Left.Availability = anchor_availability::unavailable;
+			return { .Pair = resolution.Pair, .Reason = epoch_reason_code::merge_base_unavailable };
 		}
 		if (resolution.Pair->Left.Identity.Authority != aAuthority.Scope
 			|| resolution.Pair->Right.Identity.Authority != aAuthority.Scope

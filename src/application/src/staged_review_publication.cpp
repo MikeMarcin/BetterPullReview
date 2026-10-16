@@ -64,7 +64,7 @@ namespace bpr::application {
 			}
 			ids.push_back(stop.Id);
 			bytes += stop.Title.size() + stop.Narrative.size() + stop.SourceLink.size();
-			if (bytes > core::maximum_tour_field_bytes || (!aPlan.Compatibility && stop.Source.Commit != (stop.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : target.BaseOid))) {
+			if (bytes > core::maximum_tour_field_bytes || (!aPlan.Compatibility && stop.Source.Commit != (stop.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : application::comparison_base(target)))) {
 				return false;
 			}
 			const auto noNavigation = initial_navigation(aPlan);

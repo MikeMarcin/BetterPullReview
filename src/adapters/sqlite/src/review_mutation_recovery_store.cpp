@@ -1101,13 +1101,17 @@ namespace bpr::adapters::sqlite {
 		// The snapshot has its own version and preserves full-width IDs and literal body bytes.
 		// [[BPR-1345]]. A review that carries line comments is version 2, with
 		// its comments after the version 1 fields; a summary-only review keeps
-		// exactly its version 1 bytes.
+		// exactly its version 1 bytes. [[BPR-1560]]. A review whose LEFT lines
+		// are numbered in a merge base other than the recorded base is version
+		// 3: that comparison base follows the version 1 fields, then its
+		// comments, possibly none. Every other review keeps its earlier bytes.
 		auto encode_submission(const application::review_submission_request& aRequest) -> std::vector<std::uint8_t>
 		{
 			submission_writer out;
-			out.integer(aRequest.Proposal.Comments.empty() ? 1U : 2U);
+			const auto&       target         = aRequest.LiveBinding->Target;
+			const auto        comparisonBase = application::comparison_base(target) != target.BaseOid;
+			out.integer(comparisonBase ? 3U : aRequest.Proposal.Comments.empty() ? 1U : 2U);
 			const auto& proposal = aRequest.Proposal;
-			const auto& target   = aRequest.LiveBinding->Target;
 			const auto& actor    = aRequest.LiveBinding->ActingIdentity;
 			out.integer(proposal.Draft.value());
 			out.integer(proposal.Attempt.value());
@@ -1136,7 +1140,10 @@ namespace bpr::adapters::sqlite {
 			out.integer(actor.DatabaseId);
 			out.text(actor.NodeId);
 			out.text(actor.Login);
-			if (!proposal.Comments.empty()) {
+			if (comparisonBase) {
+				out.oid(target.ComparisonBaseOid);
+			}
+			if (comparisonBase || !proposal.Comments.empty()) {
 				out.integer(proposal.Comments.size());
 				for (const auto& comment : proposal.Comments) {
 					out.integer(comment.Draft.value());
@@ -1154,7 +1161,7 @@ namespace bpr::adapters::sqlite {
 		{
 			submission_reader in{ aBytes };
 			const auto        version = in.integer();
-			if (version != 1U && version != 2U) {
+			if (version != 1U && version != 2U && version != 3U) {
 				return std::nullopt;
 			}
 			application::review_submission_request request;
@@ -1201,9 +1208,15 @@ namespace bpr::adapters::sqlite {
 			actor.DatabaseId = in.integer();
 			actor.NodeId     = in.text();
 			actor.Login      = in.text();
-			if (version == 2U) {
+			if (version == 3U) {
+				target.ComparisonBaseOid = in.oid();
+				if (target.ComparisonBaseOid == target.BaseOid) {
+					return std::nullopt;
+				}
+			}
+			if (version == 2U || version == 3U) {
 				const auto count = in.bounded(core::maximum_review_submission_comments);
-				if (count == 0U) {
+				if (count == 0U && version == 2U) {
 					return std::nullopt;
 				}
 				for (auto index = std::uint64_t{ 0U }; index < count; ++index) {

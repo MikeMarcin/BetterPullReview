@@ -305,7 +305,15 @@ namespace bpr::app::detail {
 			/// fixture serves its one head exactly as before.
 			std::string_view                NextPushOid;
 			std::optional<std::string_view> NextPushPack = std::nullopt;
+			/// [[BPR-1560]]. The merge base GitHub's compare names for the base
+			/// branch and a served head, when the recorded base is ahead of it.
+			/// Empty: the recorded base is the merge base.
+			std::string_view MergeBaseOid;
 		};
+
+		/// \brief The rewritten-base course's separate root: it shares no
+		/// history with any served head.
+		inline constexpr auto rewritten_base_oid = std::string_view{ "80ec898e013c97d16dce3f6eae67e29701a988e5" };
 
 		/// \brief Selects the descriptor the named fixture serves.
 		///
@@ -744,6 +752,27 @@ namespace bpr::app::detail {
 				{ .Name = "X-RateLimit-Reset", .Value = "2000000000" });
 			aResponse.Headers.push_back(
 				{ .Name = "X-RateLimit-Resource", .Value = std::move(resource) });
+		}
+
+		/// \brief [[BPR-1560]]. GitHub's compare answer for the served pull
+		/// request: its base branch's tip (the recorded base) or the commit
+		/// asked for, and the merge base. A base that shares no history with
+		/// the head has none, which GitHub answers with not found.
+		[[nodiscard]] auto merge_base_response(const fixture_descriptor& aDescriptor, const adapters::github::detail::wire_request& aRequest, const bool aUnrelatedBase,
+											   const bool aUnavailable) -> wire_response
+		{
+			auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Completeness = page_completeness::complete };
+			if (aUnavailable || aUnrelatedBase) {
+				response.Status = aUnavailable ? 500 : 404;
+				response.Body   = aUnavailable ? R"({"message":"fixture compare unavailable"})" : R"({"message":"Not Found"})";
+			} else {
+				const auto tip       = aRequest.Semantic.BranchRef.empty() ? aRequest.Semantic.BaseOid : std::string{ aDescriptor.BaseOid };
+				const auto mergeBase = aDescriptor.MergeBaseOid.empty() ? std::string{ aDescriptor.BaseOid } : std::string{ aDescriptor.MergeBaseOid };
+				response.Body        = R"({"status":"ahead","total_commits":1,"base_commit":{"sha":")" + tip + R"("},"merge_base_commit":{"sha":")" + mergeBase
+					+ R"("},"commits":[],"files":[]})";
+			}
+			append_rate_limit_headers(response, aRequest.Operation);
+			return response;
 		}
 
 		[[nodiscard]] auto rate_limit_response(const github_rate_limit_fixture& aFixture, const unsigned aMode, const read_operation aOperation) -> wire_response
@@ -1724,6 +1753,9 @@ namespace bpr::app::detail {
 			bool                                             CliEnabled             = false;
 			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
 			bool                                             RefuseFirstSmartAcquire  = false;
+			/// [[BPR-1560]]. Compare reads answered, and whether they fail.
+			std::size_t MergeBaseReads       = 0U;
+			bool        MergeBaseUnavailable = false;
 			bool                                             FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id>      AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
@@ -2548,6 +2580,18 @@ namespace bpr::app::detail {
 					State->RateLimit->LastResponseNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 					++State->RateLimit->Responses;
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(limited) };
+				}
+				// [[BPR-1560]]. GitHub's compare is answered by the fixture
+				// server from the served graph, not the recorded review script,
+				// on whichever authority asks.
+				if (aRequest.Wire.Operation == read_operation::get_merge_base) {
+					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
+						State->RecordingFailure = -5;
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					++State->MergeBaseReads;
+					return github_wire_success{ .Correlation = aRequest.Correlation,
+												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable) };
 				}
 				// [[BPR-0990]]. Personal discovery is answered by the fixture
 				// server, not the recorded review script, and only on the
@@ -4603,7 +4647,7 @@ namespace bpr::app::detail {
 				&& aOptions.EpochPhase == github_epoch_fixture_phase::reuse) {
 				// Replace the base with a separate root of identical material. The
 				// old base is not its ancestor, and no historical head has a merge base.
-				served.BaseOid = "80ec898e013c97d16dce3f6eae67e29701a988e5";
+				served.BaseOid = rewritten_base_oid;
 				served.Packs   = { .File = "../../git/epoch-history/v1/base-rewrite.pack", .SecondFile = "../../git/epoch-history/v1/base-rewrite.pack" };
 			}
 			Git       = make_git_fixture(served.Packs);
@@ -4627,6 +4671,7 @@ namespace bpr::app::detail {
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
+			Recording->MergeBaseUnavailable    = aOptions.MergeBaseUnavailable;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);
 			Recording->Offline                 = std::move(aOptions.Offline);

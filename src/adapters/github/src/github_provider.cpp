@@ -15,6 +15,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <tuple>
 #include <mutex>
 #include <new>
 #include <optional>
@@ -57,6 +58,8 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::list_review_comments;
 			case read_operation::list_pull_request_timeline:
 				return application::diagnostic_paged_operation::list_pull_request_timeline;
+			case read_operation::get_merge_base:
+				return application::diagnostic_paged_operation::get_merge_base;
 			case read_operation::get_merge_assessment:
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
@@ -246,6 +249,11 @@ namespace bpr::adapters::github::detail {
 			/// [[BPR-1373]]. The account each pinned CLI profile first signed in
 			/// as in this run, by profile and login, under `Mutex`.
 			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
+			/// [[BPR-1560]]. Merge bases GitHub named, by host, repository and
+			/// the exact recorded base and head they answer, under `Mutex`. A
+			/// pair's merge base never changes, so a poll that finds the same
+			/// pair asks nothing; only answers are kept, never failures.
+			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
 			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
 			bool                                                                     Closing = false;
 		};
@@ -2423,6 +2431,58 @@ namespace bpr::adapters::github::detail {
 							default:
 								result->TimelineAvailability = application::github_timeline_availability::failed;
 								break;
+							}
+						}
+						// [[BPR-1560]]. GitHub's Files changed compares from the
+						// merge base of the base branch and the head, not from the
+						// base commit GitHub records for the pull request, which
+						// may lag or lead. An open pull request asks for its
+						// current head against the base branch's current tip; a
+						// closed one, whose branch may have moved on or taken the
+						// head, against the recorded base. A failure leaves the
+						// merge base unavailable; it never erases the accepted
+						// live read and is never replaced by any base.
+						{
+							const auto basis = github_merge_base_basis{
+								.BaseRef = result->PullRequest.State == application::github_pull_request_state::open ? result->PullRequest.BaseRef : std::string{ },
+								.BaseOid = std::string{ result->PullRequest.BaseOid.value() },
+							};
+							const auto key = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), result->Repository.Repository.value(),
+														 basis.BaseRef + "\n" + basis.BaseOid, std::string{ result->PullRequest.HeadOid.value() } };
+							auto known = std::optional<std::string>{ };
+							{
+								std::scoped_lock lock{ state->Mutex };
+								if (const auto found = state->MergeBases.find(key); found != state->MergeBases.end()) {
+									known = found->second;
+								}
+							}
+							if (!known) {
+								auto mergeBase = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository,
+																				basis, result->PullRequest.HeadOid.value(),
+																				job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (mergeBase) {
+									known = std::move(mergeBase->MergeBaseOid);
+									if (mergeBase->RateLimits.Core) {
+										result->RateLimits.Core = mergeBase->RateLimits.Core;
+									}
+									constexpr auto maximumRemembered = std::size_t{ 256U };
+									std::scoped_lock lock{ state->Mutex };
+									if (state->MergeBases.size() >= maximumRemembered) {
+										state->MergeBases.clear();
+									}
+									state->MergeBases.emplace(key, *known);
+								} else if (std::holds_alternative<github_paged_read_cancelled>(mergeBase.error())) {
+									cancelled();
+									return;
+								} else if (const auto& error = std::get<application::github_provider_error>(mergeBase.error()); error.RateLimits.Core) {
+									result->RateLimits.Core = error.RateLimits.Core;
+								}
+							}
+							if (known) {
+								result->MergeBaseOid          = application::commit_oid{ *known };
+								result->MergeBaseAvailability = application::github_merge_base_availability::available;
+							} else {
+								result->MergeBaseAvailability = application::github_merge_base_availability::failed;
 							}
 						}
 						if (finish_job(state, job)) {

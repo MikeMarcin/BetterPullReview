@@ -687,6 +687,19 @@ namespace bpr::application {
 		failed,
 	};
 
+	/// \brief [[BPR-1560]]. Whether GitHub named the merge base of the
+	/// snapshot's recorded base and head.
+	///
+	/// \details `unavailable` means the read was not asked (a fixture or an
+	/// older producer); `failed` means it was asked and GitHub gave no usable
+	/// answer (no common ancestor, a refusal, a timeout or a malformed reply).
+	/// Neither is ever replaced by the recorded base.
+	enum class github_merge_base_availability : std::uint8_t {
+		unavailable,
+		available,
+		failed,
+	};
+
 	/// \brief A force-push occurrence with an exact numeric identity and UTC event time.
 	struct github_force_push_event
 	{
@@ -774,6 +787,12 @@ namespace bpr::application {
 		bool                             ReviewRequestActorsObserved = false;
 		github_merge_observation         Merge;
 		github_branch_policy_observation BranchPolicy;
+		/// [[BPR-1560]]. The merge base GitHub's compare named for exactly
+		/// `PullRequest.BaseOid` and `PullRequest.HeadOid`: the commit GitHub's
+		/// Files changed, and so every file row above, compares from. Present
+		/// exactly when `MergeBaseAvailability` is `available`.
+		std::optional<commit_oid>      MergeBaseOid;
+		github_merge_base_availability MergeBaseAvailability = github_merge_base_availability::unavailable;
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};
@@ -2176,6 +2195,19 @@ namespace bpr::application {
 			&& aSnapshot.SearchAvailability != github_search_availability::available
 			&& aSnapshot.SearchAvailability != github_search_availability::result_limit) {
 			return detail::validation(github_read_validation_error::invalid_enum);
+		}
+		if (aSnapshot.MergeBaseAvailability != github_merge_base_availability::unavailable
+			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::available
+			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::failed) {
+			return detail::validation(github_read_validation_error::invalid_enum);
+		}
+		if ((aSnapshot.MergeBaseAvailability == github_merge_base_availability::available) != aSnapshot.MergeBaseOid.has_value()) {
+			return detail::validation(github_read_validation_error::invalid_relationship);
+		}
+		if (aSnapshot.MergeBaseOid
+			&& (!detail::hexadecimal_oid(aSnapshot.MergeBaseOid->value())
+				|| aSnapshot.MergeBaseOid->value().size() != aSnapshot.PullRequest.BaseOid.value().size())) {
+			return detail::validation(github_read_validation_error::invalid_commit_oid);
 		}
 		if (aSnapshot.SearchAvailability != github_search_availability::available && !aSnapshot.SearchResults.empty()) {
 			return detail::validation(github_read_validation_error::relationship_search_availability);

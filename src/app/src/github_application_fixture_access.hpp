@@ -256,6 +256,9 @@ namespace bpr::app::detail {
 		bool                       LargeReviewRepeatReads = false;
 		github_epoch_fixture_phase EpochPhase             = github_epoch_fixture_phase::single;
 		std::string                TimelineCourse;
+		/// [[BPR-1560]]. GitHub's compare answers with a server error, so no
+		/// merge base is named for the pull request.
+		bool MergeBaseUnavailable = false;
 		bool                       EmptyHistoricalTimeline        = false;
 		bool                       UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file

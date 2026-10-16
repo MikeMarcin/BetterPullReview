@@ -48,6 +48,11 @@ namespace bpr::application {
 		append(bytes, target.PullRequestNodeId);
 		append(bytes, target.BaseRepositoryDatabaseId);
 		append(bytes, target.BaseOid);
+		// [[BPR-1560]]. Material only when it differs from the recorded base,
+		// so every earlier authority digest holds.
+		if (comparison_base(target) != target.BaseOid) {
+			append(bytes, comparison_base(target));
+		}
 		append(bytes, target.BaseRef);
 		append(bytes, target.HeadRef);
 		append(bytes, target.Open ? 1U : 0U);

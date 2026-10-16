@@ -636,11 +636,14 @@ namespace {
 		case read_operation::search_personal_pull_requests:
 			request.SearchTerms = "author:octo-reviewer";
 			break;
+		case read_operation::get_merge_base:
+			request.BaseOid = "1111111111111111111111111111111111111111";
+			break;
 		}
 		if (aOperation == read_operation::list_branch_rules || aOperation == read_operation::get_branch_protection) {
 			request.BranchRef = "main";
 		}
-		if (aOperation == read_operation::list_checks || aOperation == read_operation::list_commit_statuses) {
+		if (aOperation == read_operation::list_checks || aOperation == read_operation::list_commit_statuses || aOperation == read_operation::get_merge_base) {
 			request.HeadOid = std::string{ head_oid };
 		}
 		if (aOperation == read_operation::search_pull_requests) {
@@ -1029,14 +1032,15 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 19U
+			all_read_operations.size() == 20U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
 				&& std::ranges::find(all_read_operations,
 									 read_operation::list_review_comments)
-					!= all_read_operations.end(),
-			"the compiled set holds nineteen reads and the recording holds ten");
+					!= all_read_operations.end()
+				&& std::ranges::find(read_operation_catalog, read_operation::get_merge_base) == read_operation_catalog.end(),
+			"the compiled set holds twenty reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(

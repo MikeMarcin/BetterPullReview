@@ -104,6 +104,8 @@ namespace bpr::application {
 			&& aBinding.BaseOid.valid()
 			&& aBinding.BaseOid.algorithm()
 			== aBinding.Semantic.ExpectedHead.algorithm()
+			&& (!aBinding.ComparisonBaseOid.valid()
+				|| (aBinding.ComparisonBaseOid.algorithm() == aBinding.BaseOid.algorithm() && aBinding.ComparisonBaseOid != aBinding.BaseOid))
 			&& bounded_text(aBinding.BaseRef, 256U)
 			&& bounded_text(aBinding.HeadRef, 256U) && aBinding.Open;
 	}

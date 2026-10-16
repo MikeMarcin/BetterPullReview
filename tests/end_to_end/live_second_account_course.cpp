@@ -421,7 +421,6 @@ namespace {
 		};
 		std::ofstream            out{ aOptions.Root / "parity.jsonl" };
 		std::vector<std::string> visited;
-		say("parity:comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" }));
 		for (std::size_t index = 0U; index < files.size(); ++index) {
 			if (index == 0U) {
 				if (!wait_for(settled, "the first file's comparison", std::chrono::seconds{ 120 })) {
@@ -437,6 +436,12 @@ namespace {
 			}
 			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 1 });
 			require(settled, "the comparison stays settled");
+			if (index == 0U) {
+				// Read once the first comparison has settled, so it names the
+				// comparison that was shown rather than a loading state.
+				say("parity:comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+					+ " status=" + text(aWindow.epoch_selectors()->status_text()));
+			}
 			const auto  path    = *path_of();
 			const auto& context = *surface->current_context();
 			const auto& result  = *surface->current_result();

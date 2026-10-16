@@ -232,6 +232,10 @@ namespace {
 			break;
 		case read_operation::get_repository:
 			break;
+		case read_operation::get_merge_base:
+			semantic.BaseOid = "2222222222222222222222222222222222222222";
+			semantic.HeadOid = "1111111111111111111111111111111111111111";
+			break;
 		}
 		return semantic;
 	}
@@ -326,8 +330,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 11U && refused == 8U
-				   && all_read_operations.size() == 19U
+		expect(admitted == 12U && refused == 8U
+				   && all_read_operations.size() == 20U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

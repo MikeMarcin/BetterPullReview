@@ -480,6 +480,17 @@ namespace bpr::application {
 		}
 		void               observe_provider_error(const github_provider_error& aError) { static_cast<void>(merge(RateLimits, aError.RateLimits)); }
 		void               publish_error_advisory(const github_provider_error& aError) { LastError = aError; }
+		/// \brief [[BPR-1560]]. The commit the review compares from, as text:
+		/// the merge base GitHub named, else the recorded base. The cached
+		/// overview reads its historical source at the same pair the retained
+		/// epoch holds.
+		[[nodiscard]] static auto comparison_base_text(const github_pull_request_snapshot& aSnapshot) -> std::string_view
+		{
+			return aSnapshot.MergeBaseAvailability == github_merge_base_availability::available && aSnapshot.MergeBaseOid
+				? aSnapshot.MergeBaseOid->value()
+				: aSnapshot.PullRequest.BaseOid.value();
+		}
+
 		[[nodiscard]] auto make_epoch_handoff(
 			const github_pull_request_snapshot& aSnapshot)
 			-> std::optional<accepted_pull_request_handoff>
@@ -501,6 +512,17 @@ namespace bpr::application {
 			const auto baseRef = parse_git_base_branch_ref(baseRefText);
 			if (!base || !head || !baseRef
 				|| base->algorithm() != head->algorithm()) {
+				return std::nullopt;
+			}
+			// [[BPR-1560]]. GitHub's Files changed, and every file row this
+			// review lists, compares from the merge base GitHub names for the
+			// recorded base and head, not from the recorded base. Without that
+			// name the recorded base is retained for comparisons between
+			// updates, and Whole PR says it cannot match GitHub.
+			const auto mergeBase = aSnapshot.MergeBaseAvailability == github_merge_base_availability::available && aSnapshot.MergeBaseOid
+				? core::parse_git_commit_oid(aSnapshot.MergeBaseOid->value())
+				: std::nullopt;
+			if (mergeBase && mergeBase->algorithm() != base->algorithm()) {
 				return std::nullopt;
 			}
 
@@ -563,11 +585,13 @@ namespace bpr::application {
 				.ObjectFormat          = base->algorithm(),
 				.BaseBranch            = base_branch_identity(aSnapshot.Repository.Repository, *baseRef),
 				.BaseRef               = *baseRef,
-				.Base                  = *base,
+				.Base                  = mergeBase.value_or(*base),
 				.Head                  = *head,
 				.Mode                  = aSnapshot.Mode,
 				.CurrentViewerReview   = std::move(currentReview),
 			};
+			handoff.RecordedBase = *base;
+			handoff.BaseBasis    = mergeBase ? core::comparison_base_basis::merge_base : core::comparison_base_basis::recorded_base;
 			handoff.Shape = accepted_pull_request_shape{
 				.FileCount           = aSnapshot.Files.size(),
 				.ReturnedCommitCount = aSnapshot.Commits.size(),
@@ -1113,7 +1137,7 @@ namespace bpr::application {
 				return;
 			}
 			auto retained = core::cached_review_overview{
-				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ snapshot.PullRequest.BaseOid.value() }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
+				.Key = overview_key(aRequest), .Repository = snapshot.Repository.Repository, .PullRequest = snapshot.PullRequest.PullRequest, .BaseOid = std::string{ comparison_base_text(snapshot) }, .HeadOid = std::string{ snapshot.PullRequest.HeadOid.value() }, .Title = snapshot.PullRequest.Title, .Body = snapshot.PullRequest.Body, .AuthorLogin = snapshot.PullRequest.Author ? snapshot.PullRequest.Author->Login : std::string{ }, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Files = static_cast<std::uint32_t>(snapshot.Files.size()), .Commits = static_cast<std::uint32_t>(snapshot.PullRequest.ReportedCommitCount.value_or(snapshot.Commits.size())), .State = static_cast<std::uint8_t>(snapshot.PullRequest.State), .Draft = snapshot.PullRequest.Draft, .FileCatalogue = retain_file_catalogue(snapshot), .ReviewThreads = retain_threads(snapshot), .GeneralComments = retain_discussion(snapshot, false), .ReviewSummaries = retain_discussion(snapshot, true)
 			};
 			if (!core::valid(retained)) {
 				return;

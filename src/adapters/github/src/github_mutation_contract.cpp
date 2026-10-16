@@ -1130,6 +1130,11 @@ namespace bpr::adapters::github::detail {
 			append_fingerprint_text(material, target.PullRequestNodeId);
 			append_fingerprint_integer(material, target.BaseRepositoryDatabaseId);
 			append_fingerprint_oid(material, target.BaseOid);
+			// [[BPR-1560]]. Only a comparison base that differs from the
+			// recorded base adds material, so every earlier fingerprint holds.
+			if (application::comparison_base(target) != target.BaseOid) {
+				append_fingerprint_oid(material, application::comparison_base(target));
+			}
 			append_fingerprint_text(material, target.BaseRef);
 			append_fingerprint_text(material, target.HeadRef);
 			append_fingerprint_integer(material, target.Open ? 1U : 0U);
@@ -1872,7 +1877,7 @@ namespace bpr::adapters::github::detail {
 				|| (aComment.StartLine && (*aComment.StartLine == 0 || *aComment.StartLine >= *aComment.Line || aComment.StartSide != aComment.Side))) {
 				return std::nullopt;
 			}
-			const auto source = core::tour_code_destination{ .Commit = aComment.Side == "LEFT" ? target.BaseOid : *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
+			const auto source = core::tour_code_destination{ .Commit = aComment.Side == "LEFT" ? application::comparison_base(target) : *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
 			if (!core::valid(source)) {
 				return std::nullopt;
 			}
@@ -1932,7 +1937,7 @@ namespace bpr::adapters::github::detail {
 			staged_batch_json batch{ .Body = aRequest.Body, .Commit = std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() } };
 			for (const auto& line : aRequest.Lines) {
 				if (!core::valid(line.Source) || line.Source.Blob || line.Body.empty() || !utf8_round_trip(line.Body) || line.Body.size() > maximum_review_mutation_body_bytes
-					|| line.Source.Commit != (line.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : target.BaseOid)) {
+					|| line.Source.Commit != (line.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : application::comparison_base(target))) {
 					return failed(review_mutation_contract_failure::invalid_request);
 				}
 				staged_line_json value{ .Path = line.Source.Path, .Body = line.Body, .Side = line.Source.Side == core::diff_side::right ? "RIGHT" : "LEFT", .Line = std::uint64_t{ line.Source.LastLine } + 1 };
@@ -2638,7 +2643,7 @@ namespace bpr::adapters::github::detail {
 			return knownBlob && source.LineCount == 80U && anchor.Semantic.Side == core::diff_side::right
 				&& anchor.Semantic.Line < source.LineCount && (anchor.Semantic.Line < 6U || anchor.Semantic.Line >= 13U)
 				&& source.Placement != core::review_placement::legacy_line
-				&& endpoint.request().Diff.Comparison.Left.Commit == aRequest.LiveBinding->Target.BaseOid
+				&& endpoint.request().Diff.Comparison.Left.Commit == application::comparison_base(aRequest.LiveBinding->Target)
 				&& endpoint.request().File.Change == application::workbench_file_change_kind::modified
 				&& compile_review_permalink_body({ .Target = aRequest.LiveBinding->Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, anchor.Semantic, "Source validation").has_value();
 		}
