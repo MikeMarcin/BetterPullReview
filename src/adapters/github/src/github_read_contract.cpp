@@ -1169,20 +1169,23 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto exact_graphql_comment(const fixture_json_value& aValue) -> bool
 		{
-			if (
-				!json_is_object(aValue)
-				|| !has_exact_keys(
-					json_object(aValue),
-					{
-						"author",
-						"bodyText",
-						"id",
-						"line",
-						"originalLine",
-						"outdated",
-						"path",
-						"replyTo",
-					})) {
+			if (!json_is_object(aValue)) {
+				return false;
+			}
+			// [[BPR-1564]]. A comment on several lines names its first, as
+			// GitHub's `startLine` and `originalStartLine` do; one line names
+			// neither. Nothing else beyond the required keys is accepted.
+			auto keys = sorted_keys(json_object(aValue));
+			for (const auto optional : { std::string_view{ "originalStartLine" }, std::string_view{ "startLine" } }) {
+				if (const auto found = std::ranges::find(keys, optional); found != keys.end()) {
+					const auto value = json_member(json_object(aValue), optional);
+					if (!json_is_null(value) && !valid_line(value)) {
+						return false;
+					}
+					keys.erase(found);
+				}
+			}
+			if (keys != std::vector<std::string>{ "author", "bodyText", "id", "line", "originalLine", "outdated", "path", "replyTo" }) {
 				return false;
 			}
 			const auto object       = json_object(aValue);

@@ -25,12 +25,16 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QScrollBar>
+#include <QTextBlock>
+#include <QTextDocument>
 #include <QTextEdit>
 #include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
 
 #include <glaze/json.hpp>
+
+#include <tuple>
 
 #include <algorithm>
 #include <array>
@@ -1722,6 +1726,78 @@ namespace {
 	/// \brief [[BPR-1471]]. In Discuss the closed notes' blue new-post
 	/// counts stand in one column whether or not a note carries the green
 	/// resolved check. `BPR_DISCUSS_ALIGNMENT_PNG` names an offscreen render.
+	// [[BPR-1564]], [[BPR-1562]]. A published comment on lines shows its
+	// suggestion against the commented lines the locator answers, from its
+	// start line; an outdated one, the suggested lines alone; a pull request
+	// comment, plain code. Its code is asked for through the view's dispatch.
+	void test_published_suggestions_show_against_their_lines()
+	{
+		qt::conversation_cards_view view;
+		view.resize(480, 900);
+		view.show();
+		auto asked = std::vector<std::tuple<std::string, std::uint32_t, std::uint32_t>>{ };
+		auto lines = std::optional<std::vector<std::string>>{ std::vector<std::string>{ "\tWidth  = aWidth;", "\tHeight = aHeight;" } };
+		auto sent  = std::vector<application::markdown_code_syntax_request>{ };
+		view.set_suggestion_locator([&](const QString& aPath, core::diff_side, const std::uint32_t aFirst, const std::uint32_t aLast) {
+			asked.emplace_back(aPath.toStdString(), aFirst, aLast);
+			return lines;
+		});
+		view.set_code_syntax_dispatch([&sent](std::vector<application::markdown_code_syntax_request> aRequests) {
+			sent.insert(sent.end(), aRequests.begin(), aRequests.end());
+		});
+		auto root      = thread("t", "src/engine/renderer.cpp", 13U);
+		root.StartLine = 12U;
+		auto post      = reply("p", "t", "jiayin", "issue: zero sizes.\n\n```suggestion\n\tWidth  = std::max(aWidth, 1);\n\tHeight = std::max(aHeight, 1);\n```\n");
+		post.Path      = root.Path;
+		post.Line      = 13U;
+		post.StartLine = 12U;
+		view.adopt({ root, post });
+		view.open_thread("t");
+		QApplication::processEvents();
+		expect(asked.size() == 1U && std::get<0>(asked[0]) == "src/engine/renderer.cpp" && std::get<1>(asked[0]) == 12U && std::get<2>(asked[0]) == 13U,
+			   "the commented lines are asked for from the start line to the line");
+		auto* const reader = dynamic_cast<qt::markdown_body_view*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		expect(reader != nullptr, "the post reads through the shared reader");
+		const auto rows = [reader] {
+			auto found = std::vector<std::pair<int, int>>{ };
+			for (auto block = reader->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+				if (const auto row = block.blockFormat().intProperty(QTextFormat::UserProperty + 0x0B62); row == 1 || row == 2) {
+					found.emplace_back(row, block.blockFormat().intProperty(QTextFormat::UserProperty + 0x0B63));
+				}
+			}
+			return found;
+		};
+		expect(rows() == std::vector<std::pair<int, int>>{ { 1, 12 }, { 1, 13 }, { 2, 12 }, { 2, 13 } }, "two removed rows then two added rows, numbered 12 and 13");
+		expect(std::ranges::any_of(sent, [](const application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == "src/engine/renderer.cpp" && aRequest.Text && aRequest.Text->starts_with("\tWidth  = aWidth;"); }),
+			   "the commented lines are classified by the file's language");
+
+		// Outdated: the suggested lines alone, and nothing asked of the locator.
+		asked.clear();
+		auto outdated = thread("o", "src/engine/renderer.cpp", 13U, false);
+		auto old      = reply("q", "o", "jiayin", "```suggestion\n\tWidth = 1;\n```\n");
+		old.Path      = outdated.Path;
+		view.adopt({ outdated, old });
+		view.open_thread("o");
+		QApplication::processEvents();
+		auto* const stale = dynamic_cast<qt::markdown_body_view*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		auto        kinds = std::vector<int>{ };
+		for (auto block = stale->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+			if (const auto row = block.blockFormat().intProperty(QTextFormat::UserProperty + 0x0B62); row != 0) {
+				kinds.push_back(row);
+			}
+		}
+		expect(asked.empty() && kinds == std::vector<int>{ 3, 2 }, "an outdated thread shows its header and the added row alone");
+
+		// A pull request comment in Discuss: plain code, as on GitHub.
+		view.set_feed(true);
+		auto comment = conversation{ .Id = "c", .Kind = application::github_conversation_kind::issue_comment, .AuthorLogin = "tbutler", .Body = "```suggestion\nx\n```\n" };
+		view.adopt({ comment });
+		view.open_thread("c");
+		QApplication::processEvents();
+		auto* const plain = dynamic_cast<qt::markdown_body_view*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		expect(plain != nullptr && !plain->rendered_view()->document()->toPlainText().contains(QStringLiteral("Suggested change")), "a pull request comment's suggestion is plain code");
+	}
+
 	void test_discuss_new_counts_share_one_column()
 	{
 		qt::conversation_cards_view view;
@@ -1832,6 +1908,7 @@ auto main(int argc, char** argv) -> int
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
+	test_published_suggestions_show_against_their_lines();
 	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();
 	test_alternating_widths_keep_both_widths_measured();
