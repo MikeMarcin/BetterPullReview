@@ -123,21 +123,28 @@ every right blob exactly the head's.
 
 ## Design
 
-- **Source of the merge base: GitHub.** After each pull request read the
-  GitHub provider asks REST compare (`get_merge_base`, page 2 of one commit
-  per page, which carries the merge base but no file list). An open pull
-  request asks for its current head against its base branch by name; the
-  answer names the tip GitHub resolved (`base_commit`) and the merge base
-  (`merge_base_commit`) together, so tip and merge base come from one
-  response, and nothing is remembered under a branch name that can move. A
-  closed pull request, whose branch may have moved on or taken the head, asks
-  against its recorded base; that exact pair's answer is remembered (bounded,
-  by host, profile, repository, base and head), so a poll asks nothing. The
-  answer must name a full commit of the head's format for both, and for an
-  exact pair the base asked; anything else is a failure. The application never
-  computes the merge base itself (several local merge bases on a criss-cross
-  history, or none on a sparse review, would disagree with GitHub) and never
-  substitutes `base.sha`.
+- **Source of the merge base: GitHub, bound to the snapshot.** After each
+  pull request read the GitHub provider reads, in order (round 2, Astra B1):
+  1. compare against the recorded base (`base.sha`...head, exact commits,
+     remembered per exact pair so a poll asks nothing);
+  2. for an open pull request, compare against the base branch by name, whose
+     answer names the tip GitHub resolved; it must name the same merge base,
+     or GitHub's two bases disagree and its file list's basis is not
+     knowable;
+  3. the pull request's metadata again, which must still be the snapshot's
+     (head, recorded base, base branch, state, changed-file count), so the
+     file list and the merge base describe one state of the pull request.
+  A closed pull request, whose branch may have moved on or taken the head
+  (measured on merged #75), uses the first only. Every compare page is page 2
+  of one commit per page, which carries the merge base but no file list
+  (measured: a one-commit compare's page 2 has no commits and the same merge
+  base), and its answer must echo exactly the head asked about (`url`), name
+  full commits of the head's format, and for an exact pair the base asked.
+  Lost authentication on any of these reads fails the whole read, as on every
+  optional read (Astra B3); any other failure leaves the merge base
+  unavailable. The application never computes the merge base itself (several
+  local merge bases on a criss-cross history, or none on a sparse review,
+  would disagree with GitHub) and never substitutes `base.sha`.
 - **The snapshot** carries `MergeBaseOid`, `MergeBaseTipOid` and
   `MergeBaseAvailability` (`unavailable`: not asked; `available`; `failed`:
   not found, no common ancestor, refused, timed out, malformed).
@@ -152,14 +159,22 @@ every right blob exactly the head's.
   ordinary push does not. A catalogue written before this change holds
   `base.sha` on its earlier epochs; the first read afterwards appends one
   base-change epoch.
+- **A failed read after a good one.** For the same head, recorded base and
+  base branch, a merge base GitHub already named outlives a later failed read
+  (like the snapshot's other carried observations), so one transient failure
+  neither hides Whole PR nor appends a base-change epoch and another back
+  (Fable N1).
 - **No merge base named.** The handoff carries the recorded base under
   `comparison_base_basis::recorded_base`; the epoch is appended so updates stay
   comparable, the core resolves Whole PR with its base anchor unavailable and
   `merge_base_unavailable` ("GitHub did not say where this pull request
   branched, so Whole PR cannot match its Files changed. Compare two updates,
   or refresh."), and the epoch host refuses that pair to the diff pipeline,
-  though the recorded base is in the cache. Interdiffs and exact pairs are
-  untouched.
+  though the recorded base is in the cache. Any other comparison from that
+  recorded base, the newest update shown alone included, is refused the same
+  way (Fable N1). Interdiffs and exact pairs between heads are untouched. No
+  cached overview is retained from such a read, so the offline source reader
+  never reads the recorded base as the comparison's.
 - **LEFT lines.** GitHub numbers a `LEFT` line in the merge base. The mutation
   target keeps `BaseOid` (GitHub's `base.sha`, checked against GitHub before
   publishing) and gains `ComparisonBaseOid` (set only when it differs), and
@@ -168,7 +183,13 @@ every right blob exactly the head's.
   server. The submission journal writes version 3 only for such a target, so
   every earlier record keeps its bytes and fingerprint, and the submission
   identity ignores a moved merge base as it ignores a moved base, so a draft or
-  a pending attempt survives it. BPR-1212's numbering answers "same" without
+  a pending attempt survives it. Before anything on a LEFT line is written (a
+  single comment, a whole review with a LEFT comment, a tour with a LEFT
+  stop), the session asks GitHub's compare for the target's base branch and
+  head once more; a merge base other than the one the lines were numbered in
+  is `target_moved` and nothing is sent (Astra B2, Fable N2: a stacked pull
+  request's base branch can take commits the head shares and move the merge
+  base with `base.sha` and the head unchanged). BPR-1212's numbering answers "same" without
   the cache when the left commit is the merge base GitHub named, which
   restores LEFT placement on signed-in (sparse) reviews.
 - **Interdiff on a signed-in review.** Previous upload's left side, the
@@ -248,11 +269,35 @@ numbers are kept here).
 - Designated live targets (BPR-Test #2) and their bootstrap name one base;
   there it is the merge base too.
 - An imported historical epoch's base (an update GitHub recorded, imported on
-  demand) is the current comparison base: in complete mode Git derives the
-  merge base of it and the imported head, in sparse mode it is taken as is.
-  "Show this update alone" on such an imported pre-squash update can therefore
-  differ from GitHub's view of that update; Whole PR and interdiffs (head to
-  head) do not depend on it. Recorded as a follow-up below.
+  demand): in complete mode Git derives the merge base of the current
+  comparison base and the imported head; on a selected-objects review it is
+  the current comparison base taken as is, unproven for that head, so that
+  base is no anchor to compare from ("Show this update alone" is unavailable
+  for it; Astra P2-4). Its head stays comparable.
+- The snapshot reader refuses a pull request with no commits. Measured: GitHub
+  closes a pull request whose head is forced onto its base tip (#85: state
+  closed, 0 commits, 0 files; compare `identical`), so this concerns closed
+  pull requests only; unchanged here.
+
+## Operator notes
+
+- **Upgrade.** A catalogue written before this change holds `base.sha` on its
+  earlier epochs; the first read afterwards appends one base-change epoch per
+  affected review (the base moves from `base.sha` to the merge base). Earlier
+  epochs keep their bases; "Show this update alone" on them compares from
+  what they recorded.
+- **Tour drafts.** A tour draft written before this change with a LEFT stop on
+  a pull request whose merge base is not its `base.sha` names `base.sha` as the
+  stop's commit; it no longer passes the LEFT source check, so its publication
+  is refused before any write (not re-anchored; the stop's line may not exist
+  in the merge base). Drafts on pull requests whose merge base is `base.sha`
+  are unaffected. Not verified on a real pre-upgrade draft.
+- **Recovery journal version 3.** Written only for a review whose LEFT lines
+  are numbered in a merge base other than `base.sha`. An older build cannot
+  read it and fails closed: its decoder refuses any version but 1 and 2, so the
+  pending attempt is not reconciled by that build (it reports the local record
+  unavailable) and is not lost; the newer build reads it again.
+
 
 ## Acceptance
 
@@ -265,17 +310,24 @@ numbers are kept here).
 - `BPR-1560:adapter`: `github_paged_read` asks compare once on the page with no
   file list (branch-encoded for an open pull request, exact commits for a
   closed one), binds the answer, and refuses a missing, abbreviated,
-  other-format or other-base answer; not found, server error and timeout leave
-  no merge base; GHES asks under `/api/v3`; signed out it is admitted on
-  github.com and refused on GHES before any request. The contract counts
-  (`github_read_contract`, `github_anonymous_read_contract`,
-  `native_https_anonymous_read_contract`) name the twentieth read.
+  other-format, other-base or other-head answer; not found, server error and
+  timeout leave no merge base; GHES asks under `/api/v3`; signed out it is
+  admitted on github.com and refused on GHES before any request. The contract
+  counts (`github_read_contract`, `github_anonymous_read_contract`,
+  `native_https_anonymous_read_contract`) name the new read.
+  `application_merge_base_public_path` also runs the race (GitHub records
+  another base between the snapshot and the confirming read: Whole PR
+  unavailable) and a refused credential on compare (the read fails).
 - `BPR-1560:publication`: `github_mutation_contract` refuses a staged LEFT line
   on the recorded base when GitHub numbers LEFT in a distinct merge base and
   accepts it on the merge base; `sqlite_review_submission_recovery_storage`
   keeps a distinct comparison base across a restart (version 3, with and
   without line comments) and the submission identity across a merge-base move;
-  live, existing LEFT comments on #76 are placed on the merge base's lines.
+  `github_mutation_contract`, `live_review_submission_provider` and
+  `staged_review_session` show a moved merge base refuses a LEFT comment, a
+  review with one and a tour with a LEFT stop before any write, and RIGHT-only
+  content asks nothing; live, existing LEFT comments on #76 are placed on the
+  merge base's lines.
 - `BPR-1560:fixture`: `application_merge_base_public_path` opens the
   merge-base-v1 fixture through the shipped composition: every file shows
   exactly GitHub's removed and added lines (no base-branch line reverted,
@@ -288,14 +340,15 @@ numbers are kept here).
   PR lines, and the interdiff from the previous update), signed in (sparse).
 - `BPR-1560:negative-control`: the fixture test, the parity course on #76 and
   the squash course fail on the comparison from the recorded base.
+- `BPR-1560:regeneration`: `merge_base_fixture_contract` rebuilds merge-base-v1
+  byte for byte and checks the descriptor names its commits (Fable N7).
 - `BPR-1560:gates`: one full `ctest --preset dev`, clang-format 22, tidy on
   changed files, the documentation gate and the composition contracts.
 
 ## Follow-ups
 
-- An imported historical update's own base on a sparse review (see "Not
-  changed, deliberately"): give a sparse import its own merge base from GitHub,
-  or mark "Show this update alone" unavailable for it.
+- An imported historical update's own merge base on a sparse review, from
+  GitHub, would make "Show this update alone" available for it again.
 - The unavailable Whole PR leaves the centre pane at "No file open"; the reason
   is in the Updates control and the status bar. [[BPR-0944]] AC4/AC5 own the
   pane's explanation.

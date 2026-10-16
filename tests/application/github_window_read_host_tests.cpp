@@ -207,6 +207,11 @@ namespace {
 			data.RateLimits.Graphql        = application::github_rate_limit_record{ application::github_rate_limit_resource::graphql, 5000, 4999, 100 };
 			data.PullRequest.BaseOid       = application::commit_oid{ serverBase };
 			data.PullRequest.HeadOid       = application::commit_oid{ serverHead };
+			// [[BPR-1560]]. GitHub named the merge base, here the recorded base;
+			// without one nothing is retained for the offline source reader.
+			data.MergeBaseOid          = application::commit_oid{ serverBase };
+			data.MergeBaseTipOid       = application::commit_oid{ serverBase };
+			data.MergeBaseAvailability = application::github_merge_base_availability::available;
 			call.Complete(application::github_pull_request_success{ call.Request, std::move(data) });
 			lane.drain();
 		};

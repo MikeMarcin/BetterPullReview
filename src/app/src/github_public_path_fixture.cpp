@@ -1795,15 +1795,16 @@ namespace bpr::app::detail {
 			/// [[BPR-1560]]. Compare reads answered, and whether they fail; the
 			/// pull request each role last served, to answer the read again that
 			/// confirms it, and whether the race course moves it in between.
-			std::size_t                                 MergeBaseReads         = 0U;
-			std::size_t                                 MergeBaseConfirmations = 0U;
-			bool                                        MergeBaseUnavailable   = false;
-			bool                                        MergeBaseRace          = false;
-			bool                                        MergeBaseUnauthorized  = false;
-			std::map<int, bool>                         ConfirmationPending;
-			std::map<int, wire_response>                LastPullRequest;
-			bool                                        FirstSmartAcquireRefused = false;
-			std::optional<core::application_session_id> AuthenticationSession;
+			std::size_t MergeBaseReads         = 0U;
+			std::size_t MergeBaseConfirmations = 0U;
+			bool        MergeBaseUnavailable   = false;
+			bool        MergeBaseRace          = false;
+			bool        MergeBaseUnauthorized  = false;
+			// The pull request each snapshot read was served, by its parent,
+			// until that read asks for it again to confirm its merge base.
+			std::vector<std::pair<adapters::github::detail::github_wire_parent_context, wire_response>> ServedPullRequests;
+			bool                                                                                        FirstSmartAcquireRefused = false;
+			std::optional<core::application_session_id>                                                 AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
@@ -2688,22 +2689,22 @@ namespace bpr::app::detail {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
 					++State->MergeBaseReads;
-					State->ConfirmationPending[static_cast<int>(Role)] = true;
 					return github_wire_success{ .Correlation = aRequest.Correlation,
 												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable,
 																				   State->MergeBaseUnauthorized) };
 				}
-				// [[BPR-1560]]. The pull request read again after the merge base
-				// is the one this snapshot served, unless the race course moves
-				// its recorded base between the reads.
-				if (aRequest.Wire.Operation == read_operation::get_pull_request && State->ConfirmationPending[static_cast<int>(Role)]
-					&& State->LastPullRequest.contains(static_cast<int>(Role))) {
-					State->ConfirmationPending[static_cast<int>(Role)] = false;
+				// [[BPR-1560]]. The pull request a snapshot read asks for again,
+				// after its merge base or a remembered one, is the one it was
+				// served, unless the race course moves its recorded base between
+				// the reads.
+				if (const auto served = std::ranges::find(State->ServedPullRequests, aRequest.Correlation.Parent, [](const auto& aServed) { return aServed.first; });
+					aRequest.Wire.Operation == read_operation::get_pull_request && served != State->ServedPullRequests.end()) {
+					auto again = std::move(served->second);
+					State->ServedPullRequests.erase(served);
 					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
 						State->RecordingFailure = -5;
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
-					auto again = State->LastPullRequest.at(static_cast<int>(Role));
 					if (State->MergeBaseRace) {
 						auto object = QJsonDocument::fromJson(QByteArray::fromStdString(again.Body)).object();
 						auto base   = object.value(QStringLiteral("base")).toObject();
@@ -2879,7 +2880,7 @@ namespace bpr::app::detail {
 					.Correlation = aRequest.Correlation,
 					.Response    = [&] {
 						if (aRequest.Wire.Operation == read_operation::get_pull_request) {
-							State->LastPullRequest.insert_or_assign(static_cast<int>(Role), *response);
+							State->ServedPullRequests.emplace_back(aRequest.Correlation.Parent, *response);
 						}
 						return std::move(*response);
 					}(),

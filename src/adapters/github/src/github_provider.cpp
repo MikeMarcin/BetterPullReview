@@ -2524,7 +2524,7 @@ namespace bpr::adapters::github::detail {
 								step     = ask(github_merge_base_basis{ .BaseRef = result->PullRequest.BaseRef, .BaseOid = recorded }, tip);
 								if (step == merge_base_step::answered) {
 									step   = tip->MergeBaseOid == exact->MergeBaseOid ? merge_base_step::answered : merge_base_step::unavailable;
-									chosen = tip;
+									chosen = std::move(tip);
 								}
 							}
 							if (step == merge_base_step::answered) {

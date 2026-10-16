@@ -261,7 +261,9 @@ comparison_anchor
 The friendly `Branch base` label resolves to the latest live epoch's accepted
 base anchor. [[BPR-1560]]: a live epoch's base is the merge base GitHub names,
 through its compare API, for the pull request's current head and its base
-branch's current tip (the recorded base `base.sha` for a closed pull request):
+branch's current tip (the recorded base `base.sha` for a closed pull request), which must agree
+with its merge base against `base.sha` and be confirmed by the pull request
+read again unchanged, so the file list and the merge base describe one state:
 the commit GitHub's Files changed compares from, and so the left side of every
 file row the review lists. The recorded base is not compared from. GitHub keeps
 it ahead of the merge base whenever the base branch moved before the pull
