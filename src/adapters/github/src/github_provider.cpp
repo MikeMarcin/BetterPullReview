@@ -259,8 +259,8 @@ namespace bpr::adapters::github::detail {
 			/// answers are kept, never failures. An open pull request's basis is
 			/// its branch, which moves, so it is asked on every read.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
-			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
-			bool                                                                     Closing = false;
+			std::atomic<std::uint64_t>                                                                               NextSnapshot{ 1U };
+			bool                                                                                                     Closing = false;
 			/// RFC-BPR-0084. Serial image lanes, each with its own media
 			/// transport per profile, touched only on that lane.
 			struct media_lane

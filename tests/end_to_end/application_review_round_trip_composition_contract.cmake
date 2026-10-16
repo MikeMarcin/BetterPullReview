@@ -1731,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8a563d3abbd01f416f67191e1b4c22a88133889bd3a05465896a4ee976ae4de7"
+        "3950e58134c6dc9b277f4b81a9ddafab4f5899e0ab866ccf638e4539982b8d65"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2600,5 +2600,7 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # "same" without the cache for a left side that is the named merge base. No
 # grant, credential, transport, provider or mutation-branch pin changes; the
 # publication path's LEFT source check is the deliberate change. The full
-# application and production-manifest digests are refreshed. Reviewed by the
+# application and production-manifest digests are refreshed (main.cpp: the
+# public-preview rewritten-base course accepts Whole PR's honest
+# merge_base_unavailable, a base sharing no history with the head). Reviewed by the
 # owner's cross-review (Fable, Astra) before landing.

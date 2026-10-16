@@ -185,6 +185,13 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "intraline", 37),
         "mirrors": None,
     },
+    # [[BPR-1560]]. A recorded base ahead of the merge base, written by
+    # scripts/build_merge_base_fixture.py.
+    "merge-base-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "merge-base", 1560),
+        "mirrors": None,
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {
