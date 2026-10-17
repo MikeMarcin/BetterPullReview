@@ -4,6 +4,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QEvent>
 #include <QGridLayout>
@@ -97,11 +98,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto label_shortcut() -> QString
 		{
 			return QKeySequence{ Qt::CTRL | Qt::Key_L }.toString(QKeySequence::NativeText);
-		}
-
-		[[nodiscard]] auto plain_shortcut() -> QString
-		{
-			return QKeySequence{ Qt::CTRL | Qt::Key_0 }.toString(QKeySequence::NativeText);
 		}
 
 		[[nodiscard]] auto is_command(const QKeyEvent& aEvent, const int aKey) -> bool
@@ -474,10 +470,10 @@ namespace bpr::qt {
 		column->setSpacing(4);
 		Plain = new QToolButton{ this };
 		Plain->setObjectName(QStringLiteral("feedbackLabelMenuPlain"));
-		Plain->setText(QStringLiteral("Plain comment    %1").arg(plain_shortcut()));
+		Plain->setText(QStringLiteral("Plain comment"));
 		Plain->setAccessibleName(QStringLiteral("Plain comment"));
-		Plain->setAccessibleDescription(QStringLiteral("Removes the label (%1)").arg(plain_shortcut()));
-		Plain->setToolTip(QStringLiteral("No label (%1)").arg(plain_shortcut()));
+		Plain->setAccessibleDescription(QStringLiteral("Removes the label"));
+		Plain->setToolTip(QStringLiteral("No label"));
 		Plain->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Plain->setCheckable(true);
 		Plain->setAutoRaise(true);
@@ -681,12 +677,30 @@ namespace bpr::qt {
 		close();
 	}
 
+	void feedback_label_menu::pass_to_window(const QKeySequence& aKey)
+	{
+		// Looked up before the menu closes, and again by pointer after: the
+		// close returns focus to the comment and changes nothing else.
+		auto* const window = Controls.window();
+		close();
+		if (window == nullptr) {
+			return;
+		}
+		for (auto* const action : window->actions()) {
+			if (action->isEnabled() && action->shortcuts().contains(aKey)) {
+				action->trigger();
+				return;
+			}
+		}
+	}
+
 	auto feedback_label_menu::event(QEvent* const aEvent) -> bool
 	{
 		if (aEvent->type() == QEvent::ShortcutOverride) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
-			// ⌘0 is the window's Actual Size shortcut; inside the open menu it
-			// is Plain comment, and nowhere else.
+			// [[BPR-1569]]. ⌘0 is claimed only to be passed on to the window
+			// (keyPressEvent), so it is Actual Size whether or not the window
+			// system would reach a window shortcut past an open popup.
 			if (is_command(*key, Qt::Key_0) || key->key() == Qt::Key_Escape || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
 				key->accept();
 				return true;
@@ -698,7 +712,7 @@ namespace bpr::qt {
 	void feedback_label_menu::keyPressEvent(QKeyEvent* const aEvent)
 	{
 		if (is_command(*aEvent, Qt::Key_0)) {
-			choose({ .Change = core::feedback_label_change::remove });
+			pass_to_window(QKeySequence{ Qt::CTRL | Qt::Key_0 });
 			return;
 		}
 		switch (aEvent->key()) {
