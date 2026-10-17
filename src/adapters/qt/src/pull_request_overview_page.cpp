@@ -7,6 +7,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/identity_avatar.hpp"
+#include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/steady_columns.hpp"
@@ -50,6 +51,7 @@
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QStyle>
+#include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -2200,6 +2202,153 @@ namespace bpr::qt {
 		{
 			return std::max(28, aRow.fontMetrics().height() + 10);
 		}
+
+		/// \brief [[BPR-1577]]. One half of the Open and All switch beside the
+		/// Files heading, drawn by the page so it looks the same in every style.
+		/// \details The macOS style drew the checked half as a heavy grey block,
+		/// the only filled control on the row (owner, 2026-10-17: "it's
+		/// highlighted like that and nothing else is"). Fusion's quiet chip was
+		/// what the owner liked (v001's review), so this draws that chip itself:
+		/// the chosen half a softly filled rounded box with a one-pixel border,
+		/// the other its word alone, both in the text colour at its ordinary
+		/// weight and the row's icon-button height. The border is the page's
+		/// colour moved towards the text just far enough for 3:1, a little firmer
+		/// than Fusion's 2:1, so the choice is still seen. Open draws its round
+		/// open mark in a 16 px box, as its icon was, because it is what Open
+		/// counts.
+		class counts_mode_button final : public QToolButton
+		{
+		public:
+			explicit counts_mode_button(QWidget* const aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+			}
+
+			/// \brief The mark drawn before the word, in \p aColours.
+			void set_mark(const core::feedback_resolution aState, const feedback_state_colours& aColours)
+			{
+				Mark        = aState;
+				MarkColours = aColours;
+				updateGeometry();
+				update();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = fontMetrics();
+				const auto across  = (2 * counts_mode_padding) + mark_advance() + metrics.horizontalAdvance(text());
+				// The height Qt gives a tool button with a 16 px icon beside its
+				// words, as the ? count has.
+				auto option = QStyleOptionToolButton{ };
+				initStyleOption(&option);
+				option.toolButtonStyle = Qt::ToolButtonTextBesideIcon;
+				const auto contents    = QSize{ across, std::max(option.iconSize.height(), metrics.height()) };
+				const auto tall        = style()->sizeFromContents(QStyle::CT_ToolButton, &option, contents, this).height();
+				return QSize{ across, std::max(tall, metrics.height() + 6) };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				// A click leaves no ring that reads as a choice; Tab, an arrow
+				// within the switch or a shortcut does. A window coming back
+				// keeps what was shown.
+				const auto reason = aEvent->reason();
+				if (reason == Qt::MouseFocusReason) {
+					KeyboardFocus = false;
+				} else if (reason != Qt::ActiveWindowFocusReason && reason != Qt::PopupFocusReason) {
+					KeyboardFocus = true;
+				}
+				QToolButton::focusInEvent(aEvent);
+			}
+
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto& colours = palette();
+				const auto  ground  = colours.color(QPalette::Active, QPalette::Window);
+				const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
+				const auto  box     = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				const auto  pressed = isEnabled() && isDown();
+				if (isChecked()) {
+					// Fusion's chip: a soft fill and a thin border.
+					painter.setPen(QPen{ chip_border(ground, ink), 1.0 });
+					painter.setBrush(blend(ground, ink, pressed ? 0.12 : 0.07));
+					painter.drawRoundedRect(box, counts_mode_radius, counts_mode_radius);
+				} else if (isEnabled() && (pressed || underMouse())) {
+					// Hover and press as quietly as the row's auto-raise buttons.
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(blend(ground, ink, pressed ? 0.12 : 0.05));
+					painter.drawRoundedRect(box, counts_mode_radius, counts_mode_radius);
+				}
+				if (hasFocus() && KeyboardFocus) {
+					const auto inset = focus_ring_width / 2.0;
+					painter.setPen(QPen{ focus_ring_colour(colours, QPalette::Window), focus_ring_width });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), counts_mode_radius, counts_mode_radius);
+				}
+				const auto metrics = fontMetrics();
+				const auto content = mark_advance() + metrics.horizontalAdvance(text());
+				auto       x       = static_cast<qreal>(width() - content) / 2.0;
+				if (Mark) {
+					auto marks = MarkColours;
+					if (!isEnabled()) {
+						marks.Open = colours.color(QPalette::Disabled, QPalette::WindowText);
+					}
+					paint_feedback_state_mark(painter, QRectF{ x, (height() - feedback_mark_size) / 2.0, feedback_mark_size, feedback_mark_size }, *Mark, marks);
+					x += static_cast<qreal>(mark_advance());
+				}
+				// A whole-pixel baseline, as a label sets its words.
+				const int baseline = (height() + metrics.ascent() - metrics.descent()) / 2;
+				painter.setFont(font());
+				painter.setPen(isEnabled() ? ink : colours.color(QPalette::Disabled, QPalette::WindowText));
+				painter.drawText(QPointF{ x, static_cast<qreal>(baseline) }, text());
+			}
+
+		private:
+			static constexpr int   counts_mode_padding = 6;
+			static constexpr int   counts_mode_gap     = 4;
+			static constexpr qreal counts_mode_radius  = 3.0;
+
+			[[nodiscard]] static auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
+			{
+				const auto channel = [aAmount](const float aA, const float aB) {
+					return static_cast<float>(aA + ((aB - aA) * aAmount));
+				};
+				return QColor::fromRgbF(channel(aFrom.redF(), aTo.redF()), channel(aFrom.greenF(), aTo.greenF()), channel(aFrom.blueF(), aTo.blueF()));
+			}
+
+			/// The chip's border: the page moved towards the text in small steps
+			/// until it reads at 3:1 against the page.
+			[[nodiscard]] static auto chip_border(const QColor& aGround, const QColor& aInk) -> QColor
+			{
+				const auto ground = to_appearance_color(aGround);
+				for (auto step = 10; step < 50; ++step) {
+					const auto border = blend(aGround, aInk, step / 50.0);
+					if (contrast_ratio(to_appearance_color(border), ground) >= 3.0) {
+						return border;
+					}
+				}
+				return aInk;
+			}
+
+			/// The width the mark and its gap take before the word.
+			[[nodiscard]] auto mark_advance() const -> int
+			{
+				return Mark ? static_cast<int>(feedback_mark_size) + counts_mode_gap : 0;
+			}
+
+			std::optional<core::feedback_resolution> Mark;
+			feedback_state_colours                   MarkColours;
+			bool                                     KeyboardFocus = false;
+		};
 	} // namespace
 
 	// ---- overview_participant_row -------------------------------------------
@@ -2459,8 +2608,10 @@ namespace bpr::qt {
 		connect(ExpandFolders, &QToolButton::clicked, this, [this] { expand_all_folders(); });
 		// [[BPR-1089]]. Open or All, the ? chip and the Label key (owner,
 		// BPR-1079 Overview states), with their names in tooltips.
+		// [[BPR-1577]]. Each half is drawn by the page: the chosen one a quiet
+		// chip, the other its word alone.
 		const auto countsButton = [main](const QString& aText, const QString& aName, const QString& aAccessible, const QString& aTip) {
-			auto* const button = new QToolButton{ main };
+			auto* const button = new counts_mode_button{ main };
 			button->setObjectName(aName);
 			button->setText(aText);
 			button->setAccessibleName(aAccessible);
@@ -3585,6 +3736,7 @@ namespace bpr::qt {
 		auto       state = Colours.States;
 		state.Faint      = feedback_state_faint(palette());
 		OpenCounts->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unresolved, state, ratio) });
+		static_cast<counts_mode_button*>(OpenCounts)->set_mark(core::feedback_resolution::unresolved, state);
 		Uncertain->setIcon(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) });
 		LabelKey->setIcon(painted_glyph_icon(paint_key, palette().color(QPalette::Text), palette().color(QPalette::Disabled, QPalette::Text)));
 	}
