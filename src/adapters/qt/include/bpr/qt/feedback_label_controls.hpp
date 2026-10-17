@@ -3,9 +3,12 @@
 
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_header_edit.hpp"
+#include "bpr/core/reference_page.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
+#include <QColor>
 #include <QFrame>
+#include <QPalette>
 #include <QPointF>
 #include <QRectF>
 #include <QSize>
@@ -40,6 +43,11 @@ class QToolButton;
 /// draft. Nothing here stores a label: the text is the only authority, and
 /// the controls are recomputed from it.
 namespace bpr::qt {
+	/// \brief [[BPR-1566]]. The ink of a settings or menu link on `aPalette`'s
+	/// window: its Link colour, and on a dark ground the same hue lightened, as
+	/// the Markdown reader does ([[BPR-1543]]), until it reads at 4.5:1.
+	[[nodiscard]] auto readable_link_colour(const QPalette& aPalette) -> QColor;
+
 	/// \brief The chip's reading of one body while it is being written.
 	struct feedback_composition_state
 	{
@@ -66,11 +74,14 @@ namespace bpr::qt {
 	[[nodiscard]] auto feedback_composition_state_of(const QString& aBody) -> feedback_composition_state;
 
 	/// \brief Directly observable control activity.
+	/// \details [[BPR-1566]]. `References` counts the reference pages asked
+	/// for from the menu.
 	struct feedback_label_control_statistics
 	{
 		std::uint64_t Edits                                                       = 0U;
 		std::uint64_t Refusals                                                    = 0U;
 		std::uint64_t MenuOpens                                                   = 0U;
+		std::uint64_t References                                                  = 0U;
 		auto          operator<=>(const feedback_label_control_statistics&) const = default;
 	};
 
@@ -94,6 +105,15 @@ namespace bpr::qt {
 		void set_decoration_toggles(bool aShown);
 		/// \brief Where a refused edit's reason is said.
 		void set_status_sink(std::function<void(const QString&)> aSink);
+		/// \brief [[BPR-1566]]. Where the menu's About Conventional Comments
+		/// goes: the window, which hands the named page to the application.
+		/// \details Unset, the menu does not offer the item. The controls
+		/// never hold an address; they name the page.
+		void set_reference_dispatch(std::function<void(core::reference_page)> aDispatch);
+		/// \brief Whether a reference dispatch is set.
+		[[nodiscard]] auto reference_offered() const noexcept -> bool;
+		/// \brief [[BPR-1566]]. Asks for one reference page. It edits nothing.
+		void open_reference(core::reference_page aPage);
 
 		/// \brief Applies one header edit to the text on screen as one undo step.
 		/// \returns False when the core refused it; the text is unchanged.
@@ -137,6 +157,7 @@ namespace bpr::qt {
 		feedback_composition_state                 State;
 		std::optional<core::feedback_edit_refusal> Refusal;
 		std::function<void(const QString&)>        StatusSink;
+		std::function<void(core::reference_page)>  ReferenceDispatch;
 		feedback_label_control_statistics          Statistics;
 	};
 
@@ -151,6 +172,11 @@ namespace bpr::qt {
 	/// and is a key of the open menu only (contract, derived). Arrow keys move through
 	/// the grid; Return or Space chooses; Esc closes. Focus returns to the body
 	/// with the caret after the prefix when it closes.
+	/// \details [[BPR-1566]]. The last item, under a rule, is About
+	/// Conventional Comments: where the labels come from, opened in the
+	/// browser. It is not a label choice, edits nothing, and closes the menu.
+	/// Arrow keys reach it below the custom decoration field, passing rows
+	/// that are disabled while the comment is plain.
 	class feedback_label_menu final : public QFrame
 	{
 	public:
@@ -167,6 +193,8 @@ namespace bpr::qt {
 		/// \brief The field that takes a new custom decoration, and its Add.
 		[[nodiscard]] auto custom_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto custom_add_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1566]]. About Conventional Comments, the menu's last item.
+		[[nodiscard]] auto about_button() const noexcept -> QToolButton*;
 
 	protected:
 		auto event(QEvent* aEvent) -> bool override;
@@ -188,6 +216,8 @@ namespace bpr::qt {
 		QLineEdit*                                           CustomField = nullptr;
 		QToolButton*                                         CustomAdd   = nullptr;
 		QLabel*                                              Hint        = nullptr;
+		QFrame*                                              AboutRule   = nullptr;
+		QToolButton*                                         About       = nullptr;
 	};
 
 	/// \brief [[BPR-1083]]. A few marks drawn in the style and tints on

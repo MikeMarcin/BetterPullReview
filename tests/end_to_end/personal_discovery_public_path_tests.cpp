@@ -11,6 +11,7 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
@@ -18,6 +19,7 @@
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -664,6 +666,19 @@ try {
 		}
 		expect(pageOpens() == pageBefore + 3U && lastPage() == "https://github.com/octo-org/review-repository/pull/17",
 			   "Open on GitHub on a Recently viewed row opens that row's page");
+		// [[BPR-1566]]. About Conventional Comments through the same composition
+		// and browser: Settings' link, then the composer's label menu, which the
+		// window binds to the same dispatch. Each opens exactly the site's root.
+		auto* const about = windowA->conventional_comments_link();
+		expect(about != nullptr && !about->isHidden(), "the composed window offers About Conventional Comments in Settings");
+		about->click();
+		expect(pageOpens() == pageBefore + 4U && lastPage() == "https://conventionalcomments.org/" && windowA->conventional_comments_status()->isHidden(),
+			   "Settings' link opens https://conventionalcomments.org/ in the window's browser");
+		auto* const composerLabels = windowA->review_editor()->label_controls();
+		expect(composerLabels->reference_offered(), "the composed window binds the composer's label menu");
+		composerLabels->open_reference(core::reference_page::conventional_comments);
+		expect(pageOpens() == pageBefore + 5U && lastPage() == "https://conventionalcomments.org/",
+			   "the label menu's About opens the same page through the same browser");
 		windowA->choose_home(wasHome);
 		windowA->resize(wasSize);
 		QApplication::processEvents();

@@ -238,7 +238,24 @@ Consumers: the inline composition page and reply drafts
     catalog description as a tooltip;
   - the decorations under "Adds": blocking, non-blocking and if-minor, then a
     toggle for each custom decoration written, then a field that takes a new
-    one (BPR-1083 v004).
+    one (BPR-1083 v004);
+  - under a rule, last, **About Conventional Comments** in the link colour
+    ([[BPR-1566]]; owner, 2026-10-16: "add a small thing to the settings page
+    and dropdown picker menu for the comment labels that links to
+    conventionalcomments.org for people who don't know where those come from
+    or how to use them"). Its tooltip and accessible description say "Where
+    these labels come from and how to use them. Opens conventionalcomments.org
+    in your browser." It is not a label choice: it edits nothing, closes the
+    menu and returns focus to the comment. Arrow keys reach it below the
+    custom decoration field, and on a plain comment Down from the grid's last
+    row passes the disabled decorations and field to reach it; ⌘0 stays Plain
+    anywhere in the open menu. The item names the page
+    (`core::reference_page::conventional_comments`); the window hands the name
+    to the application (`application::open_reference_page`), which builds
+    `https://conventionalcomments.org/`, checks it as an exact-host HTTPS
+    address and opens it in the window's browser. The window's status bar
+    says what happened. A menu with no window binding (a bare editor) does
+    not show the item.
 
   Once a label is chosen, the same three decorations also sit beside the chip
   as toggles. ⌘0 is the window's Actual Size shortcut (Home's until
@@ -686,7 +703,13 @@ Consumer: `settings_window`, page Reviews & queue, section Comment labels
 - the Overview chips, ticked and dragged into order (⌥↑ and ⌥↓ also move
   them);
 - a "Mark colours" row that opens Appearance with its filter set to "label";
-- a Reset that covers this section only.
+- a Reset that covers this section only;
+- first, under the heading ([[BPR-1566]]), the sentence "These labels follow
+  a widely used format for review comments." in the quiet ink and the link
+  **About Conventional Comments**, the label menu's item, which opens
+  conventionalcomments.org in the browser through the same application path.
+  It is not a preference: Reset leaves it alone. A page that did not open
+  says why under the link, since Settings hides the window's status bar.
 
 The values persist through the existing typed profile settings store, and the
 Comments drawer's own filter is not touched.

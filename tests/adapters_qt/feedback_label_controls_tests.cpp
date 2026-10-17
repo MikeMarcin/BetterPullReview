@@ -12,6 +12,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
+#include "bpr/core/reference_page.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -21,6 +22,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFrame>
 #include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
@@ -32,6 +34,7 @@
 #include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QStringList>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -412,6 +415,125 @@ namespace {
 		expect(!f.menu()->isVisible() && f.text() == "Subject.", "Esc closes the menu and changes nothing");
 	}
 
+	/// \brief [[BPR-1566]]. About Conventional Comments is the menu's last
+	/// item: shown only where a window bound it, named for assistive
+	/// technology, reached by arrow keys from a plain or a labelled comment
+	/// and by Tab, and on activation it names the page once, closes the menu
+	/// and changes nothing in the comment.
+	void test_about_conventional_comments_is_a_way_out_not_a_label()
+	{
+		using page = core::reference_page;
+		// Unbound: no item, and the arrow keys stop where they always did.
+		{
+			auto f = fixture{ "Subject." };
+			key(f.body(), Qt::Key_L, Qt::ControlModifier);
+			settle();
+			auto* const about = f.menu()->about_button();
+			expect(about != nullptr && about->isHidden() && !f.controls()->reference_offered(), "an unbound menu offers no About item");
+			f.menu()->label_button(core::feedback_label::typo)->setFocus(Qt::TabFocusReason);
+			key(f.menu(), Qt::Key_Down);
+			expect(f.menu()->focusWidget() == f.menu()->label_button(core::feedback_label::typo), "unbound, Down from the last grid row of a plain comment stays there, as before");
+			key(f.menu(), Qt::Key_Escape);
+			settle();
+		}
+		auto f     = fixture{ "Subject." };
+		auto asked = std::vector<page>{ };
+		f.controls()->set_reference_dispatch([&asked](const page aPage) { asked.push_back(aPage); });
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		auto* const menu  = f.menu();
+		auto* const about = menu->about_button();
+		auto* const rule  = menu->findChild<QFrame*>(QStringLiteral("feedbackLabelMenuAboutRule"));
+		expect(menu->isVisible() && about->isVisible() && rule != nullptr && rule->isVisible(), "a bound menu ends with a rule and About Conventional Comments");
+		expect(about->text() == QStringLiteral("About Conventional Comments") && about->accessibleName() == QStringLiteral("About Conventional Comments")
+				   && about->accessibleDescription() == QStringLiteral("Where these labels come from and how to use them. Opens conventionalcomments.org in your browser.")
+				   && about->toolTip().contains(QStringLiteral("conventionalcomments.org")) && !about->isCheckable() && about->icon().isNull(),
+			   "it says where it goes, for the eye and for assistive technology, and is not a choice");
+		const auto bottom = [menu](const QWidget* aWidget) { return aWidget->mapTo(menu, QPoint{ 0, 0 }).y(); };
+		for (QWidget* const above : std::array<QWidget*, 4>{ menu->plain_button(), menu->label_button(core::feedback_label::typo), menu->custom_field(), rule }) {
+			expect(bottom(above) < bottom(about), "it is the last item, under the rule");
+		}
+		expect(about->palette().color(QPalette::ButtonText) == qt::readable_link_colour(menu->palette()), "it is drawn in the link colour of the palette on screen");
+		expect((about->focusPolicy() & Qt::TabFocus) != 0, "Tab reaches it");
+		save_render(*menu, "menu-about-light");
+
+		// Arrow keys on a plain comment: from the grid's last row, past the
+		// disabled decorations and field, to About; and back up to the grid.
+		menu->label_button(core::feedback_label::typo)->setFocus(Qt::TabFocusReason);
+		key(menu, Qt::Key_Down);
+		expect(menu->focusWidget() == about, "on a plain comment Down from the grid's last row reaches About");
+		key(menu, Qt::Key_Down);
+		expect(menu->focusWidget() == about, "Down stops on the last item");
+		key(menu, Qt::Key_Up);
+		expect(menu->focusWidget() == menu->label_button(core::feedback_label::typo), "Up from About returns to the grid's last row");
+		key(menu, Qt::Key_Down);
+		const auto commands = f.Commands.size();
+		const auto edits    = f.controls()->statistics().Edits;
+		key(menu, Qt::Key_Return);
+		settle();
+		expect(asked == std::vector<page>{ page::conventional_comments }, "Return on About names the Conventional Comments page, once");
+		expect(!menu->isVisible() && f.text() == "Subject." && f.Commands.size() == commands && f.controls()->statistics().Edits == edits && !f.controls()->state().Label.has_value(),
+			   "the menu closes and the comment, its label and its draft are untouched");
+		expect(f.Window.focusWidget() == f.body() && f.controls()->statistics().References == 1U, "focus is back in the comment");
+
+		// A labelled comment: Down from the field reaches About, Up returns.
+		f.controls()->apply({ .Change = core::feedback_label_change::set, .Label = core::feedback_label::issue });
+		settle();
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		menu->custom_field()->setFocus(Qt::TabFocusReason);
+		key(menu, Qt::Key_Down);
+		expect(menu->focusWidget() == about, "on a labelled comment Down from the custom field reaches About");
+		key(menu, Qt::Key_Up);
+		expect(menu->focusWidget() == menu->custom_field(), "and Up goes back to the field");
+		// ⌘0 is still Plain anywhere in the open menu, About focused included.
+		about->setFocus(Qt::TabFocusReason);
+		expect(overrides(menu, Qt::Key_0), "the open menu still claims ⌘0");
+		key(menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(f.text() == "Subject." && !menu->isVisible() && asked.size() == 1U, "⌘0 with About focused is Plain comment, and asks for no page");
+
+		// A click is the same request and still no choice.
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		about->click();
+		settle();
+		expect(asked == std::vector<page>{ page::conventional_comments, page::conventional_comments } && !menu->isVisible() && f.text() == "Subject.",
+			   "a click names the page again, closes the menu and changes nothing");
+
+		// Unbinding takes the item away again.
+		f.controls()->set_reference_dispatch({ });
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		expect(about->isHidden() && rule->isHidden(), "unbound again, the item and its rule are gone");
+		key(menu, Qt::Key_Escape);
+		settle();
+
+		// Review renders, in the built-in Light and Dark palettes, of a
+		// labelled comment's open menu. Written only when asked for.
+		if (!qEnvironmentVariable("BPR_FEEDBACK_RENDER_DIR").isEmpty()) {
+			f.controls()->set_reference_dispatch([](page) { });
+			const auto original = QApplication::palette();
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "menu-about-light" }, std::pair{ core::appearance_mode::dark, "menu-about-dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				QApplication::setPalette(profile.derive(original));
+				f.controls()->set_theme(qt::default_feedback_mark_theme(QApplication::palette()));
+				static_cast<void>(f.controls()->apply({ .Change = core::feedback_label_change::set, .Label = core::feedback_label::suggestion }));
+				settle();
+				key(f.body(), Qt::Key_L, Qt::ControlModifier);
+				settle();
+				about->setFocus(Qt::TabFocusReason);
+				settle();
+				save_render(*menu, name);
+				key(menu, Qt::Key_Escape);
+				settle();
+			}
+			QApplication::setPalette(original);
+			settle();
+		}
+	}
+
 	void test_controls_and_typed_syntax_are_the_same_draft()
 	{
 		auto chosen = fixture{ "Read the light scale from the view." };
@@ -703,6 +825,7 @@ auto main(int argc, char** argv) -> int
 	test_a_label_chosen_while_typing_waits_for_the_unanswered_edit();
 	test_the_chip_keeps_its_size_when_narrow();
 	test_a_small_gap_between_the_mark_and_the_word();
+	test_about_conventional_comments_is_a_way_out_not_a_label();
 	std::cout << "feedback-label-controls-tests:pass\n";
 	return EXIT_SUCCESS;
 }

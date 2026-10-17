@@ -10,6 +10,7 @@
 /// stored chips; and every row following the published record, so a refused
 /// or failed save reverts.
 
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/colour_role_list.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -27,8 +28,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPalette>
 #include <QPoint>
 #include <QRect>
+#include <QStatusBar>
 #include <QToolButton>
 
 #include <algorithm>
@@ -37,6 +40,7 @@
 #include <iostream>
 #include <set>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -337,6 +341,111 @@ namespace {
 		expect(listed == tints, "listing exactly the twelve label tints");
 	}
 
+	/// \brief [[BPR-1566]]. Comment labels opens with a sentence and About
+	/// Conventional Comments. The link names the page to the window's
+	/// application dispatch and nothing else: no preference is dispatched, the
+	/// section's Reset leaves it alone, a page that did not open says so under
+	/// it, and the window's label menus are bound by the same dispatch.
+	void test_about_conventional_comments_names_the_page()
+	{
+		fixture f;
+		f.Window.settings()->resize(1'100, 900);
+		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		settle();
+		auto* const page    = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const caption = f.Window.conventional_comments_caption();
+		auto* const link    = f.Window.conventional_comments_link();
+		auto* const status  = f.Window.conventional_comments_status();
+		auto* const heading = f.Window.findChild<QLabel*>(QStringLiteral("resetCommentLabelsHeading"));
+		auto* const editor  = f.Window.review_editor()->label_controls();
+		expect(caption != nullptr && link != nullptr && status != nullptr && page->isAncestorOf(link), "Comment labels has the Conventional Comments line");
+		expect(!link->isVisibleTo(page) && !caption->isVisibleTo(page) && !editor->reference_offered(), "unbound, neither Settings nor the composer's menu offers it");
+
+		auto asked  = std::vector<core::reference_page>{ };
+		auto answer = core::markdown_link_result::opened;
+		f.Window.set_reference_page_dispatch([&](const core::reference_page aPage) {
+			asked.push_back(aPage);
+			return answer;
+		});
+		settle();
+		expect(link->isVisibleTo(page) && caption->isVisibleTo(page) && status->isHidden(), "bound, the line shows and says nothing about an outcome yet");
+		expect(caption->text() == QStringLiteral("These labels follow a widely used format for review comments.") && link->text() == QStringLiteral("About Conventional Comments"),
+			   "the sentence and the link are the design's");
+		expect(link->accessibleName() == QStringLiteral("About Conventional Comments")
+				   && link->accessibleDescription() == QStringLiteral("Where the comment labels come from and how to use them. Opens conventionalcomments.org in your browser.")
+				   && link->toolTip().contains(QStringLiteral("conventionalcomments.org")) && (link->focusPolicy() & Qt::TabFocus) != 0,
+			   "the link says where it goes, for the eye and assistive technology, and Tab reaches it");
+		expect(link->palette().color(QPalette::ButtonText) == qt::readable_link_colour(link->palette()), "it is drawn as a link");
+		const auto top = [page](const QWidget* aWidget) { return aWidget->mapTo(page, QPoint{ 0, 0 }).y(); };
+		expect(top(heading) < top(link) && top(link) < top(f.Window.label_helper_switch()), "it sits under the heading, above Label helper");
+		save_render(*page, "comment-labels-conventional-comments");
+		// Review renders in the built-in Light and Dark palettes, applied to
+		// the window as the composition applies a profile; Settings follows.
+		if (!qEnvironmentVariable("BPR_FEEDBACK_RENDER_DIR").isEmpty()) {
+			const auto original = f.Window.palette();
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "settings-about-light" }, std::pair{ core::appearance_mode::dark, "settings-about-dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				f.Window.setPalette(profile.derive(original));
+				settle();
+				expect(link->palette().color(QPalette::ButtonText) == qt::readable_link_colour(link->parentWidget()->palette())
+						   && f.Window.mark_colours_link()->palette().color(QPalette::ButtonText) == link->palette().color(QPalette::ButtonText),
+					   "both links follow the palette's link colour, readable on its ground");
+				expect(qt::contrast_ratio(qt::to_appearance_color(link->palette().color(QPalette::ButtonText)), qt::to_appearance_color(link->parentWidget()->palette().color(QPalette::Window))) >= 4.5,
+					   "the link reads at 4.5:1 or better on the Settings ground");
+				save_render(*f.Window.settings(), name);
+			}
+			f.Window.setPalette(original);
+			settle();
+		}
+
+		// The keyboard: Space on the focused link.
+		const auto records = f.Records.size();
+		f.Window.settings()->activateWindow();
+		link->setFocus(Qt::TabFocusReason);
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(link, &press);
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(link, &release);
+		settle();
+		expect(asked == std::vector<core::reference_page>{ core::reference_page::conventional_comments }, "Space on the link names the Conventional Comments page, once");
+		expect(f.Records.size() == records, "and dispatches no preference");
+		expect(status->isHidden() && f.Window.statusBar()->currentMessage() == QStringLiteral("Opened conventionalcomments.org in your browser."), "an open says so in the window's status bar only");
+
+		answer = core::markdown_link_result::failed;
+		link->click();
+		settle();
+		expect(!status->isHidden() && status->text() == QStringLiteral("The browser could not open conventionalcomments.org.") && status->accessibleName() == status->text(),
+			   "a browser that declines is said under the link, where Settings shows it");
+		answer = core::markdown_link_result::unavailable;
+		link->click();
+		settle();
+		expect(status->text() == QStringLiteral("This window has no browser to open conventionalcomments.org with."), "no browser is said too");
+		answer = core::markdown_link_result::refused;
+		link->click();
+		settle();
+		expect(status->text() == QStringLiteral("conventionalcomments.org cannot be opened safely from here."), "and a refusal");
+		answer = core::markdown_link_result::opened;
+		link->click();
+		settle();
+		expect(status->isHidden() && asked.size() == 5U, "an open afterwards clears it");
+
+		f.find("resetCommentLabels")->click();
+		settle();
+		expect(link->isVisibleTo(page) && asked.size() == 5U, "the section's Reset neither hides the link nor asks for the page");
+
+		// The composer's label menu in this window goes through the same dispatch.
+		expect(editor->reference_offered(), "the window binds the composer's label menu");
+		editor->open_reference(core::reference_page::conventional_comments);
+		expect(asked.size() == 6U && asked.back() == core::reference_page::conventional_comments && status->isHidden()
+				   && f.Window.statusBar()->currentMessage() == QStringLiteral("Opened conventionalcomments.org in your browser."),
+			   "the composer's request reaches the window's dispatch and is said in the status bar");
+
+		f.Window.set_reference_page_dispatch({ });
+		settle();
+		expect(!link->isVisibleTo(page) && !editor->reference_offered(), "unbinding takes both away");
+	}
+
 	/// \brief At Settings' minimum size the list fits and drops the descriptions.
 	void test_the_section_fits_at_the_minimum_size()
 	{
@@ -379,6 +488,7 @@ auto main(int argc, char** argv) -> int
 	test_a_recovered_list_is_explained();
 	test_mark_colours_opens_the_label_tints();
 	test_the_section_fits_at_the_minimum_size();
+	test_about_conventional_comments_names_the_page();
 	std::cout << "feedback-label-settings-tests:pass\n";
 	return EXIT_SUCCESS;
 }

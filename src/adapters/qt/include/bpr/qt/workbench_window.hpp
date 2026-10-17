@@ -15,6 +15,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/reference_page.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -657,6 +658,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1088]]. Comment labels › Mark colours, which opens
 		/// Appearance with its colour filter set to "label".
 		[[nodiscard]] auto mark_colours_link() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1566]]. Comment labels' first line: the sentence that
+		/// says where the labels come from, and About Conventional Comments,
+		/// which asks the application to open that page in the browser.
+		[[nodiscard]] auto conventional_comments_caption() const noexcept -> QLabel*;
+		[[nodiscard]] auto conventional_comments_link() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1566]]. Why the page did not open, under the link;
+		/// hidden after an open and before any.
+		[[nodiscard]] auto conventional_comments_status() const noexcept -> QLabel*;
 		/// \brief Adopts the read state of the review's conversations.
 		///
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
@@ -1341,6 +1350,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1338]]. Binds Open on GitHub to the host, which admits the
 		/// named pull request and builds its address.
 		void set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch);
+		/// \brief [[BPR-1566]]. Binds About Conventional Comments, in Settings
+		/// and in every label menu of this window, to the application, which
+		/// admits the named page and opens it. Unset, neither is offered.
+		void set_reference_page_dispatch(std::function<core::markdown_link_result(core::reference_page)> aDispatch);
 		/// \brief [[BPR-1342]]. Binds Open Review in New Window to the host, which
 		/// admits the named row and asks the profile for a new window that opens
 		/// it. True when the new window was asked for.
@@ -1782,6 +1795,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto pull_request_page_target() const -> std::optional<application::pull_request_page_intent>;
 		void               open_pull_request_page(const application::pull_request_page_intent& aIntent);
 		void               update_open_on_github_action();
+		/// [[BPR-1566]]. Hands the named page to the application and says what
+		/// became of it: in the status bar, and from Settings under its link.
+		void open_reference_page(core::reference_page aPage, bool aFromSettings);
 		/// \brief [[BPR-1342]]. The Home row Open Review and Open Review in New
 		/// Window name: the row last made current, in whichever list.
 		[[nodiscard]] auto home_review_target() const -> std::optional<std::variant<core::queue_item, application::recent_review_row>>;
@@ -2294,6 +2310,11 @@ namespace bpr::qt {
 		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
 		QLabel*                        LabelColumnsRecovery = nullptr;
 		QToolButton*                   MarkColoursLink      = nullptr;
+		/// [[BPR-1566]]. Comment labels' first line and its outcome.
+		QWidget*     ConventionalCommentsRow     = nullptr;
+		QLabel*      ConventionalCommentsCaption = nullptr;
+		QToolButton* ConventionalCommentsLink    = nullptr;
+		QLabel*      ConventionalCommentsStatus  = nullptr;
 		/// [[BPR-1088]]. The record last asked of the host and not yet
 		/// answered by a publication, so a gesture that returns to the
 		/// published record while an earlier one is in flight is still sent.
@@ -2397,6 +2418,7 @@ namespace bpr::qt {
 		std::string                                                                  MarkdownAuthority;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
+		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;
 		std::optional<core::markdown_context>                                                   PageContext;
 		QAction*                                                                                OpenOnGithubAction       = nullptr;
 		QToolButton*                                                                            OpenOnGithubButton       = nullptr;

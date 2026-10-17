@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
@@ -501,6 +502,9 @@ namespace bpr::qt {
 		/// \brief Link destinations in a post, with the post's identity, for
 		/// the application's admission ([[BPR-0456]]).
 		void set_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
+		/// \brief [[BPR-1566]]. Where the open thread's label menu sends About
+		/// Conventional Comments. Unset, the menu does not offer it.
+		void set_reference_dispatch(std::function<void(core::reference_page)> aDispatch);
 		/// \brief RFC-BPR-0084. Asks for a published post's images by post identity.
 		void set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch);
 		/// \brief Shows one image answer in the open thread's post it names.
@@ -603,6 +607,9 @@ namespace bpr::qt {
 		auto focusNextPrevChild(bool aNext) -> bool override;
 
 	private:
+		/// [[BPR-1566]]. Gives an open card's label menu this view's reference dispatch.
+		void bind_reference(feedback_label_controls& aLabels);
+
 		struct closed_measure
 		{
 			QString Body;
@@ -694,6 +701,7 @@ namespace bpr::qt {
 		std::function<void()>                                                                MarksObserver;
 		std::function<bool(QWheelEvent&)>                                                    ScrollForward;
 		std::function<void(const std::string&, const std::string&)>                          LinkDispatch;
+		std::function<void(core::reference_page)>                                            ReferenceDispatch;
 		std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> ImageDispatch;
 		bool                                                                                 ImagesShown = true;
 		std::function<void(const std::string&, const QString&)>                              ReplyTextDispatch;

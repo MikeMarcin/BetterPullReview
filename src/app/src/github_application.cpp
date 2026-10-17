@@ -143,6 +143,7 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/pull_request_overview.hpp"
+#include "bpr/application/reference_page.hpp"
 #include "bpr/application/reply_thread_observation.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
@@ -7594,6 +7595,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? open_pull_request_page(aIntent)
+					: core::markdown_link_result::stale;
+			});
+			// [[BPR-1566]]. About Conventional Comments, from Settings or a label
+			// menu: the window names the page, the application admits it and
+			// builds the address, and this window's browser opens it.
+			Window->set_reference_page_dispatch([this, weak](const core::reference_page aPage) {
+				return !weak.expired() && !Closing
+					? application::open_reference_page(aPage, Profile->WindowBrowser)
 					: core::markdown_link_result::stale;
 			});
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {

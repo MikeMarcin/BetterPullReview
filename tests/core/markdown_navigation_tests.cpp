@@ -1,4 +1,5 @@
 #include "bpr/core/markdown_navigation.hpp"
+#include "bpr/core/reference_page.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -151,5 +152,11 @@ int main()
 	for (const auto* address : { "", "javascript:alert(1)", "JavaScript:alert(1)", "vbscript:x", "data:text/html,x", "file:///etc/passwd", "mailto:a@example.invalid", "jav\tascript:x", " javascript:x", "https://user:password@example.invalid/a", "https://example.invalid/?access_token=x", "https://example.invalid/a b", "https://example.invalid\\@evil.invalid" }) {
 		expect(!markdown_html_link_kept(address), address);
 	}
+	// [[BPR-1566]]. A reference page is named, never addressed: one exact
+	// host and path, only with a browser, and nothing for an unnamed value.
+	const auto reference = admit_reference_page(reference_page::conventional_comments, true);
+	expect(reference && reference->Hostname == "conventionalcomments.org" && reference->Path == "/", "Conventional Comments is its site's root");
+	expect(admit_reference_page(reference_page::conventional_comments, false).error() == markdown_link_result::unavailable, "no browser, no page");
+	expect(admit_reference_page(static_cast<reference_page>(7), true).error() == markdown_link_result::refused, "a value that names no page is refused");
 	std::cout << "Markdown navigation policy passed\n";
 }

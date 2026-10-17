@@ -9179,6 +9179,9 @@ namespace bpr::qt {
 	auto workbench_window::label_columns_editor() const noexcept -> feedback_label_columns_editor* { return LabelColumnsEditor; }
 	auto workbench_window::label_columns_recovery() const noexcept -> QLabel* { return LabelColumnsRecovery; }
 	auto workbench_window::mark_colours_link() const noexcept -> QToolButton* { return MarkColoursLink; }
+	auto workbench_window::conventional_comments_caption() const noexcept -> QLabel* { return ConventionalCommentsCaption; }
+	auto workbench_window::conventional_comments_link() const noexcept -> QToolButton* { return ConventionalCommentsLink; }
+	auto workbench_window::conventional_comments_status() const noexcept -> QLabel* { return ConventionalCommentsStatus; }
 
 	// [[BPR-0661]]. Two groups of segmented rows: the modality rules (which
 	// modality a pull request opens in; which one Continue review enters) and
@@ -9217,6 +9220,9 @@ namespace bpr::qt {
 			int TrailingSpacing = 12;
 			/// The row's name at the top of a tall control.
 			bool Top = false;
+			/// [[BPR-1566]]. A line of its own under the heading, with no
+			/// name column: `Control` takes the whole width.
+			bool Wide = false;
 		};
 		const auto addGroup = [this, column](const QString&          aHeading,
 											 const QString&          aResetName,
@@ -9245,6 +9251,10 @@ namespace bpr::qt {
 			headingRow->addWidget(reset);
 			column->addLayout(headingRow);
 			for (const auto& one : aRows) {
+				if (one.Wide && one.Control != nullptr) {
+					column->addWidget(one.Control);
+					continue;
+				}
 				auto* const line  = new QHBoxLayout{ };
 				auto* const label = new QLabel{ one.Label, BehaviourEditor };
 				label->setObjectName(one.Name + QStringLiteral("Label"));
@@ -9446,7 +9456,7 @@ namespace bpr::qt {
 		anchor_tooltips(*MarkColoursLink);
 		{
 			auto linkPalette = MarkColoursLink->palette();
-			linkPalette.setColor(QPalette::ButtonText, linkPalette.color(QPalette::Link));
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
 			MarkColoursLink->setPalette(linkPalette);
 		}
 		connect(MarkColoursLink, &QToolButton::clicked, this, [this] {
@@ -9485,10 +9495,57 @@ namespace bpr::qt {
 		LabelColumnsRecovery->setMaximumWidth(420);
 		LabelColumnsRecovery->hide();
 		chipsLayout->addWidget(LabelColumnsRecovery);
+		// [[BPR-1566]]. The owner, 2026-10-16: "add a small thing to the
+		// settings page [...] that links to [Conventional Comments] for
+		// people who don't know where those come from or how to use them."
+		// One quiet sentence under the heading and the same link the label
+		// menu ends with. It names the page; the application opens it. Not a
+		// preference: the section's Reset leaves it alone, and it is hidden
+		// until the window is bound to the application.
+		ConventionalCommentsRow     = new QWidget{ BehaviourEditor };
+		auto* const conventionalRow = new QVBoxLayout{ ConventionalCommentsRow };
+		conventionalRow->setContentsMargins(0, 0, 0, 2);
+		conventionalRow->setSpacing(2);
+		auto* const conventionalLine = new QHBoxLayout{ };
+		conventionalLine->setSpacing(2);
+		ConventionalCommentsCaption = new QLabel{ QStringLiteral("These labels follow a widely used format for review comments."), ConventionalCommentsRow };
+		ConventionalCommentsCaption->setObjectName(QStringLiteral("conventionalCommentsCaption"));
+		ConventionalCommentsCaption->setForegroundRole(QPalette::PlaceholderText);
+		ConventionalCommentsCaption->setTextFormat(Qt::PlainText);
+		conventionalLine->addWidget(ConventionalCommentsCaption);
+		ConventionalCommentsLink = new QToolButton{ ConventionalCommentsRow };
+		ConventionalCommentsLink->setObjectName(QStringLiteral("conventionalCommentsLink"));
+		ConventionalCommentsLink->setText(QStringLiteral("About Conventional Comments"));
+		ConventionalCommentsLink->setAutoRaise(true);
+		ConventionalCommentsLink->setCursor(Qt::PointingHandCursor);
+		ConventionalCommentsLink->setFocusPolicy(Qt::StrongFocus);
+		ConventionalCommentsLink->setToolTip(QStringLiteral("Where the labels come from and how to use them.\nOpens conventionalcomments.org in your browser."));
+		ConventionalCommentsLink->setAccessibleName(QStringLiteral("About Conventional Comments"));
+		ConventionalCommentsLink->setAccessibleDescription(QStringLiteral("Where the comment labels come from and how to use them. Opens conventionalcomments.org in your browser."));
+		anchor_tooltips(*ConventionalCommentsLink);
+		{
+			auto linkPalette = ConventionalCommentsLink->palette();
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
+			ConventionalCommentsLink->setPalette(linkPalette);
+		}
+		connect(ConventionalCommentsLink, &QToolButton::clicked, this, [this] {
+			open_reference_page(core::reference_page::conventional_comments, true);
+		});
+		conventionalLine->addWidget(ConventionalCommentsLink);
+		conventionalLine->addStretch(1);
+		conventionalRow->addLayout(conventionalLine);
+		ConventionalCommentsStatus = new QLabel{ ConventionalCommentsRow };
+		ConventionalCommentsStatus->setObjectName(QStringLiteral("conventionalCommentsStatus"));
+		ConventionalCommentsStatus->setTextFormat(Qt::PlainText);
+		ConventionalCommentsStatus->setWordWrap(true);
+		ConventionalCommentsStatus->hide();
+		conventionalRow->addWidget(ConventionalCommentsStatus);
+		ConventionalCommentsRow->setVisible(static_cast<bool>(ReferenceDispatch));
 		auto* const commentLabelsReset = addGroup(
 			QStringLiteral("Comment labels"),
 			QStringLiteral("resetCommentLabels"),
 			{
+				row{ .Index = 0U, .Label = { }, .Name = QStringLiteral("conventionalComments"), .Options = { }, .Control = ConventionalCommentsRow, .Wide = true },
 				row{ .Index = 0U, .Label = QStringLiteral("Label helper"), .Name = QStringLiteral("labelHelper"), .Options = { }, .Control = helperRow },
 				row{ .Index    = 6U,
 					 .Label    = QStringLiteral("Label marks"),
@@ -11380,6 +11437,55 @@ namespace bpr::qt {
 	{
 		PageDispatch = std::move(aDispatch);
 		update_open_on_github_action();
+	}
+
+	void workbench_window::set_reference_page_dispatch(std::function<core::markdown_link_result(core::reference_page)> aDispatch)
+	{
+		ReferenceDispatch = std::move(aDispatch);
+		const auto bound  = static_cast<bool>(ReferenceDispatch);
+		// The composer's menu and every reply's ask the window, which asks
+		// the application; neither holds the dispatch itself.
+		auto fromMenu = std::function<void(core::reference_page)>{ };
+		if (bound) {
+			fromMenu = [this](const core::reference_page aPage) { open_reference_page(aPage, false); };
+		}
+		if (ReviewEditor != nullptr && ReviewEditor->label_controls() != nullptr) {
+			ReviewEditor->label_controls()->set_reference_dispatch(fromMenu);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_reference_dispatch(fromMenu);
+		}
+		if (ConventionalCommentsRow != nullptr) {
+			ConventionalCommentsRow->setVisible(bound);
+		}
+	}
+
+	void workbench_window::open_reference_page(const core::reference_page aPage, const bool aFromSettings)
+	{
+		const auto result = ReferenceDispatch ? ReferenceDispatch(aPage) : core::markdown_link_result::unavailable;
+		// One page today. Its name is the site's, which is what the browser
+		// will show; the address itself never reaches this window.
+		auto page = QString{ };
+		switch (aPage) {
+		case core::reference_page::conventional_comments: page = QStringLiteral("conventionalcomments.org"); break;
+		}
+		QString message;
+		switch (result) {
+		case core::markdown_link_result::opened:      message = QStringLiteral("Opened %1 in your browser.").arg(page); break;
+		case core::markdown_link_result::stale:
+		case core::markdown_link_result::unavailable: message = QStringLiteral("This window has no browser to open %1 with.").arg(page); break;
+		case core::markdown_link_result::refused:     message = QStringLiteral("%1 cannot be opened safely from here.").arg(page); break;
+		case core::markdown_link_result::failed:      message = QStringLiteral("The browser could not open %1.").arg(page); break;
+		}
+		statusBar()->showMessage(message, 8000);
+		// Settings is a window of its own, where this window's status bar is
+		// out of sight: a page that did not open says so under its link.
+		if (aFromSettings && ConventionalCommentsStatus != nullptr) {
+			const auto shown = result != core::markdown_link_result::opened;
+			ConventionalCommentsStatus->setText(shown ? message : QString{ });
+			ConventionalCommentsStatus->setAccessibleName(shown ? message : QString{ });
+			ConventionalCommentsStatus->setVisible(shown);
+		}
 	}
 
 	auto workbench_window::open_on_github_action() const noexcept -> QAction*
@@ -14179,6 +14285,15 @@ namespace bpr::qt {
 			}
 			if (MountedSettings) {
 				MountedSettings->setPalette(palette());
+			}
+			// [[BPR-1566]]. A link's colour is set, not inherited: take the new
+			// palette's, readable on its ground. Mark colours, beside it, too.
+			for (auto* const link : { ConventionalCommentsLink, MarkColoursLink }) {
+				if (link != nullptr && link->parentWidget() != nullptr) {
+					auto linkPalette = link->palette();
+					linkPalette.setColor(QPalette::ButtonText, readable_link_colour(link->parentWidget()->palette()));
+					link->setPalette(linkPalette);
+				}
 			}
 			[[fallthrough]];
 		case QEvent::ApplicationFontChange:

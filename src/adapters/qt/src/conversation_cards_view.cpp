@@ -848,6 +848,30 @@ namespace bpr::qt {
 		LinkDispatch = std::move(aDispatch);
 	}
 
+	void conversation_cards_view::set_reference_dispatch(std::function<void(core::reference_page)> aDispatch)
+	{
+		ReferenceDispatch = std::move(aDispatch);
+		if (OpenCard != nullptr && OpenCard->label_controls() != nullptr) {
+			bind_reference(*OpenCard->label_controls());
+		}
+	}
+
+	void conversation_cards_view::bind_reference(feedback_label_controls& aLabels)
+	{
+		if (!ReferenceDispatch) {
+			aLabels.set_reference_dispatch({ });
+			return;
+		}
+		aLabels.set_reference_dispatch([this](const core::reference_page aPage) {
+			// The view's dispatch can be replaced while a card is open; ask
+			// the current one.
+			const auto dispatch = ReferenceDispatch;
+			if (dispatch) {
+				dispatch(aPage);
+			}
+		});
+	}
+
 	void conversation_cards_view::set_image_dispatch(std::function<void(const std::string&, std::vector<core::markdown_image_reference>)> aDispatch)
 	{
 		ImageDispatch = std::move(aDispatch);
@@ -1727,6 +1751,9 @@ namespace bpr::qt {
 		}
 		OpenCard = new open_thread_card{ card, style, viewport() };
 		OpenCard->setProperty("threadKey", key);
+		if (OpenCard->label_controls() != nullptr) {
+			bind_reference(*OpenCard->label_controls());
+		}
 		const auto id    = card.Id;
 		const auto words = card.UnsentReply.has_value() && card.Draft && !card.Posts.empty() ? card.Posts.front().Body : QString{ };
 		OpenCard->Action = [this, id, words](const card_action aAction) {
