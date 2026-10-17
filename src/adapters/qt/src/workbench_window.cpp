@@ -9456,7 +9456,7 @@ namespace bpr::qt {
 		anchor_tooltips(*MarkColoursLink);
 		{
 			auto linkPalette = MarkColoursLink->palette();
-			linkPalette.setColor(QPalette::ButtonText, linkPalette.color(QPalette::Link));
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
 			MarkColoursLink->setPalette(linkPalette);
 		}
 		connect(MarkColoursLink, &QToolButton::clicked, this, [this] {
@@ -9525,7 +9525,7 @@ namespace bpr::qt {
 		anchor_tooltips(*ConventionalCommentsLink);
 		{
 			auto linkPalette = ConventionalCommentsLink->palette();
-			linkPalette.setColor(QPalette::ButtonText, linkPalette.color(QPalette::Link));
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
 			ConventionalCommentsLink->setPalette(linkPalette);
 		}
 		connect(ConventionalCommentsLink, &QToolButton::clicked, this, [this] {
@@ -14286,12 +14286,14 @@ namespace bpr::qt {
 			if (MountedSettings) {
 				MountedSettings->setPalette(palette());
 			}
-			// [[BPR-1566]]. The link's colour is set, not inherited: take the
-			// new palette's link colour.
-			if (ConventionalCommentsLink != nullptr && ConventionalCommentsLink->parentWidget() != nullptr) {
-				auto linkPalette = ConventionalCommentsLink->palette();
-				linkPalette.setColor(QPalette::ButtonText, ConventionalCommentsLink->parentWidget()->palette().color(QPalette::Link));
-				ConventionalCommentsLink->setPalette(linkPalette);
+			// [[BPR-1566]]. A link's colour is set, not inherited: take the new
+			// palette's, readable on its ground. Mark colours, beside it, too.
+			for (auto* const link : { ConventionalCommentsLink, MarkColoursLink }) {
+				if (link != nullptr && link->parentWidget() != nullptr) {
+					auto linkPalette = link->palette();
+					linkPalette.setColor(QPalette::ButtonText, readable_link_colour(link->parentWidget()->palette()));
+					link->setPalette(linkPalette);
+				}
 			}
 			[[fallthrough]];
 		case QEvent::ApplicationFontChange:

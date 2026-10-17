@@ -375,7 +375,7 @@ namespace {
 				   && link->accessibleDescription() == QStringLiteral("Where the comment labels come from and how to use them. Opens conventionalcomments.org in your browser.")
 				   && link->toolTip().contains(QStringLiteral("conventionalcomments.org")) && (link->focusPolicy() & Qt::TabFocus) != 0,
 			   "the link says where it goes, for the eye and assistive technology, and Tab reaches it");
-		expect(link->palette().color(QPalette::ButtonText) == link->palette().color(QPalette::Link), "it is drawn as a link");
+		expect(link->palette().color(QPalette::ButtonText) == qt::readable_link_colour(link->palette()), "it is drawn as a link");
 		const auto top = [page](const QWidget* aWidget) { return aWidget->mapTo(page, QPoint{ 0, 0 }).y(); };
 		expect(top(heading) < top(link) && top(link) < top(f.Window.label_helper_switch()), "it sits under the heading, above Label helper");
 		save_render(*page, "comment-labels-conventional-comments");
@@ -388,7 +388,11 @@ namespace {
 				static_cast<void>(profile.select_mode(mode));
 				f.Window.setPalette(profile.derive(original));
 				settle();
-				expect(link->palette().color(QPalette::ButtonText) == link->parentWidget()->palette().color(QPalette::Link), "the link follows the palette's link colour");
+				expect(link->palette().color(QPalette::ButtonText) == qt::readable_link_colour(link->parentWidget()->palette())
+						   && f.Window.mark_colours_link()->palette().color(QPalette::ButtonText) == link->palette().color(QPalette::ButtonText),
+					   "both links follow the palette's link colour, readable on its ground");
+				expect(qt::contrast_ratio(qt::to_appearance_color(link->palette().color(QPalette::ButtonText)), qt::to_appearance_color(link->parentWidget()->palette().color(QPalette::Window))) >= 4.5,
+					   "the link reads at 4.5:1 or better on the Settings ground");
 				save_render(*f.Window.settings(), name);
 			}
 			f.Window.setPalette(original);

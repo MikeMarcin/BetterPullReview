@@ -6,7 +6,9 @@
 #include "bpr/core/reference_page.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
+#include <QColor>
 #include <QFrame>
+#include <QPalette>
 #include <QPointF>
 #include <QRectF>
 #include <QSize>
@@ -41,6 +43,11 @@ class QToolButton;
 /// draft. Nothing here stores a label: the text is the only authority, and
 /// the controls are recomputed from it.
 namespace bpr::qt {
+	/// \brief [[BPR-1566]]. The ink of a settings or menu link on `aPalette`'s
+	/// window: its Link colour, and on a dark ground the same hue lightened, as
+	/// the Markdown reader does ([[BPR-1543]]), until it reads at 4.5:1.
+	[[nodiscard]] auto readable_link_colour(const QPalette& aPalette) -> QColor;
+
 	/// \brief The chip's reading of one body while it is being written.
 	struct feedback_composition_state
 	{

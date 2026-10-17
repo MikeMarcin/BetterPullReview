@@ -453,7 +453,7 @@ namespace {
 		for (QWidget* const above : std::array<QWidget*, 4>{ menu->plain_button(), menu->label_button(core::feedback_label::typo), menu->custom_field(), rule }) {
 			expect(bottom(above) < bottom(about), "it is the last item, under the rule");
 		}
-		expect(about->palette().color(QPalette::ButtonText) == menu->palette().color(QPalette::Link), "it is drawn in the link colour of the palette on screen");
+		expect(about->palette().color(QPalette::ButtonText) == qt::readable_link_colour(menu->palette()), "it is drawn in the link colour of the palette on screen");
 		expect((about->focusPolicy() & Qt::TabFocus) != 0, "Tab reaches it");
 		save_render(*menu, "menu-about-light");
 

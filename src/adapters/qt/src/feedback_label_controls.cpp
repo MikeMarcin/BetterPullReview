@@ -151,6 +151,27 @@ namespace bpr::qt {
 		}
 	} // namespace
 
+	auto readable_link_colour(const QPalette& aPalette) -> QColor
+	{
+		auto       link   = aPalette.color(QPalette::Active, QPalette::Link);
+		const auto ground = aPalette.color(QPalette::Active, QPalette::Window);
+		if (ground.lightness() >= 128 || link.lightness() >= 165) {
+			return link;
+		}
+		// The Markdown reader's lightness first, then lighter until the link
+		// reads at 4.5:1 on the ground: a palette's default blue is about
+		// 4.2:1 there at 175.
+		const auto hue        = link.hslHue() < 0 ? 210 : link.hslHue();
+		const auto saturation = std::min(link.hslSaturation(), 200);
+		for (auto lightness = 175; lightness <= 235; lightness += 5) {
+			link = QColor::fromHsl(hue, saturation, lightness);
+			if (contrast_ratio(to_appearance_color(link), to_appearance_color(ground)) >= 4.5) {
+				break;
+			}
+		}
+		return link;
+	}
+
 	auto feedback_composition_state_of(const QString& aBody) -> feedback_composition_state
 	{
 		const auto body       = utf8(aBody);
@@ -615,7 +636,7 @@ namespace bpr::qt {
 			// The link colour of the palette on screen, read again at every
 			// opening so a change of appearance is followed.
 			auto linkPalette = About->palette();
-			linkPalette.setColor(QPalette::ButtonText, palette().color(QPalette::Link));
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(palette()));
 			About->setPalette(linkPalette);
 		}
 		if (hadFocus) {
