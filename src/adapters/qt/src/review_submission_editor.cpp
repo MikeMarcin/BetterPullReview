@@ -2,6 +2,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/destructive_question.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractButton>
@@ -859,14 +860,10 @@ namespace bpr::qt {
 		// The host, the head and the account, behind a disclosure closed by
 		// default (owner: "These details on finish review should be hidden by
 		// default.").
-		Details = new QToolButton{ this };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		Details = new disclosure_button{ this };
 		Details->setObjectName(QStringLiteral("wholeReviewDetails"));
 		Details->setText(tr("Pull request and account"));
-		Details->setCheckable(true);
-		Details->setChecked(false);
-		Details->setAutoRaise(true);
-		Details->setArrowType(Qt::RightArrow);
-		Details->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Details->setFocusPolicy(Qt::StrongFocus);
 		Details->setAccessibleName(tr("Pull request and account"));
 		Details->setToolTip(tr("Show the host, the pull request, its head and the account that submits"));
@@ -888,10 +885,7 @@ namespace bpr::qt {
 				this, [this](QSizeF aSize) { Target->setFixedHeight(static_cast<int>(std::ceil(aSize.height())) + 2 * Target->frameWidth()); });
 		Target->hide();
 		layout->addWidget(Target);
-		connect(Details, &QToolButton::toggled, this, [this](const bool aOpen) {
-			Details->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
-			Target->setVisible(aOpen && !Shown.TargetDescription.isEmpty());
-		});
+		connect(Details, &QToolButton::toggled, this, [this](const bool aOpen) { Target->setVisible(aOpen && !Shown.TargetDescription.isEmpty()); });
 		layout->addStretch(1);
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] { emit_command(core::review_submission_command_kind::edit); });
 		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
