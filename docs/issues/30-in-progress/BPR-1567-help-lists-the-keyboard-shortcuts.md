@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1567"
 title: "Help lists the keyboard shortcuts, from the catalogue the bindings are made from"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
