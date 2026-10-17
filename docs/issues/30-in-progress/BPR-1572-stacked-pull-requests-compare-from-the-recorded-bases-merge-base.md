@@ -377,7 +377,10 @@ budget exceeded", "epoch refresh exceeded its measured platform budget") with
 the machine's load average at 56-66 from other agents; they are fixture read
 courses over the fixture transports, which the CLI account wrapper changed
 here is not installed on, and they passed alone in rounds one and two. Still
-to rerun on a quiet machine.
+to rerun on a quiet machine. Main then moved with code (`83ed4d8fd`, merged in
+`21ff72ccc`): the round-trip composition contract is resealed (full
+application digest `ee1795ef…`, production manifest `bfb21e55…`), all eleven
+composition contracts and the thirteen BPR-1572 rows pass on the merged tree.
 
 ## Gates, review round two
 
