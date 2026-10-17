@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"63a607de4ba46286906d84d63a32efd34b8171ed7feedcff74077da0d3627271"
+		"315f7078ac1c4aa464974287afb4f0a9c9899508fdfd79d151e2e0ac8bb52795"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6db77c7f0a52d70438f87d7515f01b457e819b29f7868f64e4ac8ce2d4b41f06"
+        "46d39e0f32b912a2bd53f3a2ac560a6bd3ef2226d6139f62d84e38d16a7d45e5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2665,8 +2665,26 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1562.
 
-# [[BPR-1566]] reseal over main at ce74f8f7c, recomputed on the tree that
-# merges this card onto it. github_application.cpp binds each window's
+# [[BPR-1560]] reseal over main at 0f30a77a1 (after BPR-1562). Whole PR compares from the merge
+# base GitHub names, so github_application.cpp and tour_remote.cpp change in
+# production: the mutation target binding keeps GitHub's recorded base as
+# `BaseOid` (the staleness check against GitHub is unchanged) and carries the
+# merge base as `ComparisonBaseOid` only when it differs, so a LEFT line is
+# numbered in the merge base GitHub numbers LEFT lines in; the designated
+# selection requires both to be its one constant base; the observed selection
+# compares the snapshot with the recorded base; BPR-1212 numbering answers
+# "same" without the cache for a left side that is the named merge base. No
+# grant, credential, transport, provider or mutation-branch pin changes; the
+# publication path's LEFT source check is the deliberate change, and before
+# anything on a LEFT line is written the adapter's sessions ask GitHub's compare
+# for the current merge base and refuse a moved one (target_moved). The full
+# application and production-manifest digests are refreshed (main.cpp: the
+# public-preview rewritten-base course accepts Whole PR's honest
+# merge_base_unavailable, a base sharing no history with the head). Reviewed by the
+# owner's cross-review (Fable, Astra) before landing.
+
+# [[BPR-1566]] reseal over main at 2bfc9827c (after BPR-1560), recomputed on
+# the tree that merges this card onto it. github_application.cpp binds each window's
 # reference page dispatch (About Conventional Comments) to
 # application::open_reference_page with that window's browser port, the same
 # port Open on GitHub uses. No grant, target, provider, credential, transport,

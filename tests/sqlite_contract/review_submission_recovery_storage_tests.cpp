@@ -393,9 +393,52 @@ namespace {
 		expect(!store->withdraw(summaryOnly.IdempotencyKey, plain.RequestFingerprint) && *store->load(summaryOnly.IdempotencyKey),
 			   "a resolved attempt is never withdrawn");
 	}
+	/// [[BPR-1560]]. A review whose LEFT lines are numbered in a merge base
+	/// other than the recorded base keeps that comparison base across a
+	/// restart (request version 3), with or without line comments, and the
+	/// same binding without one keeps its earlier bytes; the merge base moving
+	/// keeps the submission's identity, so neither a draft nor a pending
+	/// attempt is lost to it.
+	void test_comparison_base_survives_a_restart()
+	{
+		temporary_directory root;
+		auto                store                   = storage(root.Path);
+		auto                input                   = request();
+		input.IdempotencyKey                        = "review-on-a-merge-base";
+		input.LiveBinding->Target.ComparisonBaseOid = commit(0x12U);
+		auto comment                                = core::review_submission_comment{ };
+		comment.Draft                               = core::review_draft_id{ 9U };
+		comment.DraftRevision                       = 1U;
+		comment.Path                                = "a.txt";
+		comment.Side                                = core::diff_side::left;
+		comment.Line                                = 2U;
+		comment.Body                                = "the merge base's line";
+		auto summary                                = input;
+		summary.IdempotencyKey                      = "summary-on-a-merge-base";
+		input.Proposal.Comments                     = { comment };
+		expect(application::comparison_base(input.LiveBinding->Target) == commit(0x12U), "LEFT lines are numbered in the merge base");
+		expect(application::review_submission_authority_fingerprint(*input.LiveBinding) != application::review_submission_authority_fingerprint(*request().LiveBinding),
+			   "a distinct comparison base is part of the authority");
+		for (const auto& attempt : { input, summary }) {
+			expect(store->admit(record(attempt)).has_value(), "admitted");
+		}
+		store.reset();
+		store = storage(root.Path);
+		for (const auto& attempt : { input, summary }) {
+			const auto loaded = store->load(attempt.IdempotencyKey);
+			expect(loaded && *loaded && (**loaded).Request == attempt && (**loaded).Request.LiveBinding->Target.ComparisonBaseOid == commit(0x12U),
+				   "after a restart the comparison base reads back exactly");
+		}
+		auto moved                     = *input.LiveBinding;
+		moved.Target.ComparisonBaseOid = commit(0x13U);
+		expect(application::same_review_submission_identity(*input.LiveBinding, moved), "a merge base that moved is the same submission");
+		auto plain = request();
+		expect(application::comparison_base(plain.LiveBinding->Target) == plain.LiveBinding->Target.BaseOid, "without one LEFT lines are numbered in the recorded base");
+	}
 }
 auto main() -> int
 try {
+	test_comparison_base_survives_a_restart();
 	test_line_comments_and_withdrawal();
 	test_staged_journal();
 	test_version_four_migration();

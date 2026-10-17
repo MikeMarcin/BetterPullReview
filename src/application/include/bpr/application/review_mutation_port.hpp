@@ -79,9 +79,31 @@ namespace bpr::application {
 		std::string                  BaseRef;
 		std::string                  HeadRef;
 		bool                         Open = false;
+		/// [[BPR-1560]]. The commit a LEFT line is numbered in: the merge base
+		/// GitHub's Files changed compares from. `BaseOid` stays the base
+		/// GitHub records for the pull request, which the publication checks
+		/// it against. Unset in a binding written before the two could differ,
+		/// where `BaseOid` is both.
+		core::git_commit_oid ComparisonBaseOid;
 
 		auto operator<=>(const review_mutation_target_binding&) const = default;
 	};
+
+	/// \brief [[BPR-1560]]. The `ComparisonBaseOid` a binding keeps: none when
+	/// the comparison base is the recorded base, so one binding has one
+	/// spelling and survives a journal round trip unchanged.
+	[[nodiscard]] inline auto distinct_comparison_base(const core::git_commit_oid& aRecordedBase, const core::git_commit_oid& aComparisonBase) noexcept
+		-> core::git_commit_oid
+	{
+		return aComparisonBase == aRecordedBase ? core::git_commit_oid{ } : aComparisonBase;
+	}
+
+	/// \brief [[BPR-1560]]. The commit a LEFT line of this target is numbered in.
+	[[nodiscard]] inline auto comparison_base(const review_mutation_target_binding& aTarget) noexcept
+		-> const core::git_commit_oid&
+	{
+		return aTarget.ComparisonBaseOid.valid() ? aTarget.ComparisonBaseOid : aTarget.BaseOid;
+	}
 
 	/// \brief Opaque lease for one accepted review-mutation authority.
 	///

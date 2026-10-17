@@ -171,6 +171,11 @@ namespace {
 		bool        PagedComments = false, FailSecondPage = false, ForeignNext = false;
 		std::size_t PageTwoReads = 0;
 		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
+		/// merge base, which numbers LEFT lines, is no longer the target's.
+		bool        MovedMergeBase = false;
+		std::size_t MergeBaseReads = 0U;
+		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
 		/// of other people's comments; or reports the second stop a line off.
 		bool        CollectionNoise = false, WrongLine = false;
@@ -343,11 +348,22 @@ namespace {
 				if (pending_comment_path(wire.Path)) {
 					return not_found();
 				}
+				const auto head = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+				if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "?page=2&per_page=1") {
+					++MergeBaseReads;
+					const auto mergeBase = MovedMergeBase ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
+					return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b')
+							  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+				}
 				expect(false, "fixture answers only independently named read endpoints");
 			}
 			const auto index = Writes;
 			if (Boundary) {
 				Boundary(index, "prepared");
+			}
+			// [[BPR-1560]]. A denied authorization sends nothing.
+			if (DenyWitness && aWitness && !aWitness()) {
+				return github_mutation_wire_error{ };
 			}
 			expect(aWitness && aWitness(), "every write has durable child witness");
 			expect(!aWitness(), "child witness is exact one-use");
@@ -484,6 +500,53 @@ namespace {
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->pending_tours()->empty() && provider->reconcile_tour(plan()).State == publication_state::published && remote.Writes == 5, "fresh session reads exact completed journal");
+		}
+		{
+			// [[BPR-1560]]. A tour with a stop on a LEFT line asks GitHub's merge
+			// base before anything is written; when it moved since the tour was
+			// written, nothing is written.
+			scratch root;
+			server  remote;
+			remote.MovedMergeBase = true;
+			auto       provider   = session(remote, root.Path);
+			const auto result     = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 1U,
+				   "a moved merge base refuses a tour with a LEFT stop before any write");
+		}
+		for (const std::size_t stopped : { std::size_t{ 0U }, std::size_t{ 2U } }) {
+			// [[BPR-1560]]. A resumed tour asks again: the journal was admitted
+			// (and, the second time, part of it written) on the merge base it was
+			// staged against, then the merge base moved with base.sha and head
+			// unchanged. Resume writes nothing until it is back.
+			scratch          root;
+			server           remote;
+			std::stop_source stop;
+			auto             provider = session(remote, root.Path);
+			if (stopped == 0U) {
+				remote.DenyWitness = true;
+				const auto denied  = provider->publish_tour(plan(), { }, [](const auto&) { return false; });
+				expect(remote.Writes == 0 && !provider->pending_tours()->empty(), "the first write is denied after the journal is admitted");
+				remote.DenyWitness = false;
+			} else {
+				remote.Stop   = &stop;
+				remote.StopAt = stopped;
+				static_cast<void>(provider->publish_tour(plan(), stop.get_token(), [](const auto&) { return true; }));
+				remote.Stop = nullptr;
+				expect(remote.Writes == stopped + 1, "Stop leaves part of the tour written");
+			}
+			const auto written    = remote.Writes;
+			remote.MovedMergeBase = true;
+			provider.reset();
+			provider          = session(remote, root.Path);
+			const auto reads  = remote.MergeBaseReads;
+			const auto resume = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(resume.State == publication_state::conflict && remote.Writes == written && remote.MergeBaseReads > reads,
+				   "Resume asks GitHub's merge base again and writes no LEFT coordinate from a moved one");
+			remote.MovedMergeBase = false;
+			provider.reset();
+			provider = session(remote, root.Path);
+			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5,
+				   "with the merge base back, the same Resume completes the tour");
 		}
 		{
 			// [[BPR-1367]]. The submitted review's lines are read from every

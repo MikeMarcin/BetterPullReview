@@ -48,6 +48,11 @@ namespace bpr::application {
 		append(bytes, target.PullRequestNodeId);
 		append(bytes, target.BaseRepositoryDatabaseId);
 		append(bytes, target.BaseOid);
+		// [[BPR-1560]]. Material only when it differs from the recorded base,
+		// so every earlier authority digest holds.
+		if (comparison_base(target) != target.BaseOid) {
+			append(bytes, comparison_base(target));
+		}
 		append(bytes, target.BaseRef);
 		append(bytes, target.HeadRef);
 		append(bytes, target.Open ? 1U : 0U);
@@ -98,9 +103,11 @@ namespace bpr::application {
 		auto left                         = aLeft;
 		left.Target.Semantic.ExpectedHead = aRight.Target.Semantic.ExpectedHead;
 		left.Target.BaseOid               = aRight.Target.BaseOid;
-		left.Target.BaseRef               = aRight.Target.BaseRef;
-		left.Target.HeadRef               = aRight.Target.HeadRef;
-		left.Target.Open                  = aRight.Target.Open;
+		// [[BPR-1560]]. The merge base moves with the base the same way.
+		left.Target.ComparisonBaseOid = aRight.Target.ComparisonBaseOid;
+		left.Target.BaseRef           = aRight.Target.BaseRef;
+		left.Target.HeadRef           = aRight.Target.HeadRef;
+		left.Target.Open              = aRight.Target.Open;
 		return left == aRight;
 	}
 	auto valid(const review_submission_recovery_record& aRecord) -> bool

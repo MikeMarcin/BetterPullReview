@@ -67,6 +67,9 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
+		// [[BPR-1560]]. The comparison base of a public pull request is as
+		// public as its files: REST compare on the same repository.
+		case read_operation::get_merge_base:
 			return true;
 		case read_operation::get_viewer_identity:
 		case read_operation::list_review_threads:

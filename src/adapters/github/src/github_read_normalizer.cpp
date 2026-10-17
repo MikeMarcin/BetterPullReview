@@ -890,6 +890,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
+			case read_operation::get_merge_base:
 				break;
 			}
 			if (aOperation == read_operation::list_checks || aOperation == read_operation::list_commit_statuses) {
@@ -1000,7 +1001,8 @@ namespace bpr::adapters::github::detail {
 				case read_operation::get_branch_protection:
 				case read_operation::list_pull_request_timeline:
 				case read_operation::search_personal_pull_requests:
-				case read_operation::list_requested_reviewers:      return failed(contract_failure_code::unexpected_operation);
+				case read_operation::list_requested_reviewers:
+				case read_operation::get_merge_base:                return failed(contract_failure_code::unexpected_operation);
 				case read_operation::get_viewer_identity:           decoded = decode_record(documents.Viewer, response.Response); break;
 				case read_operation::get_repository:                decoded = decode_record(documents.Repository, response.Response); break;
 				case read_operation::get_pull_request:              decoded = decode_record(documents.PullRequest, response.Response); break;

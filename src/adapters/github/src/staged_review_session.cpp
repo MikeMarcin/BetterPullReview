@@ -246,9 +246,9 @@ namespace bpr::adapters::github::detail {
 		}
 		return true;
 	}
-	auto review_submission_session::verify_staged(const record& aRecord, std::stop_token aStop) -> bool
+	auto review_submission_session::verify_staged(const record& aRecord, std::stop_token aStop, const bool aLeftLine) -> bool
 	{
-		if (!observe_exact(aStop)) {
+		if (!observe_exact(aStop, false, aLeftLine)) {
 			return false;
 		}
 		if (aRecord.Plan.Update && !verify_tour_update(aRecord, aStop)) {
@@ -497,11 +497,16 @@ namespace bpr::adapters::github::detail {
 						 .Record  = *loaded ? std::optional{ current } : std::nullopt,
 						 .Failure = operation.failure() };
 			}
+			// [[BPR-1560]]. A plan with a stop on a LEFT line asks GitHub's
+			// merge base before every write, the first and every resumed one:
+			// its LEFT coordinates are numbered in the merge base it was
+			// staged against, which can move with base.sha and head unchanged.
+			const auto leftLine = !aPlan.Compatibility && std::ranges::any_of(aPlan.Stops, [](const auto& aTourStop) { return aTourStop.Source.Side == core::diff_side::left; });
 			if (!*loaded) {
 				if (!aWrite) {
 					return { state::outcome_unknown, { } };
 				}
-				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop)) {
+				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop, false, leftLine)) {
 					return { state::conflict, { } };
 				}
 				current.Plan    = aPlan;
@@ -555,7 +560,7 @@ namespace bpr::adapters::github::detail {
 					}
 					current = next;
 				}
-				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !verify_staged(current, aStop)) {
+				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !verify_staged(current, aStop, leftLine)) {
 					return { current.Published ? state::description_attention : state::conflict, current };
 				}
 				const auto wire = compile_staged_review_request(*current.Pending);

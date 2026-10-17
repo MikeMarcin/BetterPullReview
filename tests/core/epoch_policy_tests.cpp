@@ -2,6 +2,7 @@
 #include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/sha256.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -2543,6 +2544,81 @@ namespace {
 			"exact explicit pair remains selected when its object is unavailable");
 	}
 
+	/// [[BPR-1560]]. Whole PR compares from the merge base GitHub named. When
+	/// GitHub named none, the base the revision carries is only the recorded
+	/// base: Whole PR names its pair with that base unavailable and says why,
+	/// while comparisons between updates are untouched.
+	auto test_whole_pr_compares_only_from_a_named_merge_base() -> void
+	{
+		const auto owner        = authority();
+		const auto ownerCatalog = catalog(8);
+		const auto previous     = summary(owner, ownerCatalog, 7, 10U, 20U);
+		const auto latest       = summary(owner, ownerCatalog, 8, 11U, 30U);
+		const auto candidates   = comparison_candidates{
+			.Catalog              = ownerCatalog,
+			.LatestLive           = latest,
+			.PreviousDistinctHead = previous,
+		};
+
+		const auto named = resolve_comparison(owner, named_selection(named_comparison::whole_pr), candidates, comparison_base_basis::merge_base);
+		expect(named.Reason == epoch_reason_code::none && named.Pair && available_for_diff(*named.Pair) && named.Pair->Left.Commit == latest.Base,
+			   "with a named merge base Whole PR compares from the newest base");
+
+		const auto recorded = resolve_comparison(owner, named_selection(named_comparison::whole_pr), candidates, comparison_base_basis::recorded_base);
+		expect(recorded.Reason == epoch_reason_code::merge_base_unavailable && recorded.Pair && !available_for_diff(*recorded.Pair)
+				   && recorded.Pair->Left.Identity.Kind == comparison_anchor_kind::epoch_base && recorded.Pair->Left.Commit == latest.Base
+				   && recorded.Pair->Left.Availability == anchor_availability::unavailable && recorded.Pair->Right.Commit == latest.Head
+				   && recorded.Pair->Right.Availability == anchor_availability::available,
+			   "without a named merge base Whole PR never compares from the recorded base");
+
+		const auto upload = resolve_comparison(owner, named_selection(named_comparison::previous_upload_to_latest), candidates, comparison_base_basis::recorded_base);
+		expect(upload.Reason == epoch_reason_code::none && upload.Pair && available_for_diff(*upload.Pair) && upload.Pair->Left.Commit == previous.Head,
+			   "an interdiff between updates does not depend on the merge base");
+
+		const auto previousHead = anchor(previous, comparison_anchor_kind::epoch_head);
+		const auto latestBase   = anchor(latest, comparison_anchor_kind::epoch_base);
+		const auto exact        = resolve_comparison(owner, explicit_selection(latestBase.Identity, previousHead.Identity),
+													 comparison_candidates{ .Catalog = ownerCatalog, .ExplicitLeft = latestBase, .ExplicitRight = previousHead },
+													 comparison_base_basis::recorded_base);
+		expect(exact.Reason == epoch_reason_code::none && exact.Pair && available_for_diff(*exact.Pair),
+			   "an exact pair the reviewer chose stays exactly what was chosen");
+
+		// The transition: a ready review whose revision loses its named merge
+		// base is not deduplicated, and Whole PR then says why it shows nothing.
+		auto       fixture = make_ready_fixture();
+		const auto same    = transition(fixture.State, pull_request_revision_accepted_event{ .ApplicationSession = fixture.State.ApplicationSession, .Authority = fixture.Authority, .Revision = fixture.Revision });
+		expect(same == epoch_transition_output{ }, "the same revision and basis change nothing");
+		const auto changed = transition(fixture.State, pull_request_revision_accepted_event{ .ApplicationSession = fixture.State.ApplicationSession, .Authority = fixture.Authority, .Revision = fixture.Revision, .Basis = comparison_base_basis::recorded_base });
+		expect(changed != epoch_transition_output{ } && fixture.State.AcceptedBasis == comparison_base_basis::recorded_base,
+			   "the same revision without a named merge base is accepted again");
+
+		auto ready                = make_ready_fixture();
+		ready.State.AcceptedBasis = comparison_base_basis::recorded_base;
+		const auto  select        = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::previous_upload_to_latest, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toUpload      = request_from<resolve_comparison_request>(select);
+		expect(toUpload != nullptr, "an interdiff selection asks for resolution");
+		static_cast<void>(transition(ready.State, comparison_resolved_event{ .Context = toUpload->Context, .Candidates = { .Catalog = ready.Catalog, .LatestLive = ready.Epoch } }));
+		const auto  whole   = transition(ready.State, select_named_comparison_intent{ .Alias = named_comparison::whole_pr, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toWhole = request_from<resolve_comparison_request>(whole);
+		expect(toWhole != nullptr, "Whole PR asks for resolution");
+		const auto resolved = transition(ready.State, comparison_resolved_event{ .Context = toWhole->Context, .Candidates = { .Catalog = ready.Catalog, .LatestLive = ready.Epoch } });
+		expect(resolved.Comparison && resolved.Comparison->Pair && !resolved.Comparison->AvailableForDiff && ready.State.Status == epoch_status::unavailable
+				   && std::ranges::any_of(resolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_unavailable; }),
+			   "Whole PR without a named merge base is unavailable and says why");
+
+		// "Show this update alone" from the newest update's recorded base is
+		// refused the same way: the recorded base is never compared from.
+		const auto  baseAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_base);
+		const auto  headAnchor = anchor(ready.Epoch, comparison_anchor_kind::epoch_head);
+		const auto  alone      = transition(ready.State, select_comparison_anchors_intent{ .Left = baseAnchor.Identity, .Right = headAnchor.Identity, .ExpectedCatalogRevision = ready.Catalog.Revision });
+		const auto* toAlone    = request_from<resolve_comparison_request>(alone);
+		expect(toAlone != nullptr, "an exact pair asks for resolution");
+		const auto aloneResolved = transition(ready.State, comparison_resolved_event{ .Context = toAlone->Context, .Candidates = { .Catalog = ready.Catalog, .ExplicitLeft = baseAnchor, .ExplicitRight = headAnchor } });
+		expect(aloneResolved.Comparison && !aloneResolved.Comparison->AvailableForDiff
+				   && std::ranges::any_of(aloneResolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_unavailable; }),
+			   "the newest update alone, from its recorded base, is unavailable and says why");
+	}
+
 	// [[BPR-1557]]. Every resolution names the pull request's base, the anchor
 	// Whole PR compares from, whatever is selected, so the Updates line can
 	// start with it. It follows the newest live epoch when the base moved, and
@@ -4197,6 +4273,7 @@ auto main() -> int
 	test_fail_closed_comparison_exhaustion();
 	test_invalid_cross_facts_and_command_policy();
 	test_selection_transition_policy();
+	test_whole_pr_compares_only_from_a_named_merge_base();
 	test_resolution_names_the_pull_request_base();
 	test_pending_one_sided_selection_supersession();
 	test_overflow_is_checked_and_invalidation_fails_closed();

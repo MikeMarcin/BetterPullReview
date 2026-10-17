@@ -169,6 +169,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # executable, registered uncontained like its siblings; not yet measured
     # on the Windows station.
     "application_markdown_images_public_path": "unmeasured (registered on macOS)",
+    "application_merge_base_public_path": "unmeasured (registered on macOS)",
+    "merge_base_fixture_contract": "unmeasured (registered on macOS)",
     # RFC-BPR-0084. The fixture's regeneration check runs the builder in a
     # scratch root, as its github_recorded_fixture_contract sibling does.
     "markdown_images_fixture_contract": "unmeasured (registered on macOS)",

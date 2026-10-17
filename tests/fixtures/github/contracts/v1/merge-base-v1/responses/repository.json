@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/merge-base",
+	"id": 2,
+	"name": "merge-base",
+	"node_id": "R_merge-base",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

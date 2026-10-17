@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1567"
 title: "Help lists the keyboard shortcuts, from the catalogue the bindings are made from"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-16","owner_note":"Can we add a help page to list keyboard shortcuts.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0005","RFC-BPR-0033","RFC-BPR-0052"],"related_cards":["BPR-0796","BPR-1250","BPR-1328","BPR-1336","BPR-1531","BPR-1532","BPR-1535","BPR-1536"],"reservation":"docs/issues/_reservations/BPR-1567--BPR-1567--f15b85932ade.json"}
+parked_on: "human-review"
 ---
 
 # BPR-1567: Help lists the keyboard shortcuts
@@ -61,3 +62,47 @@ the objects bound with them), the binding sites taking their keys from it,
 and a `keyboard_shortcuts_window` reading it. No core, application, provider
 or storage change. Never drive or capture the owner's desktop; the owner
 checks the frozen build themselves.
+
+## Checkpoint — candidate v001, 2026-10-16
+
+Product candidate `d311422c9ba31304ff43adcca64e89bcf6a0be02` on branch
+`bpr-1567-keyboard-shortcuts` (worktree
+`.claude/worktrees/bpr-1567-shortcuts`), main merged in at `354b021d4`. Not
+merged to main until the owner accepts. Paths, commands and identities are in
+[the checkpoint](../_checkpoints/BPR-1567/handoff.json).
+
+Design. Help → **Keyboard Shortcuts** is Help's first item, on ⌘/
+(`Ctrl+/`): the shortcut-list key of Slack and Google's editors. ⌘? is
+macOS's Help-menu search, so it was not taken. A non-modal window per
+workbench window: search field (focused on open), a grouped list of eleven
+areas, each row the command in words with its keys as key caps in native
+notation, "or" between alternatives, a muted note for a place ("In the tour
+outline") or "Not while typing", and a footer with the Option rule. Caps are
+tinted from the list's own Base and Text, so they read in all four themes.
+Esc and Close hide it; ⌘/ raises the same one. The resident desktop menu bar
+offers the item disabled.
+
+Single source. `src/adapters/qt/src/keyboard_shortcuts.cpp` holds every key
+once; all binding sites take their keys from it (window, resident bar, epoch
+control, tour editor, strip, Overview, Settings, thread finder, comment card,
+Review Cycle view and sheets), and the page is generated from it. Keys read
+inside widgets' own key handlers are catalogue entries the enumeration cannot
+see; the UX specification says so.
+
+| Acceptance | Evidence at `d311422c9` | Result |
+|---|---|---|
+| AC1 | `qt_keyboard_shortcuts_scale_{100,125,200}`: Help's first item, Ctrl+/ for the window, opened from the menu with the search focused, ⌘/ through the window system reopens the same page, Esc and Close hide it; the resident bar's item is disabled with the same key; no other binding, no Qt standard key, and neither `QLineEdit` nor `QPlainTextEdit` claims Ctrl+/ | Pass |
+| AC2 | Same rows: every catalogue entry with a key here, in order, under group headings; native text (⌘⌥ glyphs on macOS, spoken "Option-Command-Up Arrow"); "In the tour outline" and "Not while typing" notes; footer rule; search by group, place, portable and native key; "No shortcut matches" | Pass |
+| AC3 | Same rows: every `QAction`, `QShortcut` and explicit button key in the assembled window, resident bar and a Review Cycle view matches the catalogue and every bound entry is live; negative control reports a stray, an unnamed, a changed, a lost and a removed binding, and nothing else | Pass |
+| AC4 | Same rows at 100/125/200%: accessible names, Down Arrow into the list, resizable to its minimum without clipping, caps tinted from Base/Text in Light, Dark and both High Contrast themes; Qt-only change | Pass |
+| AC5 human | Session `dbc5e14feee4eb197858d4a731274d9f`, candidate `BPR-1567-keyboard-shortcuts-v001`, fingerprint `3c95542f…`, ready and protected at cursor 3; frozen root `bpr1567-shortcuts-v001.g94p9bpc` | Pending |
+
+Gates: full `scripts/run_test_suite.py --preset dev` at `354b021d4`: 766
+passed, 1 failed (`qt_profile_management_window`, the resident Help menu's
+new first item; updated in `d311422c9`, passes), 1 skipped
+(`application_large_review_cache_bytes`, exit 77). clang-format 22.1.8 clean
+and clang-tidy 22 `--warnings-as-errors` passed on all touched translation
+units; documentation gate `DOCUMENTATION_OK`. `src/app` is unchanged.
+
+Next: on hand-back, an Accept merges current main into the branch, reruns the
+focused rows, lands and finishes; a Reject's note becomes v002.

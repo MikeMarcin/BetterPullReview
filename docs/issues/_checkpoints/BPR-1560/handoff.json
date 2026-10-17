@@ -1,0 +1,64 @@
+{
+ "assignment": "BPR-1560",
+ "mandate": "Owner report 2026-10-16 (coordinator relay): installed app shows diffs that differ from GitHub's Files changed on a PR with merges from main; unrelated main changes appear and some PR files show 0 changes with the PR's text on both sides. Find and fix the root cause so the default comparison equals GitHub's Files changed; interdiffs stay correct; never a silently wrong diff. Owner cross-review (Astra critical + Fable) of the root cause before the fix and of the fix plus live evidence before landing; do not merge to main until the coordinator relays both verdicts.",
+ "governing_rfc": "RFC-BPR-0029 (epochs and comparison anchors); BPR-0944 (owner-deferred comparison basis)",
+ "phase": "Done: landed on main after round-four approvals (Astra approve; Fable approve with the documentation-gate condition, met)",
+ "root_cause": "Whole PR's left anchor is the latest live epoch's base, which is GitHub's recorded base commit (baseRefOid/base.sha) read in github_paged_read.cpp, handed over as the accepted revision's Base in github_window_read_host.cpp make_epoch_handoff, and selected in core select_pair (epoch_transition.cpp case whole_pr). GitHub's file list and Files changed use merge-base(base.sha, head). base.sha is the base tip at PR creation, kept across ordinary pushes, reset only when a push moves the merge base; whenever it is ahead of the merge base, the two-dot comparison shows base-branch changes reversed and hides PR changes the base already carries. Latent since 618c56419/cac0f5169 (2026-07-30); BPR-0944 recorded it 2026-09-20 (owner-deferred). 0bfcbaa9a did not change the basis but makes a local merge base underivable on signed-in (sparse) reviews.",
+ "commits": {
+  "allocation_on_main": "bd04bf3df",
+  "root_cause_card_and_course": "6ae8875a1",
+  "wip_fix": "3f1f6fdc4",
+  "wip_tip_bound": "6c716f3b7",
+  "format": "b83c5f6fb",
+  "courses_and_oracle": "5384b6003",
+  "merge_main": "ce8434c18",
+  "reseal": "d8cdf5970",
+  "full_suite_fixes": "2aade62c1",
+  "final_evidence": "2de8f08f1",
+  "round_two_b1_b3": "4d48054cf",
+  "round_two_b2": "dbd69cd25",
+  "round_two_findings": "97e956c23",
+  "merge_main_c9ff3bf50": "4ba96eb4f",
+  "format_reseal": "a687372e3",
+  "confirmation_binding": "b5b2d4c04",
+  "round_three_evidence": "2c814c8a4",
+  "refusal_and_resumed_tours": "8bdce6372",
+  "landing_merges": [
+   "5c35c6adb",
+   "be31aeb3a"
+  ]
+ },
+ "branch": "bpr-1560-merge-base",
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1560-merge-base",
+ "build": "build/dev, built from 8bdce6372",
+ "live_targets": {
+  "pr_75": "merged into bpr1560-main; Whole PR parity PASS after merge (asked against the recorded base)",
+  "pr_76": "round four on a fresh root: parity PASS 3/3; LEFT threads at lines 2/3/5",
+  "pr_82": "bpr1560-sq4 squash course: Whole PR matches every step; interdiff matches; harness absent-both detection fixed after the run, rerun pending",
+  "pr_83": "bpr1560-sq5 clean squash course: all five steps pass (Whole PR and interdiff); kept open for review",
+  "pr_84": "bpr1560-sq6 negative control: mismatch at steps 3 and 5 (base.sha ahead), agreement at 1, 2, 4; closed, branches deleted",
+  "pr_85": "zero-commit probe: GitHub closed it (compare identical)",
+  "pr_86": "bpr1560-r3 round-three squash course: all five steps pass, Whole PR and interdiff; kept open for review",
+  "pr_87": "bpr1560-r3n negative control under load: steps 3 and 4 timed out (course failure, not counted as reproduction); left open",
+  "pr_88": "bpr1560-r3m negative control: steps 3 and 5 mismatch (b.txt +0 -0), 1/2/4 agree"
+ },
+ "commands": [
+  "python3 tests/end_to_end/bpr1560_live_course.py --build build/dev --work <dir> --prefix <fresh> [--negative-control]",
+  "QT_QPA_PLATFORM=offscreen build/dev/tests/end_to_end/live_second_account_course --course parity --root <dir> --pull 76",
+  "python3 tests/end_to_end/bpr1560_live_parity.py --root <dir> --pull 76",
+  "negative-control patch: github_window_read_host.cpp make_epoch_handoff .Base = *base and BaseBasis = merge_base (revert after)"
+ ],
+ "pending": [],
+ "next_action": "None. Follow-up proposal in the card: measure Files changed on a stacked pull request whose base branch takes the head's commits.",
+ "fix": "Whole PR compares from the merge base GitHub names: the provider asks REST compare (page 2 of one commit) for the current head against the base branch (open PR; the answer names the tip it resolved) or the recorded base (closed PR; exact pair cached); the window read host hands that merge base over as the revision Base and keeps base.sha as RecordedBase; without an answer the revision carries base.sha under comparison_base_basis::recorded_base and the core resolves Whole PR with its base unavailable (merge_base_unavailable) while interdiffs stay; LEFT lines, staged publication, recovery journal v3, submission identity, BPR-1212 numbering and the cached overview follow the comparison base; sparse reviews prove Previous upload from retained refs.",
+ "evidence_dir": "build/dev/bpr1560-evidence (ignored)",
+ "verification": {
+  "full_ctest": "761/761 on 8bdce6372 (one pre-existing skip); 761/761 on b5b2d4c04 before",
+  "composition_contracts": "19/19 composition tests pass on b5b2d4c04",
+  "format": "clang-format 22 clean",
+  "tidy": "clean on changed sources; pre-existing findings at github_window_read_host_tests.cpp 375/379 (ca000e791a) and main.cpp untouched lines",
+  "docs": "DOCUMENTATION_OK",
+  "live": "#86 all steps pass; #88 negative control mismatches exactly at 3 and 5; #76 parity and LEFT placement pass",
+  "round_four_tests": "github_provider merge-base classification; window read host carry-forward; staged tours resumed after denied write and after Stop; each fails with its fix reverted"
+ }
+}

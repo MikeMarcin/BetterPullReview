@@ -1806,6 +1806,100 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1560]]. The provider says why a snapshot has no merge base: a
+	/// read that failed (a window may keep the merge base it had) differs from
+	/// answers proving there is no single one (the base branch and the
+	/// recorded base name different merge bases, or the pull request moved
+	/// between the snapshot and the read confirming it), which a window must
+	/// never override with an earlier answer.
+	void test_merge_base_failure_and_refusal_are_distinct()
+	{
+		enum class course : std::uint8_t { agree,
+										   tip_disagrees,
+										   moved,
+										   compare_fails };
+		const auto mergeBase = std::string(40, 'a');
+		const auto otherBase = std::string(40, 'c');
+		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails }) {
+			provider_fixture fixture{ application::github_authentication_transport::native_https };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			auto             pullRequests  = 0U;
+			auto             compares      = 0U;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::get_merge_base) {
+					++compares;
+					expect(validate_outbound_read_request(aWire.Wire).has_value(), "the compare request is canonical");
+					auto response = viewer_response();
+					if (which == course::compare_fails) {
+						response.Status = 500;
+						response.Body   = R"({"message":"fixture compare unavailable"})";
+						return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+					}
+					const auto byBranch = !aWire.Wire.Semantic.BranchRef.empty();
+					const auto asked    = byBranch ? aWire.Wire.Semantic.BranchRef : aWire.Wire.Semantic.BaseOid;
+					const auto named    = byBranch && which == course::tip_disagrees ? otherBase : mergeBase;
+					response.Body       = R"({"url":"https://api.github.com/repos/)";
+					response.Body.append(aWire.Wire.Semantic.Owner).append("/").append(aWire.Wire.Semantic.Repository).append("/compare/").append(asked).append("...");
+					response.Body.append(aWire.Wire.Semantic.HeadOid).append(R"(","status":"ahead","base_commit":{"sha":")");
+					response.Body.append(byBranch ? std::string(40, 'b') : aWire.Wire.Semantic.BaseOid).append(R"("},"merge_base_commit":{"sha":")");
+					response.Body.append(named).append(R"("},"commits":[],"files":[]})");
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				const auto filename = [&]() -> std::optional<std::string_view> {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        return std::nullopt;
+					}
+				}();
+				if (!filename) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
+				auto response = viewer_response();
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ *filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				if (aWire.Wire.Operation == read_operation::get_pull_request && ++pullRequests == 2U && which == course::moved) {
+					const auto position = response.Body.find("1111111111111111111111111111111111111111");
+					expect(position != std::string::npos, "the recorded pull request names its base");
+					response.Body.replace(position, 40U, std::string(40, 'd'));
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto completions = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			const auto& success  = require_one<application::github_pull_request_success>(completions, "the read completes with or without a merge base");
+			const auto& snapshot = success.Snapshot;
+			switch (which) {
+			case course::agree:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+						   && snapshot.MergeBaseOid->value() == mergeBase && compares == 2U && pullRequests == 2U,
+					   "the recorded base and the base branch name one merge base, and the pull request is unchanged");
+				break;
+			case course::tip_disagrees:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && compares == 2U,
+					   "the base branch naming another merge base is a refusal, not a failure");
+				break;
+			case course::moved:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && pullRequests == 2U,
+					   "the pull request moving under the read is a refusal, not a failure");
+				break;
+			case course::compare_fails:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::failed && !snapshot.MergeBaseOid,
+					   "a compare that fails is a failure a window may outlive");
+				break;
+			}
+		}
+	}
+
 	void test_capability_refusal_detail_propagation()
 	{
 		provider_fixture fixture{ application::github_authentication_transport::native_https };
@@ -2608,6 +2702,7 @@ int main(int aArgc, char** aArgv)
 	static_cast<void>(test_sanitized_provider_logging());
 	test_actor_conflict_diagnostic_propagation();
 	test_pull_request_attempt_diagnostic_propagation();
+	test_merge_base_failure_and_refusal_are_distinct();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_live_profile_catalog();

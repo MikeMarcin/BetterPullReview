@@ -116,6 +116,73 @@ namespace bpr::adapters::github::detail {
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_timeline_read_result;
 
+	/// \brief [[BPR-1560]]. The merge base GitHub's compare named for one
+	/// exact head, and the base commit it was computed against.
+	struct github_merge_base_read
+	{
+		std::string                          MergeBaseOid;
+		std::string                          BaseCommitOid;
+		application::github_rate_limit_state RateLimits;
+	};
+
+	/// \brief [[BPR-1560]]. What the merge-base read compares the head with:
+	/// the base branch by name (an open pull request: GitHub resolves its
+	/// current tip) or one exact commit.
+	struct github_merge_base_basis
+	{
+		std::string BaseRef;
+		std::string BaseOid;
+	};
+
+	using github_merge_base_read_result = std::expected<github_merge_base_read, github_paged_read_failure>;
+
+	/// \brief [[BPR-1560]]. Asks GitHub's compare which commit the pull
+	/// request's Files changed compares from: `merge_base_commit` of the
+	/// basis and exactly `aHead`, the snapshot's head.
+	/// \details One bounded page that carries no file list. The answer must
+	/// name a full base commit (the basis commit itself when the basis is a
+	/// commit) and a merge base of the head's object format, or the read
+	/// fails; a failure never stands in for any base. The repository id must
+	/// come from the matching accepted live snapshot.
+	[[nodiscard]] auto perform_github_merge_base_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		core::repository_id                                      aRepository,
+		const github_merge_base_basis&                           aBasis,
+		std::string_view                                         aHead,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
+		-> github_merge_base_read_result;
+
+	/// \brief [[BPR-1560]]. Whether the pull request GitHub describes now is
+	/// the one a snapshot was read from.
+	struct github_pull_request_confirmation
+	{
+		bool                                 Unchanged = false;
+		application::github_rate_limit_state RateLimits;
+	};
+
+	using github_pull_request_confirmation_result = std::expected<github_pull_request_confirmation, github_paged_read_failure>;
+
+	/// \brief [[BPR-1560]]. Reads the pull request's metadata again after the
+	/// merge-base read and reports whether its head, recorded base, base
+	/// branch, state and changed-file count are still the snapshot's, which
+	/// binds the snapshot's file list and the merge base to one state of the
+	/// pull request.
+	[[nodiscard]] auto perform_github_pull_request_confirmation(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const application::github_pull_request_snapshot&         aSnapshot,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
+		-> github_pull_request_confirmation_result;
+
 	/// \brief [[BPR-0988]]. What one personal discovery read found.
 	struct github_personal_discovery_read
 	{

@@ -138,6 +138,11 @@ namespace bpr::qt {
 			case core::epoch_reason_code::cancellation_after_point_of_no_return:
 				return QStringLiteral(
 					"Maintenance is finishing safely and cannot be canceled.");
+			case core::epoch_reason_code::merge_base_unavailable:
+				// [[BPR-1560]]. Whole PR compares from the merge base GitHub
+				// names; without it there is nothing that matches GitHub.
+				return QStringLiteral(
+					"GitHub did not say where this pull request branched, so Whole PR cannot match its Files changed. Compare two updates, or refresh.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}

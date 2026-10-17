@@ -380,12 +380,12 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 11U && all_read_operations.size() == 20U,
-			   "eleven of twenty operations admit anonymous REST reads");
-		expect(anonymous_read_operations.size() + 2U == eligible
+		expect(eligible == 12U && all_read_operations.size() == 21U,
+			   "twelve of twenty-one operations admit anonymous REST reads");
+		expect(anonymous_read_operations.size() + 3U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
-			   "the baseline snapshot plus independent timeline and status reads are eligible");
+			   "the baseline snapshot plus independent timeline, status and merge-base reads are eligible");
 
 		// The two refusals must be distinguishable outward, not merely inward.
 		expect(provider_failure_for(
@@ -429,6 +429,10 @@ namespace {
 				break;
 			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
+				semantic.HeadOid = "1111111111111111111111111111111111111111";
+				break;
+			case read_operation::get_merge_base:
+				semantic.BaseOid = "2222222222222222222222222222222222222222";
 				semantic.HeadOid = "1111111111111111111111111111111111111111";
 				break;
 			case read_operation::search_pull_requests:

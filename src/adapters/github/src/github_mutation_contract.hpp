@@ -75,6 +75,9 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1368]]. GraphQL: a tour stop edited while its review is
 		/// pending, where the REST edit answers 404.
 		staged_update_pending_comment,
+		/// [[BPR-1560]]. REST compare: the merge base GitHub numbers a LEFT
+		/// line in now, asked before anything on a LEFT line is published.
+		observe_merge_base,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -371,6 +374,20 @@ namespace bpr::adapters::github::detail {
 	/// \brief Validates stable PR identity for read-only recovery, ignoring revision movement.
 	[[nodiscard]] auto parse_review_submission_recovery_target(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aExpected) -> review_mutation_parse_result<void>;
 
+	/// \brief [[BPR-1560]]. Compiles GitHub's compare of the target's base
+	/// branch and exactly its expected head, on the page with no file list.
+	[[nodiscard]] auto compile_merge_base_observation_request(
+		const application::review_mutation_target_binding& aTarget,
+		application::github_server_contract                aServer)
+		-> review_mutation_request_result;
+
+	/// \brief [[BPR-1560]]. The merge base GitHub's compare names for the
+	/// target's base branch and expected head; the answer must echo that head.
+	[[nodiscard]] auto parse_merge_base_observation(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected)
+		-> review_mutation_parse_result<core::git_commit_oid>;
+
 	[[nodiscard]] auto parse_target_observation(
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected)
@@ -626,7 +643,10 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto execute_publication_child(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
-		[[nodiscard]] auto observe_exact(std::stop_token aStop)
+		/// \brief Viewer, then target and head. [[BPR-1560]]: with `aLeftLine`,
+		/// last the merge base GitHub numbers a LEFT line in, which must still
+		/// be the one the comment was written against.
+		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aLeftLine = false)
 			-> std::expected<void, application::review_mutation_failure>;
 		/// \brief [[BPR-0879]]. Refuses a thread outside the designated pull
 		/// request before anything is written through it.

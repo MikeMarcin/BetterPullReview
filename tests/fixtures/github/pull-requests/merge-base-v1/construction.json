@@ -1,0 +1,87 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Whole PR compares from the merge base",
+			"parents": [
+				"cde0ff87f86343772d79af44761f472b818db1a5"
+			],
+			"sha": "cb35c8ba3be373811e10e241d0c9417abdaa5444"
+		}
+	],
+	"constructed": "Synthetic BPR-1560 merge-base course written by scripts/build_merge_base_fixture.py; not a recording",
+	"files": [
+		{
+			"additions": 2,
+			"base_content_base64": "YSBsaW5lIDEKYSBsaW5lIDIKYSBsaW5lIDMKYSBsaW5lIDQKYSBsaW5lIDUKYSBsaW5lIDYKYSBsaW5lIDcKYSBsaW5lIDgKYSBsaW5lIDkKYSBsaW5lIDEwCmEgbGluZSAxMQphIGxpbmUgMTIKYSBsaW5lIDEzCmEgbGluZSAxNAphIGxpbmUgMTUKYSBsaW5lIDE2CmEgbGluZSAxNwphIGxpbmUgMTgKYSBsaW5lIDE5CmEgbGluZSAyMAphIGxpbmUgMjEKYSBsaW5lIDIyCmEgbGluZSAyMwphIGxpbmUgMjQKYSBsaW5lIDI1CmEgbGluZSAyNgphIGxpbmUgMjcKYSBsaW5lIDI4CmEgbGluZSAyOQphIGxpbmUgMzAKYSBsaW5lIDMxCmEgbGluZSAzMgphIGxpbmUgMzMKYSBsaW5lIDM0CmEgbGluZSAzNQphIGxpbmUgMzYKYSBsaW5lIDM3CmEgbGluZSAzOAphIGxpbmUgMzkKYSBsaW5lIDQwCmEgbGluZSA0MQphIGxpbmUgNDIKYSBsaW5lIDQzCmEgbGluZSA0NAphIGxpbmUgNDUKYSBsaW5lIDQ2CmEgbGluZSA0NwphIGxpbmUgNDgKYSBsaW5lIDQ5CmEgbGluZSA1MAphIGxpbmUgNTEKYSBsaW5lIDUyCmEgbGluZSA1MwphIGxpbmUgNTQKYSBsaW5lIDU1CmEgbGluZSA1NgphIGxpbmUgNTcKYSBsaW5lIDU4CmEgbGluZSA1OQphIGxpbmUgNjAK",
+			"changes": 4,
+			"deletions": 2,
+			"filename": "a.txt",
+			"head_content_base64": "YSBsaW5lIDEKYSBsaW5lIDIgUFItMQphIGxpbmUgMwphIGxpbmUgNAphIGxpbmUgNQphIGxpbmUgNgphIGxpbmUgNwphIGxpbmUgOAphIGxpbmUgOQphIGxpbmUgMTAKYSBsaW5lIDExCmEgbGluZSAxMiBQUi0zCmEgbGluZSAxMwphIGxpbmUgMTQKYSBsaW5lIDE1CmEgbGluZSAxNgphIGxpbmUgMTcKYSBsaW5lIDE4CmEgbGluZSAxOQphIGxpbmUgMjAKYSBsaW5lIDIxCmEgbGluZSAyMgphIGxpbmUgMjMKYSBsaW5lIDI0CmEgbGluZSAyNQphIGxpbmUgMjYKYSBsaW5lIDI3CmEgbGluZSAyOAphIGxpbmUgMjkKYSBsaW5lIDMwCmEgbGluZSAzMQphIGxpbmUgMzIKYSBsaW5lIDMzCmEgbGluZSAzNAphIGxpbmUgMzUKYSBsaW5lIDM2CmEgbGluZSAzNwphIGxpbmUgMzgKYSBsaW5lIDM5CmEgbGluZSA0MAphIGxpbmUgNDEKYSBsaW5lIDQyCmEgbGluZSA0MwphIGxpbmUgNDQKYSBsaW5lIDQ1CmEgbGluZSA0NgphIGxpbmUgNDcKYSBsaW5lIDQ4CmEgbGluZSA0OQphIGxpbmUgNTAKYSBsaW5lIDUxCmEgbGluZSA1MgphIGxpbmUgNTMKYSBsaW5lIDU0CmEgbGluZSA1NQphIGxpbmUgNTYKYSBsaW5lIDU3CmEgbGluZSA1OAphIGxpbmUgNTkKYSBsaW5lIDYwCg==",
+			"patch": "@@ -1,5 +1,5 @@\n a line 1\n-a line 2\n+a line 2 PR-1\n a line 3\n a line 4\n a line 5\n@@ -9,7 +9,7 @@\n a line 9\n a line 10\n a line 11\n-a line 12\n+a line 12 PR-3\n a line 13\n a line 14\n a line 15",
+			"sha": "dbc873f82aa775d8e65a4ea1df41f1562b3e91b6",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "YiBsaW5lIDEKYiBsaW5lIDIKYiBsaW5lIDMKYiBsaW5lIDQKYiBsaW5lIDUKYiBsaW5lIDYKYiBsaW5lIDcKYiBsaW5lIDgKYiBsaW5lIDkKYiBsaW5lIDEwCg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "b.txt",
+			"head_content_base64": "YiBsaW5lIDEKYiBsaW5lIDIKYiBsaW5lIDMgUFItMgpiIGxpbmUgNApiIGxpbmUgNQpiIGxpbmUgNgpiIGxpbmUgNwpiIGxpbmUgOApiIGxpbmUgOQpiIGxpbmUgMTAK",
+			"patch": "@@ -1,6 +1,6 @@\n b line 1\n b line 2\n-b line 3\n+b line 3 PR-2\n b line 4\n b line 5\n b line 6",
+			"sha": "9e1df51fbd5468c2d18f48912a8156f42e5e5e7e",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "new.txt",
+			"head_content_base64": "YWRkZWQgYnkgdGhlIHB1bGwgcmVxdWVzdAo=",
+			"patch": "@@ -0,0 +1 @@\n+added by the pull request",
+			"sha": "1e42af822f0796e5f0d6cac7d70cea17dd33759b",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "c2hhcmVkIGxpbmUgMQpzaGFyZWQgbGluZSAyCnNoYXJlZCBsaW5lIDMKc2hhcmVkIGxpbmUgNApzaGFyZWQgbGluZSA1CnNoYXJlZCBsaW5lIDYKc2hhcmVkIGxpbmUgNwpzaGFyZWQgbGluZSA4CnNoYXJlZCBsaW5lIDkKc2hhcmVkIGxpbmUgMTAKc2hhcmVkIGxpbmUgMTEKc2hhcmVkIGxpbmUgMTIKc2hhcmVkIGxpbmUgMTMKc2hhcmVkIGxpbmUgMTQKc2hhcmVkIGxpbmUgMTUKc2hhcmVkIGxpbmUgMTYKc2hhcmVkIGxpbmUgMTcKc2hhcmVkIGxpbmUgMTgKc2hhcmVkIGxpbmUgMTkKc2hhcmVkIGxpbmUgMjAKc2hhcmVkIGxpbmUgMjEKc2hhcmVkIGxpbmUgMjIKc2hhcmVkIGxpbmUgMjMKc2hhcmVkIGxpbmUgMjQKc2hhcmVkIGxpbmUgMjUKc2hhcmVkIGxpbmUgMjYKc2hhcmVkIGxpbmUgMjcKc2hhcmVkIGxpbmUgMjgKc2hhcmVkIGxpbmUgMjkKc2hhcmVkIGxpbmUgMzAKc2hhcmVkIGxpbmUgMzEKc2hhcmVkIGxpbmUgMzIKc2hhcmVkIGxpbmUgMzMKc2hhcmVkIGxpbmUgMzQKc2hhcmVkIGxpbmUgMzUKc2hhcmVkIGxpbmUgMzYKc2hhcmVkIGxpbmUgMzcKc2hhcmVkIGxpbmUgMzgKc2hhcmVkIGxpbmUgMzkKc2hhcmVkIGxpbmUgNDAKc2hhcmVkIGxpbmUgNDEKc2hhcmVkIGxpbmUgNDIKc2hhcmVkIGxpbmUgNDMKc2hhcmVkIGxpbmUgNDQKc2hhcmVkIGxpbmUgNDUKc2hhcmVkIGxpbmUgNDYKc2hhcmVkIGxpbmUgNDcKc2hhcmVkIGxpbmUgNDgKc2hhcmVkIGxpbmUgNDkKc2hhcmVkIGxpbmUgNTAKc2hhcmVkIGxpbmUgNTEKc2hhcmVkIGxpbmUgNTIKc2hhcmVkIGxpbmUgNTMKc2hhcmVkIGxpbmUgNTQKc2hhcmVkIGxpbmUgNTUKc2hhcmVkIGxpbmUgNTYKc2hhcmVkIGxpbmUgNTcKc2hhcmVkIGxpbmUgNTgKc2hhcmVkIGxpbmUgNTkKc2hhcmVkIGxpbmUgNjAK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "shared.txt",
+			"head_content_base64": "c2hhcmVkIGxpbmUgMQpzaGFyZWQgbGluZSAyCnNoYXJlZCBsaW5lIDMKc2hhcmVkIGxpbmUgNApzaGFyZWQgbGluZSA1IFBSLTEKc2hhcmVkIGxpbmUgNgpzaGFyZWQgbGluZSA3CnNoYXJlZCBsaW5lIDgKc2hhcmVkIGxpbmUgOQpzaGFyZWQgbGluZSAxMApzaGFyZWQgbGluZSAxMQpzaGFyZWQgbGluZSAxMgpzaGFyZWQgbGluZSAxMwpzaGFyZWQgbGluZSAxNApzaGFyZWQgbGluZSAxNQpzaGFyZWQgbGluZSAxNgpzaGFyZWQgbGluZSAxNwpzaGFyZWQgbGluZSAxOApzaGFyZWQgbGluZSAxOQpzaGFyZWQgbGluZSAyMApzaGFyZWQgbGluZSAyMQpzaGFyZWQgbGluZSAyMgpzaGFyZWQgbGluZSAyMwpzaGFyZWQgbGluZSAyNApzaGFyZWQgbGluZSAyNQpzaGFyZWQgbGluZSAyNgpzaGFyZWQgbGluZSAyNwpzaGFyZWQgbGluZSAyOApzaGFyZWQgbGluZSAyOQpzaGFyZWQgbGluZSAzMApzaGFyZWQgbGluZSAzMQpzaGFyZWQgbGluZSAzMgpzaGFyZWQgbGluZSAzMwpzaGFyZWQgbGluZSAzNApzaGFyZWQgbGluZSAzNQpzaGFyZWQgbGluZSAzNgpzaGFyZWQgbGluZSAzNwpzaGFyZWQgbGluZSAzOApzaGFyZWQgbGluZSAzOQpzaGFyZWQgbGluZSA0MApzaGFyZWQgbGluZSA0MQpzaGFyZWQgbGluZSA0MgpzaGFyZWQgbGluZSA0MwpzaGFyZWQgbGluZSA0NApzaGFyZWQgbGluZSA0NQpzaGFyZWQgbGluZSA0NgpzaGFyZWQgbGluZSA0NwpzaGFyZWQgbGluZSA0OApzaGFyZWQgbGluZSA0OQpzaGFyZWQgbGluZSA1MApzaGFyZWQgbGluZSA1MQpzaGFyZWQgbGluZSA1MgpzaGFyZWQgbGluZSA1MwpzaGFyZWQgbGluZSA1NApzaGFyZWQgbGluZSA1NQpzaGFyZWQgbGluZSA1NgpzaGFyZWQgbGluZSA1NwpzaGFyZWQgbGluZSA1OApzaGFyZWQgbGluZSA1OQpzaGFyZWQgbGluZSA2MAo=",
+			"patch": "@@ -2,7 +2,7 @@\n shared line 2\n shared line 3\n shared line 4\n-shared line 5\n+shared line 5 PR-1\n shared line 6\n shared line 7\n shared line 8",
+			"sha": "df429c903580d5a377eef1b4c1d368a2ec3c372d",
+			"status": "modified"
+		}
+	],
+	"merge_base": "cde0ff87f86343772d79af44761f472b818db1a5",
+	"pull_request": {
+		"additions": 5,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "9d3efe9d01b29bc7790bf3de912fb18adfa722a2"
+		},
+		"body": "Synthetic course: the recorded base is ahead of the merge base.\n",
+		"changed_files": 4,
+		"commits": 1,
+		"deletions": 4,
+		"head": {
+			"ref": "nested-folders",
+			"sha": "cb35c8ba3be373811e10e241d0c9417abdaa5444"
+		},
+		"number": 1560,
+		"state": "open",
+		"title": "Whole PR compares from the merge base"
+	},
+	"repository": {
+		"name": "merge-base",
+		"owner": "bpr-fixtures"
+	}
+}

@@ -106,6 +106,11 @@ namespace bpr::app::detail {
 		/// description and comments hold fenced code in many languages and
 		/// diff blocks, and whose threads suggest changes to its lines.
 		markdown_code_v1,
+		/// [[BPR-1560]]. The recorded base is ahead of the merge base: the
+		/// base branch moved on, reverting nothing of the pull request's but
+		/// landing its `b.txt` change separately. GitHub's Files changed is
+		/// the merge base's comparison; see `scripts/build_merge_base_fixture.py`.
+		merge_base_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -272,8 +277,17 @@ namespace bpr::app::detail {
 		bool                       LargeReviewRepeatReads = false;
 		github_epoch_fixture_phase EpochPhase             = github_epoch_fixture_phase::single;
 		std::string                TimelineCourse;
-		bool                       EmptyHistoricalTimeline        = false;
-		bool                       UnfetchableFirstHistoricalHead = false;
+		/// [[BPR-1560]]. GitHub's compare answers with a server error, so no
+		/// merge base is named for the pull request.
+		bool MergeBaseUnavailable = false;
+		/// [[BPR-1560]]. GitHub records another base for the pull request
+		/// between the snapshot and the read that confirms it.
+		bool MergeBaseRace = false;
+		/// [[BPR-1560]]. GitHub's compare answers that the credential is no
+		/// longer accepted.
+		bool MergeBaseUnauthorized          = false;
+		bool EmptyHistoricalTimeline        = false;
+		bool UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
 		/// reading graph so the CLI-profile course can prove exact source recovery.
 		bool GhesCliSourceUpdateCourse = false;
@@ -521,6 +535,9 @@ namespace bpr::app::detail {
 		/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
 		std::size_t MarkdownImageResolutions = 0U;
 		std::size_t MarkdownImageFetches     = 0U;
+		/// [[BPR-1560]]. Compare reads and pull request confirmations served.
+		std::size_t MergeBaseReads           = 0U;
+		std::size_t MergeBaseConfirmations   = 0U;
 		int         LastReadOperation        = -1;
 		int         SmartAcquireCount        = 0;
 		int         SmartAcquireRefusalCount = 0;

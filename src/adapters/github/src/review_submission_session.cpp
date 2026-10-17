@@ -138,7 +138,7 @@ namespace bpr::adapters::github::detail {
 		}
 		return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
 	}
-	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical) -> std::expected<void, application::review_mutation_failure>
+	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical, bool aLeftLine) -> std::expected<void, application::review_mutation_failure>
 	{
 		auto viewer = compile_viewer_observation_request(Configuration.ActingIdentity, Configuration.Target.ServerContract);
 		if (!viewer) {
@@ -178,6 +178,30 @@ namespace bpr::adapters::github::detail {
 		}
 		if (parsed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead) {
 			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!aLeftLine) {
+			return { };
+		}
+		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
+		// which moves when the base branch takes commits the head shares, even
+		// with the recorded base and the head unchanged.
+		auto mergeBase = compile_merge_base_observation_request(Configuration.Target, Configuration.Target.ServerContract);
+		if (!mergeBase) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		auto  observedMergeBase = perform(*mergeBase, aStop);
+		auto* mergeBaseSuccess  = std::get_if<github_mutation_wire_success>(&observedMergeBase);
+		if (!mergeBaseSuccess || mergeBaseSuccess->Response.Status != 200) {
+			note_completion(observedMergeBase);
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		const auto current = parse_merge_base_observation(mergeBaseSuccess->Response, Configuration.Target);
+		if (!current) {
+			note(reason::pull_request_mismatch);
+			return std::unexpected(application::review_mutation_failure::undesignated_target);
+		}
+		if (*current != application::comparison_base(Configuration.Target)) {
+			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };
 	}
@@ -500,7 +524,10 @@ namespace bpr::adapters::github::detail {
 				static_cast<void>(Recovery->withdraw(expected.Request.IdempotencyKey, expected.RequestFingerprint));
 				return aResult;
 			};
-			const auto current = observe_exact(aStop);
+			const auto leftLine = std::ranges::any_of(aRequest.Proposal.Comments, [](const core::review_submission_comment& aComment) {
+				return aComment.Side == core::diff_side::left;
+			});
+			const auto current  = observe_exact(aStop, false, leftLine);
 			if (!current) {
 				return withdrawn(result(aRequest, publication::definitely_not_published, current.error()));
 			}

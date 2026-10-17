@@ -39,7 +39,10 @@ namespace bpr::adapters::github::detail {
 		/// indeterminate result is unknown.
 		void               explain(application::review_submission_result& aResult);
 		[[nodiscard]] auto perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
-		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
+		/// \brief Viewer, then target and head. [[BPR-1560]]: with `aLeftLine`,
+		/// last the merge base GitHub numbers a LEFT line in, which must still
+		/// be the one the review was written against.
+		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false, bool aLeftLine = false) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
 		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
 		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop) -> application::review_submission_result;
@@ -74,7 +77,9 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto observe_staged_comments(const application::staged_publication_record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection = nullptr) -> review_mutation_parse_result<staged_comments>;
 		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> application::staged_publication_state;
 		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> bool;
-		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
+		/// \brief `aLeftLine` also asks GitHub's merge base, before a write of
+		/// a plan with a LEFT stop ([[BPR-1560]]).
+		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop, bool aLeftLine = false) -> bool;
 		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 
 		github_mutation_wire_transport*                               Transport;

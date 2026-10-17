@@ -229,6 +229,7 @@ namespace {
 		case review_mutation_operation::staged_create_issue_comment:   return "staged_create_issue_comment";
 		case review_mutation_operation::staged_update_issue_comment:   return "staged_update_issue_comment";
 		case review_mutation_operation::staged_update_pending_comment: return "staged_update_pending_comment";
+		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
 
 		case review_mutation_operation::observe_pull_request:           return "observe_pull_request";
 		case review_mutation_operation::observe_viewer:                 return "observe_viewer";
@@ -271,6 +272,19 @@ namespace {
 	{
 		return { .Method = http_method::post, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/reviews" };
 	}
+	/// [[BPR-1560]]. GitHub's compare for the target's base branch and head:
+	/// the merge base a LEFT line is numbered in, the target's own unless the
+	/// base branch moved.
+	[[nodiscard]] auto merge_base_answer(const review_mutation_wire_request& aWire, const bool aMoved) -> std::optional<github_mutation_wire_completion>
+	{
+		if (aWire.Operation != review_mutation_operation::observe_merge_base) {
+			return std::nullopt;
+		}
+		const auto head      = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+		const auto mergeBase = aMoved ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b') + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}" } };
+	}
+
 	struct transport final : github_mutation_wire_transport
 	{
 		application::review_submission_request Request = request();
@@ -280,6 +294,7 @@ namespace {
 		std::size_t                            Posts           = 0U;
 		std::size_t                            NewCount        = 1U;
 		bool                                   WrongRepository = false, MovedContext = false;
+		bool                                   MovedMergeBase   = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		/// [[BPR-1345]]. The pull request's review comments, review 45's
@@ -298,6 +313,9 @@ namespace {
 			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
 			++Requests;
 			Trace.push_back(aRequest.Wire.Operation);
+			if (auto answer = merge_base_answer(aRequest.Wire, MovedMergeBase)) {
+				return *answer;
+			}
 			const auto key = scripted_key(aRequest.Wire);
 			if (key == viewer_get()) {
 				auto response = viewer_response();
@@ -925,6 +943,32 @@ namespace {
 			expect(session.pending() && session.pending()->size() == 1U, "and the attempt stays to be reconciled");
 		}
 		{
+			// [[BPR-1560]]. A review with a LEFT comment asks GitHub's merge base
+			// just before the POST; when the base branch moved it since the
+			// review was written, nothing is sent.
+			temporary_directory root;
+			transport           wire;
+			wire.Request        = carried();
+			wire.MovedMergeBase = true;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 0U
+					   && result.Failure == application::review_mutation_failure::target_moved
+					   && std::ranges::count(wire.Trace, review_mutation_operation::observe_merge_base) == 1,
+				   "a moved merge base refuses a review with a LEFT comment before its POST");
+		}
+		{
+			// Without a LEFT line nothing asks for the merge base.
+			temporary_directory root;
+			transport           wire;
+			wire.Request                   = carried();
+			wire.Request.Proposal.Comments = { first };
+			wire.Comments45                = "[" + listed_comment(901U, first) + "]";
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			static_cast<void>(session.submit_and_reconcile(wire.Request));
+			expect(std::ranges::count(wire.Trace, review_mutation_operation::observe_merge_base) == 0, "a review with RIGHT lines only does not ask for the merge base");
+		}
+		{
 			temporary_directory root;
 			transport           wire;
 			wire.Request   = carried();
@@ -1029,6 +1073,9 @@ namespace {
 		}
 		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			if (auto answer = merge_base_answer(aRequest.Wire, false)) {
+				return *answer;
+			}
 			const bpr::tests::exit_on_failure insideTheSession;
 			expect(validate_outbound_review_mutation_request(aRequest.Wire).has_value(), "all session requests are canonical");
 			const auto& wire    = aRequest.Wire;
@@ -1647,6 +1694,9 @@ namespace {
 		{ }
 		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			if (auto answer = merge_base_answer(aRequest.Wire, false)) {
+				return *answer;
+			}
 			const bpr::tests::exit_on_failure insideTheSession;
 			const auto&                       wire = aRequest.Wire;
 			const auto                        pull = "/repos/MikeMarcin/BPR-Test/pulls/" + Probe.text("number");
@@ -1786,6 +1836,9 @@ namespace {
 		}
 		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
+			if (auto answer = merge_base_answer(aRequest.Wire, false)) {
+				return *answer;
+			}
 			const bpr::tests::exit_on_failure insideTheSession;
 			const auto&                       wire = aRequest.Wire;
 			const auto                        pull = "/repos/MikeMarcin/BPR-Test/pulls/" + Probe.text("number");

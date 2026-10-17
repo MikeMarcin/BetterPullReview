@@ -20,15 +20,27 @@
 //       which updates they can take, and rendering the line into DIR
 //       ([[BPR-1553]]). Run it again on the same DIR after a push to see the
 //       line of a review this install has seen before.
+//   --course parity --root DIR --pull N
+//       Opens MikeMarcin/BPR-Test#N in Review on its default comparison and
+//       visits every file, writing one JSON line per file into
+//       DIR/parity.jsonl: the path, both blob OIDs the comparison read and
+//       every removed (left) and added (right) line with its number and text
+//       ([[BPR-1560]]). `tests/end_to_end/bpr1560_live_parity.py` compares
+//       those lines with GitHub's own Files changed for the same pull request.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_line.hpp"
+#include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/core/review_queue.hpp"
 #include <QAction>
 #include <QApplication>
@@ -38,6 +50,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -47,6 +60,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QWindow>
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -137,9 +152,9 @@ namespace {
 				fail("unknown argument " + key.toStdString());
 			}
 		}
-		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch") || result.Root.empty() || result.Pull <= 0
+		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity") || result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
-			fail("usage: --course observer|reader|epoch --root DIR --pull N [--author LOGIN --path PREFIX]");
+			fail("usage: --course observer|reader|epoch|parity --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -350,6 +365,181 @@ namespace {
 		dump(aWindow);
 	}
 
+	/// JSON string escaping for the parity course's lines.
+	auto json_text(const std::string_view aText) -> std::string
+	{
+		std::string result{ "\"" };
+		for (const auto c : aText) {
+			switch (c) {
+			case '"':  result += "\\\""; break;
+			case '\\': result += "\\\\"; break;
+			case '\n': result += "\\n"; break;
+			case '\r': result += "\\r"; break;
+			case '\t': result += "\\t"; break;
+			default:
+				if (static_cast<unsigned char>(c) < 0x20U) {
+					constexpr auto digits = std::string_view{ "0123456789abcdef" };
+					result += "\\u00";
+					result += digits[(static_cast<unsigned char>(c) >> 4U) & 0xFU];
+					result += digits[static_cast<unsigned char>(c) & 0xFU];
+				} else {
+					result += c;
+				}
+			}
+		}
+		return result + "\"";
+	}
+
+	/// The changed lines of one side: `[number, text]` for every line a
+	/// non-equal segment covers, numbered from one as GitHub numbers them.
+	auto changed_lines(const core::computed_file_diff& aDiff, const core::diff_side aSide) -> std::string
+	{
+		const auto& document = aSide == core::diff_side::left ? aDiff.LeftDocument : aDiff.RightDocument;
+		std::string result{ "[" };
+		auto        first = true;
+		for (const auto& segment : aDiff.Alignment.Segments) {
+			if (segment.Kind == core::alignment_kind::equal) {
+				continue;
+			}
+			const auto& span = aSide == core::diff_side::left ? segment.Left : segment.Right;
+			for (auto line = span.Begin; line < span.End; ++line) {
+				auto content = std::string{ };
+				if (document && line < document->Lines.size()) {
+					const auto& bytes = document->Lines[line].Content;
+					content.assign(reinterpret_cast<const char*>(document->Bytes.data()) + bytes.Begin, bytes.End - bytes.Begin);
+				}
+				result += (first ? "" : ",") + std::string{ "[" } + std::to_string(line + 1U) + "," + json_text(content) + "]";
+				first = false;
+			}
+		}
+		return result + "]";
+	}
+
+	/// [[BPR-1560]]. Opens the pull request in Review on the comparison it
+	/// opens with and visits every file in the Files order, writing what each
+	/// comparison read and showed. Nothing here writes to GitHub.
+	void parity_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 820);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		require([&] { return aWindow.overview_page()->projection().has_value() && !aWindow.overview_page()->projection()->Files.empty(); }, "the overview lists the files");
+		const auto files = aWindow.overview_page()->projection()->Files;
+		aWindow.choose_modality(qt::review_modality::review);
+		auto* const surface = aWindow.comparison_surface();
+		const auto  path_of = [&]() -> std::optional<std::string> {
+			const auto& context = surface->current_context();
+			if (!context) {
+				return std::nullopt;
+			}
+			for (const auto& row : files) {
+				if (core::file_identity_of(row.Path) == context->Key.File) {
+					return row.Path;
+				}
+			}
+			return std::nullopt;
+		};
+		const auto settled = [&] {
+			const auto& context = surface->current_context();
+			const auto& result  = surface->current_result();
+			return context && result && result->Alignment.Key == context->Key && path_of().has_value();
+		};
+		std::ofstream            out{ aOptions.Root / "parity.jsonl" };
+		std::vector<std::string> visited;
+		for (std::size_t index = 0U; index < files.size(); ++index) {
+			if (index == 0U) {
+				if (!wait_for(settled, "the first file's comparison (opens it next)", std::chrono::seconds{ 15 })) {
+					if (auto* const open = surface->idle_open_first_button(); open != nullptr && open->isVisible()) {
+						open->click();
+					}
+					require(settled, "the first file's comparison", std::chrono::seconds{ 120 });
+				}
+			} else {
+				const auto before = *path_of();
+				aWindow.next_file_action()->trigger();
+				require([&] { return settled() && *path_of() != before; }, "file " + std::to_string(index + 1U) + "'s comparison", std::chrono::seconds{ 120 });
+			}
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 1 });
+			require(settled, "the comparison stays settled");
+			if (index == 0U) {
+				// Read once the first comparison has settled, so it names the
+				// comparison that was shown rather than a loading state.
+				say("parity:comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+					+ " status=" + text(aWindow.epoch_selectors()->status_text()));
+			}
+			const auto  path    = *path_of();
+			const auto& context = *surface->current_context();
+			const auto& result  = *surface->current_result();
+			const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
+				return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
+			};
+			constexpr auto operations = std::array<std::string_view, 7U>{ "added", "modified", "removed", "renamed", "copied", "changed", "unchanged" };
+			const auto     row        = std::ranges::find(files, path, &application::overview_file_row::Path);
+			const auto     operation  = static_cast<std::size_t>(row->Operation);
+			const auto     line       = "{\"path\":" + json_text(path) + ",\"status\":" + json_text(operation < operations.size() ? operations[operation] : "unknown")
+				+ ",\"previous\":" + (row->PreviousPath ? json_text(*row->PreviousPath) : std::string{ "null" }) + ",\"left_blob\":" + blob(context.Key.LeftBlob) + ",\"right_blob\":" + blob(context.Key.RightBlob)
+				+ ",\"content\":" + std::to_string(static_cast<int>(result.Alignment.Content)) + ",\"removed\":" + changed_lines(result, core::diff_side::left)
+				+ ",\"added\":" + changed_lines(result, core::diff_side::right) + ",\"threads\":[";
+			auto threads = std::string{ };
+			for (const auto& tick : surface->thread_ticks()) {
+				threads += (threads.empty() ? "" : ",") + std::string{ "[" } + json_text(tick.Side == core::diff_side::left ? "LEFT" : "RIGHT") + "," + std::to_string(tick.Line) + ","
+					+ json_text(text(tick.Description)) + "]";
+			}
+			out << line << threads << "]}" << '\n';
+			say("parity:file " + path);
+			visited.push_back(path);
+		}
+		out.flush();
+		say("parity:files=" + std::to_string(visited.size()) + " of " + std::to_string(files.size()));
+		epoch_dump(aWindow, aOptions.Root, "parity");
+		// The interdiff from the previous update, when there is one: every
+		// file's two blobs, or the state the comparison says it is in.
+		auto* const previous = aWindow.epoch_selectors()->previous_upload_action();
+		say("parity:previous-upload enabled=" + std::string{ previous != nullptr && previous->isEnabled() ? "1" : "0" });
+		if (previous != nullptr && previous->isEnabled()) {
+			previous->trigger();
+			const auto interdiff = [&] {
+				return settled() && surface->current_context()->Key.LeftAnchor.Kind == core::comparison_anchor_kind::epoch_head;
+			};
+			const auto absent = [&] { return surface->status_text().contains(QStringLiteral("absent from both revisions")); };
+			const auto ready  = wait_for([&] { return aWindow.epoch_selectors()->status_text() == QStringLiteral("Review history is ready.") && (interdiff() || absent()); },
+										 "the interdiff (may be unavailable)", std::chrono::seconds{ 60 });
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 2 });
+			say("parity:interdiff shown=" + std::string{ ready ? "1" : "0" } + " comparing="
+				+ (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+				+ " status=" + text(aWindow.epoch_selectors()->status_text()) + " surface=" + text(surface->status_text()));
+			std::ofstream between{ aOptions.Root / "parity-interdiff.jsonl" };
+			for (std::size_t index = 0U; ready && index < files.size(); ++index) {
+				// Each file is chosen in Files, as a reviewer does; a file the
+				// two updates both lack is its own state, not a comparison.
+				const auto& path = files[index].Path;
+				const auto  row  = aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(path));
+				aWindow.files_drawer()->contents_view()->setCurrentIndex(row);
+				const auto shownHere  = [&] { return interdiff() && path_of() == path; };
+				const auto absentHere = [&] {
+					return absent() && aWindow.files_drawer()->contents_view()->currentIndex() == row;
+				};
+				if (!wait_for([&] { return shownHere() || absentHere(); }, "the file's interdiff", std::chrono::seconds{ 60 })) {
+					between << "{\"path\":" << json_text(path) << ",\"state\":\"unavailable\"}\n";
+					continue;
+				}
+				if (!shownHere()) {
+					between << "{\"path\":" << json_text(path) << ",\"state\":\"absent-both\"}\n";
+					continue;
+				}
+				const auto& context = *surface->current_context();
+				const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
+					return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" };
+				};
+				between << "{\"path\":" << json_text(path) << ",\"state\":\"shown\",\"left_blob\":" << blob(context.Key.LeftBlob) << ",\"right_blob\":" << blob(context.Key.RightBlob)
+						<< ",\"removed\":" << changed_lines(*surface->current_result(), core::diff_side::left)
+						<< ",\"added\":" << changed_lines(*surface->current_result(), core::diff_side::right) << "}\n";
+			}
+			epoch_dump(aWindow, aOptions.Root, "parity-interdiff");
+		}
+		dump(aWindow);
+	}
+
 	void observer_course(const options& aOptions, qt::workbench_window& aWindow)
 	{
 		open_pull(aWindow, aOptions.Pull);
@@ -441,6 +631,8 @@ try {
 		observer_course(chosen, *window);
 	} else if (chosen.Course == "epoch") {
 		epoch_course(chosen, *window);
+	} else if (chosen.Course == "parity") {
+		parity_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}
