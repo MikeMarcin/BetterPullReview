@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1580"
 title: "Home arranges and filters from one View menu whose groups are labelled"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"I wonder if we should collapse these 3 into one. I don't understand what half these options on Filter are even meant to do.","governing_rfc":"RFC-BPR-0032","related_rfcs":["RFC-BPR-0066","RFC-BPR-0028","RFC-BPR-0024"],"related_cards":["BPR-0783","BPR-1567","BPR-1573","BPR-1575"],"reservation":"docs/issues/_reservations/BPR-1580--BPR-1580--b54fb616e5aa.json"}
+parked_on: "human-review"
 ---
 
 # BPR-1580: Home arranges and filters from one View menu whose groups are labelled
