@@ -179,7 +179,8 @@ enough." [[BPR-1565]] carries it out.
   completion list a colon at the start opened. This was the typed half of
   the convention-assisted composition above. A label is now typed out in
   full, or chosen with the label chip and its menu (⌘L opens it; ⌘0 in the
-  open menu is Plain), in the composer and in a reply written in place.
+  open menu was Plain until owner amendment 2), in the composer and in a
+  reply written in place.
 - **Kept.** The chip, its menu, the decoration toggles, keyboard access to
   all twelve labels and Plain, recognition of any label typed in full, and
   the one-edit, one-undo-step draft path (R09, R10). The Letters mark style
@@ -201,6 +202,27 @@ enough." [[BPR-1565]] carries it out.
   typed with no label, no list and no control edit (the negative control for
   the removed behaviour), while the chip, its menu, ⌘L and ⌘0 still set every
   label and Plain in one edit.
+
+## Owner amendment 2 (2026-10-16): Plain has no key; ⌘0 is Actual Size
+
+Accepting [[BPR-1566]] on 2026-10-16, the owner noted, verbatim: "I'm really
+not sure why plan comment gets a hotkey, I think we can remove that." and,
+through the coordinator, that ⌘0 should then behave as it does everywhere
+else, View › Actual Size, even with the label menu open. [[BPR-1569]] carries
+it out.
+
+- **Removed.** ⌘0 as Plain comment inside the open label menu, and the key
+  shown beside Plain, in its tooltip and in its accessible description.
+- **Kept.** Plain comment as the menu's first item, chosen by click, arrow
+  keys and Return or Space, like every label.
+- **⌘0 with the menu open** closes the menu and runs the window's Actual
+  Size if it is enabled; it never changes the label or the draft.
+
+- **AM2-01:** Qt tests deliver ⌘0 through the window system to the open
+  menu: the window's Actual Size runs once and the menu closes, the label and
+  draft are unchanged on a labelled and a plain comment (the negative control
+  for the removed key), a disabled Actual Size does nothing, and Plain is
+  still reached by arrows and by click.
 
 ## Acceptance criteria
 

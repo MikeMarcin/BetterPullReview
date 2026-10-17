@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Agent as a first-class surface</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.agentpage { flex:1; display:flex; min-width:0; background:var(--bg); }
+.srail { flex:0 0 250px; background:var(--drawer); border-right:1px solid var(--rule); display:flex; flex-direction:column; }
+.srail .hd { display:flex; align-items:center; gap:6px; padding:12px 12px 8px; font-weight:650; font-size:13px; }
+.sess { display:flex; gap:9px; padding:8px 10px; margin:0 6px 2px; border-radius:8px; }
+.sess.on { background:var(--panel); box-shadow:0 0 0 1px var(--rule); }
+.sess .t { font-weight:600; font-size:12.5px; color:var(--ink); }
+.sess .m { color:var(--ink-3); font-size:11.5px; margin-top:1px; display:flex; gap:6px; align-items:center; }
+.sess.stale { opacity:.6; }
+.convo { flex:1; min-width:0; display:flex; flex-direction:column; }
+.convo .ctx { display:flex; align-items:center; gap:6px; padding:10px 18px; border-bottom:1px solid var(--rule); background:var(--panel); flex-wrap:wrap; }
+.convo .ctx h3 { margin:0 8px 0 0; font-size:14px; font-weight:650; }
+.transcript { flex:1; overflow:hidden; padding:14px 0 0; }
+.transcript .col { max-width:780px; margin:0 auto; padding:0 22px; }
+.turn { display:flex; gap:10px; padding:10px 0; }
+.turn .who { flex:none; }
+.turn .body { flex:1; min-width:0; font-size:13px; line-height:1.55; }
+.turn .body .nm { display:flex; gap:7px; align-items:center; margin-bottom:2px; }
+.turn .body .nm b { font-weight:600; }
+.turn .body .nm time { color:var(--ink-3); font-size:11.5px; }
+.finding { margin:10px 0 4px; border-radius:8px; background:var(--panel); box-shadow:0 0 0 1px var(--rule), 0 1px 2px rgba(0,0,0,.04); position:relative; overflow:hidden; }
+.finding::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--sev, var(--ink-3)); }
+.finding .fh { display:flex; align-items:center; gap:7px; padding:9px 12px 0 14px; font-size:11.5px; color:var(--ink-3); font-weight:600; }
+.finding .claim { padding:4px 12px 0 14px; font-weight:600; font-size:13px; color:var(--ink); }
+.finding .fb { padding:4px 12px 0 14px; color:var(--ink-2); font-size:12.5px; line-height:1.5; }
+.finding .ev { margin:8px 12px 0 14px; border-radius:6px; background:var(--code); box-shadow:inset 0 0 0 1px var(--rule); font:11.5px/18px var(--mono); padding:5px 8px; color:var(--ink); }
+.finding .fa { display:flex; gap:6px; align-items:center; padding:9px 12px 10px 14px; }
+.sevtag { display:inline-flex; align-items:center; gap:4px; padding:0 6px; height:18px; border-radius:9px; font-size:11px; font-weight:700; }
+.composer { border-top:1px solid var(--rule); background:var(--panel); padding:10px 22px 12px; }
+.composer .col { max-width:780px; margin:0 auto; }
+.crail { flex:0 0 270px; border-left:1px solid var(--rule); background:var(--drawer); padding:12px 14px; font-size:12px; }
+.crail .row { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
+.crail .row .k2 { flex:0 0 86px; color:var(--ink-3); }
+.crail .row .v2 { flex:1; color:var(--ink); min-width:0; overflow-wrap:anywhere; }
+.dock { flex:0 0 300px; display:flex; border-top:1px solid var(--rule); background:var(--drawer); min-height:0; }
+.dock .dk-h { display:flex; align-items:center; gap:6px; height:32px; padding:0 8px 0 12px; background:var(--panel); border-bottom:1px solid var(--rule); }
+.thinking { display:inline-flex; gap:3px; } .thinking i { width:5px; height:5px; border-radius:50%; background:var(--ink-3); display:block; }
+.thinking i:nth-child(2) { opacity:.6 } .thinking i:nth-child(3) { opacity:.3 }
+</style></head>
+<body><script>
+"use strict";
+const sev = (level) => ({ high:["var(--danger)", "var(--danger-soft)"], medium:["var(--route)", "var(--route-soft)"], low:["var(--ink-3)", "var(--panel-2)"] })[level];
+const finding = (o) => { const [c, bg] = sev(o.sev); return `<div class="finding" style="--sev:${c}">
+  <div class="fh"><span class="sevtag" style="color:${c};background:${bg}">${o.sevText}</span><span>${o.meta}</span><span class="sp"></span><span class="loc ${o.anchored ? "amber" : ""}">${o.loc}</span></div>
+  <div class="claim">${o.claim}</div>${o.text ? `<div class="fb">${o.text}</div>` : ""}${o.ev ? `<div class="ev">${o.ev}</div>` : ""}
+  <div class="fa"><span class="pill primary sm">${ic("comments", "xs")}Draft a comment</span><span class="pill outline sm">Ask follow-up</span><span class="pill quiet sm">${ic("notes", "xs")}Add to notes</span><span class="sp"></span><span class="ib" title="Draft a defect, Dismiss">${ic("more", "s")}</span></div></div>`; };
+const F1 = { sev:"high", sevText:"High", meta:"likely · correctness", loc:"renderer.cpp:440–447", anchored:true, claim:"The retry budget resets every frame, so an exhausted budget never stops a retry loop.", text:"<code>Retry_.reset()</code> runs at the start of <code>begin_frame</code>; a frame that bails out is retried with a full budget next time.", ev:"Retry_.reset(RetryBudget_);   // line 440, every frame" };
+const F2 = { sev:"low", sevText:"Low", meta:"possible · performance", loc:"renderer.cpp:433", anchored:true, claim:"device_scale() is called once per pass; the factor could be computed once per frame." };
+const you = (t, time = "2m") => `<div class="turn"><div class="who">${av("you", "lg")}</div><div class="body"><div class="nm"><b>you</b><time>${time}</time></div>${t}</div></div>`;
+const agentTurn = (t, time = "1m") => `<div class="turn"><div class="who"><span class="av agent lg">&gt;_</span></div><div class="body"><div class="nm"><b>Claude Code</b><span class="chip" style="height:18px;font-size:10.5px">read-only</span><time>${time}</time></div>${t}</div></div>`;
+const askChip = `<span class="chip on">${ic("file", "xs")} renderer.cpp:433–434 ${ic("close", "xs")}</span>`;
+const composer = (narrow) => `<div class="field" style="display:flex;flex-direction:column;gap:8px;${narrow ? "font-size:12.5px" : ""}">
+  <span class="ph">Ask about this pull request…</span>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${askChip}<span class="chip">${ic("plus", "xs")} Context</span><span class="sp"></span><span class="kbd">⌘↩</span><span class="pill primary sm">${ic("send", "xs")}Ask</span></div></div>`;
+
+/* ---------- A: an Agent modality ---------- */
+const modes5 = [["Overview", "⌘1"], ["Review", "⌘2"], ["Discuss", "⌘3"], ["Threads", "⌘4"], ["Agent", "⌘5", true]];
+const aCentre = `<div class="agentpage">
+  <div class="srail"><div class="hd">Sessions<span class="sp"></span><span class="pill outline sm">${ic("plus", "xs")}New</span></div>
+    <div class="sess on"><span class="av agent">&gt;_</span><div><div class="t">Retry budget and scale</div><div class="m">head 7f3a9c1 · 2 findings</div></div></div>
+    <div class="sess"><span class="av agent">&gt;_</span><div><div class="t">Review the whole pull request</div><div class="m">head 7f3a9c1 · 5 findings</div></div></div>
+    <div class="grouph">Private runs on drafts</div>
+    <div class="sess"><span class="av agent">&gt;_</span><div><div class="t">Workshop: “question: Is the retry…”</div><div class="m">Clarify · revision 2</div></div></div>
+    <div class="grouph">Earlier heads</div>
+    <div class="sess stale"><span class="av agent">&gt;_</span><div><div class="t">First pass</div><div class="m">head 51d2dad · stale</div></div></div>
+    <div class="sp"></div>
+    <div style="padding:10px 12px;border-top:1px solid var(--rule);display:flex;flex-direction:column;gap:6px">
+      <span class="pill quiet sm" style="justify-content:flex-start">${ic("play", "xs")}Run an AI review</span><span class="pill quiet sm" style="justify-content:flex-start">${ic("file", "xs")}Analyze this file</span><span class="pill quiet sm" style="justify-content:flex-start">${ic("history", "xs")}Analyze the latest upload</span></div></div>
+  <div class="convo"><div class="ctx"><h3>Retry budget and scale</h3><span class="chip">${ic("agent", "xs")} Claude Code ${ic("down", "xs")}</span><span class="chip">head 7f3a9c1 ${ic("check", "xs")}</span><span class="chip">Whole pull request</span><span class="chip">${ic("lock", "xs")} Private notes off</span><span class="sp"></span><span class="pill quiet sm">${ic("back", "xs")}Back to the code</span></div>
+    <div class="transcript"><div class="col">
+      ${you("Is the retry budget reset in the right place? Look at <code>begin_frame</code> and <code>submit</code>.")}
+      ${agentTurn(`I read <span class="loc">renderer.cpp</span> and <span class="loc">renderer.h</span> at head 7f3a9c1. Two things stand out:${finding(F1)}${finding(F2)}`)}
+    </div></div>
+    <div class="composer"><div class="col">${composer()}</div></div></div>
+  <div class="crail"><div style="font-weight:650;font-size:13px;margin-bottom:8px">What the agent sees</div>
+    <div class="row"><span class="k2">Agent</span><span class="v2">Claude Code (profile “Default”)</span></div>
+    <div class="row"><span class="k2">Host</span><span class="v2">github.com</span></div>
+    <div class="row"><span class="k2">Comparing</span><span class="v2">Whole PR, Oct 14 → Oct 17</span></div>
+    <div class="row"><span class="k2">Head</span><span class="v2 mono">7f3a9c1 <span style="color:var(--ok)">current</span></span></div>
+    <div class="row"><span class="k2">Workspace</span><span class="v2 mono">~/src/engine</span></div>
+    <div class="row"><span class="k2">Context</span><span class="v2"><span class="chip" style="height:18px">AGENTS.md</span></span></div>
+    <div class="callout" style="margin-top:12px"><span style="color:var(--ink-2)">${ic("lock", "s")}</span><div><div class="t">It can read, not act</div><div class="s">It reads a frozen snapshot of this review. It cannot publish, resolve or push; you promote what it says.</div></div></div></div></div>`;
+const aFrame = win({ modes: modes5, modality: "Agent", drawerOn: false, centre: aCentre })
+  + annot(1, 640, 46, "A fifth modality, Agent (⌘5), beside Threads") + annot(2, 20, 560, "Sessions, private runs on drafts and stale heads in one rail") + annot(3, 640, 470, "Findings are cards in the answer: severity, claim, evidence, the line they anchor to") + annot(4, 640, 760, "Ask carries what you selected in the code (⌘I from a line)");
+
+const statesA = `
+  <div class="stcard"><div class="cap">No agent set up</div><div class="empty">${ic("agent", "l")}<div class="say">Ask an agent about this pull request. Nothing it says is published unless you make it a comment.</div><span class="pill primary sm">Set up an agent</span></div></div>
+  <div class="stcard"><div class="cap">Working</div><div style="padding:12px;display:flex;flex-direction:column;gap:8px"><div style="display:flex;gap:8px;align-items:center"><span class="av agent">&gt;_</span><span class="thinking"><i></i><i></i><i></i></span><span style="color:var(--ink-2)">Reading renderer.cpp, renderer.h…</span></div><div style="color:var(--ink-3);font-size:12px">1 min 12 s · you can keep reviewing; the Agent button shows a dot when it answers.</div><div><span class="pill outline sm">${ic("stop", "xs")}Stop</span></div></div></div>
+  <div class="stcard"><div class="cap">The head moved</div><div style="padding:12px"><div class="callout"><span style="color:var(--route)">${ic("history", "s")}</span><div><div class="t">This session read 7f3a9c1</div><div class="s">The pull request is now at 2b8e04d. Its findings stay anchored to 7f3a9c1.</div></div></div><div style="display:flex;gap:6px;margin-top:10px"><span class="pill primary sm">Start a new session</span><span class="pill outline sm">Continue on 7f3a9c1</span></div></div></div>
+  <div class="stcard"><div class="cap">The agent stopped</div><div style="padding:12px"><div class="callout" style="background:var(--danger-soft)"><span style="color:var(--danger)">${ic("warn", "s")}</span><div><div class="t">Claude Code exited before answering</div><div class="s">Exit code 1 after 4 s. Your question is kept.</div></div></div><div style="display:flex;gap:6px;margin-top:10px"><span class="pill primary sm">Ask again</span><span class="pill quiet sm">Show the log</span></div></div></div>`;
+
+/* ---------- B: an Agent tab in the right drawer ---------- */
+const bBody = `<div style="position:absolute;inset:0;display:flex;flex-direction:column">
+  <div style="display:flex;gap:5px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--rule);flex-wrap:wrap"><span class="chip">${ic("agent", "xs")} Claude Code ${ic("down", "xs")}</span><span class="chip">7f3a9c1 ${ic("check", "xs")}</span><span class="chip">This file</span><span class="sp"></span><span class="ib" title="Sessions">${ic("history", "s")}</span></div>
+  <div style="flex:1;overflow:hidden;padding:4px 12px 0">
+    ${you("Is the retry budget reset in the right place?")}
+    ${agentTurn(`Two things in this file:${finding({ ...F1, ev:"" })}${finding(F2)}`)}</div>
+  <div style="padding:8px 10px 10px;border-top:1px solid var(--rule);background:var(--panel)">${composer(true)}</div></div>`;
+const bFrame = win({ badge: 2,
+  centre: codeCol({ marks: { 428: "thread", 440: "agent" }, cls: { 433: "sel", 434: "sel", 440: "pick", 441: "pick", 442: "pick", 443: "pick", 444: "pick", 445: "pick", 446: "pick", 447: "pick" }, ticks: [[36, "u"], [62, "r"]] }),
+  drawer: drawer({ width: 420, tabs: [["Comments", ' <span class="cnt">2</span>', false], ["Notes", "", false], ["Tour", "", false], ["Agent", "", true, "agent"]], tools: tool("plus", false, "New session"), body: bBody }),
+}) + annot(1, 760, 92, "A fourth tab, Agent (⌥⇧A), beside Comments, Notes and Tour") + annot(2, 740, 560, "The selection you asked about stays blue; the finding's lines wash amber") + annot(3, 740, 760, "The code stays in view while you ask and read");
+
+/* ---------- C: an Agent dock under the code ---------- */
+const dock = `<div class="dock">
+  <div style="flex:1.25;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--rule)">
+    <div class="dk-h"><span style="color:var(--ink-2)">${ic("agent", "s")}</span><b>Agent</b><span class="chip" style="height:20px">Claude Code ${ic("down", "xs")}</span><span class="chip" style="height:20px">7f3a9c1 ${ic("check", "xs")}</span><span class="sp"></span>${tool("history")}${tool("plus")}${tool("close")}</div>
+    <div style="flex:1;overflow:hidden;padding:2px 14px">${you("Is the retry budget reset in the right place?")}${agentTurn("The budget resets every frame in <code>begin_frame</code>, so a frame that bails out is retried with a full budget next time. Two findings are listed on the right.")}</div>
+    <div style="padding:8px 12px;border-top:1px solid var(--rule);background:var(--panel)"><div class="field" style="display:flex;align-items:center;gap:8px;padding:6px 8px"><span class="ph" style="flex:1">Ask about this pull request…</span>${askChip}<span class="kbd">⌘↩</span></div></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div class="dk-h"><b>Findings</b><span class="cnt quiet">2</span><span class="sp"></span><span class="chip" style="height:20px">All files</span></div>
+    <div style="flex:1;overflow:hidden;padding:0 12px">${finding({ ...F1, ev:"", text:"" })}${finding(F2)}</div></div></div>`;
+const cCentre = `<div style="flex:1;display:flex;flex-direction:column;min-width:0">${codeCol({ marks: { 428: "thread", 433: "agent", 440: "agent" }, cls: { 433: "sel", 434: "sel" }, from: 422, ticks: [[20, "u"], [44, ""]] }).replace('<div class="codecol">', '<div class="codecol" style="flex:1;min-height:0">')}${dock}</div>`;
+const cFrame = win({ badge: 2, agentButton: `<span class="ib on">${ic("agent")}<i class="live"></i></span>`, centre: cCentre,
+  drawer: drawer({ tabs: [["Comments", ' <span class="cnt">2</span>', true], ["Notes", "", false], ["Tour", "", false]], tools: tool("newonly") + tool("unres") + tool("next"),
+    body: `<div class="card closed" style="top:${(428 - 422) * 20 + 2}px">${post("tbutler", "1h", "Could <code>scale()</code> take the factor as an argument?", { label:"question", unread:true, meta:'<span class="dot"></span> 1' })}</div>` }),
+}) + annot(1, 1180, 140, "The Agent button (⌘I) opens a dock under the code; a dot says an answer arrived") + annot(2, 200, 500, "Conversation on the left, findings on the right, full width") + annot(3, 700, 200, "Findings also mark their lines in the gutter and the scroll bar");
+
+page({
+  nav: "Agent",
+  title: "Agent as a first-class surface: three placements",
+  lede: "Today the agent is reached through Notes, then a second tab, Agent tools: a launch panel capped at 300 pixels, a side chat of labelled fields, four stacked buttons and a finding queue with six more. There is no menu item or shortcut. Its other faces are scattered: the comment workshop in the composer, private runs in Private history, Enhance in the tour editor and the Review Cycles share sheet. Each direction gives the agent one home that gathers them, with the same states: not set up, working, head moved, stopped.",
+  directions: [
+    { id: "agent-A", letter: "A", name: "A fifth modality: Agent (⌘5)", frame: aFrame, states: statesA,
+      idea: "<p>Agent joins Overview, Review, Discuss and Threads in the title row. It owns the main pane: sessions on the left (including private runs on drafts and sessions on earlier heads), the conversation in the middle with findings as cards, and what the agent can see on the right. ⌘I on selected lines asks about them and switches here; Back to the code returns. Drawers are hidden, as Discuss and Threads hide them.</p>",
+      pros: ["Truly first-class: a place in the window, its own key", "Room for findings with their evidence, and for long answers", "Says plainly what the agent sees and that it cannot act"],
+      cons: ["Leaves the code: reading a finding means Show line and back", "A fifth segment in a crowded title row (it drops its key text under 1100 points, as the others do)"] },
+    { id: "agent-B", letter: "B", name: "An Agent tab in the right drawer", frame: bFrame, states: statesA,
+      idea: "<p>Agent becomes the drawer's fourth tab, beside Comments, Notes and Tour, with its own key (⌥⇧A) and ⌘I from the code. The chat and its findings sit next to the code you are asking about: the selection stays blue, a finding's lines wash amber, and a finding's gutter mark is a square, the agent's shape.</p>",
+      pros: ["The code stays in view the whole time", "Asking about a selection is one gesture with no change of place", "Smallest change to the window"],
+      cons: ["375 to 760 pixels is tight for findings with evidence", "Four tabs in the tray; at 280 pixels the tabs become icons", "Comments and Agent cannot be open together"] },
+    { id: "agent-C", letter: "C", name: "An Agent dock under the code", frame: cFrame, states: statesA,
+      idea: "<p>An Agent button in the title row (⌘I) opens a dock across the bottom of the comparison, the way an IDE's console sits under the editor. The conversation is on its left and the findings list on its right. It works in Review and Discuss alike and leaves the Comments drawer open.</p>",
+      pros: ["Coexists with every drawer and modality", "Wide enough for findings and answers side by side", "Findings mark the gutter and scroll bar, so you meet them while reading"],
+      cons: ["Takes vertical room from the code (a drag handle, remembered like a drawer width)", "A new kind of surface for the window (a dock)"] },
+  ],
+});
+</script></body></html>

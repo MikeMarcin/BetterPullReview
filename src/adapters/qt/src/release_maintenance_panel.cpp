@@ -1,4 +1,5 @@
 #include "bpr/qt/release_maintenance_panel.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -27,21 +28,15 @@ namespace bpr::qt {
 
 		auto disclosure_body(QWidget* aParent, QVBoxLayout* aLayout, const QString& aTitle, const QString& aName) -> QWidget*
 		{
-			auto* toggle = new QToolButton{ aParent };
+			// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+			auto* toggle = new disclosure_button{ aParent };
 			toggle->setObjectName(aName);
 			toggle->setText(aTitle);
-			toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			toggle->setArrowType(Qt::RightArrow);
-			toggle->setCheckable(true);
-			toggle->setAutoRaise(true);
 			aLayout->addWidget(toggle);
 			auto* body = new QWidget{ aParent };
 			body->hide();
 			aLayout->addWidget(body);
-			QObject::connect(toggle, &QToolButton::toggled, body, [toggle, body](bool aExpanded) {
-				toggle->setArrowType(aExpanded ? Qt::DownArrow : Qt::RightArrow);
-				body->setVisible(aExpanded);
-			});
+			QObject::connect(toggle, &QToolButton::toggled, body, [body](bool aExpanded) { body->setVisible(aExpanded); });
 			return body;
 		}
 

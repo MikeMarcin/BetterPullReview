@@ -5,6 +5,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/steady_columns.hpp"
@@ -2700,20 +2701,17 @@ namespace bpr::qt {
 		sideColumn->addLayout(Requests);
 		RequestsNote = makeMergeText(QStringLiteral("overviewReviewRequestsNote"));
 		RequestsNote->setForegroundRole(QPalette::PlaceholderText);
-		RequirementDisclosure = new QToolButton{ side };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		RequirementDisclosure = new disclosure_button{ side };
 		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));
 		RequirementDisclosure->setText(QStringLiteral("Requirement details"));
-		RequirementDisclosure->setCheckable(true);
-		RequirementDisclosure->setAutoRaise(true);
-		RequirementDisclosure->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		RequirementDisclosure->setArrowType(Qt::RightArrow);
 		RequirementDisclosure->setAccessibleDescription(QStringLiteral("Show applicable rule origins, approval restrictions and auto-merge observation"));
 		sideColumn->addSpacing(4);
 		sideColumn->addWidget(RequirementDisclosure);
 		RequirementDetails = makeMergeText(QStringLiteral("overviewRequirementDetails"));
 		RequirementDetails->setForegroundRole(QPalette::PlaceholderText);
 		RequirementDetails->hide();
-		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) {RequirementDetails->setVisible(aOpen);RequirementDisclosure->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow); });
+		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
 		sideColumn->addSpacing(12);
 
 		auto* const participantsHeading
@@ -2780,10 +2778,8 @@ namespace bpr::qt {
 		entryRow->addWidget(Entry);
 		entryRow->addStretch(1);
 		sideColumn->addLayout(entryRow);
-		ChecksDisclosure = new QToolButton{ side };
+		ChecksDisclosure = new disclosure_button{ side };
 		ChecksDisclosure->setObjectName(QStringLiteral("overviewChecksDisclosure"));
-		ChecksDisclosure->setCheckable(true);
-		ChecksDisclosure->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		ChecksDisclosure->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		sideColumn->addSpacing(12);
 		sideColumn->addWidget(ChecksDisclosure);
@@ -2827,10 +2823,7 @@ namespace bpr::qt {
 		CheckOpen->setAccessibleName(QStringLiteral("Open check details"));
 		checkColumn->addWidget(CheckOpen);
 		sideColumn->addWidget(CheckDetails);
-		connect(ChecksDisclosure, &QToolButton::toggled, this, [this](const bool aOpen) {
-			CheckDetails->setVisible(aOpen);
-			ChecksDisclosure->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
-		});
+		connect(ChecksDisclosure, &QToolButton::toggled, this, [this](const bool aOpen) { CheckDetails->setVisible(aOpen); });
 		connect(CheckList, &QTreeWidget::currentItemChanged, this, [this] { present_selected_check(); });
 		connect(CheckOpen, &QPushButton::clicked, this, [this] {
 			if (!Projection || !CheckList->currentItem() || !CheckLinkDispatch) {
@@ -3047,7 +3040,6 @@ namespace bpr::qt {
 			ChecksDisclosure->setChecked(shown.Checks.Failed != 0U);
 		}
 		CheckDetails->setVisible(ChecksDisclosure->isChecked());
-		ChecksDisclosure->setArrowType(ChecksDisclosure->isChecked() ? Qt::DownArrow : Qt::RightArrow);
 		present_selected_check();
 	}
 
