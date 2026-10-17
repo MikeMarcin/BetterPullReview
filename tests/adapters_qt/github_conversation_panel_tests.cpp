@@ -460,17 +460,21 @@ namespace {
 		expect(panel.cards()->current_thread() == "right-root",
 			   "exact post selection makes its owning thread current");
 		panel.cards()->set_action_dispatch([](const qt::card_action, const std::string&) { });
-		const auto openInCode = [&panel] {
-			auto* const menu    = panel.cards()->thread_menu("right-root");
+		const auto openInCode = [&panel](const std::string& aThread) {
+			auto* const menu    = panel.cards()->thread_menu(aThread);
 			const auto  offered = menu != nullptr && menu->actions().size() > 3 && menu->actions()[3]->isEnabled();
 			delete menu;
 			return offered;
 		};
-		expect(!openInCode(), "unavailable exact endpoints never offer Open in code");
+		// [[BPR-1581]]. A thread on a file is offered Open in Review whether
+		// or not its exact endpoint is current: without one it opens among
+		// its file's unplaced threads. A PR-wide comment never is.
+		expect(openInCode("right-root"), "a thread on a file offers Open in Review without its exact endpoint");
 		panel.set_current_endpoint_placement(true, true);
-		expect(openInCode(), "restored exact endpoints offer Open in code");
+		expect(openInCode("right-root"), "and with it");
 		panel.set_current_endpoint_placement(false, false);
-		expect(!openInCode(), "losing exact endpoint facts withdraws Open in code");
+		expect(openInCode("right-root"), "losing exact endpoint facts keeps Open in Review");
+		expect(!openInCode("issue"), "a PR-wide comment never offers Open in Review");
 		// A thread's menu makes its thread current; read the reply again.
 		panel.view()->setCurrentIndex(panel.model()->index_for_id("right-reply"));
 		panel.scope_this_file_button()->setChecked(true);
