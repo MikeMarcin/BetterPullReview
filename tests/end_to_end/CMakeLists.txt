@@ -4472,3 +4472,15 @@ if(UNIX)
     bpr_add_network_isolated_test(NAME application_source_pr_search_retry WINDOWS_UNCONTAINED COMMAND test_source_pr_search_scope_path --read-failure)
     set_tests_properties(application_source_pr_search_retry PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_PR_FIND_RETRY_PATH_OK")
 endif()
+# [[BPR-1576]]. Panes say when their data is not ready: Home's first find and
+# the Overview opening section by section, on a slow fixture network.
+bpr_add_executable(test_pending_states_public_path pending_states_public_path_tests.cpp)
+target_link_libraries(test_pending_states_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_pending_states_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_pending_states_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_pending_states_public_path)
+bpr_enable_warnings(test_pending_states_public_path)
+bpr_add_network_isolated_test(NAME application_pending_states_public_path WINDOWS_UNCONTAINED COMMAND test_pending_states_public_path)
+set_tests_properties(application_pending_states_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 400
+    PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")

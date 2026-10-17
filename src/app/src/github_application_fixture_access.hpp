@@ -210,6 +210,11 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> Delayed{ 0U };
 		std::atomic<std::uint32_t> Cancelled{ 0U };
 		std::atomic<std::uint32_t> Failed{ 0U };
+		/// [[BPR-1576]]. Holds every other answer of a pull request's read this
+		/// long, so its sections arrive one by one.
+		std::atomic<std::uint32_t> PageMilliseconds{ 0U };
+		/// [[BPR-1576]]. Holds personal discovery's searches this long.
+		std::atomic<std::uint32_t> DiscoveryMilliseconds{ 0U };
 	};
 
 	/// \brief [[BPR-1477]]. The shown pull request's accepted snapshot, and

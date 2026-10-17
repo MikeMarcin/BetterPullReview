@@ -2270,6 +2270,73 @@ Owner hand-back 49 amends the review bar's last width yield: when compact
 positions still cannot fit, their numbers yield into the tooltips. File and
 Changes remain before their arrows, joined by a separate accent rail.
 
+### The loading-state pattern
+
+[[BPR-1576]] (the owner, 2026-10-17: "We need a clearer visual signal in panes
+when data is not yet ready. Be that dimming what's there or showing loading
+spinners or whatever you think the base visual UX design is", and "This is
+especially true of the overview page when opening a PR"). This is the
+application's one way for a pane to say it waits on data. New panes and the
+redesigns that follow reuse it rather than inventing a spinner of their own.
+
+The core decides the look (`core::decide_pending_look`) from a pane's real
+facts only: whether its own read, preparation or decode is loading or failed,
+whether accepted content is already on screen, whether that content is only
+part of what is coming, and how long the wait has lasted by the presenter's
+monotonic clock. Nothing is shown from a timer that fakes progress. Qt draws
+the look with `qt::pending_veil`, laid over the pane rather than placed in its
+layout, so nothing under it moves.
+
+| Look | When | What the pane shows |
+|---|---|---|
+| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs), with the words line held empty above them. A load faster than this never flashes a spinner. |
+| Loading | A first load, from 400 ms | The turning mark and one line naming what loads ("Loading the file list: 2 files reported…") above the placeholders. |
+| Slow | Any wait, from 6 s | A second line saying what the read still waits on, from its own progress ("Still waiting for GitHub: the changed files, 3 pages so far."). |
+| Quiet | Content on screen and more coming, before 400 ms | The content exactly as it is. A refresh's own control has already answered the gesture ([[BPR-1575]]). |
+| Refreshing | Retained content being replaced, from 400 ms | The content kept readable under a light wash of the pane's own ground, and a two-pixel rule along the pane's top edge in the accent that sweeps; slow, a plate at the top right says what it waits on. Nothing is blocked. |
+| Partial | Part of the content shown, the rest coming | The arrived part at full strength, never dimmed, and a plate at the pane's foot with the turning mark: "Counting comments by file…", "Colouring syntax…". |
+| Failed | Nothing to show and the read failed | One sentence in place of the content, with the theme's failure ink on its ringed exclamation, and Retry under it. |
+| Failed, retained | A refresh failed over retained content | The content at full strength under a strip in the failure ink with the sentence and Retry; only the strip takes the pointer. |
+
+Placeholders, the plate and the wash are mixed from the pane's palette and
+ground; the failure mark is the theme's failure ink, so the pattern follows
+Light, Dark and both high-contrast themes. High contrast draws no wash and
+stronger placeholders. When the system asks for reduced motion the turning
+mark stands still and the rule is dashed rather than swept; a platform with no
+such setting turns. A waiting pane is busy to assistive technology from its
+first moment, before anything is drawn, and names what it waits on; its
+revealed start, its slow wait, its end and any failure are each announced
+once, politely, by the pane that the reader is on. A wait that never showed is
+not announced. A line that already says its wait in words, such as the
+Updates line's readiness, carries the turning mark alone
+(`qt::pending_mark`) in a place its words always keep.
+
+Where it applies:
+
+- **Overview**, section by section. Opening a pull request (and opening
+  another in the same window), the title and its summary line, the
+  description, the file table and the side column (merge, waiting on,
+  participants, since my last review, checks) each wait on their own. The
+  title and description show as soon as GitHub names them; the file table
+  shows one placeholder row per file GitHub reported and says how many; the
+  side column waits for the accepted review; the comment counts by file are
+  the last part and are said as partial. The files say once, politely, when
+  the Overview is ready.
+- **The comparison panes**: code placeholders while a file comparison loads,
+  then "Colouring syntax…" as partial until its classification is adopted or
+  fails. The status above the panes still says the outcome.
+- **The Files drawer, conversations, Threads**: rows while the first read runs.
+- **The repositories drawer and Home's list**: rows while the queue restores;
+  on Home, "Finding my pull requests in 2 saved repositories…" while personal
+  discovery runs with nothing listed yet, refreshing over the rows already
+  listed, and a failure with Retry when it failed with nothing listed.
+- **The review under a refresh**: one veil and one rule across the drawers and
+  the centre, under the review bar.
+- **The Updates line**: the turning mark before its loading and preparation
+  words.
+- **Markdown images**: the reserved plate holds the still turning mark before
+  the alternative text while the image loads.
+
 ## Comments on several lines
 
 [[BPR-1212]]. A pull-request draft anchors to a first line, a last line and a

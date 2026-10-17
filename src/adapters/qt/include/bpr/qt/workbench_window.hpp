@@ -122,6 +122,7 @@ namespace bpr::qt {
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
+	class pending_veil;
 	class keyboard_shortcuts_window;
 	class home_panel;
 	class diff_workbench;
@@ -1153,7 +1154,30 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open() const noexcept -> const std::optional<application::home_open_projection>&;
 		void               set_home_open_dispatch(application::home_open_dispatch aDispatch);
 		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
+		/// \details [[BPR-1576]]. Every pane's failure in the loading pattern
+		/// takes it too.
 		void set_home_failure_ink(const QColor& aInk);
+		/// \brief [[BPR-1576]]. Whether the theme on screen is a high-contrast
+		/// one: waiting panes then drop their veil's wash and draw stronger
+		/// placeholders.
+		void set_pending_high_contrast(bool aHigh);
+		/// \brief [[BPR-1576]]. The loading-state presenters the window lays
+		/// over its own panes, for courses: the review's content while it is
+		/// refreshed, the Files drawer, conversations, Threads, the
+		/// repositories drawer and Home's list.
+		struct pending_panes
+		{
+			pending_veil* Content       = nullptr;
+			pending_veil* Files         = nullptr;
+			pending_veil* Conversations = nullptr;
+			pending_veil* Threads       = nullptr;
+			pending_veil* Repositories  = nullptr;
+			pending_veil* HomeList      = nullptr;
+		};
+		[[nodiscard]] auto pending_veils() const noexcept -> const pending_panes&;
+		/// \brief [[BPR-1576]]. Whether waits are drawn turning: only when the
+		/// system has been observed not to ask for reduced motion.
+		[[nodiscard]] auto pending_full_motion() const noexcept -> bool;
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
 		///
 		/// \details The window is the one writer of the notice under the bar: a
@@ -1462,6 +1486,15 @@ namespace bpr::qt {
 		void clear_github_pull_request();
 		void update_github_presentation_state();
 		void update_review_readiness();
+		/// [[BPR-1576]]. Builds the window's own pane veils once the panes exist.
+		void build_pending_veils();
+		/// [[BPR-1576]]. Puts each window pane's veil in the look its facts give.
+		void update_pending_panes();
+		/// [[BPR-1576]]. Motion, contrast and failure ink to every veil.
+		void apply_pending_appearance();
+		/// [[BPR-1576]]. The read's current step in words: "the changed files,
+		/// page 3"; empty with no read under way.
+		[[nodiscard]] auto read_stage_words() const -> QString;
 		/// \brief Disables what the signed-out mode cannot do, with wording.
 		void apply_public_preview_availability();
 		/// \brief Presents the observed inline conversation, or says it was not.
@@ -2069,7 +2102,10 @@ namespace bpr::qt {
 		QLabel*                                                        StatusLabel          = nullptr;
 		QWidget*                                                       ReviewSurface        = nullptr;
 		std::optional<application::github_read_progress>               ReadProgress;
-		workbench_central_splitter*                                    CentralSplitter   = nullptr;
+		workbench_central_splitter*                                    CentralSplitter = nullptr;
+		pending_panes                                                  PendingPanes;
+		bool                                                           PendingHighContrast = false;
+		QColor                                                         PendingFailureInk;
 		QWidget*                                                       CentreSurface     = nullptr;
 		diff_workbench*                                                ComparisonSurface = nullptr;
 		pull_request_overview_page*                                    OverviewPage      = nullptr;

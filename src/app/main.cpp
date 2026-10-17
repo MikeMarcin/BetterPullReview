@@ -239,6 +239,8 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-page-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-discovery-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "label-authoring-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "line-draft-course" },
 		bpr::app::command_line_option{ .Name = "cancel-first-base-numbering" },
@@ -9737,11 +9739,22 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		if (readDelay.has_value() || readFailNumber.has_value()) {
-			readDelayFixture               = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
-			readDelayFixture->Milliseconds = attendedHomeLook ? 0U : readDelay.value_or(0U);
-			readDelayFixture->FailNumber   = readFailNumber.value_or(0U);
-			fixtureOptions.ReadDelay       = readDelayFixture;
+		// [[BPR-1576]]. A slow rest of each read and a slow discovery.
+		const auto pageDelayText      = launch.value("--fixture-page-delay-ms");
+		const auto discoveryDelayText = launch.value("--fixture-discovery-delay-ms");
+		const auto pageDelay          = parse_count(pageDelayText);
+		const auto discoveryDelay     = parse_count(discoveryDelayText);
+		if ((pageDelayText.has_value() && !pageDelay.has_value()) || (discoveryDelayText.has_value() && !discoveryDelay.has_value())) {
+			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (readDelay.has_value() || readFailNumber.has_value() || pageDelay.has_value() || discoveryDelay.has_value()) {
+			readDelayFixture                        = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
+			readDelayFixture->Milliseconds          = attendedHomeLook ? 0U : readDelay.value_or(0U);
+			readDelayFixture->FailNumber            = readFailNumber.value_or(0U);
+			readDelayFixture->PageMilliseconds      = pageDelay.value_or(0U);
+			readDelayFixture->DiscoveryMilliseconds = discoveryDelay.value_or(0U);
+			fixtureOptions.ReadDelay                = readDelayFixture;
 		}
 		if (attendedHomeLook) {
 			// Home's rows: the fixture's own pull request asks for my review,

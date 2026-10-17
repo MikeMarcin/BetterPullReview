@@ -2606,6 +2606,27 @@ namespace bpr::app::detail {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 					}
 				}
+				// [[BPR-1576]]. A slow network for the rest of any pull request's
+				// read, and for discovery. Held before any lock.
+				if (State->ReadDelay) {
+					const auto& delay = *State->ReadDelay;
+					const auto  hold  = [&aStop](const std::uint32_t aMilliseconds) {
+						const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ aMilliseconds };
+						while (std::chrono::steady_clock::now() < until && !aStop.stop_requested()) {
+							std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+						}
+						return !aStop.stop_requested();
+					};
+					const auto* parent  = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+					const auto  opening = aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request;
+					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests && delay.DiscoveryMilliseconds.load() != 0U
+						&& !hold(delay.DiscoveryMilliseconds.load())) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+					if (parent != nullptr && !opening && delay.PageMilliseconds.load() != 0U && !hold(delay.PageMilliseconds.load())) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+				}
 				// [[BPR-1357]]. A slow network for a pull request's first
 				// answers, held before any lock so nothing else waits on it.
 				if (const auto* read = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);

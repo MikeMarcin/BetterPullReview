@@ -35,6 +35,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
@@ -3888,6 +3889,7 @@ namespace bpr::qt {
 			.DisabledReason = core::github_reason_code::no_active_pull_request,
 		});
 		PullRequestPanel->refresh_native_appearance();
+		build_pending_veils();
 		update_github_presentation_state();
 		apply_focus_order();
 	}
@@ -5185,6 +5187,7 @@ namespace bpr::qt {
 		update_enterprise_server_actions();
 		update_discovery_controls();
 		update_pull_request_queue_actions();
+		update_pending_panes();
 		apply_focus_order();
 	}
 
@@ -7038,6 +7041,7 @@ namespace bpr::qt {
 		DifResolution      = aResolution;
 		DifResolutionReady = true;
 		update_dif_presentation();
+		apply_pending_appearance();
 	}
 
 	void workbench_window::observe_dif_context(
@@ -7219,6 +7223,7 @@ namespace bpr::qt {
 			ApplyingFileSelection  = false;
 		}
 		apply_modality_surface();
+		update_pending_panes();
 	}
 
 	void workbench_window::publish(const application::overview_feedback_projection& aFeedback)
@@ -11129,6 +11134,7 @@ namespace bpr::qt {
 			apply_github_host_diagnostic(diagnostic);
 		}
 		update_review_readiness();
+		update_pending_panes();
 		announce_github_presentation_update();
 	}
 
@@ -12775,6 +12781,7 @@ namespace bpr::qt {
 		}
 		update_home_surface();
 		update_recent_resume_action();
+		update_pending_panes();
 		// [[BPR-1357]]. A row that appeared or went may carry the opening.
 		if (HomeOpen.has_value()) {
 			refresh_home_open();
@@ -13483,6 +13490,171 @@ namespace bpr::qt {
 	{
 		if (HomeStatus != nullptr) {
 			HomeStatus->set_failure_ink(aInk);
+		}
+		PendingFailureInk = aInk;
+		apply_pending_appearance();
+	}
+
+	void workbench_window::set_pending_high_contrast(const bool aHigh)
+	{
+		PendingHighContrast = aHigh;
+		apply_pending_appearance();
+	}
+
+	auto workbench_window::pending_veils() const noexcept -> const pending_panes&
+	{
+		return PendingPanes;
+	}
+
+	auto workbench_window::pending_full_motion() const noexcept -> bool
+	{
+		// The system's Reduce Motion is honoured; the Dif motion choice is the
+		// mascot's own and does not still the application's waits. A platform
+		// with no such setting turns; one not yet observed, or whose
+		// observation failed, stays still.
+		return DifResolutionReady
+			&& (DifResolution.Observation == core::motion_observation::full || DifResolution.Observation == core::motion_observation::unsupported);
+	}
+
+	void workbench_window::apply_pending_appearance()
+	{
+		// Every waiting pane in the window, its own and its surfaces', draws
+		// alike: found rather than listed, so a surface added later follows.
+		const auto full = pending_full_motion();
+		for (auto* const widget : findChildren<QWidget*>()) {
+			auto* const veil = dynamic_cast<pending_veil*>(widget);
+			if (veil == nullptr) {
+				continue;
+			}
+			veil->set_full_motion(full);
+			veil->set_high_contrast(PendingHighContrast);
+			if (PendingFailureInk.isValid()) {
+				veil->set_failure_ink(PendingFailureInk);
+			}
+		}
+		if (EpochSelectors != nullptr && EpochSelectors->readiness_mark() != nullptr) {
+			EpochSelectors->readiness_mark()->set_full_motion(full);
+		}
+	}
+
+	void workbench_window::build_pending_veils()
+	{
+		// [[BPR-1576]]. The review's content, while a refresh replaces it: one
+		// veil and one rule across the drawers and the centre, under the bar.
+		PendingPanes.Content = new pending_veil{ *ReviewSurface, pending_shape::block, QStringLiteral("Review"), CentralSplitter };
+		PendingPanes.Content->setObjectName(QStringLiteral("reviewPendingVeil"));
+		PendingPanes.Content->set_announces(false);
+		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject) -> pending_veil* {
+			if (aTarget == nullptr) {
+				return nullptr;
+			}
+			auto* const veil = new pending_veil{ *aTarget, pending_shape::rows, aName };
+			veil->setObjectName(aObject);
+			// How many rows are coming is not known yet: a short list says
+			// "a list" without promising a long one.
+			veil->set_placeholder_count(8);
+			// The Overview says when the pull request is ready; the drawers
+			// beside it do not say it again.
+			veil->set_announces(false);
+			return veil;
+		};
+		PendingPanes.Files         = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
+		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Conversations"), QStringLiteral("conversationsPendingVeil"));
+		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"));
+		PendingPanes.Repositories  = pane(RepositoriesTree, QStringLiteral("Repositories"), QStringLiteral("repositoriesPendingVeil"));
+		PendingPanes.HomeList      = pane(HomeList, QStringLiteral("My pull requests"), QStringLiteral("homeListPendingVeil"));
+		if (PendingPanes.HomeList != nullptr) {
+			// Home's list is the page: its own wait and failure are said.
+			PendingPanes.HomeList->set_announces(true);
+			PendingPanes.HomeList->set_retry([this] {
+				if (QueueDiscoveryDispatch) {
+					QueueDiscoveryDispatch(application::queue_discovery_intent::refresh);
+				}
+			});
+		}
+		apply_pending_appearance();
+	}
+
+	auto workbench_window::read_stage_words() const -> QString
+	{
+		if (SessionPanel == nullptr || SessionPanel->status() != core::github_status::loading_pull_request) {
+			return { };
+		}
+		auto stage = QStringLiteral("the pull request's details");
+		if (ReadProgress.has_value()) {
+			switch (ReadProgress->Phase) {
+			case application::github_read_phase::metadata:              break;
+			case application::github_read_phase::files:                 stage = QStringLiteral("the changed files"); break;
+			case application::github_read_phase::commits:               stage = QStringLiteral("the commits"); break;
+			case application::github_read_phase::reviews:               stage = QStringLiteral("the reviews"); break;
+			case application::github_read_phase::review_threads:        stage = QStringLiteral("the review threads"); break;
+			case application::github_read_phase::comments:              stage = QStringLiteral("the comments"); break;
+			case application::github_read_phase::checks:                stage = QStringLiteral("the checks"); break;
+			case application::github_read_phase::related_pull_requests: stage = QStringLiteral("related pull requests"); break;
+			case application::github_read_phase::update_history:        stage = QStringLiteral("the update history"); break;
+			}
+			if (ReadProgress->PagesReceived > 1U) {
+				stage += QStringLiteral(", %1 pages so far").arg(ReadProgress->PagesReceived);
+			}
+		}
+		return stage;
+	}
+
+	void workbench_window::update_pending_panes()
+	{
+		if (SessionPanel == nullptr) {
+			return;
+		}
+		const auto reading    = SessionPanel->status() == core::github_status::loading_pull_request;
+		const auto first      = reading && !HasGithubPullRequest && !HasCachedOverview;
+		const auto refreshing = reading && HasGithubPullRequest;
+		const auto stage      = read_stage_words();
+		const auto waiting    = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
+		const auto apply      = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
+			if (aVeil == nullptr) {
+				return;
+			}
+			if (!aPending) {
+				aVeil->present_ready();
+				return;
+			}
+			aVeil->present(core::pending_activity::loading, aContent, false, aWords);
+		};
+		// The review's own words are its Refresh control's; the veil only
+		// speaks once the read is slow.
+		apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
+		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading conversations…"), .Waiting = waiting });
+		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
+		// Only a composed queue restores: without one nothing is on its way.
+		const auto queued = static_cast<bool>(QueueDiscoveryDispatch);
+		apply(PendingPanes.Repositories, queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring, false,
+			  { .Loading = QStringLiteral("Loading saved repositories…") });
+		if (PendingPanes.HomeList == nullptr) {
+			return;
+		}
+		// Home's list: restoring, then personal discovery. Rows already listed
+		// (the queue's or Recently viewed) stay readable while it runs.
+		const auto& discovery    = QueueProjection.Discovery;
+		const auto  rows         = (QueueLanding != nullptr && QueueLanding->rowCount() > 0) || !RecentReviews.Entries.empty();
+		const auto  hasSaved     = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
+			return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
+		});
+		const auto  restoring    = queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring;
+		const auto  finding      = HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::refreshing;
+		const auto  repositories = discovery.Repositories == 1U ? QStringLiteral("1 saved repository") : QStringLiteral("%1 saved repositories").arg(discovery.Repositories);
+		if (restoring) {
+			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
+		} else if (finding) {
+			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false,
+										   { .Loading = QStringLiteral("Finding my pull requests in %1…").arg(repositories),
+											 .Waiting = QStringLiteral("Still waiting for GitHub to search %1.").arg(repositories),
+											 .Done    = QStringLiteral("My pull requests found.") });
+		} else if (HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::stale && !rows) {
+			PendingPanes.HomeList->present(core::pending_activity::failed, false, false,
+										   { .Failure = QStringLiteral("Couldn't find my pull requests. %1").arg(home_discovery_sentence(discovery)) });
+		} else {
+			PendingPanes.HomeList->present_ready();
 		}
 	}
 
@@ -16090,6 +16262,11 @@ namespace bpr::qt {
 			}
 		}
 		EpochSelectors->set_readiness(busy || !EpochSelectors->comparison_available() ? wording : QString{ }, updates_line_open());
+		// [[BPR-1576]]. A wait on the Updates line turns before its words.
+		EpochSelectors->set_readiness_busy(busy, pending_full_motion());
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_read_waiting(read_stage_words());
+		}
 	}
 
 	auto workbench_window::status_line() const -> QString

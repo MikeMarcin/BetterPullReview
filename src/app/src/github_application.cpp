@@ -17630,6 +17630,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// without the file's name. The name is only needed to choose a
 				// definition, and that choice has already been made here.
 				retain_definition(*blob, definition);
+				// [[BPR-1576]]. Said as coming before it is asked for: a cached
+				// answer is adopted inside `classify` and settles it at once.
+				if (Window != nullptr && Window->comparison_surface() != nullptr) {
+					Window->comparison_surface()->await_syntax(side);
+				}
 				AppearanceHost->classify(application::token_span_cache_key{
 					.Blob       = *blob,
 					.Definition = definition,
@@ -17983,6 +17988,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			// [[BPR-1576]]. A classification that failed brings no colours:
+			// the panes stop saying they are coming.
+			if (const auto failure = aFailure.Failure; (failure == application::appearance_host_failure::classification_unavailable
+														|| failure == application::appearance_host_failure::classification_limit
+														|| failure == application::appearance_host_failure::invalid_classification_key)
+				&& Window->comparison_surface() != nullptr) {
+				Window->comparison_surface()->settle_syntax();
+			}
 			if (auto* const panel = Window->appearance_settings();
 				panel != nullptr) {
 				switch (aFailure.Failure) {
@@ -18062,6 +18075,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-1357]]. Home's status band marks a problem in the theme's failure ink.
 			Window->set_home_failure_ink(AppearanceProfile->color(core::appearance_role::state_defect));
+			// [[BPR-1576]]. A high-contrast theme draws waits without a wash.
+			Window->set_pending_high_contrast(AppearanceProfile->variant() == core::appearance_variant::high_contrast_light
+											  || AppearanceProfile->variant() == core::appearance_variant::high_contrast_dark);
 			// [[BPR-1083]]. The label tints of the theme on screen, for every
 			// surface that draws a Conventional Comments mark.
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));

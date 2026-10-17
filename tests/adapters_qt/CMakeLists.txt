@@ -2212,3 +2212,15 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
         TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1576]]. The application's one loading-state pattern and the panes that
+# use it, driven by real facts and an injected clock.
+bpr_add_executable(test_better_pull_review_qt_pending_veil_tests pending_veil_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_pending_veil_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_pending_veil_tests)
+bpr_enable_warnings(test_better_pull_review_qt_pending_veil_tests)
+bpr_add_network_isolated_test(NAME qt_pending_veil COMMAND test_better_pull_review_qt_pending_veil_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/pending-veil")
+set_tests_properties(qt_pending_veil PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "pending-veil-tests:pass"
+    TIMEOUT 120)
