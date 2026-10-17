@@ -1,0 +1,65 @@
+{
+  "assignment": "BPR-1585",
+  "mandate": "Owner request 2026-10-17: \"Would the Overview files view benefit from a subtle alternating background for rows?\"; coordinator: implement, one Accept/Reject in a fresh short session, do not merge before acceptance",
+  "governing_rfc": "RFC-BPR-0028",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1585-files-band/BetterPullReview",
+  "branch": "bpr-1585-files-band",
+  "baseline": "007b8f0930da80c067f00e2b8af7d008588771c3",
+  "source_candidate": "3ea341dd2837447e7c636188b136dc894efb139f",
+  "changed_paths": [
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+    "src/adapters/qt/src/pull_request_overview_page.cpp",
+    "tests/adapters_qt/pull_request_overview_page_tests.cpp"
+  ],
+  "design": {
+    "frontend_design": "loaded before design work",
+    "band": "overview_row_band: Base moved toward Text to contrast 1.08 (overview_row_band_contrast)",
+    "band_values": {
+      "light": "#f6f6f7 on #ffffff",
+      "dark": "#161a1f on #0d1117",
+      "high_contrast_light": "#f6f6f6 on #ffffff",
+      "high_contrast_dark": "#0d0d0d on #000000"
+    },
+    "rule": "headers and Not on a file on the ground; files under a header take turns from the band, counted by view geometry over shown rows",
+    "marks": "on a banded cell Base is the band; selection overrides",
+    "remainder_fix": "Not on a file paints no operation, Changed or Read mark"
+  },
+  "verification": {
+    "focused": "ctest -R 'overview|composed_github|workbench_window_scale|qt_files_tree|nested_folders|qt_workbench_overview' and the application overview public paths: 29 rows pass at 3ea341dd2 sources (qt_workbench_window_scale_200 timed out once at load 250, passed alone)",
+    "negative_control": "Qt alternation (QStyledItemDelegate + setAlternatingRowColors, AlternateBase = band) fails band_rule in test_file_rows_band_within_each_folder",
+    "performance": "3000 files in one folder, debug offscreen full viewport repaint: 8.2 ms at the bottom, 5.8 ms at the top (sibling walk was 71.5 ms)",
+    "format": "format_check.py with clang-format 22.1.8 over the three C++ files: passed",
+    "tidy": "tidy.py --warnings-as-errors: pull_request_overview_page.cpp clean; test file's only findings are pre-existing (lines outside BPR-1585 code)",
+    "documentation": "verify_documentation.py --root <worktree>: DOCUMENTATION_OK",
+    "renders": "better_pull_review_qt_pull_request_overview_page_tests --band-look DIR, QT_QPA_PLATFORM=offscreen: before from baseline overview sources with the same helper, after from the candidate"
+  },
+  "frozen": {
+    "root": "/Users/jaeger/bpr1585-files-band-v001.z0knvg2u",
+    "launcher": "/Users/jaeger/bpr1585-files-band-v001.z0knvg2u/launch.py",
+    "source_commit": "3ea341dd2837447e7c636188b136dc894efb139f",
+    "fixture": "nested-folders-v1",
+    "opens": "pull request Overview (--open-pull-request)",
+    "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
+    "executable_sha256": "14851c6419782db9576d1d7c5b445058985d17a066e759545ba40aa5ccefbf18"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1585-v001-WV5Dqk",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "f1a8896a19f1fb037abd90b45bd11512",
+    "event_cursor": 3,
+    "candidates": {
+      "BPR-1585-files-band-v001": "925175e7ec374f006baf08f8281a1b3ef9fc080e100723633119c7ccb14b7bdd"
+    },
+    "phase": "ready",
+    "protected": true,
+    "server_pid": 48155,
+    "server_port": 56460,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC5 owner Accept/Reject on BPR-1585-files-band-v001",
+    "AC4 full ctest --preset dev on the merged tree after acceptance"
+  ],
+  "next_action": "On Accept: merge bpr-1585-files-band into main, rebuild dev, run focused rows and one full ctest --preset dev on the merged tree, docs gate, finish BPR-1585, stop server 48155, resume-development, remove the frozen root and the worktree's build and .agents link. On Reject: read the note, revise as v002 in a new short session."
+}
