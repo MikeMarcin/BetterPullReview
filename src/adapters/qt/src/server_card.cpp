@@ -1,6 +1,7 @@
 #include "bpr/qt/server_card.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/usage_ring.hpp"
 
@@ -385,12 +386,9 @@ namespace bpr::qt {
 		AccountLayout->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
 		AccountLayout->setHorizontalSpacing(column_gap);
 		AccountLayout->setVerticalSpacing(2);
-		Avatar = make_label(Account, QStringLiteral("serverCardAvatar"));
-		Avatar->setFixedSize(avatar_side, avatar_side);
-		Avatar->setAlignment(Qt::AlignCenter);
-		Avatar->setAutoFillBackground(true);
-		Avatar->setBackgroundRole(QPalette::Button);
-		Avatar->setTextInteractionFlags(Qt::NoTextInteraction);
+		// [[BPR-1583]]. The account's own avatar, as every surface draws it.
+		Avatar = new identity_avatar_view{ avatar_side, Account };
+		Avatar->setObjectName(QStringLiteral("serverCardAvatar"));
 		LoginLabel = make_label(Account, QStringLiteral("serverCardLogin"));
 		LoginLabel->setAccessibleName(QStringLiteral("Account"));
 		ConsequenceLabel = make_quiet_label(Account, QStringLiteral("serverCardConsequence"));
@@ -752,12 +750,9 @@ namespace bpr::qt {
 			layout->setContentsMargins(0, 0, 0, 0);
 			layout->setHorizontalSpacing(column_gap);
 			layout->setVerticalSpacing(2);
-			auto* const avatar = make_label(row, QStringLiteral("serverCardCliAccountAvatar"), login.left(1).toUpper());
-			avatar->setFixedSize(avatar_side, avatar_side);
-			avatar->setAlignment(Qt::AlignCenter);
-			avatar->setAutoFillBackground(true);
-			avatar->setBackgroundRole(QPalette::Button);
-			avatar->setTextInteractionFlags(Qt::NoTextInteraction);
+			auto* const avatar = new identity_avatar_view{ avatar_side, row };
+			avatar->setObjectName(QStringLiteral("serverCardCliAccountAvatar"));
+			avatar->set_identity(login);
 			auto* const name     = make_label(row, QStringLiteral("serverCardCliAccountLogin"), login);
 			auto* const sentence = make_quiet_label(row, QStringLiteral("serverCardCliAccountSentence"), cli_account_sentence(account));
 			name->setAccessibleName(QStringLiteral("GitHub CLI account"));
@@ -877,7 +872,7 @@ namespace bpr::qt {
 		const auto        waiting      = shown.State == server_card_state::connecting
 			|| shown.State == server_card_state::signing_in;
 		const auto login = signedIn ? text(shown.Session->Login) : QString{ };
-		Avatar->setText(login.isEmpty() ? QStringLiteral("?") : login.left(1).toUpper());
+		Avatar->set_identity(login);
 		LoginLabel->setText(!signedIn && CliSetupOnly && cli_option() ? cli_offer_text(*cli_option())
 								: login.isEmpty()                     ? QStringLiteral("No account")
 																	  : login);
@@ -1037,7 +1032,6 @@ namespace bpr::qt {
 		emphasis.setWeight(QFont::DemiBold);
 		HostLabel->setFont(emphasis);
 		LoginLabel->setFont(emphasis);
-		Avatar->setFont(emphasis);
 		if (Applied) {
 			apply_header();
 		}
