@@ -38,7 +38,8 @@
     "fixture": "nested-folders-v1",
     "open_file": "src/engine/renderer.cpp",
     "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
-    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88"
+    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88",
+    "removed": true
   },
   "review": {
     "state": "/Users/jaeger/.codex/attended-review/bpr1578-v001-aQrrKw",
@@ -49,14 +50,38 @@
       "BPR-1578-accept-group-v001": "d05d4488d5f87a2d5bc742c539febde760f9e60f280b86494920d2dd74b75042"
     },
     "phase": "decided",
-    "protected": true,
-    "server_port": 56464,
+    "protected": false,
+    "server_port": null,
     "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
-    "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)"
+    "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)",
+    "released": "v001 server stopped, protection released at event 8, frozen root removed"
   },
   "pending": [
-    "v002 direction choice (owner)",
-    "v002 final Accept or Reject (owner)"
+    "owner's choice of direction (session 9aa0f416\u2026)",
+    "v002 final Accept or Reject"
   ],
-  "next_action": "Render three directions for the progress group (caption and action, split button, progress track) with the render-only --review-bar-directions mode; present one choice in a fresh session; then stop the v001 server (pid 51437), release v001's protection and remove its frozen root; build the chosen direction as v002."
+  "next_action": "After hand-back past cursor 3 in session 9aa0f416\u2026: build the chosen direction (with any note) as v002 in the product on branch bpr-1578-review-bar-accept, replacing v001's presentation; tests with negative controls, format, tidy, docs gate; freeze; present a final Accept or Reject in a fresh session; stop the direction server.",
+  "directions": {
+    "harness_commit": "bb4f84cfb",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "a-caption-and-action": "c7c331969d81be22697244c9abcf453ff856ab7880ef597a9c4a2f099ea9a085",
+      "b-split-button": "5c2a30869a5824feb8ea0c77b6fe3b773b1405842ba705e48efaf1e2fe96f8a4",
+      "c-progress-track": "eaaaf9bf1c823901f855b2af5bdab16e05b70f1db1f65bbddf7c61d34397f1f5"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-directions-cgPXyb",
+      "session": "9aa0f416eba08632f0d5ca48bc4d5ff0",
+      "candidate": "BPR-1578-progress-group-direction-v002",
+      "fingerprint": "c62c1f683442cf4e73ea38aba30f7d2019aa72ea7e38928c8b9363e22dfdade2",
+      "options": [
+        "A. Caption and action",
+        "B. Split button",
+        "C. Progress track"
+      ],
+      "event_cursor": 3,
+      "server_port": 58069,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    }
+  }
 }
