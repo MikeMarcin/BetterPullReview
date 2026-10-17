@@ -201,6 +201,12 @@ namespace bpr::qt {
 		unsupported_version,
 		process_failed,
 		malformed_response,
+		ineligible_accounts,
+		missing_executable,
+		launch_failed,
+		timed_out,
+		exited_unsuccessfully,
+		output_rejected,
 	};
 	using github_cli_discovery_dispatch = std::function<void()>;
 	/// [[BPR-0661]]. The review-behaviour preferences the page dispatches.

@@ -12331,6 +12331,18 @@ namespace {
 			qt::github_cli_discovery_state::malformed_response);
 		expect(status->text().contains(QStringLiteral("could not safely read")),
 			   "a malformed inventory is distinguished from process failure");
+		for (const auto& [state, phrase] : std::array{
+				 std::pair{ qt::github_cli_discovery_state::ineligible_accounts, "available from secure storage" },
+				 std::pair{ qt::github_cli_discovery_state::missing_executable, "was not found" },
+				 std::pair{ qt::github_cli_discovery_state::launch_failed, "could not start" },
+				 std::pair{ qt::github_cli_discovery_state::timed_out, "timed out" },
+				 std::pair{ qt::github_cli_discovery_state::exited_unsuccessfully, "exited unsuccessfully" },
+				 std::pair{ qt::github_cli_discovery_state::output_rejected, "unexpected diagnostic output" } }) {
+			window.present_github_cli_discovery(state);
+			expect(status->text().contains(QString::fromLatin1(phrase)), "discovery failure gives a specific safe action");
+			expect(status->textFormat() == Qt::PlainText && status->textInteractionFlags().testFlag(Qt::TextSelectableByMouse), "safe discovery details are plain text and copyable");
+			expect(!status->text().contains(QStringLiteral("gho_")) && !status->text().contains(QStringLiteral("tokenSource")), "presentation never includes credential or inventory data");
+		}
 		window.settings()->hide();
 		window.hide();
 	}
@@ -16636,6 +16648,11 @@ auto main(int argc, char** argv) -> int
 #endif
 	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
 	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--gh-discovery"))) {
+		test_github_cli_discovery_is_a_separate_accounts_path();
+		std::cout << "github-cli-discovery:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		test_saved_repository_gestures_round_trip_through_the_dispatch();
 		test_home_strip_holds_group_state_headers_filter_and_refresh();

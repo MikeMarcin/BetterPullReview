@@ -24,6 +24,11 @@ namespace bpr::app {
 		return native_filesystem_path(QFileInfo{ executable }.canonicalFilePath());
 	}
 
+	[[nodiscard]] auto gh_cli_executable_available() -> bool
+	{
+		return !native_gh_executable().empty();
+	}
+
 	[[nodiscard]] auto live_gh_cli_configuration()
 		-> std::optional<adapters::github::detail::validated_gh_cli_configuration>
 	{

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1571"
+  ],
+  "reserve_for": "intel-gh-auth-diagnostics",
+  "purpose": "Safe CLI discovery diagnostics and macOS compatibility regression",
+  "created": "2026-10-17T07:21:58.169190+00:00",
+  "base": "955016a123173dc747f18087c1d2585d4f512a56"
+}

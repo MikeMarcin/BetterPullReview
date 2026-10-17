@@ -2055,6 +2055,13 @@ namespace {
 			{ .Hostname = "github.example.com", .Login = "enterprise_user", .Active = true, .SignedIn = true, .KeychainHeld = true },
 		};
 		expect(parsed.has_value() && *parsed == expected, "every account crosses, in host then listed order, with its state and token source");
+		// [[BPR-1571]]. Exit-zero inventory can still report inaccessible
+		// Keychain storage; parsing success must not promote its eligibility.
+		const auto inaccessible = parse_gh_cli_auth_inventory(
+			R"({"hosts":{"github.com":[{"active":true,"host":"github.com","login":"fixture-user","state":"error","tokenSource":"default"}]}})");
+		expect(inaccessible && inaccessible->size() == 1U && !inaccessible->front().SignedIn && !inaccessible->front().KeychainHeld,
+			   "completed inventory preserves the inaccessible account instead of treating exit zero as signed in");
+
 		for (const auto* hostile : {
 				 R"({"hosts":{"github.com":[{"active":false,"host":"github.com","login":"twice","state":"success"},{"active":false,"host":"github.com","login":"twice","state":"success"}]}})",
 				 R"({"hosts":{"github.com":[{"active":true,"host":"github.com","login":"one","state":"success"},{"active":true,"host":"github.com","login":"two","state":"success"}]}})",
