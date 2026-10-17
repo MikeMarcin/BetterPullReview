@@ -3781,15 +3781,16 @@ namespace {
 				return core::markdown_link_result::opened;
 			});
 			expect(replyLabels->reference_offered() && composer->reference_offered(), "the window binds the open reply's label menu and the composer's");
-			replyLabels->open_menu();
+			// The menu's own click is proved by qt_feedback_label_controls and
+			// qt_conversation_cards_view; a popup here would take this
+			// window's focus from the keyboard checks that follow. This is
+			// the request that click makes, through the drawer to the window.
+			replyLabels->open_reference(core::reference_page::conventional_comments);
 			QApplication::processEvents();
-			expect(replyLabels->menu()->isVisible() && replyLabels->menu()->about_button()->isVisible(), "the reply's menu ends with About Conventional Comments");
-			replyLabels->menu()->about_button()->click();
-			QApplication::processEvents();
-			expect(asked == std::vector<core::reference_page>{ core::reference_page::conventional_comments } && !replyLabels->menu()->isVisible()
+			expect(asked == std::vector<core::reference_page>{ core::reference_page::conventional_comments }
 					   && replyBox->toPlainText() == QStringLiteral("question: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: ")
 					   && replyLabels->statistics().Edits == 0U,
-				   "it names the page once, closes the menu and changes neither the reply nor its draft");
+				   "it names the page once and changes neither the reply nor its draft");
 			expect(window.statusBar()->currentMessage() == QStringLiteral("Opened conventionalcomments.org in your browser."), "the window says the page opened");
 			window.set_reference_page_dispatch({ });
 			expect(!replyLabels->reference_offered() && !composer->reference_offered(), "unbound, neither menu offers it");
