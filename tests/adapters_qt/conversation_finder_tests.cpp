@@ -845,6 +845,21 @@ namespace {
 		finder.resize(1'900, 700);
 		QApplication::processEvents();
 		expect(finder.trailing_rect(t656).right() > 880 + 200, "a 1900-pixel window's rows run past the old 880-pixel cap");
+		// [[BPR-1584]]. Each reading width at an ordinary and an ultra-wide
+		// window, for the owner's look.
+		for (const auto& [option, label] : { std::pair{ core::reading_width::narrow, "narrow" }, std::pair{ core::reading_width::medium, "medium" },
+											 std::pair{ core::reading_width::wide, "wide" }, std::pair{ core::reading_width::full, "full" } }) {
+			finder.set_reading_width(option);
+			for (const auto window : { 1'900, 3'440 }) {
+				finder.resize(window, 520);
+				QApplication::processEvents();
+				const auto image = finder.grab().toImage();
+				if (!prefix.isEmpty()) {
+					expect(image.save(prefix + QStringLiteral("-width-%1-%2.png").arg(QString::fromLatin1(label)).arg(window)), "the width render is saved");
+				}
+			}
+		}
+		finder.set_reading_width(core::reading_width::wide);
 		// Renders, hover and selected rows, Light and Dark, ordinary and
 		// ultra-wide.
 		for (const auto& [name, base, text] : { std::tuple{ "light", QColor{ 0xFF, 0xFF, 0xFF }, QColor{ 0x1F, 0x23, 0x28 } }, std::tuple{ "dark", QColor{ 0x22, 0x27, 0x2E }, QColor{ 0xE6, 0xED, 0xF3 } } }) {

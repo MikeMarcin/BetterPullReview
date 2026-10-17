@@ -14157,6 +14157,14 @@ namespace {
 			expect(panel->width() == column && panel->x() == 0, std::string{ "Discuss's notes take the reading width at the page's left: " } + name);
 			expect(finder->reading_width() == width, "Threads follows the same setting live");
 			save_render(window, QStringLiteral("reading-width-discuss-3440-%1").arg(QString::fromLatin1(name)));
+			// The same choice in an ordinary window.
+			window.resize(1'900, 900);
+			process_events();
+			const auto ordinary = window.findChild<QWidget*>(QStringLiteral("workbenchDiscussPage"))->width();
+			expect(panel->width() == static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(ordinary))), std::string{ "and in an ordinary window: " } + name);
+			save_render(window, QStringLiteral("reading-width-discuss-1900-%1").arg(QString::fromLatin1(name)));
+			window.resize(3'440, 900);
+			process_events();
 		}
 		// Negative control: Full width is the whole page, so a cap left in
 		// place would show here.
