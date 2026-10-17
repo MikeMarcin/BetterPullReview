@@ -21,10 +21,12 @@ apply the owner's Start review decision (D1). Its content is unchanged here;
   collapses from its header toggle and ⌥⇧6, keeps its width per window across
   restart with the other drawer widths, and is one keyboard stop with its
   tools (Prepare review tour, Open on GitHub, Hide).
-- No Start review or Continue review button. ⌘2 (and the Review segment) from
-  the Overview of a pull request in which no file has been chosen in this
-  window selects the first unseen change's file (`EntryPath`); Return on the
-  Files list opens the selected file. Courses that pressed the button use these.
+- No Start review or Continue review button. The reviewer's first ⌘2 (or the
+  Review segment) from the Overview of a pull request they have not started
+  selects the first unseen change's file (`EntryPath`); a started review keeps
+  its restored reading place and a link or file row its own target. Return on
+  the Files list opens the selected file. Courses that pressed the button use
+  these.
 - The attended review also asks the promote-label question (RFC-BPR-0085,
   "Promoting private material"): To comment, Draft comment or Use as draft.
 

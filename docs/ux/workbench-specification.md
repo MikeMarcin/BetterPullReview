@@ -93,9 +93,10 @@ offers Overview, Review and Last used, a stored Read opening in Review. The
 Overview has no Start review or Continue review button (RFC-BPR-0085 D1, owner
 2026-10-17: "Start review is probably unnecessary now that the Review tab is so
 convenient"): the first entry into Review (⌘2 or the Review segment) from the
-Overview of a pull request this window has not entered Review for selects the
-first unseen change's file, as the button did; later entries keep the file the
-reviewer is on, and a file row the reviewer opens is never replaced.
+Overview of a pull request the reviewer has not started (nothing read, no
+earlier review) selects the first unseen change's file, as the button did;
+later entries, a started review's restored reading place, a link and a file row
+the reviewer opens are never replaced.
 
 **Threads beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
 amended by the owner's answers the same day: "Hide drawers" and "just keep

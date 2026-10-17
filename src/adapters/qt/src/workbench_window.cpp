@@ -6860,7 +6860,12 @@ namespace bpr::qt {
 		const auto firstReview = aModality == review_modality::review && aEntry == core::workbench_modality_entry::choose && Modality != nullptr
 			&& Modality->current() == review_modality::overview
 			&& !reviewKey.isEmpty() && ReviewEnteredFor != reviewKey;
-		const auto entryPath = firstReview && OverviewPage != nullptr ? OverviewPage->entry_path() : std::nullopt;
+		// Only on a pull request the reviewer has not started (nothing read, no
+		// earlier review), where Start review stood; once started, a restored
+		// reading place is never replaced.
+		const auto notStarted = OverviewPage != nullptr && OverviewPage->projection().has_value()
+			&& OverviewPage->projection()->Entry == application::overview_entry_kind::start_review;
+		const auto entryPath = firstReview && notStarted ? OverviewPage->entry_path() : std::nullopt;
 		if (aModality == review_modality::review && !reviewKey.isEmpty()) {
 			ReviewEnteredFor = reviewKey;
 		}

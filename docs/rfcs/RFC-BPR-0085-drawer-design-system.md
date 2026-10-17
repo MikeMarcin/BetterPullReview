@@ -76,9 +76,11 @@ Each is the owner's, from session `9b6359b5`, verbatim notes quoted.
   file also works." The button only entered Review at the first unseen
   change's file (`enter_review_at(EntryPath)`) and was the page's default
   button; it started nothing and recorded nothing. Both behaviours stay: the
-  first entry into Review (⌘2, the Review segment) from the Overview of a pull
-  request in which no file has been chosen in this window selects
-  `EntryPath`, and Return on the Overview's Files list opens the selected file.
+  reviewer's first entry into Review (⌘2, the Review segment) from the Overview
+  of a pull request they have not started (nothing read, no earlier review,
+  where Start review stood) selects `EntryPath`; a started review keeps its
+  restored reading place, and a link or a file row keeps its own target. Return
+  on the Overview's Files list opens the selected file.
 - **D2, principles:** Accept (`235de4db`).
 - **D3, Notes:** A, margin notes (`566b134c`). Note: "I'm looking for something
   a bit better than 'Make it a comment' I initially thought 'Promote to
