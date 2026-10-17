@@ -42,19 +42,25 @@
   "source_commit": "254e0a1f096b58dc60e4c1aa50c52cd10d5a9e7c",
   "arguments": "--github-fixture github-com --attended-launch --attended-home-look",
   "check": "CHECK_OK (first head): ATTENDED_HOME_SHOWN:rows=3:delay=0ms",
-  "executable_sha256": "21d1ae40cd53f33f1d05acf7d2103b5c6b039603727fbef628c2004503474a9d"
+  "executable_sha256": "21d1ae40cd53f33f1d05acf7d2103b5c6b039603727fbef628c2004503474a9d",
+  "removed": true
  },
  "review": {
   "state": "/Users/jaeger/.codex/attended-review/bpr1580-v001-CbjuXE",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
   "session": "579c007a8dd4b1baa59c0d089eca606d",
-  "event_cursor": 3,
+  "event_cursor": 6,
   "candidate": "BPR-1580-view-menu-v001",
   "fingerprint": "0fd682e292b412485d89b553cbb29fdc17b4ee844655bd1adbd7046bb5b9f72c",
-  "phase": "ready, awaiting owner",
-  "server_port": 58653,
+  "phase": "decided: Accept (decision feb4b217-e3cf-4c58-a8a3-13dc265dd895, event 4); handed back 5; released 6; host stopped",
+  "server_port": null,
   "complete_url": "In the state directory's serve.log; never commit the loopback bearer token.",
-  "pending": ["AC7 owner Accept/Reject"]
+  "pending": []
  },
- "next_action": "Read the session from cursor 3. Accept: merge the branch onto main (reseal if github_application.cpp moved), finish the card, stop the host, release the candidate, remove the frozen root. Reject: the note is v002's change."
+ "next_action": "Done. Landed on main; build tree removed.",
+ "owner_note": "I'm not sure why view carries a count, otherwise it looks good. I also noticed the home button looks misplaced on windows. Seems like it's still offset for the macos window controls.",
+ "follow_up": {
+  "count_removed": "0f19f1da8: View carries no count or mark; tooltip names changes",
+  "windows_title_row": "BPR-1596"
+ }
 }

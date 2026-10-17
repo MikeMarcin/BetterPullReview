@@ -138,3 +138,34 @@ Offered as one choice in the fresh session
 at cursor 3. v001's server was stopped, its protection released (event 8)
 and its frozen root removed. The chosen direction is built next as v002 for
 a final Accept or Reject.
+
+## Owner decision on round 1, and round 2, 2026-10-17
+
+**Reject** of the three round-1 directions, 2026-10-17T18:02:17Z: "I like
+progress the best but I'm not in love with any of them. Let's try one more
+round, present progress again and more fresh alternatives." (decision
+`3b3fdc7d-185c-454a-b3f4-2a4a60588f3f`, session
+`9aa0f416eba08632f0d5ca48bc4d5ff0`, handed back at event 5). Event cursor
+consumed: 5. That session's server was stopped and its candidate released.
+
+Round 2 (`frontend-design:frontend-design` loaded; render-only
+`--review-bar-directions-round-2`, `342838cf2`): the progress track refined
+and three new directions. Round 1 showed that soft tints and one-pixel
+frames vanish in Dark, so each current state is a solid fill. The step still
+to take is the acceptance green's tick beside a word in full ink (the
+palette's highlight is too faint as text in both themes):
+
+- **C2. Progress track, refined**: steps still to come in full ink, the
+  current step solid accent, Accepted solid green, the chevron folded into
+  the track's end, narrower.
+- **D. Stepper**: Seen and Read dots joined by lines, ending in the Accept
+  pill, which becomes a solid green "Accepted".
+- **E. Meter chip**: one rounded chip with a ring that fills by thirds, the
+  state's word and Accept as its action.
+- **F. Accept only**: the button alone, filled, solid green when accepted;
+  Seen and Read automatic, Exclude and Mark unread moved to menus.
+
+Offered as one choice in the fresh session
+`bf324baca66b72b02d331b235f5d586a`, candidate
+`BPR-1578-progress-group-direction-v002-r2`, fingerprint `7eeeda67…`, ready
+at cursor 3.

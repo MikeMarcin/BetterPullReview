@@ -13,6 +13,7 @@ add_library(
         src/window_review_restoration.cpp
         src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp
+        src/identity_avatar.cpp
         src/appearance_model.cpp
         src/defect_workflow.cpp
         src/device_authorization_model.cpp
