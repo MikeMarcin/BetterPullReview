@@ -50,7 +50,11 @@ request's name at its left; the modality at its right beside refresh, the
 comments toggle (which carries the current file's count of threads with new
 comments), the
 hide-drawers icon, account and settings; on Windows the application menu and
-the caption buttons.
+the caption buttons. Its first control starts after one named per-platform
+inset ([[BPR-1596]]): the 78 points macOS's window buttons take, and nothing
+on Windows and Linux, where the row starts at the window's edge (on Windows
+with the application menu, whose glyph is repainted in each theme's ink so it
+never reads as an empty gap before Home).
 
 **Open on GitHub** ([[BPR-1338]], the owner, 2026-10-08: "I think an open in
 browser button next to the pr title would be nice", and "Open in GitHub from
