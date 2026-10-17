@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1575"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "refresh feedback on Home and the PR window",
+  "created": "2026-10-17T07:57:21.281853+00:00",
+  "base": "928dd4191c36abc6903887defe411ad31b7bae49"
+}
