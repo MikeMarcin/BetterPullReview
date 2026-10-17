@@ -8457,6 +8457,89 @@ namespace {
 		expect(sheet.save(path), "the review-state sheet is written");
 	}
 
+	/// [[BPR-1578]]. The whole review bar with the file's progress group
+	/// unaccepted, accepted (Revoke) and disabled (an excluded file, and no
+	/// file material yet), in the built-in Light and Dark themes, captioned,
+	/// for a person to compare. Written only when `BPR_QT_RENDER_PATH` names a
+	/// file; it asserts nothing about the design, so the same code renders the
+	/// bar before and after a change.
+	void render_review_bar_accept_sheet()
+	{
+		const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (path.isEmpty()) {
+			return;
+		}
+		struct row final
+		{
+			QString Caption;
+			QImage  Bar;
+			QColor  Window;
+			QColor  Text;
+		};
+		auto rows = std::vector<row>{ };
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto settings                = qt::default_appearance_settings();
+			settings.Mode                = mode;
+			auto                 profile = qt::appearance_profile{ settings };
+			qt::workbench_window window;
+			window.resize(1'280, 820);
+			profile.apply_to(window);
+			window.set_progress_mark_colours(qt::progress_mark_colours_for(profile));
+			window.show();
+			publish_positioned_review_bar(window);
+			process_events();
+			const auto theme = mode == core::appearance_mode::light ? QStringLiteral("Light") : QStringLiteral("Dark");
+			const auto grab  = [&](const QString& aState) {
+				process_events();
+				rows.push_back(row{
+					.Caption = QStringLiteral("%1, %2").arg(theme, aState),
+					.Bar     = window.review_bar()->grab().toImage(),
+					.Window  = window.palette().color(QPalette::Active, QPalette::Window),
+					.Text    = window.palette().color(QPalette::Active, QPalette::WindowText),
+				});
+			};
+			auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+			receipt.Read = core::file_read_state::seen;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("seen file, Accept offered"));
+			receipt.Read     = core::file_read_state::read;
+			receipt.Accepted = true;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("accepted file, Revoke acceptance offered"));
+			receipt.Read     = core::file_read_state::seen;
+			receipt.Accepted = false;
+			receipt.Excluded = true;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("excluded file, Accept disabled"));
+			window.clear_review_ledger();
+			grab(QStringLiteral("no file material yet, Accept disabled"));
+			window.hide();
+		}
+		const auto dpr     = rows.front().Bar.devicePixelRatio();
+		const auto caption = 22.0;
+		auto       width   = 0.0;
+		auto       height  = 0.0;
+		for (const auto& entry : rows) {
+			width = std::max(width, entry.Bar.width() / dpr);
+			height += caption + (entry.Bar.height() / dpr) + 10.0;
+		}
+		auto sheet = QImage{ static_cast<int>((width + 16.0) * dpr), static_cast<int>((height + 8.0) * dpr), QImage::Format_ARGB32_Premultiplied };
+		sheet.setDevicePixelRatio(dpr);
+		sheet.fill(Qt::transparent);
+		auto painter = QPainter{ &sheet };
+		auto top     = 0.0;
+		for (const auto& entry : rows) {
+			const auto band = QRectF{ 0.0, top, width + 16.0, caption + (entry.Bar.height() / dpr) + 10.0 };
+			painter.fillRect(band, entry.Window);
+			painter.setPen(entry.Text);
+			painter.drawText(QRectF{ 8.0, top + 2.0, width, caption - 2.0 }, Qt::AlignLeft | Qt::AlignVCenter, entry.Caption);
+			painter.drawImage(QPointF{ 8.0, top + caption }, entry.Bar);
+			top += band.height();
+		}
+		painter.end();
+		expect(sheet.save(path), "the review bar's Accept sheet is written");
+	}
+
 	void test_selection_synchronisation_and_restart_persistence()
 	{
 		const auto [leftText, rightText] = comparison_fixture_text();
@@ -16591,6 +16674,12 @@ auto main(int argc, char** argv) -> int
 		test_review_state_icon_shows_the_decided_mark();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-accept-sheet"))) {
+		// [[BPR-1578]]. The review bar's Accept group, before and after, for a person.
+		render_review_bar_accept_sheet();
+		std::cout << "review-bar-accept-sheet:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {
