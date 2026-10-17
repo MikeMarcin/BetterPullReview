@@ -2703,7 +2703,7 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1570.
 
-# [[BPR-1580]] reseal over main at b96107686, recomputed on the tree that
+# [[BPR-1580]] reseal over main at c29d90e19, recomputed on the tree that
 # merges this card onto it. github_application.cpp's strip-order check names
 # Home's one View action (homeViewAction) where Group, State headers and Filter
 # stood, so the title row holds sixteen actions. No grant, target, provider,
