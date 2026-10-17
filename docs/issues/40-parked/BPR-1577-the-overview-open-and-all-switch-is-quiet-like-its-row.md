@@ -32,30 +32,31 @@ accepted them; only how it is drawn changes.
 
 ## Acceptance
 
-- AC1: Open and All are drawn by the page, the same height as the row's
-  icon buttons and in the same type size, with no fill or border at rest.
-  The chosen half is its word in the text colour and semibold over a
-  two-pixel accent underline; the other is its word in the secondary text
-  colour. Each half is as wide as its word in semibold, so choosing moves
-  nothing. Open keeps the round open mark, at the height of its word and
-  centred on it, because the mark is what Open counts.
+- AC1 (revised after the owner's v001 Reject): Open and All are drawn by the
+  page, so the platform style does not decide their look. They take the
+  quiet chip of Qt's Fusion style, which the owner liked: the chosen half is
+  a softly filled rounded box with a one-pixel border, and the other half is
+  its word alone. Both are the row's icon-button height, in the same type
+  size, weight and text colour. Open keeps its round open mark in a 16 px box.
 - AC2: In the four built-in themes the words read at 4.5:1 or more against
-  the page and the underline at 3:1 or more; the chosen half differs from the
-  other by its underline. A render check covers both states in every theme,
-  with a negative control that fails on the old grey block.
+  the page, the chosen half's border reads at 3:1 or more, and its fill stays
+  a tint (1.35:1 at most), never a block. The other half has no fill or
+  border. A render check covers both states in every theme, with a negative
+  control: the switch as the style drew it.
 - AC3: Behaviour is unchanged: object names, accessible names and
   descriptions, tooltips, Tab order, Space and the dispatched mode are as
   before, and the keyboard focus ring shows on the focused half.
 - AC4: Focused Qt tests, one full `ctest --preset dev` on the merged tree,
   format, tidy and the documentation gate pass.
 - AC5 (human): The owner accepts the frozen candidate, Light and Dark: "Open
-  and All read as a quiet part of the Files row, with the chosen one clear".
+  and All look like the quiet Fusion chip and read as a calm part of the
+  Files row".
 
 ## Implementation
 
-Qt presents: a page-local checkable tool button paints its word, mark and
-underline from the page palette; the indicator colour is the window's focus
-indicator floor over the page (`focus_ring_colour`). No QSS, no new state,
+Qt presents: a page-local checkable tool button paints its chip, word and
+mark from the page palette (v002); its keyboard ring is the window's focus
+colour (`focus_ring_colour`). No QSS, no forced style, no new state,
 no core or host change. The UX redesign of the drawers, the Agent tab and
 Compose review and the loading-states card are not touched. Never drive or
 capture the owner's desktop; the owner checks the frozen build themselves.
@@ -116,9 +117,58 @@ capture the owner's desktop; the owner checks the frozen build themselves.
   and this branch touches neither that file nor the contracts. The dev build
   tree was then removed to free disk.
 
+## Owner verdict v001: Reject (2026-10-17)
+
+Decision `553feea3-ef63-4d87-833a-a2acebaa90dc`, session `eb177192…` event 4:
+"I'm confused because the before here actually looks quite good to me and is
+totally different from the actual current appearance as I know it." The note
+attached a screenshot of the app today (Dark, macOS style): Open is a light
+grey filled block with a large amber disc, and All sits in a dark box of its
+own. v001's "before" was an offscreen Fusion render, so the comparison
+misled. The owner liked Fusion's look: a soft bordered chip round the chosen
+half and a bare word for the other.
+
+A native render (cocoa platform, page drawn with `Qt::WA_DontShowOnScreen`,
+foreground transform off, nothing shown or captured) was not faithful either.
+Without a real window the macOS style draws every tool button as a bevelled
+box. The owner's screenshot is therefore the before. The v001 host was
+stopped, its candidate released with the verdict kept, and its frozen root
+removed.
+
+## Candidate v002 (parked on human-review, 2026-10-17)
+
+- Commit `7066b48db` on `bpr-1577-quiet-counts-switch`, one slice on main
+  `30eb69efa`; not merged. It changes the same three paths as v001.
+- Design: Fusion's chip, drawn by the page. The fill is 7% of the way from
+  the page to the text. The border is the page colour moved towards the text
+  just far enough for 3:1, against Fusion's about 2:1, and the radius is 3.
+  Both words are in the text colour at their ordinary weight, and Open's mark
+  is in a 16 px box. A hover or press is only a soft fill, and a ring shows on
+  keyboard focus. `--switch-render ROOT` saves the row in both states in
+  whatever style runs.
+- Evidence: the chip reading passes in the four themes at 100%, 125% and
+  200%, including the keyboard route. The control (the style-drawn switch)
+  fails it in every theme. The six Overview ctest rows pass, as do
+  clang-format 22 and the documentation gate (`DOCUMENTATION_OK`). clang-tidy
+  22 finds nothing new; it reports the same 12 findings in base lines. The
+  full dev ctest above was v001's tree. It runs again on the merged tree at
+  landing, after BPR-1585 lands in the same files.
+- Frozen root `/Users/jaeger/bpr1577-counts-switch-v002.4iietnlb` from
+  `7066b48db`, executable SHA-256 `541a78d87004…`; its check reached
+  `ATTENDED_PULL_REQUEST_OPENED`. Launch:
+  `python3 /Users/jaeger/bpr1577-counts-switch-v002.4iietnlb/launch.py`.
+- New short session `cf892a3b42c656c51e88fe0830a2936f`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1577-counts-switch-v002`,
+  host detached, offline `review.html` in the state directory. One
+  Accept/Reject candidate, `BPR-1577-counts-switch-v002` (fingerprint
+  `5676d27746e7…`), ready at cursor 3. The session names how each picture
+  was made: the owner's own screenshot, the Fusion look they liked, and v002
+  offscreen at 2x. It points at the frozen build as the source of truth.
+
 ## Next
 
-Read session `eb177192…` from cursor 3. Accept satisfies AC5: merge
-`4f559bbc1` onto main, finish the card, stop the host, release the candidate
-and remove the frozen root with `scripts/freeze_attended_build.py remove`. A
-Reject's note is v002's change.
+Read session `cf892a3b…` from cursor 3. On Accept, wait for BPR-1585 to land,
+then rebase `7066b48db` onto main and resolve the shared test file. Run the
+focused Overview rows and one full `ctest --preset dev`, merge, and finish
+the card. Then stop the host, release the candidate and remove the frozen
+root. A Reject's note is v003's change.
