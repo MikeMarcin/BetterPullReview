@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1572"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Stacked pull requests: Whole PR follows the base branch's merge base (BPR-1560 follow-up)",
+  "created": "2026-10-17T07:23:24.571281+00:00",
+  "base": "beadc7f28ddd190f3ed4014455004cf997650d4c"
+}
