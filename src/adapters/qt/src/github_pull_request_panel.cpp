@@ -1,4 +1,5 @@
 #include "bpr/qt/github_pull_request_panel.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 
 #include "github_presentation_text.hpp"
 
@@ -68,7 +69,8 @@ namespace bpr::qt {
 		BodyEditor->setTabChangesFocus(true);
 		BodyEditor->setMinimumHeight(120);
 
-		DetailsButton = new QToolButton{ this };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		DetailsButton = new disclosure_button{ this };
 		DetailsButton->setObjectName(
 			QStringLiteral("githubTechnicalDetailsButton"));
 		DetailsButton->setText(QStringLiteral("Technical details"));
@@ -76,9 +78,6 @@ namespace bpr::qt {
 			QStringLiteral("Show pull request technical details"));
 		DetailsButton->setAccessibleDescription(
 			QStringLiteral("Reveal the base and head commit identities"));
-		DetailsButton->setCheckable(true);
-		DetailsButton->setArrowType(Qt::RightArrow);
-		DetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
 		TechnicalDetails = new QWidget{ this };
 		TechnicalDetails->setObjectName(QStringLiteral("githubTechnicalDetails"));
@@ -97,8 +96,6 @@ namespace bpr::qt {
 			this,
 			[this](const bool aVisible) {
 				TechnicalDetails->setVisible(aVisible);
-				DetailsButton->setArrowType(
-					aVisible ? Qt::DownArrow : Qt::RightArrow);
 				DetailsButton->setAccessibleName(
 					aVisible
 						? QStringLiteral("Hide pull request technical details")

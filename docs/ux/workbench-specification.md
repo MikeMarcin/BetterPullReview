@@ -1346,9 +1346,11 @@ moved Home to ⌘⇧H on 2026-10-15 ([[BPR-1535]]), ⌘0 was Home and Actual Siz
 had ⌘⌥0 (`Ctrl+Alt+0`); ⌘0 replaced it rather than adding to it, so `Ctrl+Alt+0`
 is bound to nothing. ⌘⇧H is Home in Safari and Finder, and no text widget or
 macOS system command takes it; ⌘-backtick was considered and rejected because macOS
-cycles an application's windows with it. Inside the open label menu ⌘0 is
-still Plain ([[BPR-1080]]): the menu is a popup and claims the key before the
-window's Actual Size. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0
+cycles an application's windows with it. Inside the open label menu ⌘0 was
+Plain ([[BPR-1080]]) until the owner removed that key on 2026-10-16
+([[BPR-1569]]): it is now Actual Size there too. The menu is a popup that holds
+the keyboard, so it closes and triggers the window's enabled action bound to
+⌘0; it never changes the label. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0
 types `}` on German and Nordic layouts. An editable text field that receives
 `Ctrl+Alt` with a typed character claims it in `ShortcutOverride`, so the
 character is typed and no window shortcut on that key fires. The read-only

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1583"
 title: "One avatar and one colour per person on every surface"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"It's weird that people have coloured icons in Threads but they're not coloured in Overview.","related_rfcs":["RFC-BPR-0032","RFC-BPR-0069","RFC-BPR-0070"],"related_cards":["BPR-1290","BPR-0783","BPR-1405","BPR-1083"],"reservation":"docs/issues/_reservations/BPR-1583--BPR-1583--657886ed2474.json"}
+parked_on: "human-review"
 ---
 
 # BPR-1583: One avatar and one colour per person on every surface
@@ -77,3 +78,63 @@ tile painting changes, not its layout. Home's tile is no longer neutral; on
 Home colour still means state for rows and bands, and a person's colour is
 the person's own. No stored state, schema or QSS changes. Renders are
 offscreen; never drive or capture the owner's desktop.
+
+## Evidence (v001)
+
+- Candidate `b36884c40` on branch `bpr-1583-shared-avatars` (worktree
+  `/Users/jaeger/.codex/worktrees/bpr1583-avatars/BetterPullReview`), rebased
+  on main `e1485e3aa`; not merged. Design loaded `frontend-design`.
+- AC1/AC2: core `identity_avatar` (slot: FNV-1a over the case-folded login,
+  MurmurHash3 finalizer, modulo ten; ten tabled tones, light-ground deep fills
+  with white initials and dark-ground light fills with the hue's near-black
+  initials; neutral grey `?` for no identity; custom-ground step towards
+  black or white; one initials rule). Qt `identity_avatar.hpp`
+  (`paint_identity_avatar`, `identity_avatar_view`). Threads' `paint_avatar`
+  keeps its signature and calls it, so `conversation_cards_view.cpp` and
+  `conversation_finder.cpp` are untouched. Overview's roster tiles, Home's
+  chips and group headers and the Settings account card and CLI rows use it.
+  The Profiles sheet keeps `draw_home_tile`.
+- AC3/AC4: `core_identity_avatar` (slot pinned, initials, table at 7:1 and
+  3:1 against all four built-in themes' grounds, custom grey ground, negative
+  control: BPR-1290's pastel at 1.3:1 fails) and `qt_identity_avatar` (the
+  drawn fill of tbutler and of a login in another slot is equal on a Threads
+  note, an Overview row, a Home chip, a Home group header and the Settings
+  card in Light, Dark, High Contrast Light and High Contrast Dark, and equals
+  the rule; a mutation keying Overview on another identity fails it).
+- AC5: focused selector `identity_avatar|feedback_label_threads|overview|
+  home_list|home_row|conversation|discuss` passed 36 of 36. clang-format 22
+  on every touched file. clang-tidy 22 on the touched translation units
+  finds only two findings on untouched base lines (`home_panel.cpp:324`
+  narrowing in `drawText` flags, `server_card.cpp:739` `using_`). The
+  documentation gate prints `DOCUMENTATION_OK`; the documentation tests pass
+  (67). The rule is in the UX spec's new "People's avatars" section; Home's
+  group and chip passages, Waiting on and the account row point to it.
+- Full `ctest --preset dev` (`-j6`) on the rebased tree at load average
+  about 130 (thirteen agents): 748 of 772 passed, one skipped. The 23
+  failures were rerun at `-j2`: 21 passed, and `application_line_draft_contract`
+  (a 40 s run budget it missed by 40 ms) passed alone in 5 s. The remaining two,
+  `application_composition_contract` and
+  `application_review_round_trip_composition_contract`, report main's own
+  drift: `github_application.cpp` changed in BPR-1571 (`fbec1f08c`) after
+  BPR-1566's reseal, and this branch touches neither `src/app` nor the
+  contract.
+- Disk: the dev tree was configured with `-g0` (debug info off) to fit the
+  shared disk; the frozen build is the script's own app-release tree.
+- Frozen root `/Users/jaeger/bpr1583-avatars-v001.93_n93wj` from `b36884c40`
+  (fixture `conversations-v1`, `--open-pull-request`), executable SHA-256
+  `7bb26a1f9994…`; its `--check` reached `ATTENDED_PULL_REQUEST_OPENED`.
+  Launch: `python3 /Users/jaeger/bpr1583-avatars-v001.93_n93wj/launch.py`.
+- New short session `c566f771417daea60e5d8d3c58ec0b14`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1583-avatars-v001`,
+  repo root the main checkout, host detached; offline page `review.html` in
+  the state directory. One Accept/Reject candidate `BPR-1583-avatars-v001`
+  (`BPR-1583:owner-look`), ready at event cursor 3, with before and after
+  renders of Overview's participants and Threads in Light and Dark.
+
+## Next
+
+Read session `c566f771…` from cursor 3. Accept satisfies AC6: merge
+`b36884c40` onto main (rerun `qt_identity_avatar` if main moved), finish the
+card, stop the host, release the candidate, remove the frozen root with
+`scripts/freeze_attended_build.py remove` and the worktree and its build tree.
+A Reject's note is v002's change.
