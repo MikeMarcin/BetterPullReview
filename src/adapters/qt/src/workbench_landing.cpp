@@ -61,6 +61,12 @@ namespace bpr::qt {
 		Tertiary->setObjectName(QStringLiteral("workbenchHomeTertiaryButton"));
 		Tertiary->setAutoDefault(false);
 		Tertiary->setFocusPolicy(Qt::StrongFocus);
+		// [[BPR-1573]]. Bordered like the card's second ways in: the way back
+		// stays the page's one filled control and Return's default.
+		Close = new QPushButton{ this };
+		Close->setObjectName(QStringLiteral("workbenchHomeCloseReviewButton"));
+		Close->setAutoDefault(false);
+		Close->setFocusPolicy(Qt::StrongFocus);
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
 				PrimaryDispatch();
@@ -76,12 +82,11 @@ namespace bpr::qt {
 				TertiaryDispatch();
 			}
 		});
-
-		Shortcut = new QLabel{ this };
-		Shortcut->setObjectName(QStringLiteral("workbenchHomeReturnShortcut"));
-		Shortcut->setTextFormat(Qt::PlainText);
-		Shortcut->setForegroundRole(QPalette::PlaceholderText);
-		Shortcut->setText(QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_H }.toString(QKeySequence::NativeText));
+		connect(Close, &QPushButton::clicked, this, [this] {
+			if (CloseDispatch) {
+				CloseDispatch();
+			}
+		});
 
 		Header = new QHBoxLayout;
 		Header->setContentsMargins(0, 0, 0, 0);
@@ -136,6 +141,7 @@ namespace bpr::qt {
 			Tertiary->setAccessibleName(QStringLiteral("Add enterprise server"));
 			Tertiary->setAccessibleDescription(QStringLiteral(
 				"Opens the sign-in dialog to add an enterprise server."));
+			set_close_idle();
 			setAccessibleDescription(
 				GithubCliAvailable
 					? QStringLiteral("Sign in to GitHub, use GitHub CLI, or add an enterprise server")
@@ -155,9 +161,12 @@ namespace bpr::qt {
 			Primary->setText(QStringLiteral("Back to the review"));
 			Primary->setAccessibleName(QStringLiteral("Back to the review"));
 			// The way back stands beside the bar, so what it returns to is said
-			// on the button rather than on a row of its own.
+			// on the button rather than on a row of its own. [[BPR-1573]]: its
+			// key is said there too, in the tooltip, not beside the button
+			// (the owner, 2026-10-17: "Move this hotkey into the tooltip").
 			Primary->setAccessibleDescription(
-				QStringLiteral("%1. Returns to it at the same file and change.").arg(reviewing));
+				QStringLiteral("%1. Returns to it at the same file and change (%2).")
+					.arg(reviewing, QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_H }.toString(QKeySequence::NativeText)));
 			// The row has no second button; its name must not linger on the
 			// hidden one (review of BPR-0775, finding 5).
 			Secondary->setText(QString{ });
@@ -166,6 +175,12 @@ namespace bpr::qt {
 			Tertiary->setText(QString{ });
 			Tertiary->setAccessibleName(QString{ });
 			Tertiary->setAccessibleDescription(QString{ });
+			// [[BPR-1573]]. What closing does, said where it is done: the
+			// review leaves this window, and its drafts wait for it.
+			Close->setText(QStringLiteral("Close review"));
+			Close->setAccessibleName(QStringLiteral("Close review"));
+			Close->setAccessibleDescription(
+				QStringLiteral("%1. Closes it in this window; its drafts are kept for when you open it again.").arg(reviewing));
 			setAccessibleDescription(reviewing);
 			break;
 		}
@@ -181,6 +196,7 @@ namespace bpr::qt {
 			Tertiary->setText({ });
 			Tertiary->setAccessibleName({ });
 			Tertiary->setAccessibleDescription({ });
+			set_close_idle();
 			setAccessibleDescription(Title->text() + QStringLiteral(" ") + Body->text());
 			break;
 		case landing_state::choose_pull_request:
@@ -197,16 +213,28 @@ namespace bpr::qt {
 			Tertiary->setText(QString{ });
 			Tertiary->setAccessibleName(QString{ });
 			Tertiary->setAccessibleDescription(QString{ });
+			set_close_idle();
 			setAccessibleDescription(QString{ });
 			break;
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
 		Tertiary->setToolTip(Tertiary->accessibleDescription());
+		Close->setToolTip(Close->accessibleDescription());
 		apply_arrangement();
 		apply_illustration_layout();
 		updateGeometry();
 		update();
+	}
+
+	void workbench_landing::set_close_idle()
+	{
+		// [[BPR-1573]]. Hidden with no review open, but still a declared focus
+		// stop of the window, so it keeps its one name and says what it does.
+		Close->setText(QStringLiteral("Close review"));
+		Close->setAccessibleName(QStringLiteral("Close review"));
+		Close->setAccessibleDescription(QStringLiteral(
+			"Closes the review open in this window; its drafts are kept for when you open it again."));
 	}
 
 	void workbench_landing::apply_arrangement()
@@ -217,11 +245,13 @@ namespace bpr::qt {
 		// The card and the row hold the same button in different places: under
 		// the sentence on the card, at the right of the row.
 		Header->removeWidget(Primary);
-		Header->removeWidget(Shortcut);
+		Header->removeWidget(Close);
 		Buttons->removeWidget(Primary);
 		if (row) {
+			// [[BPR-1573]]. The way back, then Close review: two buttons, the
+			// way back's key in its tooltip.
 			Header->addWidget(Primary);
-			Header->addWidget(Shortcut);
+			Header->addWidget(Close);
 		} else {
 			Buttons->insertWidget(0, Primary);
 		}
@@ -231,7 +261,7 @@ namespace bpr::qt {
 			titleFont.setWeight(QFont::DemiBold);
 		}
 		Title->setFont(titleFont);
-		// The way back is the bar's neighbour, its button and shortcut only: a
+		// The way back is the bar's neighbour, its buttons only: a
 		// row of its own above the bar came and went with the review, and moved
 		// the bar and the list under the pointer when it did.
 		Title->setVisible(!row);
@@ -240,7 +270,7 @@ namespace bpr::qt {
 		Primary->setVisible(signingIn || row);
 		Secondary->setVisible(signingIn && GithubCliAvailable);
 		Tertiary->setVisible(signingIn);
-		Shortcut->setVisible(row);
+		Close->setVisible(row);
 		if (card) {
 			Content->setContentsMargins(
 				page_inset + card_inset, row_inset + card_inset, page_inset + card_inset, row_inset + card_inset);
@@ -302,6 +332,11 @@ namespace bpr::qt {
 		return Tertiary;
 	}
 
+	auto workbench_landing::close_button() const noexcept -> QPushButton*
+	{
+		return Close;
+	}
+
 	auto workbench_landing::title_label() const noexcept -> QLabel*
 	{
 		return Title;
@@ -310,11 +345,6 @@ namespace bpr::qt {
 	auto workbench_landing::body_label() const noexcept -> QLabel*
 	{
 		return Body;
-	}
-
-	auto workbench_landing::shortcut_label() const noexcept -> QLabel*
-	{
-		return Shortcut;
 	}
 
 	void workbench_landing::set_illustration(QWidget* const aIllustration)
@@ -382,6 +412,11 @@ namespace bpr::qt {
 	void workbench_landing::set_tertiary_dispatch(std::function<void()> aDispatch)
 	{
 		TertiaryDispatch = std::move(aDispatch);
+	}
+
+	void workbench_landing::set_close_dispatch(std::function<void()> aDispatch)
+	{
+		CloseDispatch = std::move(aDispatch);
 	}
 
 	void workbench_landing::paintEvent(QPaintEvent* const aEvent)

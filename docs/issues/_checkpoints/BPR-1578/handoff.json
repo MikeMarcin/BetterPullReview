@@ -57,10 +57,9 @@
     "released": "v001 server stopped, protection released at event 8, frozen root removed"
   },
   "pending": [
-    "owner's round-2 choice (session bf324bac\u2026)",
-    "v002 final Accept or Reject"
+    "AC4 (human): owner Accept or Reject of BPR-1578-progress-track-v002"
   ],
-  "next_action": "After hand-back past cursor 3 in session bf324bac\u2026: build the chosen direction (with any note) as v002 on branch bpr-1578-review-bar-accept; tests with negative controls, format, tidy, docs gate; freeze; final Accept or Reject in a fresh session; then stop the round-2 server.",
+  "next_action": "After hand-back past cursor 3 in session 3760f12f\u2026: on Accept, merge main into bpr-1578-review-bar-accept, check disk, build dev fully, run one full dev ctest on the merged tree, merge to main, finish the card, push; then stop the server, release protection, remove the frozen root. On Reject, the note becomes v003.",
   "directions": {
     "harness_commit": "bb4f84cfb",
     "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
@@ -106,8 +105,35 @@
         "E. Meter chip",
         "F. Accept only"
       ],
+      "event_cursor": 5,
+      "server_port": null,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+      "decision": "select C2. Progress track, refined (ffeeb765-300f-4d8e-a325-e325e29de873)",
+      "released": "server stopped, candidate released"
+    }
+  },
+  "v002": {
+    "product_commit": "e525d18c3",
+    "merged": "06f7d7a9f",
+    "candidate": "d82023470",
+    "frozen": {
+      "root": "/Users/jaeger/.codex/attended-builds/bpr1578-progress-track-v002.bebcwn1p",
+      "launcher": "/Users/jaeger/.codex/attended-builds/bpr1578-progress-track-v002.bebcwn1p/launch.py",
+      "source_commit": "06f7d7a9f87367910b09d21fd0a6cfe4ff1fb2bc",
+      "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp",
+      "executable_sha256": "e95a0a5d62765add3d25325fe3b279ca681d155901ea75315e694d7406f1d30d"
+    },
+    "click_rules": "Seen marks an unread file seen; Read marks it read; a reached step does nothing (Mark unread stays in the menu); Accept toggles to Revoke with Option-A.",
+    "verification": "merged tree: qt_review_state_icon, qt_option_keys_typing, qt_workbench_focus_order_scale_{100,125,200}, qt_workbench_title_row_scale_{100,125,200}, qt_workbench_window_scale_{100,125,200} pass; mutation (dispatch from a reached step) fails; clang-format 22.1.8 clean; clang-tidy --warnings-as-errors pass; DOCUMENTATION_OK",
+    "sheet_sha256": "1a79e7dc1eef519dd884bba67642d429ce61a846f149ee67098c3c8e6aecd1d7",
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-final-hB6QZ7",
+      "session": "3760f12fb3aa7cf76b495c277c7d32d5",
+      "candidate": "BPR-1578-progress-track-v002",
+      "fingerprint": "b1c5e24a30f4975d2d800debb7a38eb0ed9c257dcd0ecf91ce838285684f06eb",
       "event_cursor": 3,
-      "server_port": 49165,
+      "server_port": 61566,
+      "protected": true,
       "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
     }
   }
