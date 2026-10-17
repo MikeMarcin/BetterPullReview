@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"315f7078ac1c4aa464974287afb4f0a9c9899508fdfd79d151e2e0ac8bb52795"
+		"e3b3ec1adcf906d5e275af6ce5bd7c6741147c00174926c1eab382dfc8107053"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "46d39e0f32b912a2bd53f3a2ac560a6bd3ef2226d6139f62d84e38d16a7d45e5"
+        "20a8f7f9238382615ae989a28c77bed96357b6cece3209b4a4b8f388eb1bfa33"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2690,3 +2690,10 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # port Open on GitHub uses. No grant, target, provider, credential, transport,
 # GitHub write, mutation or publication path changes; the production
 # mutation-branch pin is unchanged. Self-review on BPR-1566.
+
+# [[BPR-1580]] reseal over main at e1485e3aa, recomputed on the tree that
+# merges this card onto it. github_application.cpp's strip-order check names
+# Home's one View action (homeViewAction) where Group, State headers and Filter
+# stood, so the title row holds sixteen actions. No grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# the production mutation-branch pin is unchanged. Self-review on BPR-1580.
