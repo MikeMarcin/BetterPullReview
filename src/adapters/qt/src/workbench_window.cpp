@@ -1896,28 +1896,39 @@ namespace bpr::qt {
 		// [[BPR-1578]]. The owner, 2026-10-17: "Accept is a button next to
 		// other similar text labels in Changes and Files which are not
 		// buttons, it's kind of confusing. It also doesn't have the under bar
-		// that connects it to the dropdown control". Accept carries the
-		// command's tick beside its word, so it is the only text control in
-		// this stretch with a glyph, and it and private progress are one group
-		// on one rail, as File and Changes are with their arrows.
-		// The rails of neighbouring groups must not run together: File and
-		// Changes are parted by the Changes label's slot, Changes and this
-		// group by a bare gap.
+		// that connects it to the dropdown control". After two rounds of
+		// directions the owner chose the progress track (v002): Seen, Read and
+		// Accept as steps of one control, the menu's chevron its last cell,
+		// on one rail as File and Changes are with their arrows. The rails of
+		// neighbouring groups must not run together: File and Changes are
+		// parted by the Changes label's slot, Changes and this group by a bare
+		// gap.
 		auto* const progressGap = new QWidget{ ReviewBar };
 		progressGap->setObjectName(QStringLiteral("reviewBarProgressGap"));
 		progressGap->setFocusPolicy(Qt::NoFocus);
 		progressGap->setFixedWidth(8);
 		rowWidget(ReviewBar, progressGap, QStringLiteral("reviewBarProgressGapAction"));
-		AcceptFileButton = new strip_command_button{ ReviewBar };
+		const auto makeStep = [this](const QString& aName, const QString& aAccessible, const std::size_t aIndex) {
+			auto* const step = new QToolButton{ ReviewBar };
+			step->setObjectName(aName);
+			step->setText(aAccessible);
+			step->setAccessibleName(aAccessible);
+			step->setEnabled(false);
+			connect(step, &QToolButton::clicked, this, [this, aIndex] { take_progress_step(aIndex); });
+			return step;
+		};
+		SeenStepButton   = makeStep(QStringLiteral("workbenchProgressSeenStep"), QStringLiteral("Seen"), progress_track::seen_step);
+		ReadStepButton   = makeStep(QStringLiteral("workbenchProgressReadStep"), QStringLiteral("Read"), progress_track::read_step);
+		AcceptFileButton = new QToolButton{ ReviewBar };
 		AcceptFileButton->setObjectName(QStringLiteral("workbenchAcceptFileButton"));
 		AcceptFileButton->setDefaultAction(ReceiptActions[2]);
-		AcceptFileButton->set_glyph(strip_icon(strip_glyph::accept_file, palette()));
-		auto* const acceptAction   = rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
-		auto* const progressAction = rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		ProgressTrack = new progress_track{ *SeenStepButton, *ReadStepButton, *AcceptFileButton, *ReviewControlsButton, ReviewBar };
+		ProgressTrack->setAccessibleName(QStringLiteral("Private progress"));
+		auto* const trackAction = rowWidget(ReviewBar, ProgressTrack, QStringLiteral("workbenchProgressTrackAction"));
 		ReviewBar->set_group_rails({
 			{ .First = FilePositionAction, .Last = Navigation[1].Action },
 			{ .First = ChangePositionAction, .Last = Navigation[3].Action },
-			{ .First = acceptAction, .Last = progressAction },
+			{ .First = trackAction, .Last = trackAction },
 		});
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
@@ -13835,6 +13846,8 @@ namespace bpr::qt {
 			append(barPresenter(Navigation[1].Action));
 			append(barPresenter(Navigation[2].Action));
 			append(barPresenter(Navigation[3].Action));
+			append(SeenStepButton);
+			append(ReadStepButton);
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			append(barPresenter(ComposeReviewAction));
@@ -14268,6 +14281,11 @@ namespace bpr::qt {
 		ReviewBarCompact        = true;
 		ReviewBarPositionsShown = false;
 		update_strip_positions();
+		// [[BPR-1578]]. The progress track's own yield is the last: Seen and
+		// Read keep their marks and lose their words.
+		if (ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(true);
+		}
 		remeasure();
 		const auto inset = ReviewBar->isVisible() ? std::max(0, width() - ReviewBar->width()) : 0;
 		const auto floor = std::max(platform_floor_width, ReviewBar->sizeHint().width() + inset);
@@ -14279,6 +14297,9 @@ namespace bpr::qt {
 		ReviewBarCompact        = false;
 		ReviewBarPositionsShown = true;
 		update_strip_positions();
+		if (ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(false);
+		}
 		remeasure();
 		if (ReviewBar->sizeHint().width() > available) {
 			EpochSelectors->set_comparing_dates_shown(false);
@@ -14292,6 +14313,10 @@ namespace bpr::qt {
 		if (ReviewBar->sizeHint().width() > available) {
 			ReviewBarPositionsShown = false;
 			update_strip_positions();
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available && ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(true);
 			remeasure();
 		}
 	}
@@ -15613,8 +15638,6 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
-		ReviewBar->adopt_button(AcceptFileButton);
-		ReviewBar->adopt_button(ReviewControlsButton);
 		update_compose_mark();
 		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(GithubRefreshAction));
@@ -15726,14 +15749,11 @@ namespace bpr::qt {
 		// label says now.
 		const auto colours  = shown_progress_mark_colours();
 		const auto disabled = palette().color(QPalette::Disabled, QPalette::ButtonText);
-		if (AcceptFileButton != nullptr) {
-			// [[BPR-1578]]. The command's tick in the palette's ink, repainted
-			// with the progress marks whenever the palette or theme changes.
-			AcceptFileButton->set_glyph(strip_icon(strip_glyph::accept_file, palette()));
-		}
 		if (ReviewControlsButton != nullptr) {
 			ReviewControlsButton->setIcon(progress_mark_icon(shown_progress_mark(Receipt, LedgerUnavailable), colours, disabled));
 		}
+		// [[BPR-1578]]. The track's marks and fills follow the theme's colours.
+		update_progress_track();
 		if (ReviewControlsMenu == nullptr) {
 			return;
 		}
@@ -16029,6 +16049,68 @@ namespace bpr::qt {
 			ReviewControlsButton->setStatusTip(state);
 			ReviewControlsButton->setAccessibleDescription(QStringLiteral("%1 %2").arg(state, click));
 		}
+		update_progress_track();
+	}
+
+	auto workbench_window::progress_step_offered(const std::size_t aIndex) const -> bool
+	{
+		// [[BPR-1578]]. A step only moves the file forward: Seen marks an
+		// unread file seen and Read marks a file read. A step already reached
+		// does nothing, so the track never un-reads a file; Mark unread stays
+		// in the private-progress menu. The command is the one the core
+		// projected for that action, never one the track makes up.
+		if (LedgerUnavailable || !Receipt.has_value() || Receipt->Receipt.Excluded || aIndex >= Receipt->Actions.size()) {
+			return false;
+		}
+		const auto& action = Receipt->Actions[aIndex];
+		const auto  wanted = aIndex == progress_track::seen_step ? core::file_receipt_command_kind::mark_seen : core::file_receipt_command_kind::mark_read;
+		const auto  passed = aIndex == progress_track::seen_step ? Receipt->Receipt.Read != core::file_read_state::unread
+																 : Receipt->Receipt.Read == core::file_read_state::read;
+		return action.Enabled && action.Command.Kind == wanted && !passed;
+	}
+
+	void workbench_window::take_progress_step(const std::size_t aIndex)
+	{
+		if (aIndex == progress_track::seen_step || aIndex == progress_track::read_step) {
+			if (progress_step_offered(aIndex)) {
+				dispatch_receipt(aIndex);
+			}
+		}
+	}
+
+	void workbench_window::update_progress_track()
+	{
+		if (ProgressTrack == nullptr) {
+			return;
+		}
+		auto shown = progress_track::state{ };
+		if (Receipt.has_value() && !LedgerUnavailable) {
+			const auto& receipt = Receipt->Receipt;
+			shown.Excluded      = receipt.Excluded;
+			shown.Live          = !receipt.Excluded;
+			shown.Seen          = receipt.Read != core::file_read_state::unread;
+			shown.Read          = receipt.Read == core::file_read_state::read;
+			shown.Accepted      = receipt.Accepted;
+		}
+		ProgressTrack->set_state(shown, shown_progress_mark_colours());
+		const auto unavailable = LedgerUnavailable ? QStringLiteral("Private review progress is unavailable.")
+			: !Receipt.has_value()                 ? QStringLiteral("Select an available text comparison first.")
+												   : QStringLiteral("Include this file from Private progress first.");
+		const auto describe    = [&](QToolButton* const aStep, const std::size_t aIndex, const QString& aDone, const QString& aOffer) {
+			if (aStep == nullptr) {
+				return;
+			}
+			const auto offered = progress_step_offered(aIndex);
+			const auto reached = aIndex == progress_track::seen_step ? shown.Seen : shown.Read;
+			aStep->setEnabled(offered);
+			const auto tip = !shown.Live ? unavailable : reached ? aDone
+																 : aOffer;
+			aStep->setToolTip(tip);
+			aStep->setStatusTip(tip);
+			aStep->setAccessibleDescription(tip);
+		};
+		describe(SeenStepButton, progress_track::seen_step, QStringLiteral("This file is seen."), QStringLiteral("Mark this file seen."));
+		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Mark unread is in Private progress."), QStringLiteral("Mark this file read."));
 	}
 
 	void workbench_window::update_drawer_action(

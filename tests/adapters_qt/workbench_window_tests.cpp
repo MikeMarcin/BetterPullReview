@@ -926,12 +926,13 @@ namespace {
 
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair and its position, the
-		// change pair and its position, a gap, Accept and private progress
-		// ([[BPR-1578]]), a spacer, Compose review and Comment.
+		// change pair and its position, a gap, the progress track (Seen, Read,
+		// Accept and the private-progress menu, [[BPR-1578]]), a spacer,
+		// Compose review and Comment.
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 17
+			return ordered.size() == 16
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -943,14 +944,13 @@ namespace {
 				&& ordered[8] == navigation[2]
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "reviewBarProgressGapAction")
-				&& named(ordered, 11, "workbenchAcceptFileAction")
-				&& named(ordered, 12, "workbenchReviewControlsAction")
-				&& named(ordered, 13, "reviewBarSpacerAction")
+				&& named(ordered, 11, "workbenchProgressTrackAction")
+				&& named(ordered, 12, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
-				&& ordered[14] == window.review_chip_action()
-				&& ordered[15] == window.compose_review_action()
-				&& ordered[16] == window.comment_action();
+				&& ordered[13] == window.review_chip_action()
+				&& ordered[14] == window.compose_review_action()
+				&& ordered[15] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -970,21 +970,21 @@ namespace {
 				expect(railAt(rails, x), "a continuous palette-derived rail joins each label and both arrows");
 			}
 		}
-		// [[BPR-1578]]. Accept and private progress are one group on one rail,
-		// drawn as File's and Changes' are, from Accept's left edge to the
-		// menu's right edge, and parted from the Changes rail by a gap.
+		// [[BPR-1578]]. The progress track is one group on one rail, drawn as
+		// File's and Changes' are, from its left edge to its right edge, and
+		// parted from the Changes rail by a gap.
 		auto* const strip       = static_cast<qt::workbench_strip*>(bar);
 		const auto  progressRun = [&bar, &barActions, &railAt](const QImage& aImage) {
 			const auto first = bar->actionGeometry(barActions[11]);
-			const auto last  = bar->actionGeometry(barActions[12]);
+			const auto last  = first;
 			return std::ranges::all_of(std::array{ first.left() + 3, first.center().x(), (first.right() + last.left()) / 2, last.center().x(), last.right() - 3 },
 									   [&](const int aX) { return railAt(aImage, aX); });
 		};
 		const auto railGap = [strip] { return strip->group_rail(2).left() - strip->group_rail(1).right() - 1; };
 		expect(strip->group_rail_count() == 3U && progressRun(rails)
 				   && strip->group_rail(2).left() == bar->actionGeometry(barActions[11]).left() + 2
-				   && strip->group_rail(2).right() == bar->actionGeometry(barActions[12]).right() - 2,
-			   "one rail runs under Accept and private progress, from Accept's left edge to the menu's right edge");
+				   && strip->group_rail(2).right() == bar->actionGeometry(barActions[11]).right() - 2,
+			   "one rail runs under the progress track, from its left edge to its right edge");
 		expect(railGap() >= 12 && !railAt(rails, bar->actionGeometry(barActions[10]).center().x())
 				   && !railAt(rails, strip->group_rail(1).right() + 2) && !railAt(rails, strip->group_rail(2).left() - 2),
 			   "the progress group's rail stops short of the Changes rail, so the two groups read apart");
@@ -996,7 +996,7 @@ namespace {
 		strip->set_group_rails({
 			{ .First = barActions[4], .Last = barActions[6] },
 			{ .First = barActions[7], .Last = barActions[9] },
-			{ .First = barActions[11], .Last = barActions[12] },
+			{ .First = barActions[11], .Last = barActions[11] },
 		});
 		barActions[10]->setVisible(false);
 		QApplication::processEvents();
@@ -6082,6 +6082,8 @@ namespace {
 					   "the chrome render is saved for inspection");
 			}
 		};
+		auto* const track = dynamic_cast<qt::progress_track*>(window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack")));
+		expect(track != nullptr && !track->compact(), "at 1280 the progress track names every step");
 		save(QStringLiteral("review-bar-1280x852"));
 		window.resize(window.minimumWidth(), 852);
 		process_events();
@@ -6093,6 +6095,11 @@ namespace {
 		expect(strip->group_rail_count() == 3U && !strip->group_rail(2).isEmpty()
 				   && strip->group_rail(2).left() - strip->group_rail(1).right() - 1 >= 12,
 			   "at the width floor the progress group keeps its own rail, apart from the Changes rail");
+		// [[BPR-1578]]. The track's own yield is the last one: at the floor Seen
+		// and Read keep their marks, names and tooltips, and Accept its word.
+		expect(track->compact() && track->cell(qt::progress_track::read_step).width() < track->cell(qt::progress_track::accept_step).width()
+				   && window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"))->accessibleName() == QStringLiteral("Read"),
+			   "at the width floor Seen and Read show their marks alone and keep their names");
 		save(QStringLiteral("review-bar-floor"));
 		window.hide();
 	}
@@ -7510,6 +7517,8 @@ namespace {
 			barStop(window.next_file_action()),
 			barStop(window.previous_change_action()),
 			barStop(window.next_change_action()),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep")),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
 			barStop(window.compose_review_action()),
@@ -8216,14 +8225,15 @@ namespace {
 		return false;
 	}
 
-	/// [[BPR-1578]]. The owner, 2026-10-17: "Accept is a button next to other
-	/// similar text labels in Changes and Files which are not buttons, it's
-	/// kind of confusing." Accept carries the command's tick beside its word
-	/// in the strip's button frame; File and Changes stay plain captions.
-	/// Revoke keeps the tick in the checked frame, a disabled Accept paints
-	/// it in the disabled ink, a palette change repaints it, and the keyboard
-	/// still reaches the one action.
-	void test_accept_reads_as_a_button_beside_plain_captions()
+	/// [[BPR-1578]] v002. The owner chose the progress track (round 2's "C2.
+	/// Progress track, refined"): Seen, Read and Accept as steps of one
+	/// control with the menu's chevron as its last cell. The reached step is
+	/// solid (the accent, or the acceptance green once accepted), steps still
+	/// to come are available, and a click only moves the file forward: Seen
+	/// marks an unread file seen, Read marks it read, a step already reached
+	/// does nothing (Mark unread stays in the menu), and Accept toggles to
+	/// Revoke as before. Names, tooltips, keyboard and palette follow.
+	void test_progress_track_shows_and_takes_each_step()
 	{
 		qt::workbench_window window;
 		auto                 dispatched = std::vector<core::file_receipt_command>{ };
@@ -8232,87 +8242,121 @@ namespace {
 		window.show();
 		publish_positioned_review_bar(window);
 		process_events();
-		auto* const button = dynamic_cast<qt::strip_command_button*>(window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")));
-		expect(button != nullptr && button->defaultAction() == window.accept_action() && button->focusPolicy() == Qt::StrongFocus,
-			   "Accept is a focusable strip command button over the one retained Accept action");
-		const auto ink   = window.palette().color(QPalette::Active, QPalette::ButtonText);
-		const auto glyph = progress_icon_image(button->glyph(), 2.0);
-		expect(glyph == progress_icon_image(qt::strip_icon(qt::strip_glyph::accept_file, window.palette()), 2.0) && paints_colour(glyph, ink)
-				   && glyph != progress_icon_image(window.accept_action()->icon(), 2.0),
-			   "Accept's glyph is the command's tick in the button ink, not the accepted state mark its menu item shows");
-		for (auto* const caption : { window.file_position_label(), window.change_position_label() }) {
-			expect(qobject_cast<QAbstractButton*>(caption) == nullptr && caption->frameShape() == QFrame::NoFrame
-					   && caption->focusPolicy() == Qt::NoFocus && caption->pixmap().isNull(),
-				   "File and Changes stay plain captions: no frame, no glyph, no focus");
+		auto* const track  = dynamic_cast<qt::progress_track*>(window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack")));
+		auto* const seen   = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"));
+		auto* const read   = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"));
+		auto* const accept = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		auto* const menu   = window.review_controls_button();
+		expect(track != nullptr && seen != nullptr && read != nullptr && accept != nullptr
+				   && seen->parentWidget() == track && read->parentWidget() == track && accept->parentWidget() == track && menu->parentWidget() == track
+				   && accept->defaultAction() == window.accept_action() && menu->menu() == window.review_controls_menu(),
+			   "the track holds the Seen and Read steps, the retained Accept button and the private-progress menu button");
+		expect(track->cell(qt::progress_track::seen_step).right() + 1 == track->cell(qt::progress_track::read_step).left()
+				   && track->cell(qt::progress_track::read_step).right() + 1 == track->cell(qt::progress_track::accept_step).left()
+				   && track->cell(qt::progress_track::accept_step).right() + 1 == track->cell(qt::progress_track::menu_cell).left(),
+			   "the four cells sit edge to edge in one frame");
+		for (auto* const step : { seen, read, accept, menu }) {
+			expect(step->focusPolicy() == Qt::StrongFocus && !step->accessibleName().isEmpty(), "every cell is a named keyboard stop");
 		}
 
-		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
-		receipt.Read = core::file_read_state::seen;
-		window.publish(application::project_file_receipt_actions(receipt));
-		process_events();
-		const auto offered = button->grab().toImage();
-		const auto width   = button->sizeHint().width();
-		// Negative control: without its glyph Accept is the bare word in a
-		// frame it was, which renders differently and is narrower by the glyph.
-		const auto kept = button->glyph();
-		button->set_glyph(QIcon{ });
-		process_events();
-		expect(button->grab().toImage() != offered && button->sizeHint().width() <= width - 16,
-			   "negative control: the bare word Accept is a different, narrower control than the tick and word");
-		button->set_glyph(kept);
-		process_events();
-		expect(button->grab().toImage() == offered && button->sizeHint().width() == width, "the glyph restored, Accept renders as before");
+		const auto colours  = window.shown_progress_mark_colours();
+		const auto interior = [track](const std::size_t aIndex) {
+			const auto image = track->grab().toImage();
+			const auto dpr   = image.devicePixelRatio();
+			const auto at    = track->cell(aIndex);
+			return image.pixelColor(qRound((at.left() + 3) * dpr), qRound((at.height() / 2) * dpr));
+		};
+		const auto highlight = window.palette().color(QPalette::Active, QPalette::Highlight);
+		const auto button    = window.palette().color(QPalette::Active, QPalette::Button);
+		const auto publish   = [&window](const core::file_receipt& aReceipt) {
+			window.publish(application::project_file_receipt_actions(aReceipt));
+			process_events();
+		};
 
-		// The keyboard reaches the same action: focus and Space dispatch the
-		// exact acceptance, as one click does.
-		button->setFocus(Qt::TabFocusReason);
+		// Unread: nothing reached, every step available.
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		publish(receipt);
+		expect(track->shown().Live && !track->current_step().has_value() && seen->isEnabled() && read->isEnabled() && accept->isEnabled()
+				   && interior(qt::progress_track::seen_step) == button && interior(qt::progress_track::read_step) == button,
+			   "an unread file has no solid step and every step is available");
+		expect(seen->toolTip() == QStringLiteral("Mark this file seen.") && read->toolTip() == QStringLiteral("Mark this file read.")
+				   && track->word(qt::progress_track::accept_step) == QStringLiteral("Accept"),
+			   "the steps still to come say what a click does");
+		seen->click();
+		expect(dispatched.size() == 1U && dispatched.back().Kind == core::file_receipt_command_kind::mark_seen && dispatched.back().Material == receipt.Material,
+			   "Seen on an unread file marks it seen");
+
+		// Seen: the Seen step is solid in the accent; Read moves it on.
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::seen_step } && interior(qt::progress_track::seen_step) == highlight
+				   && interior(qt::progress_track::read_step) == button && !seen->isEnabled() && read->isEnabled()
+				   && seen->toolTip() == QStringLiteral("This file is seen."),
+			   "a seen file's Seen step is solid in the accent, and Read is still available");
+		read->setFocus(Qt::TabFocusReason);
 		process_events();
 		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
 			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
 			process_events();
 		}
-		expect(button->hasFocus() && dispatched.size() == 1U && dispatched.front().Kind == core::file_receipt_command_kind::accept
-				   && dispatched.front().File == receipt.File && dispatched.front().Material == receipt.Material,
-			   "Space on the focused Accept dispatches the exact acceptance");
-		button->clearFocus();
-		process_events();
-		const auto unchecked = button->grab().toImage();
+		expect(dispatched.size() == 2U && dispatched.back().Kind == core::file_receipt_command_kind::mark_read,
+			   "Space on the focused Read step marks the file read");
+		read->clearFocus();
 
-		receipt.Read     = core::file_read_state::read;
+		// Read: a step already reached does nothing, even forced enabled.
+		receipt.Read = core::file_read_state::read;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::read_step } && interior(qt::progress_track::read_step) == highlight
+				   && !seen->isEnabled() && !read->isEnabled() && read->toolTip().contains(QStringLiteral("Mark unread is in Private progress")),
+			   "a read file's Read step is solid and says where Mark unread is");
+		for (auto* const passed : { seen, read }) {
+			passed->setEnabled(true);
+			passed->click();
+		}
+		expect(dispatched.size() == 2U, "clicking a step already reached dispatches nothing, so the track never un-reads a file");
+		// Negative control: the menu's own Read item, which the track does not
+		// use for a reached step, would have marked the file unread.
+		window.read_action()->trigger();
+		expect(dispatched.size() == 3U && dispatched.back().Kind == core::file_receipt_command_kind::mark_unread,
+			   "negative control: the menu's Read item on a read file marks it unread, which the step must not");
+		publish(receipt);
+
+		// Accept takes the last step and becomes Revoke.
+		accept->click();
+		expect(dispatched.size() == 4U && dispatched.back().Kind == core::file_receipt_command_kind::accept, "Accept on the track accepts the exact file");
 		receipt.Accepted = true;
-		window.publish(application::project_file_receipt_actions(receipt));
-		process_events();
-		const auto revoke   = button->grab().toImage();
-		const auto accent   = window.palette().color(QPalette::Active, QPalette::Highlight);
-		const auto interior = [](const QImage& aImage) {
-			return aImage.pixelColor(qRound(3.0 * aImage.devicePixelRatio()), aImage.height() / 2);
-		};
-		const auto distance = [&accent](const QColor& aColour) {
-			return std::abs(aColour.red() - accent.red()) + std::abs(aColour.green() - accent.green()) + std::abs(aColour.blue() - accent.blue());
-		};
-		expect(button->isChecked() && button->isEnabled() && button->text().contains(QStringLiteral("Revoke"))
-				   && button->accessibleName() == QStringLiteral("Revoke file acceptance") && !button->glyph().isNull()
-				   && distance(interior(revoke)) < distance(interior(unchecked)),
-			   "accepted, the button reads Revoke acceptance with its tick in the checked, accent-tinted frame");
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::accept_step } && interior(qt::progress_track::accept_step) == colours.Accepted
+				   && interior(qt::progress_track::read_step) == button && track->word(qt::progress_track::accept_step) == QStringLiteral("Accepted")
+				   && accept->text().contains(QStringLiteral("Revoke")) && accept->accessibleName() == QStringLiteral("Revoke file acceptance")
+				   && accept->isEnabled(),
+			   "accepted, the Accept step is solid green and says Accepted, and its button revokes");
+		accept->click();
+		expect(dispatched.size() == 5U && dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "the Accepted step revokes acceptance");
 
-		receipt.Read     = core::file_read_state::seen;
+		// Excluded and no file: the track rests; the menu keeps Include.
 		receipt.Accepted = false;
 		receipt.Excluded = true;
-		window.publish(application::project_file_receipt_actions(receipt));
+		publish(receipt);
+		expect(!track->shown().Live && track->shown().Excluded && !track->current_step().has_value() && !seen->isEnabled() && !read->isEnabled()
+				   && !accept->isEnabled() && menu->isEnabled() && seen->toolTip().contains(QStringLiteral("Include"))
+				   && interior(qt::progress_track::seen_step) == button,
+			   "an excluded file rests the track and keeps Include in the menu");
+		window.clear_review_ledger();
 		process_events();
-		const auto disabledInk = window.palette().color(QPalette::Disabled, QPalette::ButtonText);
-		const auto dimmed      = progress_icon_image(button->glyph(), 2.0, QIcon::Disabled);
-		expect(!button->isEnabled() && paints_colour(dimmed, disabledInk) && !paints_colour(dimmed, ink)
-				   && button->grab().toImage() != unchecked,
-			   "disabled, the tick and the frame take the disabled ink");
+		expect(!track->shown().Live && !track->current_step().has_value() && !seen->isEnabled() && !read->isEnabled() && !accept->isEnabled()
+				   && seen->toolTip() == QStringLiteral("Select an available text comparison first."),
+			   "with no file material the steps are disabled and say why");
 
-		// A palette change repaints the tick in the new ink.
+		// A palette change repaints the solid step in the new accent.
+		receipt      = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
 		auto changed = window.palette();
-		changed.setColor(QPalette::Active, QPalette::ButtonText, QColor{ 0xC0, 0x30, 0x30 });
+		changed.setColor(QPalette::Active, QPalette::Highlight, QColor{ 0x80, 0x20, 0xA0 });
 		window.setPalette(changed);
 		process_events();
-		expect(paints_colour(progress_icon_image(button->glyph(), 2.0), QColor{ 0xC0, 0x30, 0x30 }),
-			   "a palette refresh repaints Accept's tick in the palette's button ink");
+		expect(interior(qt::progress_track::seen_step) == QColor{ 0x80, 0x20, 0xA0 }, "a palette refresh repaints the solid step in the new accent");
 		window.hide();
 	}
 
@@ -9306,10 +9350,19 @@ namespace {
 				});
 			};
 			auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("unread file, every step available"));
 			receipt.Read = core::file_read_state::seen;
 			window.publish(application::project_file_receipt_actions(receipt));
 			grab(QStringLiteral("seen file, Accept offered"));
-			receipt.Read     = core::file_read_state::read;
+			receipt.Read = core::file_read_state::read;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("read file, Accept offered"));
+			if (auto* const step = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")); step != nullptr) {
+				step->setFocus(Qt::TabFocusReason);
+				grab(QStringLiteral("read file, keyboard focus on Accept"));
+				step->clearFocus();
+			}
 			receipt.Accepted = true;
 			window.publish(application::project_file_receipt_actions(receipt));
 			grab(QStringLiteral("accepted file, Revoke acceptance offered"));
@@ -17479,7 +17532,7 @@ auto main(int argc, char** argv) -> int
 		test_file_accept_is_one_click_and_keeps_projected_eligibility();
 		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
 		test_review_state_icon_shows_the_decided_mark();
-		test_accept_reads_as_a_button_beside_plain_captions();
+		test_progress_track_shows_and_takes_each_step();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";
 		return EXIT_SUCCESS;
@@ -17684,7 +17737,7 @@ auto main(int argc, char** argv) -> int
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_review_state_icon_shows_the_decided_mark();
-	test_accept_reads_as_a_button_beside_plain_captions();
+	test_progress_track_shows_and_takes_each_step();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
 	test_unread_badge_follows_only_the_current_file();

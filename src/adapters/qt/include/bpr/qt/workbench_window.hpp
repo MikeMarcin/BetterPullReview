@@ -1745,6 +1745,11 @@ namespace bpr::qt {
 		void               dispatch_file_selection(const QModelIndex& aIndex);
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
+		/// [[BPR-1578]]. Whether a click on the Seen or Read step moves the
+		/// file forward; a step already reached does nothing.
+		[[nodiscard]] auto progress_step_offered(std::size_t aIndex) const -> bool;
+		void               take_progress_step(std::size_t aIndex);
+		void               update_progress_track();
 		void               update_accept_file_shortcut();
 		/// [[BPR-1536]]. Re-reads whether the keyboard is in a widget that
 		/// takes typed text; when that changed, refreshes Accept file's key
@@ -2061,19 +2066,23 @@ namespace bpr::qt {
 		/// typed text, and the menu-bar keys lifted while it is.
 		bool                                                           TypingFocus = false;
 		std::vector<std::pair<QPointer<QAction>, QList<QKeySequence>>> LiftedOptionKeys;
-		QAction*                                                       ReviewDetailsAction  = nullptr;
-		strip_command_button*                                          AcceptFileButton     = nullptr;
-		QToolButton*                                                   ReviewControlsButton = nullptr;
-		QMenu*                                                         ReviewControlsMenu   = nullptr;
-		QWidget*                                                       ToolbarSpacer        = nullptr;
-		QLabel*                                                        StatusLabel          = nullptr;
-		QWidget*                                                       ReviewSurface        = nullptr;
-		std::optional<application::github_read_progress>               ReadProgress;
-		workbench_central_splitter*                                    CentralSplitter   = nullptr;
-		QWidget*                                                       CentreSurface     = nullptr;
-		diff_workbench*                                                ComparisonSurface = nullptr;
-		pull_request_overview_page*                                    OverviewPage      = nullptr;
-		std::optional<application::pull_request_overview_projection>   PresentedOverview;
+		QAction*                                                       ReviewDetailsAction = nullptr;
+		QToolButton*                                                   AcceptFileButton    = nullptr;
+		/// [[BPR-1578]]. The review bar's progress track and its two steps.
+		progress_track*                                              ProgressTrack        = nullptr;
+		QToolButton*                                                 SeenStepButton       = nullptr;
+		QToolButton*                                                 ReadStepButton       = nullptr;
+		QToolButton*                                                 ReviewControlsButton = nullptr;
+		QMenu*                                                       ReviewControlsMenu   = nullptr;
+		QWidget*                                                     ToolbarSpacer        = nullptr;
+		QLabel*                                                      StatusLabel          = nullptr;
+		QWidget*                                                     ReviewSurface        = nullptr;
+		std::optional<application::github_read_progress>             ReadProgress;
+		workbench_central_splitter*                                  CentralSplitter   = nullptr;
+		QWidget*                                                     CentreSurface     = nullptr;
+		diff_workbench*                                              ComparisonSurface = nullptr;
+		pull_request_overview_page*                                  OverviewPage      = nullptr;
+		std::optional<application::pull_request_overview_projection> PresentedOverview;
 		/// [[BPR-0972]]. The presented overview's first row for each path.
 		std::unordered_map<std::string, std::size_t> PresentedOverviewRows;
 		bool                                         OverviewFileFactsDirty = true;

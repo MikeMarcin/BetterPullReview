@@ -208,13 +208,20 @@ native reader menu.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
-before the change arrows, **Accept** as a named one-click file action, and
-private progress as an icon whose tooltip names the file's state. Accept is a
-button with the command's tick beside its word, the strip's line glyph in the
-button ink rather than a state mark; it and private progress are one group
-on one accent rail, parted from the Changes rail by a gap ([[BPR-1578]], the
-owner, 2026-10-17: Accept read as one more label and had no rail joining it
-to its menu). File and Changes stay plain captions. Accept uses
+before the change arrows, and the **progress track** ([[BPR-1578]], the
+owner's choice of 2026-10-17 after two rounds of designs): Seen, Read and
+**Accept** as the steps of one control, with private progress's chevron as its
+last cell, on one accent rail parted from the Changes rail by a gap. The step
+the file has reached is solid in the accent, or in the acceptance green once
+accepted, when Accept reads **Accepted**; steps still to come are in full ink,
+and the step still to take shows the acceptance green's tick. A step only
+moves the file forward: Seen marks an unread file seen and Read marks it read;
+a step already reached does nothing, so the track never un-reads a file (Mark
+unread stays in the menu). An excluded file rests the track, its chevron cell
+carrying the excluded mark. The track's last width yield shows Seen and Read
+as marks alone; their names stay in their tooltips and accessible names.
+Accept is the named one-click file action, and the menu button's tooltip names
+the file's state. Accept uses
 the selected exact file material and becomes **Revoke acceptance** after the
 saved receipt arrives. It is disabled while no comparison is selected, private
 progress is unavailable, or the file is excluded. The adjacent state menu keeps
@@ -244,8 +251,8 @@ summary in Discuss. Finish review is also Command+Option+Return
 (`Ctrl+Alt+Return`), from anywhere in the window, while a review is in
 progress and not being submitted; the chip's tooltip names the key
 ([[BPR-1345]] v002). Each navigation
-label and its pair share a horizontal accent rail, as Accept and private
-progress share theirs. File and Changes stay named
+label and its pair share a horizontal accent rail, as the progress track has
+its own. File and Changes stay named
 at every width and when their position is unavailable; narrow layouts shorten
 only the position wording.
 
