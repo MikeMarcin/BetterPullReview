@@ -1,0 +1,76 @@
+{
+  "assignment": "BPR-1573",
+  "mandate": "Owner request 2026-10-17: \"Home should have a close review next to back to review.\" Close the review open in this window by the existing release path (core decides, host performs), keep drafts as that path keeps them, keyboard and accessibility, no new shortcut, one Accept/Reject in a fresh short session with Light and Dark renders; do not merge before acceptance; park on main.",
+  "governing_rfc": "RFC-BPR-0032 Home return row; RFC-BPR-0028 workbench; BPR-1539 tabs start again for another pull request",
+  "decisions": {
+    "existing_release_path": "No close intent existed. Opening another pull request and signing out both release a window's review through the read host's invalidate_epoch_authority, which calls the composition's invalidate(): reading destination, ledger and shared drafts detach, review mutation and submission, epoch and workbench. Close review reuses that path; the core gains close_pull_request_intent on the window read lane.",
+    "drafts": "Matched to opening another pull request: no prompt; the comment being written is saved in the profile's drafts ledger and returns when the same pull request is opened again (composed course).",
+    "shortcut": "None. Cmd-W is Close Tab (document tabs) and does not naturally apply.",
+    "layout": "Back to the review (filled, default), its key, then Close review (bordered), on the bar's line, so the key is never read as Close review's.",
+    "hidden_name": "Close review keeps its name and a general description while hidden, because the window's declared focus order includes hidden stops and requires every stop to be named (qt_workbench_window)."
+  },
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1573-close-review/BetterPullReview",
+  "branch": "bpr-1573-close-review",
+  "baseline": "647fbc6539d59b1a785be3543afd08f823f77cb8",
+  "source_candidate": "58ee21f56610a72ff0d97fd29ce891bbcbc22315",
+  "changed_paths": [
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/include/bpr/qt/workbench_landing.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/workbench_landing.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/application/include/bpr/application/github_window_read_host.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/core/include/bpr/core/github_model.hpp",
+    "src/core/include/bpr/core/github_window_read.hpp",
+    "src/core/src/github_transition.cpp",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/core/github_window_read_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/close_review_public_path_tests.cpp"
+  ],
+  "verification": {
+    "focused_pass": "dev Debug at the candidate's content: core_github_window_read, core_github_policy, core_home_open, application_github_window_read_host, application_home_open_host, architecture_boundaries, qt_composed_github_scale_100/125/200, qt_composed_home_sign_in, qt_composed_home_refusal_scale_100, qt_workbench_home_discovery_scale_100, qt_workbench_open_review_from_home_scale_100, qt_workbench_window_scale_100/125, qt_home_list_scale_100, application_home_open_feedback_public_path, application_active_changed_scaling, application_review_navigation_entry, application_close_review: pass",
+    "not_yet_green": "qt_workbench_window_scale_200 and application_profile_multi_window_public_path timed out (300 s / 180 s) at load average ~250 with 13 agents building; multi_window passed (42 s) in an earlier run of the same tree before the hidden-name fix, workbench_window 100/125 pass. Rerun both on the merged tree.",
+    "negative_control": "Without invalidate_epoch_authority in the host's close, application_close_review fails 'the review's reading and its tabs are released'.",
+    "format": "clang-format 22 (format.py) over the 15 touched C/C++ files.",
+    "tidy": "clang-tidy 22 over the 9 touched translation units: no finding on changed lines; 2 pre-existing readability-identifier-naming findings at github_window_read_host_tests.cpp:383 and :387.",
+    "documentation": "On a temporary merge of main 0c6d520ad and the branch (clean): verify_documentation.py DOCUMENTATION_OK; verify_documentation_tests 67 OK. The branch alone fails only NEXT_ID high water (other agents allocated since).",
+    "composition_contracts": "src/app changed; application_close_review is a new composed contract. No sealed composition contract reseal was run yet; check at merge."
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1573-close-review-v001.1nv8u3tq",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1573-close-review-v001.1nv8u3tq/launch.py",
+    "source_commit": "58ee21f56610a72ff0d97fd29ce891bbcbc22315",
+    "fixture": "nested-folders-v1",
+    "open": "--open-pull-request (Overview)",
+    "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
+    "executable_sha256": "95eb34a85e7bd327fdf55afee5cd617688490b390fef7b6a9a05166447fcbc09",
+    "note": "Built with an APFS clone of the worktree's dependency cache (--generate cp -cR) because the disk was full; a first freeze root failed with ENOSPC and was removed."
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1573-v001-P5dxr1",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "71540c0b93725af935e64bedcdc66c9a",
+    "event_cursor": 3,
+    "candidates": {
+      "BPR-1573-close-review-v001": "e365e4eb0820da261b84d408484fde3b1eaa11c3775b4f8c6dc328af509ed4c3"
+    },
+    "phase": "ready",
+    "protected": true,
+    "server_pid": 25294,
+    "server_port": 56448,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+  },
+  "pending": [
+    "AC5 owner Accept/Reject on BPR-1573-close-review-v001."
+  ],
+  "uncertainties": [
+    "Another window keeping the same pull request is shown by the core lane test (independent lanes) and by construction (close touches only this window's read host, tabs and drafts consumer), not by a composed two-window course.",
+    "Recently viewed after Close review was not observed: the fixture composition publishes no restoration list. The specification makes no claim about it."
+  ],
+  "next_action": "On hand-back after cursor 3: Accept -> recheck main HEAD, merge main into bpr-1573-close-review, rebuild dev, rerun the focused set plus qt_workbench_window_scale_200 and application_profile_multi_window_public_path, run the full dev ctest once on the merged tree (check free disk first), reseal composition contracts if required, land on main, finish Done, stop server pid 25294, release protection, remove the frozen root and the worktree's build. Reject -> the note becomes v002."
+}

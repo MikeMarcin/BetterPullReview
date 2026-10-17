@@ -1,6 +1,7 @@
 #include "bpr/qt/server_card.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/usage_ring.hpp"
 
@@ -533,13 +534,10 @@ namespace bpr::qt {
 		detailsRowColumn->setContentsMargins(0, 0, 0, 0);
 		detailsRowColumn->setSpacing(0);
 		auto [detailsLine, detailsLineLayout] = make_row(DetailsRow, QStringLiteral("serverCardDetailsLine"));
-		DetailsButton                         = new QToolButton{ detailsLine };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		DetailsButton = new disclosure_button{ detailsLine };
 		DetailsButton->setObjectName(QStringLiteral("serverCardDetailsButton"));
 		DetailsButton->setText(QStringLiteral("Details"));
-		DetailsButton->setCheckable(true);
-		DetailsButton->setAutoRaise(true);
-		DetailsButton->setArrowType(Qt::RightArrow);
-		DetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		DetailsButton->setFocusPolicy(Qt::StrongFocus);
 		DetailsButton->setAccessibleName(QStringLiteral("Show details for %1").arg(host));
 		DetailsButton->setAccessibleDescription(QStringLiteral("The capabilities, the rate limits and the last problem on this host"));
@@ -634,7 +632,6 @@ namespace bpr::qt {
 		});
 		connect(DetailsButton, &QToolButton::toggled, this, [this, host](const bool aOpen) {
 			Details->setVisible(aOpen);
-			DetailsButton->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
 			DetailsButton->setAccessibleName(
 				aOpen ? QStringLiteral("Hide details for %1").arg(host)
 					  : QStringLiteral("Show details for %1").arg(host));

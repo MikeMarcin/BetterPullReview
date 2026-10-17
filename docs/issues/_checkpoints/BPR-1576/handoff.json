@@ -1,0 +1,78 @@
+{
+ "assignment": "BPR-1576",
+ "mandate": "Owner request 2026-10-17: 'We need a clearer visual signal in panes when data is not yet ready... especially true of the overview page when opening a PR.' One base loading-state pattern for every pane waiting on data, from real pending state, reduced motion, screen readers, four themes, no layout jumps; documented in docs/ux as the standard; Overview-on-open primary with a before/after frame sequence; one Accept/Reject in the same fresh session as BPR-1575; separate commits; park on main.",
+ "governing_rfc": "RFC-BPR-0028 (empty, loading and failure states); RFC-BPR-0032 Home; RFC-BPR-0031 motion",
+ "decisions": {
+  "core": "core::decide_pending_look over {activity, has content, partial, elapsed} with 400 ms reveal and 6 s slow marks, busy/turning/veiled/retry helpers, announcement rules and the next wake.",
+  "qt": "qt::pending_veil laid over a pane (never in its layout) and qt::pending_mark for lines that already speak.",
+  "motion": "Turning follows the system observation (full or unsupported turns; reduced, unknown or failed stays still); the Dif motion selector stays the mascot's.",
+  "overview_trace": "Before: Home 'Opening' until GitHub answers, then the Overview title/description with an empty file table and dashes in the side column until the accepted review (about 5 s with the file list held 3 s); switching pull requests the same. After: each section waits in its own place; the file table shows one placeholder row per reported file; slow words name the read's step; the Overview announces once when ready. The whole snapshot is accepted atomically, so files, side column and checks arrive together; comment counts and images later.",
+  "not_done": "Home's existing row and band turning marks (BPR-1357) still animate regardless of Reduce Motion; the Files drawer only waits during a first read (after it, an empty catalogue is real)."
+ },
+ "changed_paths": [
+  "docs/ux/workbench-specification.md",
+  "scripts/verify_test_network_isolation.py",
+  "src/adapters/qt/CMakeLists.txt",
+  "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+  "src/adapters/qt/include/bpr/qt/epoch_comparison_control.hpp",
+  "src/adapters/qt/include/bpr/qt/pending_veil.hpp",
+  "src/adapters/qt/include/bpr/qt/pull_request_overview_page.hpp",
+  "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+  "src/adapters/qt/src/diff_workbench.cpp",
+  "src/adapters/qt/src/epoch_comparison_control.cpp",
+  "src/adapters/qt/src/markdown_images.cpp",
+  "src/adapters/qt/src/pending_veil.cpp",
+  "src/adapters/qt/src/pull_request_overview_page.cpp",
+  "src/adapters/qt/src/workbench_window.cpp",
+  "src/app/main.cpp",
+  "src/app/src/github_application.cpp",
+  "src/app/src/github_application_fixture_access.hpp",
+  "src/app/src/github_public_path_fixture.cpp",
+  "src/core/CMakeLists.txt",
+  "src/core/include/bpr/core/pending_presentation.hpp",
+  "src/core/src/pending_presentation.cpp",
+  "tests/adapters_qt/CMakeLists.txt",
+  "tests/adapters_qt/pending_veil_tests.cpp",
+  "tests/core/CMakeLists.txt",
+  "tests/core/pending_presentation_tests.cpp",
+  "tests/end_to_end/CMakeLists.txt",
+  "tests/end_to_end/pending_states_public_path_tests.cpp"
+ ],
+ "verification": {
+  "full_suite": "scripts/run_test_suite.py --preset dev at 8f384e9b2 (final product code but for the Comments wording fix): 776 tests, 769 passed, 1 skipped (application_large_review_cache_bytes, environment), 6 failed: test_network_isolation_manifest (two new courses lacked Windows rows; fixed d7565c766/e5329f0cc), application_composition_contract and application_review_round_trip_composition_contract (github_application.cpp and production app digests; resealed 2f0850a2e), application_thread_words_public_path (the Comments drawer veil said 'Conversations'; fixed 2ba956fe5), application_epoch_host (hung 64 min at 0% CPU under load; passed in 1.5 s on rerun), application_line_draft_contract (the phase-31 base-side draft flake BPR-1567 recorded on main; passed 1 of 2 then 9 of 10 under ctest and 2 of 2 run directly; with the veils disabled 10 of 10 - small samples, failures clustered under heavy machine load). All seven failing rows plus the new courses pass at 2f0850a2e.",
+  "focused_at_final": "At 2f0850a2e: core_pending_presentation, core_refresh_feedback, qt_pending_veil, qt_refresh_feedback_window, application_pending_states_public_path, application_refresh_feedback_public_path, application_composition_contract, application_review_round_trip_composition_contract, application_thread_words_public_path, test_network_isolation_manifest: pass.",
+  "format": "clang-format 22.1.8 format_check over the 40 touched C/C++ files: passed",
+  "tidy": "clang-tidy 22 --warnings-as-errors over the touched translation units: no finding on changed lines after fixes; pre-existing findings in main.cpp (send_mouse_event and parse_count naming, optional conversion and use-after-move at fixtureName) are untouched code.",
+  "documentation": "verify_documentation.py DOCUMENTATION_OK and verify_documentation_tests OK at 2f0850a2e (branch merged with main c0a62280e).",
+  "attended_fixture_probe": "A transient (uncommitted) harness drove the frozen look's fixture (conventional-comments-v1) and script through the composition: press 1 'Updated: 1 new comment.', 2 'Up to date: nothing new.', 3 offline, 4 'Updated: 1 new comment.', 5 rate limited 'Try again in 2 min.'"
+ },
+ "next_action": "Owner decides BPR-1576-loading-states-v001 in session 232e2c2e; on Accept land per 'landing' and finish Done; on Reject read the note and revise.",
+ "source_root": "/Users/jaeger/.codex/worktrees/bpr1575-refresh/BetterPullReview",
+ "branch": "bpr-1575-1576",
+ "baseline_main": "c0a62280e",
+ "source_candidate": "2f0850a2e",
+ "frozen": {
+  "root": "/Users/jaeger/.codex/attended-builds/bpr1575-1576-v001.wu26nlx6",
+  "launcher": "python3 /Users/jaeger/.codex/attended-builds/bpr1575-1576-v001.wu26nlx6/launch.py",
+  "source_commit": "2f0850a2e",
+  "fixture": "conventional-comments-v1",
+  "open": "--open-pull-request (Overview)",
+  "arguments": "--fixture-read-delay-ms 3000 --fixture-page-delay-ms 900 --fixture-refresh-delay-ms 3000 --fixture-refresh-script new-reply,serve,offline,new-reply,rate-limited",
+  "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
+  "executable_sha256": "4f90f529957522ffddcc9aef0aa65a6280b8741709250c46fc2f5c9630dbd452"
+ },
+ "review": {
+  "state": "/Users/jaeger/.codex/attended-review/bpr1575-1576-v001-xlbj29",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "session": "232e2c2eee171af499adac505a0e561e",
+  "event_cursor": 6,
+  "url": "http://127.0.0.1:62444/#token=6kgLwKntIk_UW1VzxC0vmVbKQLA3BIsMAZnoDLRwFrM",
+  "server_pid": 13570,
+  "candidates": {
+   "BPR-1575-refresh-feedback-v001": "04a11365bf159de4ba7a7e1c7a99584f766c949405f06d449d9bf71093e85416",
+   "BPR-1576-loading-states-v001": "2cc7f473b8123e43262cd4d9e47648d7d20405989a3ba6103e019f925061137b"
+  },
+  "phase": "prepared and served; awaiting owner"
+ },
+ "landing": "Do not merge before acceptance. main has moved (33 commits incl. src and the round-trip contract) since c0a62280e: merge main, reseal both digests in application_review_round_trip_composition_contract.cmake, rerun the focused rows and the composition contracts, then land. The earlier worktree branch bpr-1575-refresh-and-loading holds WIP history only and can be deleted after landing."
+}
