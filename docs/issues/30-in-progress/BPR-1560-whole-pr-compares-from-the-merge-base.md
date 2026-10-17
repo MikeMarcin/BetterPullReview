@@ -298,6 +298,16 @@ numbers are kept here).
   clean; clang-tidy clean on the changed sources (two identifier-naming
   findings in `github_window_read_host_tests.cpp` at 375 and 379 are from
   `ca000e791a`); the composition contracts pass; `DOCUMENTATION_OK`.
+- **Gates, round four** (Astra round three, P1-A and P1-B, on `8bdce6372`).
+  One full `ctest --preset dev`: 761/761 passed (the same skip). The three new
+  tests each failed with their fix reverted. clang-format 22 clean; clang-tidy
+  clean on the changed sources apart from findings on lines this change does
+  not touch (`staged_review_session_tests.cpp` 254, 618, 1312 and 1321;
+  `github_window_read_host_tests.cpp` 379 and 383); `DOCUMENTATION_OK`. Live
+  #76 on a fresh data root: PASS 3/3, LEFT threads at lines 2, 3 and 5.
+  `application_label_authoring_contract` failed once in a parallel focused
+  run (40 s against 4.5 s alone, a serial GUI test) and passed alone and in
+  the full run.
 
 ## Not changed, deliberately
 
