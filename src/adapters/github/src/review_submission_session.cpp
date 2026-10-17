@@ -211,17 +211,24 @@ namespace bpr::adapters::github::detail {
 		if (!branch) {
 			return std::unexpected(branch.error());
 		}
-		if (branch->MergeBase == application::comparison_base(Configuration.Target)) {
-			return { };
+		const auto agrees   = branch->MergeBase == application::comparison_base(Configuration.Target);
+		auto       recorded = std::optional<merge_base_observation>{ };
+		auto       ancestry = std::optional<merge_base_observation>{ };
+		if (!agrees) {
+			auto recordedAnswer = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
+			if (!recordedAnswer) {
+				return std::unexpected(recordedAnswer.error());
+			}
+			recorded            = *recordedAnswer;
+			auto ancestryAnswer = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
+			if (!ancestryAnswer) {
+				return std::unexpected(ancestryAnswer.error());
+			}
+			ancestry = *ancestryAnswer;
 		}
-		const auto recorded = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
-		if (!recorded) {
-			return std::unexpected(recorded.error());
-		}
-		const auto ancestry = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
-		if (!ancestry) {
-			return std::unexpected(ancestry.error());
-		}
+		// The pull request read again, the last read before the write, on
+		// either path, and classified as the first read is; a recorded base
+		// GitHub replaced under the merge-base reads is the target moving.
 		auto  again        = perform(*target, aStop);
 		auto* againSuccess = std::get_if<github_mutation_wire_success>(&again);
 		if (!againSuccess || againSuccess->Response.Status != 200) {
@@ -229,8 +236,17 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		const auto confirmed = parse_target_observation(againSuccess->Response, Configuration.Target);
-		if (!confirmed || confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead || confirmed->Commits != parsed->Commits
-			|| !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry, parsed->Commits)) {
+		if (!confirmed) {
+			if (target_recorded_base_moved(againSuccess->Response, Configuration.Target)) {
+				return std::unexpected(application::review_mutation_failure::target_moved);
+			}
+			note(reason::pull_request_mismatch);
+			return std::unexpected(application::review_mutation_failure::undesignated_target);
+		}
+		if (confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead) {
+			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!agrees && (confirmed->Commits != parsed->Commits || !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, recorded, ancestry, parsed->Commits))) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };

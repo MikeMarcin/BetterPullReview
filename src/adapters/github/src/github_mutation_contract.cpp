@@ -2708,6 +2708,23 @@ namespace bpr::adapters::github::detail {
 		return review_mutation_target_observation{ .Target = std::move(observed), .Commits = response->Commits };
 	}
 
+	auto target_recorded_base_moved(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected) -> bool
+	{
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return false;
+		}
+		const auto response = document<target_response_json>(aResponse);
+		const auto base     = response ? core::parse_git_commit_oid(response->Base.Sha) : std::nullopt;
+		if (!base || *base == aExpected.BaseOid) {
+			return false;
+		}
+		auto moved    = aExpected;
+		moved.BaseOid = *base;
+		return parse_target_observation(aResponse, moved).has_value();
+	}
+
 	auto parse_viewer_observation(
 		const review_mutation_wire_response&                aResponse,
 		const application::review_mutation_acting_identity& aExpected)
@@ -3391,25 +3408,39 @@ namespace bpr::adapters::github::detail {
 		if (!branch.has_value()) {
 			return std::unexpected(branch.error());
 		}
-		if (branch->MergeBase == application::comparison_base(Configuration.Target)) {
-			return { };
+		const auto agrees   = branch->MergeBase == application::comparison_base(Configuration.Target);
+		auto       recorded = std::optional<merge_base_observation>{ };
+		auto       ancestry = std::optional<merge_base_observation>{ };
+		if (!agrees) {
+			auto recordedAnswer = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
+			if (!recordedAnswer.has_value()) {
+				return std::unexpected(recordedAnswer.error());
+			}
+			recorded            = *recordedAnswer;
+			auto ancestryAnswer = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
+			if (!ancestryAnswer.has_value()) {
+				return std::unexpected(ancestryAnswer.error());
+			}
+			ancestry = *ancestryAnswer;
 		}
-		const auto recorded = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
-		if (!recorded.has_value()) {
-			return std::unexpected(recorded.error());
-		}
-		const auto ancestry = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
-		if (!ancestry.has_value()) {
-			return std::unexpected(ancestry.error());
-		}
+		// The pull request read again, the last read before the write, on
+		// either path, and classified as the first read is; a recorded base
+		// GitHub replaced under the merge-base reads is the target moving.
 		auto again = perform(*targetRequest, aStop);
 		if (!again.has_value()) {
 			return std::unexpected(again.error());
 		}
 		const auto confirmed = parse_target_observation(*again, Configuration.Target);
-		if (!confirmed.has_value() || confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead
-			|| confirmed->Commits != target->Commits
-			|| !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry, target->Commits)) {
+		if (!confirmed.has_value()) {
+			if (target_recorded_base_moved(*again, Configuration.Target)) {
+				return std::unexpected(application::review_mutation_failure::target_moved);
+			}
+			return std::unexpected(map_contract_failure(confirmed.error()));
+		}
+		if (confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead) {
+			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!agrees && (confirmed->Commits != target->Commits || !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, recorded, ancestry, target->Commits))) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };

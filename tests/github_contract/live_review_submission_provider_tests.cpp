@@ -281,7 +281,9 @@ namespace {
 											   forward,
 											   rewritten,
 											   count_differs,
-											   reset };
+											   reset,
+											   agree_head_moves,
+											   agree_target_fails };
 	/// [[BPR-1560]]. GitHub's compare for the target's base branch and head:
 	/// the merge base a LEFT line is numbered in, the target's own unless the
 	/// base branch moved. [[BPR-1572]]: and the recorded base's compares.
@@ -295,7 +297,8 @@ namespace {
 		const auto tip       = std::string(40U, 'b');
 		auto       url       = std::string{ "main..." } + head;
 		auto       base      = tip;
-		auto       mergeBase = aMoved || aStacked != stacked_course::none ? std::string(40U, 'c') : comparison;
+		const auto agrees    = aStacked == stacked_course::none || aStacked == stacked_course::agree_head_moves || aStacked == stacked_course::agree_target_fails;
+		auto       mergeBase = aMoved || !agrees ? std::string(40U, 'c') : comparison;
 		auto       ahead     = std::string{ };
 		if (aWire.Operation == review_mutation_operation::observe_recorded_merge_base) {
 			url       = recorded + "..." + head;
@@ -363,7 +366,15 @@ namespace {
 				// commits; on the reset course GitHub has replaced its recorded
 				// base with the base branch's tip by the read that follows the
 				// merge-base answers.
-				if (Stacked != stacked_course::none) {
+				// [[BPR-1572]]. The base branch names the comparison base, but
+				// the pull request read again after it has a new head, or fails.
+				if ((Stacked == stacked_course::agree_head_moves || Stacked == stacked_course::agree_target_fails) && ++TargetReads == 2U) {
+					if (Stacked == stacked_course::agree_target_fails) {
+						return github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } };
+					}
+					response = target_response(target().RepositoryDatabaseId, commit(0x22U));
+				}
+				if (Stacked != stacked_course::none && Stacked != stacked_course::agree_head_moves && Stacked != stacked_course::agree_target_fails) {
 					auto& body = std::get<github_mutation_wire_success>(response).Response.Body;
 					body.insert(body.find(R"("head")"), R"("commits":2,)");
 					if (Stacked == stacked_course::reset && ++TargetReads == 2U) {
@@ -1026,6 +1037,24 @@ namespace {
 						   && result.Failure == application::review_mutation_failure::target_moved,
 					   "a rewritten base branch, a differing commit count or a replaced recorded base refuses a review with a LEFT comment before its POST");
 			}
+		}
+		for (const auto stacked : { stacked_course::agree_head_moves, stacked_course::agree_target_fails }) {
+			// [[BPR-1572]]. The base branch names the comparison base, and the
+			// pull request is still read again last: a head that moved during
+			// the compare is a stale head, and a failing read is unavailable,
+			// as on the first read. Nothing is sent.
+			temporary_directory root;
+			transport           wire;
+			wire.Request = carried();
+			wire.Stacked = stacked;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(wire.Posts == 0U && result.Publication == application::review_submission_publication::definitely_not_published
+					   && std::ranges::count(wire.Trace, review_mutation_operation::observe_pull_request) == 2
+					   && std::ranges::count(wire.Trace, review_mutation_operation::observe_merge_base) == 1
+					   && result.Failure
+						   == (stacked == stacked_course::agree_head_moves ? application::review_mutation_failure::stale_head : application::review_mutation_failure::unavailable),
+				   "the pull request read after an agreeing merge base is the last read: a moved head or a failing read sends nothing");
 		}
 		{
 			// Without a LEFT line nothing asks for the merge base.

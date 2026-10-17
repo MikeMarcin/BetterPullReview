@@ -476,6 +476,22 @@ namespace {
 			expect(validate_outbound_review_mutation_request(wire).has_value(), "session emits canonical request");
 			Operations.push_back(wire.Operation);
 			auto response = review_mutation_wire_response{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } } };
+			// [[BPR-1572]]. A stacked course: the base branch names another merge
+			// base than the comparison base, the recorded base's is the
+			// comparison base and the branch only moved forward. `ResetAtTarget`:
+			// from that pull request read on, GitHub names the branch's tip as
+			// the recorded base.
+			if (Stacked && (wire.Operation == operation::observe_merge_base || wire.Operation == operation::observe_recorded_merge_base || wire.Operation == operation::observe_base_ancestry)) {
+				const auto recorded = std::string{ "1010101010101010101010101010101010101010" };
+				const auto head     = std::string(40U, '1');
+				const auto tip      = std::string(40U, 'b');
+				const auto pair     = wire.Operation == operation::observe_merge_base ? "main..." + head : wire.Operation == operation::observe_recorded_merge_base ? recorded + "..." + head : recorded + "..." + tip;
+				const auto mergeBase = wire.Operation == operation::observe_merge_base ? std::string(40U, 'c') : wire.Operation == operation::observe_recorded_merge_base ? std::string{ "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a" } : recorded;
+				response.Body = R"({"url":"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/)" + pair + R"(",)" + (wire.Operation == operation::observe_recorded_merge_base ? std::string{ R"("ahead_by":2,)" } : std::string{ })
+					+ R"("base_commit":{"sha":")" + (wire.Operation == operation::observe_merge_base ? tip : recorded) + R"("},"merge_base_commit":{"sha":")" + mergeBase + R"("}})";
+				boundary();
+				return github_mutation_wire_success{ .Response = std::move(response) };
+			}
 			if (wire.Operation == operation::observe_viewer) {
 				response.Body = WrongActor ? R"({"id":23,"node_id":"U_foreign","login":"foreign"})" : R"({"id":22,"node_id":"U_fixture","login":"fixture-reviewer"})";
 				if (RecordedIdentity && !WrongActor) {
@@ -486,6 +502,12 @@ namespace {
 				response.Body = R"({"id":4246446933,"node_id":"PR_kwDOTyvof879G6NV","number":1,"state":"open","base":{"sha":"1010101010101010101010101010101010101010","ref":"main","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"MikeMarcin/BPR-Test"}},"head":{"sha":")";
 				response.Body += (StaleAtTarget != 0U && Targets >= StaleAtTarget) ? "1212121212121212121212121212121212121212" : "1111111111111111111111111111111111111111";
 				response.Body += R"(","ref":"codex/disposable-live-review-20260810"}})";
+				if (Stacked) {
+					response.Body.insert(response.Body.find(R"("base")"), R"("commits":2,)");
+					if (ResetAtTarget != 0U && Targets >= ResetAtTarget) {
+						response.Body.replace(response.Body.find("1010101010101010101010101010101010101010"), 40U, std::string(40U, 'b'));
+					}
+				}
 				if (RecordedIdentity && (StaleAtTarget == 0U || Targets < StaleAtTarget)) {
 					response.Body = R"({"id":4650736621,"node_id":"PR_kwDOTyvof88AAAABFTSb7Q","number":2,"state":"open","base":{"sha":"a939a85a5525994fe9e9cb4c973ad9362ed427c7","ref":"codex/rfc0022-fixture-base-20260926","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"MikeMarcin/BPR-Test"}},"head":{"sha":"61e8dbcd1c3940f6df0fa720bec5485dc25d4a3a","ref":"codex/rfc0022-live-comments-20260926"}})";
 				}
@@ -504,7 +526,15 @@ namespace {
 			} else {
 				expect(wire.Operation == operation::create_review_comment, "only root write in publication fixture");
 				expect(!aStop.stop_requested(), "cancellation checked before POST");
-				expect(Operations.size() >= 3U && Operations[Operations.size() - 2U] == operation::observe_pull_request && Operations[Operations.size() - 3U] == operation::observe_viewer, "viewer then exact target immediately precede each POST");
+				// The viewer, then the exact target, immediately precede each POST;
+				// a LEFT line's merge-base reads ([[BPR-1572]]) sit between the
+				// target and the target read again, which is last.
+				const auto viewer = std::ranges::find(Operations.rbegin(), Operations.rend(), operation::observe_viewer);
+				expect(Operations.size() >= 3U && Operations[Operations.size() - 2U] == operation::observe_pull_request && viewer != Operations.rend()
+						   && std::all_of(Operations.rbegin() + 1, viewer, [](const operation aRead) {
+								  return aRead == operation::observe_pull_request || aRead == operation::observe_merge_base || aRead == operation::observe_recorded_merge_base || aRead == operation::observe_base_ancestry;
+							  }),
+					   "viewer then exact target immediately precede each POST");
 				boundary();
 				if (!aWitness || !aWitness()) {
 					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
@@ -565,6 +595,8 @@ namespace {
 		bool                                         WrongActor      = false;
 		unsigned                                     Targets         = 0U;
 		unsigned                                     StaleAtTarget   = 0U;
+		bool                                         Stacked         = false;
+		unsigned                                     ResetAtTarget   = 0U;
 		int                                          GenericStatus   = 0;
 		std::stop_source*                            CancelAfterPost = nullptr;
 		std::function<void()>                        AfterPost;
@@ -742,6 +774,40 @@ namespace {
 			request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
 			next_draft(request);
 			expect(session.submit(request).has_value() && transport.Posts.size() == 6U, "a different anchor cannot borrow cached unsupported evidence");
+		}
+	}
+	/// [[BPR-1572]]. A LEFT comment through the source-backed publication
+	/// child on a stacked pull request: admission observes the target, the
+	/// baseline comment read follows, then the child observes it again, last,
+	/// before its POST. GitHub replacing the recorded base with the branch's
+	/// tip during that last observation's merge-base reads (the target read
+	/// again names the tip), or during the baseline read, sends nothing; with
+	/// no reset the comment is sent.
+	void test_left_source_backed_child_on_a_stacked_pull_request()
+	{
+		for (const unsigned resetAt : { 0U, 2U, 3U, 4U }) {
+			auto source                     = permalink_source();
+			source.Target.ComparisonBaseOid = commit(0x5aU);
+			auto endpoint                   = source.Endpoint->request();
+			endpoint.Diff.Comparison.Left.Commit = commit(0x5aU);
+			source.Endpoint                 = application::make_workbench_selected_diff_endpoint_for_testing(endpoint, core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+			auto request                    = publication_request(source);
+			request.Proposal.Anchor.Side    = core::diff_side::left;
+			request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
+			request.IdempotencyKey          = application::idempotency_key_for(request.Proposal, request.Target);
+			auto scratch                    = tests::sqlite_contract::scratch_root{ "stacked-publication" };
+			auto transport                  = publication_transport{ };
+			transport.Stacked               = true;
+			transport.ResetAtTarget         = resetAt;
+			auto       session              = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			const auto result               = session.submit_and_reconcile(request);
+			const auto ancestries           = std::ranges::count(transport.Operations, review_mutation_operation::observe_base_ancestry);
+			if (resetAt == 0U) {
+				expect(result.Result && transport.Posts.size() == 1U && ancestries == 2 && transport.Targets >= 4U,
+					   "a stacked LEFT comment through the source-backed child is sent after two complete observations");
+			} else {
+				expect(!result.Result && transport.Posts.empty(), "a recorded base replaced before the child's last read sends nothing");
+			}
 		}
 	}
 	class publication_log final : public application::diagnostic_log_port
@@ -1357,6 +1423,7 @@ auto main() -> int
 	tour_ranges();
 	test_server_truth_placement();
 	test_session_negotiation_and_cache();
+	test_left_source_backed_child_on_a_stacked_pull_request();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();
 	test_interruption_boundaries();

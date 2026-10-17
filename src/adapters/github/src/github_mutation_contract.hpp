@@ -455,6 +455,13 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected)
 		-> review_mutation_parse_result<review_mutation_target_observation>;
+	/// \brief [[BPR-1572]]. Whether the answer is the expected pull request in
+	/// every respect `parse_target_observation` checks except its recorded
+	/// base, which GitHub has replaced: the target moving, as opposed to a
+	/// malformed answer or another pull request.
+	[[nodiscard]] auto target_recorded_base_moved(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected) -> bool;
 	[[nodiscard]] auto parse_viewer_observation(
 		const review_mutation_wire_response&                aResponse,
 		const application::review_mutation_acting_identity& aExpected)

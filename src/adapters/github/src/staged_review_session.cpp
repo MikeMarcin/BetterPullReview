@@ -248,9 +248,15 @@ namespace bpr::adapters::github::detail {
 	}
 	auto review_submission_session::verify_staged(const record& aRecord, std::stop_token aStop, const bool aLeftLine) -> bool
 	{
-		if (!observe_exact(aStop, false, aLeftLine)) {
-			return false;
-		}
+		// [[BPR-1572]]. The pull request (and, for a LEFT line, GitHub's merge
+		// base and the pull request again) is observed last, after every other
+		// read here, so it is the last network read before the write this
+		// verification admits: a recorded base or head that moves during the
+		// review, comment or description reads is still seen.
+		return verify_staged_reads(aRecord, aStop) && observe_exact(aStop, false, aLeftLine).has_value();
+	}
+	auto review_submission_session::verify_staged_reads(const record& aRecord, std::stop_token aStop) -> bool
+	{
 		if (aRecord.Plan.Update && !verify_tour_update(aRecord, aStop)) {
 			return false;
 		}

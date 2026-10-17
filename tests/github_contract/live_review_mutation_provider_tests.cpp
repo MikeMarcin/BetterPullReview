@@ -1817,7 +1817,9 @@ namespace {
 		enum class course : std::uint8_t { forward,
 										   rewritten,
 										   count_differs,
-										   reset };
+										   reset,
+										   agree_head_moves,
+										   agree_target_fails };
 		const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
 		const auto head     = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 		const auto tip      = std::string(40U, 'b');
@@ -1836,7 +1838,8 @@ namespace {
 			}
 			return aTarget;
 		};
-		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset }) {
+		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset, course::agree_head_moves, course::agree_target_fails }) {
+			const auto agrees = which == course::agree_head_moves || which == course::agree_target_fails;
 			auto stacked              = target();
 			stacked.ComparisonBaseOid = base;
 			auto configured           = configuration();
@@ -1857,21 +1860,35 @@ namespace {
 			transport.answer(pull_request_get(), counted(target_response()));
 			const auto pair = [](const std::string_view aFrom, const std::string_view aTo) { return std::string{ aFrom }.append("...").append(aTo); };
 			const auto path = [](const std::string& aPair) { return std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(aPair).append("?page=2&per_page=1"); };
-			transport.answer({ .Method = http_method::get, .Path = path(pair("main", head)) }, compare(pair("main", head), tip, std::string(40U, 'c')));
+			transport.answer({ .Method = http_method::get, .Path = path(pair("main", head)) },
+							 compare(pair("main", head), tip, agrees ? std::string{ core::canonical_hex(base).view() } : std::string(40U, 'c')));
 			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, head)) },
 							 compare(pair(recorded, head), recorded, std::string{ core::canonical_hex(base).view() },
 									 which == course::count_differs ? R"("ahead_by":3,)" : R"("ahead_by":2,)"));
 			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, tip)) },
 							 compare(pair(recorded, tip), recorded, which == course::rewritten ? std::string(40U, 'e') : recorded));
-			transport.answer(pull_request_get(), counted(target_response(), which == course::reset ? tip : ""));
+			if (which == course::agree_head_moves) {
+				transport.answer(pull_request_get(), target_response(1'328'277'631U, commit(0x77U)));
+			} else if (which == course::agree_target_fails) {
+				transport.answer(pull_request_get(), github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } });
+			} else {
+				transport.answer(pull_request_get(), counted(target_response(), which == course::reset ? tip : ""));
+			}
 			transport.answer(comment_post(), comment_response());
 			transport.answer(comments_get(), comment_list_response());
 			auto       session = review_mutation_session{ transport, configured, mutation_lease(), make_recovery() };
 			const auto result  = session.submit(left);
 			const auto sent    = std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::create_review_comment; });
 			const auto asked   = std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::observe_pull_request; }) == 2
-				&& std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::observe_base_ancestry; }) == 1;
-			if (which == course::forward) {
+				&& std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::observe_base_ancestry; }) == (agrees ? 0 : 1);
+			if (agrees) {
+				// The pull request is read again after an agreeing merge base
+				// too, and classified as the first read is.
+				expect(asked && !sent && !result
+						   && result.error()
+							   == (which == course::agree_head_moves ? application::review_mutation_failure::stale_head : application::review_mutation_failure::unavailable),
+					   "after an agreeing merge base a moved head is a stale head and a failing read unavailable; nothing is sent");
+			} else if (which == course::forward) {
 				expect(asked && sent, "a base branch that only moved forward keeps a LEFT comment's line and the comment is sent");
 			} else {
 				expect(asked && !sent && !result && result.error() == application::review_mutation_failure::target_moved,
