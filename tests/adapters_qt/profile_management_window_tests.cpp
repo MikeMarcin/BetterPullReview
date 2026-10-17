@@ -455,11 +455,13 @@ namespace {
 				   && help->accessibleName() == QStringLiteral("Help"),
 			   "the desktop bar offers Help where Check for Updates… attaches");
 		const auto helpActions = help->actions();
-		expect(helpActions.size() == 4 && helpActions[0]->text() == QStringLiteral("Diagnostics…") && helpActions[1]->isSeparator()
-				   && helpActions[2]->text() == QStringLiteral("Export anonymized diagnostics…")
-				   && helpActions[3]->text() == QStringLiteral("Export with identifying details…")
-				   && !helpActions[0]->isEnabled() && !helpActions[2]->isEnabled() && !helpActions[3]->isEnabled(),
-			   "with the window's diagnostic commands, none actionable with no window open");
+		// [[BPR-1567]]. Keyboard Shortcuts first, as in the window's Help.
+		expect(helpActions.size() == 6 && helpActions[0]->text() == QStringLiteral("&Keyboard Shortcuts") && helpActions[1]->isSeparator()
+				   && helpActions[2]->text() == QStringLiteral("Diagnostics…") && helpActions[3]->isSeparator()
+				   && helpActions[4]->text() == QStringLiteral("Export anonymized diagnostics…")
+				   && helpActions[5]->text() == QStringLiteral("Export with identifying details…")
+				   && !helpActions[0]->isEnabled() && !helpActions[2]->isEnabled() && !helpActions[4]->isEnabled() && !helpActions[5]->isEnabled(),
+			   "with the window's Keyboard Shortcuts and diagnostic commands, none actionable with no window open");
 		const auto pullRequestActions = pullRequest->actions();
 		// [[BPR-1338]]. Read from a window's own Pull Request menu, with each
 		// command's key, rather than restated: BPR-1338 put Open on GitHub on
