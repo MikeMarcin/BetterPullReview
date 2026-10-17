@@ -89,6 +89,26 @@ the page's default button (Return). It starts no session and records nothing.
 The RFC keeps both behaviours: ⌘2 from a fresh Overview lands on `EntryPath`,
 and Return on the Files list opens the selected file.
 
-## Owner session
+## Owner session v001 (prepared 2026-10-17, unanswered)
 
-Pending; recorded below when prepared.
+Session `9b6359b5e66fa4d761e1acb025c4697b`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1574-drawers-v001`
+(a fresh short session), checkout this worktree, six candidates ready and
+protected at sequence 18, revision `design-v001@10b3309fa`. Each embeds its
+stills (today first, then each direction in Light and Dark) and a copyable
+`open /Users/jaeger/.codex/worktrees/bpr1574-drawer-redesign/BetterPullReview/docs/design/BPR-1574-drawers-and-agent-v1/<page>.html`
+for the clickable frames. The stills are kept beside the session at
+`/Users/jaeger/.mask/attended-review/bpr1574-drawers-v001-media/`.
+
+| Candidate | Question | Kind |
+|---|---|---|
+| `BPR-1574-principles` | Should every drawer and side surface follow these eight principles? | Accept or Reject |
+| `BPR-1574-notes` | Which direction should the Notes drawer take? | A Margin notes · B Notebook · C Scratchpad |
+| `BPR-1574-tours` | Which direction should the Tours drawer take? | A The route · B Stops at their lines · C Tour page and player |
+| `BPR-1574-agent` | Where should the Agent live as a first-class surface? | A Agent modality (⌘5) · B Agent drawer tab · C Agent dock |
+| `BPR-1574-compose` | Which layout should Compose review use? | A Focused · B What will be published · C Sheet over the code |
+| `BPR-1574-overview` | Which direction should the Overview's side panel take? | A Attention first · B Summary, Checks, People tabs · C Status band and checks drawer |
+
+Next: read `status --after 18`, record each verdict here and in
+RFC-DRAFT-0023, revise the draft to the decided design, then hand it to
+`implement-rfc`.
