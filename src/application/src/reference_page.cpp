@@ -14,6 +14,10 @@ namespace bpr::application {
 		if (!destination) {
 			return destination.error();
 		}
+		// The core refuses without a browser; said again where the call is.
+		if (aBrowser == nullptr) {
+			return core::markdown_link_result::unavailable;
+		}
 		try {
 			const auto address = reference_page_address(*destination);
 			if (!address_matches_verification_authority(address, destination->Hostname)) {
