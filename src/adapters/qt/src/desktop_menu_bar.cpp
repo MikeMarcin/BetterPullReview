@@ -1,5 +1,7 @@
 #include "bpr/qt/desktop_menu_bar.hpp"
 
+#include "bpr/qt/keyboard_shortcuts.hpp"
+
 #include <array>
 #include <utility>
 
@@ -25,7 +27,7 @@ namespace bpr::qt {
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("desktopQuitProfilesAction"));
 		QuitProfilesAction->setMenuRole(QAction::QuitRole);
-		QuitProfilesAction->setShortcut(QKeySequence::Quit);
+		QuitProfilesAction->setShortcuts(shortcut_keys(shortcut_command::quit));
 		QuitProfilesAction->setEnabled(false);
 		connect(QuitProfilesAction, &QAction::triggered, this, [this] {
 			if (QuitProfiles) {
@@ -41,14 +43,14 @@ namespace bpr::qt {
 		// the macOS application menu; otherwise the now-empty File menu vanishes.
 		auto* const closeTab = fileMenu->addAction(tr("Close Tab"));
 		closeTab->setObjectName(QStringLiteral("desktopCloseDocumentTabAction"));
-		closeTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+W") });
+		closeTab->setShortcuts(shortcut_keys(shortcut_command::close_tab));
 		closeTab->setEnabled(false);
 		ProfilesMenu = addMenu(QStringLiteral("&Profiles"));
 		ProfilesMenu->setObjectName(QStringLiteral("desktopProfilesMenu"));
 		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
 		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
 		NewBprWindowAction->setObjectName(QStringLiteral("desktopNewBprWindowAction"));
-		NewBprWindowAction->setShortcut(QKeySequence::New);
+		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
 		NewBprWindowAction->setEnabled(false);
 		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
 			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
@@ -77,7 +79,7 @@ namespace bpr::qt {
 		// there is none to open.
 		auto* const openOnGithub = PullRequestMenu->addAction(tr("Open on &GitHub"));
 		openOnGithub->setObjectName(QStringLiteral("desktopOpenOnGithubAction"));
-		openOnGithub->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+O") });
+		openOnGithub->setShortcuts(shortcut_keys(shortcut_command::open_on_github));
 		openOnGithub->setStatusTip(QStringLiteral("Open the pull request's page on GitHub, unavailable while no window is open"));
 		openOnGithub->setEnabled(false);
 		PullRequestMenu->addSeparator();
@@ -91,20 +93,20 @@ namespace bpr::qt {
 		PullRequestMenu->addSeparator();
 		auto* const composeReview = PullRequestMenu->addAction(tr("Compose &review"));
 		composeReview->setObjectName(QStringLiteral("desktopComposeReviewAction"));
-		composeReview->setShortcut(QKeySequence{ QStringLiteral("Alt+R") });
+		composeReview->setShortcuts(shortcut_keys(shortcut_command::compose_review));
 		composeReview->setEnabled(false);
 		auto* const comment = PullRequestMenu->addAction(tr("Co&mment"));
 		comment->setObjectName(QStringLiteral("desktopComposeInlineDraftAction"));
-		comment->setShortcut(QKeySequence{ QStringLiteral("Alt+C") });
+		comment->setShortcuts(shortcut_keys(shortcut_command::comment));
 		comment->setEnabled(false);
 		// [[BPR-1250]]. And the review tour's two commands (RFC-BPR-0045).
 		auto* const prepareTour = PullRequestMenu->addAction(tr("Prepare review &tour"));
 		prepareTour->setObjectName(QStringLiteral("desktopPrepareReviewTourAction"));
-		prepareTour->setShortcut(QKeySequence{ QStringLiteral("Alt+T") });
+		prepareTour->setShortcuts(shortcut_keys(shortcut_command::prepare_tour));
 		prepareTour->setEnabled(false);
 		auto* const addTourStop = PullRequestMenu->addAction(tr("Add tour stop"));
 		addTourStop->setObjectName(QStringLiteral("desktopAddTourStopAction"));
-		addTourStop->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+T") });
+		addTourStop->setShortcuts(shortcut_keys(shortcut_command::add_tour_stop));
 		addTourStop->setEnabled(false);
 		// [[BPR-0796]]. The workbench window's View menu, offered here and disabled.
 		// Without it the last close took View off the bar and the merged Preferences
@@ -123,19 +125,18 @@ namespace bpr::qt {
 		auto* const findMenu = ViewMenu->addMenu(tr("&Find"));
 		findMenu->setObjectName(QStringLiteral("desktopSourceFindMenu"));
 		findMenu->menuAction()->setEnabled(false);
-		const auto titles   = std::array{ tr("Find"), tr("Next pane match"), tr("Previous pane match"), tr("Find in Files"), tr("Next PR result"), tr("Previous PR result") };
-		const auto findKeys = std::array{ QKeySequence{ QKeySequence::Find }, QKeySequence{ QStringLiteral("F3") }, QKeySequence{ QStringLiteral("Shift+F3") }, QKeySequence{ QStringLiteral("Ctrl+Shift+F") }, QKeySequence{ QStringLiteral("F4") }, QKeySequence{ QStringLiteral("Shift+F4") } };
-		for (std::size_t index = 0U; index < titles.size(); ++index) {
-			auto* action = findMenu->addAction(titles[index]);
-			action->setShortcuts({ findKeys[index] });
-#if defined(Q_OS_MACOS)
-			if (index == 1U) {
-				action->setShortcuts({ findKeys[index], QKeySequence{ QStringLiteral("Ctrl+G") } });
-			}
-			if (index == 2U) {
-				action->setShortcuts({ findKeys[index], QKeySequence{ QStringLiteral("Ctrl+Shift+G") } });
-			}
-#endif
+		// [[BPR-1567]]. Named, so the shortcut catalogue's check finds them.
+		for (const auto& [title, name, command] : {
+				 std::tuple{ tr("Find"), QStringLiteral("desktopSourceFindAction"), shortcut_command::find },
+				 std::tuple{ tr("Next pane match"), QStringLiteral("desktopSourceFindNextAction"), shortcut_command::find_next },
+				 std::tuple{ tr("Previous pane match"), QStringLiteral("desktopSourceFindPreviousAction"), shortcut_command::find_previous },
+				 std::tuple{ tr("Find in Files"), QStringLiteral("desktopSourceFilesAction"), shortcut_command::find_in_files },
+				 std::tuple{ tr("Next PR result"), QStringLiteral("desktopSourceFilesNextAction"), shortcut_command::next_result },
+				 std::tuple{ tr("Previous PR result"), QStringLiteral("desktopSourceFilesPreviousAction"), shortcut_command::previous_result },
+			 }) {
+			auto* action = findMenu->addAction(title);
+			action->setObjectName(name);
+			action->setShortcuts(shortcut_keys(command));
 			action->setEnabled(false);
 		}
 		ViewMenu->setAccessibleDescription(
@@ -143,30 +144,31 @@ namespace bpr::qt {
 		// [[BPR-1493]]. The window's navigation texts, mnemonics included, so the
 		// two View menus read alike.
 		const auto navigation = std::array{
-			std::pair{ QStringLiteral("&Previous file"), QStringLiteral("Ctrl+Alt+Up") },
-			std::pair{ QStringLiteral("&Next file"), QStringLiteral("Ctrl+Alt+Down") },
-			std::pair{ QStringLiteral("Pre&vious change"), QStringLiteral("Alt+Up") },
-			std::pair{ QStringLiteral("Ne&xt change"), QStringLiteral("Alt+Down") },
+			std::tuple{ QStringLiteral("&Previous file"), QStringLiteral("desktopPreviousWorkbenchFileAction"), shortcut_command::previous_file },
+			std::tuple{ QStringLiteral("&Next file"), QStringLiteral("desktopNextWorkbenchFileAction"), shortcut_command::next_file },
+			std::tuple{ QStringLiteral("Pre&vious change"), QStringLiteral("desktopPreviousWorkbenchChangeAction"), shortcut_command::previous_change },
+			std::tuple{ QStringLiteral("Ne&xt change"), QStringLiteral("desktopNextWorkbenchChangeAction"), shortcut_command::next_change },
 			// [[BPR-1532]]. First and Last change, after Next change.
-			std::pair{ QStringLiteral("Fi&rst change"), QStringLiteral("Alt+Shift+Up") },
-			std::pair{ QStringLiteral("Last c&hange"), QStringLiteral("Alt+Shift+Down") },
+			std::tuple{ QStringLiteral("Fi&rst change"), QStringLiteral("desktopFirstWorkbenchChangeAction"), shortcut_command::first_change },
+			std::tuple{ QStringLiteral("Last c&hange"), QStringLiteral("desktopLastWorkbenchChangeAction"), shortcut_command::last_change },
 		};
-		for (const auto& [name, key] : navigation) {
-			auto* const action = ViewMenu->addAction(name);
-			action->setShortcut(QKeySequence{ key });
+		for (const auto& [text, name, command] : navigation) {
+			auto* const action = ViewMenu->addAction(text);
+			action->setObjectName(name);
+			action->setShortcuts(shortcut_keys(command));
 			action->setEnabled(false);
 		}
 		ViewMenu->addSeparator();
 		auto* const counterpart = ViewMenu->addAction(QStringLiteral("Go to header/source"));
 		counterpart->setObjectName(QStringLiteral("desktopGoToHeaderSourceAction"));
-		counterpart->setShortcut(QKeySequence{ QStringLiteral("Alt+O") });
+		counterpart->setShortcuts(shortcut_keys(shortcut_command::header_source));
 		counterpart->setStatusTip(QStringLiteral("Open a review window to go to a matching header or source file."));
 		counterpart->setEnabled(false);
 		ViewMenu->addSeparator();
 		auto* const lineNumbers = ViewMenu->addAction(QStringLiteral("&Line numbers"));
 		lineNumbers->setObjectName(QStringLiteral("desktopToggleLineNumbersAction"));
 		lineNumbers->setCheckable(true);
-		lineNumbers->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+5") });
+		lineNumbers->setShortcuts(shortcut_keys(shortcut_command::line_numbers));
 		lineNumbers->setEnabled(false);
 		auto* const onePane = ViewMenu->addAction(QStringLiteral("&One pane"));
 		onePane->setObjectName(QStringLiteral("desktopToggleOnePaneAction"));
@@ -181,14 +183,14 @@ namespace bpr::qt {
 		auto* const toggleDrawers = ViewMenu->addAction(QStringLiteral("Hide &Drawers"));
 		toggleDrawers->setObjectName(QStringLiteral("desktopToggleDrawersAction"));
 		toggleDrawers->setCheckable(true);
-		toggleDrawers->setShortcut(QKeySequence{ QStringLiteral("Ctrl+B") });
+		toggleDrawers->setShortcuts(shortcut_keys(shortcut_command::hide_drawers));
 		toggleDrawers->setEnabled(false);
 		// [[BPR-1293]] [[BPR-1304]] [[BPR-1341]]. Threads, after Hide Drawers as in the
 		// window's menu. BPR-1293 gave the window's View this item and not this
 		// bar's, so the last close took it off the bar.
 		auto* const threads = ViewMenu->addAction(QStringLiteral("&Threads"));
 		threads->setObjectName(QStringLiteral("desktopShowThreadsAction"));
-		threads->setShortcut(QKeySequence{ QStringLiteral("Ctrl+J") });
+		threads->setShortcuts(shortcut_keys(shortcut_command::find_thread));
 		threads->setEnabled(false);
 		auto* const updatesLine = ViewMenu->addAction(QStringLiteral("&Updates Line"));
 		updatesLine->setObjectName(QStringLiteral("desktopToggleUpdatesLineAction"));
@@ -197,14 +199,14 @@ namespace bpr::qt {
 		// [[BPR-1336]]. The window's zoom commands, after Updates Line as in the
 		// window's menu, with the window's keys.
 		ViewMenu->addSeparator();
-		for (const auto& [text, name, keys] : {
-				 std::tuple{ tr("Zoom In"), QStringLiteral("desktopZoomInCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } } },
-				 std::tuple{ tr("Zoom Out"), QStringLiteral("desktopZoomOutCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+-") } } },
-				 std::tuple{ tr("Actual Size"), QStringLiteral("desktopActualSizeCodeAction"), QList<QKeySequence>{ QKeySequence{ QStringLiteral("Ctrl+0") } } },
+		for (const auto& [text, name, command] : {
+				 std::tuple{ tr("Zoom In"), QStringLiteral("desktopZoomInCodeAction"), shortcut_command::zoom_in },
+				 std::tuple{ tr("Zoom Out"), QStringLiteral("desktopZoomOutCodeAction"), shortcut_command::zoom_out },
+				 std::tuple{ tr("Actual Size"), QStringLiteral("desktopActualSizeCodeAction"), shortcut_command::actual_size },
 			 }) {
 			auto* const zoom = ViewMenu->addAction(text);
 			zoom->setObjectName(name);
-			zoom->setShortcuts(keys);
+			zoom->setShortcuts(shortcut_keys(command));
 			zoom->setEnabled(false);
 		}
 		ViewMenu->addSeparator();
@@ -214,13 +216,8 @@ namespace bpr::qt {
 		auto* const previousTab = ViewMenu->addAction(tr("Previous Tab"));
 		previousTab->setObjectName(QStringLiteral("desktopPreviousDocumentTabAction"));
 		previousTab->setEnabled(false);
-#if defined(Q_OS_MACOS)
-		nextTab->setShortcut(QKeySequence{ QStringLiteral("Meta+Tab") });
-		previousTab->setShortcut(QKeySequence{ QStringLiteral("Meta+Shift+Tab") });
-#else
-		nextTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Tab") });
-		previousTab->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") });
-#endif
+		nextTab->setShortcuts(shortcut_keys(shortcut_command::next_tab));
+		previousTab->setShortcuts(shortcut_keys(shortcut_command::previous_tab));
 		// [[BPR-0646]] gives Settings the preferences role, which macOS merges into
 		// the application menu. Offered so that menu keeps every item it had while a
 		// window was open; disabled because Settings is a window's, and no window is
@@ -229,7 +226,7 @@ namespace bpr::qt {
 		auto* const settings = ViewMenu->addAction(QStringLiteral("&Settings…"));
 		settings->setObjectName(QStringLiteral("desktopOpenSettingsAction"));
 		settings->setMenuRole(QAction::PreferencesRole);
-		settings->setShortcut(QKeySequence::Preferences);
+		settings->setShortcuts(shortcut_keys(shortcut_command::settings));
 		settings->setEnabled(false);
 		// [[BPR-1250]]. The workbench window's Help menu (RFC-BPR-0027's
 		// diagnostics), offered here and disabled for the same reason as View.
@@ -243,7 +240,13 @@ namespace bpr::qt {
 		HelpMenu->setObjectName(QStringLiteral("releaseUpdateMenu"));
 		HelpMenu->setAccessibleName(QStringLiteral("Help"));
 		HelpMenu->setAccessibleDescription(
-			QStringLiteral("Diagnostics and their export, unavailable while no window is open"));
+			QStringLiteral("Keyboard shortcuts, diagnostics and their export, unavailable while no window is open"));
+		// [[BPR-1567]]. Keyboard Shortcuts, first as in the window's Help.
+		auto* const keyboardShortcuts = HelpMenu->addAction(QStringLiteral("&Keyboard Shortcuts"));
+		keyboardShortcuts->setObjectName(QStringLiteral("desktopKeyboardShortcutsAction"));
+		keyboardShortcuts->setShortcuts(shortcut_keys(shortcut_command::keyboard_shortcuts));
+		keyboardShortcuts->setEnabled(false);
+		HelpMenu->addSeparator();
 		auto* const diagnostics = HelpMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("desktopOpenDiagnosticsAction"));
 		diagnostics->setEnabled(false);

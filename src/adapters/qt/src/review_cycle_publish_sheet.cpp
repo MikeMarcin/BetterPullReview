@@ -1,6 +1,7 @@
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
 
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -523,12 +524,15 @@ namespace bpr::qt {
 		connect(LinkConfirm, &QPushButton::clicked, this, link);
 		connect(LinkAddress, &QLineEdit::returnPressed, this, link);
 		connect(Close, &QPushButton::clicked, this, &QDialog::reject);
-#ifdef Q_OS_MACOS
-		// Control-C cancels on macOS, as in the code view (BPR-1157); elsewhere Ctrl+C is Copy.
-		auto* const keys = new QShortcut{ QKeySequence{ Qt::META | Qt::Key_C }, this };
-		keys->setContext(Qt::WindowShortcut);
-		connect(keys, &QShortcut::activated, this, &QDialog::reject);
-#endif
+		// Control-C cancels on macOS, as in the code view (BPR-1157); elsewhere Ctrl+C is Copy,
+		// and the catalogue gives the sheet no key.
+		if (const auto keys = shortcut_keys(shortcut_command::cycle_sheet_close); !keys.isEmpty()) {
+			auto* const closeKeys = new QShortcut{ this };
+			closeKeys->setObjectName(QStringLiteral("cycleSheetCloseKeys"));
+			closeKeys->setKeys(keys);
+			closeKeys->setContext(Qt::WindowShortcut);
+			connect(closeKeys, &QShortcut::activated, this, &QDialog::reject);
+		}
 		ring_keyboard_focus(*this, QStringLiteral("cycleKeyboardFocus"));
 	}
 

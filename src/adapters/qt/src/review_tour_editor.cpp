@@ -1,5 +1,6 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include <QAction>
 #include <QApplication>
@@ -691,41 +692,40 @@ namespace bpr::qt {
 		Outline->setContextMenuPolicy(Qt::CustomContextMenu);
 		auto* menu = new QMenu{ Outline };
 		menu->setObjectName(QStringLiteral("tourStopMenu"));
-		const auto action = [&](const QString& aText, const QString& aName, const QKeySequence& aKeys, auto aCallback) {
+		const auto action = [&](const QString& aText, const QString& aName, const QList<QKeySequence>& aKeys, auto aCallback) {
 			auto* value = menu->addAction(aText);
 			value->setObjectName(aName);
-			value->setShortcut(aKeys);
+			value->setShortcuts(aKeys);
 			value->setShortcutContext(Qt::WidgetShortcut);
 			Outline->addAction(value);
 			connect(value, &QAction::triggered, this, aCallback);
 			return value;
 		};
 		action(tr("Insert after"), QStringLiteral("tourInsertAfter"), { }, [this] { trigger(tour_editor_action::insert_after); });
-		DuplicateStops = action(tr("Duplicate"), QStringLiteral("tourDuplicate"), QKeySequence{ QStringLiteral("Ctrl+D") }, [this] { structural(core::tour_command_kind::duplicate); });
+		DuplicateStops = action(tr("Duplicate"), QStringLiteral("tourDuplicate"), shortcut_keys(shortcut_command::tour_duplicate), [this] { structural(core::tour_command_kind::duplicate); });
 		MergeStops     = action(tr("Merge"), QStringLiteral("tourMerge"), { }, [this] { structural(core::tour_command_kind::merge_next); });
 		MergeStops->setToolTip(tr("Select two or more adjacent stops to merge in route order."));
 		// [[BPR-1241]]. Option-R (Alt+R) is the window's Compose review; a second claim
 		// on it in the same window is ambiguous and neither action would run. This
 		// repoints the stop at the lines selected in either pane and copies no code,
 		// so it is not a diff tool's Copy to Right and takes none of its keys.
-		auto* const retarget = action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), QKeySequence{ QStringLiteral("Alt+Shift+U") }, [this] { trigger(tour_editor_action::retarget_stop); });
+		auto* const retarget = action(tr("Use selected source as replacement"), QStringLiteral("tourRetarget"), shortcut_keys(shortcut_command::tour_retarget), [this] { trigger(tour_editor_action::retarget_stop); });
 		retarget->setToolTip(tr("Point this stop at the lines selected in the comparison (%1). No code is copied or changed.").arg(retarget->shortcut().toString(QKeySequence::NativeText)));
 		menu->setToolTipsVisible(true);
-		RemoveStops = action(tr("Remove"), QStringLiteral("tourRemove"), QKeySequence{ Qt::Key_Delete }, [this] { structural(core::tour_command_kind::remove); });
-		RemoveStops->setShortcuts({ QKeySequence{ Qt::Key_Delete }, QKeySequence{ Qt::Key_Backspace } });
-		const auto shortcut = [&](const QString& aName, const QKeySequence& aKeys, QWidget* aOwner, auto aCallback) {
+		RemoveStops         = action(tr("Remove"), QStringLiteral("tourRemove"), shortcut_keys(shortcut_command::tour_remove), [this] { structural(core::tour_command_kind::remove); });
+		const auto shortcut = [&](const QString& aName, const shortcut_command aKeys, QWidget* aOwner, auto aCallback) {
 			auto* value = new QAction{ aOwner };
 			value->setObjectName(aName);
-			value->setShortcut(aKeys);
+			value->setShortcuts(shortcut_keys(aKeys));
 			value->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 			aOwner->addAction(value);
 			connect(value, &QAction::triggered, this, aCallback);
 			return value;
 		};
-		shortcut(QStringLiteral("tourMoveUp"), QKeySequence{ QStringLiteral("Alt+Shift+Up") }, Outline, [this] { move_selection(-1); });
-		shortcut(QStringLiteral("tourMoveDown"), QKeySequence{ QStringLiteral("Alt+Shift+Down") }, Outline, [this] { move_selection(1); });
-		UndoStructure = shortcut(QStringLiteral("tourUndo"), QKeySequence::Undo, this, [this] { trigger(tour_editor_action::undo_structure); });
-		RedoStructure = shortcut(QStringLiteral("tourRedo"), QKeySequence::Redo, this, [this] { trigger(tour_editor_action::redo_structure); });
+		shortcut(QStringLiteral("tourMoveUp"), shortcut_command::tour_move_up, Outline, [this] { move_selection(-1); });
+		shortcut(QStringLiteral("tourMoveDown"), shortcut_command::tour_move_down, Outline, [this] { move_selection(1); });
+		UndoStructure = shortcut(QStringLiteral("tourUndo"), shortcut_command::tour_undo, this, [this] { trigger(tour_editor_action::undo_structure); });
+		RedoStructure = shortcut(QStringLiteral("tourRedo"), shortcut_command::tour_redo, this, [this] { trigger(tour_editor_action::redo_structure); });
 		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
 		connect(Outline, &QListWidget::itemSelectionChanged, this, [this] { update_stop_actions(); });
 		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
@@ -813,7 +813,7 @@ namespace bpr::qt {
 		connect(returnToTour, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::navigate_stop); });
 		auto* complete = new QPushButton{ tr("Ready and next"), page };
 		complete->setObjectName(QStringLiteral("tourComplete"));
-		complete->setShortcut(QKeySequence{ QStringLiteral("Alt+Return") });
+		complete->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
 		auto* reaffirm = new QPushButton{ tr("Reaffirm explanation for current head"), page };
 		reaffirm->setObjectName(QStringLiteral("tourReaffirm"));
 		column->addWidget(reaffirm);

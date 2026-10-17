@@ -2,6 +2,7 @@
 
 #include "bpr/core/fuzzy_match.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
 #include <QAbstractButton>
@@ -605,7 +606,9 @@ namespace bpr::qt {
 			Search->setFocus(Qt::OtherFocusReason);
 		});
 		// The platform's find key: Command-F on macOS, Ctrl+F elsewhere.
-		auto* const find = new QShortcut{ QKeySequence::Find, this };
+		auto* const find = new QShortcut{ this };
+		find->setKeys(shortcut_keys(shortcut_command::settings_find));
+		find->setObjectName(QStringLiteral("settingsFindShortcut"));
 		find->setContext(Qt::WindowShortcut);
 		connect(find, &QShortcut::activated, this, [this] {
 			Search->setFocus(Qt::ShortcutFocusReason);

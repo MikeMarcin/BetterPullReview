@@ -4,6 +4,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
@@ -1614,7 +1615,7 @@ namespace bpr::qt {
 			menu->setAttribute(Qt::WA_DeleteOnClose);
 			auto* const single = menu->addAction(Publish->text());
 			single->setObjectName(QStringLiteral("threadReviewDraftSingle"));
-			single->setShortcut(QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return });
+			single->setShortcuts(shortcut_keys(shortcut_command::draft_single));
 			single->setShortcutContext(Qt::WidgetShortcut);
 			single->setShortcutVisibleInContextMenu(true);
 			single->setToolTip(Publish->toolTip());

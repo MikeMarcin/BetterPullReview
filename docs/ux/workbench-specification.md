@@ -1287,6 +1287,14 @@ never invents enabled state.
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]], [[BPR-1535]]) | `Ctrl+0` (⌘0) |
 | Home: show Home, or leave it for the review ([[BPR-0650]], [[BPR-1535]]) | `Ctrl+Shift+H` (⌘⇧H) |
+| Help > Keyboard Shortcuts ([[BPR-1567]]) | `Ctrl+/` (⌘/) |
+
+Every key in this table, and every other key a window, widget or the
+resident desktop menu bar binds, is written once, in the shortcut catalogue
+(`src/adapters/qt/src/keyboard_shortcuts.cpp`, [[BPR-1567]]). The bindings
+take their keys from it, and Help > Keyboard Shortcuts is generated from it;
+see [Keyboard Shortcuts](#keyboard-shortcuts). A new or changed key is a
+catalogue entry first.
 
 Actual Size is ⌘0 (`Ctrl+0`), as in browsers and editors. Until the owner
 moved Home to ⌘⇧H on 2026-10-15 ([[BPR-1535]]), ⌘0 was Home and Actual Size
@@ -1778,6 +1786,56 @@ the key. Elsewhere, including read-only code, the keys work as listed. Option
 with an arrow, Page Up or Down or Return, and Command-Option keys, are not
 text and are unchanged. On Windows and Linux Alt is a command key and keeps
 these commands in editors; text input there is AltGr ([[BPR-1336]]).
+
+### Keyboard Shortcuts
+
+**Help > Keyboard Shortcuts** ([[BPR-1567]]; owner, 2026-10-16: "Can we add
+a help page to list keyboard shortcuts") is Help's first item, before
+Diagnostics…, on `Ctrl+/` (⌘/), the key Slack and Google's editors list
+their shortcuts with. ⌘? is macOS's own Help-menu search and is not taken;
+no Qt standard key, text widget or other binding in the window uses `Ctrl+/`.
+It opens one non-modal Keyboard Shortcuts window per workbench window; the
+same key or item again raises it, and Esc or Close hides it. The resident
+desktop menu bar offers the item disabled, like Diagnostics….
+
+The window lists every shortcut, grouped by area: Navigation, Review and
+files, Comments and labels, Find, Views and drawers, Comparison and history,
+Zoom, Review tours, Home, Review Cycles and Application. Each row is the
+command in words and its keys as key caps, in the platform's notation
+(`QKeySequence::NativeText`: ⌘⌥⇧ glyphs on macOS, `Ctrl+Alt+…` elsewhere),
+with "or" between alternatives; a keypad Enter that only repeats Return is
+bound but not listed twice. A key that acts in one place says where under
+its command ("In the tour outline", "In a code pane", "On Overview"), and a
+key that a text field takes while you type says "Not while typing": on every
+platform Accept file, the change arrows, First and Last change and Hide
+Drawers, and on macOS each window-wide Option+character key
+([Option keys and typing](#menu-bar)). A footer states that rule. A key with
+no binding on the platform (Quit on Windows, the Review Cycle sheets'
+Control-C off macOS) is not listed.
+
+The search field has the keyboard when the window opens. Every word typed
+must appear in a row's command, place, group or keys (as written natively,
+spoken, or in portable text such as `Ctrl+0`); a group with no matching row
+is hidden, and when nothing matches, "No shortcut matches “…”." stands in
+place of the list. Down Arrow or Return moves from the search to the first
+row shown; Tab reaches the list and Close. The list, the search and each row
+carry accessible names, and a row's keys read as words ("Option-Command-Up
+Arrow" on macOS). The window is resizable, sized from the font, and draws
+only from the inherited palette and font: a key cap is a light tint of the
+list's text over its base, so it reads as raised in Light, Dark and both
+High Contrast themes.
+
+The rows come from the catalogue the bindings are made from, so the page
+cannot list a key the application does not bind. `qt_keyboard_shortcuts_scale_{100,125,200}`
+enumerates every `QAction`, `QShortcut` and explicit button key in the
+assembled window, the resident menu bar and a Review Cycle view, and fails on
+a key the catalogue lacks, a key that differs, a binding that lost its key or
+a catalogue entry with nothing bound. Keys a widget reads in its own key
+handling (Return in the code, ⌘L in a comment editor, the Find query's ⌥W
+and ⌥L) are catalogue entries too, and the menu items that only show them
+(the code's Add comment, Threads' and Home's row menus) take their keys from
+it. No binding object carries those keys, so the enumeration cannot see the
+handlers themselves: a change to such a handler changes its entry by hand.
 
 The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench
