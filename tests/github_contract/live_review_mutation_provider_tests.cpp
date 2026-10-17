@@ -1855,13 +1855,14 @@ namespace {
 			transport.answer(comments_get(), comment_list_response(0U));
 			transport.answer(viewer_get(), viewer_response());
 			transport.answer(pull_request_get(), counted(target_response()));
-			transport.answer({ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/compare/main..." + head + "?page=2&per_page=1" },
-							 compare("main..." + head, tip, std::string(40U, 'c')));
-			transport.answer({ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + head + "?page=2&per_page=1" },
-							 compare(recorded + "..." + head, recorded, std::string{ core::canonical_hex(base).view() },
+			const auto pair = [](const std::string_view aFrom, const std::string_view aTo) { return std::string{ aFrom }.append("...").append(aTo); };
+			const auto path = [](const std::string& aPair) { return std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(aPair).append("?page=2&per_page=1"); };
+			transport.answer({ .Method = http_method::get, .Path = path(pair("main", head)) }, compare(pair("main", head), tip, std::string(40U, 'c')));
+			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, head)) },
+							 compare(pair(recorded, head), recorded, std::string{ core::canonical_hex(base).view() },
 									 which == course::count_differs ? R"("ahead_by":3,)" : R"("ahead_by":2,)"));
-			transport.answer({ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + tip + "?page=2&per_page=1" },
-							 compare(recorded + "..." + tip, recorded, which == course::rewritten ? std::string(40U, 'e') : recorded));
+			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, tip)) },
+							 compare(pair(recorded, tip), recorded, which == course::rewritten ? std::string(40U, 'e') : recorded));
 			transport.answer(pull_request_get(), counted(target_response(), which == course::reset ? tip : ""));
 			transport.answer(comment_post(), comment_response());
 			transport.answer(comments_get(), comment_list_response());

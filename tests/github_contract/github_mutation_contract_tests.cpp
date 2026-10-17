@@ -1512,8 +1512,10 @@ namespace {
 			const auto binding = basis == merge_base_observation_basis::recorded_base ? target() : merge_base_ancestry_binding(target(), tip);
 			const auto asked   = compile_merge_base_observation_request(binding, application::github_server_contract::github_com_2022_11_28, basis);
 			const auto echoed  = std::string{ core::canonical_hex(binding.Semantic.ExpectedHead).view() };
+			auto       suffix  = std::string{ "/compare/" };
+			suffix.append(recordedBase).append("...").append(echoed).append("?page=2&per_page=1");
 			expect(asked && asked->Method == http_method::get && validate_outbound_review_mutation_request(*asked)
-					   && asked->Path.ends_with("/compare/" + recordedBase + "..." + echoed + "?page=2&per_page=1")
+					   && asked->Path.ends_with(suffix)
 					   && asked->Operation
 						   == (basis == merge_base_observation_basis::recorded_base ? review_mutation_operation::observe_recorded_merge_base : review_mutation_operation::observe_base_ancestry),
 				   "each observation is its own canonical GET of exact commits");

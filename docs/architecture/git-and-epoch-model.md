@@ -292,7 +292,15 @@ two-dot comparison from it reverts the base branch's own changes and hides the
 pull request's changes the base branch already carries. The application never
 computes this merge base itself. GitHub's compare names one merge base even
 where Git has several (criss-cross histories); the review compares from that
-one, the one GitHub names. CRISS_CROSS_MEASUREMENT
+one, the one GitHub names. Measured on a criss-cross pull
+request (BPR-Test #101 and #106, 2026-10-17: two merge bases X1 and Y1 whose
+comparisons with the head change different lines of one file, and a virtual
+merge of both that changes neither): compare named X1, and GitHub's Files
+changed, patches included, was exactly the comparison from X1, not from Y1 nor
+from Git's recursive virtual base; the shipped composition matched it line for
+line. GitHub's choice among several merge bases is not documented; the review
+follows the one compare names, the same answer the file list was measured to
+follow.
 
 Before a `LEFT` line is published the same rule is asked again from GitHub:
 the base branch's merge base, and when it is not the comparison base, the

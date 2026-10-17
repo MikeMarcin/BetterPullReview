@@ -96,7 +96,9 @@ Rule (open pull request; a closed one is unchanged and asks only `base.sha`):
      `base.sha`.
    Otherwise `refused`: GitHub is replacing `base.sha` (a force-pushed base
    branch), or its answers disagree. The extra compare is asked only here.
-4. The pull request's metadata again, unchanged (as before).
+4. The pull request's metadata again: head, `base.sha`, base branch, state,
+   changed-file count and, since review round one, the reported commit count
+   must still be the snapshot's.
 
 Unchanged BPR-1560 properties: lost authentication fails the whole read; any
 other failure is `failed`, the only state a window carries a merge base across;
@@ -112,12 +114,20 @@ write.
 - **Publication** (`github_mutation_contract.{hpp,cpp}`,
   `review_submission_session.cpp`): before anything on a LEFT line is written
   (single comment, review, tour stop, resumed tour), the base branch's merge
-  base is asked as before; when it is not the comparison base, two new reads,
-  `observe_recorded_merge_base` (compare `base.sha`...head) and
-  `observe_base_ancestry` (compare `base.sha`...base branch), must name the
-  comparison base and `base.sha`, or the write is `target_moved`
+  base is asked as before. When it is not the comparison base, the same rule
+  as the read path: `observe_recorded_merge_base` (compare `base.sha`...head,
+  whose `ahead_by` must equal the `commits` the pull request reported) and
+  `observe_base_ancestry` (compare `base.sha`...T, T the exact tip the
+  base-branch answer resolved, compiled from `merge_base_ancestry_binding`)
+  must name the comparison base and `base.sha`; then the pull request is read
+  again and must be unchanged (identity, `base.sha`, base branch, head, state
+  and commit count), or the write is `target_moved`
   (`left_lines_numbered_in_comparison_base`). Without this, every LEFT
-  publication on a stacked pull request would have been refused.
+  publication on a stacked pull request would have been refused. Review round
+  one (Astra P1-1, P1-2): the first version asked the ancestry of the branch by
+  name, did not read the pull request again after the answers, and ignored
+  the commit count; a recorded base GitHub replaced with a descendant tip
+  during those reads would have authorised stale LEFT coordinates.
 - **Wording** (BPR-1560 follow-up): `refused` hands over
   `comparison_base_basis::disputed_base`; the core resolves Whole PR as under
   `recorded_base` with the reason `merge_base_disputed`, shown as "GitHub's
@@ -216,16 +226,75 @@ write.
   `_200`, `release_update_native_https`, `application_line_draft_contract`
   (load).
 
+## Review round one (Fable approve, Astra reject; on `d8d1f5671`)
+
+- **P1-1** (publication reconfirmation and tip binding): fixed as above.
+  Tests: `live_review_mutation_provider`
+  (`a_left_comment_on_a_stacked_pull_request`: forward sent; rewritten,
+  commit count differing and recorded base reset to the tip between the
+  answers and the second pull request read: `target_moved`, nothing sent),
+  `live_review_submission_provider` (the same four courses for a review),
+  `staged_review_session` (a tour, and a resumed tour after a denied first
+  write and after a Stop, with the reset), `github_mutation_contract` (an
+  ancestry answer about the branch by name is refused; requests are exact
+  commits). Negative controls: with the second pull request read ignored, the
+  single-comment reset course sends its comment and the resumed-tour reset
+  writes; with the commit count ignored, `count_differs` passes the rule.
+- **P1-2** (publication commit count): the target observation reads
+  `commits`, the compare answer `ahead_by` (unsigned; a negative or
+  non-numeric count is malformed), and the rule requires them equal.
+- **P2** (read confirmation): the confirming read compares the reported commit
+  count; `github_provider` course `stacked_commits_drop` (2 to 1) is refused,
+  and passes as available with the check removed.
+- **Test notes.** The live course no longer sleeps: it waits only for the
+  step's head, starts the app at once, and records GitHub's `pulls/N` and file
+  list every second while it runs. A cold-start app reads the pull request
+  tens of seconds in, past GitHub's 1-6 s reset window, so the window is
+  covered deterministically: `application_merge_base_public_path` stacked
+  reset course (every compare agrees with the recorded base, GitHub replaces
+  it with the branch tip before the confirming read: Whole PR says GitHub's
+  answers disagree, nothing compared) and the session tests above. The
+  negative mode passes only when the app compared and differed, or said
+  Whole PR has no base ("…where this pull request branched…").
+- **Fable.** Docs rewritten (`git-and-epoch-model.md`); the stale "target is
+  the last observation" comment corrected; negative `ahead_by` refused (both
+  parsers, tested); measurement output committed
+  (`docs/issues/_checkpoints/BPR-1572/live-2026-10-17.jsonl`). A LEFT publish
+  from the app itself needs the owner's attended designated-live approval
+  (`--attended-designated-live-approval`), so instead `--left-wire` performs
+  live the exact reads the publication makes and posts a LEFT comment through
+  `gh` on `x.txt` line 3, a line only the recorded base's comparison has:
+  #102 (A merged b1) and #103 (A fast-forwarded to b2) both satisfy the rule
+  and GitHub accepted the LEFT line each time (comment deleted).
+- **Criss-cross** (Astra): measured live on #101 and #106. Git names two merge
+  bases X1 and Y1 whose comparisons with the head change different lines of
+  `c.txt`; Git's recursive virtual base changes neither. compare named X1, and
+  GitHub's Files changed, patches included, was exactly the comparison from
+  X1; the app matched it line for line. Documented in the architecture doc:
+  the review follows the one merge base compare names.
+
+## Live round two (`ba735233a`, records in `live-2026-10-17.jsonl`)
+
+| Course | Steps | Result |
+|---|---|---|
+| merge #102 | open; A merges b1 (+ LEFT wire); A merges all (merged) | PASS 3/3, wire rule holds, LEFT accepted |
+| fast-forward #103 | open; A to b1; A to b2 (+ LEFT wire); push b4 to B | PASS 4/4, wire rule holds, LEFT accepted |
+| rebase #104 | open; A rebased (base.sha reset to the new tip within 0.9 s of the push); B rebased | PASS 3/3 |
+| force #105 | open; A advances; A force-pushed back to b1 (base.sha reset to b1) | PASS 3/3 |
+| criss-cross #101, #106 | open | PASS, GitHub = comparison from compare's merge base |
+| negative control #107 (stacked acceptance reverted) | open; A merges b1 | step 1 agrees; step 2 shows "GitHub's answers … disagree", no comparison: reproduced |
+
 ## Follow-ups
 
 - **Endpoint lag.** For up to about 5 s after a push, GitHub's files endpoint
   can answer a newer state than `pulls/N` (#91, #92). The snapshot's
   file-count, commit-count and last-commit checks and the confirming read
   catch it when the counts differ. Predates this card; unchanged.
-- **A base force-pushed onto a descendant of `base.sha`** (#93): for the 1-6 s
-  before GitHub resets `base.sha`, the provider accepts the recorded base's
-  merge base, which is what GitHub's Files changed still shows in that window;
-  the next read follows the reset.
+- **A base force-pushed onto a descendant of `base.sha`** (#93, #105): before
+  GitHub resets `base.sha` the provider accepts the recorded base's merge
+  base, which is what GitHub's Files changed still showed in that window
+  (#93); a reset between the answers and the confirming read is refused (the
+  stacked reset fixture course); the next read follows the reset.
 - **Residual carry-forward window** (BPR-1560): unchanged; a failed read keeps
   the merge base named for the same head, recorded base and base branch.
 
@@ -239,8 +308,9 @@ write.
   `qt_epoch_comparison_scale_*`, `application_merge_base_public_path`.
 - `BPR-1572:fixture`: `application_merge_base_public_path` on
   stacked-merge-base-v1 and `merge_base_fixture_contract`.
-- `BPR-1572:live`: `bpr1572_stacked_live_course.py`, merge, fast-forward and
-  rebase variants, every step PASS.
+- `BPR-1572:live`: `bpr1572_stacked_live_course.py`, merge, fast-forward,
+  rebase and force variants with the LEFT wire course, and
+  `bpr1572_criss_cross_probe.py`, every step PASS (round two).
 - `BPR-1572:negative-control`: the unit, fixture and live controls above.
 - `BPR-1572:gates`: one full `ctest --preset dev`, clang-format 22, tidy on the
   changed sources, the documentation gate, the composition contracts.

@@ -24,9 +24,18 @@ owner runs independent Fable and Astra review first.
   translation units, documentation gate, composition contracts (round-trip
   resealed), one full `ctest --preset dev` with every failure rerun green.
 
+## Review round one
+
+Fable approved; Astra rejected (P1-1 publication reconfirmation and tip
+binding, P1-2 publication commit count, P2 read confirmation commit count,
+live-course notes, criss-cross). All addressed on this branch; see the card's
+"Review round one" and "Live round two". Live records:
+`live-2026-10-17.jsonl` beside this file (one JSON line per step: GitHub's
+state, timeline, the app's lines, the verdict).
+
 ## Pending
 
-- Fable and Astra review of the branch (owner).
+- Fable and Astra review of the branch again (owner).
 - At landing: merge main again, reseal the round-trip composition contract if
   `github_application.cpp` or the production manifest moved, rerun the
   documentation gate, move the card to `60-done/` with its acceptance records.
