@@ -263,25 +263,41 @@ namespace bpr::e2e::large_review {
 	}
 
 	/// [[BPR-1598]]. A stopwatch read on the thread that started it: `ms` as
-	/// a thread interval, `completion_ms` as a completion, `wall_ms` as wall
-	/// time.
+	/// a thread interval and `wall_ms` as wall time from `start` (cheap enough
+	/// for a 1 ms input probe), and `completion_ms` as a completion from
+	/// `start_completion`, which also reads every thread's processor time.
 	class attributed_clock final
 	{
 	public:
 		void start()
 		{
-			Start   = completion_start{ };
-			Started = true;
+			Start.Mark          = native_schedule_now();
+			Start.ProcessWaitNs = 0U;
+			Start.Threads.clear();
+			Started    = true;
+			Completion = false;
+		}
+		void start_completion()
+		{
+			Start      = completion_start{ };
+			Started    = true;
+			Completion = true;
 		}
 		void               invalidate() { Started = false; }
 		[[nodiscard]] auto is_valid() const -> bool { return Started; }
 		[[nodiscard]] auto ms() const -> double { return milliseconds(thread_interval_ns(Start.Mark, native_schedule_now())); }
-		[[nodiscard]] auto completion_ms() const -> double { return milliseconds(completion_ns(Start, native_schedule_now())); }
+		[[nodiscard]] auto completion_ms() const -> double
+		{
+			if (!Completion) {
+				throw std::logic_error{ "a completion is read from start_completion" };
+			}
+			return milliseconds(completion_ns(Start, native_schedule_now()));
+		}
 		[[nodiscard]] auto wall_ms() const -> double { return milliseconds(native_schedule_now().WallNs - Start.Mark.WallNs); }
 
 	private:
 		completion_start Start;
-		bool             Started = false;
+		bool             Started = false, Completion = false;
 	};
 
 	struct latency_budget
@@ -2006,7 +2022,7 @@ namespace bpr::e2e::large_review {
 			aReport.ActiveCloseDiffJobs  = work.OutstandingJobs;
 			aReport.ActiveCloseEpochJobs = work.EpochOutstandingJobs;
 			closeWhenPending.stop();
-			close.start();
+			close.start_completion();
 			window.close();
 			aReport.ActiveCloseDispatchMs = close.ms();
 			note_wall(aReport, "active_close_dispatch", close.wall_ms());
@@ -2124,7 +2140,7 @@ namespace bpr::e2e::large_review {
 			observer.Armed = true;
 			awaitingInput  = true;
 			if (next == 31) {
-				drain.start();
+				drain.start_completion();
 			}
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier });
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyRelease, Qt::Key_Down, Qt::NoModifier });
@@ -2341,7 +2357,7 @@ namespace bpr::e2e::large_review {
 			}
 			sample_resources(report, nullptr, "before_application");
 			attributed_clock compositionStartup;
-			compositionStartup.start();
+			compositionStartup.start_completion();
 			auto startupTerminal = false;
 			auto startupHandle   = access::start(app::detail::github_public_path_fixture::large_review_v1, std::move(fixtureOptions), [&](auto aResult) {
 				startupTerminal = true;
@@ -2492,7 +2508,7 @@ namespace bpr::e2e::large_review {
 				}
 			});
 			if (report.ResponsivenessCourse) {
-				metadataClock.start();
+				metadataClock.start_completion();
 				metadataObserver.start();
 			}
 			// [[BPR-1387]]. Poll only the application while measuring its event
@@ -2863,7 +2879,7 @@ namespace bpr::e2e::large_review {
 						select_file(window, requested);
 						++report.RapidSelections;
 						if (next == 32) {
-							drain.start();
+							drain.start_completion();
 						}
 					});
 					require(measure_wait(*application, budget, report, "rapid_selection_supersession", [&] { selections.start(); }, [&] { return next == 32 && selected(surface, source_path(31)) && quiet(*application); }), "supersession timed out");
@@ -3108,7 +3124,7 @@ namespace bpr::e2e::large_review {
 int main(int argc, char** argv)
 {
 	bpr::e2e::large_review::attributed_clock mainClock;
-	mainClock.start();
+	mainClock.start_completion();
 	bpr::e2e::large_review::native_schedule_observe_this_thread();
 	bpr::e2e::large_review::print_launch_marker("LARGE_REVIEW_MAIN_ENTERED", "main");
 	QApplication qtApplication{ argc, argv };

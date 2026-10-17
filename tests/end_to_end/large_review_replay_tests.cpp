@@ -241,7 +241,11 @@ namespace {
 extern "C" void large_review_replay_processor_limit_reached(int /*aSignal*/)
 {
 	static const char message[] = "LARGE_REVIEW_REPLAY_CPU_LIMIT: the contract used its processor-time budget\n";
-	(void)write(STDERR_FILENO, message, sizeof message - 1U);
+	// GCC keeps glibc's warn_unused_result through a void cast, so the result
+	// is tested; either way the process ends here.
+	if (write(STDERR_FILENO, message, sizeof message - 1U) < 0) {
+		_exit(EXIT_FAILURE);
+	}
 	_exit(EXIT_FAILURE);
 }
 
