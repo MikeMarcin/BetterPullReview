@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"686df60dad86034f5d02154bc1fb72527be798de6fbf6a70d1951553de778445"
+		"63a607de4ba46286906d84d63a32efd34b8171ed7feedcff74077da0d3627271"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "da50ad9c8a8ccf31ae69c9a19c6a222026bc0276c99f1ba8fdd281acdb45e69b"
+        "6db77c7f0a52d70438f87d7515f01b457e819b29f7868f64e4ac8ce2d4b41f06"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2664,3 +2664,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # descriptor with its own contract directory. No grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1562.
+
+# [[BPR-1566]] reseal over main at ce74f8f7c, recomputed on the tree that
+# merges this card onto it. github_application.cpp binds each window's
+# reference page dispatch (About Conventional Comments) to
+# application::open_reference_page with that window's browser port, the same
+# port Open on GitHub uses. No grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path changes; the production
+# mutation-branch pin is unchanged. Self-review on BPR-1566.
