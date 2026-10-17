@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1570"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_label_authoring_contract intermittent hang at base-line draft phase",
+  "created": "2026-10-17T07:18:38.600136+00:00",
+  "base": "a9a92ea13e72cd65aaf11124c2650c5079223a6b"
+}
