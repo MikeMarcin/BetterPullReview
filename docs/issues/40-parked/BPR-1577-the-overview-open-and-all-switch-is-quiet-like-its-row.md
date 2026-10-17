@@ -102,6 +102,20 @@ capture the owner's desktop; the owner checks the frozen build themselves.
   cursor 3, with before and after renders in Light and Dark and a four-theme
   sheet of both states.
 
+- Full `cmake --build --preset dev` and `ctest --preset dev` of `4f559bbc1`
+  (rebased on main `007b8f093`): the build passes and ctest passes 761 of 770.
+  Seven of the nine failures pass when run alone. Three failed only because
+  the worktree has no `.agents/` (documentation_structure,
+  documentation_issue_graph_contract, issue_id_allocation_contract). Four
+  failed under load from 13 agents (designated_live_macos_capsule_contract,
+  live_mutation_isolation, application_anonymous_public_preview_unavailable,
+  application_label_authoring_contract). The other two,
+  application_composition_contract and
+  application_review_round_trip_composition_contract, fail on main too: the
+  sealed `github_application.cpp` digest drifted with BPR-1571's `fbec1f08c`,
+  and this branch touches neither that file nor the contracts. The dev build
+  tree was then removed to free disk.
+
 ## Next
 
 Read session `eb177192…` from cursor 3. Accept satisfies AC5: merge
