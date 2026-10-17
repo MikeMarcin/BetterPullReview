@@ -242,6 +242,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "label-authoring-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "line-draft-course" },
 		bpr::app::command_line_option{ .Name = "cancel-first-base-numbering" },
+		bpr::app::command_line_option{ .Name = "stale-base-numbering" },
 	};
 #else
 	constexpr auto attended_launch_options = std::array{
@@ -1312,6 +1313,9 @@ namespace {
 		// answer applies as cancelled; armed on the course's first tick.
 		bool CancelFirstBaseNumbering       = false;
 		bool BaseNumberingCancellationArmed = false;
+		// [[BPR-1570]]. `--stale-base-numbering`: after the course's kept
+		// refresh, the kept base-numbering answer is about another question.
+		bool StaleBaseNumbering = false;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -4956,7 +4960,7 @@ namespace {
 			stream << "LINE_DRAFT_EVIDENCE:" << evidence.LeftLineRefused << evidence.SingleLineOpenedPlain << evidence.KeyboardRangeSelected
 				   << evidence.SuggestionPrefilled << evidence.RangePublishedExact << evidence.NoLineExplained << '\n';
 			// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
-			stream << "BASE_LINE_DRAFT_EVIDENCE:" << evidence.BaseNumberedKnown << evidence.BaseLineOpened << evidence.BasePublishedLeft << '\n';
+			stream << "BASE_LINE_DRAFT_EVIDENCE:" << evidence.BaseNumberedKnown << evidence.BaseNumberingKept << evidence.BaseLineOpened << evidence.BasePublishedLeft << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
 		}
 		if (aRun.PublishedFileSwitchProbe) {
@@ -5890,6 +5894,9 @@ namespace {
 		if (aRun.CancelFirstBaseNumbering && !aRun.BaseNumberingCancellationArmed) {
 			bpr::app::detail::github_application_fixture_access::cancel_base_numbering_answers(aApplication, 1U);
 			aRun.BaseNumberingCancellationArmed = true;
+		}
+		if (std::exchange(aRun.StaleBaseNumbering, false)) {
+			bpr::app::detail::github_application_fixture_access::stale_base_numbering_question(aApplication);
 		}
 		const auto result = bpr::app::detail::github_application_fixture_access::exercise_label_authoring(
 			aApplication, aRun.LabelAuthoringEvidenceDirectory, aRun.LineDraftCourse);
@@ -9776,9 +9783,10 @@ auto main(int argc, char** argv) -> int
 		const auto labelAuthoringEvidence   = launch.value("--label-authoring-evidence");
 		const auto lineDraftCourse          = launch.has("--line-draft-course");
 		const auto cancelFirstBaseNumbering = launch.has("--cancel-first-base-numbering");
+		const auto staleBaseNumbering       = launch.has("--stale-base-numbering");
 		if ((labelAuthoringProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value()))
 			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe) || (lineDraftCourse && !labelAuthoringProbe)
-			|| (cancelFirstBaseNumbering && !lineDraftCourse)) {
+			|| (cancelFirstBaseNumbering && !lineDraftCourse) || (staleBaseNumbering && !lineDraftCourse)) {
 			QTextStream{ stdout } << "LABEL_AUTHORING_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -10143,6 +10151,7 @@ auto main(int argc, char** argv) -> int
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,
 								.CancelFirstBaseNumbering        = cancelFirstBaseNumbering,
+								.StaleBaseNumbering              = staleBaseNumbering,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,
 								.ReviewBehaviourRequested        = reviewBehaviour,
