@@ -1,3 +1,12 @@
+# BPR-1582 reseal over main 770f5c9fa (BPR-1570's pins, which main matched):
+# the only production-app change is 2a789264e in github_application.cpp, the
+# Threads row menu's Mark as Unread: the window's new unread dispatch and
+# mark_conversation_unread, which builds the accepted thread's post
+# observation as Mark read does and hands it to the review ledger host, whose
+# core decision moves the private seen cursor. No provider, grant, credential,
+# publication or mutation-branch change; the mutation digest is unchanged.
+# Reviewed by its implementer; the composed course is
+# application_profile_multi_window_public_path's Mark as Unread section.
 # BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
 # a confirmed kept-reply action can arrive while a reread reopens private storage.
 # Retain its core-admitted command/CAS with the exact shared owner and consumer;
@@ -1532,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"07d1e30ef4154d45d0c5a0012c39fdb0485fa6c4e9199ab9c6caf23b6c458be6"
+		"79b726e434a5d093c4af846291e9507f6b3a899b644fa8f83b6feca9982aa31c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c29a489f5aa00eb77010cb75e0de189675ed408f3223f86f59194f3afad2efc2"
+        "5caf87403a9a82856fcf848209e440bfc2b6427b92798fb62d3f0d8b16b58043"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

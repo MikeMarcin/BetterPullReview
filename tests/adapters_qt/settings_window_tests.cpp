@@ -301,6 +301,7 @@ namespace {
 			expected_row{ QStringLiteral("On return, compare"), QStringLiteral("On return, compare"), QStringLiteral("Review · Opening") },
 			expected_row{ QStringLiteral("Mark a file read"), QStringLiteral("Mark a file read"), QStringLiteral("Review · Reading") },
 			expected_row{ QStringLiteral("Comments drawer opens on"), QStringLiteral("Comments drawer opens on"), QStringLiteral("Review · Reading") },
+			expected_row{ QStringLiteral("Reading width"), QStringLiteral("Reading width"), QStringLiteral("Review · Reading") },
 			expected_row{ QStringLiteral("Drawer controls"), QStringLiteral("Drawer controls"), QStringLiteral("Review · Layout") },
 			expected_row{ QStringLiteral("Line details"), QStringLiteral("Line details"), QStringLiteral("Review · Layout") },
 			expected_row{ QStringLiteral("Center ribbon width"), QStringLiteral("Center ribbon width"), QStringLiteral("Review · Layout") },

@@ -128,6 +128,10 @@ namespace bpr::qt {
 		void set_context_controls(bool aContextControls);
 		/// \brief Lets the owning surface append semantic gestures to either reader menu.
 		void set_context_menu_builder(std::function<void(QMenu&)> aBuilder);
+		/// \brief [[BPR-1581]]. The body's own menu, with the builder's
+		/// actions, while its controls stay as they are: a post read beside
+		/// the code keeps its name-row tools and gains Show in Discuss.
+		void set_extended_menu(bool aExtended);
 		/// \brief Copies original bytes, without reconstructing rendered text.
 		void copy_source() const;
 		/// \brief [[BPR-1083]]. Shows a recognized Conventional Comments prefix's
@@ -221,6 +225,7 @@ namespace bpr::qt {
 		QString                                                                     Fallback;
 		bool                                                                        InPlace         = false;
 		bool                                                                        ContextControls = false;
+		bool                                                                        ExtendedMenu    = false;
 		std::function<void()>                                                       HeightObserver;
 		qsizetype                                                                   HeaderChars   = 0;
 		qsizetype                                                                   HeaderStart   = 0;
