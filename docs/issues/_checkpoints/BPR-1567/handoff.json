@@ -53,20 +53,28 @@
   "fixture": "nested-folders-v1",
   "open_file": "src/engine/renderer.cpp",
   "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
-  "executable_sha256": "8aa9f56755b1ef5c7bebf59694db5683ba4045f7d9eb327a67fb27c38ee2f19b"
+  "executable_sha256": "8aa9f56755b1ef5c7bebf59694db5683ba4045f7d9eb327a67fb27c38ee2f19b",
+  "removed": true
  },
  "review": {
   "state": "/Users/jaeger/.codex/attended-review/bpr1567-v001-seq6DZ",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
   "session": "dbc5e14feee4eb197858d4a731274d9f",
-  "event_cursor": 3,
-  "server_pid": 91799,
-  "url": "http://127.0.0.1:50836/ (token in the session's serve.log)",
+  "event_cursor": 6,
+  "url": "stopped",
   "candidates": {
    "BPR-1567-keyboard-shortcuts-v001": "3c95542f3bb0a1c0c8f1a38f6df2065fda2f3d9a5481b278b136a7652f950d85"
   },
-  "phase": "ready, protected, undecided",
-  "pending": ["AC5 owner Accept/Reject"]
+  "phase": "decided: Accept (decision 848abf22-2143-4390-970b-8e132ea00a47, event 4); handed back 5; released 6",
+  "pending": []
  },
- "next_action": "On hand-back after cursor 3: an Accept re-checks main HEAD, merges main into bpr-1567-keyboard-shortcuts, reruns qt_keyboard_shortcuts_scale_*, qt_profile_management_window and qt_workbench_window_scale_100, merges to main and finishes the card; a Reject's note becomes v002. Then stop the server (pid 91799), release the candidate and remove the frozen root with scripts/freeze_attended_build.py remove."
+ "next_action": "Done. Follow-up needed (not this card): application_label_authoring_contract intermittently hangs at its base-side draft step (phase 31) on main.",
+ "landed": {
+  "main": "676f61c3a",
+  "after": [
+   "BPR-1560 5c5c33c0a",
+   "BPR-1566 e30c62f25"
+  ],
+  "full_suite": "767 passed, 2 failed (large_review_history: load, passes alone; label_authoring_contract: pre-existing flake 5/20 on e30c62f25 without BPR-1567), 1 skipped"
+ }
 }
