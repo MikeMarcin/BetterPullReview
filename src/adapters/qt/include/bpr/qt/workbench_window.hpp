@@ -306,6 +306,15 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 	};
 
+	/// \brief [[BPR-1580]]. The submenus of Home's View menu, top to bottom.
+	enum class home_view_choice : std::uint8_t {
+		group,
+		sort,
+		role,
+		added_by,
+		quiet,
+	};
+
 	/// \brief Presents the native workbench shell and its focused review row.
 	///
 	/// \details The window is an event and action adapter, never a controller. Each
@@ -1097,15 +1106,18 @@ namespace bpr::qt {
 		void set_geometry_dispatch(std::function<void(application::workbench_window_geometry)> aDispatch);
 		/// \brief [[BPR-0783]]. The Home view this window shows.
 		[[nodiscard]] auto home_view() const noexcept -> const application::home_view_state&;
-		/// \brief [[BPR-0783]]. Home's strip controls, shown while Home is and an
-		/// account can fill it: Group, State headers, Filter.
-		[[nodiscard]] auto home_group_button() const noexcept -> QToolButton*;
-		[[nodiscard]] auto home_group_menu() const noexcept -> QMenu*;
+		/// \brief [[BPR-1580]]. Home's one strip control, shown while Home is and an
+		/// account can fill it: View, whose menu holds Group by, Sort by, State
+		/// headers, My role, Added by, Quiet items and Reset to defaults.
+		[[nodiscard]] auto home_view_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto home_view_menu() const noexcept -> QMenu*;
+		/// \brief One of the View menu's submenus.
+		[[nodiscard]] auto home_view_submenu(home_view_choice aChoice) const noexcept -> QMenu*;
+		/// \brief Restores every View choice to its default.
+		[[nodiscard]] auto home_view_reset_action() const noexcept -> QAction*;
 		[[nodiscard]] auto home_group_action(application::home_grouping aGrouping) const noexcept -> QAction*;
 		[[nodiscard]] auto home_state_headers_action() const noexcept -> QAction*;
-		[[nodiscard]] auto home_filter_button() const noexcept -> QToolButton*;
-		[[nodiscard]] auto home_filter_menu() const noexcept -> QMenu*;
-		/// \brief The Filter menu's way to Settings › Reviews & queue, where the
+		/// \brief The View menu's way to Settings › Reviews & queue, where the
 		/// saved repositories and the observer rules are.
 		[[nodiscard]] auto home_filter_settings_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0776]]. The current queue row on Home, whichever state holds it.
@@ -1852,13 +1864,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto open_queue_ref() const -> std::optional<core::pull_request_ref>;
 		void               dispatch_queue_preferences(QComboBox* aSource);
 		void               build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
-		// [[BPR-0783]]. Home's view: the strip's three controls, one Filter menu
-		// over the four surviving typed preferences, and the window's own view.
+		// [[BPR-0783]], [[BPR-1580]]. Home's view: the strip's one View menu over
+		// the arrangement and the four surviving typed preferences, and the
+		// window's own view.
 		void build_home_strip_controls();
-		void build_home_filter_menu();
+		void build_home_filter_menus();
+		/// \brief Adds one View submenu, named and explained, and returns it.
+		[[nodiscard]] auto add_home_view_submenu(home_view_choice aChoice, const QString& aName, const QString& aPurpose) -> QMenu*;
+		/// \brief [[BPR-1580]]. Restores the defaults: the whole view, or only the
+		/// three filters that hide rows (My role, Added by, Quiet items).
+		void restore_home_view_defaults(bool aWholeView);
 		/// \brief Shows the view the window holds, reporting nothing back out.
 		void apply_home_view();
-		/// \brief Shows what Home is filtered by on the Filter control.
+		/// \brief Shows what Home is filtered by on the View control.
 		///
 		/// \details [[BPR-0783]]. Separate from `apply_home_view` because a window
 		/// that never filtered follows the profile: an accepted preference arrives
@@ -2201,18 +2219,20 @@ namespace bpr::qt {
 		// [[BPR-0783]]. This window's Home view and the strip controls over it.
 		application::home_view_state                      HomeView;
 		std::function<void(application::home_view_state)> HomeViewDispatch;
-		QToolButton*                                      HomeGroupButton = nullptr;
-		QMenu*                                            HomeGroupMenu   = nullptr;
-		std::array<QAction*, 4>                           HomeGroupActions{ };
-		QAction*                                          HomeGroupItem      = nullptr;
-		QAction*                                          HomeStateHeaders   = nullptr;
-		QToolButton*                                      HomeFilterButton   = nullptr;
-		QMenu*                                            HomeFilterMenu     = nullptr;
-		QAction*                                          HomeFilterItem     = nullptr;
-		QAction*                                          HomeFilterSettings = nullptr;
-		/// The Filter menu's four sections: My role, Added by, Quiet items and
-		/// Sort within a group, each holding every typed value of its vocabulary.
+		QToolButton*                                      HomeViewButton = nullptr;
+		QMenu*                                            HomeViewMenu   = nullptr;
+		QAction*                                          HomeViewItem   = nullptr;
+		/// [[BPR-1580]]. The View menu's submenus, by `home_view_choice`.
+		std::array<QMenu*, 5>   HomeViewSubmenus{ };
+		std::array<QAction*, 4> HomeGroupActions{ };
+		QAction*                HomeStateHeaders   = nullptr;
+		QAction*                HomeViewReset      = nullptr;
+		QAction*                HomeFilterSettings = nullptr;
+		/// The four filter choices: My role, Added by, Quiet items and Sort
+		/// within a group, each holding every typed value of its vocabulary.
 		std::array<std::vector<QAction*>, 4> HomeFilterSections{ };
+		/// Each filter value's short name, which its submenu's own item shows.
+		std::map<const QAction*, QString> HomeFilterShortNames;
 		/// Set while the window is showing a view it was given, so adopting one
 		/// is never reported back out as the reviewer's own gesture.
 		bool                                               ApplyingHomeView      = false;

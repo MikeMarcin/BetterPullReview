@@ -165,10 +165,20 @@ removed.
   was made: the owner's own screenshot, the Fusion look they liked, and v002
   offscreen at 2x. It points at the frozen build as the source of truth.
 
+## Owner verdict v002: Accept (2026-10-17)
+
+Decision `296a1893-d1bc-4010-8463-512fc66a0f7b`, session `cf892a3b…` event 4,
+with no note, on candidate `BPR-1577-counts-switch-v002` (fingerprint
+`5676d27746e7…`, revision `frozen-7066b48db-v002`). The owner handed the
+session back at event 5, and the cursor was read to 5. This satisfies AC5.
+
 ## Next
 
-Read session `cf892a3b…` from cursor 3. On Accept, wait for BPR-1585 to land,
-then rebase `7066b48db` onto main and resolve the shared test file. Run the
-focused Overview rows and one full `ctest --preset dev`, merge, and finish
-the card. Then stop the host, release the candidate and remove the frozen
-root. A Reject's note is v003's change.
+Landing waits for BPR-1585, which is landing first in the same files. A trial
+rebase of the candidate onto `bpr-1585-files-band` applied without conflicts.
+The candidate is now `1b3670d1a` on `bpr-1577-quiet-counts-switch`, rebased
+onto main `db49949e1`, and its full dev tree is built. When BPR-1585 is on
+main: rebase, run the focused Overview rows, one full `ctest --preset dev`
+and the documentation gate, merge, finish the card Done and push. Then stop
+the host (PID 39316), release the candidate, remove the frozen root
+`/Users/jaeger/bpr1577-counts-switch-v002.4iietnlb` and the worktree.

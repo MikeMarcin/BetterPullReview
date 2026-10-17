@@ -91,5 +91,8 @@ workshop requests" switch, wait as one choice in attended-review session
 BPR-1568-settings-organisation-v001. Stored settings and keys stay unchanged and
 the BPR-1289 settings search is preserved.
 
-Next: build the pick as a new card (its own ID) that folds this card's switch
-in, freeze it and ask a final Accept or Reject; this card then closes into it.
+The owner picked A, by task, in session 0e5dbaff0d166bcc2c23a4c2c39ac937
+(decision 3229df02-e5e7-47ee-89fc-7b7982ce6c9e, no note), then named the middle
+page Review. [[BPR-1597]] builds it with this card's switch folded in, on branch
+`claude/bpr-1597-settings-by-task`; its final Accept or Reject waits in session
+a090236dc78e408d1bd6fd6752c2dfbe. This card closes into BPR-1597 when it lands.
