@@ -77,7 +77,9 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto observe_staged_comments(const application::staged_publication_record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection = nullptr) -> review_mutation_parse_result<staged_comments>;
 		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> application::staged_publication_state;
 		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> bool;
-		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
+		/// \brief `aLeftLine` also asks GitHub's merge base, before a write of
+		/// a plan with a LEFT stop ([[BPR-1560]]).
+		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop, bool aLeftLine = false) -> bool;
 		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 
 		github_mutation_wire_transport*                               Transport;

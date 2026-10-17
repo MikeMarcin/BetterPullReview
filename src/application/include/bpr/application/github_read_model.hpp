@@ -692,12 +692,18 @@ namespace bpr::application {
 	///
 	/// \details `unavailable` means the read was not asked (a fixture or an
 	/// older producer); `failed` means it was asked and GitHub gave no usable
-	/// answer (no common ancestor, a refusal, a timeout or a malformed reply).
-	/// Neither is ever replaced by the recorded base.
+	/// answer (no common ancestor, a refusal, a timeout or a malformed reply);
+	/// `refused` means GitHub answered and the answers prove this snapshot has
+	/// no single merge base: the base branch and the recorded base name
+	/// different merge bases, or the pull request moved between the snapshot
+	/// and the read that confirms it. None is ever replaced by the recorded
+	/// base, and only `failed` lets a window keep the merge base it already
+	/// had for the same head, recorded base and base branch.
 	enum class github_merge_base_availability : std::uint8_t {
 		unavailable,
 		available,
 		failed,
+		refused,
 	};
 
 	/// \brief A force-push occurrence with an exact numeric identity and UTC event time.
@@ -2202,7 +2208,8 @@ namespace bpr::application {
 		}
 		if (aSnapshot.MergeBaseAvailability != github_merge_base_availability::unavailable
 			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::available
-			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::failed) {
+			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::failed
+			&& aSnapshot.MergeBaseAvailability != github_merge_base_availability::refused) {
 			return detail::validation(github_read_validation_error::invalid_enum);
 		}
 		if ((aSnapshot.MergeBaseAvailability == github_merge_base_availability::available) != aSnapshot.MergeBaseOid.has_value()

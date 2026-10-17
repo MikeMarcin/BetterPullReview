@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P0"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"bug","found_by":"Owner chat, 2026-10-16","governing_rfc":"RFC-BPR-0029","related_rfcs":["RFC-BPR-0003","RFC-BPR-0013","RFC-BPR-0028"],"latent_since":"618c56419","related_cards":["BPR-0944","BPR-0943","BPR-1212","BPR-1553","BPR-1557"],"reservation":"docs/issues/_reservations/BPR-1560--BPR-1560--d3662cff3d94.json","acceptance":["BPR-1560:root-cause","BPR-1560:model","BPR-1560:adapter","BPR-1560:fixture","BPR-1560:live","BPR-1560:negative-control","BPR-1560:gates"]}
+metadata: {"kind":"bug","found_by":"Owner chat, 2026-10-16","governing_rfc":"RFC-BPR-0029","related_rfcs":["RFC-BPR-0003","RFC-BPR-0013","RFC-BPR-0028"],"latent_since":"618c56419","related_cards":["BPR-0944","BPR-0943","BPR-1212","BPR-1553","BPR-1557"],"reservation":"docs/issues/_reservations/BPR-1560--BPR-1560--d3662cff3d94.json","acceptance":["BPR-1560:root-cause","BPR-1560:model","BPR-1560:adapter","BPR-1560:fixture","BPR-1560:live","BPR-1560:negative-control","BPR-1560:publication","BPR-1560:regeneration","BPR-1560:round-three","BPR-1560:gates"]}
 acceptance: []
 ---
 
@@ -147,7 +147,10 @@ every right blob exactly the head's.
   would disagree with GitHub) and never substitutes `base.sha`.
 - **The snapshot** carries `MergeBaseOid`, `MergeBaseTipOid` and
   `MergeBaseAvailability` (`unavailable`: not asked; `available`; `failed`:
-  not found, no common ancestor, refused, timed out, malformed).
+  not found, no common ancestor, refused, timed out, malformed; `refused`:
+  GitHub answered and the answers prove there is no single merge base for
+  this snapshot, because the base branch names another merge base than the
+  recorded base does, or the pull request moved before the confirming read).
 - **The handoff** (`github_window_read_host.cpp`) gives the epoch host the
   merge base as the revision's `Base` and keeps GitHub's `base.sha` as
   `RecordedBase` for the publication staleness check. Live epochs therefore
@@ -160,10 +163,14 @@ every right blob exactly the head's.
   `base.sha` on its earlier epochs; the first read afterwards appends one
   base-change epoch.
 - **A failed read after a good one.** For the same head, recorded base and
-  base branch, a merge base GitHub already named outlives a later failed read
-  (like the snapshot's other carried observations), so one transient failure
-  neither hides Whole PR nor appends a base-change epoch and another back
-  (Fable N1).
+  base branch, a merge base GitHub already named outlives a later `failed`
+  read (like the snapshot's other carried observations), so one transient
+  failure neither hides Whole PR nor appends a base-change epoch and another
+  back (Fable N1). A `refused` read is never overridden: the base branch can
+  take commits the head shares and move the merge base with `base.sha` and
+  the head unchanged, and the earlier merge base is then stale (Astra round
+  three, P1-A). After a refusal a failed read brings nothing back, since the
+  accepted snapshot it would carry from has no merge base.
 - **No merge base named.** The handoff carries the recorded base under
   `comparison_base_basis::recorded_base`; the epoch is appended so updates stay
   comparable, the core resolves Whole PR with its base anchor unavailable and
@@ -189,7 +196,9 @@ every right blob exactly the head's.
   head once more; a merge base other than the one the lines were numbered in
   is `target_moved` and nothing is sent (Astra B2, Fable N2: a stacked pull
   request's base branch can take commits the head shares and move the merge
-  base with `base.sha` and the head unchanged). BPR-1212's numbering answers "same" without
+  base with `base.sha` and the head unchanged). A tour with a LEFT stop asks
+  before every write, the first and each one a resumed journal makes after a
+  denied authorization, a Stop or a restart (Astra round three, P1-B). BPR-1212's numbering answers "same" without
   the cache when the left commit is the merge base GitHub named, which
   restores LEFT placement on signed-in (sparse) reviews.
 - **Interdiff on a signed-in review.** Previous upload's left side, the
@@ -368,6 +377,15 @@ numbers are kept here).
   PR lines, and the interdiff from the previous update), signed in (sparse).
 - `BPR-1560:negative-control`: the fixture test, the parity course on #76 and
   the squash course fail on the comparison from the recorded base.
+- `BPR-1560:round-three`: `github_provider` shows a compare that fails is
+  `failed`, and a base branch naming another merge base or a pull request
+  moving under the read is `refused`; `application_github_window_read_host`
+  shows a merge base carried across a failed read, never across a refusal,
+  and not brought back by a failed read after one; `staged_review_session`
+  shows a resumed tour with a LEFT stop (after a denied first write, and after
+  a Stop with two writes made) asks GitHub's merge base again, writes nothing
+  when it moved and completes once it is back. Each was seen failing with its
+  fix reverted.
 - `BPR-1560:regeneration`: `merge_base_fixture_contract` rebuilds merge-base-v1
   byte for byte and checks the descriptor names its commits (Fable N7).
 - `BPR-1560:gates`: one full `ctest --preset dev`, clang-format 22, tidy on

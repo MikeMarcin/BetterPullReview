@@ -2467,6 +2467,7 @@ namespace bpr::adapters::github::detail {
 							enum class merge_base_step : std::uint8_t {
 								answered,
 								unavailable,
+								refused,
 								stop,
 							};
 							const auto open      = result->PullRequest.State == application::github_pull_request_state::open;
@@ -2523,7 +2524,7 @@ namespace bpr::adapters::github::detail {
 								auto tip = std::optional<github_merge_base_read>{ };
 								step     = ask(github_merge_base_basis{ .BaseRef = result->PullRequest.BaseRef, .BaseOid = recorded }, tip);
 								if (step == merge_base_step::answered) {
-									step   = tip->MergeBaseOid == exact->MergeBaseOid ? merge_base_step::answered : merge_base_step::unavailable;
+									step   = tip->MergeBaseOid == exact->MergeBaseOid ? merge_base_step::answered : merge_base_step::refused;
 									chosen = std::move(tip);
 								}
 							}
@@ -2534,7 +2535,7 @@ namespace bpr::adapters::github::detail {
 									step = settle(confirmed.error());
 								} else {
 									observe(confirmed->RateLimits);
-									step = confirmed->Unchanged ? merge_base_step::answered : merge_base_step::unavailable;
+									step = confirmed->Unchanged ? merge_base_step::answered : merge_base_step::refused;
 								}
 							}
 							if (step == merge_base_step::stop) {
@@ -2550,7 +2551,8 @@ namespace bpr::adapters::github::detail {
 								result->MergeBaseTipOid       = application::commit_oid{ chosen->BaseCommitOid };
 								result->MergeBaseAvailability = application::github_merge_base_availability::available;
 							} else {
-								result->MergeBaseAvailability = application::github_merge_base_availability::failed;
+								result->MergeBaseAvailability = step == merge_base_step::refused ? application::github_merge_base_availability::refused
+																								 : application::github_merge_base_availability::failed;
 							}
 						}
 						if (finish_job(state, job)) {

@@ -55,9 +55,13 @@ namespace {
 			= application::epoch_timeline_availability::unavailable;
 		std::size_t                                             AcceptCount = 0U;
 		std::optional<application::accepted_pull_request_shape> Shape;
+		core::git_commit_oid                                    Base;
+		core::comparison_base_basis                             Basis = core::comparison_base_basis::merge_base;
 
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
+			Base         = aHandoff.Base;
+			Basis        = aHandoff.BaseBasis;
 			Shape        = aHandoff.Shape;
 			ForcePushes  = std::move(aHandoff.ForcePushes);
 			Availability = aHandoff.TimelineAvailability;
@@ -618,6 +622,64 @@ namespace {
 			   "superseded snapshot cannot replace accepted shape");
 	}
 
+	/// [[BPR-1560]]. A merge base GitHub named outlives a later failed read of
+	/// it for the same head, recorded base and base branch, and never an
+	/// answer that proves it stale: the base branch naming another merge base,
+	/// or the pull request moving under the read. After such a refusal a
+	/// failed read brings nothing back.
+	void test_merge_base_carries_forward_only_across_failures()
+	{
+		reads                                provider;
+		application::manual_executor         lane;
+		epoch_handoffs                       epochs;
+		application::github_window_read_host host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 8 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[](const auto&) { },
+			&epochs
+		};
+		expect(host.adopt(session()), "merge-base fixture adopts session");
+		const auto mergeBase = std::string(40, 'a');
+		const auto recorded  = std::string(40, '1');
+		const auto answer    = [&](const application::github_merge_base_availability aAvailability) {
+			const auto call = provider.Calls.back();
+			auto       data = snapshot(call.Request);
+			if (aAvailability == application::github_merge_base_availability::available) {
+				data.MergeBaseOid    = application::commit_oid{ mergeBase };
+				data.MergeBaseTipOid = application::commit_oid{ std::string(40, 'b') };
+			}
+			data.MergeBaseAvailability = aAvailability;
+			call.Complete(application::github_pull_request_success{ call.Request, std::move(data) });
+			lane.drain();
+		};
+		const auto from = [&](const std::string& aBase, const core::comparison_base_basis aBasis) {
+			return epochs.Base == core::parse_git_commit_oid(aBase) && epochs.Basis == aBasis;
+		};
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		answer(application::github_merge_base_availability::available);
+		expect(epochs.AcceptCount == 1U && from(mergeBase, core::comparison_base_basis::merge_base), "the named merge base is the comparison base");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		answer(application::github_merge_base_availability::failed);
+		expect(epochs.AcceptCount == 2U && from(mergeBase, core::comparison_base_basis::merge_base)
+				   && host.accepted_snapshot()->MergeBaseAvailability == application::github_merge_base_availability::available,
+			   "a failed read keeps the merge base named for the same head and recorded base");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		answer(application::github_merge_base_availability::refused);
+		expect(epochs.AcceptCount == 3U && from(recorded, core::comparison_base_basis::recorded_base)
+				   && host.accepted_snapshot()->MergeBaseAvailability == application::github_merge_base_availability::refused
+				   && !host.accepted_snapshot()->MergeBaseOid,
+			   "an answer proving the merge base stale is never overridden by the one before it");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		answer(application::github_merge_base_availability::failed);
+		expect(epochs.AcceptCount == 4U && from(recorded, core::comparison_base_basis::recorded_base),
+			   "a failed read after a refusal brings no earlier merge base back");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		answer(application::github_merge_base_availability::available);
+		expect(epochs.AcceptCount == 5U && from(mergeBase, core::comparison_base_basis::merge_base), "a merge base named again is the comparison base again");
+	}
+
 	void test_loading_budget_shape()
 	{
 		using shape         = application::accepted_pull_request_shape;
@@ -1117,6 +1179,7 @@ int main()
 	test_safe_read_presentation_matches_accepted_state();
 	test_two_windows_have_distinct_diagnostic_courses();
 	test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read();
+	test_merge_base_carries_forward_only_across_failures();
 	reads                                provider;
 	application::manual_executor         lane;
 	std::size_t                          publications = 0;

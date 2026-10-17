@@ -708,8 +708,10 @@ namespace bpr::application {
 				// [[BPR-1560]]. A merge base GitHub named for this same head,
 				// recorded base and base branch outlives a later failed read of
 				// it, so one transient failure neither hides Whole PR nor
-				// appends a base-change epoch and another back.
-				if (aSnapshot.MergeBaseAvailability != github_merge_base_availability::available
+				// appends a base-change epoch and another back. An answer that
+				// proves it stale (the base branch now names another merge base,
+				// or the pull request moved under the read) is never overridden.
+				if (aSnapshot.MergeBaseAvailability == github_merge_base_availability::failed
 					&& previous.MergeBaseAvailability == github_merge_base_availability::available) {
 					aSnapshot.MergeBaseOid          = previous.MergeBaseOid;
 					aSnapshot.MergeBaseTipOid       = previous.MergeBaseTipOid;

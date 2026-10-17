@@ -273,7 +273,10 @@ already carries. The application never computes this merge base itself and
 never substitutes the recorded base: when GitHub names none, the accepted
 revision carries the recorded base under `comparison_base_basis::recorded_base`
 so updates stay comparable with each other, and Whole PR resolves with its
-base unavailable and the reason `merge_base_unavailable`. A merge from the base
+base unavailable and the reason `merge_base_unavailable`. A window keeps a
+merge base GitHub named for the same head, recorded base and base branch across
+a read that failed, never across answers that refuse it (the base branch
+naming another merge base, or the pull request moving under the read). A merge from the base
 branch, a rebase or a squash onto another base commit moves the merge base and
 so appends an epoch whose cause is a base change; an ordinary push does not.
 Catalogues written before [[BPR-1560]] hold the recorded base on their earlier
