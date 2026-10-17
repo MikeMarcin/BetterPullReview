@@ -849,10 +849,11 @@ namespace bpr::app::detail {
 				const auto asked    = byBranch ? aRequest.Semantic.BranchRef : aRequest.Semantic.BaseOid;
 				// A rewritten branch's tip shares only the fork point with the
 				// recorded base; any commit other than it serves as that answer.
-				const auto mergeBase = byBranch ? std::string{ aDescriptor.BranchTipOid }
+				const auto mergeBase = byBranch     ? std::string{ aDescriptor.BranchTipOid }
 					: ancestry && aStackedRewritten ? std::string{ aDescriptor.HeadOneOid }
 													: std::string{ aDescriptor.MergeBaseOid };
-				const auto ahead     = byBranch ? aDescriptor.Commits - 1U : ancestry ? 1U : aDescriptor.Commits;
+				const auto ahead     = byBranch ? aDescriptor.Commits - 1U : ancestry ? 1U
+																					  : aDescriptor.Commits;
 				response.Body        = R"({"url":"https://api.github.com/repos/)" + aRequest.Semantic.Owner + "/" + aRequest.Semantic.Repository + "/compare/" + asked + "..."
 					+ aRequest.Semantic.HeadOid + R"(","status":"ahead","ahead_by":)" + std::to_string(ahead) + R"(,"total_commits":)" + std::to_string(ahead)
 					+ R"(,"base_commit":{"sha":")" + tip + R"("},"merge_base_commit":{"sha":")" + mergeBase + R"("},"commits":[],"files":[]})";

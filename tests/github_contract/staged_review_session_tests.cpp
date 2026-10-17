@@ -173,10 +173,10 @@ namespace {
 		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
 		/// merge base, which numbers LEFT lines, is no longer the target's.
-		bool        MovedMergeBase = false;
+		bool MovedMergeBase = false;
 		/// [[BPR-1572]]. The base branch names another merge base: 1, it only
 		/// moved forward from the recorded base; 2, it was rewritten.
-		int StackedBase = 0;
+		int         StackedBase    = 0;
 		std::size_t MergeBaseReads = 0U;
 		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
@@ -536,7 +536,7 @@ namespace {
 			// nothing is written.
 			scratch root;
 			server  remote;
-			remote.StackedBase = stacked;
+			remote.StackedBase  = stacked;
 			auto       provider = session(remote, root.Path);
 			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
 			if (stacked == 1) {

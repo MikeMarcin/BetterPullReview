@@ -1524,10 +1524,10 @@ namespace {
 		}
 
 		// Whether LEFT lines are still numbered in the comparison base.
-		auto       stacked              = target();
-		const auto mergeBase            = commit(0x5aU);
-		stacked.ComparisonBaseOid       = mergeBase;
-		const auto other                = commit(0x6bU);
+		auto       stacked        = target();
+		const auto mergeBase      = commit(0x5aU);
+		stacked.ComparisonBaseOid = mergeBase;
+		const auto other          = commit(0x6bU);
 		expect(left_lines_numbered_in_comparison_base(stacked, mergeBase, std::nullopt, std::nullopt), "the base branch naming the comparison base settles it");
 		expect(left_lines_numbered_in_comparison_base(stacked, other, mergeBase, stacked.BaseOid),
 			   "a base branch that only moved forward from the recorded base keeps GitHub numbering in the recorded base's merge base");

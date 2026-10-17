@@ -7,7 +7,7 @@ rfcs: []
 depends_on: ["BPR-1560"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"bug","found_by":"BPR-1560 follow-up (stacked pull requests), owner approved 2026-10-17","governing_rfc":"RFC-BPR-0029","related_cards":["BPR-1560"],"reservation":"docs/issues/_reservations/BPR-1572--BPR-1572--7334e3717c3a.json","acceptance":["BPR-1572:measurement","BPR-1572:provider","BPR-1572:live","BPR-1572:negative-control","BPR-1572:gates"]}
+metadata: {"kind":"bug","found_by":"BPR-1560 follow-up (stacked pull requests), owner approved 2026-10-17","governing_rfc":"RFC-BPR-0029","related_cards":["BPR-1560"],"reservation":"docs/issues/_reservations/BPR-1572--BPR-1572--7334e3717c3a.json","acceptance":["BPR-1572:measurement","BPR-1572:provider","BPR-1572:publication","BPR-1572:wording","BPR-1572:fixture","BPR-1572:live","BPR-1572:negative-control","BPR-1572:gates"]}
 ---
 
 # BPR-1572: Stacked pull requests compare from the recorded base's merge base
@@ -23,7 +23,8 @@ compare(base.sha...head) name different merge bases, the provider answered
 answer instead of refusing if it is reliable, keeping `refused` for genuine
 movement and every BPR-1560 safety property. Later the same day the owner asked
 for a lean run: essential variants, the minimal change, focused tests, one full
-suite, then Astra (Codex) review only.
+suite, then Astra (Codex) review only; restored the same day to the original
+scope, with Fable and Astra review before merging.
 
 ## Measurement (github.com, MikeMarcin/BPR-Test, 2026-10-17)
 
@@ -32,7 +33,8 @@ b3 (z.txt)`, a pull request into A. After each step, once GitHub settled
 (polled 45 s or more): `pulls/B` (`base.sha`, state, commits), `pulls/B/files`,
 the public `pull/B.diff` (GitHub's web diff), and compare against the branch
 and against `base.sha` (merge base and file list). Scripts and logs were kept
-in the session scratchpad, not committed.
+in the session scratchpad, not committed; the scratchpad was emptied when the
+session restarted, so the numbers here are the record.
 
 | Course, step | A tip | `base.sha` | merge base (A...head) | merge base (base.sha...head) | Files changed (REST, `.diff`) | follows |
 |---|---|---|---|---|---|---|
@@ -78,12 +80,13 @@ right answer in the stacked state is neither the branch's merge base nor a
 refusal: it is compare(`base.sha`...head)'s merge base. This is a third
 outcome, beyond the two the mandate named (accept the branch's answer, or keep
 the refusal with accurate wording); it is flagged for the owner's review.
+`refused` is kept, with its own wording, for genuine movement.
 
 Rule (open pull request; a closed one is unchanged and asks only `base.sha`):
 
 1. compare(`base.sha`...head): the merge base GitHub compares from (exact
    pair, remembered with its `ahead_by`).
-2. compare(base branch...head). The same merge base: accepted as today.
+2. compare(base branch...head). The same merge base: accepted as before.
 3. Another merge base: accepted, as the recorded base's, only when
    - GitHub's commit count for the pull request (`pulls/N` `commits`) equals
      step 1's `ahead_by`, so GitHub's own commit list is the recorded base's;
@@ -93,63 +96,82 @@ Rule (open pull request; a closed one is unchanged and asks only `base.sha`):
      `base.sha`.
    Otherwise `refused`: GitHub is replacing `base.sha` (a force-pushed base
    branch), or its answers disagree. The extra compare is asked only here.
-4. The pull request's metadata again, unchanged (as today).
+4. The pull request's metadata again, unchanged (as before).
 
-`refused` is kept for genuine movement only. Unchanged: lost authentication
-fails the whole read, any other failure is `failed` and the only state a
-window carries a merge base across, a refusal is never overridden, and LEFT
-publication rechecks run before any write.
+Unchanged BPR-1560 properties: lost authentication fails the whole read; any
+other failure is `failed`, the only state a window carries a merge base across;
+a refusal is never overridden and a failed read after one brings nothing back;
+the recorded base is never compared from; publication rechecks run before any
+write.
 
 ## Change
 
-- `src/adapters/github/src/github_paged_read.{hpp,cpp}`: the merge-base read
-  carries `ahead_by` (absent allowed; malformed refused).
-- `src/adapters/github/src/github_provider.cpp`: the rule above; the remembered
-  exact pair keeps its `ahead_by`.
-- `src/application/include/bpr/application/github_read_model.hpp`: the
-  availability documentation.
-- `tests/end_to_end/bpr1560_live_parity.py`: GitHub's basis is
-  compare(`base.sha`...head) for open pull requests too.
-- `tests/end_to_end/bpr1572_stacked_live_course.py`: the live stacked course.
-- `docs/architecture/git-and-epoch-model.md`: the measured rule.
+- **Provider** (`github_provider.cpp`, `github_paged_read.{hpp,cpp}`): the rule
+  above; the merge-base read carries `ahead_by` (absent allowed, malformed
+  refused); the remembered exact pair keeps it.
+- **Publication** (`github_mutation_contract.{hpp,cpp}`,
+  `review_submission_session.cpp`): before anything on a LEFT line is written
+  (single comment, review, tour stop, resumed tour), the base branch's merge
+  base is asked as before; when it is not the comparison base, two new reads,
+  `observe_recorded_merge_base` (compare `base.sha`...head) and
+  `observe_base_ancestry` (compare `base.sha`...base branch), must name the
+  comparison base and `base.sha`, or the write is `target_moved`
+  (`left_lines_numbered_in_comparison_base`). Without this, every LEFT
+  publication on a stacked pull request would have been refused.
+- **Wording** (BPR-1560 follow-up): `refused` hands over
+  `comparison_base_basis::disputed_base`; the core resolves Whole PR as under
+  `recorded_base` with the reason `merge_base_disputed`, shown as "GitHub's
+  answers about where this pull request branched disagree, so Whole PR cannot
+  match its Files changed yet. Refresh in a moment, or compare two updates."
+  `failed` keeps "GitHub did not say where this pull request branched…".
+- **Fixture**: `stacked-merge-base-v1`, built by
+  `scripts/build_stacked_merge_base_fixture.py` (recorded base A1 is the merge
+  base, the base branch fast-forwarded to B1, the head B2; Files changed
+  `x.txt`, `y.txt`). `build_recorded_pull_request_contract.py` accepts a
+  construction that declares `packed_history` (every listed commit is in its
+  own pack) and serves its earlier commits as they are; every other fixture
+  regenerates unchanged. The fixture server answers a stacked descriptor's
+  compares from the graph, with `ahead_by`, and a `StackedBaseRewritten`
+  option answers that `base.sha` is not an ancestor of the tip.
+- **Live**: `bpr1560_live_parity.py` takes GitHub's basis from
+  compare(`base.sha`...head); `tests/end_to_end/bpr1572_stacked_live_course.py`
+  runs the merge, fast-forward and rebase variants with a negative control.
+- **Docs**: `docs/architecture/git-and-epoch-model.md`.
 
-## Evidence
+## Evidence (branch `bpr-1572-stacked-merge-base`)
 
-- `github_provider` (`test_merge_base_failure_and_refusal_are_distinct`):
-  agree is available from the tip; a forward-moved base branch (count matches,
-  ancestor) is available from the recorded base's merge base, asked three
-  compares; a rewritten base branch (not an ancestor), a count that differs,
-  a missing count and the pull request moving are `refused`; a failing
-  ancestry read is `failed`. `github_paged_read`: `ahead_by` parsed, absent
-  allowed, malformed refused.
-- Live and gates: see below.
+- **Unit.** `github_provider`: agree is available from the tip; a base branch
+  moved forward (count matches, `base.sha` an ancestor) is available from the
+  recorded base's merge base after three compares; a rewritten branch, a count
+  that differs, a missing count, and the pull request moving are `refused`; a
+  failing ancestry read is `failed`. `github_paged_read`: `ahead_by`.
+  `github_mutation_contract`: the two new GETs are canonical, cannot be
+  relabelled, bind base commit and echoed head; the decision function.
+  `live_review_submission_provider` and `staged_review_session`: a review with
+  a LEFT comment and a tour with a LEFT stop are published when the branch
+  only moved forward and refused before any write when it was rewritten.
+  `core_epoch_policy`, `application_github_window_read_host`,
+  `qt_epoch_comparison_scale_*`: disputed basis, reason and text.
+- **Fixture.** `application_merge_base_public_path`: on stacked-merge-base-v1
+  Whole PR shows exactly GitHub's lines for `x.txt` and `y.txt`; with the
+  branch rewritten it says GitHub's answers disagree and compares nothing from
+  the recorded base; the race course now shows the disagreement text;
+  merge-base-v1 unchanged. `merge_base_fixture_contract` regenerates both trees
+  byte for byte and checks the stacked descriptor.
+- **Negative control.** With the stacked acceptance reverted (always refuse)
+  and the publication rule reverted (branch only): `github_provider`,
+  `github_mutation_contract`, `live_review_submission_provider`,
+  `staged_review_session` and `application_merge_base_public_path` (stacked
+  Whole PR shows nothing) all fail.
+- **Live** (shipped composition offscreen, signed in, one data root per course,
+  `bpr1572_stacked_live_course.py`):
+  - merge, #94: open, A merges b1 (branch merge base b1, recorded a1),
+    A merges all of B (merged): PASS 3/3 files at every step.
+  - fast-forward, #95: open, A fast-forwarded to b1, then b2, ordinary push b4
+    to B (`base.sha` stays a1): PASS at every step.
+  - rebase, #96: open PASS; A rebased onto a newer main (both merge bases
+    agree, the path BPR-1560 already had): the course timed out waiting for the
+    first file's comparison, with the provider read and epoch preparation
+    logged as succeeded, while a second course ran beside it; B rebased onto
+    A: PASS. Rerun alone: see below.
 
-## Follow-ups (not changed, lean run)
-
-- **LEFT publication on a stacked pull request.** The publication recheck
-  still asks the base branch's merge base only, so in the stacked state a LEFT
-  comment, a review with one, or a tour with a LEFT stop is refused as
-  `target_moved` before any write. Safe, but those publications fail until
-  the base branch and `base.sha` agree again. Fix: the same rule in
-  `review_mutation_session` and `review_submission_session` (recorded-base and
-  base-ancestry compares).
-- **Refusal wording** (BPR-1560 follow-up): `refused` still shows the
-  `merge_base_unavailable` text; it is now rarer (genuine movement only).
-- **Fixture.** No stacked fixture tree was added. The provider unit tests and
-  the live course cover the rule.
-- **Endpoint lag.** For up to about 5 s after a push, GitHub's files endpoint
-  can answer a newer state than `pulls/N`. The snapshot's file-count, commit
-  count and last-commit checks and the confirming read catch it when the
-  counts differ. This predates this card.
-
-## Acceptance
-
-- `BPR-1572:measurement`: the table above.
-- `BPR-1572:provider`: `github_provider` and `github_paged_read` as above.
-- `BPR-1572:live`: `bpr1572_stacked_live_course.py` passes: open; A merges b1
-  (stacked, merge bases differ; Whole PR equals GitHub's Files changed from
-  `base.sha`'s merge base); A merges all of B (merged, closed).
-- `BPR-1572:negative-control`: `github_provider`'s stacked course fails with
-  the provider change reverted.
-- `BPR-1572:gates`: one full `ctest --preset dev`, clang-format 22, tidy on the
-  changed sources, the documentation gate.

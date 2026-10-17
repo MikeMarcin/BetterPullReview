@@ -2952,7 +2952,7 @@ namespace bpr::core {
 			// [[BPR-1560]]. The recorded base is retained, never compared from:
 			// a two-dot diff from it is not GitHub's Files changed.
 			resolution.Pair->Left.Availability = anchor_availability::unavailable;
-			return { .Pair = resolution.Pair,
+			return { .Pair   = resolution.Pair,
 					 .Reason = aBasis == comparison_base_basis::disputed_base ? epoch_reason_code::merge_base_disputed : epoch_reason_code::merge_base_unavailable };
 		}
 		if (resolution.Pair->Left.Identity.Authority != aAuthority.Scope

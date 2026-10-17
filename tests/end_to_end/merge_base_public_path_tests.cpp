@@ -113,7 +113,7 @@ namespace {
 		window.github_connect_action()->trigger();
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
 		window.home_open_bar()->setText(aFixture == app::detail::github_public_path_fixture::merge_base_v1 ? QStringLiteral("bpr-fixtures/merge-base#1560")
-																											: QStringLiteral("bpr-fixtures/stacked-merge-base#1572"));
+																										   : QStringLiteral("bpr-fixtures/stacked-merge-base#1572"));
 		window.home_open_action()->trigger();
 		if (aUnauthorized) {
 			return window;
@@ -153,9 +153,9 @@ namespace {
 	/// tip B1 names itself as merge base and would hide x.txt's change.
 	void whole_pr_is_githubs_files_changed(const bool aStacked = false)
 	{
-		auto  run    = course{ };
-		auto& window = start(run, false, false, false,
-							 aStacked ? app::detail::github_public_path_fixture::stacked_merge_base_v1 : app::detail::github_public_path_fixture::merge_base_v1);
+		auto       run    = course{ };
+		auto&      window = start(run, false, false, false,
+								  aStacked ? app::detail::github_public_path_fixture::stacked_merge_base_v1 : app::detail::github_public_path_fixture::merge_base_v1);
 		const auto github = aStacked ? std::map<std::string, std::pair<lines, lines>>{
 			{ "x.txt", { { { 3U, "x line 3" } }, { { 3U, "x line 3 B-1" } } } },
 			{ "y.txt", { { { 3U, "y line 3" } }, { { 3U, "y line 3 B-2" } } } },

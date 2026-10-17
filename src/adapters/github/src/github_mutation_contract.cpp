@@ -2272,7 +2272,7 @@ namespace bpr::adapters::github::detail {
 		const auto head     = std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() };
 		const auto recorded = std::string{ core::canonical_hex(aTarget.BaseOid).view() };
 		const auto pair     = aBasis == merge_base_observation_basis::base_branch ? percent_encode(aTarget.BaseRef) + "..." + head
-				: aBasis == merge_base_observation_basis::recorded_base           ? recorded + "..." + head
+			: aBasis == merge_base_observation_basis::recorded_base               ? recorded + "..." + head
 																				  : recorded + "..." + percent_encode(aTarget.BaseRef);
 		return review_mutation_wire_request{
 			.Semantic  = aTarget,

@@ -144,7 +144,7 @@ class Course:
                                 capture_output=True, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
         log.write_text(course.stdout + course.stderr)
         for line in course.stdout.splitlines():
-            if line.startswith(("parity:comparing", "parity:files", "live-second-account-course")):
+            if line.startswith(("parity:comparing", "parity:files", "parity:waiting", "live-second-account-course")):
                 print("  " + line[:300])
         check = ["python3", str(HERE / "bpr1560_live_parity.py"), "--root", str(self.root), "--pull", str(self.pull)]
         if expect_mismatch:
