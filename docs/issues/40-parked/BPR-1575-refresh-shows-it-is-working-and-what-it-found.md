@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1575"
 title: "Refresh shows it is working and what it found"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-17","owner_note":"I wish that refresh on both Home and PR was more visible as an action. It's kind of hard to tell it's doing anything.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0032","RFC-BPR-0026"],"related_cards":["BPR-0646","BPR-0990","BPR-1475","BPR-1567","BPR-1576"],"reservation":"docs/issues/_reservations/BPR-1575--BPR-1575--13a6199698e6.json"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"2f0850a2e","evidence":{"kind":"observation","detail":"core_refresh_feedback: lifecycle, trigger precedence, comparisons (comments, reviews, push, commits, state, new pull requests), failure classes, ages and next change, announcements."}},{"criterion":"AC2","outcome":"pass","revision":"2f0850a2e","evidence":{"kind":"observation","detail":"qt_refresh_feedback_window and application_refresh_feedback_public_path: engaged button and note in the gesture's turn, veil and rule after the reveal, tick and result note, nothing new, offline with Retry and dot, rate limited with the wait, automatic and handed-over updates, Home discovery; status bar freshness ages on the window clock."}},{"criterion":"AC3","outcome":"pass","revision":"2f0850a2e","evidence":{"kind":"observation","detail":"Announcements captured in both courses: start once for the reviewer, result once, failure with 'Retry is available.'; none for an automatic update without news."}},{"criterion":"AC4","outcome":"pass","revision":"2f0850a2e","evidence":{"kind":"observation","detail":"refreshPullRequestAction keeps QKeySequence::Refresh, listed in the keyboard shortcuts catalogue as 'Refresh the pull request'; Home's refresh unchanged with no key."}},{"criterion":"AC5","outcome":"pass","revision":"2f0850a2e","evidence":{"kind":"observation","detail":"Negative control: a status change without the core's read stage presents no refresh (qt_refresh_feedback_window). Full dev suite, clang-format 22, clang-tidy 22, documentation gate, composition contracts resealed and passing."}},{"criterion":"AC6","outcome":"pending","revision":"2f0850a2e","evidence":{"kind":"freeform","detail":"Owner Accept/Reject: candidate BPR-1575-refresh-feedback-v001, attended session 232e2c2eee171af499adac505a0e561e, frozen root bpr1575-1576-v001.wu26nlx6."}}]
 ---
 
 # BPR-1575: Refresh shows it is working and what it found
