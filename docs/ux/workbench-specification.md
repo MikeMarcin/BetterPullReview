@@ -409,6 +409,50 @@ the drawers show and outlined and checked while they are hidden; its tooltip
 names what it hides or brings back with the key ("Show Files and Comments
 (⌘B)").
 
+### Refresh
+
+[[BPR-1575]] (the owner, 2026-10-17: "I wish that refresh on both Home and PR
+was more visible as an action. It's kind of hard to tell it's doing
+anything."). The title row's refresh glyph, the open pull request's and on
+Home personal discovery's ([[BPR-0990]]), says its whole lifecycle, decided
+in the core (`bpr/core/refresh_feedback.hpp`) from the read's own stages: the
+pull request read the core names in its transition, and discovery's state.
+
+- **Pressed.** In the same turn as the gesture the button reads as engaged,
+  in the accent, and its arrow turns; under reduced motion it holds a still
+  arrow with a dot at its heart. It keeps full ink while the core refuses a
+  second press. A note under the button says "Refreshing the pull request…"
+  or "Finding my pull requests…", and a screen reader hears it start.
+- **Under way.** After the pattern's reveal the review (or Home's list) is
+  veiled with its rule ([[BPR-1576]]); after six seconds the note says what
+  the read still waits on. The status bar's right end says "Refreshing…".
+- **Finished.** A tick stands in the button for a moment and the note says
+  what the read brought, compared between the two accepted reads: "Updated:
+  2 new comments and 1 new push.", a new review, commits, a state change, or
+  on Home new pull requests; with nothing new, "Up to date: nothing new." The
+  note puts itself away after a few seconds or on a press. The status bar then
+  says how old the content is, "Updated just now", "Updated 2 min ago", aging
+  by itself exactly when its words change; an opened pull request starts
+  "Updated just now".
+- **Failed.** The note says why in the failure ink, offline, rate limited with
+  how long GitHub asked to wait, signed out or otherwise, says how old what is
+  still shown is, and offers Retry. The button keeps a dot in the failure ink
+  and the status bar says "Not refreshed · Retry" until the next refresh
+  answers. The review stays.
+- **By itself.** A read the window makes after publishing or resolving a
+  thread, Home catching up on arrival, or an answer another window read and
+  handed over, turns the button and says "Updating…" in the status bar, but
+  shows a note and is announced only when it brought news ("Updated
+  automatically: 1 new comment.", "Updated from another window: …") or failed.
+- **Keys.** Refresh is the platform's Refresh key (⌘R on macOS, F5 or Ctrl+R
+  elsewhere), listed in Keyboard Shortcuts as "Refresh the pull request";
+  Home's refresh has no key of its own.
+
+Every result and failure is announced once, politely, from the button; the
+button's description carries the state and the age. The note is laid over
+the content right-aligned under its button and the status bar's words keep
+their own width, so nothing moves.
+
 ## Overview summary
 
 RFC-BPR-0063 replaces the four-line preview with a resizable description above
@@ -546,7 +590,8 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   runs and says so, and is its own action, so the review strip's refresh
   and its shortcut stay the open pull request's. Arriving at Home, or
   activating a window that shows it, asks discovery to catch up; discovery
-  reads only when its list is more than five minutes old.
+  reads only when its list is more than five minutes old. While it runs it is
+  presented as [Refresh](#refresh) describes ([[BPR-1575]]).
 - **What discovery last did** is one sentence under the bar, where Home
   already reports what the queue refused: "Found at 14:05 in 2 saved
   repositories.", "Finding my pull requests in 1 saved repository…", a

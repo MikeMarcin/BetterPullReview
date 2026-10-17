@@ -16,6 +16,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/reference_page.hpp"
+#include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -123,6 +124,7 @@ namespace bpr::qt {
 	class dif_widget;
 	class home_list;
 	class pending_veil;
+	class refresh_note;
 	class keyboard_shortcuts_window;
 	class home_panel;
 	class diff_workbench;
@@ -1236,6 +1238,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto github_refresh_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Home's refresh glyph: the profile's discovery.
 		[[nodiscard]] auto queue_refresh_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1575]]. Runs `aDispatch`, a read of the open pull
+		/// request the application makes by itself (after publishing, after
+		/// resolving a thread), so the read it starts is presented as automatic
+		/// rather than as the reviewer's Refresh.
+		void run_automatic_refresh(const std::function<void()>& aDispatch);
+		/// \brief [[BPR-1575]]. The open pull request's refresh, as presented.
+		[[nodiscard]] auto pull_request_refresh() const noexcept -> const core::refresh_state&;
+		/// \brief [[BPR-1575]]. Home's discovery refresh, as presented.
+		[[nodiscard]] auto home_refresh() const noexcept -> const core::refresh_state&;
+		/// \brief [[BPR-1575]]. The note under the refresh button.
+		[[nodiscard]] auto refresh_note_widget() const noexcept -> refresh_note*;
+		/// \brief [[BPR-1575]]. The status bar's freshness: "Updated 2 min ago".
+		[[nodiscard]] auto refresh_freshness_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1575]]. The freshness words for the surface shown, at
+		/// the window clock's reading now.
+		[[nodiscard]] auto refresh_freshness_text() const -> QString;
 		/// \brief [[BPR-0990]]. The one sentence Home says about discovery.
 		[[nodiscard]] auto home_discovery_status() const noexcept -> QLabel*;
 		/// \brief [[BPR-0990]]. The Pull Request menu and its two local gestures.
@@ -1488,6 +1506,21 @@ namespace bpr::qt {
 		void update_review_readiness();
 		/// [[BPR-1576]]. Builds the window's own pane veils once the panes exist.
 		void build_pending_veils();
+		/// [[BPR-1575]]. Follows the open pull request's refresh from the read
+		/// the core named in a transition; the outcome is settled once the
+		/// whole update is applied.
+		void observe_refresh_read(const core::pull_request_read_delta& aRead);
+		/// [[BPR-1575]]. Settles a refresh that ended in this update.
+		void settle_pull_request_refresh(const application::github_presentation_update& aUpdate);
+		/// [[BPR-1575]]. Follows Home's discovery from one queue projection to the next.
+		void observe_home_refresh(const application::queue_discovery_status& aBefore, const application::queue_landing_projection& aAfter);
+		/// [[BPR-1575]]. Applies one event to a refresh and presents and
+		/// announces what it changed.
+		void apply_refresh_event(bool aHome, const core::refresh_event& aEvent);
+		/// [[BPR-1575]]. The buttons, the note and the freshness, from both refreshes.
+		void               present_refresh();
+		[[nodiscard]] auto refresh_clock() const -> std::int64_t;
+		[[nodiscard]] auto refresh_result_text(bool aHome, const core::refresh_state& aState) const -> QString;
 		/// [[BPR-1576]]. Puts each window pane's veil in the look its facts give.
 		void update_pending_panes();
 		/// [[BPR-1576]]. Motion, contrast and failure ink to every veil.
@@ -2104,12 +2137,37 @@ namespace bpr::qt {
 		std::optional<application::github_read_progress>               ReadProgress;
 		workbench_central_splitter*                                    CentralSplitter = nullptr;
 		pending_panes                                                  PendingPanes;
-		bool                                                           PendingHighContrast = false;
-		QColor                                                         PendingFailureInk;
-		QWidget*                                                       CentreSurface     = nullptr;
-		diff_workbench*                                                ComparisonSurface = nullptr;
-		pull_request_overview_page*                                    OverviewPage      = nullptr;
-		std::optional<application::pull_request_overview_projection>   PresentedOverview;
+		/// [[BPR-1575]]. Both refreshes and what their presentation holds.
+		core::refresh_state                                          PullRefresh;
+		core::refresh_state                                          HomeRefresh;
+		core::pull_request_refresh_observation                       RefreshBaseline;
+		core::pull_request_refresh_observation                       RefreshLatest;
+		std::optional<core::pull_request_read_delta>                 RefreshEnded;
+		std::optional<core::provider_snapshot_id>                    RefreshSnapshot;
+		std::optional<std::uint32_t>                                 RefreshRetryAfter;
+		std::vector<core::pull_request_ref>                          HomeRefs;
+		std::vector<core::pull_request_ref>                          HomeBaseline;
+		bool                                                         AutomaticRefreshNoted = false;
+		bool                                                         RefreshReadSeen       = false;
+		std::optional<core::refresh_changes>                         ElsewhereChanges;
+		QTimer*                                                      HomeSlowTimer       = nullptr;
+		bool                                                         HomeRefreshAsked    = false;
+		bool                                                         PullSettledCue      = false;
+		bool                                                         HomeSettledCue      = false;
+		int                                                          RefreshFrame        = 0;
+		QTimer*                                                      RefreshFrames       = nullptr;
+		QTimer*                                                      PullCueTimer        = nullptr;
+		QTimer*                                                      HomeCueTimer        = nullptr;
+		QTimer*                                                      RefreshAgeTimer     = nullptr;
+		QTimer*                                                      RefreshSlowTimer    = nullptr;
+		refresh_note*                                                RefreshNote         = nullptr;
+		QLabel*                                                      RefreshFreshness    = nullptr;
+		bool                                                         PendingHighContrast = false;
+		QColor                                                       PendingFailureInk;
+		QWidget*                                                     CentreSurface     = nullptr;
+		diff_workbench*                                              ComparisonSurface = nullptr;
+		pull_request_overview_page*                                  OverviewPage      = nullptr;
+		std::optional<application::pull_request_overview_projection> PresentedOverview;
 		/// [[BPR-0972]]. The presented overview's first row for each path.
 		std::unordered_map<std::string, std::size_t> PresentedOverviewRows;
 		bool                                         OverviewFileFactsDirty = true;

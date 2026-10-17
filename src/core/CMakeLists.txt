@@ -34,6 +34,7 @@ add_library(
         src/github_window_read.cpp
         src/home_open.cpp
         src/pending_presentation.cpp
+        src/refresh_feedback.cpp
         src/cached_review_overview.cpp
         src/markdown_navigation.cpp
         src/reference_page.cpp

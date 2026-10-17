@@ -12321,7 +12321,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The thread's new state comes back from the server the way every
 			// other fact does.
 			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-				refresh->trigger();
+				// [[BPR-1575]]. A read the window makes by itself, said as such.
+				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
 			}
 		}
 
@@ -15196,7 +15197,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// link waiting on sign-in, a restoration, the status line) is
 			// retired by a read the window makes for itself.
 			if (WindowRead->accepted_snapshot()) {
-				WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } });
+				// [[BPR-1575]]. Presented as the application's own update, not the
+				// reviewer's Refresh.
+				Window->run_automatic_refresh([this] { WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } }); });
 			}
 		}
 		void schedule_link_location()

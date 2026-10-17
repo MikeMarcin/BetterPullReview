@@ -36,6 +36,7 @@ add_library(
         src/home_list.cpp
         src/home_status_line.cpp
         src/pending_veil.cpp
+        src/refresh_note.cpp
         src/home_refusal.cpp
         src/defect_card_view.cpp
         src/private_notes_panel.cpp

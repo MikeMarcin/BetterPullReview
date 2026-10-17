@@ -2224,3 +2224,15 @@ set_tests_properties(qt_pending_veil PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "pending-veil-tests:pass"
     TIMEOUT 120)
+
+# [[BPR-1575]]. Refresh made visible on the pull request and on Home, from the
+# core's read stages, with a negative control that has none.
+bpr_add_executable(test_better_pull_review_qt_refresh_feedback_window_tests refresh_feedback_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_refresh_feedback_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_add_network_isolated_test(NAME qt_refresh_feedback_window COMMAND test_better_pull_review_qt_refresh_feedback_window_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/refresh-feedback")
+set_tests_properties(qt_refresh_feedback_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
+    TIMEOUT 120)
