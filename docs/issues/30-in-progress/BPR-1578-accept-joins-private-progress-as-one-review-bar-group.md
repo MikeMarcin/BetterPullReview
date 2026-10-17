@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1578"
 title: "Accept joins private progress as one review-bar group and reads as a button"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
