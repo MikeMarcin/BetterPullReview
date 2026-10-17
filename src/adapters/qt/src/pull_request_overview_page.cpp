@@ -1051,6 +1051,29 @@ namespace bpr::qt {
 		return { .Fill = mixed(ink, base, 0.07), .Outline = mixed(ink, base, 0.32), .Letter = mixed(ink, base, 0.74) };
 	}
 
+	auto overview_row_band(const QPalette& aPalette, const QPalette::ColorGroup aGroup) -> QColor
+	{
+		const auto ground = aPalette.color(aGroup, QPalette::Base).toRgb();
+		const auto ink    = aPalette.color(aGroup, QPalette::Text).toRgb();
+		const auto toward = [&ground, &ink](const double aShare) {
+			const auto channel = [aShare](const float aFrom, const float aTo) { return aFrom + ((aTo - aFrom) * static_cast<float>(aShare)); };
+			return QColor::fromRgbF(channel(ground.redF(), ink.redF()), channel(ground.greenF(), ink.greenF()), channel(ground.blueF(), ink.blueF()));
+		};
+		const auto step = [&ground](const QColor& aColour) { return contrast_ratio(to_appearance_color(aColour), to_appearance_color(ground)); };
+		if (step(ink) <= overview_row_band_contrast) {
+			return ground;
+		}
+		// The ratio grows along the way from the ground to the text: halve the
+		// interval to the first share that reaches the step.
+		auto nearer  = 0.0;
+		auto further = 1.0;
+		for (auto pass = 0; pass < 16; ++pass) {
+			const auto share                                                      = (nearer + further) / 2.0;
+			(step(toward(share)) < overview_row_band_contrast ? nearer : further) = share;
+		}
+		return toward(further);
+	}
+
 	auto overview_count_name(const core::feedback_count_target& aTarget, const bool aAnyColumns) -> QString
 	{
 		switch (aTarget.Kind) {
@@ -1689,6 +1712,54 @@ namespace bpr::qt {
 	{
 	}
 
+	auto overview_row_delegate::banded(const QModelIndex& aIndex, const QWidget* const aView) -> bool
+	{
+		const auto* const tree = qobject_cast<const QTreeView*>(aView);
+		const auto        row  = aIndex.siblingAtColumn(0);
+		const auto        heading
+			= [](const QModelIndex& aRow) { return aRow.data(overview_file_model::folder_role).toBool() || aRow.data(overview_file_model::remainder_role).toBool(); };
+		if (tree == nullptr || !row.isValid() || heading(row)) {
+			return false;
+		}
+		// The rows shown between this one and the header its group starts
+		// at. A file sits under its folder's header, and with uniform rows
+		// the view's own geometry counts them: a hidden or collapsed row has
+		// none, and the count costs no walk over the folder's earlier files.
+		const auto parent = row.parent();
+		if (parent.isValid()) {
+			const auto header = tree->visualRect(parent);
+			const auto own    = tree->visualRect(row);
+			if (!header.isValid() || own.height() <= 0) {
+				return false;
+			}
+			return ((own.top() - header.bottom() - 1) / own.height()) % 2 == 0;
+		}
+		// At the top level a heading row ends the group.
+		auto shown = 0;
+		for (auto before = row.row() - 1; before >= 0; --before) {
+			if (!parent.isValid() && heading(row.sibling(before, 0))) {
+				break;
+			}
+			if (!tree->isRowHidden(before, parent)) {
+				++shown;
+			}
+		}
+		return shown % 2 == 0;
+	}
+
+	void overview_row_delegate::initStyleOption(QStyleOptionViewItem* const aOption, const QModelIndex& aIndex) const
+	{
+		QStyledItemDelegate::initStyleOption(aOption, aIndex);
+		if ((aOption->state & QStyle::State_Selected) != 0 || !banded(aIndex, aOption->widget)) {
+			return;
+		}
+		const auto active   = overview_row_band(aOption->palette, QPalette::Active);
+		const auto inactive = overview_row_band(aOption->palette, QPalette::Inactive);
+		aOption->palette.setColor(QPalette::Active, QPalette::Base, active);
+		aOption->palette.setColor(QPalette::Inactive, QPalette::Base, inactive);
+		aOption->backgroundBrush = (aOption->state & QStyle::State_Active) != 0 ? active : inactive;
+	}
+
 	namespace {
 		/// [[BPR-1363]] v002. A folder's file count, in the row's regular
 		/// weight with tabular figures, so equal digit counts are equally wide
@@ -1846,7 +1917,10 @@ namespace bpr::qt {
 				return;
 			}
 		}
-		const auto marked = !folder
+		// [[BPR-1585]]. The Not on a file row is no file: it has no operation,
+		// change or read state to mark, only its name and its chips.
+		const auto remainder = aIndex.data(overview_file_model::remainder_role).toBool();
+		const auto marked    = !folder && !remainder
 			&& (column == overview_file_model::operation_column
 				|| column == overview_file_model::changed_column
 				|| column == overview_file_model::read_column
@@ -1875,7 +1949,7 @@ namespace bpr::qt {
 			if (!folder && column == overview_file_model::note_column) {
 				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));
 			}
-			if (aIndex.data(overview_file_model::remainder_role).toBool()) {
+			if (remainder) {
 				option.font.setWeight(QFont::DemiBold);
 				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::PlaceholderText));
 			}
