@@ -70,7 +70,8 @@ namespace {
 			Availability = aHandoff.TimelineAvailability;
 			++AcceptCount;
 		}
-		void invalidate(application::pull_request_authority_invalidation) override { }
+		std::vector<application::pull_request_authority_invalidation> Invalidations;
+		void                                                          invalidate(application::pull_request_authority_invalidation aInvalidation) override { Invalidations.push_back(aInvalidation); }
 	};
 	auto session() -> application::github_profile_session
 	{
@@ -623,6 +624,57 @@ namespace {
 		lane.drain();
 		expect(epochs.AcceptCount == 2U && epochs.Shape == currentShape && !host.accepted_snapshot(),
 			   "superseded snapshot cannot replace accepted shape");
+	}
+
+	/// [[BPR-1573]]. Close review: the host lets go of the accepted pull request
+	/// as opening another one does (its epoch authority is invalidated once and
+	/// its mutation transport revoked), stops a read in flight without
+	/// publishing its late answer, and changes nothing when nothing is open.
+	void test_close_review_releases_the_read()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane;
+		epoch_handoffs                                      epochs;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 9 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&updates](const auto& aUpdate) { updates.push_back(aUpdate); },
+			&epochs
+		};
+		expect(host.adopt(session()), "close fixture adopts session");
+		updates.clear();
+		host.dispatch(core::close_pull_request_intent{ });
+		expect(updates.size() == 1U && !updates.back().Transition.PullRequest && updates.back().Transition.Diagnostics.size() == 1U
+				   && updates.back().Transition.Diagnostics.front().Code == core::github_reason_code::no_active_pull_request
+				   && epochs.Invalidations.empty() && provider.Cancellations == 0U,
+			   "a close with nothing open is refused and releases nothing");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		const auto first = provider.Calls.back();
+		first.Complete(application::github_pull_request_success{ first.Request, snapshot(first.Request) });
+		lane.drain();
+		expect(epochs.AcceptCount == 1U && host.accepted_snapshot(), "the pull request is accepted with an epoch authority");
+		updates.clear();
+		host.dispatch(core::close_pull_request_intent{ });
+		expect(epochs.Invalidations.size() == 1U && epochs.Invalidations.front().PullRequest == core::pull_request_id{ 81U }
+				   && !host.accepted_snapshot() && !host.state().ActiveLocator && !host.state().PullRequest,
+			   "close review invalidates the accepted epoch authority");
+		expect(updates.size() == 1U && updates.back().Transition.PullRequest && !updates.back().Transition.PullRequest->Summary
+				   && updates.back().Transition.Status && updates.back().Transition.Status->Status == core::github_status::session_ready,
+			   "close review publishes a window with no pull request and its session kept");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 2 } });
+		const auto pending = provider.Calls.back();
+		const auto cancels = provider.Cancellations;
+		host.dispatch(core::close_pull_request_intent{ });
+		expect(provider.Cancellations == cancels + 1U && !host.state().PendingPullRequest, "close review stops the read in flight");
+		updates.clear();
+		pending.Complete(application::github_pull_request_success{ pending.Request, snapshot(pending.Request) });
+		lane.drain();
+		expect(updates.empty() && !host.accepted_snapshot() && epochs.AcceptCount == 1U && host.is_quiescent(),
+			   "the closed read's late answer is neither published nor accepted");
+		host.shutdown();
 	}
 
 	/// [[BPR-1560]]. A merge base GitHub named outlives a later failed read of
@@ -1215,6 +1267,7 @@ int main()
 	test_two_windows_have_distinct_diagnostic_courses();
 	test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read();
 	test_merge_base_carries_forward_only_across_failures();
+	test_close_review_releases_the_read();
 	reads                                provider;
 	application::manual_executor         lane;
 	std::size_t                          publications = 0;
