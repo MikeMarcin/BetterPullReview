@@ -3,6 +3,7 @@
 
 #include "cli_sensitive_bytes.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +37,14 @@ namespace bpr::adapters::github::detail {
 			const github_cli_process_environment_entry&) const -> bool = default;
 	};
 
+	/// \brief Content-free counters for an explicitly observed local discovery probe.
+	struct github_cli_process_observation
+	{
+		std::atomic<std::size_t> StandardOutputBytes{ 0U };
+		std::atomic<std::size_t> StandardErrorBytes{ 0U };
+		std::atomic<int>         ExitCode{ -999 };
+	};
+
 	struct github_cli_process_request
 	{
 		std::string                                       Executable;
@@ -51,7 +60,8 @@ namespace bpr::adapters::github::detail {
 
 		// Only gh API response parsing and the bounded local Git clone-help probe
 		// opt in to completed nonzero output. Failed/partial output remains unavailable.
-		bool PreserveCompletedOutput = false;
+		bool                                            PreserveCompletedOutput = false;
+		std::shared_ptr<github_cli_process_observation> Observation{ };
 
 		auto operator==(const github_cli_process_request&) const -> bool = default;
 	};

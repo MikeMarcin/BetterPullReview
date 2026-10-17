@@ -700,6 +700,13 @@ namespace bpr::adapters::github::detail {
 				const auto failed =
 					[&](const github_cli_process_failure aFailure)
 					-> process_execution {
+					if (aRequest.Observation) {
+						aRequest.Observation->StandardOutputBytes.store(standardOutputBytes);
+						aRequest.Observation->StandardErrorBytes.store(standardErrorBytes);
+						if (process->state() == QProcess::NotRunning && *processGroupId != 0) {
+							aRequest.Observation->ExitCode.store(process->exitCode());
+						}
+					}
 					discardOutput();
 					return failed_execution(
 						process,
@@ -889,6 +896,11 @@ namespace bpr::adapters::github::detail {
 						github_cli_process_failure::unexpected_standard_error);
 				}
 
+				if (aRequest.Observation) {
+					aRequest.Observation->StandardOutputBytes.store(standardOutputBytes);
+					aRequest.Observation->StandardErrorBytes.store(standardErrorBytes);
+					aRequest.Observation->ExitCode.store(process->exitCode());
+				}
 				if (outputFilter) {
 					outputFilter->finish(aFileLimits.DiscardStandardOutput ? nullptr : &standardOutput);
 				}
