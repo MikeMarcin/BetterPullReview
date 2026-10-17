@@ -1,4 +1,5 @@
 #include "../support/test_expectation.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "live_review_submission_provider.hpp"
@@ -185,6 +186,9 @@ namespace {
 		/// reads its review list or its review: the reads between one
 		/// observation of the pull request and the write.
 		bool        ResetOnReviewRead = false;
+		/// [[BPR-1572]]. GitHub replaces the recorded base from the read of
+		/// the pull request after this many (zero: never).
+		std::size_t ResetAfterPullReads = 0U, PullReads = 0U;
 		std::size_t MergeBaseReads    = 0U;
 		bool        DenyWitness       = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
@@ -312,6 +316,9 @@ namespace {
 					return viewer_response();
 				}
 				if (wire.Path == Pull) {
+					if (ResetAfterPullReads != 0U && ++PullReads > ResetAfterPullReads) {
+						RecordedReset = true;
+					}
 					auto  response = target_response(target().RepositoryDatabaseId, WrongHead ? commit(0x22) : target().Semantic.ExpectedHead);
 					auto& body     = std::get<github_mutation_wire_success>(response).Response.Body;
 					if (StackedBase != 0) {
@@ -566,6 +573,25 @@ namespace {
 			const auto result        = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
 			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.RecordedReset,
 				   "a recorded base replaced during the baseline read refuses the first write");
+		}
+		{
+			// [[BPR-1572]]. Through the production GitHub CLI account wrapper:
+			// after the session's last read of the pull request before the first
+			// write (its fourth: admission and verification, each read again
+			// after the merge base), the wrapper checks the account and reads the
+			// pull request once more, which now names another recorded base. The
+			// write is refused unsent and the tour is a conflict that says why,
+			// not a ready tour to resume.
+			scratch root;
+			server  remote;
+			remote.ResetAfterPullReads = 4U;
+			auto cli                   = bpr::tests::github_contract::make_cli_account_wrapper(remote, configuration().CredentialContext, "fixture-reviewer");
+			expect(cli.Transport != nullptr, "the production wrapper is built for the fixture account");
+			review_submission_session provider{ *cli.Transport, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = provider.publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && result.Failure == application::review_mutation_failure::target_moved && remote.Writes == 0
+					   && remote.PullReads == 5U && cli.Inner->AccountReads > 0U,
+				   "through the CLI account wrapper a recorded base replaced before the write refuses it unsent as a conflict that says why");
 		}
 		for (const int stacked : { 1, 2, 3 }) {
 			// [[BPR-1572]]. The base branch names another merge base. Moved only

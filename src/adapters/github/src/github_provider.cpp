@@ -1095,8 +1095,11 @@ namespace bpr::adapters::github::detail {
 				// request reads it once more here, after the check, so the pull
 				// request is still the last read before the write: a head or a
 				// recorded base GitHub moved during the account reads sends
-				// nothing. Its head and recorded base unchanged, the merge base
-				// GitHub numbers lines in is the one the session confirmed.
+				// nothing. This compares the head and recorded base only; it does
+				// not ask the merge base again, so a base branch rewritten after
+				// the session's compares, before GitHub replaces the recorded
+				// base, is not seen here (the inherent limit the architecture
+				// documents).
 				if (const auto target = written_target(aRequest.Wire)) {
 					if (auto refused = confirm_written_target(*inner, aRequest, *target, aStop)) {
 						return *refused;
@@ -3169,5 +3172,28 @@ namespace bpr::adapters::github::detail {
 	{
 		return make_github_provider_from_pointers(
 			aProfiles, aEffects, std::move(aTransportFactory), aReadAuthority, std::move(aLog));
+	}
+
+	auto make_cli_observed_account_transport_for_testing(
+		std::shared_ptr<github_wire_transport_port>             aInner,
+		const application::github_credential_operation_context& aContext,
+		std::string                                             aLogin) -> std::shared_ptr<github_mutation_wire_transport>
+	{
+		const auto server = aContext.Authority.ServerContract == application::github_server_contract::ghes_3_18_2022_11_28 ? server_contract::ghes_3_18 : server_contract::github_com;
+		const auto wire   = compile_read_request(semantic_read_request{ .Server = server, .Operation = read_operation::get_viewer_identity, .Page = 1U });
+		if (!wire) {
+			return nullptr;
+		}
+		auto viewer = github_wire_request{
+			.Correlation = github_wire_correlation{
+				.Parent          = core::github_session_request_context{ .Request = aContext.Request, .ApplicationSession = aContext.ApplicationSession, .Profile = aContext.Authority.Profile, .IdentityGeneration = aContext.IdentityGeneration },
+				.ProfileRevision = aContext.Authority.ProfileRevision,
+				.Host            = aContext.Authority.Host,
+				.Operation       = read_operation::get_viewer_identity,
+				.Page            = 1U,
+			},
+			.Wire = *wire,
+		};
+		return std::make_shared<cli_observed_account_transport>(std::move(aInner), std::move(viewer), server, aContext.Authority.Account, std::move(aLogin));
 	}
 }

@@ -3773,6 +3773,12 @@ namespace bpr::adapters::github::detail {
 		const bool  file    = file_child_state(current.State);
 		const auto& child   = file ? current.Fallback : current.Native;
 		if (!child || child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+			// [[BPR-1572]]. Never sent: the transport's refusal (the GitHub CLI
+			// account wrapper finding the pull request moved) is the answer.
+			result.MutationAttempted = witnessed->load();
+			if (!response) {
+				result.Result = std::unexpected(response.error());
+			}
 			return result;
 		}
 		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
@@ -4276,6 +4282,9 @@ namespace bpr::adapters::github::detail {
 			if (!transmission.has_value() || !transmission->has_value()
 				|| (**transmission).Transmission
 					!= application::review_mutation_recovery_transmission::possibly_transmitted) {
+				// [[BPR-1572]]. Never witnessed, never sent: a transport's
+				// refusal (the pull request moved) is not an attempt.
+				submission.MutationAttempted = witnessed->load();
 				return submission;
 			}
 

@@ -1,4 +1,5 @@
 #include "../support/test_expectation.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "github_review_list_shapes.hpp"
@@ -330,6 +331,8 @@ namespace {
 		bool                                   MovedMergeBase   = false;
 		stacked_course                         Stacked          = stacked_course::none;
 		std::size_t                            TargetReads      = 0U;
+		std::size_t                            MoveAfterTargetReads = 0U, AllTargetReads = 0U;
+		bool                                   MoveHead             = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		/// [[BPR-1345]]. The pull request's review comments, review 45's
@@ -364,6 +367,16 @@ namespace {
 					OnTarget();
 				}
 				auto response = target_response(WrongRepository ? 999U : target().RepositoryDatabaseId, WrongHead ? commit(0x22U) : target().Semantic.ExpectedHead);
+				// [[BPR-1572]]. From this pull request read on, GitHub names
+				// another recorded base or head.
+				if (MoveAfterTargetReads != 0U && ++AllTargetReads > MoveAfterTargetReads) {
+					response = target_response(target().RepositoryDatabaseId, MoveHead ? commit(0x22U) : target().Semantic.ExpectedHead);
+					if (!MoveHead) {
+						auto&      body     = std::get<github_mutation_wire_success>(response).Response.Body;
+						const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+						body.replace(body.find(recorded), recorded.size(), std::string(40U, 'b'));
+					}
+				}
 				// [[BPR-1572]]. The stacked courses' pull request reports two
 				// commits; on the reset course GitHub has replaced its recorded
 				// base with the base branch's tip by the read that follows the
@@ -1065,6 +1078,26 @@ namespace {
 								   : stacked == stacked_course::agree_both_move ? application::review_mutation_failure::target_moved
 																				: application::review_mutation_failure::unavailable),
 				   "the pull request read after an agreeing merge base is the last read: a moved head or a failing read sends nothing");
+		}
+		for (const auto moveHead : { false, true }) {
+			// [[BPR-1572]]. Through the production GitHub CLI account wrapper:
+			// after the session's last read of the pull request, the wrapper
+			// checks the account and reads the pull request once more. GitHub
+			// replacing the recorded base (or moving the head) in between refuses
+			// the review unsent, and the session reports why: `target_moved`
+			// (or `stale_head`), definitely not published.
+			temporary_directory root;
+			transport           wire;
+			wire.Request              = request();
+			wire.MoveAfterTargetReads = 1U;
+			wire.MoveHead             = moveHead;
+			auto cli                  = bpr::tests::github_contract::make_cli_account_wrapper(wire, credential_context(), "fixture-reviewer");
+			expect(cli.Transport != nullptr, "the production wrapper is built for the fixture account");
+			review_submission_session session{ *cli.Transport, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(wire.Posts == 0U && cli.Inner->AccountReads > 0U && result.Publication == application::review_submission_publication::definitely_not_published
+					   && result.Failure == (moveHead ? application::review_mutation_failure::stale_head : application::review_mutation_failure::target_moved),
+				   "through the CLI account wrapper a moved pull request refuses the review unsent and the session says why");
 		}
 		{
 			// Without a LEFT line nothing asks for the merge base.

@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/application/private_publication_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
 #include "product_diff.hpp"
@@ -812,6 +813,35 @@ namespace {
 			}
 		}
 	}
+	/// [[BPR-1572]]. The same comment through the production GitHub CLI
+	/// account wrapper: after the child's last read of the pull request (its
+	/// fourth), the wrapper checks the account and reads the pull request once
+	/// more, which now names another recorded base. The comment is refused
+	/// unsent, and the session says why: `target_moved`, no attempt.
+	void test_left_source_backed_child_through_the_cli_account_wrapper()
+	{
+		auto source                          = permalink_source();
+		source.Target.ComparisonBaseOid      = commit(0x5aU);
+		auto endpoint                        = source.Endpoint->request();
+		endpoint.Diff.Comparison.Left.Commit = commit(0x5aU);
+		source.Endpoint                      = application::make_workbench_selected_diff_endpoint_for_testing(endpoint, core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+		auto request                         = publication_request(source);
+		request.Proposal.Anchor.Side         = core::diff_side::left;
+		request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
+		request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
+		auto       scratch                   = tests::sqlite_contract::scratch_root{ "stacked-cli-publication" };
+		auto       transport                 = publication_transport{ };
+		transport.Stacked                    = true;
+		transport.ResetAtTarget              = 5U;
+		const auto configuration             = session_configuration(request);
+		auto       cli                       = tests::github_contract::make_cli_account_wrapper(transport, configuration.CredentialContext, "fixture-reviewer");
+		expect(cli.Transport != nullptr, "the production wrapper is built for the fixture account");
+		auto       session = review_mutation_session{ *cli.Transport, configuration, std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+		const auto result  = session.submit_and_reconcile(request);
+		expect(!result.Result && result.Result.error() == application::review_mutation_failure::target_moved && !result.MutationAttempted && transport.Posts.empty()
+				   && transport.Targets == 5U && cli.Inner->AccountReads > 0U,
+			   "through the CLI account wrapper a recorded base replaced before the write refuses the source-backed comment unsent and says why");
+	}
 	class publication_log final : public application::diagnostic_log_port
 	{
 	public:
@@ -1426,6 +1456,7 @@ auto main() -> int
 	test_server_truth_placement();
 	test_session_negotiation_and_cache();
 	test_left_source_backed_child_on_a_stacked_pull_request();
+	test_left_source_backed_child_through_the_cli_account_wrapper();
 	test_session_ambiguity_and_refusals();
 	test_session_restart_states();
 	test_interruption_boundaries();

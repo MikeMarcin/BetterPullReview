@@ -312,8 +312,8 @@ not taken for the one they describe. The pull request is read again after an
 agreeing answer too, and it is the last read before every write on every
 publication path (a single comment, a review, each tour write, first or
 resumed), through every transport: the GitHub CLI account wrapper checks the
-account with reads of its own before each write, so for a write bound to a
-pull request it reads the pull request once more after that check and refuses
+account with reads of its own before each write, so for every witnessed write
+bound to a pull request it reads the pull request once more after that check and refuses
 the write when its head or recorded base moved (a moved recorded base, with or
 without the head, is `target_moved`; a moved head alone `stale_head`). The
 native HTTPS transport (github.com and GHES alike) adds no read before a write,

@@ -616,7 +616,14 @@ namespace bpr::adapters::github::detail {
 			},
 													 completion);
 			if (!witnessed->load() && definitelyUnsent) {
-				return withdrawn(result(aRequest, publication::definitely_not_published));
+				// [[BPR-1572]]. A transport that refused the write before sending
+				// it (the GitHub CLI account wrapper finding the pull request
+				// moved) says why; the reason reaches the caller.
+				const auto* refused = std::get_if<github_mutation_wire_error>(&completion);
+				const auto  why     = refused != nullptr && (refused->Failure == application::review_mutation_failure::target_moved || refused->Failure == application::review_mutation_failure::stale_head)
+					? refused->Failure
+					: application::review_mutation_failure::unavailable;
+				return withdrawn(result(aRequest, publication::definitely_not_published, why));
 			}
 			const auto persisted = Recovery->load(aRequest.IdempotencyKey);
 			if (!persisted || !*persisted || !application::valid(**persisted) || (**persisted).Request != aRequest || (**persisted).BaselineReviewIds != expected.BaselineReviewIds || (**persisted).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted || !observed) {

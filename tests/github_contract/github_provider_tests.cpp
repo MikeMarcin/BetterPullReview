@@ -2581,8 +2581,11 @@ namespace {
 										   base_during_read_postcheck,
 										   base_during_write_precheck,
 										   head_during_write_precheck,
-										   both_during_write_precheck };
-		for (const auto which : { course::unchanged, course::base_during_read_postcheck, course::base_during_write_precheck, course::head_during_write_precheck, course::both_during_write_precheck }) {
+										   both_during_write_precheck,
+										   wrapper_read_fails,
+										   wrapper_read_cancelled };
+		for (const auto which : { course::unchanged, course::base_during_read_postcheck, course::base_during_write_precheck, course::head_during_write_precheck, course::both_during_write_precheck,
+								  course::wrapper_read_fails, course::wrapper_read_cancelled }) {
 			provider_fixture fixture{ application::github_authentication_transport::github_cli };
 			fixture.Factory->CliEnabled    = true;
 			auto sequence                  = std::vector<std::string>{ };
@@ -2623,6 +2626,16 @@ namespace {
 				if (aRequest.Wire.Operation != review_mutation_operation::observe_pull_request) {
 					return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{}" } };
 				}
+				// The wrapper's own read of the pull request (the second) fails
+				// with a 500, or is cancelled.
+				if (std::ranges::count(sequence, std::string{ "pull" }) == 2) {
+					if (which == course::wrapper_read_fails) {
+						return github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } };
+					}
+					if (which == course::wrapper_read_cancelled) {
+						return github_mutation_wire_cancelled{ };
+					}
+				}
 				auto body = std::string{ R"({"id":7001,"node_id":"PR_fixture","number":7,"state":"open","head":{"sha":")" };
 				body.append(headMoved ? std::string(40U, '3') : std::string(40U, '2')).append(R"(","ref":"feature"},"base":{"sha":")");
 				body.append(baseMoved ? std::string(40U, 'b') : std::string(40U, '1')).append(R"(","ref":"main","repo":{"id":101,"node_id":"R_fixture","full_name":"octo-org/review-repository"}}})");
@@ -2636,12 +2649,20 @@ namespace {
 			sequence.clear();
 			// The session's last read: viewer, pull request, viewer. Then the
 			// write: viewer, the wrapper's pull request read, the POST, viewer.
-			moveAt          = which == course::base_during_read_postcheck ? 3U : which == course::unchanged ? 0U
-																											: 4U;
+			const auto quiet = which == course::unchanged || which == course::wrapper_read_fails || which == course::wrapper_read_cancelled;
+			moveAt           = which == course::base_during_read_postcheck ? 3U : quiet ? 0U : 4U;
 			const auto read = lease->mutation_transport()->perform_review_mutation(pullRead, { }, { });
 			expect(std::holds_alternative<github_mutation_wire_success>(read), "the session's read of the pull request is answered");
 			const auto result = lease->mutation_transport()->perform_review_mutation(write, { }, [] { return true; });
-			if (which == course::unchanged) {
+			if (which == course::wrapper_read_fails || which == course::wrapper_read_cancelled) {
+				const auto* error     = std::get_if<github_mutation_wire_error>(&result);
+				const auto* cancelled = std::get_if<github_mutation_wire_cancelled>(&result);
+				expect(std::ranges::count(sequence, std::string{ "write" }) == 0
+						   && (which == course::wrapper_read_fails
+								   ? error && error->Failure == application::review_mutation_failure::unavailable && error->Transmission == github_mutation_transmission::definitely_not_sent
+								   : cancelled && cancelled->Transmission == github_mutation_transmission::definitely_not_sent),
+					   "the wrapper's read failing is unavailable, and cancelled inside it is cancelled; either way nothing is written and nothing was sent");
+			} else if (which == course::unchanged) {
 				expect(std::holds_alternative<github_mutation_wire_success>(result)
 						   && sequence == std::vector<std::string>{ "viewer", "pull", "viewer", "viewer", "pull", "write", "viewer" },
 					   "the wrapper reads the pull request after its account check, last before the write");
