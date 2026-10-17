@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1584"
 title: "One reading width for Threads and Discuss, as a setting, never for the code"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
