@@ -183,6 +183,11 @@ BPR-1569's label-menu change and no new arrow disclosure. On that tree:
     or `src/application`.
 - The focused and integration rows pass, 28 of 28, on the final merge.
 
+A last merge of main at `c5176b4fa` brought in BPR-1570, which reseals that digest.
+After an incremental build, `application_composition_contract`,
+`application_review_round_trip_composition_contract`,
+`application_line_draft_contract` and both `qt_disclosure_button` rows pass.
+
 All four criteria pass. The treatment is the one the owner accepted in
 BPR-1513 v003 (session `0fec6737`, decision `d96dea45`), so no new attended
 review is needed.
