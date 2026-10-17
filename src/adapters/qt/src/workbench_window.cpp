@@ -3890,9 +3890,9 @@ namespace bpr::qt {
 			glyph->setFocusPolicy(Qt::StrongFocus);
 			glyph->setAccessibleName(QStringLiteral("Refresh my pull requests"));
 		}
-		// [[BPR-0783]]. Home's own controls sit before the refresh glyph, so the
-		// strip reads Group, State headers, Filter, refresh, the divider, account
-		// and settings.
+		// [[BPR-0783]], [[BPR-1580]]. Home's View control sits before the refresh
+		// glyph, so the strip reads View, refresh, the divider, account and
+		// settings.
 		build_home_strip_controls();
 		// The action's default state is applied once everything it governs
 		// exists; a default that is never applied is a default in name only.
@@ -4086,6 +4086,8 @@ namespace bpr::qt {
 		// The empty lane's link names the saved repositories, so it opens their
 		// page; observer rules stay reachable from Filter's Open Reviews & queue.
 		HomeList->set_settings_dispatch([this] { open_settings(settings_page::repositories); });
+		// [[BPR-1580]]. The filtered sentence's Clear filters.
+		HomeList->set_clear_filters_dispatch([this] { restore_home_view_defaults(false); });
 		// [[BPR-0783]]. Collapsing one of the panels that carry no name is part of
 		// this window's view, so the whole view leaves for the host.
 		HomeList->set_view_observer([this] {
@@ -4612,26 +4614,40 @@ namespace bpr::qt {
 	void workbench_window::build_home_strip_controls()
 	{
 		// [[BPR-0783]]. RFC-BPR-0032's amendment to RFC-BPR-0028's strip: while
-		// Home is shown and an account can fill its list, Group, State headers,
-		// Filter and the refresh glyph stand before the right divider, the account
-		// and settings. Signed out they act on nothing, so they are absent rather
+		// Home is shown and an account can fill its list, Home's own control and
+		// the refresh glyph stand before the right divider, the account and
+		// settings. Signed out they act on nothing, so they are absent rather
 		// than disabled, and the review strip is unchanged.
-		HomeGroupMenu = new QMenu{ this };
-		HomeGroupMenu->setObjectName(QStringLiteral("homeGroupMenu"));
-		HomeGroupMenu->setAccessibleName(QStringLiteral("Group Home's pull requests"));
-		HomeGroupMenu->setAccessibleDescription(QStringLiteral(
-			"None, Organization, Repository or Account; the state order stays beneath every grouping"));
-		const auto groupings = std::array{
-			std::pair{ application::home_grouping::none, QStringLiteral("None") },
-			std::pair{ application::home_grouping::organization, QStringLiteral("Organization") },
-			std::pair{ application::home_grouping::repository, QStringLiteral("Repository") },
-			std::pair{ application::home_grouping::account, QStringLiteral("Account") },
-		};
-		for (const auto& [value, title] : groupings) {
-			auto* const action = HomeGroupMenu->addAction(title);
+		//
+		// [[BPR-1580]]. One View menu in place of Group, State headers and
+		// Filter (the owner, 2026-10-17: "I wonder if we should collapse these 3
+		// into one"). Filter's four groups were section titles, which the native
+		// macOS menu draws as bare separators, so its choices arrived
+		// unlabelled. Here every group is a submenu whose own item carries the
+		// group's name and current value: an ordinary item's text, which every
+		// platform's menu draws. No section title is used anywhere in it.
+		HomeViewMenu = new QMenu{ this };
+		HomeViewMenu->setObjectName(QStringLiteral("homeViewMenu"));
+		HomeViewMenu->setAccessibleName(QStringLiteral("View options for Home's pull requests"));
+		HomeViewMenu->setAccessibleDescription(QStringLiteral(
+			"Group by, Sort by, State headers, My role, Added by, Quiet items and Reset to defaults; nothing here changes GitHub"));
+		HomeViewMenu->setToolTipsVisible(true);
+
+		auto* const group = add_home_view_submenu(
+			home_view_choice::group, QStringLiteral("homeGroupMenu"),
+			QStringLiteral("How Home gathers its rows into panels. The state order stays inside every grouping."));
+		auto* const groupings = new QActionGroup{ group };
+		groupings->setExclusive(true);
+		for (const auto& [value, title] : std::array{
+				 std::pair{ application::home_grouping::none, QStringLiteral("None") },
+				 std::pair{ application::home_grouping::organization, QStringLiteral("Organization") },
+				 std::pair{ application::home_grouping::repository, QStringLiteral("Repository") },
+				 std::pair{ application::home_grouping::account, QStringLiteral("Account") } }) {
+			auto* const action = group->addAction(title);
 			action->setObjectName(QStringLiteral("homeGroupBy%1Action").arg(title));
 			action->setCheckable(true);
 			action->setData(static_cast<int>(value));
+			groupings->addAction(action);
 			const auto purpose = value == application::home_grouping::none
 				? QStringLiteral("One list in state order, with no grouping.")
 				: QStringLiteral("One panel per %1, with the state order kept inside it.").arg(title.toLower());
@@ -4647,33 +4663,19 @@ namespace bpr::qt {
 				dispatch_home_view();
 			});
 		}
-		HomeGroupButton = new menu_tool_button{ this };
-		HomeGroupButton->setObjectName(QStringLiteral("homeGroupButton"));
-		HomeGroupButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		HomeGroupButton->setPopupMode(QToolButton::InstantPopup);
-		HomeGroupButton->setMenu(HomeGroupMenu);
-		HomeGroupButton->setAccessibleName(QStringLiteral("Group"));
-		Strip->adopt_button(HomeGroupButton);
-		HomeGroupItem = PrimaryToolbar->insertWidget(GithubRefreshAction, HomeGroupButton);
-		HomeGroupItem->setObjectName(QStringLiteral("homeGroupAction"));
 
-		HomeStateHeaders = new QAction{ QStringLiteral("State headers"), this };
+		// Sort sits with Group by: both arrange the rows, neither hides any.
+		static_cast<void>(add_home_view_submenu(
+			home_view_choice::sort, QStringLiteral("homeSortMenu"),
+			QStringLiteral("The order of the rows inside each state. The states themselves keep their order.")));
+
+		HomeStateHeaders = HomeViewMenu->addAction(QStringLiteral("State headers"));
 		HomeStateHeaders->setObjectName(QStringLiteral("homeStateHeadersAction"));
 		HomeStateHeaders->setCheckable(true);
 		HomeStateHeaders->setChecked(true);
-		HomeStateHeaders->setIconText(QStringLiteral("State headers"));
 		HomeStateHeaders->setToolTip(QStringLiteral(
 			"Show each state as its own panel. With it off the rows sit in state order with a state mark."));
 		HomeStateHeaders->setStatusTip(HomeStateHeaders->toolTip());
-		addAction(HomeStateHeaders);
-		PrimaryToolbar->insertAction(GithubRefreshAction, HomeStateHeaders);
-		if (auto* const button = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(HomeStateHeaders));
-			button != nullptr) {
-			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-			button->setAccessibleName(QStringLiteral("State headers"));
-			button->setAccessibleDescription(HomeStateHeaders->toolTip());
-			button->setFocusPolicy(Qt::StrongFocus);
-		}
 		connect(HomeStateHeaders, &QAction::toggled, this, [this](const bool aChecked) {
 			if (ApplyingHomeView) {
 				return;
@@ -4683,119 +4685,37 @@ namespace bpr::qt {
 			dispatch_home_view();
 		});
 
-		build_home_filter_menu();
-		HomeFilterButton = new menu_tool_button{ this };
-		HomeFilterButton->setObjectName(QStringLiteral("homeFilterButton"));
-		HomeFilterButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		HomeFilterButton->setPopupMode(QToolButton::InstantPopup);
-		HomeFilterButton->setMenu(HomeFilterMenu);
-		HomeFilterButton->setAccessibleName(QStringLiteral("Filter"));
-		Strip->adopt_button(HomeFilterButton);
-		HomeFilterItem = PrimaryToolbar->insertWidget(GithubRefreshAction, HomeFilterButton);
-		HomeFilterItem->setObjectName(QStringLiteral("homeFilterAction"));
-		apply_home_view();
-	}
+		HomeViewMenu->addSeparator();
+		static_cast<void>(add_home_view_submenu(
+			home_view_choice::role, QStringLiteral("homeRoleMenu"),
+			QStringLiteral("Show pull requests by my part in them on GitHub.")));
+		static_cast<void>(add_home_view_submenu(
+			home_view_choice::added_by, QStringLiteral("homeAddedByMenu"),
+			QStringLiteral("Show pull requests by the observer rule that added them. Observer rules are mine, kept in Settings › Reviews & queue, and never change GitHub.")));
+		static_cast<void>(add_home_view_submenu(
+			home_view_choice::quiet, QStringLiteral("homeQuietMenu"),
+			QStringLiteral("A quiet pull request has nothing new for me and nothing waiting on anyone.")));
+		build_home_filter_menus();
 
-	void workbench_window::build_home_filter_menu()
-	{
-		// [[BPR-0783]] Decisions (c). Exactly the four typed preferences that
-		// survive as Home filters, each section listing every value of its
-		// vocabulary in the board's word for it. Repository and Bucket are not
-		// here: Group and the state order do their job.
-		HomeFilterMenu = new QMenu{ this };
-		HomeFilterMenu->setObjectName(QStringLiteral("homeFilterMenu"));
-		HomeFilterMenu->setAccessibleName(QStringLiteral("Filter Home's pull requests"));
-		HomeFilterMenu->setAccessibleDescription(QStringLiteral(
-			"My role, Added by, Quiet items and Sort within a group; nothing here changes GitHub"));
-		// [[BPR-0783]] review finding. Each section is the one exclusive choice the
-		// board draws, not four independent check boxes: an item cannot be
-		// unticked into nothing, and choosing one unticks its siblings.
-		auto sections = std::array<QActionGroup*, 4U>{ };
-		for (auto& section : sections) {
-			section = new QActionGroup{ this };
-			section->setExclusive(true);
-		}
-		const auto item = [this, &sections](const std::size_t aSection,
-											const QString&    aTitle,
-											const int         aValue,
-											auto              aGesture) {
-			auto* const action = HomeFilterMenu->addAction(aTitle);
-			action->setObjectName(QStringLiteral("homeFilter%1Action").arg(QString{ aTitle }.remove(QLatin1Char{ ' ' })));
-			action->setCheckable(true);
-			action->setData(aValue);
-			sections[aSection]->addAction(action);
-			HomeFilterSections[aSection].push_back(action);
-			connect(action, &QAction::triggered, this, [this, aGesture] {
-				if (ApplyingHomeView) {
-					return;
-				}
-				aGesture();
-			});
-		};
+		HomeViewMenu->addSeparator();
+		HomeViewReset = HomeViewMenu->addAction(QStringLiteral("Reset to defaults"));
+		HomeViewReset->setObjectName(QStringLiteral("homeViewResetAction"));
+		HomeViewReset->setToolTip(QStringLiteral(
+			"Group by None, Sort by Priority, State headers on, any role, added any way and quiet items shown."));
+		HomeViewReset->setStatusTip(HomeViewReset->toolTip());
+		connect(HomeViewReset, &QAction::triggered, this, [this] { restore_home_view_defaults(true); });
 
-		HomeFilterMenu->addSection(QStringLiteral("My role"));
-		for (const auto& [value, title] : std::array{
-				 std::pair{ std::optional<core::github_role>{ }, QStringLiteral("Any") },
-				 std::pair{ std::optional{ core::github_role::author }, QStringLiteral("Author") },
-				 std::pair{ std::optional{ core::github_role::reviewer }, QStringLiteral("Reviewer") },
-				 std::pair{ std::optional{ core::github_role::requested_reviewer }, QStringLiteral("Requested") },
-				 std::pair{ std::optional{ core::github_role::participant }, QStringLiteral("Participant") },
-				 std::pair{ std::optional{ core::github_role::none }, QStringLiteral("No role") } }) {
-			item(0U, title, value.has_value() ? static_cast<int>(*value) : -1, [this, value] {
-				auto filter = home_filter();
-				filter.Role = value;
-				choose_home_filter(application::queue_preference_field::role, filter);
-			});
-		}
-
-		HomeFilterMenu->addSection(QStringLiteral("Added by"));
-		for (const auto& [value, title] : std::array{
-				 std::pair{ std::optional<core::observer_rule_kind>{ }, QStringLiteral("Any") },
-				 std::pair{ std::optional{ core::observer_rule_kind::repository }, QStringLiteral("Repository rule") },
-				 std::pair{ std::optional{ core::observer_rule_kind::author }, QStringLiteral("Author rule") },
-				 std::pair{ std::optional{ core::observer_rule_kind::path }, QStringLiteral("Path rule") } }) {
-			item(1U, title, value.has_value() ? static_cast<int>(*value) : -1, [this, value] {
-				auto filter    = home_filter();
-				filter.AddedBy = value;
-				choose_home_filter(application::queue_preference_field::observer, filter);
-			});
-		}
-
-		HomeFilterMenu->addSection(QStringLiteral("Quiet items"));
-		for (const auto& [value, title] : std::array{
-				 std::pair{ application::queue_quiet_filter::attention, QStringLiteral("Hide") },
-				 std::pair{ application::queue_quiet_filter::all, QStringLiteral("Show") },
-				 std::pair{ application::queue_quiet_filter::quiet, QStringLiteral("Only quiet") } }) {
-			item(2U, title, static_cast<int>(value), [this, value] {
-				auto filter  = home_filter();
-				filter.Quiet = value;
-				choose_home_filter(application::queue_preference_field::quiet, filter);
-			});
-		}
-
-		HomeFilterMenu->addSection(QStringLiteral("Sort within a group"));
-		for (const auto& [value, title] : std::array{
-				 std::pair{ application::queue_sort_order::core_priority, QStringLiteral("Priority") },
-				 std::pair{ application::queue_sort_order::repository, QStringLiteral("Repository") },
-				 std::pair{ application::queue_sort_order::pull_request_number, QStringLiteral("Pull request number") } }) {
-			item(3U, title, static_cast<int>(value), [this, value] {
-				auto filter = home_filter();
-				filter.Sort = value;
-				choose_home_filter(application::queue_preference_field::sort, filter);
-			});
-		}
-
-		HomeFilterMenu->addSeparator();
-		// The sentence carries an ampersand, which a menu would otherwise eat as
-		// a mnemonic (`menu_literal`); the wording here is the one the reviewer
-		// reads.
-		auto* const footer = HomeFilterMenu->addAction(menu_literal(QStringLiteral(
-			"Nothing here changes GitHub. Observer rules are in Settings › Reviews & queue.")));
+		HomeViewMenu->addSeparator();
+		// [[BPR-1580]]. Where observer rules are kept is Added by's own first
+		// line now, so the footer says only what holds for the whole menu.
+		auto* const footer = HomeViewMenu->addAction(QStringLiteral("Nothing here changes GitHub."));
 		footer->setObjectName(QStringLiteral("homeFilterFooter"));
 		footer->setEnabled(false);
 		// The footer says where they are; this is the way there, by keyboard as
 		// well as by pointer.
-		HomeFilterSettings = HomeFilterMenu->addAction(menu_literal(QStringLiteral("Open Reviews & queue")));
+		// The name carries an ampersand, which a menu would otherwise eat as a
+		// mnemonic (`menu_literal`).
+		HomeFilterSettings = HomeViewMenu->addAction(menu_literal(QStringLiteral("Open Reviews & queue")));
 		HomeFilterSettings->setObjectName(QStringLiteral("homeFilterSettingsAction"));
 		HomeFilterSettings->setToolTip(QStringLiteral(
 			"Opens Settings, Reviews & queue, where observer rules and queue defaults are kept."));
@@ -4803,6 +4723,170 @@ namespace bpr::qt {
 		connect(HomeFilterSettings, &QAction::triggered, this, [this] {
 			open_settings(settings_page::reviews_and_queue);
 		});
+
+		HomeViewButton = new menu_tool_button{ this };
+		HomeViewButton->setObjectName(QStringLiteral("homeViewButton"));
+		HomeViewButton->setText(QStringLiteral("View"));
+		HomeViewButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		HomeViewButton->setPopupMode(QToolButton::InstantPopup);
+		HomeViewButton->setMenu(HomeViewMenu);
+		HomeViewButton->setAccessibleName(QStringLiteral("View"));
+		Strip->adopt_button(HomeViewButton);
+		HomeViewItem = PrimaryToolbar->insertWidget(GithubRefreshAction, HomeViewButton);
+		HomeViewItem->setObjectName(QStringLiteral("homeViewAction"));
+		apply_home_view();
+	}
+
+	auto workbench_window::add_home_view_submenu(const home_view_choice aChoice, const QString& aName, const QString& aPurpose) -> QMenu*
+	{
+		auto* const menu = new QMenu{ HomeViewMenu };
+		menu->setObjectName(aName);
+		menu->setToolTipsVisible(true);
+		menu->setAccessibleDescription(aPurpose);
+		menu->menuAction()->setObjectName(aName + QStringLiteral("Action"));
+		menu->menuAction()->setToolTip(aPurpose);
+		menu->menuAction()->setStatusTip(aPurpose);
+		HomeViewMenu->addMenu(menu);
+		HomeViewSubmenus[static_cast<std::size_t>(aChoice)] = menu;
+		return menu;
+	}
+
+	void workbench_window::build_home_filter_menus()
+	{
+		// [[BPR-0783]] Decisions (c). Exactly the four typed preferences that
+		// survive as Home filters, each listing every value of its vocabulary.
+		// Repository and Bucket are not here: Group by and the state order do
+		// their job.
+		//
+		// [[BPR-0783]] review finding. Each is the one exclusive choice the
+		// board draws, not independent check boxes: an item cannot be unticked
+		// into nothing, and choosing one unticks its siblings.
+		//
+		// [[BPR-1580]]. A native macOS menu draws no tooltip, so a choice whose
+		// meaning is not obvious says it in its own text; the submenu's own item
+		// shows the short name, and the tooltip and status tip say it again
+		// where the platform draws them.
+		struct choice
+		{
+			QString Text;
+			QString Short;
+			QString Purpose;
+		};
+		auto sections = std::array<QActionGroup*, 4U>{ };
+		for (auto& section : sections) {
+			section = new QActionGroup{ this };
+			section->setExclusive(true);
+		}
+		const auto item = [this, &sections](const std::size_t aSection,
+											QMenu&            aMenu,
+											const choice&     aChoice,
+											const QString&    aName,
+											const int         aValue,
+											auto              aGesture) {
+			auto* const action = aMenu.addAction(aChoice.Text);
+			action->setObjectName(QStringLiteral("homeFilter%1Action").arg(aName));
+			action->setCheckable(true);
+			action->setData(aValue);
+			action->setToolTip(aChoice.Purpose);
+			action->setStatusTip(aChoice.Purpose);
+			sections[aSection]->addAction(action);
+			HomeFilterSections[aSection].push_back(action);
+			HomeFilterShortNames[action] = aChoice.Short;
+			connect(action, &QAction::triggered, this, [this, aGesture] {
+				if (ApplyingHomeView) {
+					return;
+				}
+				aGesture();
+			});
+		};
+		const auto named = [](const QString& aShort) { return QString{ aShort }.remove(QLatin1Char{ ' ' }); };
+
+		auto& role = *HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::role)];
+		for (const auto& [value, words] : std::array{
+				 std::pair{ std::optional<core::github_role>{ },
+							choice{ QStringLiteral("Any role"), QStringLiteral("Any"), QStringLiteral("Every pull request, whatever my part in it.") } },
+				 std::pair{ std::optional{ core::github_role::author },
+							choice{ QStringLiteral("I opened it"), QStringLiteral("Author"), QStringLiteral("Only pull requests I opened.") } },
+				 std::pair{ std::optional{ core::github_role::reviewer },
+							choice{ QStringLiteral("I reviewed it"), QStringLiteral("Reviewer"), QStringLiteral("Only pull requests I have already reviewed.") } },
+				 std::pair{ std::optional{ core::github_role::requested_reviewer },
+							choice{ QStringLiteral("My review is requested"), QStringLiteral("Requested"),
+									QStringLiteral("Only pull requests that ask for my review and do not have it yet.") } },
+				 std::pair{ std::optional{ core::github_role::participant },
+							choice{ QStringLiteral("I took part in it"), QStringLiteral("Participant"),
+									QStringLiteral("Only pull requests I took part in on GitHub without being their author or a reviewer.") } },
+				 std::pair{ std::optional{ core::github_role::none },
+							choice{ QStringLiteral("None of these (a rule or a follow added it)"), QStringLiteral("No role"),
+									QStringLiteral("Only pull requests I have no part in on GitHub, which an observer rule or a follow brought to Home.") } } }) {
+			item(0U, role, words, named(words.Short), value.has_value() ? static_cast<int>(*value) : -1, [this, value] {
+				auto filter = home_filter();
+				filter.Role = value;
+				choose_home_filter(application::queue_preference_field::role, filter);
+			});
+		}
+
+		auto& addedBy = *HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::added_by)];
+		// What an observer rule is, and where it is kept, as the first line.
+		auto* const rules = addedBy.addAction(menu_literal(QStringLiteral("Observer rules are mine, kept in Settings › Reviews & queue")));
+		rules->setObjectName(QStringLiteral("homeAddedByMeaning"));
+		rules->setEnabled(false);
+		for (const auto& [value, words] : std::array{
+				 std::pair{ std::optional<core::observer_rule_kind>{ },
+							choice{ QStringLiteral("Any way"), QStringLiteral("Any"), QStringLiteral("Every pull request, whether or not an observer rule added it.") } },
+				 std::pair{ std::optional{ core::observer_rule_kind::repository },
+							choice{ QStringLiteral("A rule on a repository"), QStringLiteral("Repository rule"),
+									QStringLiteral("Only pull requests an observer rule watching a whole repository added.") } },
+				 std::pair{ std::optional{ core::observer_rule_kind::author },
+							choice{ QStringLiteral("A rule on an author"), QStringLiteral("Author rule"),
+									QStringLiteral("Only pull requests an observer rule watching one author's pull requests added.") } },
+				 std::pair{ std::optional{ core::observer_rule_kind::path },
+							choice{ QStringLiteral("A rule on a path"), QStringLiteral("Path rule"),
+									QStringLiteral("Only pull requests an observer rule watching files under a path added.") } } }) {
+			// Any is a word My role uses too, so this one is named for its group.
+			const auto name = value.has_value() ? named(words.Short) : QStringLiteral("AddedByAny");
+			item(1U, addedBy, words, name, value.has_value() ? static_cast<int>(*value) : -1, [this, value] {
+				auto filter    = home_filter();
+				filter.AddedBy = value;
+				choose_home_filter(application::queue_preference_field::observer, filter);
+			});
+		}
+
+		auto& quiet = *HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::quiet)];
+		// What quiet means, as the submenu's first line: the one word here a
+		// reviewer cannot be expected to know.
+		auto* const meaning = quiet.addAction(QStringLiteral("Quiet: nothing new for me and nothing waiting on anyone"));
+		meaning->setObjectName(QStringLiteral("homeQuietMeaning"));
+		meaning->setEnabled(false);
+		for (const auto& [value, words] : std::array{
+				 std::pair{ application::queue_quiet_filter::all,
+							choice{ QStringLiteral("Show"), QStringLiteral("Show"), QStringLiteral("Quiet pull requests are listed with the rest.") } },
+				 std::pair{ application::queue_quiet_filter::attention,
+							choice{ QStringLiteral("Hide"), QStringLiteral("Hide"),
+									QStringLiteral("Quiet pull requests are hidden. One a failed check or merge block holds up still shows.") } },
+				 std::pair{ application::queue_quiet_filter::quiet,
+							choice{ QStringLiteral("Only quiet"), QStringLiteral("Only quiet"), QStringLiteral("Only quiet pull requests are listed.") } } }) {
+			item(2U, quiet, words, named(words.Short), static_cast<int>(value), [this, value] {
+				auto filter  = home_filter();
+				filter.Quiet = value;
+				choose_home_filter(application::queue_preference_field::quiet, filter);
+			});
+		}
+
+		auto& sort = *HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::sort)];
+		for (const auto& [value, words] : std::array{
+				 std::pair{ application::queue_sort_order::core_priority,
+							choice{ QStringLiteral("Priority"), QStringLiteral("Priority"), QStringLiteral("Home's own order: what most needs me comes first.") } },
+				 std::pair{ application::queue_sort_order::repository,
+							choice{ QStringLiteral("Repository"), QStringLiteral("Repository"), QStringLiteral("By repository name, then pull request number.") } },
+				 std::pair{ application::queue_sort_order::pull_request_number,
+							choice{ QStringLiteral("Pull request number"), QStringLiteral("Pull request number"),
+									QStringLiteral("By pull request number, then repository.") } } }) {
+			item(3U, sort, words, named(words.Short), static_cast<int>(value), [this, value] {
+				auto filter = home_filter();
+				filter.Sort = value;
+				choose_home_filter(application::queue_preference_field::sort, filter);
+			});
+		}
 	}
 
 	auto workbench_window::home_filter() const -> application::home_filter
@@ -4841,22 +4925,62 @@ namespace bpr::qt {
 		dispatch_home_view();
 	}
 
+	void workbench_window::restore_home_view_defaults(const bool aWholeView)
+	{
+		if (ApplyingHomeView) {
+			return;
+		}
+		const auto before  = HomeView;
+		const auto current = home_filter();
+		auto       target  = current;
+		target.Role.reset();
+		target.AddedBy.reset();
+		target.Quiet = application::queue_quiet_filter::all;
+		if (aWholeView) {
+			target.Sort           = application::queue_sort_order::core_priority;
+			HomeView.Grouping     = application::home_grouping::none;
+			HomeView.StateHeaders = true;
+		}
+		if (target != current && QueueReady && QueuePreferencesDispatch) {
+			// The profile hears this as it hears a filter choice: one typed
+			// intent per field that changes, each naming only its own field, so
+			// the store merges them exactly as it merges single choices.
+			auto next           = QueueProjection.Preferences;
+			next.Role           = target.Role;
+			next.ObserverReason = target.AddedBy;
+			next.Quiet          = target.Quiet;
+			next.Sort           = target.Sort;
+			const auto send     = [this, &next](const application::queue_preference_field aField) {
+				QueuePreferencesDispatch(application::queue_preferences_intent{ .Preferences = next, .Field = aField });
+			};
+			if (current.Role != target.Role) {
+				send(application::queue_preference_field::role);
+			}
+			if (current.AddedBy != target.AddedBy) {
+				send(application::queue_preference_field::observer);
+			}
+			if (current.Quiet != target.Quiet) {
+				send(application::queue_preference_field::quiet);
+			}
+			if (current.Sort != target.Sort) {
+				send(application::queue_preference_field::sort);
+			}
+			HomeView.FilterOwned = true;
+			HomeView.Filter      = target;
+		}
+		if (HomeView == before) {
+			return;
+		}
+		apply_home_view();
+		dispatch_home_view();
+	}
+
 	void workbench_window::apply_home_view()
 	{
 		ApplyingHomeView = true;
-		if (HomeGroupButton != nullptr) {
-			auto* const chosen = HomeGroupActions[static_cast<std::size_t>(HomeView.Grouping)];
-			const auto  name   = chosen != nullptr ? chosen->text() : QStringLiteral("None");
-			// The board's own words, so the strip says what it is doing.
-			HomeGroupButton->setText(QStringLiteral("Group: %1").arg(name));
-			const auto purpose = QStringLiteral("Grouping Home by %1. None, Organization, Repository or Account.")
-									 .arg(name.toLower());
-			HomeGroupButton->setAccessibleDescription(purpose);
-			HomeGroupButton->setToolTip(purpose);
-			for (auto index = std::size_t{ 0U }; index < HomeGroupActions.size(); ++index) {
-				if (HomeGroupActions[index] != nullptr) {
-					HomeGroupActions[index]->setChecked(index == static_cast<std::size_t>(HomeView.Grouping));
-				}
+		for (auto index = std::size_t{ 0U }; index < HomeGroupActions.size(); ++index) {
+			if (HomeGroupActions[index] != nullptr) {
+				HomeGroupActions[index]->setChecked(index == static_cast<std::size_t>(HomeView.Grouping));
 			}
 		}
 		if (HomeStateHeaders != nullptr) {
@@ -4895,24 +5019,72 @@ namespace bpr::qt {
 			for (auto* const action : HomeFilterSections[aSection]) {
 				action->setChecked(action->data().toInt() == aValue);
 				if (action->isChecked()) {
-					chosen = action->text();
+					chosen = HomeFilterShortNames[action];
 				}
 			}
 			return chosen;
 		};
-		const auto role    = shown(0U, filter.Role.has_value() ? static_cast<int>(*filter.Role) : -1);
-		const auto addedBy = shown(1U, filter.AddedBy.has_value() ? static_cast<int>(*filter.AddedBy) : -1);
-		const auto quiet   = shown(2U, static_cast<int>(filter.Quiet));
-		const auto sort    = shown(3U, static_cast<int>(filter.Sort));
-		if (HomeFilterButton != nullptr) {
-			// A filter that is not the default is said without colour, and the
-			// four effective values are what the control is described as.
-			const auto filtered = filter != application::home_filter{ };
-			HomeFilterButton->setText(filtered ? QStringLiteral("Filter •") : QStringLiteral("Filter"));
-			const auto purpose = QStringLiteral("%1My role %2. Added by %3. Quiet items %4. Sort %5.")
-									 .arg(filtered ? QStringLiteral("Filtered. ") : QString{ }, role, addedBy, quiet, sort);
-			HomeFilterButton->setAccessibleDescription(purpose);
-			HomeFilterButton->setToolTip(purpose);
+		const auto        role    = shown(0U, filter.Role.has_value() ? static_cast<int>(*filter.Role) : -1);
+		const auto        addedBy = shown(1U, filter.AddedBy.has_value() ? static_cast<int>(*filter.AddedBy) : -1);
+		const auto        quiet   = shown(2U, static_cast<int>(filter.Quiet));
+		const auto        sort    = shown(3U, static_cast<int>(filter.Sort));
+		const auto* const grouped = HomeGroupActions[static_cast<std::size_t>(HomeView.Grouping)];
+		const auto        group   = grouped != nullptr ? grouped->text() : QStringLiteral("None");
+
+		// [[BPR-1580]]. Each submenu's own item names its group and what is in
+		// force, so the menu reads as a summary of the view before it is opened.
+		const auto title = [this](const home_view_choice aChoice, const QString& aGroup, const QString& aValue) {
+			if (auto* const menu = HomeViewSubmenus[static_cast<std::size_t>(aChoice)]; menu != nullptr) {
+				menu->setTitle(QStringLiteral("%1: %2").arg(aGroup, aValue));
+				menu->setAccessibleName(aGroup);
+			}
+		};
+		title(home_view_choice::group, QStringLiteral("Group by"), group);
+		title(home_view_choice::sort, QStringLiteral("Sort by"), sort);
+		title(home_view_choice::role, QStringLiteral("My role"), role);
+		title(home_view_choice::added_by, QStringLiteral("Added by"), addedBy);
+		title(home_view_choice::quiet, QStringLiteral("Quiet items"), quiet);
+		if (auto* const menu = HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::added_by)]; menu != nullptr) {
+			// With no observer rule, nothing was added by one, so the choice is
+			// offered only once there is a rule, or while this window is
+			// already filtered by one, which must stay within reach to undo.
+			menu->menuAction()->setVisible(!QueueRules.empty() || filter.AddedBy.has_value());
+		}
+
+		// What differs from the default, said in the button's tooltip.
+		auto changed = QStringList{ };
+		if (HomeView.Grouping != application::home_grouping::none) {
+			changed.push_back(QStringLiteral("Group by %1").arg(group));
+		}
+		if (filter.Sort != application::queue_sort_order::core_priority) {
+			changed.push_back(QStringLiteral("Sort by %1").arg(sort));
+		}
+		if (!HomeView.StateHeaders) {
+			changed.push_back(QStringLiteral("State headers off"));
+		}
+		if (filter.Role.has_value()) {
+			changed.push_back(QStringLiteral("My role %1").arg(role));
+		}
+		if (filter.AddedBy.has_value()) {
+			changed.push_back(QStringLiteral("Added by %1").arg(addedBy));
+		}
+		if (filter.Quiet != application::queue_quiet_filter::all) {
+			changed.push_back(QStringLiteral("Quiet items %1").arg(quiet));
+		}
+		if (HomeViewReset != nullptr) {
+			HomeViewReset->setEnabled(!changed.isEmpty());
+		}
+		if (HomeViewButton != nullptr) {
+			// [[BPR-1580]] owner's note on v001: "I'm not sure why View carries a
+			// count". The button stays "View" whatever is chosen; what differs is
+			// said in its tooltip and description, the menu's own items name
+			// every value, and a view that hides every row says so in the list.
+			const auto purpose = changed.isEmpty()
+				? QStringLiteral("Arrange and filter Home's pull requests. The default view: nothing is grouped or hidden.")
+				: QStringLiteral("Arrange and filter Home's pull requests. %1 changed: %2.")
+					  .arg(QString::number(changed.size()), changed.join(QStringLiteral("; ")));
+			HomeViewButton->setAccessibleDescription(purpose);
+			HomeViewButton->setToolTip(purpose);
 		}
 		ApplyingHomeView = applying;
 	}
@@ -4947,14 +5119,24 @@ namespace bpr::qt {
 		return HomeView;
 	}
 
-	auto workbench_window::home_group_button() const noexcept -> QToolButton*
+	auto workbench_window::home_view_button() const noexcept -> QToolButton*
 	{
-		return HomeGroupButton;
+		return HomeViewButton;
 	}
 
-	auto workbench_window::home_group_menu() const noexcept -> QMenu*
+	auto workbench_window::home_view_menu() const noexcept -> QMenu*
 	{
-		return HomeGroupMenu;
+		return HomeViewMenu;
+	}
+
+	auto workbench_window::home_view_submenu(const home_view_choice aChoice) const noexcept -> QMenu*
+	{
+		return HomeViewSubmenus[static_cast<std::size_t>(aChoice)];
+	}
+
+	auto workbench_window::home_view_reset_action() const noexcept -> QAction*
+	{
+		return HomeViewReset;
 	}
 
 	auto workbench_window::home_group_action(const application::home_grouping aGrouping) const noexcept -> QAction*
@@ -4965,16 +5147,6 @@ namespace bpr::qt {
 	auto workbench_window::home_state_headers_action() const noexcept -> QAction*
 	{
 		return HomeStateHeaders;
-	}
-
-	auto workbench_window::home_filter_button() const noexcept -> QToolButton*
-	{
-		return HomeFilterButton;
-	}
-
-	auto workbench_window::home_filter_menu() const noexcept -> QMenu*
-	{
-		return HomeFilterMenu;
 	}
 
 	auto workbench_window::home_filter_settings_action() const noexcept -> QAction*
@@ -5014,8 +5186,8 @@ namespace bpr::qt {
 		const application::queue_landing_projection& aProjection)
 	{
 		// [[BPR-0776]]. On Home the status sentence speaks only when it says
-		// something the panels do not: restoring, unavailable, a filter that
-		// hides every row, a limit. The count is the panels' headers and an
+		// something the panels do not: restoring, unavailable, a limit. A filter
+		// that hides every row is the list's own sentence ([[BPR-1580]]). The count is the panels' headers and an
 		// empty queue is Needs me's sentence. Settings keeps the whole text.
 		auto notable = true;
 		switch (aProjection.Status) {
@@ -5035,6 +5207,8 @@ namespace bpr::qt {
 				QueueStatus->setText(tr(
 										 "No reviews match the active queue filters. %1 review(s) remain in the queue.")
 										 .arg(QueueLanding->rowCount()));
+				// [[BPR-1580]]. Home's list says this itself, with the way out.
+				notable = false;
 			} else {
 				QueueStatus->setText(
 					tr("%1 of %2 review(s) shown. %3")
@@ -5148,6 +5322,8 @@ namespace bpr::qt {
 			.Status = aProjection.Status, .Rules = aProjection.Rules, .Preferences = aProjection.Preferences, .Session = aProjection.Session, .Online = aProjection.Online, .BackoffSeconds = aProjection.BackoffSeconds, .SavedRepositories = aProjection.SavedRepositories, .SavedServers = aProjection.SavedServers, .Failure = aProjection.Failure, .Discovery = aProjection.Discovery, .Addition = aProjection.Addition
 		};
 		QueueRules = aProjection.Rules;
+		// [[BPR-1580]]. Whether View offers Added by follows the rules.
+		apply_home_filter_controls();
 		// [[BPR-1407]]. Ages are measured to the host's clock as the queue arrives.
 		if (HomeClock) {
 			QueueLanding->set_now(HomeClock());
@@ -10037,16 +10213,14 @@ namespace bpr::qt {
 					|| (cycle && action == IdentityAction);
 				action->setVisible(!stripHome || kept);
 			}
-			// [[BPR-0783]]. Group, State headers and Filter are Home's own, and
+			// [[BPR-0783]], [[BPR-1580]]. View is Home's own, and
 			// only while an account can fill the list: absent from the review
 			// strip, and absent rather than disabled while signed out, which is
 			// how RFC-BPR-0028's rule still holds there. [[BPR-0990]]: on Home
 			// the refresh glyph standing with them is the profile's discovery;
 			// the pull request's refresh is the review strip's.
-			for (auto* const action : { HomeGroupItem, HomeStateHeaders, HomeFilterItem }) {
-				if (action != nullptr) {
-					action->setVisible(home && HomeAccount);
-				}
+			if (HomeViewItem != nullptr) {
+				HomeViewItem->setVisible(home && HomeAccount);
 			}
 			if (GithubRefreshAction != nullptr) {
 				GithubRefreshAction->setVisible(!stripHome);
@@ -13815,11 +13989,9 @@ namespace bpr::qt {
 				append(Modality->button(static_cast<review_modality>(index)));
 			}
 		}
-		// [[BPR-0783]]. Home's three controls, in the strip's reading order,
-		// before the refresh glyph they stand with.
-		append(HomeGroupButton);
-		append(presenter(HomeStateHeaders));
-		append(HomeFilterButton);
+		// [[BPR-0783]], [[BPR-1580]]. Home's View control, in the strip's
+		// reading order, before the refresh glyph it stands with.
+		append(HomeViewButton);
 		append(presenter(GithubRefreshAction));
 		append(presenter(QueueRefreshAction));
 		append(presenter(Drawers[1].Toggle));

@@ -319,8 +319,8 @@ auto main(int aArgc, char** aArgv) -> int
 		a->home_state_headers_action()->trigger();
 		b->home_list()->recent_panel()->set_collapsed(true);
 		b->home_list()->state_panel(qt::home_group::my_pull_requests)->set_collapsed(true);
-		auto* const requested = b->home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
-		expect(requested != nullptr, "the Filter menu names its Requested item");
+		auto* const requested = b->home_view_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
+		expect(requested != nullptr, "the View menu names its Requested item");
 		// A Filter gesture is refused until the queue is ready to be filtered,
 		// so it is offered again rather than assumed to have been taken.
 		wait_for([&] {
