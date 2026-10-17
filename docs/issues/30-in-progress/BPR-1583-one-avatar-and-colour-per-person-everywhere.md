@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1583"
 title: "One avatar and one colour per person on every surface"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
