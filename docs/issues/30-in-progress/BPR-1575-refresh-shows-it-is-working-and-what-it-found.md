@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1575"
 title: "Refresh shows it is working and what it found"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
