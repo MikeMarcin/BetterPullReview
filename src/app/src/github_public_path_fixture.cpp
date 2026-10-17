@@ -2766,8 +2766,7 @@ namespace bpr::app::detail {
 						auto object = QJsonDocument::fromJson(QByteArray::fromStdString(again.Body)).object();
 						auto base   = object.value(QStringLiteral("base")).toObject();
 						// [[BPR-1572]]. The reset names the branch's tip.
-						base.insert(QStringLiteral("sha"), State->StackedBaseReset ? QString::fromUtf8(State->Descriptor.BranchTipOid.data(), static_cast<qsizetype>(State->Descriptor.BranchTipOid.size()))
-																				   : QStringLiteral("abababababababababababababababababababab"));
+						base.insert(QStringLiteral("sha"), State->StackedBaseReset ? QString::fromUtf8(State->Descriptor.BranchTipOid.data(), static_cast<qsizetype>(State->Descriptor.BranchTipOid.size())) : QStringLiteral("abababababababababababababababababababab"));
 						object.insert(QStringLiteral("base"), base);
 						again.Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 					}

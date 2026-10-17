@@ -377,9 +377,9 @@ namespace {
 					pair.append("...").append(pairHead);
 					if (wire.Path == std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(pair).append("?page=2&per_page=1")) {
 						++MergeBaseReads;
-						const auto mergeBase = pairHead == head ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
+						const auto mergeBase = pairHead == head  ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
 							: StackedBase == 2 || MovedMergeBase ? std::string(40U, 'e')
-																: recorded;
+																 : recorded;
 						if (pairHead != head && StackedBase == 3) {
 							RecordedReset = true;
 						}

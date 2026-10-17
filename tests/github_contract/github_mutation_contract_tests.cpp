@@ -1534,9 +1534,7 @@ namespace {
 			expect(!reply(echoed, std::string(40U, 'b')), "an answer about another base commit is refused");
 			expect(!reply(std::string(40U, 'd'), recordedBase), "an answer about another head is refused");
 		}
-		expect(!parse_merge_base_observation({ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } },
-											   .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recordedBase + "...main\",\"base_commit\":{\"sha\":\"" + recordedBase
-												   + "\"},\"merge_base_commit\":{\"sha\":\"" + recordedBase + "\"}}" },
+		expect(!parse_merge_base_observation({ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recordedBase + "...main\",\"base_commit\":{\"sha\":\"" + recordedBase + "\"},\"merge_base_commit\":{\"sha\":\"" + recordedBase + "\"}}" },
 											 merge_base_ancestry_binding(target(), tip), merge_base_observation_basis::base_ancestry),
 			   "an ancestry answer about the branch by name, not the tip resolved, is refused");
 

@@ -294,7 +294,7 @@ namespace bpr::app::detail {
 		/// [[BPR-1572]]. On a stacked fixture, GitHub's compare answers that the
 		/// recorded base is not an ancestor of the base branch's tip: the
 		/// branch was rewritten, so GitHub is replacing the recorded base.
-		bool StackedBaseRewritten           = false;
+		bool StackedBaseRewritten = false;
 		/// [[BPR-1572]]. On a stacked fixture, GitHub replaces the recorded
 		/// base with the base branch's tip (a descendant of it) between the
 		/// snapshot and the read that confirms it: the window after the base

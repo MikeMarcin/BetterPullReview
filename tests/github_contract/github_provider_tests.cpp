@@ -1843,7 +1843,7 @@ namespace {
 				|| which == course::stacked_ancestry_fails || which == course::stacked_moved || which == course::stacked_commits_drop;
 			// [[BPR-1572]]. The snapshot's pull request reports two commits; the
 			// confirming read, one (GitHub's commit count moved, n to n-1).
-			const auto twoCommits = which == course::stacked_commits_drop;
+			const auto twoCommits          = which == course::stacked_commits_drop;
 			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
 				if (aWire.Wire.Operation == read_operation::get_merge_base) {
 					++compares;
