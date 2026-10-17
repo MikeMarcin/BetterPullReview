@@ -264,6 +264,18 @@ namespace bpr::core {
 		const conversation_observation& aObservation) noexcept
 		-> conversation_receipt;
 
+	/// \brief [[BPR-1582]]. The receipt that makes a conversation new again.
+	///
+	/// \details The seen cursor moves back to the post before the latest
+	/// post someone else wrote, so that post, and anything after it that is
+	/// not mine, is new again; with no post before it nothing is seen.
+	/// Acceptance is left where it was. None when every post is mine, since
+	/// nothing in the conversation can be new to me.
+	[[nodiscard]] auto mark_conversation_unread(
+		const conversation_receipt&                    aReceipt,
+		std::span<const conversation_post_observation> aPosts)
+		-> std::optional<conversation_receipt>;
+
 	/// \brief Names the single fact that decided one item's place in the queue.
 	///
 	/// \details The order of the enumerators *is* the priority order, and the

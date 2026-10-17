@@ -455,6 +455,42 @@ namespace {
 			   "an empty conversation has nothing unread");
 	}
 
+	// [[BPR-1582]]. Mark unread moves the seen cursor back before the latest
+	// post someone else wrote: that post is new again, my own never is, and
+	// a conversation of only my posts offers nothing to unread.
+	void test_mark_unread_makes_the_latest_other_post_new()
+	{
+		const auto conversation = core::review_conversation_id{ 6U };
+		const auto posts        = std::array{
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 1U }, .Edit = core::comment_edit_version{ 10U } },
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 2U }, .Edit = core::comment_edit_version{ 20U } },
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 3U }, .Edit = core::comment_edit_version{ 30U }, .Mine = true },
+		};
+		const auto read = core::conversation_receipt{
+			.Conversation    = conversation,
+			.SeenComment     = core::review_comment_id{ 3U },
+			.SeenEdit        = core::comment_edit_version{ 30U },
+			.AcceptedComment = core::review_comment_id{ 2U },
+			.AcceptedEdit    = core::comment_edit_version{ 20U },
+		};
+		expect(core::unread_posts(read, posts).empty(), "the fixture starts read");
+		const auto unread = core::mark_conversation_unread(read, posts);
+		expect(unread.has_value() && unread->SeenComment == core::review_comment_id{ 1U } && unread->SeenEdit == core::comment_edit_version{ 10U }
+				   && unread->AcceptedComment == read.AcceptedComment && unread->AcceptedEdit == read.AcceptedEdit && unread->Conversation == conversation,
+			   "the seen cursor moves to the post before the latest one by someone else, and acceptance stays");
+		expect(core::unread_posts(*unread, posts) == std::vector<std::size_t>{ 1U }, "that post is new again; my own reply after it is not");
+		const auto root = std::array{ posts[0], posts[2] };
+		const auto none = core::mark_conversation_unread(read, root);
+		expect(none.has_value() && none->SeenComment == core::review_comment_id{ } && core::unread_posts(*none, root) == std::vector<std::size_t>{ 0U },
+			   "when the latest other post is the first, nothing is seen and it is new");
+		const auto mine = std::array{ posts[2] };
+		expect(!core::mark_conversation_unread(read, mine).has_value(), "a conversation of only my posts has nothing to make new");
+		expect(!core::mark_conversation_unread(read, std::span<const core::conversation_post_observation>{ }).has_value(), "nor has an empty one");
+		// Negative control: Mark read after Mark unread reads it again.
+		const auto latest = core::conversation_observation{ .Conversation = conversation, .LatestComment = core::review_comment_id{ 3U }, .LatestEdit = core::comment_edit_version{ 30U } };
+		expect(core::unread_posts(core::mark_conversation_read(*unread, latest), posts).empty(), "Mark read undoes it");
+	}
+
 	void test_the_queue_order_is_deterministic_including_ties()
 	{
 		// Two files share the highest reason. Without an explicit tie-break
@@ -666,6 +702,7 @@ auto main() -> int
 	test_an_observation_for_another_file_is_not_a_carry_over();
 	test_an_edited_comment_reopens_a_conversation();
 	test_unread_posts_follow_the_seen_cursor();
+	test_mark_unread_makes_the_latest_other_post_new();
 	test_the_queue_order_is_deterministic_including_ties();
 	test_the_explanation_follows_the_deciding_fact();
 	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();

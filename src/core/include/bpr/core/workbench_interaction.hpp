@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <variant>
 
@@ -598,13 +599,26 @@ namespace bpr::core {
 		const workbench_interaction_intent& aIntent)
 		-> workbench_interaction_output;
 
-	/// \brief [[BPR-1356]]. Where a thread found in Threads is asked to open.
+	/// \brief [[BPR-1356]]. Where a thread is asked to open.
 	///
-	/// \details A click or Return asks for Review, as [[BPR-1293]] built it.
-	/// The row's Discuss button, Shift+Return and the row menu's Open in
-	/// Discuss ask for Discuss.
+	/// \details In Threads a click or Return asks for Review, as [[BPR-1293]]
+	/// built it, and the row's Discuss button, Shift+Return and the row
+	/// menu's Open in Discuss ask for Discuss. [[BPR-1581]]: Show in Discuss
+	/// asks for Discuss from Review, and Open in Review for Review from
+	/// Discuss.
 	enum class workbench_thread_destination : std::uint8_t {
 		review,
+		discuss,
+	};
+
+	/// \brief [[BPR-1581]]. Where the gesture that moves a thread was made.
+	enum class workbench_thread_origin : std::uint8_t {
+		/// A Threads row ([[BPR-1293]], [[BPR-1356]], [[BPR-1582]]).
+		threads,
+		/// A thread's note, its open card, one of its posts or the code's line
+		/// in Review.
+		review,
+		/// A Discuss card or one of its posts ([[BPR-1383]], [[BPR-1384]]).
 		discuss,
 	};
 
@@ -632,24 +646,48 @@ namespace bpr::core {
 		auto operator<=>(const workbench_discuss_filters&) const = default;
 	};
 
-	/// \brief [[BPR-1356]]. Opens one thread found in Threads.
+	/// \brief [[BPR-1356]]. Opens one thread in Review or Discuss.
+	///
+	/// \details [[BPR-1581]]. One intent for every move between the
+	/// surfaces: from Threads, from Review to Discuss and from Discuss to
+	/// Review. The host reports the gesture and the facts; the core decides.
 	struct open_workbench_thread_intent
 	{
 		workbench_thread_destination Destination = workbench_thread_destination::review;
-		/// My unpublished comment: it is written beside its line, in Review's
-		/// notes, and Discuss does not list it.
+		/// [[BPR-1581]]. Where the gesture was made.
+		workbench_thread_origin Origin = workbench_thread_origin::threads;
+		/// My unpublished comment, written or pending: it is written beside
+		/// its line, in Review's notes, and Discuss does not list it.
 		bool Draft = false;
+		/// [[BPR-1581]]. The thread is on a file. A pull request comment or a
+		/// review summary is not, and Review has no place for it.
+		bool OnFile = true;
+		/// [[BPR-1581]]. The thread hangs at a current line. An outdated
+		/// thread, or one whose line is unavailable, is read in Review among
+		/// its file's threads that have no line.
+		bool Placed = true;
 		/// Which of Discuss's filters would hide the thread.
 		workbench_discuss_filters Hiding;
 
 		auto operator<=>(const open_workbench_thread_intent&) const = default;
 	};
 
-	/// \brief [[BPR-1356]]. Why a thread opens somewhere other than asked.
+	/// \brief [[BPR-1356]]. Why a thread opens somewhere other than asked,
+	/// or not at all.
 	enum class workbench_thread_route_reason : std::uint8_t {
 		none,
-		/// Discuss was asked for my draft; it opens in Review.
+		/// Discuss was asked for my draft from Threads; it opens in Review.
 		draft_opens_in_review,
+		/// [[BPR-1581]]. Discuss was asked for my draft from Review. Discuss
+		/// lists no draft, so it opens in Discuss's composer, as the drawer's
+		/// Maximize does.
+		draft_opens_in_composer,
+		/// [[BPR-1581]]. Review was asked for a comment that is not on a file;
+		/// Review has no place for it, so nothing moves.
+		not_on_a_file,
+		/// [[BPR-1581]]. Review was asked for a thread with no current line;
+		/// it opens among its file's threads that have no line.
+		opens_without_a_line,
 	};
 
 	/// \brief [[BPR-1356]]. Where the thread opens and what changes first.
@@ -658,27 +696,74 @@ namespace bpr::core {
 	/// gutter mark's press does, and opens the thread in place at its line.
 	/// Discuss clears exactly the filters in `Clear`, and no other, so the
 	/// thread's card is in the list it opens in; the host says which it
-	/// cleared.
+	/// cleared. [[BPR-1581]]: `Available` is false when the move cannot be
+	/// made, and then nothing changes; `Composer` opens my draft in Discuss's
+	/// composer rather than its list.
 	struct workbench_thread_route
 	{
 		workbench_modality            Modality     = workbench_modality::review;
 		bool                          OpenComments = false;
 		workbench_discuss_filters     Clear;
-		workbench_thread_route_reason Reason = workbench_thread_route_reason::none;
+		workbench_thread_route_reason Reason    = workbench_thread_route_reason::none;
+		bool                          Available = true;
+		bool                          Composer  = false;
 
 		auto operator<=>(const workbench_thread_route&) const = default;
 	};
 
-	/// \brief [[BPR-1356]]. Decides where a thread found in Threads opens.
+	/// \brief [[BPR-1356]]. Decides where a thread opens.
 	///
-	/// \details The finder reports the gesture's destination and the window
-	/// the facts; the core decides. Review is Review with Comments open.
+	/// \details The host reports the gesture's destination and origin and
+	/// the facts; the core decides. Review is Review with Comments open, and
+	/// a thread with no current line opens there among its file's threads
+	/// with none; a comment that is not on a file has no place in Review.
 	/// Discuss is Discuss with every filter that would hide the thread
 	/// cleared, so asking for a thread always shows it. My draft is not in
-	/// Discuss's list, so asking for it there opens it in Review and says so.
+	/// Discuss's list: asked for from Threads it opens in Review, and from
+	/// Review in Discuss's composer.
 	[[nodiscard]] auto route_workbench_thread(
 		const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route;
+
+	/// \brief [[BPR-1581]]. What the window holds selected when a key asks to
+	/// show "the thread" elsewhere.
+	///
+	/// \details Identities as the host's conversation model names them; an
+	/// empty one is absent. `PickedPost` is the open thread's picked post and
+	/// `CurrentPost` the selection authority's post, when it is in
+	/// `CurrentThread`. `LineThread` is the thread on the code's selected
+	/// line, in Review; `CodeFocused` says the keyboard is in the code.
+	struct workbench_thread_selection
+	{
+		std::string OpenThread;
+		std::string PickedPost;
+		std::string CurrentThread;
+		std::string CurrentPost;
+		std::string LineThread;
+		bool        CodeFocused = false;
+
+		auto operator<=>(const workbench_thread_selection&) const = default;
+	};
+
+	/// \brief [[BPR-1581]]. One thread and the post to show it at; an empty
+	/// post is the thread's first.
+	struct workbench_thread_target
+	{
+		std::string Thread;
+		std::string Post;
+
+		auto operator<=>(const workbench_thread_target&) const = default;
+	};
+
+	/// \brief [[BPR-1581]]. Chooses the thread a key shows elsewhere.
+	///
+	/// \details With the keyboard in the code, the selected line's thread.
+	/// Otherwise the open thread at its picked post, then the current thread
+	/// at its selected post, then the selected line's thread. None when the
+	/// window holds no thread.
+	[[nodiscard]] auto choose_workbench_thread_target(
+		const workbench_thread_selection& aSelection)
+		-> std::optional<workbench_thread_target>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_WORKBENCH_INTERACTION_HPP
