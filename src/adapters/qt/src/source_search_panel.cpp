@@ -1,5 +1,6 @@
 #include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "painted_glyph_icon.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemModel>
@@ -668,12 +669,9 @@ namespace bpr::qt {
 		auto* skippedRow = new QHBoxLayout{ };
 		skippedRow->setContentsMargins(0, 0, 0, 0);
 		skippedRow->setSpacing(4);
-		SkippedToggle = new QToolButton{ this };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		SkippedToggle = new disclosure_button{ this };
 		SkippedToggle->setObjectName(QStringLiteral("sourceSearchSkippedToggle"));
-		SkippedToggle->setCheckable(true);
-		SkippedToggle->setAutoRaise(true);
-		SkippedToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		SkippedToggle->setArrowType(Qt::RightArrow);
 		SkippedToggle->setAccessibleDescription(tr("Shows why each side was not searched"));
 		SkippedToggle->hide();
 		skippedRow->addWidget(SkippedToggle);
@@ -692,7 +690,7 @@ namespace bpr::qt {
 		Skipped->setForegroundRole(QPalette::PlaceholderText);
 		Skipped->hide();
 		column->addWidget(Skipped);
-		connect(SkippedToggle, &QToolButton::toggled, this, [this](bool aShown) {Skipped->setVisible(aShown);SkippedToggle->setArrowType(aShown?Qt::DownArrow:Qt::RightArrow); });
+		connect(SkippedToggle, &QToolButton::toggled, this, [this](bool aShown) { Skipped->setVisible(aShown); });
 		connect(Retry, &QToolButton::clicked, this, [this] {if(Dispatch){Dispatch(source_find_gesture::selection);} });
 
 		Tree = new source_search_result_tree{ this };
