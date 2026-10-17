@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1573"
 title: "Home closes the open review beside Back to the review"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-17","owner_note":"Home should have a close review next to back to review.","governing_rfc":"RFC-BPR-0032","related_rfcs":["RFC-BPR-0028","RFC-BPR-0076"],"related_cards":["BPR-0775","BPR-1381","BPR-1535","BPR-1539","BPR-1567"],"reservation":"docs/issues/_reservations/BPR-1573--BPR-1573--f2af07a882df.json"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"command","detail":"qt_composed_github_scale_100/125/200 and application_close_review: Close review follows Back to the review and its key on the bar's line, named, described, bordered, no key; Tab reaches it; Space activates it."}},{"criterion":"AC2","outcome":"pass","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"command","detail":"core_github_window_read, application_github_window_read_host and application_close_review: the core forgets the pull request and keeps the session, a read in flight is cancelled and its late answer is stale, the epoch authority is invalidated once, the reading destination, tabs and drafts ledger are released, Home has no Back row, the bar has focus, Refresh is unavailable; a second lane keeps its pull request."}},{"criterion":"AC3","outcome":"pass","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"command","detail":"application_close_review: the comment being written is saved, Close review asks nothing, and it is there after reopening the same pull request."}},{"criterion":"AC4","outcome":"pending","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"command","detail":"Negative control fails without the host's epoch invalidation. Focused set passes; qt_workbench_window_scale_200 and application_profile_multi_window_public_path timed out under load average ~250 and are owed on the merged tree with the full dev ctest. clang-format 22, clang-tidy 22 clean on changed lines, architecture_boundaries, DOCUMENTATION_OK on a clean merge with main."}},{"criterion":"AC5","outcome":"pending","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"freeform","detail":"Owner Accept/Reject pending: session 71540c0b93725af935e64bedcdc66c9a, candidate BPR-1573-close-review-v001, fingerprint e365e4eb, cursor 3, frozen root bpr1573-close-review-v001.1nv8u3tq."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"6225c690e","evidence":{"kind":"command","detail":"qt_composed_github_scale_100/125/200 and application_close_review on the merged tree: Close review follows Back to the review on the bar's line, named, described, bordered, no key; Tab reaches it; Space activates it; Back to the review's key is in its tooltip and description (owner's note)."}},{"criterion":"AC2","outcome":"pass","revision":"6225c690e","evidence":{"kind":"command","detail":"core_github_window_read, application_github_window_read_host and application_close_review: the core forgets the pull request and keeps the session, a read in flight is cancelled and its late answer stale, the epoch authority is invalidated once, reading destination, tabs and drafts ledger released, Home has no Back row, the bar has focus, Refresh unavailable; a second lane keeps its pull request."}},{"criterion":"AC3","outcome":"pass","revision":"6225c690e","evidence":{"kind":"command","detail":"application_close_review: the comment being written is saved, Close review asks nothing, and it is there after reopening the same pull request."}},{"criterion":"AC4","outcome":"pass","revision":"6225c690e","evidence":{"kind":"command","detail":"Negative control fails without the host's epoch invalidation. 26/26 focused rows on 6225c690e including qt_workbench_window_scale_200 and application_profile_multi_window_public_path; full dev ctest 768/773 with the five failures accounted for on the card; core-only; clang-format 22; clang-tidy 22 clean on changed lines; composition contract resealed; DOCUMENTATION_OK."}},{"criterion":"AC5","outcome":"pass","revision":"58ee21f56610a72ff0d97fd29ce891bbcbc22315","evidence":{"kind":"observation","detail":"Owner Accept with note 'Move this hotkey into the tooltip.' (decision 838c32d9-e1fd-4076-b959-7bc3d767f29a, event 4, session 71540c0b93725af935e64bedcdc66c9a), applied in 6ae61c231 without a new review as directed; landed at 2809447c8."}}]
 ---
 
 # BPR-1573: Home closes the open review beside Back to the review
@@ -97,3 +96,41 @@ Next: on hand-back after cursor 3, an Accept merges main into the branch,
 reruns the focused set and the two timed-out rows, runs the full dev ctest
 once on the merged tree, lands and finishes the card; a Reject's note
 becomes v002.
+
+## Closeout — 2026-10-17
+
+**Owner decision, 2026-10-17T15:33:04Z: Accept**, note "Move this hotkey
+into the tooltip." (decision `838c32d9-e1fd-4076-b959-7bc3d767f29a`, event 4
+of session `71540c0b93725af935e64bedcdc66c9a`), on candidate
+`BPR-1573-close-review-v001` at `58ee21f56`, fingerprint `e365e4eb…`. Handed
+back at event 5 with nothing pending; event cursor consumed: 5.
+
+The note, applied without a new review as the coordinator directed
+(`6ae61c231`): the inline ⌘⇧H text beside Back to the review is gone, and
+the key ends that button's tooltip and accessible description ("…Returns to
+it at the same file and change (⇧⌘H)."). The row is the two buttons. The Qt
+and composed tests assert the key in the tooltip and no visible label in the
+row; the specification says so.
+
+Landing work: `application_close_review` was missing from
+`WINDOWS_UNCONTAINED_TESTS` (`tests/AGENTS.md`, [[BPR-1343]]); the entry is
+added as unmeasured on macOS. The round-trip composition contract is
+resealed over main `83ed4d8fd` merged with this card, beside BPR-1580's
+reseal; the mutation-branch pin is unchanged. Main landed at `2809447c8`
+(tree of the tested merge `6225c690e`).
+
+Verification on `6225c690e` (`dev`, Debug): the focused set, the two rows
+that had timed out under load (`qt_workbench_window_scale_200`,
+`application_profile_multi_window_public_path`), the composition contract,
+the isolation manifest and `documentation_structure` pass 26/26. One full
+`ctest --preset dev` on the merged tree at `452d67ab2` gave 768 of 773 with
+one skip; of the five failures, two are fixed above, `qt_markdown_body_2_0`
+passes alone, `release_update_native_https` fails intermittently
+(`inbound-header-truncated`, 1 of 3 alone) in the release updater's proxy
+fixture, which this card does not touch, and
+`application_large_review_history` overran its epoch-refresh budget at load
+average 100–200, the known load-sensitive row (BPR-1567, BPR-1598).
+`core-only` passes except the same NEXT_ID check. clang-format 22 and
+clang-tidy 22 are clean on changed lines; the documentation gate prints
+`DOCUMENTATION_OK`. The review server was stopped, the candidate's protection
+released, and the frozen root and build trees removed.
