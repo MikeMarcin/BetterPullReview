@@ -235,6 +235,28 @@ namespace bpr::app::detail {
 		bool                                 PublicationDisplayed = false;
 	};
 
+	/// \brief [[BPR-1573]]. What the window's composition holds of its review,
+	/// for Close review's course.
+	struct close_review_evidence
+	{
+		/// The read lane names a pull request: open, in flight or accepted.
+		bool ReadHoldsPullRequest = false;
+		bool SnapshotHeld         = false;
+		bool ReadingDestination   = false;
+		bool TabDestination       = false;
+		bool LedgerComposed       = false;
+		/// The window's document tabs, and the chosen file one would take.
+		std::size_t Tabs       = 0U;
+		bool        TabChosen  = false;
+		/// The bodies of the drafts the review's ledger holds now.
+		std::vector<std::string> SavedDraftBodies;
+		/// Home's recently viewed rows: all, the one this window has open, and
+		/// those Resume can return to.
+		std::size_t RecentEntries   = 0U;
+		std::size_t RecentOpen      = 0U;
+		std::size_t RecentResumable = 0U;
+	};
+
 	/// \brief [[BPR-1301]]. The `PATH` and usual install folders a Claude
 	/// launch with no wrapper searches, in place of the application's `PATH`
 	/// and the shipped folders, which on a developer's machine may hold a
@@ -1612,6 +1634,9 @@ namespace bpr::app::detail {
 		/// \brief Observes the exact host, tab and displayed-publication identities.
 		[[nodiscard]] static auto epoch_refresh_identity(
 			const github_application& aApplication) -> epoch_refresh_identity_evidence;
+		/// \brief [[BPR-1573]]. The review the window's composition holds.
+		[[nodiscard]] static auto close_review(
+			const github_application& aApplication) -> close_review_evidence;
 		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,

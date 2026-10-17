@@ -846,6 +846,21 @@ and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
 
+**Close review** follows the way back and its key on the same line
+([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
+to back to review"). It is bordered, so Back to the review stays the page's
+one filled control and Return's default, and it has no key of its own; Tab
+reaches it after Back to the review. Its description names the review and
+says that its drafts are kept. Closing lets go of the review in this window
+only: the window's read forgets the pull request (a read in flight is
+cancelled), and the review is released exactly as opening another pull
+request releases it, so a comment being written is saved and is there when
+the same pull request is opened again; nothing asks first. The document tabs
+start again. Home is left with nothing to return to, the bar takes focus,
+the status bar says "Closed the review of owner/name#123.", and Refresh has
+nothing to reread. Recently viewed keeps the entry and its reading for
+Resume. Another window showing the same pull request keeps it.
+
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic
 "waits on reviewers" clause. [[BPR-1407]] (the owner, 2026-10-12: "just show

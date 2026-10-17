@@ -23,7 +23,8 @@ namespace bpr::qt {
 		sign_in,
 		/// An account and nothing open: the bar leads Home, so there is no card.
 		choose_pull_request,
-		/// A review is open behind Home: one button beside the bar goes back to it.
+		/// A review is open behind Home: beside the bar, the way back to it and
+		/// Close review ([[BPR-1573]]).
 		back_to_review,
 		/// A connection is being validated; no enrollment is offered yet.
 		connecting,
@@ -37,6 +38,8 @@ namespace bpr::qt {
 	/// three explicit ways in without opening Settings. Over an open review it
 	/// is Back to the review and its shortcut, which the window stands at the
 	/// bar's right ([[BPR-1381]]); the button's description names the review.
+	/// Close review follows them ([[BPR-1573]]), bordered, so the page keeps
+	/// one filled control.
 	/// Signed in with nothing open it shows nothing and
 	/// the window hides it. The surface is presentation only: each button
 	/// reports a gesture through its callback and the window decides where it
@@ -63,6 +66,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
 		/// \brief The shortcut beside Back to the review; hidden on the card.
 		[[nodiscard]] auto shortcut_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1573]]. Close review, after Back to the review and its
+		/// shortcut; shown only over an open review.
+		[[nodiscard]] auto close_button() const noexcept -> QPushButton*;
 
 		/// \brief Places one decorative Home illustration beside the card's guidance.
 		///
@@ -80,6 +86,8 @@ namespace bpr::qt {
 		void set_primary_dispatch(std::function<void()> aDispatch);
 		void set_secondary_dispatch(std::function<void()> aDispatch);
 		void set_tertiary_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1573]]. Close review's gesture; the window decides.
+		void set_close_dispatch(std::function<void()> aDispatch);
 		/// \brief Shows the CLI path only when the composition can inspect gh.
 		void set_github_cli_available(bool aAvailable);
 
@@ -99,6 +107,7 @@ namespace bpr::qt {
 		QPushButton*          Primary             = nullptr;
 		QPushButton*          Secondary           = nullptr;
 		QPushButton*          Tertiary            = nullptr;
+		QPushButton*          Close               = nullptr;
 		QHBoxLayout*          Content             = nullptr;
 		QHBoxLayout*          Header              = nullptr;
 		QHBoxLayout*          Buttons             = nullptr;
@@ -108,6 +117,7 @@ namespace bpr::qt {
 		std::function<void()> PrimaryDispatch;
 		std::function<void()> SecondaryDispatch;
 		std::function<void()> TertiaryDispatch;
+		std::function<void()> CloseDispatch;
 	};
 } // namespace bpr::qt
 

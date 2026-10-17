@@ -206,6 +206,16 @@ namespace bpr::core {
 		auto operator<=>(const refresh_pull_request_intent&) const = default;
 	};
 
+	/// \brief [[BPR-1573]]. Close review: the window lets go of its pull request.
+	///
+	/// \details The session stays. The pull request, its accepted snapshot and
+	/// any read in flight are forgotten, so a late answer to that read is
+	/// stale and Refresh has nothing to reread. Refused when nothing is open.
+	struct close_pull_request_intent
+	{
+		auto operator<=>(const close_pull_request_intent&) const = default;
+	};
+
 	/// \brief Describes the deactivate github identity intent record.
 	struct deactivate_github_identity_intent
 	{
@@ -296,7 +306,8 @@ namespace bpr::core {
 		pull_request_loaded_event,
 		pull_request_load_failed_event,
 		pull_request_load_cancelled_event,
-		github_session_revalidation_event>;
+		github_session_revalidation_event,
+		close_pull_request_intent>;
 
 	/// \brief Describes the github identity scope record.
 	struct github_identity_scope

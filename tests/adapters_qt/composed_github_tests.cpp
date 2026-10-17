@@ -6777,7 +6777,41 @@ namespace {
 				   && landing->primary_button()->accessibleDescription().startsWith(QStringLiteral("Reviewing "))
 				   && landing->shortcut_label()->isVisible()
 				   && landing->shortcut_label()->text() == window.home_action()->shortcut().toString(QKeySequence::NativeText),
-			   "the return row is one button with its shortcut and no second button or body");
+			   "the return row is the way back with its shortcut and no second way in or body");
+		// [[BPR-1573]]. Close review follows the way back and its key, bordered,
+		// named and described, reachable by Tab, and with no key of its own.
+		{
+			auto* const close = landing->close_button();
+			const auto  key   = QRect{ landing->shortcut_label()->mapTo(window.home_page(), QPoint{ }), landing->shortcut_label()->size() };
+			const auto  shut  = QRect{ close->mapTo(window.home_page(), QPoint{ }), close->size() };
+			expect(close->isVisible() && close->text() == QStringLiteral("Close review") && close->accessibleName() == QStringLiteral("Close review")
+					   && close->accessibleDescription().startsWith(landing->primary_button()->accessibleDescription().section(QStringLiteral(". Returns"), 0, 0))
+					   && close->accessibleDescription().endsWith(QStringLiteral("Closes it in this window; its drafts are kept for when you open it again."))
+					   && !close->isDefault() && landing->primary_button()->isDefault() && close->shortcut().isEmpty()
+					   && shut.left() > key.right() && std::abs(shut.center().y() - key.center().y()) <= 2,
+				   "Close review follows the way back and its key on the bar's line, named, described and bordered");
+			landing->primary_button()->setFocus(Qt::TabFocusReason);
+			QApplication::processEvents();
+			expect(window.focusWidget() == landing->primary_button() && landing->primary_button()->nextInFocusChain() != nullptr,
+				   "the way back takes focus");
+			const auto press = [](QWidget* const aWidget, const int aKey, const QString& aText) {
+				for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+					auto event = QKeyEvent{ type, aKey, Qt::NoModifier, aText };
+					QApplication::sendEvent(aWidget, &event);
+				}
+				QApplication::processEvents();
+			};
+			press(landing->primary_button(), Qt::Key_Tab, QString{ });
+			expect(window.focusWidget() == close, "Tab from the way back reaches Close review");
+			auto closes = 0;
+			window.set_close_review_dispatch([&closes] { ++closes; });
+			press(close, Qt::Key_Space, QStringLiteral(" "));
+			expect(closes == 1 && landing->state() == qt::landing_state::back_to_review && window.statusBar()->currentMessage().isEmpty(),
+				   "Space on Close review asks once; the window says nothing closed until the review is gone");
+			window.set_close_review_dispatch({ });
+			window.home_open_bar()->setFocus(Qt::OtherFocusReason);
+			QApplication::processEvents();
+		}
 		expect(landing->height() < 80,
 			   "the return row is one row high; it is " + std::to_string(landing->height()));
 		expect(window.focusWidget() == window.home_open_bar(),

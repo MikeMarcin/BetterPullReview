@@ -61,6 +61,12 @@ namespace bpr::qt {
 		Tertiary->setObjectName(QStringLiteral("workbenchHomeTertiaryButton"));
 		Tertiary->setAutoDefault(false);
 		Tertiary->setFocusPolicy(Qt::StrongFocus);
+		// [[BPR-1573]]. Bordered like the card's second ways in: the way back
+		// stays the page's one filled control and Return's default.
+		Close = new QPushButton{ this };
+		Close->setObjectName(QStringLiteral("workbenchHomeCloseReviewButton"));
+		Close->setAutoDefault(false);
+		Close->setFocusPolicy(Qt::StrongFocus);
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
 				PrimaryDispatch();
@@ -74,6 +80,11 @@ namespace bpr::qt {
 		connect(Tertiary, &QPushButton::clicked, this, [this] {
 			if (TertiaryDispatch) {
 				TertiaryDispatch();
+			}
+		});
+		connect(Close, &QPushButton::clicked, this, [this] {
+			if (CloseDispatch) {
+				CloseDispatch();
 			}
 		});
 
@@ -136,6 +147,9 @@ namespace bpr::qt {
 			Tertiary->setAccessibleName(QStringLiteral("Add enterprise server"));
 			Tertiary->setAccessibleDescription(QStringLiteral(
 				"Opens the sign-in dialog to add an enterprise server."));
+			Close->setText(QString{ });
+			Close->setAccessibleName(QString{ });
+			Close->setAccessibleDescription(QString{ });
 			setAccessibleDescription(
 				GithubCliAvailable
 					? QStringLiteral("Sign in to GitHub, use GitHub CLI, or add an enterprise server")
@@ -166,6 +180,12 @@ namespace bpr::qt {
 			Tertiary->setText(QString{ });
 			Tertiary->setAccessibleName(QString{ });
 			Tertiary->setAccessibleDescription(QString{ });
+			// [[BPR-1573]]. What closing does, said where it is done: the
+			// review leaves this window, and its drafts wait for it.
+			Close->setText(QStringLiteral("Close review"));
+			Close->setAccessibleName(QStringLiteral("Close review"));
+			Close->setAccessibleDescription(
+				QStringLiteral("%1. Closes it in this window; its drafts are kept for when you open it again.").arg(reviewing));
 			setAccessibleDescription(reviewing);
 			break;
 		}
@@ -181,6 +201,9 @@ namespace bpr::qt {
 			Tertiary->setText({ });
 			Tertiary->setAccessibleName({ });
 			Tertiary->setAccessibleDescription({ });
+			Close->setText({ });
+			Close->setAccessibleName({ });
+			Close->setAccessibleDescription({ });
 			setAccessibleDescription(Title->text() + QStringLiteral(" ") + Body->text());
 			break;
 		case landing_state::choose_pull_request:
@@ -197,12 +220,16 @@ namespace bpr::qt {
 			Tertiary->setText(QString{ });
 			Tertiary->setAccessibleName(QString{ });
 			Tertiary->setAccessibleDescription(QString{ });
+			Close->setText(QString{ });
+			Close->setAccessibleName(QString{ });
+			Close->setAccessibleDescription(QString{ });
 			setAccessibleDescription(QString{ });
 			break;
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
 		Tertiary->setToolTip(Tertiary->accessibleDescription());
+		Close->setToolTip(Close->accessibleDescription());
 		apply_arrangement();
 		apply_illustration_layout();
 		updateGeometry();
@@ -218,10 +245,14 @@ namespace bpr::qt {
 		// the sentence on the card, at the right of the row.
 		Header->removeWidget(Primary);
 		Header->removeWidget(Shortcut);
+		Header->removeWidget(Close);
 		Buttons->removeWidget(Primary);
 		if (row) {
+			// [[BPR-1573]]. The way back keeps its key beside it; Close review
+			// follows the pair, so the key is never read as Close review's.
 			Header->addWidget(Primary);
 			Header->addWidget(Shortcut);
+			Header->addWidget(Close);
 		} else {
 			Buttons->insertWidget(0, Primary);
 		}
@@ -241,6 +272,7 @@ namespace bpr::qt {
 		Secondary->setVisible(signingIn && GithubCliAvailable);
 		Tertiary->setVisible(signingIn);
 		Shortcut->setVisible(row);
+		Close->setVisible(row);
 		if (card) {
 			Content->setContentsMargins(
 				page_inset + card_inset, row_inset + card_inset, page_inset + card_inset, row_inset + card_inset);
@@ -300,6 +332,11 @@ namespace bpr::qt {
 	auto workbench_landing::tertiary_button() const noexcept -> QPushButton*
 	{
 		return Tertiary;
+	}
+
+	auto workbench_landing::close_button() const noexcept -> QPushButton*
+	{
+		return Close;
 	}
 
 	auto workbench_landing::title_label() const noexcept -> QLabel*
@@ -382,6 +419,11 @@ namespace bpr::qt {
 	void workbench_landing::set_tertiary_dispatch(std::function<void()> aDispatch)
 	{
 		TertiaryDispatch = std::move(aDispatch);
+	}
+
+	void workbench_landing::set_close_dispatch(std::function<void()> aDispatch)
+	{
+		CloseDispatch = std::move(aDispatch);
 	}
 
 	void workbench_landing::paintEvent(QPaintEvent* const aEvent)

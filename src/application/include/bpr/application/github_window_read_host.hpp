@@ -109,8 +109,12 @@ namespace bpr::application {
 		/// has moved on from it, and for a public-preview session, whose presentation is
 		/// the profile host's.
 		[[nodiscard]] auto adopted_presentation() const -> std::optional<github_presentation_update>;
-		void               advance_request_floor(core::request_id aNext) noexcept;
-		void               dispatch(const core::github_window_read_event& aEvent);
+		void advance_request_floor(core::request_id aNext) noexcept;
+		/// \brief Opens, rereads or closes this window's pull request.
+		/// \details [[BPR-1573]]. A close the core accepts stops any read in
+		/// flight and invalidates the epoch authority, the release opening
+		/// another pull request makes; a refused close changes nothing.
+		void dispatch(const core::github_window_read_event& aEvent);
 		/// Share one immutable accepted server observation with bounded sibling
 		/// readers. Does not fetch, move comparisons, or hand off another epoch.
 		void share_snapshot(std::span<const std::shared_ptr<github_window_read_host>> aWindows, std::uint64_t aSequence);
