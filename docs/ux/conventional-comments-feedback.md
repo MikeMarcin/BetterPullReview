@@ -233,7 +233,9 @@ Consumers: the inline composition page and reply drafts
   a label chip, "Plain ▾" or the current label. Its tooltip reads "Label
   (⌘L)". Clicking it, or ⌘L in the editor,
   opens the menu:
-  - "Plain comment" first, with ⌘0;
+  - "Plain comment" first (it had ⌘0 until [[BPR-1569]]; the owner,
+    2026-10-16: "I'm really not sure why plan comment gets a hotkey, I think
+    we can remove that");
   - a 3×4 grid of the twelve marks with their names, each with its
     catalog description as a tooltip;
   - the decorations under "Adds": blocking, non-blocking and if-minor, then a
@@ -259,8 +261,9 @@ Consumers: the inline composition page and reply drafts
 
   Once a label is chosen, the same three decorations also sit beside the chip
   as toggles. ⌘0 is the window's Actual Size shortcut (Home's until
-  [[BPR-1535]]), so it is a key of the open menu only and never a window
-  shortcut (derived).
+  [[BPR-1535]]), and since [[BPR-1569]] it is Actual Size with the menu open
+  too: the menu closes, the window's Actual Size runs if it has something to
+  do, and the label is left as it was.
 - **Decorations combine** (owner, `decorations-v003`: "multiple decorators
   can be applied to a comment. like (non-blocking, if-minor)"). Each toggle
   writes or takes out its own decoration and keeps every other one exactly as
