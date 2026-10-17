@@ -283,6 +283,26 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_appearance_contrast_core_tests
 )
 
+# [[BPR-1583]]. The one avatar rule: slot, initials and the tone table's contrast.
+bpr_add_executable(
+    test_better_pull_review_identity_avatar_core_tests
+    identity_avatar_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_identity_avatar_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_identity_avatar_core_tests)
+bpr_enable_warnings(test_better_pull_review_identity_avatar_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_identity_avatar
+    COMMAND test_better_pull_review_identity_avatar_core_tests
+)
+set_tests_properties(core_identity_avatar PROPERTIES PASS_REGULAR_EXPRESSION "identity-avatar-core-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_theme_exchange_core_tests
     theme_exchange_tests.cpp

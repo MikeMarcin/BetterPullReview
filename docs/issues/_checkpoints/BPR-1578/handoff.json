@@ -38,21 +38,77 @@
     "fixture": "nested-folders-v1",
     "open_file": "src/engine/renderer.cpp",
     "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
-    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88"
+    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88",
+    "removed": true
   },
   "review": {
     "state": "/Users/jaeger/.codex/attended-review/bpr1578-v001-aQrrKw",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "0466d1f8235d8b124c055885370d2ea1",
-    "event_cursor": 4,
+    "event_cursor": 7,
     "candidates": {
       "BPR-1578-accept-group-v001": "d05d4488d5f87a2d5bc742c539febde760f9e60f280b86494920d2dd74b75042"
     },
-    "phase": "ready",
-    "protected": true,
-    "server_port": 56464,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "phase": "decided",
+    "protected": false,
+    "server_port": null,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)",
+    "released": "v001 server stopped, protection released at event 8, frozen root removed"
   },
-  "pending": ["AC4 (human): owner Accept or Reject of BPR-1578-accept-group-v001"],
-  "next_action": "After hand-back past cursor 4: on Accept, merge main into bpr-1578-review-bar-accept, rebuild dev, run the focused rows and one full dev ctest on the merged tree, merge to main, finish the card, stop the server, release protection and remove the frozen root. On Reject, the note becomes v002."
+  "pending": [
+    "owner's round-2 choice (session bf324bac\u2026)",
+    "v002 final Accept or Reject"
+  ],
+  "next_action": "After hand-back past cursor 3 in session bf324bac\u2026: build the chosen direction (with any note) as v002 on branch bpr-1578-review-bar-accept; tests with negative controls, format, tidy, docs gate; freeze; final Accept or Reject in a fresh session; then stop the round-2 server.",
+  "directions": {
+    "harness_commit": "bb4f84cfb",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "a-caption-and-action": "c7c331969d81be22697244c9abcf453ff856ab7880ef597a9c4a2f099ea9a085",
+      "b-split-button": "5c2a30869a5824feb8ea0c77b6fe3b773b1405842ba705e48efaf1e2fe96f8a4",
+      "c-progress-track": "eaaaf9bf1c823901f855b2af5bdab16e05b70f1db1f65bbddf7c61d34397f1f5"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-directions-cgPXyb",
+      "session": "9aa0f416eba08632f0d5ca48bc4d5ff0",
+      "candidate": "BPR-1578-progress-group-direction-v002",
+      "fingerprint": "c62c1f683442cf4e73ea38aba30f7d2019aa72ea7e38928c8b9363e22dfdade2",
+      "options": [
+        "A. Caption and action",
+        "B. Split button",
+        "C. Progress track"
+      ],
+      "event_cursor": 5,
+      "server_port": null,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+      "decision": "reject: 'I like progress the best but I'm not in love with any of them. Let's try one more round, present progress again and more fresh alternatives.' (3b3fdc7d-185c-454a-b3f4-2a4a60588f3f)",
+      "released": "server stopped, candidate released"
+    }
+  },
+  "round_2": {
+    "harness_commit": "342838cf2",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions-round-2 (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "c2-progress-track": "53fcbd243c67c1d2be1219e1e0956c74d1a09264e8456515530aeb45e5e09ccf",
+      "d-stepper": "77a97eec2e9974928848c224f07fdbe272ae3df9ac15cbe1e21979f98cfd8ffb",
+      "e-meter-chip": "87d2d75e2e477096d5918bbf420f4832fb7d802fb317eac44cdc397b26aee756",
+      "f-accept-only": "9872b3a44f777a80d494f47abd900f4b703046dfb5e4d39939bd6a06d8543fa1"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-round2-OQvAy6",
+      "session": "bf324baca66b72b02d331b235f5d586a",
+      "candidate": "BPR-1578-progress-group-direction-v002-r2",
+      "fingerprint": "7eeeda67d38522451b7d647e09a4ce6ced45c7f3961d541f7691e8a9dda69293",
+      "options": [
+        "C2. Progress track, refined",
+        "D. Stepper",
+        "E. Meter chip",
+        "F. Accept only"
+      ],
+      "event_cursor": 3,
+      "server_port": 49165,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    }
+  }
 }

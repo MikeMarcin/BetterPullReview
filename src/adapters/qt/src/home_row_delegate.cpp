@@ -578,11 +578,12 @@ namespace bpr::qt {
 	}
 
 	void draw_home_chip(
-		QPainter&            aPainter,
-		const QRect&         aRect,
-		const QString&       aText,
-		const QFont&         aFont,
-		const home_chip_ink& aInk)
+		QPainter&                      aPainter,
+		const QRect&                   aRect,
+		const QString&                 aText,
+		const QFont&                   aFont,
+		const home_chip_ink&           aInk,
+		const identity_avatar_grounds& aGrounds)
 	{
 		if (aText.isEmpty() || aRect.isEmpty()) {
 			return;
@@ -594,12 +595,12 @@ namespace bpr::qt {
 		aPainter.setBrush(Qt::NoBrush);
 		aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
 		const auto tile = home_tile_extent(aFont);
-		draw_home_tile(aPainter,
-					   QRect{ aRect.left() + chip_inset, aRect.top() + chip_inset, tile, tile },
-					   home_tile_initial(aText),
-					   true,
-					   aFont,
-					   aInk);
+		// [[BPR-1583]]. The account's own avatar; the login is the text before
+		// " on host", and a login has no space.
+		const auto separator = aText.indexOf(chip_host_separator);
+		const auto login     = separator < 0 ? aText : aText.left(separator);
+		paint_identity_avatar(aPainter, QRectF{ QRect{ aRect.left() + chip_inset, aRect.top() + chip_inset, tile, tile } }.adjusted(0.5, 0.5, -0.5, -0.5),
+							  { .Identity = login }, aGrounds, aFont);
 		const auto left = aRect.left() + chip_inset + tile + chip_gap;
 		aPainter.setFont(aFont);
 		aPainter.setPen(aInk.Label);
@@ -773,7 +774,8 @@ namespace bpr::qt {
 						   QRect{ layout.ChipLeft, (layout.RowHeight - layout.ChipHeight) / 2, layout.ChipWidth, layout.ChipHeight },
 						   layout.Chip,
 						   layout.SideFont,
-						   home_chip_ink_for(colours, group, selected));
+						   home_chip_ink_for(colours, group, selected),
+						   identity_avatar_grounds_of(colours));
 		}
 		if (!layout.Tag.isEmpty()) {
 			// [[BPR-1365]]. A word in neutral ink in a thin outline: on Home colour

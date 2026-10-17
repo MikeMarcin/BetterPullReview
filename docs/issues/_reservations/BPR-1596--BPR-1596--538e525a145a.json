@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1596"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Windows and Linux title row: no macOS traffic-light gap before Home",
+  "created": "2026-10-17T16:39:31.337195+00:00",
+  "base": "80449fd301b4c5e9da408bf8a50915282f8045b2"
+}
