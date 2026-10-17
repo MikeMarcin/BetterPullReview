@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"315f7078ac1c4aa464974287afb4f0a9c9899508fdfd79d151e2e0ac8bb52795"
+		"ec46df286b930caaa7be6c079f577bc2c6f8c9e9bbcaf7c2047ae00ccee24311"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "46d39e0f32b912a2bd53f3a2ac560a6bd3ef2226d6139f62d84e38d16a7d45e5"
+        "c16d069339020de43b7df4b8a7fc62c8ac65dd21bfe4e142ace68f6fb084cd69"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2690,3 +2690,10 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # port Open on GitHub uses. No grant, target, provider, credential, transport,
 # GitHub write, mutation or publication path changes; the production
 # mutation-branch pin is unchanged. Self-review on BPR-1566.
+
+# [[BPR-1572]] reseal over main at 0c6d520ad, recomputed on the tree that
+# merges this card onto it. github_application.cpp serves the new
+# stacked-merge-base-v1 fixture with the same github.com host profile as
+# merge-base-v1. No grant, target, provider, credential, transport, GitHub
+# write, mutation or publication path changes in the composition; the
+# production mutation-branch pin is unchanged.

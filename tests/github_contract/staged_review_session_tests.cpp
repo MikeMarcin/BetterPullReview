@@ -362,13 +362,16 @@ namespace {
 				// the base branch.
 				const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
 				for (const auto& pairHead : { head, target().BaseRef }) {
-					if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + pairHead + "?page=2&per_page=1") {
+					auto pair = std::string{ recorded };
+					pair.append("...").append(pairHead);
+					if (wire.Path == std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(pair).append("?page=2&per_page=1")) {
 						++MergeBaseReads;
 						const auto mergeBase = pairHead == head ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
 							: StackedBase == 1                  ? recorded
 																: std::string(40U, 'e');
-						return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + pairHead + "\",\"base_commit\":{\"sha\":\"" + recorded
-								  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+						auto       body      = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
+						body.append(pair).append("\",\"base_commit\":{\"sha\":\"").append(recorded).append("\"},\"merge_base_commit\":{\"sha\":\"").append(mergeBase).append("\"}}");
+						return ok(body);
 					}
 				}
 				expect(false, "fixture answers only independently named read endpoints");

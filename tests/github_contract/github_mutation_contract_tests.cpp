@@ -1514,9 +1514,10 @@ namespace {
 			expect(!validate_outbound_review_mutation_request(relabelled), "a pair cannot travel under another observation's name");
 			const auto echoed = basis == merge_base_observation_basis::recorded_base ? head : std::string{ "main" };
 			const auto reply  = [&](const std::string& aUrlHead, const std::string& aBase) {
-				return parse_merge_base_observation(
-					{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recordedBase + "..." + aUrlHead + "\",\"base_commit\":{\"sha\":\"" + aBase + "\"},\"merge_base_commit\":{\"sha\":\"" + std::string(40U, 'c') + "\"},\"files\":[]}" },
-					target(), basis);
+				auto body = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
+				body.append(recordedBase).append("...").append(aUrlHead).append("\",\"base_commit\":{\"sha\":\"").append(aBase);
+				body.append("\"},\"merge_base_commit\":{\"sha\":\"").append(40U, 'c').append("\"},\"files\":[]}");
+				return parse_merge_base_observation({ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = std::move(body) }, target(), basis);
 			};
 			expect(reply(echoed, recordedBase).has_value(), "the answer about the recorded base is read");
 			expect(!reply(echoed, std::string(40U, 'b')), "an answer about another base commit is refused");
