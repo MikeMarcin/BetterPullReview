@@ -1,6 +1,6 @@
-# BPR-1582 reseal over main 770f5c9fa (BPR-1570's pins, which main matched):
-# the only production-app change is 2a789264e in github_application.cpp, the
-# Threads row menu's Mark as Unread: the window's new unread dispatch and
+# BPR-1582 reseal over main 1afb7a6f9 (whose pins main matched): the only
+# production-app change is 2a789264e in github_application.cpp, the Threads
+# row menu's Mark as Unread: the window's new unread dispatch and
 # mark_conversation_unread, which builds the accepted thread's post
 # observation as Mark read does and hands it to the review ledger host, whose
 # core decision moves the private seen cursor. No provider, grant, credential,
