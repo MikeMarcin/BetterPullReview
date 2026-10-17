@@ -2212,3 +2212,27 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
         TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
+# 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,
+# and the old platform-drawn bar refused (on macOS, the native bezel).
+bpr_add_executable(test_better_pull_review_qt_disclosure_button_tests disclosure_button_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_disclosure_button_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_disclosure_button_tests)
+bpr_enable_warnings(test_better_pull_review_qt_disclosure_button_tests)
+foreach(bpr_disclosure_scale IN ITEMS 100 200)
+    math(EXPR bpr_disclosure_whole "${bpr_disclosure_scale} / 100")
+    math(EXPR bpr_disclosure_fraction "${bpr_disclosure_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_disclosure_button_scale_${bpr_disclosure_scale}
+        COMMAND test_better_pull_review_qt_disclosure_button_tests
+    )
+    set_tests_properties(
+        qt_disclosure_button_scale_${bpr_disclosure_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_disclosure_whole}.${bpr_disclosure_fraction}"
+            PASS_REGULAR_EXPRESSION "disclosure-button-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
