@@ -904,6 +904,37 @@ the bounded network reason; it does not expose transport diagnostics.
 Raw remote content and credential-bearing diagnostics are never retained as
 RFC evidence.
 
+Local GitHub CLI account discovery records its stage, fixed process-failure
+category, elapsed milliseconds, observed exit (or unavailable sentinel), and
+stdout/stderr byte counts through the existing profile diagnostic log. The
+sign-in dialog presents an actionable fixed message and selectable text.
+Neither surface receives child output, inventory JSON, account names or
+credential environment values. Paths are omitted from both persistent and terminal
+summaries. Account eligibility is separate from process success: exit-zero
+inventory may still report an inaccessible or signed-out account; only signed-in,
+keyring-backed accounts are offered. A nonempty inventory with no eligible account
+has its own message rather than a process failure or an empty-inventory message.
+
+### Observed macOS compatibility — 2026-10-17
+
+On one Intel Mac, macOS 15.1.1 (24B91), BPR 0.2.1 and gh 2.102.0,
+the unchanged write-denying profile made a password-free Apple `security`
+item-metadata lookup fail with exit 44. The user search list and default
+Keychain remained correct, and an explicit existing login-Keychain path did
+not resolve the lookup. The same profile allowed the metadata lookup on an
+M4 running macOS 26.6.2. No sandbox, credential or Keychain-permission change
+was made to resolve this observation.
+
+After the Intel update and reboot to macOS 15.8.1 (24H32), with BPR and gh
+versions unchanged, the identical password-free lookup passed both normally and
+sandboxed. The owner reported that BPR sign-in now worked. A post-update GUI
+sign-in course was deferred during unrelated developer-tool updates; SSH account
+status is not equivalent to desktop credential access. These observations do not
+identify the first fixed macOS version, prove an Apple implementation cause, or
+separate the update from reboot-related state. Retain the sandbox and test both
+process failure and completed-but-ineligible inventory; do not use this incident
+as universal native qualification or as reason to broaden Keychain access.
+
 ## Cache isolation
 
 Provider sessions, capabilities, retries, rate limits, staged results, and

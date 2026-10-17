@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1574"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Design phase: Notes, Tours, Agent tab and Compose review redesign (owner 2026-10-17)",
+  "created": "2026-10-17T07:52:46.673414+00:00",
+  "base": "647fbc6539d59b1a785be3543afd08f823f77cb8"
+}

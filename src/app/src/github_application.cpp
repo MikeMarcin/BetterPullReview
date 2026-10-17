@@ -14748,27 +14748,93 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					auto accounts = std::optional<std::vector<
 						adapters::github::detail::gh_cli_inventory_account>>{ };
 					auto failure  = qt::github_cli_discovery_state::process_failed;
+					// Reuse the bounded terminal sink. Never send child output, arguments,
+					// inventory JSON or environment values to diagnostics or presentation.
+					const auto probe = [&failure, log = DiagnosticLog](adapters::github::detail::github_cli_process_port&   aProcess,
+																	   adapters::github::detail::github_cli_process_request aRequest, const char* aStage) {
+						using adapters::github::detail::github_cli_process_failure;
+						aRequest.Observation = std::make_shared<adapters::github::detail::github_cli_process_observation>();
+						const auto  started  = std::chrono::steady_clock::now();
+						auto        result   = aProcess.run(aRequest, std::stop_token{ });
+						const auto  elapsed  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+						const char* category = "completed";
+						if (!result) {
+							switch (result.error()) {
+							case github_cli_process_failure::timeout:
+								category = "timeout";
+								failure  = qt::github_cli_discovery_state::timed_out;
+								break;
+							case github_cli_process_failure::start_failure:
+								category = "start_failure";
+								failure  = qt::github_cli_discovery_state::launch_failed;
+								break;
+							case github_cli_process_failure::nonzero_exit:
+								category = "nonzero_exit";
+								failure  = qt::github_cli_discovery_state::exited_unsuccessfully;
+								break;
+							case github_cli_process_failure::standard_output_limit:
+								category = "stdout_limit";
+								failure  = qt::github_cli_discovery_state::output_rejected;
+								break;
+							case github_cli_process_failure::standard_error_limit:
+								category = "stderr_limit";
+								failure  = qt::github_cli_discovery_state::output_rejected;
+								break;
+							case github_cli_process_failure::unexpected_standard_error:
+								category = "unexpected_stderr";
+								failure  = qt::github_cli_discovery_state::output_rejected;
+								break;
+							case github_cli_process_failure::invalid_request: category = "invalid_request"; break;
+							case github_cli_process_failure::write_failure:   category = "stdin_failure"; break;
+							case github_cli_process_failure::cancelled:       category = "cancelled"; break;
+							case github_cli_process_failure::process_crash:   category = "crash"; break;
+							case github_cli_process_failure::reap_failure:    category = "reap_failure"; break;
+							}
+						} else if (result->ExitCode != 0 && result->ExitCode != 1) {
+							failure = qt::github_cli_discovery_state::exited_unsuccessfully;
+						}
+						const auto summaryText = QStringLiteral("GH_DISCOVERY stage=%1 category=%2 elapsed_ms=%3 exit=%4 stdout_bytes=%5 stderr_bytes=%6")
+													 .arg(QString::fromLatin1(aStage), QString::fromLatin1(category))
+													 .arg(elapsed)
+													 .arg(aRequest.Observation->ExitCode.load())
+													 .arg(static_cast<qulonglong>(aRequest.Observation->StandardOutputBytes.load()))
+													 .arg(static_cast<qulonglong>(aRequest.Observation->StandardErrorBytes.load()))
+													 .toLatin1();
+						if (log) {
+							auto event          = application::diagnostic_event{ };
+							event.Outcome       = result ? application::diagnostic_outcome::succeeded : application::diagnostic_outcome::failed;
+							event.Summary.State = application::diagnostic_summary_state::sanitized;
+							event.Summary.Size  = static_cast<std::uint16_t>(std::min<std::size_t>(static_cast<std::size_t>(summaryText.size()), event.Summary.Text.size()));
+							std::copy_n(summaryText.constData(), event.Summary.Size, event.Summary.Text.begin());
+							static_cast<void>(log->record(event));
+						}
+						bpr::app::detail::terminal_text_stream{ } << summaryText << "\n";
+						return result;
+					};
 					try {
 						if (fixtureResult.has_value()) {
 							accounts = std::move(fixtureResult);
 						} else {
 							auto configuration = live_gh_cli_configuration();
 							auto process       = adapters::github::detail::make_github_cli_process_runner();
+							if (!configuration) {
+								const auto available = gh_cli_executable_available();
+								if (!available) {
+									failure = qt::github_cli_discovery_state::missing_executable;
+								}
+								bpr::app::detail::terminal_text_stream{ } << "GH_DISCOVERY stage=configuration category=" << (!available ? "missing_executable" : "invalid_configuration") << "\n";
+							}
 							if (configuration && process) {
-								const auto version = probe_supported_gh_cli_version(
-									*process, *configuration);
-								if (!version) {
-									failure = version.error()
-											== gh_cli_version_probe_failure::unsupported_version
-										? qt::github_cli_discovery_state::unsupported_version
-										: qt::github_cli_discovery_state::process_failed;
-								} else {
+								const auto version = probe(*process, adapters::github::detail::compile_gh_cli_version_request(*configuration), "version");
+								if (version && version->ExitCode != 0) {
+									failure = qt::github_cli_discovery_state::exited_unsuccessfully;
+								} else if (version && !adapters::github::detail::supported_gh_cli_auth_status_version(version->StandardOutput)) {
+									failure = qt::github_cli_discovery_state::unsupported_version;
+								} else if (version) {
 									// gh exits 1 when any account fails its check; the
 									// JSON still says which, so it is read either way.
-									const auto status = process->run(
-										adapters::github::detail::compile_gh_cli_auth_inventory_request(
-											*configuration),
-										std::stop_token{ });
+									const auto status = probe(*process,
+															  adapters::github::detail::compile_gh_cli_auth_inventory_request(*configuration), "inventory");
 									if (status && (status->ExitCode == 0 || status->ExitCode == 1)) {
 										auto parsed = adapters::github::detail::parse_gh_cli_auth_inventory(
 											status->StandardOutput);
@@ -14812,13 +14878,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									choices.push_back(registered->profile());
 								}
 							}
+							const auto hadAccounts = !discovered->empty();
+							bpr::app::detail::terminal_text_stream{ } << "GH_DISCOVERY stage=selection eligible=" << static_cast<qulonglong>(choices.size()) << " total=" << static_cast<qulonglong>(discovered->size()) << "\n";
 							Profile->GithubCliInventory        = std::move(*discovered);
 							Profile->GithubCliInventoryChecked = true;
 							present_github_cli_accounts();
 							Window->present_cli_account_choices(choices);
 							Window->present_github_cli_discovery(
 								choices.empty()
-									? qt::github_cli_discovery_state::empty
+									? (hadAccounts ? qt::github_cli_discovery_state::ineligible_accounts : qt::github_cli_discovery_state::empty)
 									: qt::github_cli_discovery_state::ready,
 								choices.size());
 							if (aConnectSingle && choices.size() == 1U && GithubCliDiscoveryGeneration == discoveryGeneration) {
