@@ -205,7 +205,7 @@ write.
   `DOCUMENTATION_OK` and `verify_documentation_tests` OK on the branch merged
   with main at `0c6d520ad`. Composition contracts: the round-trip contract
   resealed and passing, `application_composition_contract` and the other nine
-  passing. Full `ctest --preset dev -j 6` on `b39c5a8c0`-equivalent tree
+  passing. Full `ctest --preset dev -j 6` on `df7c47f82`
   (main merged at `0c6d520ad`): 762/770 under load average 80-156 with other
   agents' builds; the eight failures, rerun alone, all pass:
   `documentation_structure`, `documentation_issue_graph_contract` and
