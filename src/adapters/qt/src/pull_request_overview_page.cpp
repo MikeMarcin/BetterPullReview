@@ -6,6 +6,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pending_veil.hpp"
@@ -2082,19 +2083,16 @@ namespace bpr::qt {
 			return parts.join(QStringLiteral(". ")) + QLatin1Char{ '.' };
 		}
 
-		/// \brief One roster line: a tile with an initial, the name, and a
-		/// short coloured word at the right, over a rule. A circle is a
-		/// person; [[BPR-1405]] a rounded square is a team.
+		/// \brief One roster line: an avatar, the name, and a short coloured
+		/// word at the right, over a rule. A circle is a person; [[BPR-1405]] a
+		/// rounded square is a team. [[BPR-1583]] The avatar is the shared one,
+		/// in the person's own colour.
 		struct roster_line
 		{
-			QString Name;
-			/// Where the initial is taken from: a team's slug, not its organization.
-			qsizetype InitialFrom = 0;
-			QString   Detail;
-			QColor    DetailInk;
-			QColor    TileFill;
-			QColor    TileInk;
-			bool      Square = false;
+			QString              Name;
+			identity_avatar_face Face;
+			QString              Detail;
+			QColor               DetailInk;
 			/// [[BPR-1405]]. Requests keep both ends: teams of one organization
 			/// differ only in their slug.
 			Qt::TextElideMode Elide = Qt::ElideRight;
@@ -2107,21 +2105,7 @@ namespace bpr::qt {
 			const auto& colours = aRow.palette();
 			const auto  centre  = QPointF{ 11.0, aRow.height() / 2.0 };
 			const auto  tile    = QRectF{ centre.x() - 9.0, centre.y() - 9.0, 18.0, 18.0 };
-			painter.setPen(Qt::NoPen);
-			painter.setBrush(aLine.TileFill);
-			if (aLine.Square) {
-				painter.drawRoundedRect(tile, 4.0, 4.0);
-			} else {
-				painter.drawEllipse(tile);
-			}
-			auto small = aRow.font();
-			small.setPointSizeF(small.pointSizeF() * 0.8);
-			small.setWeight(QFont::DemiBold);
-			painter.setFont(small);
-			painter.setPen(aLine.TileInk);
-			const auto from    = aLine.Name.cbegin() + std::clamp<qsizetype>(aLine.InitialFrom, 0, aLine.Name.size());
-			const auto initial = std::find_if(from, aLine.Name.cend(), [](const QChar aCharacter) { return aCharacter.isLetterOrNumber(); });
-			painter.drawText(tile, Qt::AlignCenter, initial == aLine.Name.cend() ? QString{ } : QString{ *initial }.toUpper());
+			paint_identity_avatar(painter, tile, aLine.Face, identity_avatar_grounds_of(colours), aRow.font());
 			// One compact line; the whole name stays in the tooltip and the
 			// accessible name when space is tight.
 			painter.setFont(aRow.font());
@@ -2208,8 +2192,9 @@ namespace bpr::qt {
 		case application::overview_signoff::none:
 			break;
 		}
-		// The avatar is accented for me.
-		paint_roster_line(*this, { .Name = login(), .Detail = standing_text().isEmpty() ? role_text(Participant.Role) : standing_text(), .DetailInk = standing, .TileFill = Participant.Viewer ? Colours.Unread : colours.color(QPalette::Active, QPalette::Mid), .TileInk = colours.color(QPalette::Active, Participant.Viewer ? QPalette::Base : QPalette::WindowText) });
+		// [[BPR-1583]]. Mine is ringed, as Threads rings it.
+		const auto face = identity_avatar_face{ .Identity = login(), .Ring = Participant.Viewer ? colours.color(QPalette::Active, QPalette::PlaceholderText) : QColor{ } };
+		paint_roster_line(*this, { .Name = login(), .Face = face, .Detail = standing_text().isEmpty() ? role_text(Participant.Role) : standing_text(), .DetailInk = standing });
 	}
 
 	// ---- overview_request_row -----------------------------------------------
@@ -2260,7 +2245,13 @@ namespace bpr::qt {
 		const auto& colours = palette();
 		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
 		const auto  name    = Request.Name.empty() ? QStringLiteral("Reviewer unavailable") : text(Request.Name);
-		paint_roster_line(*this, { .Name = name, .InitialFrom = Request.Team ? name.indexOf(QLatin1Char{ '/' }) + 1 : 0, .Detail = Request.CodeOwner ? QStringLiteral("code owner") : QStringLiteral("requested"), .DetailInk = Request.CodeOwner ? Colours.Waiting : faint, .TileFill = colours.color(QPalette::Active, QPalette::Mid), .TileInk = colours.color(QPalette::Active, QPalette::WindowText), .Square = Request.Team, .Elide = Qt::ElideMiddle });
+		// [[BPR-1583]]. A team is keyed on organization/slug and initialled from
+		// its slug; a hidden reviewer is the neutral face.
+		const auto identity = text(Request.Name);
+		const auto face     = identity_avatar_face{ .Identity     = identity,
+													.InitialsFrom = Request.Team ? identity.mid(identity.indexOf(QLatin1Char{ '/' }) + 1) : QString{ },
+													.Shape        = Request.Team ? identity_avatar_shape::group : identity_avatar_shape::person };
+		paint_roster_line(*this, { .Name = name, .Face = face, .Detail = Request.CodeOwner ? QStringLiteral("code owner") : QStringLiteral("requested"), .DetailInk = Request.CodeOwner ? Colours.Waiting : faint, .Elide = Qt::ElideMiddle });
 	}
 
 	// ---- pull_request_overview_page -----------------------------------------

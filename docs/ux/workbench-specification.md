@@ -514,8 +514,8 @@ configured minimum, changes requested, each failed check, and each expected
 required result that has not reported. They remain visible together.
 **Waiting on** lists outstanding requests as roster rows in Participants'
 anatomy, code-owner requests first and marked "code owner", ordinary requests
-marked "requested". A team has a square tile and its organization-qualified
-slug; its supplied name is in the row's tooltip and accessible name. Names
+marked "requested". A team has a square avatar ([People's avatars](#peoples-avatars))
+and its organization-qualified slug; its supplied name is in the row's tooltip and accessible name. Names
 elide in the middle, so teams of one organization stay distinguishable. A
 complete empty roster shows nothing; a partial or last-known one says so. A
 prior approval stays in Participants while a re-request stays in the roster.
@@ -579,9 +579,9 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
 
 - **The strip.** Home at the left; at the right, before a divider, the
   account and settings buttons. While Home is shown and an account can fill
-  its list, Group, State headers, Filter and the refresh glyph stand before
-  them. Signed out those four act on nothing, so they are absent rather than
-  disabled, which is how RFC-BPR-0028's rule that the strip carries only
+  its list, **View** and the refresh glyph stand before them ([[BPR-1580]]:
+  View replaced Group, State headers and Filter). Signed out those two act on
+  nothing, so they are absent rather than disabled, which is how RFC-BPR-0028's rule that the strip carries only
   Home, account and settings still holds there. They are absent from the
   review strip for the same reason. On Home the refresh glyph is the
   profile's personal discovery (RFC-BPR-0026, [[BPR-0990]], answering
@@ -744,13 +744,14 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   when a signed-in window's ready queue is empty Needs me holds one sentence
   — "Nothing needs me. Pull requests from saved repositories and observer
   rules appear here." — whose link, on "saved repositories", opens Settings ›
-  Repositories; observer rules are reached from Filter's Open Reviews & queue.
+  Repositories; observer rules are reached from View's Open Reviews & queue.
   No empty
   box is drawn in any arrangement.
-- **Group** is a strip menu of None (the default), Organization, Repository
-  and Account. A group is a neutral panel headed by an initial tile — round
-  for an account, a small radius for an owner that is not one — and its name,
-  with its count; no avatar image is cached, so the tile is all there is.
+- **Group by** offers None (the default), Organization, Repository and
+  Account. A group is a neutral panel headed by its owner's avatar
+  ([People's avatars](#peoples-avatars)) — round for an account, a small
+  radius for an owner that is not one; a repository's is its owner's — and
+  its name, with its count.
   With State headers on, a slim tinted band per non-empty state nests inside
   each group and collapses on its own; with it off, the group's rows sit
   directly in state order carrying their marks.
@@ -758,17 +759,53 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   queue names more than one account. A group whose rows are all one account
   carries the chip in its header instead and its rows drop it; under Account
   grouping no row carries one; with a single account none is drawn anywhere.
-  A chip uses neutral palette roles only, because on Home colour means state
-  and a chip in a state's colour would claim a state its account does not
-  have.
-- **Filter** is a strip menu of exactly four sections over the surviving
-  typed queue preferences — My role, Added by, Quiet items, and Sort within a
-  group — each an exclusive choice listing every value of its vocabulary, so
-  an item cannot be unticked into nothing. Repository and Bucket are no
-  longer filters because Group and the state order do their work. The menu's
-  footer says that nothing there changes GitHub and that observer rules are
-  in Settings › Reviews & queue, and offers the way there. These are the same typed controls Settings
-  presents as queue defaults, not a mirror of them.
+  A chip's outline and login use neutral palette roles only, because on Home
+  colour means state and a chip in a state's colour would claim a state its
+  account does not have; its avatar is the account's own
+  ([People's avatars](#peoples-avatars)), which is a person, not a state.
+- **View** ([[BPR-1580]], the owner, 2026-10-17: "I wonder if we should
+  collapse these 3 into one"; "I don't understand what half these options on
+  Filter are even meant to do") is the one strip menu over how Home arranges
+  and filters its list. It replaced three controls, Group, State headers and
+  Filter, whose four Filter groups were `QMenu::addSection` titles that the
+  native macOS menu draws as bare separators. Every group is now a submenu
+  whose item names the group and its current value, so the native menu
+  draws every label: **Group by: None** ▸, **Sort by: Priority** ▸ (the
+  order inside each state), **State headers** (checkable), then **My role:
+  Any** ▸, **Added by: Any** ▸ and **Quiet items: Show** ▸, then **Reset to
+  defaults**, then the footer "Nothing here changes GitHub." and **Open
+  Reviews & queue**. Each submenu is one exclusive choice listing every value of its
+  vocabulary, so an item cannot be unticked into nothing. A native macOS menu
+  shows no tooltip, so each choice explains itself in its own words: My role
+  reads Any role, I opened it, I reviewed it, My review is requested, I took
+  part in it and None of these (a rule or a follow added it); Added by opens
+  with the line "Observer rules are mine, kept in Settings › Reviews & queue"
+  and reads Any way, A rule on a repository, A rule on an author and A rule
+  on a path;
+  Quiet items opens with the line "Quiet: nothing new for me and nothing
+  waiting on anyone" and reads Show, Hide and Only quiet. The parent item
+  shows the value's short name (Author, Requested, No role, Path rule, Only
+  quiet), and every choice also carries a tooltip and status tip where the
+  platform draws them. Added by is
+  offered only when the profile has an observer rule, or when this window is
+  already filtered by one. Repository and Bucket are not Home filters because
+  Group by and the state order do their work. These are the same typed
+  controls Settings presents as queue defaults, not a mirror of them.
+
+  The button always reads **View**, with no count or mark (the owner on
+  2026-10-17, of a first candidate that counted the changed choices: "I'm
+  not sure why View carries a count"). Its tooltip and accessible
+  description name each choice that differs from its default ("2 changed:
+  Group by Repository; My role Requested."), and the menu's own items show
+  every value. **Reset to defaults** is enabled exactly
+  then and restores Group by None, Sort by Priority, State headers on, My role
+  Any, Added by Any and Quiet items Show in one gesture; the profile hears its
+  filter part as it hears a filter choice. When the queue has rows and the
+  view's filters hide all of them, the list holds one sentence, "Filters hide
+  all 5 pull requests. Clear filters or change them under View.", whose
+  **Clear filters** link (Tab, Return or Space) puts My role, Added by and
+  Quiet items back to their defaults and leaves the arrangement alone; the
+  line under the bar does not repeat it.
 - **Recently viewed** is the last panel in every arrangement, and Resume is
   its rows' action: on hover, on focus and in the row's menu. It is governed
   by the entries the composition gave the window rather than by the account,
@@ -867,7 +904,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   session projection carries one account on one host and no refresh time, so
   the line says that much and no more.
 
-Group, State headers, Filter and the collapse of the panels that carry no
+View's choices (Group by, Sort by, State headers and the filters) and the collapse of the panels that carry no
 name are remembered per window, in the per-window table of the workbench
 layout store (Home view introduced in schema 8; schema 19 adds the
 independent My pull requests collapse bit). A group panel's own collapse is not: its key would
@@ -884,12 +921,28 @@ No list, no panels, no filters.
 
 Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
 the filled button at the bar's right on the bar's own line, its description
-naming what is being reviewed and how far through it. Home beneath it is
+naming what is being reviewed and how far through it. Its key is said in its
+tooltip and description, not beside it ([[BPR-1573]], the owner, 2026-10-17:
+"Move this hotkey into the tooltip"). Home beneath it is
 unchanged, and whatever had focus in the review has it again when the review
 returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
 and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
+
+**Close review** follows the way back on the same line
+([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
+to back to review"). It is bordered, so Back to the review stays the page's
+one filled control and Return's default, and it has no key of its own; Tab
+reaches it after Back to the review. Its description names the review and
+says that its drafts are kept. Closing lets go of the review in this window
+only: the window's read forgets the pull request (a read in flight is
+cancelled), and the review is released exactly as opening another pull
+request releases it, so a comment being written is saved and is there when
+the same pull request is opened again; nothing asks first. The document tabs
+start again. Home is left with nothing to return to, the bar takes focus,
+the status bar says "Closed the review of owner/name#123.", and Refresh has
+nothing to reread. Another window showing the same pull request keeps it.
 
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic
@@ -924,7 +977,7 @@ job.
   Connected, Connecting, Signing in, Signed out, or the short refusal "Could
   not connect". Connected is drawn in the accepted green and is the only
   colour on the page.
-- The account row is a letter avatar, the login, and one consequence sentence
+- The account row is the account's avatar ([People's avatars](#peoples-avatars)), the login, and one consequence sentence
   built from the existing grant projection; signed out it reads "No account"
   with the terms of signing in instead. **Sign out** stands at its right
   while a session exists, **Sign in** while the card speaks for the chosen
@@ -2290,6 +2343,46 @@ shared registry/updater data, exports and sibling profiles. Follow the
 [typed maintenance contract](../architecture/release-maintenance.md). Component
 rendering/public-path evidence does not supply the still-pending complete native
 accessibility, vault, purge or uninstall qualification.
+
+## People's avatars
+
+[[BPR-1583]] (owner, 2026-10-17: "It's weird that people have coloured icons
+in Threads but they're not coloured in Overview."). A person, a team or a
+GitHub owner is drawn by one avatar everywhere: Threads and the Comments
+drawer's notes and reply faces, the open thread's posts, the reply
+composer's own face, Discuss and the thread finder, Overview's participants
+and review requests, Home's account chips and group headers, and the
+Settings account card with its GitHub CLI accounts. No surface shows or
+fetches a GitHub avatar image.
+
+- **Colour.** An identity keeps one of ten tones on every surface. Its slot is
+  FNV-1a over the login with ASCII letters folded to lower case (logins are
+  case-insensitive), then MurmurHash3's 32-bit finalizer, modulo ten; a team
+  is keyed on `organization/slug`, a repository group on its owner. The tones
+  are ten hues round the wheel with the muddy yellow band left out. On a light
+  ground each is a deep fill with white initials; on a dark ground a light
+  fill with initials in the hue's own near-black. Every fill stands out from
+  the window and base of all four built-in themes at 3:1 or more, and its
+  initials read at 7:1 or more, which is the high-contrast text minimum as
+  well as the standard one. A custom theme whose grounds a tone does not clear
+  moves the fill a sixteenth at a time towards black on a light ground or
+  white on a dark one until it does. No identity (a signed-out account, a
+  hidden reviewer) is a neutral grey face with `?`.
+- **Initials.** The name is split at every ASCII character that is not a
+  letter or digit, after a trailing `[bot]` is dropped; the first character of
+  the first word, and of the second when there is one, upper-cased:
+  `tbutler` is T, `reviewer-four` is RF, `dependabot[bot]` is D. A team is
+  initialled from its slug, a repository group from its owner.
+- **Shape and size.** A person or an account is a disc; a team, or an owner
+  that is not one of the queue's accounts, a square with a corner radius of 0.22
+  of its side. Each surface keeps its own size (18 px on notes, posts and
+  Overview's rows, 14 px for reply faces, Home's line height, 32 px on the
+  account card); the initials are bold at 0.53 of the side for one letter
+  and 0.44 for two. Mine carries a one-pixel ring two pixels outside the
+  disc in the placeholder ink, on Threads and Overview alike.
+- The Profiles sheet keeps its neutral letter tile: a profile is not a
+  person. On Home a person's colour is the person's own; rows, bands and tags
+  keep colour for state.
 
 ## Command placement
 

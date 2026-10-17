@@ -6994,6 +6994,34 @@ namespace bpr::app {
 			}
 			TabDestination = aDestination;
 		}
+		/// \brief [[BPR-1573]]. Close review on Home.
+		///
+		/// \details The core forgets this window's pull request; the read host
+		/// stops its read and invalidates the epoch authority, which releases
+		/// the review through `invalidate`, as opening another pull request
+		/// does, so its drafts are kept where that keeps them. The tabs were
+		/// the closed review's and start again, as for another pull request
+		/// ([[BPR-1539]]). Other windows keep their own reads.
+		void close_review()
+		{
+			if (Closing || !WindowRead || !Profile->current_window(DraftWindow)) {
+				return;
+			}
+			cancel_restoration(false, true);
+			WindowRead->dispatch(core::github_window_read_event{ core::close_pull_request_intent{ } });
+			const auto& state = WindowRead->state();
+			if (state.ActiveLocator || state.PendingPullRequest || state.PullRequest) {
+				return;
+			}
+			if (TabHost != nullptr) {
+				cancel_review_navigation();
+				abandon_tab_load();
+				TabPresented.reset();
+				ObservedTabFile.reset();
+				TabHost->reset();
+			}
+			TabDestination.reset();
+		}
 		/// \brief One file/change press bound to the PR and exact active tab that entered Review.
 		struct pending_review_navigation
 		{
@@ -7718,6 +7746,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
 			Window->set_header_source_dispatch([this] { dispatch_header_source(); });
 			Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });
+			Window->set_close_review_dispatch([this] { close_review(); });
 			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 				if (!Closing && TourHost && current(DraftWindow)) {
 					aCommand.Attention = current_tour_attention();
@@ -21652,6 +21681,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return result;
 	}
 
+	auto detail::github_application_fixture_access::close_review(
+		const github_application& aApplication) -> close_review_evidence
+	{
+		auto        result         = close_review_evidence{ };
+		const auto* implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->WindowRead) {
+			return result;
+		}
+		const auto& state           = implementation->WindowRead->state();
+		result.ReadHoldsPullRequest = state.ActiveLocator.has_value() || state.PendingPullRequest.has_value()
+			|| state.PullRequest.has_value() || state.AcceptedSnapshot.has_value();
+		result.SnapshotHeld       = implementation->WindowRead->accepted_snapshot().has_value();
+		result.ReadingDestination = implementation->ReadingDestination.has_value();
+		result.TabDestination     = implementation->TabDestination.has_value();
+		result.LedgerComposed     = implementation->SharedDrafts != nullptr;
+		if (implementation->TabHost != nullptr) {
+			result.Tabs      = implementation->TabHost->state().Tabs.size();
+			result.TabChosen = implementation->TabHost->state().Chosen.has_value();
+		}
+		for (const auto& draft : implementation->saved_draft_values()) {
+			result.SavedDraftBodies.push_back(draft.Body);
+		}
+		return result;
+	}
+
 	auto detail::github_application_fixture_access::evidence(
 		const github_application& aApplication) noexcept
 		-> detail::github_public_path_fixture_evidence
@@ -26107,8 +26161,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// [[BPR-1129]]. RFC-BPR-0052's title row, left to right: the platform
 		// inset, Home, repositories, files, the name, Open on GitHub right
 		// after it ([[BPR-1338]]), a spacer, the modality
-		// control, Home's Group, State headers and Filter (hidden outside
-		// Home), refresh, Home's discovery refresh (hidden outside Home),
+		// control, Home's View ([[BPR-1580]], hidden outside Home), refresh,
+		// Home's discovery refresh (hidden outside Home),
 		// comments, Hide Drawers ([[BPR-1295]]), a rule, account, settings.
 		// A hidden action is still one of the row's actions: the row pins order,
 		// not what is shown.
@@ -26132,7 +26186,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							   const qsizetype aIndex, const char* const aName) {
 			return widgetActionNamed(toolbarActions, aIndex + lead, aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 18 + lead + trailing
+		const auto exactRowOrder = toolbarActions.size() == 16 + lead + trailing
 			&& widgetActionNamed(toolbarActions, 0, "workbenchStripInsetAction")
 	#if defined(_WIN32)
 			&& widgetActionNamed(toolbarActions, 1, "workbenchStripMenuAction")
@@ -26144,18 +26198,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& named(5, "workbenchOpenOnGithubAction")
 			&& named(6, "workbenchNavigationSpacerAction")
 			&& named(7, "workbenchModalityAction")
-			&& named(8, "homeGroupAction")
-			&& named(9, "homeStateHeadersAction")
-			&& named(10, "homeFilterAction")
-			&& toolbarActions[at(11)] == window->github_refresh_action()
-			&& toolbarActions[at(12)] == window->queue_refresh_action()
-			&& toolbarActions[at(13)] == conversationsAction
-			&& toolbarActions[at(14)] == window->toggle_drawers_action()
-			&& named(15, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(16)] == window->account_action()
-			&& toolbarActions[at(17)] == window->settings_action()
+			&& named(8, "homeViewAction")
+			&& toolbarActions[at(9)] == window->github_refresh_action()
+			&& toolbarActions[at(10)] == window->queue_refresh_action()
+			&& toolbarActions[at(11)] == conversationsAction
+			&& toolbarActions[at(12)] == window->toggle_drawers_action()
+			&& named(13, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(14)] == window->account_action()
+			&& toolbarActions[at(15)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(18, "workbenchCaptionButtonsAction")
+			&& named(16, "workbenchCaptionButtonsAction")
 	#endif
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the

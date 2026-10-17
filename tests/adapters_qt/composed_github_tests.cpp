@@ -1249,16 +1249,14 @@ namespace {
 				})
 				&& refreshPresenter != nullptr
 				&& window.focus_order().contains(refreshPresenter)
-				// [[BPR-0783]]. Home's three controls are the strip's stops, in
-				// the strip's reading order before the refresh glyph; the six
-				// typed queue controls are Settings' Queue defaults and are no
-				// longer declared here at all.
+				// [[BPR-0783]], [[BPR-1580]]. Home's View control is the strip's
+				// stop, in the strip's reading order before the refresh glyph;
+				// the six typed queue controls are Settings' Queue defaults and
+				// are no longer declared here at all.
 				&& containsInOrder(
 					window.focus_order(),
 					{
-						window.home_group_button(),
-						window.primary_toolbar()->widgetForAction(window.home_state_headers_action()),
-						window.home_filter_button(),
+						window.home_view_button(),
 						refreshPresenter,
 						technicalButton,
 					})
@@ -4758,7 +4756,7 @@ namespace {
 				   && landing->tertiary_button()->isVisible()
 				   && landing->tertiary_button()->text() == QStringLiteral("Add enterprise server")
 				   && !landing->tertiary_button()->isFlat() && !landing->tertiary_button()->isDefault()
-				   && !landing->shortcut_label()->isVisible()
+				   && !landing->close_button()->isVisible()
 				   && window.findChild<QPushButton*>(QStringLiteral("workbenchHomeReadSignedOutButton")) == nullptr,
 			   "signed out, Home's card is Sign in to GitHub with Sign in filled and Add enterprise server bordered");
 		expect(window.home_open_frame()->isVisible() && window.home_open_label()->text() == QStringLiteral("Open")
@@ -4860,9 +4858,7 @@ namespace {
 		expect(landing->state() == qt::landing_state::choose_pull_request && !landing->isVisible()
 				   && surface->isVisible()
 				   && window.home_list()->queue_shown()
-				   && window.home_group_button()->isVisible()
-				   && window.home_state_headers_action()->isVisible()
-				   && window.home_filter_button()->isVisible()
+				   && window.home_view_button()->isVisible()
 				   && window.home_open_bar()->placeholderText() == QStringLiteral("Paste a link, or write owner/name#123"),
 			   "a session with an account shows the queue, the bar names any pull request, and there is no card");
 		window.hide();
@@ -6705,14 +6701,14 @@ namespace {
 						->widgetForAction(window.files_drawer_toggle_action())
 						->isVisible()
 				&& !window.modality()->isVisible()
-				// [[BPR-0783]]. Home's strip carries Group, State headers, Filter
-				// and the refresh glyph before the account and settings, because
-				// an account can fill the list here. [[BPR-0990]]: on Home that
+				// [[BPR-0783]], [[BPR-1580]]. Home's strip carries View and the
+				// refresh glyph before the account and settings, because an
+				// account can fill the list here. [[BPR-0990]]: on Home that
 				// glyph is the profile's discovery, not the pull request's refresh.
-				&& window.home_group_button()->isVisible()
-				&& window.home_group_button()->text() == QStringLiteral("Group: None")
+				&& window.home_view_button()->isVisible()
+				&& window.home_view_button()->text() == QStringLiteral("View")
+				&& window.home_view_submenu(qt::home_view_choice::group)->title() == QStringLiteral("Group by: None")
 				&& window.home_state_headers_action()->isChecked()
-				&& window.home_filter_button()->isVisible()
 				&& window.primary_toolbar()
 					   ->widgetForAction(window.queue_refresh_action())
 					   ->isVisible()
@@ -6775,9 +6771,50 @@ namespace {
 		expect(!landing->secondary_button()->isVisible() && !landing->body_label()->isVisible()
 				   && !landing->title_label()->isVisible()
 				   && landing->primary_button()->accessibleDescription().startsWith(QStringLiteral("Reviewing "))
-				   && landing->shortcut_label()->isVisible()
-				   && landing->shortcut_label()->text() == window.home_action()->shortcut().toString(QKeySequence::NativeText),
-			   "the return row is one button with its shortcut and no second button or body");
+				   && std::ranges::none_of(landing->findChildren<QLabel*>(), [](const QLabel* const aLabel) { return aLabel->isVisible(); }),
+			   "the return row is the way back and no second way in, body or key text");
+		// [[BPR-1573]]. The way back's key is in its tooltip and description,
+		// not beside it (the owner, 2026-10-17: "Move this hotkey into the tooltip").
+		{
+			const auto homeKey = window.home_action()->shortcut().toString(QKeySequence::NativeText);
+			expect(landing->primary_button()->toolTip() == landing->primary_button()->accessibleDescription()
+					   && landing->primary_button()->toolTip().endsWith(QStringLiteral("(%1).").arg(homeKey)),
+				   "the way back's tooltip and description end with Home's key: " + landing->primary_button()->toolTip().toStdString());
+		}
+		// [[BPR-1573]]. Close review follows the way back, bordered, named and
+		// described, reachable by Tab, and with no key of its own.
+		{
+			auto* const close = landing->close_button();
+			const auto  key   = QRect{ landing->primary_button()->mapTo(window.home_page(), QPoint{ }), landing->primary_button()->size() };
+			const auto  shut  = QRect{ close->mapTo(window.home_page(), QPoint{ }), close->size() };
+			expect(close->isVisible() && close->text() == QStringLiteral("Close review") && close->accessibleName() == QStringLiteral("Close review")
+					   && close->accessibleDescription().startsWith(landing->primary_button()->accessibleDescription().section(QStringLiteral(". Returns"), 0, 0))
+					   && close->accessibleDescription().endsWith(QStringLiteral("Closes it in this window; its drafts are kept for when you open it again."))
+					   && !close->isDefault() && landing->primary_button()->isDefault() && close->shortcut().isEmpty()
+					   && shut.left() > key.right() && std::abs(shut.center().y() - key.center().y()) <= 2,
+				   "Close review follows the way back on the bar's line, named, described and bordered");
+			landing->primary_button()->setFocus(Qt::TabFocusReason);
+			QApplication::processEvents();
+			expect(window.focusWidget() == landing->primary_button() && landing->primary_button()->nextInFocusChain() != nullptr,
+				   "the way back takes focus");
+			const auto press = [](QWidget* const aWidget, const int aKey, const QString& aText) {
+				for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+					auto event = QKeyEvent{ type, aKey, Qt::NoModifier, aText };
+					QApplication::sendEvent(aWidget, &event);
+				}
+				QApplication::processEvents();
+			};
+			press(landing->primary_button(), Qt::Key_Tab, QString{ });
+			expect(window.focusWidget() == close, "Tab from the way back reaches Close review");
+			auto closes = 0;
+			window.set_close_review_dispatch([&closes] { ++closes; });
+			press(close, Qt::Key_Space, QStringLiteral(" "));
+			expect(closes == 1 && landing->state() == qt::landing_state::back_to_review && window.statusBar()->currentMessage().isEmpty(),
+				   "Space on Close review asks once; the window says nothing closed until the review is gone");
+			window.set_close_review_dispatch({ });
+			window.home_open_bar()->setFocus(Qt::OtherFocusReason);
+			QApplication::processEvents();
+		}
 		expect(landing->height() < 80,
 			   "the return row is one row high; it is " + std::to_string(landing->height()));
 		expect(window.focusWidget() == window.home_open_bar(),

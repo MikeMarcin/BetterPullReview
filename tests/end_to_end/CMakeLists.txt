@@ -4399,6 +4399,20 @@ set_tests_properties(application_review_navigation_entry PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_NAVIGATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/review-navigation-renders"
     TIMEOUT 180 PASS_REGULAR_EXPRESSION "REVIEW_NAVIGATION_ENTRY_OK")
 
+# BPR-1573: Close review beside Back to the review releases the window's review
+# and keeps the comment being written for when it is opened again.
+bpr_add_executable(test_close_review_public_path close_review_public_path_tests.cpp)
+target_link_libraries(test_close_review_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_close_review_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_close_review_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_close_review_public_path)
+bpr_enable_warnings(test_close_review_public_path)
+bpr_add_network_isolated_test(NAME application_close_review WINDOWS_UNCONTAINED
+    COMMAND test_close_review_public_path)
+set_tests_properties(application_close_review PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 180 PASS_REGULAR_EXPRESSION "close review course passed")
+
 # RFC-BPR-0077: native Find through the shipped window, epoch actor and installed Git.
 bpr_add_executable(test_source_find_public_path source_find_public_path_tests.cpp)
 target_link_libraries(test_source_find_public_path PRIVATE BetterPullReview::Composition)
