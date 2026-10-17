@@ -361,6 +361,50 @@ namespace {
 		}
 	}
 
+	void test_a_bar_at_its_size_shows_its_whole_title()
+	{
+		// A bar laid out at its own size hint draws the same title as a wide
+		// one: the hint must not round the title a pixel short, which elided
+		// "Pull request and account" at 200%.
+		for (const auto& candidate : sites()) {
+			auto        host  = candidate.Make();
+			auto* const found = candidate.Find(*host);
+			if (found == nullptr) {
+				continue;
+			}
+			const auto title  = candidate.Title.isEmpty() ? found->text() : candidate.Title;
+			auto       canvas = QWidget{ };
+			canvas.setFont(found->font());
+			auto* const fitted = new qt::disclosure_button{ &canvas };
+			auto* const wide   = new qt::disclosure_button{ &canvas };
+			fitted->setText(title);
+			wide->setText(title);
+			// Neither takes focus when the canvas shows, so neither draws a ring.
+			fitted->setFocusPolicy(Qt::NoFocus);
+			wide->setFocusPolicy(Qt::NoFocus);
+			fitted->setGeometry(QRect{ QPoint{ 0, 0 }, fitted->sizeHint() });
+			wide->setGeometry(QRect{ QPoint{ 0, 40 }, fitted->sizeHint() + QSize{ 80, 0 } });
+			canvas.resize(fitted->sizeHint().width() + 100, 80);
+			canvas.show();
+			settle();
+			// Nor is either under the pointer, which sits at the canvas's corner.
+			fitted->setAttribute(Qt::WA_UnderMouse, false);
+			wide->setAttribute(Qt::WA_UnderMouse, false);
+			const auto small = fitted->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+			const auto large = wide->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+			// Compare the title's run, short of the bar's rounded right end.
+			const auto scale = small.devicePixelRatio();
+			const auto right = static_cast<int>((fitted->width() - 6) * scale);
+			auto       same  = true;
+			for (auto y = 0; y < small.height() && same; ++y) {
+				for (auto x = 0; x < right && same; ++x) {
+					same = small.pixelColor(x, y) == large.pixelColor(x, y);
+				}
+			}
+			expect(same, candidate.Name + ": the bar at its size hint shows the whole title \"" + title.toStdString() + "\"");
+		}
+	}
+
 	void test_a_palette_without_a_readable_raised_surface_falls_back()
 	{
 		// A top-level dialog keeps the platform palette, whose `Light` need not
@@ -396,6 +440,7 @@ auto main(int argc, char** argv) -> int
 	const auto   root = qEnvironmentVariable("BPR_DISCLOSURE_RENDER_ROOT");
 	test_the_treatment_is_bpr_1513s();
 	test_a_palette_without_a_readable_raised_surface_falls_back();
+	test_a_bar_at_its_size_shows_its_whole_title();
 	test_every_disclosure_reads_in_every_theme(root);
 	test_the_old_platform_bar_fails_the_reading(root);
 	if (Failures != 0) {

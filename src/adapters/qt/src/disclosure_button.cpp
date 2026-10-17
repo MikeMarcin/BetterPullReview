@@ -4,12 +4,14 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include <QFontMetrics>
+#include <QFontMetricsF>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
 #include <QRectF>
 
 #include <algorithm>
+#include <cmath>
 
 namespace bpr::qt {
 	namespace {
@@ -52,8 +54,10 @@ namespace bpr::qt {
 
 	auto disclosure_button::sizeHint() const -> QSize
 	{
-		const auto metrics = fontMetrics();
-		return QSize{ inset + chevron + gap + metrics.horizontalAdvance(text()) + inset, std::max(least_height, metrics.height() + text_margin) };
+		// The title's fractional advance, rounded up: an integer advance can
+		// round down and leave the whole title a pixel short, so it elides.
+		const auto title = static_cast<int>(std::ceil(QFontMetricsF{ font() }.horizontalAdvance(text()))) + 1;
+		return QSize{ inset + chevron + gap + title + inset, std::max(least_height, fontMetrics().height() + text_margin) };
 	}
 
 	auto disclosure_button::minimumSizeHint() const -> QSize
