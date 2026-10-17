@@ -72,15 +72,24 @@ for comments or something." Recorded as
 ## Evidence
 
 v001 (a switch in the writing hooks panel) was rejected in session
-1086a4c4343a1f2477fda538fcf9b519 (decision 01958fb1-6398-4e7e-b94f-8b1e9f01825d);
-its branch `claude/bpr-1568-label-helper-in-hooks` is superseded.
+1086a4c4343a1f2477fda538fcf9b519 (decision 01958fb1-6398-4e7e-b94f-8b1e9f01825d).
 
-v002 automated criteria pass (front matter); clang-tidy is clean on the
-changed sources and the documentation gate passes. The owner's look is pending in
-attended-review session fbb0fdf53d02e07ffd855f7a3ea33fc2 (state
-~/.mask/attended-review-sessions/bpr-1568-v002-20261017), candidate
-BPR-1568-comment-workshop-group-v002, revision frozen-ba97b4154-v002, frozen
-build /Users/jaeger/bpr-1568-v002.r8h53fi7 (executable sha256 689b1dae5ba3...).
+v002 (its own Comment workshop group on Reviews & queue, branch
+`claude/bpr-1568-v002-comment-workshop`) was rejected in session
+fbb0fdf53d02e07ffd855f7a3ea33fc2 (decision 97a50021-807b-4c5a-8196-064e97d12a63,
+2026-10-17T16:12:46Z), verbatim: "I think reviews & queues is too much of a big
+grab bag of settings and we should find a better organization." Its claims are
+released and its frozen build removed.
 
-Next: on Accept, merge main, reseal if `src/app` moved, run the full dev ctest,
-record the verdict, finish and land. On Reject, apply the note as v003.
+Design round (coordinator, 2026-10-17): a Settings organisation pass first.
+Three mockups of the real Settings window, in Light and Dark (A by task: Home &
+queue, Reviewing, Comments; B by place: Home, Overview, Review, Comments; C two
+pages: Home & queue, Review & comments), each placing the "Send with comment
+workshop requests" switch, wait as one choice in attended-review session
+0e5dbaff0d166bcc2c23a4c2c39ac937 (state
+~/.mask/attended-review-sessions/bpr-1568-settings-ia-v001-20261017), candidate
+BPR-1568-settings-organisation-v001. Stored settings and keys stay unchanged and
+the BPR-1289 settings search is preserved.
+
+Next: build the pick as a new card (its own ID) that folds this card's switch
+in, freeze it and ask a final Accept or Reject; this card then closes into it.
