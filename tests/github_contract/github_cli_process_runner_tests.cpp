@@ -955,11 +955,13 @@ namespace {
 
 		request                    = base_request(directory, { "--bpr-helper", "stderr", "31" });
 		request.StandardErrorLimit = 31U;
+		request.Observation        = std::make_shared<github_cli_process_observation>();
 		expect_failure(
 			*runner,
 			request,
 			github_cli_process_failure::unexpected_standard_error,
 			"stderr at N bytes is a fixed unexpected-output failure");
+		expect(request.Observation->StandardErrorBytes.load() == 31U && request.Observation->StandardOutputBytes.load() == 0U, "diagnostics preserve counts while error content stays unavailable");
 
 		request.Arguments.back() = "32";
 		expect_failure(
@@ -980,12 +982,14 @@ namespace {
 						== github_cli_process_failure::standard_error_limit),
 			"simultaneous stdout and stderr flood is drained and bounded");
 
-		request = base_request(directory, { "--bpr-helper", "nonzero" });
+		request             = base_request(directory, { "--bpr-helper", "nonzero" });
+		request.Observation = std::make_shared<github_cli_process_observation>();
 		expect_failure(
 			*runner,
 			request,
 			github_cli_process_failure::nonzero_exit,
 			"nonzero exit exposes no partial stdout");
+		expect(request.Observation->ExitCode.load() == 7 && request.Observation->StandardOutputBytes.load() == 10U, "content-free diagnostics retain completed exit and discarded byte count");
 
 		request = base_request(directory, { "--bpr-helper", "crash" });
 		expect_failure(

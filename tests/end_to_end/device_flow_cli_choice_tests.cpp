@@ -93,6 +93,41 @@ namespace {
 		expect(aSurface.grab().save(QStringLiteral("%1/%2.png").arg(directory, aName), "PNG"), "the capture is written");
 	}
 
+	// [[BPR-1571]]. Exercise the actual discovery completion and projection,
+	// not only the Qt message setter, with the inaccessible-Keychain shape.
+	void inaccessible_cli_inventory_stays_signed_out()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.RegisteredDeviceCourse     = true;
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
+			{ .Hostname = "github.com", .Login = "fixture-user", .SignedIn = false, .KeychainHeld = false }
+		};
+		std::unique_ptr<app::github_application> application;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "ineligible-inventory application starts");
+		expect(application != nullptr, "ineligible-inventory composition is available");
+		auto& window = application->window();
+		window.show();
+		window.use_github_cli_button()->click();
+		wait_for([&] { return window.github_cli_discovery_status()->text().contains(QStringLiteral("available from secure storage")); },
+				 "completed but ineligible inventory reaches its own actionable message");
+		expect(window.session_panel()->status() == core::github_status::no_profile,
+			   "inaccessible account is not promoted to an authenticated session");
+		expect(window.use_github_cli_button()->isEnabled(), "discovery can be retried after environment recovery");
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "ineligible-inventory hosts quiesce");
+	}
+
 	void run(const ending aEnding)
 	{
 		auto temporary = QTemporaryDir{ };
@@ -218,6 +253,7 @@ namespace {
 int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
+	inaccessible_cli_inventory_stays_signed_out();
 	run(ending::cli_connects_at_once);
 	run(ending::cli_chosen_first);
 	run(ending::device_first);

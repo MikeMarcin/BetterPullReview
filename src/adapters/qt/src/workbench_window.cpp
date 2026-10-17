@@ -5570,6 +5570,7 @@ namespace bpr::qt {
 		GithubCliDiscoveryStatus->setObjectName(QStringLiteral("githubCliDiscoveryStatus"));
 		GithubCliDiscoveryStatus->setTextFormat(Qt::PlainText);
 		GithubCliDiscoveryStatus->setWordWrap(true);
+		GithubCliDiscoveryStatus->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		GithubCliDiscoveryStatus->setForegroundRole(QPalette::PlaceholderText);
 		GithubCliDiscoveryStatus->hide();
 		aLayout.addWidget(GithubCliDiscoveryStatus);
@@ -5650,7 +5651,7 @@ namespace bpr::qt {
 			break;
 		case github_cli_discovery_state::empty:
 			GithubCliDiscoveryStatus->setText(QStringLiteral(
-				"GitHub CLI reported no signed-in accounts. Run gh auth login, then try again."));
+				"GitHub CLI reported no signed-in accounts. Run gh auth login in Terminal, then retry."));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::unsupported_version:
@@ -5661,6 +5662,30 @@ namespace bpr::qt {
 		case github_cli_discovery_state::process_failed:
 			GithubCliDiscoveryStatus->setText(QStringLiteral(
 				"GitHub CLI could not be run successfully. Verify gh auth status in Terminal, then try again."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::ineligible_accounts:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI accounts were found, but none is both signed in and available from secure storage. Check gh auth status in Terminal. If it works there, check for operating-system updates and retry, or use Sign in."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::missing_executable:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI was not found. Install gh 2.96 or newer in PATH or /usr/local/bin, then retry."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::launch_failed:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI could not start. Check that gh can run on this system, then retry. On macOS, /usr/bin/sandbox-exec must also be available."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::timed_out:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI account discovery timed out. Check gh auth status in Terminal and network access, then retry."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::exited_unsuccessfully:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI exited unsuccessfully during discovery. Check gh --version and gh auth status in Terminal, then retry."));
+			GithubCliDiscoveryStatus->show();
+			break;
+		case github_cli_discovery_state::output_rejected:
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI output exceeded a limit or wrote unexpected diagnostic output. Check gh --version and gh auth status in Terminal; share the safe BPR diagnostic category if this persists."));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::malformed_response:
@@ -14969,7 +14994,13 @@ namespace bpr::qt {
 									   && (!SignInCliOnly || GithubCliDiscoveryState == github_cli_discovery_state::empty
 										   || GithubCliDiscoveryState == github_cli_discovery_state::process_failed
 										   || GithubCliDiscoveryState == github_cli_discovery_state::malformed_response
-										   || GithubCliDiscoveryState == github_cli_discovery_state::unsupported_version));
+										   || GithubCliDiscoveryState == github_cli_discovery_state::unsupported_version
+										   || GithubCliDiscoveryState == github_cli_discovery_state::ineligible_accounts
+										   || GithubCliDiscoveryState == github_cli_discovery_state::missing_executable
+										   || GithubCliDiscoveryState == github_cli_discovery_state::launch_failed
+										   || GithubCliDiscoveryState == github_cli_discovery_state::timed_out
+										   || GithubCliDiscoveryState == github_cli_discovery_state::exited_unsuccessfully
+										   || GithubCliDiscoveryState == github_cli_discovery_state::output_rejected));
 		if (DevicePanel && DevicePanel->signing_in()) {
 			DevicePanel->cancel_button()->hide();
 		}
