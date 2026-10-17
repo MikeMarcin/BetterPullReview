@@ -159,8 +159,11 @@ namespace bpr::application {
 		core::git_hash_algorithm           ObjectFormat = core::git_hash_algorithm::invalid;
 		core::base_branch_id               BaseBranch;
 		git_base_branch_ref                BaseRef;
-		core::git_commit_oid               Base;
-		core::git_commit_oid               Head;
+		/// [[BPR-1560]]. The comparison base: the merge base GitHub named for
+		/// the recorded base and head under `comparison_base_basis::merge_base`,
+		/// otherwise the recorded base itself, which Whole PR then refuses.
+		core::git_commit_oid Base;
+		core::git_commit_oid Head;
 		// Last of the identity fields and defaulted so every handoff written
 		// before the mode existed still names the authenticated authority it
 		// named. Under public preview Account and Viewer are zero by rule.
@@ -172,7 +175,20 @@ namespace bpr::application {
 		epoch_timeline_availability                TimelineAvailability = epoch_timeline_availability::unavailable;
 		std::vector<epoch_force_push_observation>  ForcePushes;
 		std::optional<accepted_pull_request_shape> Shape;
+		/// [[BPR-1560]]. The base commit GitHub records for the pull request
+		/// (`baseRefOid`, REST `base.sha`). It is what a publication checks
+		/// the pull request against; it is never compared from. Unset means
+		/// the producer recorded no separate base and `Base` is that commit.
+		core::git_commit_oid        RecordedBase;
+		core::comparison_base_basis BaseBasis = core::comparison_base_basis::merge_base;
 	};
+
+	/// \brief [[BPR-1560]]. The base commit GitHub records for the pull request.
+	[[nodiscard]] inline auto recorded_base(const accepted_pull_request_handoff& aHandoff) noexcept
+		-> const core::git_commit_oid&
+	{
+		return aHandoff.RecordedBase.valid() ? aHandoff.RecordedBase : aHandoff.Base;
+	}
 
 	/// \brief Checks whether the supplied value satisfies its contract.
 	[[nodiscard]] constexpr auto valid(
@@ -285,6 +301,9 @@ namespace bpr::application {
 			&& aHandoff.Base.valid() && aHandoff.Head.valid()
 			&& aHandoff.Base.algorithm() == aHandoff.ObjectFormat
 			&& aHandoff.Head.algorithm() == aHandoff.ObjectFormat
+			&& (!aHandoff.RecordedBase.valid() || aHandoff.RecordedBase.algorithm() == aHandoff.ObjectFormat)
+			&& (aHandoff.BaseBasis == core::comparison_base_basis::merge_base
+				|| (aHandoff.BaseBasis == core::comparison_base_basis::recorded_base && aHandoff.Base == recorded_base(aHandoff)))
 			&& (!aHandoff.CurrentViewerReview
 				|| application::valid(
 					*aHandoff.CurrentViewerReview,

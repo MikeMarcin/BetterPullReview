@@ -311,6 +311,14 @@ namespace bpr::app::detail {
 					if (w.Path == (Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/user" : "/api/v3/user")) {
 						return success(user_json());
 					}
+					if (w.Operation == wire::review_mutation_operation::observe_merge_base) {
+						// [[BPR-1560]]. The fixture's base branch has not moved.
+						const auto& t    = Binding.Target;
+						const auto  head = std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() };
+						return success("{\"url\":" + json_text("https://api.github.com/repos/" + t.Repository.Owner + "/" + t.Repository.Name + "/compare/" + t.BaseRef + "..." + head)
+									   + ",\"base_commit\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + "},\"merge_base_commit\":{\"sha\":"
+									   + json_text(std::string{ core::canonical_hex(application::comparison_base(t)).view() }) + "}}");
+					}
 					if (w.Path == pull()) {
 						const auto& t = Binding.Target;
 						return success("{\"id\":" + std::to_string(t.PullRequestDatabaseId) + ",\"node_id\":" + json_text(t.PullRequestNodeId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"state\":\"open\",\"body\":" + json_text(State->StagedDescription.value_or(Description)) + ",\"head\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() }) + ",\"ref\":" + json_text(t.HeadRef) + "},\"base\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + ",\"ref\":" + json_text(t.BaseRef) + ",\"repo\":{\"id\":" + std::to_string(t.BaseRepositoryDatabaseId) + ",\"node_id\":" + json_text(t.RepositoryNodeId) + ",\"full_name\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}");
@@ -459,7 +467,7 @@ namespace bpr::app::detail {
 						const auto left  = c["side"] == "LEFT";
 						const auto last  = static_cast<std::uint32_t>(c["line"].toInt() - 1);
 						const auto first = c.contains("start_line") ? static_cast<std::uint32_t>(c["start_line"].toInt() - 1) : last;
-						State->PreviousComments.push_back({ static_cast<std::uint64_t>(cid), "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? Binding.Target.BaseOid : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
+						State->PreviousComments.push_back({ static_cast<std::uint64_t>(cid), "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? application::comparison_base(Binding.Target) : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
 					}
 					if (std::exchange(State->LoseNextReview, false)) {
 						State->HideReviewReads = true;
@@ -481,7 +489,7 @@ namespace bpr::app::detail {
 						const auto left  = c["side"] == "LEFT";
 						const auto last  = static_cast<std::uint32_t>(c["line"].toInt() - 1);
 						const auto first = c.contains("start_line") ? static_cast<std::uint32_t>(c["start_line"].toInt() - 1) : last;
-						State->StagedComments.push_back({ cid, "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? Binding.Target.BaseOid : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
+						State->StagedComments.push_back({ cid, "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? application::comparison_base(Binding.Target) : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
 					}
 					++State->StagedCreates;
 				} else if (w.Method == wire::http_method::post && State->StagedReview && w.Path == pull() + "/reviews/" + std::to_string(State->StagedReview->Id.value()) + "/events" && object["event"] == "COMMENT") {

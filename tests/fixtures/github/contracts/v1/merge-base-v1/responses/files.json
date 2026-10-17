@@ -1,0 +1,38 @@
+[
+	{
+		"additions": 2,
+		"changes": 4,
+		"deletions": 2,
+		"filename": "a.txt",
+		"patch": "@@ -1,5 +1,5 @@\n a line 1\n-a line 2\n+a line 2 PR-1\n a line 3\n a line 4\n a line 5\n@@ -9,7 +9,7 @@\n a line 9\n a line 10\n a line 11\n-a line 12\n+a line 12 PR-3\n a line 13\n a line 14\n a line 15",
+		"sha": "dbc873f82aa775d8e65a4ea1df41f1562b3e91b6",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "b.txt",
+		"patch": "@@ -1,6 +1,6 @@\n b line 1\n b line 2\n-b line 3\n+b line 3 PR-2\n b line 4\n b line 5\n b line 6",
+		"sha": "9e1df51fbd5468c2d18f48912a8156f42e5e5e7e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "new.txt",
+		"patch": "@@ -0,0 +1 @@\n+added by the pull request",
+		"sha": "1e42af822f0796e5f0d6cac7d70cea17dd33759b",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "shared.txt",
+		"patch": "@@ -2,7 +2,7 @@\n shared line 2\n shared line 3\n shared line 4\n-shared line 5\n+shared line 5 PR-1\n shared line 6\n shared line 7\n shared line 8",
+		"sha": "df429c903580d5a377eef1b4c1d368a2ec3c372d",
+		"status": "modified"
+	}
+]

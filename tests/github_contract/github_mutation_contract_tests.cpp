@@ -536,6 +536,9 @@ namespace {
 		case operation::staged_update_pending_comment: return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateReviewComment" };
 		case operation::observe_pull_request:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
+		case operation::observe_merge_base:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1",
+								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1", "" };
 		case operation::observe_viewer:
 			return request_shape{ http_method::get, "/user", "/api/v3/user", "" };
 		case operation::observe_review_comments:
@@ -663,6 +666,7 @@ namespace {
 			compile_staged_review_request(staged_request(application::staged_review_operation::create_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_pending_comment, serverTarget)),
+			compile_merge_base_observation_request(serverTarget, aServer),
 
 		};
 	}
@@ -706,7 +710,7 @@ namespace {
 			row{ operation::staged_create_issue_comment, http_method::post, false, 201, true },
 			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
 			row{ operation::staged_update_pending_comment, http_method::post, true, 200, true },
-
+			row{ operation::observe_merge_base, http_method::get, false, 200, false },
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
@@ -1465,6 +1469,26 @@ namespace {
 					.has_value(),
 			   "redirect response is rejected");
 	}
+	/// [[BPR-1560]]. The publication's merge-base observation: one GET of
+	/// compare on the page with no file list, whose answer must echo the
+	/// target's head and name a full merge base of its format.
+	void test_merge_base_observation_contract()
+	{
+		const auto wire = compile_merge_base_observation_request(target(), application::github_server_contract::github_com_2022_11_28);
+		expect(wire && wire->Method == http_method::get && wire->Operation == review_mutation_operation::observe_merge_base && validate_outbound_review_mutation_request(*wire),
+			   "the merge-base observation is a canonical GET");
+		const auto head     = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+		const auto answered = [&](const std::string& aUrlHead, const std::string& aMergeBase) {
+			return parse_merge_base_observation(
+				{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/main..." + aUrlHead + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b') + "\"},\"merge_base_commit\":{\"sha\":\"" + aMergeBase + "\"},\"files\":[]}" },
+				target());
+		};
+		const auto named = answered(head, std::string(40U, 'c'));
+		expect(named && core::canonical_hex(*named).view() == std::string(40U, 'c'), "the merge base is read from the answer");
+		expect(!answered(std::string(40U, 'd'), std::string(40U, 'c')), "an answer about another head is refused");
+		expect(!answered(head, "cccc"), "an abbreviated merge base is refused");
+		expect(!answered(head, std::string(64U, 'c')), "a merge base of another format is refused");
+	}
 	void test_staged_batch_contract()
 	{
 		using op         = application::staged_review_operation;
@@ -1481,6 +1505,13 @@ namespace {
 		expect(!compile_staged_review_request(input), "left subject cannot silently borrow right head identity");
 		input.Lines[0].Source.Commit = target().BaseOid;
 		expect(compile_staged_review_request(input).has_value(), "left source binds exact base while batch commit remains head");
+		// [[BPR-1560]]. With a merge base apart from the recorded base, a LEFT
+		// line is numbered in the merge base and only there.
+		auto mergeBased                             = input;
+		mergeBased.Binding.Target.ComparisonBaseOid = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x5aU } };
+		expect(!compile_staged_review_request(mergeBased), "a LEFT line on the recorded base is refused when GitHub numbers LEFT in the merge base");
+		mergeBased.Lines[0].Source.Commit = mergeBased.Binding.Target.ComparisonBaseOid;
+		expect(compile_staged_review_request(mergeBased).has_value(), "a LEFT line on the merge base binds while the batch commit remains head");
 		input.Lines.resize(101, input.Lines.front());
 		expect(!compile_staged_review_request(input), "batch never silently partitions provider comment bound");
 		input                    = staged_request(op::create_pending);
@@ -1927,6 +1958,7 @@ auto main() -> int
 			   == R"({"fraction":1.5,"large":9007199254740993,"negative":-1,"null":null})",
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_staged_batch_contract();
+	test_merge_base_observation_contract();
 	test_staged_response_contract();
 	test_a_pending_stop_is_edited_by_graphql();
 	test_exact_wire_compilation_and_tamper_rejection();

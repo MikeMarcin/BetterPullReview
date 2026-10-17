@@ -422,10 +422,11 @@ namespace bpr::application {
 	///
 	/// \details [[BPR-1212]]. GitHub's diff of a pull request runs from the
 	/// merge base of its base and head, so a review comment's `side: LEFT`
-	/// line counts the merge base's version of the file. The comparison's
-	/// left side is the base tip ("Branch base" is not a computed merge base,
-	/// `git-and-epoch-model.md`), which numbers the same only where the file
-	/// is the same at both. `BaseTip` is GitHub's base OID, `Head` the
+	/// line counts the merge base's version of the file. [[BPR-1560]]: Whole
+	/// PR's left side is the merge base GitHub named, which the caller answers
+	/// without asking; any other left side (an earlier update's base) numbers
+	/// the same only where the file is the same at both. `BaseTip` is that
+	/// merge base (GitHub's recorded base when it named none), `Head` the
 	/// accepted head, `Left` the comparison's left commit and `LeftPath` its
 	/// path on that side.
 	struct github_base_numbering_request

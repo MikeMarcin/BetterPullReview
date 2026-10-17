@@ -865,6 +865,31 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		struct commit_sha_json
+		{
+			std::string Sha;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("sha", &commit_sha_json::Sha);
+			};
+		};
+
+		/// [[BPR-1560]]. GitHub's compare answer, of which only the echoed
+		/// pair and the two commits are read.
+		struct merge_base_response_json
+		{
+			std::string     Url;
+			commit_sha_json BaseCommit;
+			commit_sha_json MergeBaseCommit;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"url", &merge_base_response_json::Url,
+					"base_commit", &merge_base_response_json::BaseCommit,
+					"merge_base_commit", &merge_base_response_json::MergeBaseCommit);
+			};
+		};
+
 		struct review_json_options : glz::opts
 		{
 			// Glaze discovers these overrides by their exact library-defined names.
@@ -1130,6 +1155,11 @@ namespace bpr::adapters::github::detail {
 			append_fingerprint_text(material, target.PullRequestNodeId);
 			append_fingerprint_integer(material, target.BaseRepositoryDatabaseId);
 			append_fingerprint_oid(material, target.BaseOid);
+			// [[BPR-1560]]. Only a comparison base that differs from the
+			// recorded base adds material, so every earlier fingerprint holds.
+			if (application::comparison_base(target) != target.BaseOid) {
+				append_fingerprint_oid(material, application::comparison_base(target));
+			}
 			append_fingerprint_text(material, target.BaseRef);
 			append_fingerprint_text(material, target.HeadRef);
 			append_fingerprint_integer(material, target.Open ? 1U : 0U);
@@ -1872,7 +1902,7 @@ namespace bpr::adapters::github::detail {
 				|| (aComment.StartLine && (*aComment.StartLine == 0 || *aComment.StartLine >= *aComment.Line || aComment.StartSide != aComment.Side))) {
 				return std::nullopt;
 			}
-			const auto source = core::tour_code_destination{ .Commit = aComment.Side == "LEFT" ? target.BaseOid : *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
+			const auto source = core::tour_code_destination{ .Commit = aComment.Side == "LEFT" ? application::comparison_base(target) : *commit, .Path = aComment.Path, .Side = aComment.Side == "LEFT" ? core::diff_side::left : core::diff_side::right, .FirstLine = static_cast<std::uint32_t>(aComment.StartLine.value_or(*aComment.Line) - 1), .LastLine = static_cast<std::uint32_t>(*aComment.Line - 1) };
 			if (!core::valid(source)) {
 				return std::nullopt;
 			}
@@ -1932,7 +1962,7 @@ namespace bpr::adapters::github::detail {
 			staged_batch_json batch{ .Body = aRequest.Body, .Commit = std::string{ core::canonical_hex(target.Semantic.ExpectedHead).view() } };
 			for (const auto& line : aRequest.Lines) {
 				if (!core::valid(line.Source) || line.Source.Blob || line.Body.empty() || !utf8_round_trip(line.Body) || line.Body.size() > maximum_review_mutation_body_bytes
-					|| line.Source.Commit != (line.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : target.BaseOid)) {
+					|| line.Source.Commit != (line.Source.Side == core::diff_side::right ? target.Semantic.ExpectedHead : application::comparison_base(target))) {
 					return failed(review_mutation_contract_failure::invalid_request);
 				}
 				staged_line_json value{ .Path = line.Source.Path, .Body = line.Body, .Side = line.Source.Side == core::diff_side::right ? "RIGHT" : "LEFT", .Line = std::uint64_t{ line.Source.LastLine } + 1 };
@@ -2171,6 +2201,7 @@ namespace bpr::adapters::github::detail {
 		case operation::observe_viewer:
 		case operation::observe_review_comments:
 		case operation::observe_reviews:
+		case operation::observe_merge_base:
 			return review_mutation_exchange{ };
 		case operation::create_review_comment:
 			return review_mutation_exchange{
@@ -2222,6 +2253,51 @@ namespace bpr::adapters::github::detail {
 			.Body      = { },
 		};
 		return request;
+	}
+
+	auto compile_merge_base_observation_request(
+		const application::review_mutation_target_binding& aTarget,
+		const application::github_server_contract          aServer)
+		-> review_mutation_request_result
+	{
+		if (!application::valid(aTarget) || !valid_server(aServer) || aTarget.BaseRef.empty() || aTarget.BaseRef.size() > 256U
+			|| std::ranges::any_of(aTarget.BaseRef, [](const unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; })) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aTarget,
+			.Server    = aServer,
+			.Operation = review_mutation_operation::observe_merge_base,
+			.Method    = http_method::get,
+			.Path      = std::string{ rest_prefix(aServer) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name)
+				+ "/compare/" + percent_encode(aTarget.BaseRef) + "..." + std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() } + "?page=2&per_page=1",
+			.Headers = common_headers(),
+			.Body    = { },
+		};
+	}
+
+	auto parse_merge_base_observation(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected)
+		-> review_mutation_parse_result<core::git_commit_oid>
+	{
+		if (!application::valid(aExpected)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "location")) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<merge_base_response_json>(aResponse);
+		if (!response) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		const auto head      = std::string{ core::canonical_hex(aExpected.Semantic.ExpectedHead).view() };
+		const auto base      = core::parse_git_commit_oid(response->BaseCommit.Sha);
+		const auto mergeBase = core::parse_git_commit_oid(response->MergeBaseCommit.Sha);
+		if (!response->Url.ends_with("..." + head) || !base || !mergeBase || mergeBase->algorithm() != aExpected.Semantic.ExpectedHead.algorithm()) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return *mergeBase;
 	}
 
 	auto compile_viewer_observation_request(
@@ -2484,6 +2560,8 @@ namespace bpr::adapters::github::detail {
 					if constexpr (std::same_as<semantic_type, application::review_mutation_target_binding>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_review_comments
 							? compile_review_comment_collection_request(aSemantic, aRequest.Server, collection_page(aRequest.Path))
+							: aRequest.Operation == review_mutation_operation::observe_merge_base
+							? compile_merge_base_observation_request(aSemantic, aRequest.Server)
 							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
@@ -2638,7 +2716,7 @@ namespace bpr::adapters::github::detail {
 			return knownBlob && source.LineCount == 80U && anchor.Semantic.Side == core::diff_side::right
 				&& anchor.Semantic.Line < source.LineCount && (anchor.Semantic.Line < 6U || anchor.Semantic.Line >= 13U)
 				&& source.Placement != core::review_placement::legacy_line
-				&& endpoint.request().Diff.Comparison.Left.Commit == aRequest.LiveBinding->Target.BaseOid
+				&& endpoint.request().Diff.Comparison.Left.Commit == application::comparison_base(aRequest.LiveBinding->Target)
 				&& endpoint.request().File.Change == application::workbench_file_change_kind::modified
 				&& compile_review_permalink_body({ .Target = aRequest.LiveBinding->Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, anchor.Semantic, "Source validation").has_value();
 		}
@@ -3182,7 +3260,15 @@ namespace bpr::adapters::github::detail {
 		return std::unexpected(application::review_mutation_failure::cancelled);
 	}
 
-	auto review_mutation_session::observe_exact(const std::stop_token aStop)
+	namespace {
+		/// \brief [[BPR-1560]]. Whether the comment sits on a LEFT line.
+		[[nodiscard]] auto publishes_left(const application::review_mutation_request& aRequest) noexcept -> bool
+		{
+			return !aRequest.Proposal.ReplyToThread && aRequest.Proposal.Anchor.Side == core::diff_side::left;
+		}
+	}
+
+	auto review_mutation_session::observe_exact(const std::stop_token aStop, const bool aLeftLine)
 		-> std::expected<void, application::review_mutation_failure>
 	{
 		const auto viewerRequest = compile_viewer_observation_request(
@@ -3220,6 +3306,29 @@ namespace bpr::adapters::github::detail {
 		if (target->Target.Semantic.ExpectedHead
 			!= Configuration.Target.Semantic.ExpectedHead) {
 			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!aLeftLine) {
+			return { };
+		}
+		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
+		// which moves when the base branch takes commits the head shares, even
+		// with the recorded base and the head unchanged.
+		const auto mergeBaseRequest = compile_merge_base_observation_request(
+			Configuration.Target,
+			Configuration.CredentialContext.Authority.ServerContract);
+		if (!mergeBaseRequest.has_value()) {
+			return std::unexpected(map_contract_failure(mergeBaseRequest.error()));
+		}
+		auto mergeBaseResponse = perform(*mergeBaseRequest, aStop);
+		if (!mergeBaseResponse.has_value()) {
+			return std::unexpected(mergeBaseResponse.error());
+		}
+		const auto mergeBase = parse_merge_base_observation(*mergeBaseResponse, Configuration.Target);
+		if (!mergeBase.has_value()) {
+			return std::unexpected(map_contract_failure(mergeBase.error()));
+		}
+		if (*mergeBase != application::comparison_base(Configuration.Target)) {
+			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };
 	}
@@ -3499,7 +3608,7 @@ namespace bpr::adapters::github::detail {
 		if (!child_matches(request, aRecord)) {
 			return publication_failure();
 		}
-		if (const auto exact = observe_exact(aStop); !exact) {
+		if (const auto exact = observe_exact(aStop, publishes_left(request)); !exact) {
 			return publication_failure(exact.error());
 		}
 		if (aStop.stop_requested()) {
@@ -3635,7 +3744,7 @@ namespace bpr::adapters::github::detail {
 				return recover_publication(aRequest, *current, aStop);
 			}
 			if (!current) {
-				if (const auto exact = observe_exact(aStop); !exact) {
+				if (const auto exact = observe_exact(aStop, publishes_left(aRequest)); !exact) {
 					return publication_failure(exact.error());
 				}
 				auto next = application::review_publication_recovery_record{ .Key = key, .LegacyKey = aRequest.IdempotencyKey, .Fingerprint = fingerprint };
@@ -3664,7 +3773,7 @@ namespace bpr::adapters::github::detail {
 					continue;
 				}
 			} else if (plan.Action == action::fallback_attempt && (current->State == publication_state::native_definitively_unsupported || current->State == publication_state::unsupported_evidence_admitted)) {
-				if (const auto exact = observe_exact(aStop); !exact) {
+				if (const auto exact = observe_exact(aStop, publishes_left(aRequest)); !exact) {
 					result.Result = std::unexpected(exact.error());
 					return result;
 				}
@@ -3990,7 +4099,7 @@ namespace bpr::adapters::github::detail {
 			if (!admitted->Inserted) {
 				return finishKnown(admitted->Record);
 			}
-			if (const auto current = observe_exact(aStop); !current.has_value()) {
+			if (const auto current = observe_exact(aStop, publishes_left(aRequest)); !current.has_value()) {
 				return failure(current.error());
 			}
 			if (aStop.stop_requested()) {

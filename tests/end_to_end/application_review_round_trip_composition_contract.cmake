@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"686df60dad86034f5d02154bc1fb72527be798de6fbf6a70d1951553de778445"
+		"1c354f0f40c47ea14bdd667ea79a191c56566e8a29741b68555c1f818c78821d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "da50ad9c8a8ccf31ae69c9a19c6a222026bc0276c99f1ba8fdd281acdb45e69b"
+        "af44e7e408e7eae79adef781081110bd206603900f56776eb13b8780b5fee88b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2664,3 +2664,21 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # descriptor with its own contract directory. No grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1562.
+
+# [[BPR-1560]] reseal over main at 0f30a77a1 (after BPR-1562). Whole PR compares from the merge
+# base GitHub names, so github_application.cpp and tour_remote.cpp change in
+# production: the mutation target binding keeps GitHub's recorded base as
+# `BaseOid` (the staleness check against GitHub is unchanged) and carries the
+# merge base as `ComparisonBaseOid` only when it differs, so a LEFT line is
+# numbered in the merge base GitHub numbers LEFT lines in; the designated
+# selection requires both to be its one constant base; the observed selection
+# compares the snapshot with the recorded base; BPR-1212 numbering answers
+# "same" without the cache for a left side that is the named merge base. No
+# grant, credential, transport, provider or mutation-branch pin changes; the
+# publication path's LEFT source check is the deliberate change, and before
+# anything on a LEFT line is written the adapter's sessions ask GitHub's compare
+# for the current merge base and refuse a moved one (target_moved). The full
+# application and production-manifest digests are refreshed (main.cpp: the
+# public-preview rewritten-base course accepts Whole PR's honest
+# merge_base_unavailable, a base sharing no history with the head). Reviewed by the
+# owner's cross-review (Fable, Astra) before landing.

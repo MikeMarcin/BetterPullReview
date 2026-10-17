@@ -529,7 +529,9 @@ namespace bpr::app {
 				|| aHandoff.Repository.value() != designated_review_repository_id
 				|| aHandoff.PullRequest.value() != designated_review_pull_request_id
 				|| aHandoff.Number.value() != designated_review_number
-				|| aHandoff.Base != *expectedBase || aHandoff.Head != *expectedHead
+				// [[BPR-1560]]. The designated pull request's merge base is
+				// its recorded base; both must be that one commit.
+				|| application::recorded_base(aHandoff) != *expectedBase || aHandoff.Base != *expectedBase || aHandoff.Head != *expectedHead
 				|| aHandoff.BaseRef.view() != designated_review_base_full_ref
 				|| aSnapshot.Profile != aHandoff.Profile
 				|| aSnapshot.Host != aHandoff.Host
@@ -581,6 +583,7 @@ namespace bpr::app {
 					.BaseRef                  = std::string{ designated_review_base_ref },
 					.HeadRef                  = std::string{ designated_review_head_ref },
 					.Open                     = true,
+					.ComparisonBaseOid        = application::distinct_comparison_base(application::recorded_base(aHandoff), aHandoff.Base),
 				},
 				.ActingIdentity = {
 					.Account    = aHandoff.Account,
@@ -619,7 +622,7 @@ namespace bpr::app {
 			const auto head = core::parse_git_commit_oid(
 				aSnapshot.PullRequest.HeadOid.value());
 			if (!base.has_value() || !head.has_value()
-				|| *base != aHandoff.Base || *head != aHandoff.Head
+				|| *base != application::recorded_base(aHandoff) || *head != aHandoff.Head
 				|| aSnapshot.Profile != aHandoff.Profile
 				|| aSnapshot.Host != aHandoff.Host
 				|| aSnapshot.Account != aHandoff.Account
@@ -654,6 +657,7 @@ namespace bpr::app {
 					.BaseRef                  = aSnapshot.PullRequest.BaseRef,
 					.HeadRef                  = aSnapshot.PullRequest.HeadRef,
 					.Open                     = true,
+					.ComparisonBaseOid        = application::distinct_comparison_base(application::recorded_base(aHandoff), aHandoff.Base),
 				},
 				.ActingIdentity = {
 					.Account    = aHandoff.Account,
@@ -1046,6 +1050,16 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed intraline changes",
 				};
+			// [[BPR-1560]]. Served like nested-folders: github.com, one head.
+			case detail::github_public_path_fixture::merge_base_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed merge base",
+				};
 			case detail::github_public_path_fixture::conventional_comments_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -1152,6 +1166,8 @@ namespace bpr::app {
 				.Base                  = aHandoff.Base,
 				.Head                  = aHandoff.Head,
 				.CurrentViewerReview   = aHandoff.CurrentViewerReview,
+				.RecordedBase          = aHandoff.RecordedBase,
+				.BaseBasis             = aHandoff.BaseBasis,
 			};
 		}
 
@@ -9936,6 +9952,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// `LEFT` line: GitHub's base OID, the accepted head, and the
 		/// comparison's left commit and path. None unless the comparison's
 		/// right side is the current head and its left side has a file.
+		/// [[BPR-1560]]. GitHub numbers a `LEFT` line in the merge base it
+		/// named for the snapshot whenever it named one, so that is the base
+		/// asked about; the recorded base only when it named none.
 		[[nodiscard]] auto base_numbering_request() const -> std::optional<application::github_base_numbering_request>
 		{
 			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot()) {
@@ -9943,7 +9962,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			const auto& selected   = *SelectedDiffPublication;
 			const auto& comparison = selected.Request.Diff.Comparison;
-			const auto  base       = core::parse_git_commit_oid(WindowRead->accepted_snapshot()->PullRequest.BaseOid.value());
+			const auto& snapshot   = *WindowRead->accepted_snapshot();
+			const auto  base       = core::parse_git_commit_oid(
+				snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+					? snapshot.MergeBaseOid->value()
+					: snapshot.PullRequest.BaseOid.value());
 			if (!base || !selected.LeftPath || !selected.Key.LeftBlob || !conversation_endpoint_is_current(comparison, core::diff_side::right)) {
 				return std::nullopt;
 			}
@@ -9974,7 +9997,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				apply_base_numbering();
 				return;
 			}
-			BaseNumbering       = base_numbering_state{ .Request = *request };
+			BaseNumbering = base_numbering_state{ .Request = *request };
+			// [[BPR-1560]]. A left side that is the merge base GitHub named is
+			// numbered as GitHub numbers it; there is nothing to ask the cache,
+			// which on a selected-objects review could not answer.
+			if (const auto& snapshot = *WindowRead->accepted_snapshot();
+				snapshot.MergeBaseAvailability == application::github_merge_base_availability::available
+				&& request->Left == request->BaseTip) {
+				BaseNumbering->Status = application::github_base_numbering_status::same;
+				apply_base_numbering();
+				return;
+			}
 			const auto admitted = EpochHost->resolve_github_base_numbering(
 				*request,
 				[this](const application::github_base_numbering_observation& aObservation) {
@@ -11905,7 +11938,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& snapshot = *WindowRead->accepted_snapshot();
 			return application::review_permalink_source{
 				.Target = {
-					.Semantic = review_mutation_target(handoff), .Hostname = handoff.Hostname, .ServerContract = handoff.ServerContract, .Repository = handoff.Locator, .Number = handoff.Number, .RepositoryDatabaseId = snapshot.Repository.Repository.value(), .RepositoryNodeId = std::string{ snapshot.Repository.Node.value() }, .PullRequestDatabaseId = snapshot.PullRequest.PullRequest.value(), .PullRequestNodeId = std::string{ snapshot.PullRequest.Node.value() }, .BaseRepositoryDatabaseId = snapshot.PullRequest.Repository.value(), .BaseOid = handoff.Base, .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Open = snapshot.PullRequest.State == application::github_pull_request_state::open },
+					.Semantic = review_mutation_target(handoff), .Hostname = handoff.Hostname, .ServerContract = handoff.ServerContract, .Repository = handoff.Locator, .Number = handoff.Number, .RepositoryDatabaseId = snapshot.Repository.Repository.value(), .RepositoryNodeId = std::string{ snapshot.Repository.Node.value() }, .PullRequestDatabaseId = snapshot.PullRequest.PullRequest.value(), .PullRequestNodeId = std::string{ snapshot.PullRequest.Node.value() }, .BaseRepositoryDatabaseId = snapshot.PullRequest.Repository.value(), .BaseOid = application::recorded_base(handoff), .BaseRef = snapshot.PullRequest.BaseRef, .HeadRef = snapshot.PullRequest.HeadRef, .Open = snapshot.PullRequest.State == application::github_pull_request_state::open, .ComparisonBaseOid = application::distinct_comparison_base(application::recorded_base(handoff), handoff.Base) },
 				.Endpoint   = SelectedDiffPublication->RightEndpoint,
 				.Comparison = SelectedDiffPublication->Key,
 				.LineCount  = *ReviewSourceMaterial->RightLines
@@ -17467,13 +17500,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || DiffHost == nullptr) {
 				return;
 			}
-			// GitHub's current PR diff uses a merge-base coordinate on LEFT,
-			// while BPR's retained Branch base is explicitly the accepted base
-			// tip. The provider snapshot carries no exact merge-base identity, so
-			// LEFT stays unplaced for the new comparison until the epoch host
-			// answers that its left document is the merge base's version
-			// ([[BPR-1212]], `observe_base_numbering`), instead of applying a
-			// numeric line to a potentially unrelated blob.
+			// GitHub's current PR diff uses a merge-base coordinate on LEFT.
+			// LEFT stays unplaced for the new comparison until
+			// `observe_base_numbering` answers that its left document is the
+			// version of the merge base GitHub named ([[BPR-1560]]: Whole PR's
+			// left commit is that merge base) or the same blob ([[BPR-1212]]),
+			// instead of applying a numeric line to a potentially unrelated blob.
 			constexpr auto leftHasCurrentDiffRevision = false;
 			const auto     rightIsCurrentHead         = conversation_endpoint_is_current(
 				aComparison, core::diff_side::right);
@@ -31562,11 +31594,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.Owner = std::string{ designated_review_owner },
 			.Name  = std::string{ designated_review_name },
 		};
-		handoff.PullRequest = core::pull_request_id{ designated_review_pull_request_id };
-		handoff.Number      = core::pull_request_number{ designated_review_number };
-		handoff.BaseRef     = *baseRef;
-		handoff.Base        = *base;
-		handoff.Head        = *head;
+		handoff.PullRequest  = core::pull_request_id{ designated_review_pull_request_id };
+		handoff.Number       = core::pull_request_number{ designated_review_number };
+		handoff.BaseRef      = *baseRef;
+		handoff.Base         = *base;
+		handoff.RecordedBase = *base;
+		handoff.Head         = *head;
 
 		snapshot.Profile = handoff.Profile;
 		snapshot.Host    = handoff.Host;

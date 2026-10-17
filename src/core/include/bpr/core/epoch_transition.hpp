@@ -121,10 +121,16 @@ namespace bpr::core {
 	};
 
 	/// \brief Computes the resolve comparison result.
+	/// \details [[BPR-1560]]. Under `comparison_base_basis::recorded_base`
+	/// Whole PR resolves to its pair with the base anchor unavailable and the
+	/// reason `merge_base_unavailable`: the newest base is not the commit
+	/// GitHub's Files changed compares from. Comparisons between updates are
+	/// unaffected.
 	[[nodiscard]] auto resolve_comparison(
 		const pull_request_authority& aAuthority,
 		const comparison_selection&   aSelection,
-		const comparison_candidates&  aCandidates) noexcept -> resolved_comparison;
+		const comparison_candidates&  aCandidates,
+		comparison_base_basis         aBasis = comparison_base_basis::merge_base) noexcept -> resolved_comparison;
 
 	/// \brief Applies an accepted event to the supplied state.
 	[[nodiscard]] auto transition(epoch_state& aState, const epoch_event& aEvent)

@@ -44,6 +44,10 @@ namespace bpr::adapters::github::detail {
 		get_branch_protection,
 		/// RFC-BPR-0084. GitHub's rendered HTML of the accepted pull request's bodies.
 		resolve_body_images,
+		/// [[BPR-1560]]. The merge base GitHub names for the pull request's
+		/// head and its base branch (REST compare, `merge_base_commit`): the
+		/// commit GitHub's Files changed compares from.
+		get_merge_base,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -76,8 +80,10 @@ namespace bpr::adapters::github::detail {
 	/// discovery reads ([[BPR-0988]]) are outside it for the same reason: they
 	/// are not part of a pull request snapshot. Route, admission, and name
 	/// lookups work from this array so a compiled operation cannot be unknown
-	/// to them.
-	inline constexpr std::array<read_operation, 20> all_read_operations{
+	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
+	/// like the timeline: it is an independent read after the snapshot, bound
+	/// to the snapshot's own head.
+	inline constexpr std::array<read_operation, 21> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -98,6 +104,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_branch_rules,
 		read_operation::get_branch_protection,
 		read_operation::resolve_body_images,
+		read_operation::get_merge_base,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -173,12 +180,16 @@ namespace bpr::adapters::github::detail {
 
 	struct semantic_read_request
 	{
-		server_contract                            Server    = server_contract::github_com;
-		read_operation                             Operation = read_operation::get_viewer_identity;
-		std::string                                Owner;
-		std::string                                Repository;
-		std::uint32_t                              PullRequestNumber = 0;
-		std::string                                HeadOid;
+		server_contract Server    = server_contract::github_com;
+		read_operation  Operation = read_operation::get_viewer_identity;
+		std::string     Owner;
+		std::string     Repository;
+		std::uint32_t   PullRequestNumber = 0;
+		std::string     HeadOid;
+		/// [[BPR-1560]]. The commit the merge-base read compares with
+		/// `HeadOid` when it does not name the base branch in `BranchRef`;
+		/// empty for every other operation.
+		std::string                                BaseOid;
 		std::string                                SearchTerms;
 		std::string                                BranchRef, ReviewCursor;
 		std::uint32_t                              Page = 1;

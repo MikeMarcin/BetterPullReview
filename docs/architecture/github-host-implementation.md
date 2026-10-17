@@ -1971,14 +1971,16 @@ may omit both of its own nullable coordinates and uses the root's anchor state.
 File threads carry neither. Every GraphQL page repeats the pull request's
 `headRefOid`, and the host rejects a snapshot whose REST and GraphQL head OIDs
 differ. The selected-comparison composition may therefore place a current
-right-side anchor only when its right commit equals that accepted head. It does
-not place a left-side pull-request-diff line against the accepted base tip by
-itself, because the provider contract does not carry GitHub's merge-base
-identity. [[BPR-1212]] v002: the epoch host derives the unique merge base of
-GitHub's base OID and the accepted head from the retained objects, never
-fetching (`resolve_github_base_numbering`), and compares the file's blob there
-with the comparison's left blob. Only when they are the same, or the merge base
-is the left commit, is the left side current: base-side threads are placed on
+right-side anchor only when its right commit equals that accepted head. A
+left-side pull-request-diff line is numbered in the merge base GitHub named for
+the snapshot ([[BPR-1560]], the read's `MergeBaseOid`): a comparison whose left
+commit is that merge base, which Whole PR's is, is current on the left without
+asking the cache. Otherwise [[BPR-1212]] v002: the epoch host derives the unique
+merge base of that base (GitHub's recorded base when it named no merge base) and
+the accepted head from the retained objects, never fetching
+(`resolve_github_base_numbering`), and compares the file's blob there with the
+comparison's left blob. Only when they are the same, or the merge base is the
+left commit, is the left side current: base-side threads are placed on
 the base pane, a base line takes a new comment, and the mutation host admits
 that root as `side: LEFT` on the head's path and commit, with the base
 document's line count, no file-comment fallback, and a recovery record that

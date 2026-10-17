@@ -1,0 +1,72 @@
+{
+ "assignment": "BPR-1567",
+ "mandate": "Owner request 2026-10-16: \"Can we add a help page to list keyboard shortcuts.\" Help > Keyboard Shortcuts plus a conventional key, grouped, searchable, native key text, scoped and typing notes, generated from the real bindings with a drift test, theme-aware, accessible, 100/125/200%, resizable, Esc closes; Qt presentation only. Fresh short attended session, one Accept/Reject with Light and Dark renders; do not merge before acceptance.",
+ "governing_rfc": "RFC-BPR-0028 (review workbench and its keys); RFC-BPR-0033 and BPR-0796 (resident desktop menu bar mirrors the window's menus disabled); BPR-1250 (Help menu)",
+ "decisions": {
+  "key": "Ctrl+/ (Command-/): the shortcut-list key in Slack and Google's editors; Command-? is macOS's Help-menu search; no Qt standard key, text widget or other binding uses Ctrl+/ (asserted). On layouts where / needs Shift the menu item remains the way in.",
+  "single_source": "Static catalogue in the Qt adapter (keyboard_shortcuts.cpp). Every binding site in the window, resident menu bar, epoch control, tour editor, strip, Overview, Settings, thread finder, comment card and Review Cycle view/sheets takes its keys from it; the page is generated from it. The drift test enumerates live QAction/QShortcut/explicit button keys.",
+  "handler_keys": "Keys read in widgets' own key handlers (Return in code, Cmd-L label menu, Find query Alt-W/Alt-L) are catalogue entries but invisible to enumeration; documented in the UX spec.",
+  "behaviour_changes": "Resident bar's Previous/Next change now also carry Alt+PgUp/Alt+PgDown like the window's; its Find and navigation items gained object names; Settings key on the resident bar is Ctrl+, (was QKeySequence::Preferences, identical on macOS, the only platform constructing it)."
+ },
+ "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1567-shortcuts",
+ "branch": "bpr-1567-keyboard-shortcuts",
+ "baseline": "1952cc869",
+ "merged_main": "ce74f8f7c (merge 354b021d4)",
+ "source_candidate": "d311422c9ba31304ff43adcca64e89bcf6a0be02",
+ "changed_paths": [
+  "docs/ux/workbench-specification.md",
+  "src/adapters/qt/CMakeLists.txt",
+  "src/adapters/qt/include/bpr/qt/keyboard_shortcuts.hpp",
+  "src/adapters/qt/include/bpr/qt/keyboard_shortcuts_window.hpp",
+  "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+  "src/adapters/qt/src/keyboard_shortcuts.cpp",
+  "src/adapters/qt/src/keyboard_shortcuts_window.cpp",
+  "src/adapters/qt/src/conversation_finder.cpp",
+  "src/adapters/qt/src/conversation_open_card.cpp",
+  "src/adapters/qt/src/desktop_menu_bar.cpp",
+  "src/adapters/qt/src/epoch_comparison_control.cpp",
+  "src/adapters/qt/src/pull_request_overview_page.cpp",
+  "src/adapters/qt/src/review_cycle_publish_sheet.cpp",
+  "src/adapters/qt/src/review_cycle_share_sheet.cpp",
+  "src/adapters/qt/src/review_cycle_view.cpp",
+  "src/adapters/qt/src/review_tour_editor.cpp",
+  "src/adapters/qt/src/settings_window.cpp",
+  "src/adapters/qt/src/workbench_strip.cpp",
+  "src/adapters/qt/src/workbench_window.cpp",
+  "tests/adapters_qt/CMakeLists.txt",
+  "tests/adapters_qt/profile_management_window_tests.cpp",
+  "tests/adapters_qt/workbench_window_tests.cpp"
+ ],
+ "verification": {
+  "focused": "qt_keyboard_shortcuts_scale_100/125/200 and qt_profile_management_window pass at d311422c9",
+  "drift_negative_control": "In-test: a stray named action, an unnamed QShortcut, a changed key (nextNewCommentAction Alt+M), a binding that lost its key (line numbers) and a deleted binding (overviewLabelKeyShortcut) are each reported, and nothing else. The first real run also caught five uncatalogued Review Cycle sheet keys, since catalogued.",
+  "full_suite": "scripts/run_test_suite.py --preset dev at 354b021d4: 766 passed, 1 failed (qt_profile_management_window, the resident Help menu's new first item; test updated in d311422c9 and passes), 1 skipped (application_large_review_cache_bytes, exit 77, environment). Report build/test-results/dev/20261017T024636.107491Z in the worktree.",
+  "format": "clang-format 22.1.8 over every touched C++ file: clean",
+  "tidy": "clang-tidy 22 --warnings-as-errors over all 16 touched translation units: passed",
+  "documentation": "verify_documentation.py DOCUMENTATION_OK (after merging main)",
+  "composition": "src/app unchanged; application_composition_contract passed in the full suite"
+ },
+ "frozen": {
+  "root": "/Users/jaeger/.codex/attended-builds/bpr1567-shortcuts-v001.g94p9bpc",
+  "launcher": "python3 /Users/jaeger/.codex/attended-builds/bpr1567-shortcuts-v001.g94p9bpc/launch.py",
+  "source_commit": "d311422c9ba31304ff43adcca64e89bcf6a0be02",
+  "fixture": "nested-folders-v1",
+  "open_file": "src/engine/renderer.cpp",
+  "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+  "executable_sha256": "8aa9f56755b1ef5c7bebf59694db5683ba4045f7d9eb327a67fb27c38ee2f19b"
+ },
+ "review": {
+  "state": "/Users/jaeger/.codex/attended-review/bpr1567-v001-seq6DZ",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "session": "dbc5e14feee4eb197858d4a731274d9f",
+  "event_cursor": 3,
+  "server_pid": 91799,
+  "url": "http://127.0.0.1:50836/ (token in the session's serve.log)",
+  "candidates": {
+   "BPR-1567-keyboard-shortcuts-v001": "3c95542f3bb0a1c0c8f1a38f6df2065fda2f3d9a5481b278b136a7652f950d85"
+  },
+  "phase": "ready, protected, undecided",
+  "pending": ["AC5 owner Accept/Reject"]
+ },
+ "next_action": "On hand-back after cursor 3: an Accept re-checks main HEAD, merges main into bpr-1567-keyboard-shortcuts, reruns qt_keyboard_shortcuts_scale_*, qt_profile_management_window and qt_workbench_window_scale_100, merges to main and finishes the card; a Reject's note becomes v002. Then stop the server (pid 91799), release the candidate and remove the frozen root with scripts/freeze_attended_build.py remove."
+}

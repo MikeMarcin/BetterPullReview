@@ -848,11 +848,25 @@ namespace bpr::core {
 	};
 
 	/// \brief Describes the pull request revision accepted event record.
+	/// \brief [[BPR-1560]]. What the accepted revision's `Base` is.
+	///
+	/// \details `merge_base`: the commit GitHub's Files changed compares from,
+	/// the merge base GitHub named for the pull request's recorded base and
+	/// head. `recorded_base`: GitHub named none, so `Base` is only the base
+	/// commit GitHub recorded for the pull request; it is retained so updates
+	/// can still be compared with each other, but Whole PR does not compare
+	/// from it, because that two-dot comparison is not GitHub's.
+	enum class comparison_base_basis : std::uint8_t {
+		merge_base,
+		recorded_base,
+	};
+
 	struct pull_request_revision_accepted_event
 	{
 		application_session_id         ApplicationSession;
 		pull_request_authority         Authority;
 		accepted_pull_request_revision Revision;
+		comparison_base_basis          Basis = comparison_base_basis::merge_base;
 
 		auto operator<=>(const pull_request_revision_accepted_event&) const = default;
 	};
@@ -1394,6 +1408,9 @@ namespace bpr::core {
 		git_tool_probe_failed,
 		gh_tool_unsupported,
 		gh_tool_probe_failed,
+		/// [[BPR-1560]]. GitHub named no merge base for the accepted revision,
+		/// so Whole PR has no base it may compare from.
+		merge_base_unavailable,
 	};
 
 	/// \brief Computes the reason for result.
@@ -1660,6 +1677,7 @@ namespace bpr::core {
 		comparison_generation                          ComparisonGeneration;
 		std::optional<pull_request_authority>          Authority;
 		std::optional<accepted_pull_request_revision>  AcceptedRevision;
+		comparison_base_basis                          AcceptedBasis = comparison_base_basis::merge_base;
 		std::optional<epoch_catalog_identity>          Catalog;
 		comparison_selection                           RequestedSelection = named_selection(named_comparison::whole_pr);
 		std::optional<comparison_pair>                 AcceptedComparison;

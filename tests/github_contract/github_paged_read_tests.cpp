@@ -1508,6 +1508,7 @@ namespace {
 				case read_operation::get_viewer_identity:
 				case read_operation::search_personal_pull_requests:
 				case read_operation::list_requested_reviewers:
+				case read_operation::get_merge_base:
 				case read_operation::resolve_body_images:
 					break;
 				}
@@ -3485,6 +3486,98 @@ namespace {
 		expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "cancelled timeline sends no request");
 	}
 
+	/// [[BPR-1560]]. One scripted answer per request; records what was asked.
+	class merge_base_fixture_transport final : public github_wire_transport_port
+	{
+	public:
+		std::vector<wire_response>       Responses;
+		std::vector<github_wire_request> Requests;
+
+		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
+		{
+			Requests.push_back(aRequest);
+			expect(Requests.size() <= Responses.size(), "the merge-base read never issues an unprovided request");
+			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Responses[Requests.size() - 1U] };
+		}
+	};
+
+	[[nodiscard]] auto compare_body(const std::string_view aBase, const std::string_view aMergeBase, const std::string_view aHead = head_oid) -> std::string
+	{
+		return R"({"url":"https://api.github.com/repos/octo-org/review-repository/compare/base...)" + std::string{ aHead }
+		+ R"(","status":"diverged","total_commits":3,"base_commit":{"sha":")" + std::string{ aBase } + R"("},"merge_base_commit":{"sha":")"
+			+ std::string{ aMergeBase } + R"("},"commits":[],"files":[]})";
+	}
+
+	auto test_merge_base_read() -> void
+	{
+		constexpr auto tip       = std::string_view{ "3333333333333333333333333333333333333333" };
+		constexpr auto mergeBase = std::string_view{ "4444444444444444444444444444444444444444" };
+		constexpr auto recorded  = std::string_view{ "1111111111111111111111111111111111111111" };
+		const auto     branch    = github_merge_base_basis{ .BaseRef = "release/2.0", .BaseOid = std::string{ recorded } };
+		const auto     exact     = github_merge_base_basis{ .BaseOid = std::string{ recorded } };
+		const auto     read      = [](merge_base_fixture_transport& aTransport, const github_merge_base_basis& aBasis, const validated_github_host_profile& aProfile,
+									  const application::github_pull_request_provider_request& aRequest, const github_provider_read_authority aAuthority = github_provider_read_authority::authenticated) {
+			return perform_github_merge_base_read(aTransport, aProfile, aRequest, core::repository_id{ 101U }, aBasis, head_oid, { }, { }, aAuthority);
+		};
+
+		// An open pull request: its head against its base branch, by name.
+		auto transport = merge_base_fixture_transport{ };
+		transport.Responses.push_back(success_response(compare_body(tip, mergeBase)));
+		const auto named = read(transport, branch, profile(), provider_request());
+		expect(named && named->MergeBaseOid == mergeBase && named->BaseCommitOid == tip, "the answer names the merge base and the tip it was computed against");
+		expect(transport.Requests.size() == 1U && transport.Requests[0].Wire.Operation == read_operation::get_merge_base
+				   && transport.Requests[0].Wire.Method == http_method::get
+				   && transport.Requests[0].Wire.Path == "/repos/octo-org/review-repository/compare/release%2F2.0..." + std::string{ head_oid }
+				   && transport.Requests[0].Wire.Query == "page=2&per_page=1" && transport.Requests[0].Wire.Body.empty(),
+			   "one REST GET of compare, the branch encoded, on the page that carries no file list");
+
+		// A closed pull request: an exact pair, and the answer must be about it.
+		auto closed = merge_base_fixture_transport{ };
+		closed.Responses.push_back(success_response(compare_body(recorded, mergeBase)));
+		const auto pinned = read(closed, exact, profile(), provider_request());
+		expect(pinned && pinned->MergeBaseOid == mergeBase && pinned->BaseCommitOid == recorded
+				   && closed.Requests[0].Wire.Path == "/repos/octo-org/review-repository/compare/" + std::string{ recorded } + "..." + std::string{ head_oid },
+			   "an exact pair is asked by its commits");
+		auto other = merge_base_fixture_transport{ };
+		other.Responses.push_back(success_response(compare_body(tip, mergeBase)));
+		expect(!read(other, exact, profile(), provider_request()), "an answer about another base commit is refused");
+
+		const auto refused = [&](std::string aBody, const int aStatus, const char* aMessage) {
+			auto scripted   = merge_base_fixture_transport{ };
+			auto response   = success_response(std::move(aBody));
+			response.Status = aStatus;
+			scripted.Responses.push_back(std::move(response));
+			const auto result = read(scripted, branch, profile(), provider_request());
+			expect(!result && std::holds_alternative<application::github_provider_error>(result.error()) && scripted.Requests.size() == 1U, aMessage);
+		};
+		refused(R"({"base_commit":{"sha":"3333333333333333333333333333333333333333"}})", 200, "an answer without a merge base is refused");
+		refused(compare_body(tip, mergeBase, "5555555555555555555555555555555555555555"), 200, "an answer about another head is refused");
+		refused(compare_body(tip, "44444444"), 200, "an abbreviated merge base is refused");
+		refused(compare_body(tip, "4444444444444444444444444444444444444444444444444444444444444444"), 200, "a merge base of another object format is refused");
+		refused("[]", 200, "a non-object answer is refused");
+		refused(R"({"message":"Not Found"})", 404, "no common ancestor (not found) leaves no merge base");
+		refused(R"({"message":"Server Error"})", 500, "a server error leaves no merge base");
+		refused(R"({"message":"timeout"})", 504, "a diff timeout leaves no merge base");
+
+		// GHES serves the same read under its API root.
+		auto enterprise = merge_base_fixture_transport{ };
+		enterprise.Responses.push_back(success_response(compare_body(tip, mergeBase)));
+		const auto ghes = read(enterprise, branch, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28));
+		expect(ghes && ghes->MergeBaseOid == mergeBase && enterprise.Requests.size() == 1U
+				   && enterprise.Requests[0].Wire.Path == "/api/v3/repos/octo-org/review-repository/compare/release%2F2.0..." + std::string{ head_oid },
+			   "GHES 3.18 asks compare under /api/v3");
+
+		// Signed out: admitted on github.com, refused on GHES before any request.
+		auto signedOut = merge_base_fixture_transport{ };
+		signedOut.Responses.push_back(success_response(compare_body(tip, mergeBase)));
+		expect(read(signedOut, branch, profile(), anonymous_provider_request(), github_provider_read_authority::anonymous_public).has_value(),
+			   "a public pull request's merge base is read signed out");
+		auto refusedSignedOut = merge_base_fixture_transport{ };
+		expect(!read(refusedSignedOut, branch, enterprise_profile(), anonymous_provider_request(), github_provider_read_authority::anonymous_public)
+				   && refusedSignedOut.Requests.empty(),
+			   "a signed-out GHES read sends nothing");
+	}
+
 	// [[BPR-0988]]. Personal discovery over a scripted wire.
 	[[nodiscard]] auto discovery_request(const application::personal_discovery_reason aReason,
 										 const application::github_server_contract    aServer = application::github_server_contract::github_com_2022_11_28)
@@ -4337,6 +4430,7 @@ auto main() -> int
 	test_paged_response_observation();
 	test_timeline_read();
 	test_timeline_atomic_failures();
+	test_merge_base_read();
 	test_metadata_and_viewer();
 	test_glaze_viewer_numbers_and_syntax();
 	test_glaze_paged_identity_and_lifetime();

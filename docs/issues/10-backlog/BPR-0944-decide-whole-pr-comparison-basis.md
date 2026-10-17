@@ -11,6 +11,16 @@ metadata: {"source":"BPR-0943 exact selected endpoint diagnosis","decision_requi
 
 # Investigate Whole PR comparison basis and preserve available source
 
+## Comparison basis decided by [[BPR-1560]] — 2026-10-16
+
+The owner reported wrong Whole PR diffs on a pull request with merges from its
+base and a force push (owner chat, 2026-10-16). [[BPR-1560]] adopts merge-base
+semantics: Whole PR compares from the merge base GitHub names for the current
+head and the base branch tip, which is what GitHub's Files changed and the file
+list compare from. That card owns AC1-AC3 (decision, acquisition, unavailable
+behaviour, the diverged, rename and force-push courses). AC4 and AC5, the
+partial pane and the missing-earlier explanation in the left pane, remain here.
+
 ## Owner-deferred follow-up — 2026-09-21
 
 Owner amendment r4 transfers this remaining work out of RFC-BPR-0013 terminal

@@ -59,6 +59,8 @@ namespace bpr::application {
 		search_pull_requests,
 		list_review_comments,
 		list_pull_request_timeline,
+		/// [[BPR-1560]]. The merge base GitHub names for the pull request.
+		get_merge_base,
 	};
 	enum class diagnostic_outcome : std::uint8_t { started,
 												   succeeded,

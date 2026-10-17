@@ -1078,6 +1078,10 @@ namespace {
 			std::size_t             SettledOccurrenceCount   = 0U;
 			bool                    SettledHistoryIncomplete = false;
 			QString                 SettledHistoryText;
+			// [[BPR-1560]]. Whole PR said GitHub named no merge base: the
+			// rewritten base shares no history with the head, so GitHub has
+			// nothing to compare and Whole PR is honestly unavailable.
+			bool SettledMergeBaseUnavailable = false;
 			// [[BPR-1340]]. Every node's date label, oldest first, so a course
 			// reads what the line says under each update.
 			QStringList SettledLineLabels;
@@ -4412,7 +4416,9 @@ namespace {
 					&& status.PublicPreviewReviewCommentsObserved
 					&& status.PublicPreviewWriteRefusals == 2U
 					&& status.PublicPreviewPublications > 0U
-					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready
+					&& (aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready
+						|| (aRun.PublicPreview.RewrittenBase && aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::unavailable
+							&& aRun.PublicPreview.SettledMergeBaseUnavailable))
 					&& aRun.PublicPreview.SettledOccurrenceCount >= (aRun.PublicPreview.EmptyTimeline ? 1U : 3U)
 					&& aRun.PublicPreview.SettledHistoryIncomplete
 					&& (!aRun.PublicPreview.awaits_historical_retention()
@@ -6373,11 +6379,13 @@ namespace {
 							&& epoch != bpr::core::epoch_status::cancelled) {
 							break;
 						} else {
-							aRun->PublicPreview.SettledEpoch             = epoch;
-							const auto* const line                       = window.epoch_selectors()->line();
-							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
-							aRun->PublicPreview.SettledHistoryText       = line->history_text();
-							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
+							aRun->PublicPreview.SettledEpoch                = epoch;
+							const auto* const line                          = window.epoch_selectors()->line();
+							aRun->PublicPreview.SettledOccurrenceCount      = line->update_count();
+							aRun->PublicPreview.SettledHistoryText          = line->history_text();
+							aRun->PublicPreview.SettledHistoryIncomplete    = line->history_text().startsWith(QStringLiteral("Incomplete history"));
+							aRun->PublicPreview.SettledMergeBaseUnavailable = window.epoch_selectors()->status_text().contains(
+								QStringLiteral("GitHub did not say where this pull request branched"));
 							aRun->PublicPreview.SettledLineLabels.clear();
 							for (std::size_t index = 0U; index < line->update_count(); ++index) {
 								aRun->PublicPreview.SettledLineLabels.append(line->label_text(index));

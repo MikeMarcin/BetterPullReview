@@ -94,6 +94,8 @@ namespace bpr::core {
 
 	/// \brief Bounded historical metadata, without source, live conversation or permission authority.
 	/// Base/head are the exact accepted revisions, never a claim about the current server head.
+	/// [[BPR-1560]]. Base is the accepted comparison base: the merge base GitHub
+	/// named when it named one, else the recorded base.
 	struct cached_review_overview
 	{
 		cached_review_key Key;
