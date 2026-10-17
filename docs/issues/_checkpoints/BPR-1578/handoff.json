@@ -44,15 +44,19 @@
     "state": "/Users/jaeger/.codex/attended-review/bpr1578-v001-aQrrKw",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "0466d1f8235d8b124c055885370d2ea1",
-    "event_cursor": 4,
+    "event_cursor": 7,
     "candidates": {
       "BPR-1578-accept-group-v001": "d05d4488d5f87a2d5bc742c539febde760f9e60f280b86494920d2dd74b75042"
     },
-    "phase": "ready",
+    "phase": "decided",
     "protected": true,
     "server_port": 56464,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)"
   },
-  "pending": ["AC4 (human): owner Accept or Reject of BPR-1578-accept-group-v001"],
-  "next_action": "After hand-back past cursor 4: on Accept, merge main into bpr-1578-review-bar-accept, rebuild dev, run the focused rows and one full dev ctest on the merged tree, merge to main, finish the card, stop the server, release protection and remove the frozen root. On Reject, the note becomes v002."
+  "pending": [
+    "v002 direction choice (owner)",
+    "v002 final Accept or Reject (owner)"
+  ],
+  "next_action": "Render three directions for the progress group (caption and action, split button, progress track) with the render-only --review-bar-directions mode; present one choice in a fresh session; then stop the v001 server (pid 51437), release v001's protection and remove its frozen root; build the chosen direction as v002."
 }
