@@ -5,6 +5,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
@@ -608,50 +609,11 @@ namespace bpr::qt {
 		return colours;
 	}
 
-	auto avatar_colours_of(const QString& aLogin, const bool aDark) -> avatar_colours
-	{
-		// A hue a login keeps on every run, from its own characters.
-		auto hash = 2166136261U;
-		for (const auto character : aLogin) {
-			hash = (hash ^ character.unicode()) * 16777619U;
-		}
-		const auto hue = static_cast<int>(hash % 360U);
-		return aDark ? avatar_colours{ QColor::fromHsl(hue, 70, 64), QColor::fromHsl(hue, 150, 204) }
-					 : avatar_colours{ QColor::fromHsl(hue, 150, 212), QColor::fromHsl(hue, 150, 52) };
-	}
-
-	auto avatar_initials(const QString& aLogin) -> QString
-	{
-		if (aLogin.isEmpty()) {
-			return QStringLiteral("?");
-		}
-		const auto parts = aLogin.split(QLatin1Char{ '-' }, Qt::SkipEmptyParts);
-		if (parts.size() > 1) {
-			return (parts[0].left(1) + parts[1].left(1)).toUpper();
-		}
-		return aLogin.left(1).toUpper();
-	}
-
 	void paint_avatar(QPainter& aPainter, const QRectF& aBox, const QString& aLogin, const bool aMine, const note_colours& aColours, const QFont& aFont)
 	{
-		const auto colours = avatar_colours_of(aLogin, aColours.Dark);
-		aPainter.save();
-		aPainter.setRenderHint(QPainter::Antialiasing, true);
-		if (aMine) {
-			aPainter.setPen(QPen{ aColours.Faint, 1.0 });
-			aPainter.setBrush(Qt::NoBrush);
-			aPainter.drawEllipse(aBox.adjusted(-2.0, -2.0, 2.0, 2.0));
-		}
-		aPainter.setPen(Qt::NoPen);
-		aPainter.setBrush(colours.Background);
-		aPainter.drawEllipse(aBox);
-		auto font = aFont;
-		font.setWeight(QFont::Bold);
-		font.setPixelSize(std::max(6, static_cast<int>(std::lround(aBox.height() * (avatar_initials(aLogin).size() > 1 ? 0.44 : 0.53)))));
-		aPainter.setFont(font);
-		aPainter.setPen(colours.Ink);
-		aPainter.drawText(aBox, Qt::AlignCenter, avatar_initials(aLogin));
-		aPainter.restore();
+		// [[BPR-1583]]. The one avatar every surface draws a person with.
+		paint_identity_avatar(aPainter, aBox, { .Identity = aLogin, .Ring = aMine ? aColours.Faint : QColor{ } },
+							  { .Window = aColours.Drawer, .Base = aColours.Panel }, aFont);
 	}
 
 	post_tool::post_tool(const conversation_glyph aGlyph, const note_colours& aColours, QWidget* const aParent)

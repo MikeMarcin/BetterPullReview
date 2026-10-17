@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1598"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "repo-wide coding-tidy findings and load-robust large-review timing rows",
+  "created": "2026-10-17T19:31:35.775034+00:00",
+  "base": "d29a89252075ac3348ab04652e34ddbf1a280ebd"
+}

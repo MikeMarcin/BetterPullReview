@@ -872,7 +872,7 @@ namespace {
 		// [[BPR-1129]]. The title row, left to right: the platform inset, Home,
 		// Repositories, Files, the name, Open on GitHub right after it
 		// ([[BPR-1338]]) and a spacer; then the modality, Home's
-		// own three controls (hidden outside Home), refresh, Home's discovery
+		// View control (hidden outside Home, [[BPR-1580]]), refresh, Home's discovery
 		// refresh (hidden outside Home), comments, Hide Drawers ([[BPR-1295]],
 		// immediately right of comments), a rule, account, settings.
 #if defined(_WIN32)
@@ -886,7 +886,7 @@ namespace {
 		const auto lead  = qsizetype{ 0 };
 		const auto trail = qsizetype{ 0 };
 #endif
-		const auto titleRow = actions.size() == 18 + lead + trail
+		const auto titleRow = actions.size() == 16 + lead + trail
 			&& named(actions, 0, "workbenchStripInsetAction")
 			&& actions[1 + lead] == window.home_action()
 			&& actions[2 + lead] == window.repositories_drawer_toggle_action()
@@ -895,16 +895,14 @@ namespace {
 			&& named(actions, 5 + lead, "workbenchOpenOnGithubAction")
 			&& named(actions, 6 + lead, "workbenchNavigationSpacerAction")
 			&& named(actions, 7 + lead, "workbenchModalityAction")
-			&& named(actions, 8 + lead, "homeGroupAction")
-			&& named(actions, 9 + lead, "homeStateHeadersAction")
-			&& named(actions, 10 + lead, "homeFilterAction")
-			&& actions[11 + lead] == window.github_refresh_action()
-			&& actions[12 + lead] == window.queue_refresh_action()
-			&& actions[13 + lead] == conversations
-			&& actions[14 + lead] == window.toggle_drawers_action()
-			&& named(actions, 15 + lead, "workbenchStripRightDividerAction")
-			&& actions[16 + lead] == window.account_action()
-			&& actions[17 + lead] == window.settings_action();
+			&& named(actions, 8 + lead, "homeViewAction")
+			&& actions[9 + lead] == window.github_refresh_action()
+			&& actions[10 + lead] == window.queue_refresh_action()
+			&& actions[11 + lead] == conversations
+			&& actions[12 + lead] == window.toggle_drawers_action()
+			&& named(actions, 13 + lead, "workbenchStripRightDividerAction")
+			&& actions[14 + lead] == window.account_action()
+			&& actions[15 + lead] == window.settings_action();
 		if (!titleRow) {
 			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
 				std::cerr << "title row " << index << ": " << actions[index]->objectName().toStdString() << '\n';
@@ -14984,9 +14982,27 @@ namespace {
 		expect(image.save(aDirectory + QLatin1Char{ '/' } + aName), "the capture is written");
 	}
 
-	// A7: the strip holds Group, State headers, Filter and the refresh glyph
-	// before the divider, the account and settings, and only where they can act.
-	void test_home_strip_holds_group_state_headers_filter_and_refresh()
+	/// \brief [[BPR-1580]]. What a native menu draws of a menu: every visible
+	/// item's text, and nothing for a separator, whatever title it was given.
+	///
+	/// \details The macOS menu draws a `QMenu::addSection` title as a bare
+	/// separator, which is how Filter's four groups reached the owner
+	/// unlabelled. Reading the menu this way is the oracle for "the native menu
+	/// shows this label".
+	[[nodiscard]] auto native_menu_labels(const QMenu& aMenu) -> QStringList
+	{
+		auto labels = QStringList{ };
+		for (const auto* const action : aMenu.actions()) {
+			if (action->isVisible() && !action->isSeparator()) {
+				labels.push_back(action->text());
+			}
+		}
+		return labels;
+	}
+
+	// A7 and [[BPR-1580]]: the strip holds View and the refresh glyph before the
+	// divider, the account and settings, and only where they can act.
+	void test_home_strip_holds_view_and_refresh()
 	{
 		qt::workbench_window window;
 		window.resize(1'280, 820);
@@ -14997,10 +15013,8 @@ namespace {
 
 		auto* const toolbar = window.primary_toolbar();
 		const auto  actions = toolbar->actions();
-		// The actions themselves where the window hands them out, and the object
-		// name only for the two widget items and the rule, which it does not.
-		const auto at    = [&actions](QAction* const aAction) { return actions.indexOf(aAction); };
-		const auto named = [&actions](const QString& aName) {
+		const auto  at      = [&actions](QAction* const aAction) { return actions.indexOf(aAction); };
+		const auto  named   = [&actions](const QString& aName) {
 			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
 				if (actions[index]->objectName() == aName) {
 					return index;
@@ -15008,64 +15022,68 @@ namespace {
 			}
 			return qsizetype{ -1 };
 		};
-		const auto groupAt    = named(QStringLiteral("homeGroupAction"));
-		const auto headersAt  = at(window.home_state_headers_action());
-		const auto filterAt   = named(QStringLiteral("homeFilterAction"));
+		const auto viewAt     = named(QStringLiteral("homeViewAction"));
 		const auto refreshAt  = at(window.queue_refresh_action());
 		const auto dividerAt  = named(QStringLiteral("workbenchStripRightDividerAction"));
 		const auto accountAt  = at(window.account_action());
 		const auto settingsAt = at(window.settings_action());
-		expect(groupAt >= 0 && groupAt < headersAt && headersAt < filterAt && filterAt < refreshAt
-				   && refreshAt < dividerAt && dividerAt < accountAt && accountAt < settingsAt,
-			   message_for("the strip's order is Group, State headers, Filter, refresh, the divider, account, settings",
-						   QStringLiteral("group=%1 headers=%2 filter=%3 refresh=%4 divider=%5 account=%6 settings=%7")
-							   .arg(groupAt)
-							   .arg(headersAt)
-							   .arg(filterAt)
+		expect(viewAt >= 0 && viewAt < refreshAt && refreshAt < dividerAt && dividerAt < accountAt && accountAt < settingsAt,
+			   message_for("the strip's order is View, refresh, the divider, account, settings",
+						   QStringLiteral("view=%1 refresh=%2 divider=%3 account=%4 settings=%5")
+							   .arg(viewAt)
 							   .arg(refreshAt)
 							   .arg(dividerAt)
 							   .arg(accountAt)
 							   .arg(settingsAt)
 							   .toStdString()));
-
-		auto* const headers = toolbar->widgetForAction(window.home_state_headers_action());
-		expect(window.showing_home() && window.home_group_button()->isVisible()
-				   && window.home_group_button()->text() == QStringLiteral("Group: None")
-				   && headers != nullptr && headers->isVisible()
-				   && window.home_state_headers_action()->isChecked()
-				   && window.home_filter_button()->isVisible()
-				   && window.home_filter_button()->text() == QStringLiteral("Filter")
-				   && toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
-				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
-			   "signed in on Home all four are shown, Group says None and State headers is on");
-		// [[BPR-0990]]. The glyph is discovery's, and says so while nothing
-		// can run it: no discovery dispatch and no account session yet.
-		expect(!window.queue_refresh_action()->isEnabled() && !window.queue_refresh_action()->toolTip().isEmpty(),
-			   "the refresh glyph is disabled, and says why, until discovery can run");
-		for (auto* const stop : { static_cast<QWidget*>(window.home_group_button()), headers,
-								  static_cast<QWidget*>(window.home_filter_button()) }) {
-			expect(stop->focusPolicy() == Qt::StrongFocus && !stop->accessibleName().isEmpty()
-					   && !stop->accessibleDescription().isEmpty() && window.focus_order().contains(stop),
-				   "each of Home's controls is focusable, named, described and declared");
+		for (const auto* const gone : { "homeGroupAction", "homeStateHeadersAction", "homeFilterAction" }) {
+			expect(named(QString::fromLatin1(gone)) < 0 && toolbar->widgetForAction(window.home_state_headers_action()) == nullptr,
+				   "Group, State headers and Filter are no longer strip items of their own");
 		}
 
-		// Group and State headers change Home at once and are remembered.
+		auto* const view = window.home_view_button();
+		expect(window.showing_home() && view->isVisible() && view->text() == QStringLiteral("View")
+				   && view->menu() == window.home_view_menu()
+				   && view->property(qt::strip_style::badge_property).toString().isEmpty()
+				   && window.home_state_headers_action()->isChecked()
+				   && toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
+				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
+			   "signed in on Home View and the refresh glyph are shown, View is plain and State headers is on");
+		expect(view->focusPolicy() == Qt::StrongFocus && view->accessibleName() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(QStringLiteral("default view"))
+				   && window.focus_order().contains(view),
+			   "View is focusable, named, described as the default view and declared");
+		expect(!window.home_view_reset_action()->isEnabled(), "at the defaults there is nothing to reset");
+		expect(!window.home_view_submenu(qt::home_view_choice::added_by)->menuAction()->isVisible(),
+			   "with no observer rule Added by is not offered");
+
+		// Group by and State headers change Home at once and are remembered.
 		auto views = std::vector<application::home_view_state>{ };
 		window.set_home_view_dispatch([&views](application::home_view_state aView) { views.push_back(aView); });
 		window.home_group_action(application::home_grouping::repository)->trigger();
 		process_events();
-		expect(window.home_group_button()->text() == QStringLiteral("Group: Repository")
+		expect(window.home_view_submenu(qt::home_view_choice::group)->title() == QStringLiteral("Group by: Repository")
 				   && window.home_list()->grouping() == application::home_grouping::repository
 				   && views.size() == 1U && views.back().Grouping == application::home_grouping::repository,
-			   "choosing a grouping regroups Home and dispatches the whole view");
+			   "choosing a grouping regroups Home, names it on Group by and dispatches the whole view");
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(QStringLiteral("1 changed: Group by Repository"))
+				   && view->toolTip() == view->accessibleDescription()
+				   && window.home_view_reset_action()->isEnabled(),
+			   message_for("a changed view leaves View's face quiet and names the change in its tooltip",
+						   view->accessibleDescription().toStdString()));
 		window.home_state_headers_action()->trigger();
 		process_events();
-		expect(!window.home_list()->state_headers() && views.size() == 2U && !views.back().StateHeaders,
-			   "turning State headers off does the same");
+		expect(!window.home_list()->state_headers() && views.size() == 2U && !views.back().StateHeaders
+				   && view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(QStringLiteral("2 changed"))
+				   && view->accessibleDescription().contains(QStringLiteral("State headers off")),
+			   "turning State headers off from the menu does the same and is named");
 		// Collapsing one of the panels that carry no name is part of the view.
 		window.home_group_action(application::home_grouping::none)->trigger();
 		window.home_state_headers_action()->trigger();
 		process_events();
+		expect(view->accessibleDescription().contains(QStringLiteral("default view")), "back at the defaults the tooltip says so");
 		const auto before = views.size();
 		window.home_list()->state_panel(qt::home_group::needs_you)->set_collapsed(true);
 		process_events();
@@ -15080,8 +15098,7 @@ namespace {
 			},
 		});
 		process_events();
-		expect(!window.home_group_button()->isVisible() && !headers->isVisible()
-				   && !window.home_filter_button()->isVisible()
+		expect(!view->isVisible()
 				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible()
 				   && !toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
 				   && toolbar->widgetForAction(window.account_action())->isVisible()
@@ -15697,8 +15714,8 @@ namespace {
 			   "while a refresh runs the glyph waits and Home says what is being searched");
 		expect(glyph->focusPolicy() == Qt::StrongFocus && !glyph->accessibleName().isEmpty() && !glyph->accessibleDescription().isEmpty()
 				   && window.focus_order().contains(glyph)
-				   && window.focus_order().indexOf(glyph) > window.focus_order().indexOf(window.home_filter_button()),
-			   "the glyph is a named, described stop after Filter in the declared order");
+				   && window.focus_order().indexOf(glyph) > window.focus_order().indexOf(window.home_view_button()),
+			   "the glyph is a named, described stop after View in the declared order");
 
 		status.State       = state::current;
 		status.LastSuccess = 1'700'000'000;
@@ -15826,9 +15843,28 @@ namespace {
 		window.hide();
 	}
 
-	// A7: Filter holds exactly the four surviving preferences, and one gesture
-	// sends the profile's typed intent and takes ownership of this window's filter.
-	void test_home_filter_menu_and_its_gesture()
+	/// \brief [[BPR-1580]]. Two accounts' rows and one a path rule added.
+	[[nodiscard]] auto ruled_projection() -> application::queue_landing_projection
+	{
+		auto       projection = two_account_projection();
+		const auto rule       = core::observer_rule{ .Kind = core::observer_rule_kind::path, .Pattern = "src/" };
+		auto       watched    = core::queue_item{
+			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 103 },
+			.Membership = { .MatchedRule = true, .Rule = rule },
+			.Bucket     = core::attention_bucket::observed_with_new_activity,
+		};
+		watched.Facts = core::queue_item_facts{ .Title = "A watched title", .Author = "octocat" };
+		auto items    = projection.Items;
+		items.push_back(watched);
+		projection.Items = core::ordered_queue(items);
+		projection.Rules = { rule };
+		return projection;
+	}
+
+	// A7 and [[BPR-1580]]: View holds the arrangement and the four surviving
+	// preferences under labels the native menu draws; one gesture sends the
+	// profile's typed intent and takes ownership of this window's filter.
+	void test_home_view_menu_and_its_gestures()
 	{
 		qt::workbench_window window;
 		auto                 intents = std::vector<application::queue_preferences_intent>{ };
@@ -15839,36 +15875,70 @@ namespace {
 		window.resize(1'280, 820);
 		window.show();
 		process_events();
-		auto projection = two_account_projection();
+		auto projection = ruled_projection();
 		// A profile that keeps a Repository and a Bucket: Home ignores both.
 		projection.Preferences.Repository = "octo-org/app";
 		projection.Preferences.Bucket     = core::attention_bucket::initial_review_requested;
 		window.publish(projection);
 		sign_in(window);
 
-		// The inventory, exactly, in the board's words.
-		auto inventory = QStringList{ };
-		for (const auto* const action : window.home_filter_menu()->actions()) {
-			if (action->isSeparator() && action->text().isEmpty()) {
-				continue;
-			}
-			inventory.push_back(action->text());
+		// The oracle first, against the menu that failed the owner: a section
+		// title is not drawn, so a group named only by one has no label.
+		{
+			auto sectioned = QMenu{ };
+			sectioned.addSection(QStringLiteral("My role"));
+			sectioned.addAction(QStringLiteral("Any"));
+			sectioned.addSection(QStringLiteral("Added by"));
+			sectioned.addAction(QStringLiteral("Any"));
+			const auto drawn = native_menu_labels(sectioned);
+			expect(drawn == QStringList{ QStringLiteral("Any"), QStringLiteral("Any") },
+				   "negative control: a section-titled group reads as unlabelled choices to the native-menu oracle");
 		}
-		expect(inventory
-				   == QStringList{ QStringLiteral("My role"), QStringLiteral("Any"), QStringLiteral("Author"),
-								   QStringLiteral("Reviewer"), QStringLiteral("Requested"), QStringLiteral("Participant"),
-								   QStringLiteral("No role"),
-								   QStringLiteral("Added by"), QStringLiteral("Any"), QStringLiteral("Repository rule"),
-								   QStringLiteral("Author rule"), QStringLiteral("Path rule"),
-								   QStringLiteral("Quiet items"), QStringLiteral("Hide"), QStringLiteral("Show"),
-								   QStringLiteral("Only quiet"),
-								   QStringLiteral("Sort within a group"), QStringLiteral("Priority"),
-								   QStringLiteral("Repository"), QStringLiteral("Pull request number"),
+
+		// The inventory, as the native menu draws it.
+		auto* const menu = window.home_view_menu();
+		expect(native_menu_labels(*menu)
+				   == QStringList{ QStringLiteral("Group by: None"), QStringLiteral("Sort by: Priority"),
+								   QStringLiteral("State headers"), QStringLiteral("My role: Any"),
+								   QStringLiteral("Added by: Any"), QStringLiteral("Quiet items: Show"),
+								   QStringLiteral("Reset to defaults"),
 								   // [[BPR-0783]]. The text Qt is given: the doubled
 								   // ampersand is the mnemonic escape, not what is shown.
-								   QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews && queue."),
-								   QStringLiteral("Open Reviews && queue") },
-			   "Filter holds exactly My role, Added by, Quiet items and Sort within a group, with its footer");
+								   QStringLiteral("Nothing here changes GitHub."), QStringLiteral("Open Reviews && queue") },
+			   message_for("View names every group and its value as item text",
+						   native_menu_labels(*menu).join(QStringLiteral(" | ")).toStdString()));
+		const auto submenus = std::array{
+			std::pair{ qt::home_view_choice::group,
+					   QStringList{ QStringLiteral("None"), QStringLiteral("Organization"), QStringLiteral("Repository"), QStringLiteral("Account") } },
+			std::pair{ qt::home_view_choice::sort,
+					   QStringList{ QStringLiteral("Priority"), QStringLiteral("Repository"), QStringLiteral("Pull request number") } },
+			std::pair{ qt::home_view_choice::role,
+					   QStringList{ QStringLiteral("Any role"), QStringLiteral("I opened it"), QStringLiteral("I reviewed it"),
+									QStringLiteral("My review is requested"), QStringLiteral("I took part in it"),
+									QStringLiteral("None of these (a rule or a follow added it)") } },
+			std::pair{ qt::home_view_choice::added_by,
+					   QStringList{ QStringLiteral("Observer rules are mine, kept in Settings › Reviews && queue"), QStringLiteral("Any way"),
+									QStringLiteral("A rule on a repository"), QStringLiteral("A rule on an author"), QStringLiteral("A rule on a path") } },
+			std::pair{ qt::home_view_choice::quiet,
+					   QStringList{ QStringLiteral("Quiet: nothing new for me and nothing waiting on anyone"), QStringLiteral("Show"),
+									QStringLiteral("Hide"), QStringLiteral("Only quiet") } },
+		};
+		for (const auto& [choice, expected] : submenus) {
+			auto* const submenu = window.home_view_submenu(choice);
+			expect(submenu != nullptr && submenu->menuAction() != nullptr && menu->actions().contains(submenu->menuAction())
+					   && native_menu_labels(*submenu) == expected,
+				   message_for("each submenu lists its choices in words the native menu draws",
+							   submenu == nullptr ? std::string{ } : native_menu_labels(*submenu).join(QStringLiteral(" | ")).toStdString()));
+			for (const auto* const action : submenu->actions()) {
+				expect(!action->isSeparator() && (!action->isEnabled() || !action->toolTip().isEmpty()),
+					   "no group hides behind a section title, and every choice explains itself on a tooltip too");
+			}
+			expect(!submenu->menuAction()->toolTip().isEmpty() && !submenu->accessibleName().isEmpty(),
+				   "each group item says what the group is for and is named for assistive technology");
+		}
+		for (const auto* const action : menu->actions()) {
+			expect(!action->isSeparator() || action->text().isEmpty(), "View uses no section title at all");
+		}
 		expect(window.home_filter_settings_action()->isEnabled(),
 			   "the way to Settings › Reviews & queue is reachable from the menu");
 
@@ -15876,29 +15946,27 @@ namespace {
 		// wrote: a menu eats a single "&" as a mnemonic and draws "Reviews _queue".
 		// Qt's own mnemonic stripping is what assistive technology is given, so the
 		// menu's accessibility tree is the honest oracle for the displayed text.
-		auto* const menuAccessible = QAccessible::queryAccessibleInterface(window.home_filter_menu());
-		expect(menuAccessible != nullptr && menuAccessible->childCount() > 0,
-			   "the Filter menu is in the accessibility tree");
-		auto* const footerAction = window.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterFooter"));
-		const auto  displayed    = [&window, menuAccessible](QAction* const aAction) {
-			const auto  index = window.home_filter_menu()->actions().indexOf(aAction);
+		auto* const menuAccessible = QAccessible::queryAccessibleInterface(menu);
+		expect(menuAccessible != nullptr && menuAccessible->childCount() > 0, "the View menu is in the accessibility tree");
+		auto* const footerAction = menu->findChild<QAction*>(QStringLiteral("homeFilterFooter"));
+		const auto  displayed    = [menu, menuAccessible](QAction* const aAction) {
+			const auto  index = menu->actions().indexOf(aAction);
 			auto* const item  = index >= 0 ? menuAccessible->child(static_cast<int>(index)) : nullptr;
 			return item != nullptr ? item->text(QAccessible::Name) : QString{ };
 		};
-		expect(footerAction != nullptr
-				   && footerAction->text().contains(QStringLiteral("Reviews && queue"))
-				   && window.home_filter_settings_action()->text().contains(QStringLiteral("Reviews && queue")),
-			   "each literal ampersand is escaped, so the menu draws it instead of eating it as a mnemonic");
-		expect(displayed(footerAction)
-				   == QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews & queue."),
-			   message_for("the footer a reviewer reads carries one plain ampersand", displayed(footerAction).toStdString()));
+		expect(displayed(window.home_view_submenu(qt::home_view_choice::role)->menuAction()) == QStringLiteral("My role: Any"),
+			   message_for("a group's label is what assistive technology reads",
+						   displayed(window.home_view_submenu(qt::home_view_choice::role)->menuAction()).toStdString()));
+		auto* const addedByAccessible = QAccessible::queryAccessibleInterface(window.home_view_submenu(qt::home_view_choice::added_by));
+		expect(addedByAccessible != nullptr && addedByAccessible->childCount() > 0
+				   && addedByAccessible->child(0)->text(QAccessible::Name)
+					   == QStringLiteral("Observer rules are mine, kept in Settings › Reviews & queue"),
+			   "Added by says where observer rules are kept, with one plain ampersand");
+		expect(displayed(footerAction) == QStringLiteral("Nothing here changes GitHub."),
+			   message_for("the footer says nothing here changes GitHub", displayed(footerAction).toStdString()));
 		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Reviews & queue"),
 			   message_for("and so does the way to Reviews & queue",
 						   displayed(window.home_filter_settings_action()).toStdString()));
-		for (const auto& shown : { displayed(footerAction), displayed(window.home_filter_settings_action()) }) {
-			expect(!shown.contains(QStringLiteral("&&")) && !shown.contains(QLatin1Char{ '_' }),
-				   message_for("no escape and no mnemonic artefact reaches what is read aloud", shown.toStdString()));
-		}
 		window.home_filter_settings_action()->trigger();
 		process_events();
 		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::reviews_and_queue,
@@ -15907,13 +15975,13 @@ namespace {
 		process_events();
 
 		// Home filters by the profile's four until this window filters for itself.
-		expect(window.queue_filter_model()->rowCount() == 2
+		expect(window.queue_filter_model()->rowCount() == 3
 				   && window.queue_filter_model()->preferences().Repository == "octo-org/app"
 				   && window.queue_filter_model()->effective_preferences().Repository.empty()
 				   && !window.queue_filter_model()->effective_preferences().Bucket.has_value(),
 			   "Repository and Bucket are kept for the profile and filter nothing on Home");
 
-		auto* const requested = window.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
+		auto* const requested = menu->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
 		expect(requested != nullptr, "the menu's Requested item is named");
 		requested->trigger();
 		process_events();
@@ -15922,47 +15990,156 @@ namespace {
 				   && intents.back().Preferences.Repository == "octo-org/app"
 				   && intents.back().Preferences.Bucket == core::attention_bucket::initial_review_requested
 				   && intents.back().Preferences.Notifications == projection.Preferences.Notifications,
-			   "one Filter gesture sends the existing typed intent with that one field changed");
+			   "one View gesture sends the existing typed intent with that one field changed");
 		expect(views.size() == 1U && views.back().FilterOwned
 				   && views.back().Filter.Role == core::github_role::requested_reviewer,
 			   "and the window's view now owns its own four values");
 		expect(window.home_view().FilterOwned && window.queue_filter_model()->rowCount() == 1,
 			   "Home filters by the window's own filter at once");
-		expect(window.home_filter_button()->text() == QStringLiteral("Filter •")
-				   && window.home_filter_button()->accessibleDescription().contains(QStringLiteral("Requested"))
-				   && window.home_filter_button()->accessibleDescription().startsWith(QStringLiteral("Filtered.")),
-			   "a filter that is not the default is said without colour and described");
+		auto* const view = window.home_view_button();
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(QStringLiteral("My role Requested"))
+				   && window.home_view_submenu(qt::home_view_choice::role)->title() == QStringLiteral("My role: Requested"),
+			   message_for("a filter that is not the default is named in View's tooltip and shown on its group",
+						   view->accessibleDescription().toStdString()));
+
+		// Every choice is reachable and applied: each value of each group, by
+		// its own item, reaches the filter Home applies.
+		const auto effective = [&window] { return window.queue_filter_model()->effective_preferences(); };
+		for (auto* const action : window.home_view_submenu(qt::home_view_choice::role)->actions()) {
+			action->trigger();
+			process_events();
+			const auto value = action->data().toInt();
+			expect(effective().Role == (value < 0 ? std::nullopt : std::optional{ static_cast<core::github_role>(value) })
+					   && intents.back().Field == application::queue_preference_field::role,
+				   message_for("each My role choice applies", action->text().toStdString()));
+		}
+		for (auto* const action : window.home_view_submenu(qt::home_view_choice::added_by)->actions()) {
+			if (!action->isEnabled()) {
+				continue;
+			}
+			action->trigger();
+			process_events();
+			const auto value = action->data().toInt();
+			expect(effective().ObserverReason == (value < 0 ? std::nullopt : std::optional{ static_cast<core::observer_rule_kind>(value) })
+					   && intents.back().Field == application::queue_preference_field::observer,
+				   message_for("each Added by choice applies", action->text().toStdString()));
+		}
+		for (auto* const action : window.home_view_submenu(qt::home_view_choice::quiet)->actions()) {
+			if (!action->isEnabled()) {
+				continue;
+			}
+			action->trigger();
+			process_events();
+			expect(effective().Quiet == static_cast<application::queue_quiet_filter>(action->data().toInt())
+					   && intents.back().Field == application::queue_preference_field::quiet,
+				   message_for("each Quiet items choice applies", action->text().toStdString()));
+		}
+		for (auto* const action : window.home_view_submenu(qt::home_view_choice::sort)->actions()) {
+			action->trigger();
+			process_events();
+			expect(effective().Sort == static_cast<application::queue_sort_order>(action->data().toInt())
+					   && intents.back().Field == application::queue_preference_field::sort,
+				   message_for("each Sort by choice applies", action->text().toStdString()));
+		}
+		for (auto* const action : window.home_view_submenu(qt::home_view_choice::group)->actions()) {
+			action->trigger();
+			process_events();
+			expect(window.home_list()->grouping() == static_cast<application::home_grouping>(action->data().toInt())
+					   && views.back().Grouping == window.home_list()->grouping(),
+				   message_for("each Group by choice applies", action->text().toStdString()));
+		}
+		// Last of each group was Path rule, Only quiet, Pull request number and
+		// Account; My role was left at No role.
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(
+					   QStringLiteral("5 changed: Group by Account; Sort by Pull request number; My role No role; Added by Path rule; Quiet items Only quiet")),
+			   message_for("every changed choice is named, and View carries no count", view->accessibleDescription().toStdString()));
+
+		// [[BPR-1580]]. The view hides every row: the list says so, with the way out.
+		auto* const filtered = window.home_list()->filtered_sentence();
+		expect(window.queue_filter_model()->rowCount() == 0 && filtered->isVisible()
+				   && filtered->text().contains(QStringLiteral("Filters hide all 3 pull requests."))
+				   && filtered->text().contains(QStringLiteral("Clear filters"))
+				   && filtered->text().contains(QStringLiteral("color:%1").arg(filtered->palette().color(QPalette::WindowText).name()))
+				   && filtered->focusPolicy() == Qt::StrongFocus && !filtered->accessibleName().isEmpty()
+				   && !window.queue_status_label()->isVisible()
+				   && !window.home_list()->empty_sentence()->isVisible(),
+			   "a view that hides every row says so in the list, once, and not as an empty queue");
+		const auto chain = window.home_list()->focus_chain();
+		expect(!chain.empty() && chain.front() == filtered && window.focus_order().contains(filtered),
+			   "the sentence is the list's first keyboard stop");
+		const auto viewsBeforeClear   = views.size();
+		const auto intentsBeforeClear = intents.size();
+		filtered->setFocus();
+		auto ret = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(filtered, &ret);
+		process_events();
+		expect(!effective().Role && !effective().ObserverReason && effective().Quiet == application::queue_quiet_filter::all
+				   && effective().Sort == application::queue_sort_order::pull_request_number
+				   && window.home_list()->grouping() == application::home_grouping::account
+				   && intents.size() == intentsBeforeClear + 3U && views.size() == viewsBeforeClear + 1U
+				   && !filtered->isVisible() && window.queue_filter_model()->rowCount() == 3,
+			   "Clear filters by keyboard clears the three hiding filters, one intent each, and leaves the arrangement");
+
+		// Reset to defaults restores everything in one gesture.
+		window.home_state_headers_action()->trigger();
+		process_events();
+		expect(window.home_view_reset_action()->isEnabled(), "a changed view can be reset");
+		const auto intentsBeforeReset = intents.size();
+		window.home_view_reset_action()->trigger();
+		process_events();
+		expect(views.back().Grouping == application::home_grouping::none && views.back().StateHeaders
+				   && views.back().FilterOwned && views.back().Filter == application::home_filter{ }
+				   && intents.size() == intentsBeforeReset + 1U && intents.back().Field == application::queue_preference_field::sort
+				   && intents.back().Preferences.Sort == application::queue_sort_order::core_priority
+				   && view->accessibleDescription().contains(QStringLiteral("default view"))
+				   && !window.home_view_reset_action()->isEnabled()
+				   && native_menu_labels(*menu).front() == QStringLiteral("Group by: None"),
+			   "Reset to defaults puts every choice back, tells the profile only what changed, and View says the default");
 
 		// The profile moving on does not move an owning window.
 		auto moved             = projection;
 		moved.Preferences.Role = core::github_role::author;
 		window.publish(moved);
 		process_events();
-		expect(window.queue_filter_model()->effective_preferences().Role == core::github_role::requested_reviewer
-				   && window.queue_filter_model()->rowCount() == 1,
+		expect(!window.queue_filter_model()->effective_preferences().Role.has_value()
+				   && window.queue_filter_model()->rowCount() == 3,
 			   "an owning window ignores a later profile change");
 		expect(window.queue_role_filter()->currentData().toInt() == static_cast<int>(core::github_role::author),
 			   "while Settings still shows the profile's own answer");
 
-		// A window that never filtered follows the profile.
+		// A window that never filtered follows the profile, and with no rule it
+		// is not offered Added by.
 		qt::workbench_window following;
 		following.set_queue_preferences_dispatch([](application::queue_preferences_intent) { });
-		following.publish(moved);
+		auto unruled             = two_account_projection();
+		unruled.Preferences.Role = core::github_role::author;
+		following.publish(unruled);
 		process_events();
 		expect(!following.home_view().FilterOwned
 				   && following.queue_filter_model()->effective_preferences().Role == core::github_role::author
 				   && following.queue_filter_model()->rowCount() == 0,
 			   "a window that never filtered follows the profile's preferences");
 		// [[BPR-0783]] review finding. The control must say what Home is filtered
-		// by, not what the window was built with: the six combos it replaced
-		// stayed in step with the accepted profile, and so must this.
-		auto* const followingAuthor
-			= following.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterAuthorAction"));
-		expect(followingAuthor != nullptr && followingAuthor->isChecked(),
-			   "the profile preference a window follows is ticked in its Filter menu");
-		expect(following.home_filter_button()->text() == QStringLiteral("Filter •"),
-			   message_for("and the Filter control says it is filtered",
-						   following.home_filter_button()->text().toStdString()));
+		// by, not what the window was built with.
+		auto* const followingAuthor = following.home_view_menu()->findChild<QAction*>(QStringLiteral("homeFilterAuthorAction"));
+		expect(followingAuthor != nullptr && followingAuthor->isChecked()
+				   && following.home_view_submenu(qt::home_view_choice::role)->title() == QStringLiteral("My role: Author"),
+			   "the profile preference a window follows is ticked and named in its View menu");
+		expect(following.home_view_button()->accessibleDescription().contains(QStringLiteral("My role Author"))
+				   && following.home_view_button()->property(qt::strip_style::badge_property).toString().isEmpty(),
+			   "and the View control names it in its tooltip, without a count");
+		expect(!following.home_view_submenu(qt::home_view_choice::added_by)->menuAction()->isVisible()
+				   && !native_menu_labels(*following.home_view_menu()).contains(QStringLiteral("Added by: Any")),
+			   "with no observer rule Added by is not offered");
+		auto byRule                       = unruled;
+		byRule.Preferences.ObserverReason = core::observer_rule_kind::author;
+		following.publish(byRule);
+		process_events();
+		expect(following.home_view_submenu(qt::home_view_choice::added_by)->menuAction()->isVisible()
+				   && native_menu_labels(*following.home_view_menu()).contains(QStringLiteral("Added by: Author rule")),
+			   "a window already filtered by a rule keeps Added by within reach, even with no rule left");
 		window.hide();
 	}
 
@@ -15996,7 +16173,7 @@ namespace {
 		process_events();
 		expect(window.home_view() == restored && window.home_list()->grouping() == application::home_grouping::account
 				   && !window.home_list()->state_headers()
-				   && window.home_group_button()->text() == QStringLiteral("Group: Account")
+				   && window.home_view_submenu(qt::home_view_choice::group)->title() == QStringLiteral("Group by: Account")
 				   && !window.home_state_headers_action()->isChecked()
 				   && window.queue_filter_model()->effective_preferences().Quiet == application::queue_quiet_filter::quiet,
 			   "a published view is what Home shows, in its list and on its strip");
@@ -16098,10 +16275,10 @@ namespace {
 		capture(QStringLiteral("account-headers-on.png"));
 		window.home_group_action(application::home_grouping::none)->trigger();
 		process_events();
-		window.home_filter_menu()->popup(window.home_filter_button()->mapToGlobal(QPoint{ 0, window.home_filter_button()->height() }));
+		window.home_view_menu()->popup(window.home_view_button()->mapToGlobal(QPoint{ 0, window.home_view_button()->height() }));
 		process_events();
-		capture(QStringLiteral("filter-menu-open.png"), window.home_filter_menu());
-		window.home_filter_menu()->close();
+		capture(QStringLiteral("view-menu-open.png"), window.home_view_menu());
+		window.home_view_menu()->close();
 		window.hide();
 	}
 
@@ -17186,10 +17363,10 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		test_saved_repository_gestures_round_trip_through_the_dispatch();
-		test_home_strip_holds_group_state_headers_filter_and_refresh();
+		test_home_strip_holds_view_and_refresh();
 		test_home_discovery_glyph_status_and_pull_request_menu();
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
-		test_home_filter_menu_and_its_gesture();
+		test_home_view_menu_and_its_gestures();
 		std::cout << "workbench-home-discovery:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -17331,8 +17508,8 @@ auto main(int argc, char** argv) -> int
 	test_large_queue_filters_through_the_composed_window();
 	// [[BPR-0783]]. Home's strip controls, its Filter menu, the window's own view
 	// state, and the six typed controls on Settings' Queue defaults.
-	test_home_strip_holds_group_state_headers_filter_and_refresh();
-	test_home_filter_menu_and_its_gesture();
+	test_home_strip_holds_view_and_refresh();
+	test_home_view_menu_and_its_gestures();
 	test_a_published_home_view_is_restored_without_a_second_dispatch();
 	test_the_six_queue_controls_live_on_settings_queue_defaults();
 	test_home_captures_every_accepted_view();

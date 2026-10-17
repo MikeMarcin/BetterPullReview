@@ -233,6 +233,8 @@ namespace bpr::qt {
 		void adopt_recent(home_recent_view& aRecent);
 		void set_open_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		void set_settings_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
+		void set_clear_filters_dispatch(std::function<void()> aDispatch);
 		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
 		/// \brief [[BPR-1338]]. A queue row's Open on GitHub, from its icon button.
 		void set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch);
@@ -330,6 +332,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto recent_action() const noexcept -> home_row_action*;
 		[[nodiscard]] auto empty_sentence() const noexcept -> QLabel*;
+		/// \brief [[BPR-1580]]. The sentence shown when the queue has rows and
+		/// the view's filters hide every one, with Clear filters.
+		[[nodiscard]] auto filtered_sentence() const noexcept -> QLabel*;
 		[[nodiscard]] auto row_delegate() const noexcept -> home_row_delegate*;
 		/// \brief True while the queue's rows may be shown: an account, and the list on screen.
 		[[nodiscard]] auto queue_shown() const -> bool;
@@ -399,6 +404,9 @@ namespace bpr::qt {
 			-> std::optional<core::queue_item>;
 		void ensure_row_visible(QAbstractItemView& aView, const QModelIndex& aIndex, const home_panel& aPanel);
 		void derive_link_colour();
+		/// \brief [[BPR-1580]]. Writes the filtered sentence, its link in the
+		/// sentence's own ink.
+		void write_filtered_sentence();
 		void adopt_rows(home_row_view& aView, home_slice_model& aModel, const QString& aName, const QString& aAccessible);
 		/// \brief Every shown panel in reading order, with the rows it holds.
 		[[nodiscard]] auto reading_order() const -> std::vector<panel_stop>;
@@ -429,11 +437,13 @@ namespace bpr::qt {
 		home_slice_model*                            FlatModel = nullptr;
 		home_row_view*                               FlatView  = nullptr;
 		std::vector<std::unique_ptr<group_entry>>    Groups;
-		home_panel*                                  RecentPanel   = nullptr;
-		home_recent_view*                            RecentView    = nullptr;
-		home_row_action*                             RecentAction  = nullptr;
-		QLabel*                                      EmptySentence = nullptr;
-		QAbstractItemView*                           CurrentRows   = nullptr;
+		home_panel*                                  RecentPanel      = nullptr;
+		home_recent_view*                            RecentView       = nullptr;
+		home_row_action*                             RecentAction     = nullptr;
+		QLabel*                                      EmptySentence    = nullptr;
+		QLabel*                                      FilteredSentence = nullptr;
+		std::function<void()>                        ClearFiltersDispatch;
+		QAbstractItemView*                           CurrentRows = nullptr;
 		std::function<void(const core::queue_item&)> OpenDispatch;
 		std::function<void()>                        SettingsDispatch;
 		std::function<void(int aRow)>                RecentActionDispatch;

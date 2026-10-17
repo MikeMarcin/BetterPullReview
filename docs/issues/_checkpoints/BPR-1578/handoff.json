@@ -57,10 +57,10 @@
     "released": "v001 server stopped, protection released at event 8, frozen root removed"
   },
   "pending": [
-    "owner's choice of direction (session 9aa0f416\u2026)",
+    "owner's round-2 choice (session bf324bac\u2026)",
     "v002 final Accept or Reject"
   ],
-  "next_action": "After hand-back past cursor 3 in session 9aa0f416\u2026: build the chosen direction (with any note) as v002 in the product on branch bpr-1578-review-bar-accept, replacing v001's presentation; tests with negative controls, format, tidy, docs gate; freeze; present a final Accept or Reject in a fresh session; stop the direction server.",
+  "next_action": "After hand-back past cursor 3 in session bf324bac\u2026: build the chosen direction (with any note) as v002 on branch bpr-1578-review-bar-accept; tests with negative controls, format, tidy, docs gate; freeze; final Accept or Reject in a fresh session; then stop the round-2 server.",
   "directions": {
     "harness_commit": "bb4f84cfb",
     "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
@@ -79,8 +79,35 @@
         "B. Split button",
         "C. Progress track"
       ],
+      "event_cursor": 5,
+      "server_port": null,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+      "decision": "reject: 'I like progress the best but I'm not in love with any of them. Let's try one more round, present progress again and more fresh alternatives.' (3b3fdc7d-185c-454a-b3f4-2a4a60588f3f)",
+      "released": "server stopped, candidate released"
+    }
+  },
+  "round_2": {
+    "harness_commit": "342838cf2",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions-round-2 (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "c2-progress-track": "53fcbd243c67c1d2be1219e1e0956c74d1a09264e8456515530aeb45e5e09ccf",
+      "d-stepper": "77a97eec2e9974928848c224f07fdbe272ae3df9ac15cbe1e21979f98cfd8ffb",
+      "e-meter-chip": "87d2d75e2e477096d5918bbf420f4832fb7d802fb317eac44cdc397b26aee756",
+      "f-accept-only": "9872b3a44f777a80d494f47abd900f4b703046dfb5e4d39939bd6a06d8543fa1"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-round2-OQvAy6",
+      "session": "bf324baca66b72b02d331b235f5d586a",
+      "candidate": "BPR-1578-progress-group-direction-v002-r2",
+      "fingerprint": "7eeeda67d38522451b7d647e09a4ce6ced45c7f3961d541f7691e8a9dda69293",
+      "options": [
+        "C2. Progress track, refined",
+        "D. Stepper",
+        "E. Meter chip",
+        "F. Accept only"
+      ],
       "event_cursor": 3,
-      "server_port": 58069,
+      "server_port": 49165,
       "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
     }
   }

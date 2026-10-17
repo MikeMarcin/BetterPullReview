@@ -27,6 +27,7 @@ class QToolButton;
 
 namespace bpr::qt {
 	class device_authorization_panel;
+	class identity_avatar_view;
 	class info_glyph;
 	class usage_ring;
 
@@ -300,7 +301,7 @@ namespace bpr::qt {
 		QLabel*                     StateLabel       = nullptr;
 		QWidget*                    Account          = nullptr;
 		QGridLayout*                AccountLayout    = nullptr;
-		QLabel*                     Avatar           = nullptr;
+		identity_avatar_view*       Avatar           = nullptr;
 		QLabel*                     LoginLabel       = nullptr;
 		QLabel*                     ConsequenceLabel = nullptr;
 		QWidget*                    Actions          = nullptr;
