@@ -88,12 +88,6 @@ namespace bpr::qt {
 			}
 		});
 
-		Shortcut = new QLabel{ this };
-		Shortcut->setObjectName(QStringLiteral("workbenchHomeReturnShortcut"));
-		Shortcut->setTextFormat(Qt::PlainText);
-		Shortcut->setForegroundRole(QPalette::PlaceholderText);
-		Shortcut->setText(QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_H }.toString(QKeySequence::NativeText));
-
 		Header = new QHBoxLayout;
 		Header->setContentsMargins(0, 0, 0, 0);
 		Header->setSpacing(8);
@@ -167,9 +161,12 @@ namespace bpr::qt {
 			Primary->setText(QStringLiteral("Back to the review"));
 			Primary->setAccessibleName(QStringLiteral("Back to the review"));
 			// The way back stands beside the bar, so what it returns to is said
-			// on the button rather than on a row of its own.
+			// on the button rather than on a row of its own. [[BPR-1573]]: its
+			// key is said there too, in the tooltip, not beside the button
+			// (the owner, 2026-10-17: "Move this hotkey into the tooltip").
 			Primary->setAccessibleDescription(
-				QStringLiteral("%1. Returns to it at the same file and change.").arg(reviewing));
+				QStringLiteral("%1. Returns to it at the same file and change (%2).")
+					.arg(reviewing, QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_H }.toString(QKeySequence::NativeText)));
 			// The row has no second button; its name must not linger on the
 			// hidden one (review of BPR-0775, finding 5).
 			Secondary->setText(QString{ });
@@ -248,14 +245,12 @@ namespace bpr::qt {
 		// The card and the row hold the same button in different places: under
 		// the sentence on the card, at the right of the row.
 		Header->removeWidget(Primary);
-		Header->removeWidget(Shortcut);
 		Header->removeWidget(Close);
 		Buttons->removeWidget(Primary);
 		if (row) {
-			// [[BPR-1573]]. The way back keeps its key beside it; Close review
-			// follows the pair, so the key is never read as Close review's.
+			// [[BPR-1573]]. The way back, then Close review: two buttons, the
+			// way back's key in its tooltip.
 			Header->addWidget(Primary);
-			Header->addWidget(Shortcut);
 			Header->addWidget(Close);
 		} else {
 			Buttons->insertWidget(0, Primary);
@@ -266,7 +261,7 @@ namespace bpr::qt {
 			titleFont.setWeight(QFont::DemiBold);
 		}
 		Title->setFont(titleFont);
-		// The way back is the bar's neighbour, its button and shortcut only: a
+		// The way back is the bar's neighbour, its buttons only: a
 		// row of its own above the bar came and went with the review, and moved
 		// the bar and the list under the pointer when it did.
 		Title->setVisible(!row);
@@ -275,7 +270,6 @@ namespace bpr::qt {
 		Primary->setVisible(signingIn || row);
 		Secondary->setVisible(signingIn && GithubCliAvailable);
 		Tertiary->setVisible(signingIn);
-		Shortcut->setVisible(row);
 		Close->setVisible(row);
 		if (card) {
 			Content->setContentsMargins(
@@ -351,11 +345,6 @@ namespace bpr::qt {
 	auto workbench_landing::body_label() const noexcept -> QLabel*
 	{
 		return Body;
-	}
-
-	auto workbench_landing::shortcut_label() const noexcept -> QLabel*
-	{
-		return Shortcut;
 	}
 
 	void workbench_landing::set_illustration(QWidget* const aIllustration)

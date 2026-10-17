@@ -839,14 +839,16 @@ No list, no panels, no filters.
 
 Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
 the filled button at the bar's right on the bar's own line, its description
-naming what is being reviewed and how far through it. Home beneath it is
+naming what is being reviewed and how far through it. Its key is said in its
+tooltip and description, not beside it ([[BPR-1573]], the owner, 2026-10-17:
+"Move this hotkey into the tooltip"). Home beneath it is
 unchanged, and whatever had focus in the review has it again when the review
 returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
 and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
 
-**Close review** follows the way back and its key on the same line
+**Close review** follows the way back on the same line
 ([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
 to back to review"). It is bordered, so Back to the review stays the page's
 one filled control and Return's default, and it has no key of its own; Tab

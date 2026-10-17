@@ -113,14 +113,14 @@ namespace {
 		expect(seeded == app::detail::fixture_file_reveal_result::shown, "the comment being written holds its body");
 		wait_for([&] { return holds(access::close_review(*application).SavedDraftBodies); }, "the comment being written is saved");
 
-		// Home over the review: Back to the review, its key, then Close review.
+		// Home over the review: Back to the review, with its key in its
+		// tooltip, then Close review.
 		window.home_action()->trigger();
 		settle();
 		auto* const landing = window.home_landing();
 		expect(landing != nullptr && landing->state() == qt::landing_state::back_to_review, "Home over the review offers the way back");
 		auto* const back  = landing->primary_button();
 		auto* const close = landing->close_button();
-		auto* const key   = landing->shortcut_label();
 		expect(close->isVisible() && close->text() == QStringLiteral("Close review") && close->accessibleName() == QStringLiteral("Close review")
 				   && close->accessibleDescription().startsWith(back->accessibleDescription().section(QStringLiteral(". Returns"), 0, 0))
 				   && close->accessibleDescription().startsWith(QStringLiteral("Reviewing octo-org/review-repository")) && close->accessibleDescription().contains(QStringLiteral("#17"))
@@ -128,10 +128,13 @@ namespace {
 				   && !close->isDefault() && back->isDefault() && close->focusPolicy() == Qt::StrongFocus,
 			   "Close review is named, described and bordered beside the filled way back");
 		const auto at = [&](QWidget* aWidget) { return aWidget->mapTo(&window, QPoint{ }); };
-		expect(at(back).x() < at(key).x() && at(key).x() < at(close).x()
+		expect(at(back).x() < at(close).x()
 				   && std::abs((at(close).y() + close->height() / 2) - (at(back).y() + back->height() / 2)) <= 2
-				   && at(close).x() - (at(key).x() + key->width()) <= 16,
-			   "Close review follows the way back and its key on the same line");
+				   && at(close).x() - (at(back).x() + back->width()) <= 16,
+			   "Close review follows the way back on the same line");
+		expect(back->toolTip() == back->accessibleDescription()
+				   && back->toolTip().endsWith(QStringLiteral("(%1).").arg(window.home_action()->shortcut().toString(QKeySequence::NativeText))),
+			   "the way back's key is in its tooltip and description");
 		expect(close->shortcut().isEmpty(), "Close review binds no key");
 		render(*application, QStringLiteral("home-over-review"));
 		back->setFocus(Qt::TabFocusReason);
