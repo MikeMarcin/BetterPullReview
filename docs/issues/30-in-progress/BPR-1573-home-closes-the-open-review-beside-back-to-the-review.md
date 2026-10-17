@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1573"
 title: "Home closes the open review beside Back to the review"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
