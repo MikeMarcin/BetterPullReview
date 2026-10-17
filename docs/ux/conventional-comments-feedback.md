@@ -250,8 +250,8 @@ Consumers: the inline composition page and reply drafts
     in your browser." It is not a label choice: it edits nothing, closes the
     menu and returns focus to the comment. Arrow keys reach it below the
     custom decoration field, and on a plain comment Down from the grid's last
-    row passes the disabled decorations and field to reach it; ⌘0 stays Plain
-    anywhere in the open menu. The item names the page
+    row passes the disabled decorations and field to reach it; ⌘0 in the
+    open menu is Actual Size, never Plain ([[BPR-1569]]). The item names the page
     (`core::reference_page::conventional_comments`); the window hands the name
     to the application (`application::open_reference_page`), which builds
     `https://conventionalcomments.org/`, checks it as an exact-host HTTPS

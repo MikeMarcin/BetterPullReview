@@ -591,6 +591,13 @@ namespace {
 
 		// Outside the menu ⌘0 stays the window's, and Plain is still a
 		// normal item: arrow keys and Return reach it.
+		// A window shortcut answers only in the active window, as a hand
+		// pressing the key in it has.
+		f.Window.activateWindow();
+		for (auto round = 0; round < 50 && !f.Window.isActiveWindow(); ++round) {
+			settle();
+		}
+		expect(f.Window.isActiveWindow(), "the editor's window is active for its keys");
 		f.body()->setFocus(Qt::OtherFocusReason);
 		tests::window_system_key(*f.body(), Qt::Key_0, Qt::ControlModifier);
 		settle();
@@ -603,6 +610,20 @@ namespace {
 		key(menu, Qt::Key_Return);
 		settle();
 		expect(f.text() == "Subject." && sized == 3, "Plain is reached by the arrow keys and Return");
+
+		// With the window active, so its shortcut could also answer, ⌘0 in
+		// the open menu is still Actual Size exactly once.
+		f.controls()->apply({ .Change = core::feedback_label_change::set, .Label = core::feedback_label::praise });
+		f.Window.activateWindow();
+		for (auto round = 0; round < 50 && !f.Window.isActiveWindow(); ++round) {
+			settle();
+		}
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		tests::window_system_key(*menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 4 && !menu->isVisible() && f.controls()->state().Label == core::feedback_label::praise,
+			   "with the window active ⌘0 in the open menu is Actual Size once, and keeps the label");
 	}
 
 	void test_controls_and_typed_syntax_are_the_same_draft()
