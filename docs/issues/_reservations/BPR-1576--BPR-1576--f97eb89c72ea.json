@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1576"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "base loading-state pattern for every pane",
+  "created": "2026-10-17T07:57:22.531609+00:00",
+  "base": "928dd4191c36abc6903887defe411ad31b7bae49"
+}

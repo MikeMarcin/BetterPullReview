@@ -813,6 +813,9 @@ namespace bpr::app::detail {
 		/// [[BPR-1212]] v002. The epoch host answered that the file's base is
 		/// numbered as GitHub's base, and the window and the source took it.
 		bool BaseNumberedKnown = false;
+		/// [[BPR-1570]]. A refresh that kept the file, adopted under a new
+		/// workbench authority, kept that answer in the window and the source.
+		bool BaseNumberingKept = false;
 		/// Return on a base line in a hunk opened its draft on the left in the
 		/// drawer, named "base line N".
 		bool BaseLineOpened = false;
@@ -1523,7 +1526,11 @@ namespace bpr::app::detail {
 		static void set_preparation_enabled(github_application& aApplication, bool aEnabled);
 		/// \brief [[BPR-1212]]. The next `aCount` base-numbering answers apply as
 		/// `cancelled`, as an accept that stops queued epoch work leaves them.
-		static void               cancel_base_numbering_answers(github_application& aApplication, std::size_t aCount);
+		static void cancel_base_numbering_answers(github_application& aApplication, std::size_t aCount);
+		/// \brief [[BPR-1570]]. After the label-authoring course's kept
+		/// refresh, the kept base-numbering answer is made one about another
+		/// question, the window's left side left placed.
+		static void               stale_base_numbering_question(github_application& aApplication);
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
 		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.

@@ -1,0 +1,58 @@
+{
+  "schema": "bpr.handoff.v1",
+  "card": "BPR-1578",
+  "mandate": "owner feedback 2026-10-17 (review bar Accept grouping and button affordance)",
+  "branch": "bpr-1578-review-bar-accept",
+  "worktree": "/Users/jaeger/.codex/worktrees/bpr1578-review-bar-accept/BetterPullReview",
+  "candidate": {
+    "product_commit": "70373c686",
+    "candidate_head": "06a7d1f5dca7d159d237168a6d84e09cc3509879",
+    "harness_commit": "210b92bdd",
+    "merged_main": "e3751b7cf..06a7d1f5d (docs only: BPR-1585 card and counter)",
+    "changed_paths": [
+      "src/adapters/qt/include/bpr/qt/workbench_strip.hpp",
+      "src/adapters/qt/src/workbench_strip.cpp",
+      "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+      "src/adapters/qt/src/workbench_window.cpp",
+      "src/app/src/github_application.cpp",
+      "tests/adapters_qt/workbench_window_tests.cpp",
+      "docs/ux/workbench-specification.md"
+    ]
+  },
+  "design": "Accept is a strip_command_button: the retained Accept action's word, state and enablement beside the strip's own line tick (strip_glyph::accept_file, button ink), not the green accepted state mark the menu item shows. The strip's rails became a list of groups; a third rail runs under Accept and private progress from Accept's left edge to the menu's right edge, and an 8-pixel bare gap (reviewBarProgressGapAction, NoFocus) parts it from the Changes rail. Revoke keeps the tick in the checked, accent-tinted frame; disabled paints it in the disabled ink. Behaviour, key, eligibility and accessible text are unchanged.",
+  "verification": {
+    "platform": "macOS 26.6.2 arm64, Qt 6.11.2, dev preset Debug with -g0, shared CPM cache",
+    "focused": "qt_review_state_icon (adds test_accept_reads_as_a_button_beside_plain_captions), qt_option_keys_typing, qt_workbench_focus_order_scale_{100,125,200}, qt_workbench_title_row_scale_{100,125,200} (third rail, separation >= 12 px, negative controls: old two rails, no gap), qt_workbench_window_scale_{100,125,200} (rail at the width floor; floor and yield tests): all pass",
+    "composition": "application_uiforetw_selected_diff_contract passes (exact 17-item review bar order). application_review_ledger_composition_contract failed once while the disk was full (output not captured) and passed on immediate rerun (16.05 s).",
+    "negative_controls": "old two rails fail the progress rail; removing the gap fails separation; Accept without its glyph renders differently and narrower",
+    "format": "clang-format 22.1.8 dry run clean over the six C++ files",
+    "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors over workbench_strip.cpp, workbench_window.cpp, github_application.cpp, workbench_window_tests.cpp: clang-tidy passed",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK on 06a7d1f5d; verify_documentation_tests 67 OK",
+    "renders": "better_pull_review_qt_workbench_window_tests --review-bar-accept-sheet, offscreen, QT_SCALE_FACTOR=2: before (base 210b92bdd harness, product as main) sha256 7f603dd3c578c0285fee6aa604e4034c00a5de9ce2fec8a39eba8d71e387118f; after sha256 811dd565e42aae616fcee5d7a5d290fd71d9745022474db4a521e75176e77ffa; kept uncommitted under the worktree's build/bpr1578-evidence",
+    "full_ctest": "not run: the disk filled during the full dev build (other agents' builds), so the 5.8 GB dev tree was removed to make room for the freeze. Run one full dev ctest on the merged tree at integration after acceptance."
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1578-accept-group-v001.yp__s3p_",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1578-accept-group-v001.yp__s3p_/launch.py",
+    "source_commit": "06a7d1f5dca7d159d237168a6d84e09cc3509879",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1578-v001-aQrrKw",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "0466d1f8235d8b124c055885370d2ea1",
+    "event_cursor": 4,
+    "candidates": {
+      "BPR-1578-accept-group-v001": "d05d4488d5f87a2d5bc742c539febde760f9e60f280b86494920d2dd74b75042"
+    },
+    "phase": "ready",
+    "protected": true,
+    "server_port": 56464,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+  },
+  "pending": ["AC4 (human): owner Accept or Reject of BPR-1578-accept-group-v001"],
+  "next_action": "After hand-back past cursor 4: on Accept, merge main into bpr-1578-review-bar-accept, rebuild dev, run the focused rows and one full dev ctest on the merged tree, merge to main, finish the card, stop the server, release protection and remove the frozen root. On Reject, the note becomes v002."
+}
