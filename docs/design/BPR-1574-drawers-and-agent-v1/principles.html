@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · One drawer design system</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.board { width:1440px; height:900px; background:var(--bg); display:grid; grid-template-columns:repeat(3, 1fr); grid-template-rows:auto auto auto; gap:18px; padding:26px 30px; overflow:hidden; }
+.cell { background:var(--panel); border-radius:12px; box-shadow:0 0 0 1px var(--rule); padding:14px 16px; display:flex; flex-direction:column; gap:10px; min-height:0; }
+.cell h3 { margin:0; font-size:13.5px; font-weight:650; display:flex; gap:8px; align-items:center; }
+.cell h3 .no { display:inline-flex; width:20px; height:20px; border-radius:6px; align-items:center; justify-content:center; background:var(--panel-2); box-shadow:inset 0 0 0 1px var(--rule-2); font-size:11px; }
+.cell p { margin:0; color:var(--ink-2); font-size:12.5px; line-height:1.5; }
+.swatch { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-2); }
+.swatch i { width:18px; height:18px; border-radius:5px; display:block; flex:none; }
+.own { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.own .o { border-radius:8px; padding:7px 8px; display:flex; gap:7px; align-items:center; font-size:12px; color:var(--ink); }
+.mini { background:var(--drawer); border-radius:8px; box-shadow:inset 0 0 0 1px var(--rule); overflow:hidden; position:relative; }
+</style></head>
+<body><script>
+"use strict";
+const board = `<div class="board">
+  <div class="cell"><h3><span class="no">1</span>The header is the tabs</h3>
+    <div class="mini"><div class="dhead"><span class="tab on">Comments <span class="cnt">2</span></span><span class="tab">Notes</span><span class="tab">Tour</span><div class="tools">${tool("newonly")}${tool("unres")}${tool("next")}</div></div></div>
+    <p>No caption over the tabs, no purpose paragraph, no tabs inside a tab. The tab's tools are icons at the right of the tab row, each with a tooltip that names its key. Purpose lives in the tooltip and the empty state.</p></div>
+  <div class="cell"><h3><span class="no">2</span>One card anatomy</h3>
+    <div class="mini" style="height:150px"><div class="card closed" style="top:8px">${post("jiayin", "2d", "Clamp the width to at least one pixel.", { label: "suggestion", meta: '<span class="dot"></span> 2' })}</div>
+    <div class="card open notch" style="top:70px;--notch:12px"><div class="ch"><span class="where">◇ 424</span><span class="sp"></span>${tool("resolve")}${tool("more")}</div><div style="padding:6px 12px;color:var(--ink-2);font-size:12px">open in place, amber edge and notch at its line</div></div></div>
+    <p>Closed: a flat note (avatar, mark under it, rail in the label's tint, two lines). Open: the panel, a shadow, the amber edge and a notch toward its line. Notes, stops, findings and pending comments all use it.</p></div>
+  <div class="cell"><h3><span class="no">3</span>Who owns it, at a glance</h3>
+    <div class="own">
+      <div class="o" style="box-shadow:inset 0 0 0 1px var(--rule)">${av("tbutler")} Published</div>
+      <div class="o" style="border:1.5px dashed var(--rule-2)">${av("you")} Your draft</div>
+      <div class="o" style="border:1.5px dashed var(--rule-2)"><span style="color:var(--ink-3)">${ic("lock", "s")}</span> Private note</div>
+      <div class="o" style="border:1.5px dashed var(--rule-2)"><span class="av agent">&gt;_</span> Agent, until promoted</div>
+      <div class="o" style="box-shadow:inset 0 0 0 1px var(--route-line)"><span class="gm stop" style="width:18px;height:18px">2</span> Tour stop</div>
+      <div class="o" style="box-shadow:inset 0 0 0 1px var(--rule)"><span class="dotc" style="width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--danger-soft);color:var(--danger)">${ic("close", "xs")}</span> Check result</div></div>
+    <p>Solid is public. Dashed is yours and unpublished. The lock says only you will ever see it. A square avatar is never a person.</p></div>
+  <div class="cell"><h3><span class="no">4</span>Colour means one thing each</h3>
+    <div class="swatch"><i style="background:var(--route)"></i>Amber: where you read (the open thread, the tour route)</div>
+    <div class="swatch"><i style="background:var(--signal)"></i>Blue: what is new, and where you write</div>
+    <div class="swatch"><i style="background:var(--ok)"></i>Green: done, passing, approved</div>
+    <div class="swatch"><i style="background:var(--danger)"></i>Red: blocking, failed or destructive, nothing else</div>
+    <div class="swatch"><i style="background:var(--ink-3)"></i>Grey: everything else</div>
+    <p>Label tints stay on marks and rails only. No new hues: every colour is a theme role, so Light, Dark and the high-contrast themes follow.</p></div>
+  <div class="cell"><h3><span class="no">5</span>Actions: one main, one other, the rest in More</h3>
+    <div style="display:flex;gap:6px;align-items:center"><span class="pill primary sm">Save <span class="kk">⌘↩</span></span><span class="pill outline sm">${ic("promote", "xs")}Make it a comment</span><span class="ib">${ic("more", "s")}</span></div>
+    <p>A card or page has at most one filled button and one outlined one; the rest are in its More menu and its right-click menu (Shift+F10). Never a column of stacked buttons, never a full-width grey bar. A button says what happens.</p></div>
+  <div class="cell"><h3><span class="no">6</span>Empty, working, failed</h3>
+    <div class="mini" style="height:110px;display:flex"><div class="empty" style="padding:10px">${ic("notes", "l")}<div class="say">No notes on this file yet.</div><span class="pill outline sm">${ic("plus", "xs")}New note <span class="kk">N</span></span></div></div>
+    <p>Empty: a glyph, one sentence, one action. Working: a quiet line with Stop. Failed: what happened, what is kept, one way to try again. Never draw a row that says 0, — or not available.</p></div>
+  <div class="cell" style="grid-column:span 2"><h3><span class="no">7</span>Every drawer behaves the same</h3>
+    <p>Drag its edge (280 to 760 pixels; the Overview's Status drawer from 260), collapse it from its toggle or its key, and it remembers its width per window, as Files and Comments do today. Each is one focus stop on its tabs; Left and Right move between tabs; Up, Down, Return and Esc move through and open its cards; one letter starts its main verb (R reply, N new note, A ask). Each tab scrolls on its own and keeps its place.</p></div>
+  <div class="cell"><h3><span class="no">8</span>Decided by the owner</h3>
+    <p>Overview has no Start review button (2026-10-17): Review (⌘2), a double-click on a file and Next file start a review.</p></div>
+</div>`;
+page({
+  nav: "Principles",
+  title: "One drawer design system",
+  lede: "The Comments drawer was accepted (BPR-1290 v005, 2026-10-06) because it does one job, puts content first and speaks in a small, consistent vocabulary. These eight rules write that vocabulary down so Notes, Tours, Agent, Compose review and the Overview panel can share it. One Accept or Reject question in the session asks about them as a whole.",
+  directions: [{ id: "principles-board", letter: "✓", name: "The rules on one board", frame: board,
+    idea: "<p>Rules 1 to 7 are proposed. Rule 8 records the owner's decision on Start review.</p>",
+    pros: ["Each new surface is checked against the same list", "New work starts from accepted parts, not stock widgets"],
+    cons: ["Some accepted surfaces would change to match (the Overview column, the Tour tab)"] }],
+});
+</script></body></html>
