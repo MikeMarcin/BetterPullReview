@@ -192,6 +192,7 @@ namespace bpr::qt {
 		bool                          FullMotion   = false;
 		bool                          HighContrast = false;
 		bool                          Announces    = true;
+		bool                          RaiseQueued  = false;
 		int                           RowHeight    = 0;
 		int                           Count        = 0;
 		int                           Frame        = 0;

@@ -151,9 +151,13 @@ namespace bpr::qt {
 		Frames->setInterval(frame_interval);
 		connect(Frames, &QTimer::timeout, this, [this] {
 			++Tick;
-			// The mark turns one step every other frame, as Home's does.
-			Frame = (Tick / 2) % home_open_frames;
-			update();
+			// The mark turns one step every other frame, as Home's does. Only
+			// what moves is painted again: the mark, the rule and the plate.
+			Frame           = (Tick / 2) % home_open_frames;
+			const auto mark = words_rect();
+			update(QRect{ mark.left(), mark.top(), mark.height(), mark.height() }.adjusted(-2, -2, 2, 2));
+			update(QRect{ 0, 0, width(), rule_height });
+			update(plate_rect());
 		});
 		aTarget.installEventFilter(this);
 		// The area moves when any widget between it and the pane moves (a
@@ -171,6 +175,11 @@ namespace bpr::qt {
 	{
 		if (aActivity == core::pending_activity::loading && Activity != core::pending_activity::loading) {
 			StartedAt = now();
+		}
+		// The same facts change nothing: a pane told its wait on every
+		// progress update does no work until the wait itself changes.
+		if (aActivity == Activity && aHasContent == HasContent && aPartial == Partial && aWords == Words) {
+			return;
 		}
 		Activity   = aActivity;
 		HasContent = aHasContent;
@@ -735,9 +744,14 @@ namespace bpr::qt {
 				}
 				break;
 			case QEvent::ChildAdded:
-				// A child the pane adds later would be drawn over the veil.
-				if (isVisible()) {
-					QTimer::singleShot(0, this, [this] { raise(); });
+				// A child the pane adds later would be drawn over the veil: raised
+				// once after the pane's turn, however many children it added.
+				if (isVisible() && !RaiseQueued) {
+					RaiseQueued = true;
+					QTimer::singleShot(0, this, [this] {
+						RaiseQueued = false;
+						raise();
+					});
 				}
 				break;
 			default:
