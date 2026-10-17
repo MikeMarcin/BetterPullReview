@@ -1,7 +1,7 @@
 #include "../support/test_expectation.hpp"
-#include "cli_account_wrapper_support.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "github_review_list_shapes.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
@@ -328,11 +328,11 @@ namespace {
 		std::size_t                            Posts           = 0U;
 		std::size_t                            NewCount        = 1U;
 		bool                                   WrongRepository = false, MovedContext = false;
-		bool                                   MovedMergeBase   = false;
-		stacked_course                         Stacked          = stacked_course::none;
-		std::size_t                            TargetReads      = 0U;
+		bool                                   MovedMergeBase       = false;
+		stacked_course                         Stacked              = stacked_course::none;
+		std::size_t                            TargetReads          = 0U;
 		std::size_t                            MoveAfterTargetReads = 0U, AllTargetReads = 0U;
-		bool                                   MoveHead             = false;
+		bool                                   MoveHead         = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
 		/// [[BPR-1345]]. The pull request's review comments, review 45's

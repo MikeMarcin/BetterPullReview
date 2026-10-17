@@ -45,14 +45,14 @@ namespace bpr::tests::github_contract {
 			return adapters::github::detail::github_wire_success{
 				.Correlation = aRequest.Correlation,
 				.Response    = {
-					   .Status       = 200,
-					   .Headers      = { { .Name = "Content-Type", .Value = "application/json; charset=utf-8" },
-										 { .Name = "X-RateLimit-Limit", .Value = "5000" },
-										 { .Name = "X-RateLimit-Remaining", .Value = "4999" },
-										 { .Name = "X-RateLimit-Reset", .Value = "2000000000" },
-										 { .Name = "X-RateLimit-Resource", .Value = "core" } },
-					   .Body         = R"({"id":)" + std::to_string(Account) + R"(,"login":")" + Login + R"(","name":"Fixture Reviewer","node_id":"U_fixture"})",
-					   .Completeness = adapters::github::detail::page_completeness::complete,
+					.Status       = 200,
+					.Headers      = { { .Name = "Content-Type", .Value = "application/json; charset=utf-8" },
+									  { .Name = "X-RateLimit-Limit", .Value = "5000" },
+									  { .Name = "X-RateLimit-Remaining", .Value = "4999" },
+									  { .Name = "X-RateLimit-Reset", .Value = "2000000000" },
+									  { .Name = "X-RateLimit-Resource", .Value = "core" } },
+					.Body         = R"({"id":)" + std::to_string(Account) + R"(,"login":")" + Login + R"(","name":"Fixture Reviewer","node_id":"U_fixture"})",
+					.Completeness = adapters::github::detail::page_completeness::complete,
 				},
 			};
 		}
@@ -60,7 +60,7 @@ namespace bpr::tests::github_contract {
 			-> adapters::github::detail::github_capability_probe_wire_completion override
 		{
 			return adapters::github::detail::github_capability_probe_wire_error{ .Correlation = aRequest.Correlation,
-																				 .Error = { .Failure = application::github_provider_failure::unavailable } };
+																				 .Error       = { .Failure = application::github_provider_failure::unavailable } };
 		}
 		[[nodiscard]] auto perform_review_mutation(const adapters::github::detail::github_mutation_wire_request& aRequest, std::stop_token aStop,
 												   adapters::github::detail::github_mutation_transmission_witness aWitness)
@@ -75,8 +75,8 @@ namespace bpr::tests::github_contract {
 
 	private:
 		adapters::github::detail::github_mutation_wire_transport& Server;
-		std::uint64_t                                            Account = 0U;
-		std::string                                              Login;
+		std::uint64_t                                             Account = 0U;
+		std::string                                               Login;
 	};
 
 	/// The production wrapper over a `cli_account_inner` for `aContext`.

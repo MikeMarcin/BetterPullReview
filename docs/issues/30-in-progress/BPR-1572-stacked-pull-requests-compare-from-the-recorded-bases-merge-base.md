@@ -362,6 +362,31 @@ clean worktree).
   coordinates are carried by every later write that edits it and become
   public only with the final submit, which each write leads up to.
 
+## Review round four (Fable approve, Astra approve with conditions; on `1206adfca`)
+
+- **Astra P2** (callers lost the wrapper's refusal): a whole review refused
+  unsent by a transport now reports the transport's `target_moved` or
+  `stale_head` (`review_submission_session`), definitely not published; a
+  tour write refused unsent for those reasons is a `conflict` carrying the
+  failure (or `description_attention` once published), not a ready tour that
+  invites a Resume (`staged_review_session`); a source-backed comment's child
+  never sent returns the transport's failure with no attempt
+  (`execute_publication_child`), and the legacy route reports no attempt
+  likewise. Tests from the session level through the production CLI account
+  wrapper (`make_cli_observed_account_transport_for_testing`, which builds the
+  wrapper exactly as an account lease does, over
+  `tests/github_contract/cli_account_wrapper_support.hpp`): a review, a tour
+  and a LEFT source-backed comment, each with the recorded base replaced (and
+  for the review, the head moved) before the wrapper's last read, are refused
+  unsent with the reason. With the propagation reverted all three fail.
+- **Fable.** Wrapper-path courses for a 500 on the wrapper's pull-request read
+  (`unavailable`, definitely not sent, no write) and for a cancellation inside
+  it (`cancelled`, definitely not sent, no write); the wrapper's comment now
+  says it compares the head and recorded base only and does not see a base
+  branch rewritten after the session's compares before GitHub replaces the
+  recorded base; the architecture doc says "every witnessed write bound to a
+  pull request".
+
 ## Gates, review round three
 
 On `3b79ec5a1` (main already merged): clang-format 22 on the changed C++

@@ -287,7 +287,7 @@ namespace bpr::adapters::github::detail {
 	/// can be driven through it. `aInner` answers the account reads and, as a
 	/// mutation transport, everything else.
 	[[nodiscard]] auto make_cli_observed_account_transport_for_testing(
-		std::shared_ptr<github_wire_transport_port>         aInner,
+		std::shared_ptr<github_wire_transport_port>             aInner,
 		const application::github_credential_operation_context& aContext,
 		std::string                                             aLogin) -> std::shared_ptr<github_mutation_wire_transport>;
 }

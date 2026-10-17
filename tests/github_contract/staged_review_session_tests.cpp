@@ -1,7 +1,7 @@
 #include "../support/test_expectation.hpp"
-#include "cli_account_wrapper_support.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
 #if defined(__APPLE__)
@@ -185,12 +185,12 @@ namespace {
 		/// [[BPR-1572]]. GitHub replaces the recorded base while the tour
 		/// reads its review list or its review: the reads between one
 		/// observation of the pull request and the write.
-		bool        ResetOnReviewRead = false;
+		bool ResetOnReviewRead = false;
 		/// [[BPR-1572]]. GitHub replaces the recorded base from the read of
 		/// the pull request after this many (zero: never).
 		std::size_t ResetAfterPullReads = 0U, PullReads = 0U;
-		std::size_t MergeBaseReads    = 0U;
-		bool        DenyWitness       = false;
+		std::size_t MergeBaseReads = 0U;
+		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
 		/// of other people's comments; or reports the second stop a line off.
 		bool        CollectionNoise = false, WrongLine = false;

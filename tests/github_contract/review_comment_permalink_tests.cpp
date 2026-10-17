@@ -829,8 +829,8 @@ namespace {
 		request.Proposal.Anchor.Side         = core::diff_side::left;
 		request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
 		request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
-		auto       scratch                   = tests::sqlite_contract::scratch_root{ "stacked-cli-publication" };
-		auto       transport                 = publication_transport{ };
+		auto scratch                         = tests::sqlite_contract::scratch_root{ "stacked-cli-publication" };
+		auto transport                       = publication_transport{ };
 		transport.Stacked                    = true;
 		transport.ResetAtTarget              = 5U;
 		const auto configuration             = session_configuration(request);

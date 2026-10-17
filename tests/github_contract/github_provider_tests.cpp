@@ -2650,8 +2650,9 @@ namespace {
 			// The session's last read: viewer, pull request, viewer. Then the
 			// write: viewer, the wrapper's pull request read, the POST, viewer.
 			const auto quiet = which == course::unchanged || which == course::wrapper_read_fails || which == course::wrapper_read_cancelled;
-			moveAt           = which == course::base_during_read_postcheck ? 3U : quiet ? 0U : 4U;
-			const auto read = lease->mutation_transport()->perform_review_mutation(pullRead, { }, { });
+			moveAt           = which == course::base_during_read_postcheck ? 3U : quiet ? 0U
+																						: 4U;
+			const auto read  = lease->mutation_transport()->perform_review_mutation(pullRead, { }, { });
 			expect(std::holds_alternative<github_mutation_wire_success>(read), "the session's read of the pull request is answered");
 			const auto result = lease->mutation_transport()->perform_review_mutation(write, { }, [] { return true; });
 			if (which == course::wrapper_read_fails || which == course::wrapper_read_cancelled) {
