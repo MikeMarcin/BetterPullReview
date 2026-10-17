@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1580"
 title: "Home arranges and filters from one View menu whose groups are labelled"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
