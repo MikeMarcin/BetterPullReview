@@ -8264,7 +8264,7 @@ namespace {
 			const auto image = track->grab().toImage();
 			const auto dpr   = image.devicePixelRatio();
 			const auto at    = track->cell(aIndex);
-			return image.pixelColor(qRound((at.left() + 3) * dpr), qRound((at.height() / 2) * dpr));
+			return image.pixelColor(qRound((at.left() + 3) * dpr), qRound((at.height() / 2.0) * dpr));
 		};
 		const auto highlight = window.palette().color(QPalette::Active, QPalette::Highlight);
 		const auto button    = window.palette().color(QPalette::Active, QPalette::Button);
@@ -8835,10 +8835,10 @@ namespace {
 		/// "File 3 of 40" is File's, and Accept is its action.
 		[[nodiscard]] auto caption_and_action(QPainter* const aPainter) const -> int
 		{
-			const auto words   = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
-			const auto caption = words[static_cast<std::size_t>(Case)];
-			const auto live    = Case != progress_case::no_file;
-			auto       x       = 2.0;
+			const auto  words   = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
+			const auto& caption = words[static_cast<std::size_t>(Case)];
+			const auto  live    = Case != progress_case::no_file;
+			auto        x       = 2.0;
 			progress(aPainter, x, state_mark(), live);
 			x += glyph + 5.0;
 			text(aPainter, x, caption, live ? palette().color(QPalette::Active, QPalette::WindowText) : dim());
@@ -9137,14 +9137,14 @@ namespace {
 		/// state's word, then Accept as the chip's action and the menu.
 		[[nodiscard]] auto meter_chip(QPainter* const aPainter) const -> int
 		{
-			const auto accepted = Case == progress_case::accepted;
-			const auto live     = Case == progress_case::seen || accepted;
-			const auto words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
-			const auto word     = words[static_cast<std::size_t>(Case)];
-			const auto action   = accepted ? QStringLiteral("Revoke") : QStringLiteral("Accept");
-			const auto first    = 8.0 + glyph + 4.0 + text_width(word) + 8.0;
-			const auto second   = 8.0 + (accepted ? 0.0 : glyph + 3.0) + text_width(action) + 8.0;
-			const auto chip     = QRectF{ 0.5, top(), first + second + 20.0, frame_height };
+			const auto  accepted = Case == progress_case::accepted;
+			const auto  live     = Case == progress_case::seen || accepted;
+			const auto  words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
+			const auto& word     = words[static_cast<std::size_t>(Case)];
+			const auto  action   = accepted ? QStringLiteral("Revoke") : QStringLiteral("Accept");
+			const auto  first    = 8.0 + glyph + 4.0 + text_width(word) + 8.0;
+			const auto  second   = 8.0 + (accepted ? 0.0 : glyph + 3.0) + text_width(action) + 8.0;
+			const auto  chip     = QRectF{ 0.5, top(), first + second + 20.0, frame_height };
 			pill(aPainter, chip, palette().color(QPalette::Active, QPalette::Button), live ? accent() : palette().color(QPalette::Active, QPalette::Mid));
 			const auto box = QRectF{ chip.left() + 8.0, top() + 3.0, glyph, glyph };
 			if (aPainter != nullptr) {
