@@ -11569,9 +11569,9 @@ namespace {
 		});
 		auto* const editor = window.behaviour_editor();
 		expect(editor != nullptr
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(editor)
+				   && window.settings()->page_widget(qt::settings_page::review)->isAncestorOf(editor)
 				   && !window.home_page()->isAncestorOf(editor),
-			   "the preference rows live on Reviews and queue, off Home");
+			   "the preference rows live on Settings › Review, off Home");
 		const auto button = [&window](const char* const aName) {
 			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
 			expect(found != nullptr, "every preference option is a named button");
@@ -11611,17 +11611,21 @@ namespace {
 				   && records.back() == application::review_behaviour_settings{ .OpenModality = application::review_open_modality::last_used },
 			   "Reset on the reading group returns its rows to the defaults and leaves the modality rules alone");
 		window.publish(application::workbench_projection{ .Behaviour = records.back() });
-		button("resetModalityRules")->click();
-		expect(records.size() == 4U
+		// [[BPR-1597]]. Opening holds the open modality and the return
+		// comparison; its Reset returns both.
+		button("returnComparisonSinceLastUpload")->click();
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		button("resetOpening")->click();
+		expect(records.size() == 5U
 				   && records.back() == application::review_behaviour_settings{ },
-			   "Reset on the modality group returns its rows to the defaults");
+			   "Reset on the Opening group returns the modality and the return comparison to the defaults");
 		window.publish(projection);
 		// [[BPR-0721]]. The drawers group: one row, off by default, its own
 		// Reset.
 		expect(button("drawerControlsHidden")->isChecked() && !button("drawerControlsShown")->isChecked(),
 			   "the drawer controls start hidden, the owner's direction");
 		button("drawerControlsShown")->click();
-		expect(records.size() == 5U
+		expect(records.size() == 6U
 				   && records.back().DrawerControls == application::review_drawer_controls::shown
 				   && records.back().CommentsFilter == application::review_comments_filter::unread,
 			   "choosing Shown dispatches the whole record with the drawer controls shown");
@@ -11629,9 +11633,9 @@ namespace {
 		shown.DrawerControls = application::review_drawer_controls::shown;
 		projection.Behaviour = shown;
 		window.publish(projection);
-		button("resetDrawers")->click();
-		expect(records.size() == 6U && records.back() == published,
-			   "Reset on the drawers group hides the controls again and leaves the other groups alone");
+		button("resetLayout")->click();
+		expect(records.size() == 7U && records.back() == published,
+			   "Reset on the Layout group hides the drawer controls again and leaves the other groups alone");
 	}
 
 	/// \brief [[BPR-1334]]. View > Line Details and its Settings row are one
@@ -11681,9 +11685,9 @@ namespace {
 		expect(action->isChecked() && strip->isVisible(), "a published Shown brings the strip back");
 
 		window.publish(application::workbench_projection{ .Behaviour = hidden });
-		button("resetComparisonBehaviour")->click();
+		button("resetLayout")->click();
 		expect(records.size() == 3U && records.back().LineDetails == application::review_line_details::shown,
-			   "Reset on the Comparison group shows Line details again");
+			   "Reset on the Layout group shows Line details again");
 		window.hide();
 	}
 
@@ -11770,11 +11774,11 @@ namespace {
 			expect(map->hit_test(point) == link.Identity, "the painted ribbon retains exact hit identity at every supported width sample");
 			save_render(window, QStringLiteral("ribbon-%1").arg(logicalWidth));
 		}
-		window.open_settings(qt::settings_page::reviews_and_queue);
+		window.open_settings(qt::settings_page::review);
 		process_events();
-		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings Reviews and queue");
-		window.findChild<QToolButton*>(QStringLiteral("resetComparisonBehaviour"))->click();
-		expect(records.back().CenterRibbonWidth == 28U, "Comparison Reset restores the new 28-pixel default");
+		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings › Review");
+		window.findChild<QToolButton*>(QStringLiteral("resetLayout"))->click();
+		expect(records.back().CenterRibbonWidth == 28U, "Layout Reset restores the new 28-pixel default");
 		window.publish(application::workbench_projection{ .Behaviour = records.back() });
 		process_events();
 		expect(control->value() == 28 && map->width() == 28, "accepted Reset reaches both Settings and the divider");
@@ -12726,16 +12730,16 @@ namespace {
 		auto* const page = window.settings()->page_widget(qt::settings_page::repositories);
 		auto*       list = window.saved_repository_list();
 		expect(page != nullptr && page->isAncestorOf(list) && page->isAncestorOf(window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton")))
-				   && !window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(list)
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories")) != nullptr,
-			   "saved repositories live on their own Settings page; Reviews & queue only points there");
+				   && !window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(list)
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories")) != nullptr,
+			   "saved repositories live on their own Settings page; Home & queue only points there");
 		expect(qt::settings_page_title(qt::settings_page::repositories) == QStringLiteral("Repositories")
 				   && window.settings()->sidebar()->item(static_cast<int>(qt::settings_page::repositories))->text() == QStringLiteral("Repositories")
 				   && static_cast<int>(qt::settings_page::repositories) == static_cast<int>(qt::settings_page::accounts_and_hosts) + 1,
 			   "the Repositories page follows Accounts & hosts in the sidebar");
 		window.settings()->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories"))->click();
 		process_events();
-		expect(window.settings()->current_page() == qt::settings_page::repositories, "Reviews & queue's pointer opens Repositories");
+		expect(window.settings()->current_page() == qt::settings_page::repositories, "Home & queue's pointer opens Repositories");
 		expect(list->count() == 1 && list->item(0)->text() == QStringLiteral("octo/app") && list->isVisibleTo(page) && !window.saved_repositories_empty()->isVisibleTo(page)
 				   && window.findChild<QLabel*>(QStringLiteral("repositoriesDestination"))->text() == QStringLiteral("Saved for @reviewer on github.com")
 				   && list->item(0)->toolTip().contains(QStringLiteral("github.com")),
@@ -12891,7 +12895,7 @@ namespace {
 		// still named, still explained, still the same controls, but stops of
 		// another top-level window, which the workbench never declares.
 		const auto  focusOrder = window.focus_order();
-		auto* const defaults   = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const defaults   = window.settings()->page_widget(qt::settings_page::home_and_queue);
 		for (auto* const selector : { window.queue_role_filter(),
 									  window.queue_observer_filter(),
 									  window.queue_bucket_filter(),
@@ -12904,7 +12908,7 @@ namespace {
 					&& !focusOrder.contains(selector)
 					&& defaults != nullptr && defaults->isAncestorOf(selector)
 					&& !window.home_page()->isAncestorOf(selector),
-				"every queue preference control is named, explained, on Reviews & queue and off the workbench's order");
+				"every queue preference control is named, explained, on Home & queue and off the workbench's order");
 		}
 	}
 
@@ -15344,11 +15348,11 @@ namespace {
 								   QStringLiteral("Repository"), QStringLiteral("Pull request number"),
 								   // [[BPR-0783]]. The text Qt is given: the doubled
 								   // ampersand is the mnemonic escape, not what is shown.
-								   QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews && queue."),
-								   QStringLiteral("Open Reviews && queue") },
+								   QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Home && queue."),
+								   QStringLiteral("Open Home && queue") },
 			   "Filter holds exactly My role, Added by, Quiet items and Sort within a group, with its footer");
 		expect(window.home_filter_settings_action()->isEnabled(),
-			   "the way to Settings › Reviews & queue is reachable from the menu");
+			   "the way to Settings › Home & queue is reachable from the menu");
 
 		// [[BPR-0783]]. What a reviewer actually sees, rather than what the source
 		// wrote: a menu eats a single "&" as a mnemonic and draws "Reviews _queue".
@@ -15364,14 +15368,14 @@ namespace {
 			return item != nullptr ? item->text(QAccessible::Name) : QString{ };
 		};
 		expect(footerAction != nullptr
-				   && footerAction->text().contains(QStringLiteral("Reviews && queue"))
-				   && window.home_filter_settings_action()->text().contains(QStringLiteral("Reviews && queue")),
+				   && footerAction->text().contains(QStringLiteral("Home && queue"))
+				   && window.home_filter_settings_action()->text().contains(QStringLiteral("Home && queue")),
 			   "each literal ampersand is escaped, so the menu draws it instead of eating it as a mnemonic");
 		expect(displayed(footerAction)
-				   == QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Reviews & queue."),
+				   == QStringLiteral("Nothing here changes GitHub. Observer rules are in Settings › Home & queue."),
 			   message_for("the footer a reviewer reads carries one plain ampersand", displayed(footerAction).toStdString()));
-		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Reviews & queue"),
-			   message_for("and so does the way to Reviews & queue",
+		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Home & queue"),
+			   message_for("and so does the way to Home & queue",
 						   displayed(window.home_filter_settings_action()).toStdString()));
 		for (const auto& shown : { displayed(footerAction), displayed(window.home_filter_settings_action()) }) {
 			expect(!shown.contains(QStringLiteral("&&")) && !shown.contains(QLatin1Char{ '_' }),
@@ -15379,7 +15383,7 @@ namespace {
 		}
 		window.home_filter_settings_action()->trigger();
 		process_events();
-		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::reviews_and_queue,
+		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::home_and_queue,
 			   "and it opens that page");
 		window.settings()->hide();
 		process_events();
@@ -15505,7 +15509,7 @@ namespace {
 		window.publish(projection);
 		process_events();
 
-		auto* const page  = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page  = window.settings()->page_widget(qt::settings_page::home_and_queue);
 		auto* const group = [page] {
 			for (auto* const box : page->findChildren<QGroupBox*>()) {
 				if (box->title() == QStringLiteral("Queue defaults")) {
@@ -15514,7 +15518,7 @@ namespace {
 			}
 			return static_cast<QGroupBox*>(nullptr);
 		}();
-		expect(group != nullptr, "Reviews & queue has a Queue defaults group");
+		expect(group != nullptr, "Home & queue has a Queue defaults group");
 		const auto selectors = std::array{ window.queue_role_filter(), window.queue_observer_filter(),
 										   window.queue_bucket_filter(), window.queue_repository_filter(),
 										   window.queue_quiet_filter(), window.queue_sort_selector() };

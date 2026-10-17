@@ -9308,6 +9308,13 @@ namespace bpr::qt {
 				label->setMinimumWidth(180);
 				line->addWidget(label, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 				if (one.Control != nullptr) {
+					// [[BPR-1597]]. A control made before its group's heading
+					// follows it in the page's child order, which is the
+					// order Settings search reads headings and rows in.
+					one.Control->raise();
+					if (one.Trailing != nullptr) {
+						one.Trailing->raise();
+					}
 					label->setBuddy(one.Control);
 					line->addWidget(one.Control, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 					if (one.Trailing != nullptr) {

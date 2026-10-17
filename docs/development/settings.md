@@ -85,43 +85,57 @@ refuses it. CLI and native-device capabilities also depend on the selected
 platform and configured host. The page reports these limitations rather than
 silently selecting another transport.
 
-## Reviews & queue
+## Home & queue, Review and Comments
 
-These choices change local review behavior, not GitHub assignments or
-subscriptions. Saved preferences belong to the current BPR profile.
+Until [[BPR-1597]] these were one page, Reviews & queue. The owner found it "too
+much of a big grab bag of settings" (2026-10-17) and picked an organisation by
+task, with the middle page named Review: **Home & queue** (what Home lists),
+**Review** (how a pull request opens and reads) and **Comments** (labels, the
+comment workshop, images in comments). They follow Repositories in the sidebar.
+Every stored preference and key is unchanged, and Settings search
+([[BPR-1289]]) finds each row on its new page and section. These choices change
+local behaviour, not GitHub assignments or subscriptions. Saved preferences
+belong to the current BPR profile.
 
-| Group | Default | Reset scope |
-|---|---|---|
-| Modality rules | Open on Overview; Continue enters Read | These two choices |
-| Reading | Mark read by hand; return comparison Whole PR; comments All | These three choices |
-| Drawers | Drawer controls Hidden | Drawer-control preference |
-| Comparison | Line details Shown; center ribbon width 28 px | Both comparison preferences |
-| Comment labels | Label helper off; Label marks Icons (or Letters, each label's two letters; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These four choices |
-| Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
+| Page | Group | Default | Reset scope |
+|---|---|---|---|
+| Review | Opening | Open on Overview; return comparison Whole PR | These two choices |
+| Review | Reading | Mark read by hand; comments drawer All | These two choices |
+| Review | Layout | Drawer controls Hidden; Line details Shown; center ribbon width 28 px | These three choices |
+| Comments | Labels | Label marks Icons (or Letters, each label's two letters; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These three choices |
+| Comments | Comment workshop | Feedback guidance off ([[BPR-1568]]) | This choice |
+| Comments | Descriptions and comments | Images load | This choice |
+| Home & queue | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
 
 **Center ribbon width** sets the space connecting the two source panes, in
 logical pixels (16–256). It defaults to 28 px, half the former fixed 56 px.
 The accepted value updates every window of the profile and survives restart;
-Comparison’s Reset restores 28 px and shows Line details.
+Layout's Reset restores 28 px, shows Line details and hides the drawer controls.
 
-Comment labels ([[BPR-1088]]). **Label helper** sends the Review feedback
-guidance with each comment workshop request (see below) once the choice is
-saved; a label typed out in full, or chosen with the chip, is recognized and
-counted either way. Until [[BPR-1565]] it also turned on the comment editor's
-leading `:xx:` codes and their completion, which the owner removed on
-2026-10-16; a code typed now stays text. **Overview counts** is where a pull
+Comments › Labels ([[BPR-1088]]). A label typed out in full, or chosen with the
+chip, is recognized and counted either way. **Overview counts** is where a pull
 request's Overview starts, Open (unresolved threads) or All; switching
 on an Overview changes only that view. **Overview chips** lists the twelve
 labels: tick one to give it its own count in the Overview's Comments column,
 and drag a ticked one, or press Alt+Up or Alt+Down (⌥↑ ⌥↓ on macOS), to set
 the order. **Mark colours** opens Appearance › Colours with the filter set to
-"label". The Comments drawer's own first filter, under Reading, is separate
-and never changed by these rows. If the saved chips name a label this build
+"label". The Comments drawer's own first filter, on Review › Reading, is
+separate and never changed by these rows. If the saved chips name a label this build
 does not know, or one label twice, the row says how many were left out; the
 rest keep their order, and changing a chip or Reset saves the list as shown.
 Above the rows, **About Conventional Comments** ([[BPR-1566]]) opens
 conventionalcomments.org, where the labels come from, in the browser; the
 comment label menu ends with the same item.
+
+Comments › Comment workshop ([[BPR-1568]], folded into [[BPR-1597]]).
+**Feedback guidance**, "Send with comment workshop requests", is the stored label
+helper preference: on, each comment workshop request carries the Review feedback
+guidance (see below); off, the default, requests go without it. Its info glyph
+says what the guidance is. **Guidance text** ("Agents & context › Review
+feedback ›") opens the writing instructions with that hook chosen. The group's
+Reset turns it off and changes nothing else. Until [[BPR-1565]] the helper also
+turned on the comment editor's leading `:xx:` codes, which the owner removed on
+2026-10-16; until [[BPR-1597]] it was a Comment labels row named Label helper.
 
 Observer rules match local repository, author or path facts. Add/remove changes
 the local rule and its matched membership. Observer rules stay on this page
@@ -325,8 +339,8 @@ The same list holds a fifth hook below a separator, **Review feedback**
 shipped as `review-feedback-v1`: the twelve labels, the decorations, and the
 difference between a `suggestion` label and a GitHub suggested change and between
 a label and a review decision. Comment workshop requests carry it only while
-Reviews & queue › Comment labels › Label helper is on; a line under the source label
-says On or Off. It writes no tour field, so its Test button is unavailable. Save
+Comments › Comment workshop › Feedback guidance is on ([[BPR-1597]]); a line under
+the source label says On or Off and names that place. It writes no tour field, so its Test button is unavailable. Save
 keeps the profile's text across upgrades; Restore default follows the shipped text
 again. `bpr tour hooks show|edit|reset feedback` reads and changes the same override.
 

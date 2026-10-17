@@ -5714,7 +5714,7 @@ namespace {
 			   "signed out, neither Sign out nor the grant sentence remains");
 		auto* const rules = window.rules_editor();
 		expect(rules != nullptr
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(rules)
 				   && !window.home_page()->isAncestorOf(rules)
 				   && rules->isAncestorOf(window.queue_rule_kind_selector())
 				   && rules->isAncestorOf(window.queue_rule_pattern_editor())
@@ -5722,8 +5722,8 @@ namespace {
 				   // [[BPR-0783]]. The queue's six typed controls moved to the
 				   // same page, so they are off Home and off this order too.
 				   && !window.focus_order().contains(window.queue_role_filter())
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(window.queue_role_filter()),
-			   "the observer-rule editor and the queue defaults live on Reviews and queue, off Home and out of the workbench's focus order");
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(window.queue_role_filter()),
+			   "the observer-rule editor and the queue defaults live on Home & queue, off Home and out of the workbench's focus order");
 		window.hide();
 	}
 

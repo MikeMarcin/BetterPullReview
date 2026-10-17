@@ -1,5 +1,6 @@
 /// \file
-/// \brief [[BPR-1088]]. Proves Reviews & queue › Comment labels as the owner
+/// \brief [[BPR-1088]]. Proves Comments › Labels (Reviews & queue › Comment
+/// labels until [[BPR-1597]]) as the owner
 /// accepted it (BPR-1079 selected design, Settings; RFC-BPR-0049 R20, R28;
 /// RFC-BPR-0048's remembered authoring preference): the label helper, off by
 /// default and following only what is published (since [[BPR-1565]] it sends
@@ -106,7 +107,7 @@ namespace {
 	void test_the_section_offers_every_row_with_safe_defaults()
 	{
 		fixture     f;
-		auto* const page    = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page    = f.Window.settings()->page_widget(qt::settings_page::comments);
 		auto* const helper  = f.Window.label_helper_switch();
 		auto* const marks   = f.find("feedbackMarksLetters");
 		auto* const open    = f.find("overviewCountsOpen");
@@ -119,16 +120,16 @@ namespace {
 		expect(helper != nullptr && marks != nullptr && open != nullptr && all != nullptr && link != nullptr && chips != nullptr && reset != nullptr && info != nullptr && heading != nullptr,
 			   "Comment labels holds Label marks, Overview counts, Mark colours and Overview chips; Comment workshop the helper");
 		for (QWidget* const widget : std::array<QWidget*, 6>{ helper, marks, open, link, chips, reset }) {
-			expect(page->isAncestorOf(widget), "every row is on Reviews & queue");
+			expect(page->isAncestorOf(widget), "every row is on Comments");
 		}
-		expect(heading->text() == QStringLiteral("Comment labels"), "the section is named Comment labels");
+		expect(heading->text() == QStringLiteral("Labels"), "[[BPR-1597]] on the Comments page the section is named Labels");
 		// [[BPR-1089]]. Open carries the round open state mark the Overview
 		// draws beside its own Open; All carries none.
 		expect(!open->icon().isNull() && open->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && open->text() == QStringLiteral("Open") && all->icon().isNull(),
 			   "Overview counts: Open shows the round open mark beside its word");
 		const auto top = [page](const QWidget* aWidget) { return aWidget->mapTo(page, QPoint{ 0, 0 }).y(); };
 		f.Window.settings()->resize(1'100, 900);
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
 		// [[BPR-1568]] v002. The helper left Comment labels for its own group,
 		// Comment workshop, below it (negative control: no row of Comment
@@ -136,7 +137,7 @@ namespace {
 		auto* const workshop = f.Window.findChild<QLabel*>(QStringLiteral("resetCommentWorkshopHeading"));
 		auto* const guidance = f.Window.workshop_guidance_link();
 		expect(workshop != nullptr && workshop->text() == QStringLiteral("Comment workshop") && guidance != nullptr && page->isAncestorOf(guidance),
-			   "Reviews & queue has a Comment workshop group with the guidance link");
+			   "Comments has a Comment workshop group with the guidance link");
 		expect(top(marks) < top(open) && top(open) < top(link) && top(link) < top(chips) && top(chips) < top(workshop) && top(workshop) < top(helper) && top(helper) < top(guidance),
 			   "in order: Label marks, Overview counts, Mark colours, Overview chips; then Comment workshop: Feedback guidance, Guidance text");
 		const auto label = [&f](const char* const aName) { return f.Window.findChild<QLabel*>(QString::fromLatin1(aName)); };
@@ -149,7 +150,7 @@ namespace {
 		}
 		expect(info->consequence() == QStringLiteral("The Review feedback guidance tells the agent how comment labels and decorations work. On: each comment workshop request carries it. Off, the default: requests go without it. Labels count either way."),
 			   "the switch's info glyph says what it sends");
-		expect(helper->text() == QStringLiteral("Send with each workshop request") && helper->accessibleDescription() == info->consequence()
+		expect(helper->text() == QStringLiteral("Send with comment workshop requests") && helper->accessibleDescription() == info->consequence()
 				   && (helper->focusPolicy() & Qt::TabFocus) != 0,
 			   "the switch says what it does, is described like its glyph, and Tab reaches it");
 		// The button draws "&&" as one "&"; a single "&" would draw as a
@@ -242,9 +243,9 @@ namespace {
 				   && chips->item(2) == chips->separator_item() && !chips->separator_item()->isHidden() && chips->item(3) == chips->item_of(core::feedback_label::praise),
 			   "ticked rows come first in order, then the rule, then the rest in catalog order");
 		f.Window.settings()->resize(1'100, 900);
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
-		save_render(*f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue), "comment-labels-two-chips");
+		save_render(*f.Window.settings()->page_widget(qt::settings_page::comments), "comment-labels-two-chips");
 		chips->setFocus();
 		chips->setCurrentItem(chips->item_of(core::feedback_label::issue));
 		auto altDown = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::AltModifier };
@@ -352,7 +353,7 @@ namespace {
 	void test_mark_colours_opens_the_label_tints()
 	{
 		fixture f;
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
 		f.Window.mark_colours_link()->click();
 		settle();
@@ -378,9 +379,9 @@ namespace {
 	{
 		fixture f;
 		f.Window.settings()->resize(1'100, 900);
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
-		auto* const page    = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page    = f.Window.settings()->page_widget(qt::settings_page::comments);
 		auto* const caption = f.Window.conventional_comments_caption();
 		auto* const link    = f.Window.conventional_comments_link();
 		auto* const status  = f.Window.conventional_comments_status();
@@ -482,7 +483,7 @@ namespace {
 		fixture f;
 		f.publish({ });
 		f.Window.settings()->resize(1'100, 900);
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
 		auto* const helper = f.Window.label_helper_switch();
 		helper->setFocus(Qt::TabFocusReason);
@@ -503,12 +504,12 @@ namespace {
 		auto* const scope = hooks->findChild<QLabel*>(QStringLiteral("writingHookScope"));
 		expect(f.Window.settings()->current_page() == qt::settings_page::agents_and_context && hooks->selected_hook() == core::writing_hook::feedback,
 			   "Guidance text opens Agents & context on the Review feedback hook");
-		expect(scope->isVisibleTo(hooks) && scope->text() == QStringLiteral("On. Sent with each comment workshop request: Reviews & queue › Comment workshop."),
+		expect(scope->isVisibleTo(hooks) && scope->text() == QStringLiteral("On. Sent with each comment workshop request: Comments › Comment workshop."),
 			   "whose line says it is sent and where that is decided");
 		expect(hooks->findChildren<QCheckBox*>().isEmpty(), "the writing hooks panel has no switch of its own");
 		save_render(*hooks, "writing-hooks-pointer-on");
 		f.publish({ });
-		expect(scope->text() == QStringLiteral("Off. Not sent with comment workshop requests; turn it on in Reviews & queue › Comment workshop."), "and when it is not");
+		expect(scope->text() == QStringLiteral("Off. Not sent with comment workshop requests; turn it on in Comments › Comment workshop."), "and when it is not");
 
 		// Review renders of the two Settings pages in the built-in Light and
 		// Dark palettes, the switch on, applied as the composition does.
@@ -519,8 +520,8 @@ namespace {
 				auto profile = qt::appearance_profile{ };
 				static_cast<void>(profile.select_mode(mode));
 				f.Window.setPalette(profile.derive(original));
-				f.Window.settings()->present(qt::settings_page::reviews_and_queue);
-				auto* const page   = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+				f.Window.settings()->present(qt::settings_page::comments);
+				auto* const page   = f.Window.settings()->page_widget(qt::settings_page::comments);
 				auto* const scroll = f.Window.settings()->findChild<QScrollArea*>();
 				if (scroll != nullptr) {
 					scroll->ensureWidgetVisible(f.Window.workshop_guidance_link(), 0, 120);
@@ -528,7 +529,15 @@ namespace {
 				settle();
 				expect(page != nullptr && qt::contrast_ratio(qt::to_appearance_color(f.Window.workshop_guidance_link()->palette().color(QPalette::ButtonText)), qt::to_appearance_color(page->palette().color(QPalette::Window))) >= 4.5,
 					   "the guidance link reads at 4.5:1 or better");
-				save_render(*f.Window.settings(), (std::string{ "workshop-reviews-" } + name).c_str());
+				save_render(*f.Window.settings(), (std::string{ "page-comments-" } + name).c_str());
+				f.Window.settings()->present(qt::settings_page::review);
+				settle();
+				save_render(*f.Window.settings(), (std::string{ "page-review-" } + name).c_str());
+				f.Window.settings()->present(qt::settings_page::home_and_queue);
+				settle();
+				save_render(*f.Window.settings(), (std::string{ "page-home-queue-" } + name).c_str());
+				f.Window.settings()->present(qt::settings_page::comments);
+				settle();
 				f.Window.workshop_guidance_link()->click();
 				settle();
 				save_render(*f.Window.settings(), (std::string{ "workshop-hooks-" } + name).c_str());
@@ -543,9 +552,9 @@ namespace {
 	{
 		fixture f;
 		f.Window.settings()->resize(760, 560);
-		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		f.Window.settings()->present(qt::settings_page::comments);
 		settle();
-		auto* const page  = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page  = f.Window.settings()->page_widget(qt::settings_page::comments);
 		auto* const chips = f.Window.label_columns_editor();
 		const auto  box   = QRect{ chips->mapTo(page, QPoint{ 0, 0 }), chips->size() };
 		expect(box.left() >= 0 && box.right() <= page->width() && chips->width() >= chips->minimumSizeHint().width(), "the chips list fits the page at 760 by 560");

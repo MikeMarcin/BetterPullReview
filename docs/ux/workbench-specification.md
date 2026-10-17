@@ -699,7 +699,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   when a signed-in window's ready queue is empty Needs me holds one sentence
   — "Nothing needs me. Pull requests from saved repositories and observer
   rules appear here." — whose link, on "saved repositories", opens Settings ›
-  Repositories; observer rules are reached from Filter's Open Reviews & queue.
+  Repositories; observer rules are reached from Filter's Open Home & queue.
   No empty
   box is drawn in any arrangement.
 - **Group** is a strip menu of None (the default), Organization, Repository
@@ -722,7 +722,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   an item cannot be unticked into nothing. Repository and Bucket are no
   longer filters because Group and the state order do their work. The menu's
   footer says that nothing there changes GitHub and that observer rules are
-  in Settings › Reviews & queue, and offers the way there. These are the same typed controls Settings
+  in Settings › Home & queue (Reviews & queue until [[BPR-1597]]), and offers the way there. These are the same typed controls Settings
   presents as queue defaults, not a mirror of them.
 - **Recently viewed** is the last panel in every arrangement, and Resume is
   its rows' action: on hover, on focus and in the row's menu. It is governed
@@ -1632,7 +1632,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   cut at a character boundary and says how many bytes follow. The core decides
   the rows, the cut and the highlight spans from the comparison's existing
   mapping and intraline edits; Qt draws them. It is on by default. **View >
-  Line Details** and the Comparison row on Reviews and queue hide or show it
+  Line Details** and the Line details row on Settings › Review › Layout hide or show it
   for the profile. Its top edge is a resize seam with the shared cursor hold:
   drag it, or press Up/Down on it to move one text line; double-click it or use
   its context menu to reset the height. The height a reader chose is kept per

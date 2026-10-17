@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -265,6 +266,91 @@ namespace {
 		}
 		QApplication::processEvents();
 		expect(aSettings.grab().save(root + QStringLiteral("/search-%1.png").arg(aName)), "save Settings search evidence");
+	}
+
+	/// \brief [[BPR-1597]]. Settings by task (owner's pick A, 2026-10-17,
+	/// the middle page named Review): the sidebar's pages and their order, and
+	/// search finding every row that left Reviews & queue on its new page and
+	/// section. Negative control: nothing is found under Reviews & queue.
+	void test_settings_are_organised_by_task()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		settings->resize(1'100, 900);
+		settings->present(qt::settings_page::general);
+		QApplication::processEvents();
+		auto pages = QStringList{ };
+		for (auto row = 0; row < settings->sidebar()->count(); ++row) {
+			pages.push_back(settings->sidebar()->item(row)->text());
+		}
+		expect(pages == QStringList{ QStringLiteral("General"), QStringLiteral("Accounts & hosts"), QStringLiteral("Repositories"), QStringLiteral("Home & queue"), QStringLiteral("Review"), QStringLiteral("Comments"), QStringLiteral("Appearance"), QStringLiteral("Notifications"), QStringLiteral("Agents & context"), QStringLiteral("Storage & privacy") },
+			   "the sidebar is General, Accounts & hosts, Repositories, Home & queue, Review, Comments, then the rest as before");
+		for (auto index = std::size_t{ 0U }; index < qt::settings_page_count; ++index) {
+			const auto page = static_cast<qt::settings_page>(index);
+			expect(qt::settings_page_title(page) == pages.at(static_cast<int>(index)), "each page's row is its own value");
+		}
+		auto* const search = settings->search_field();
+		struct expected_row
+		{
+			QString Query;
+			QString Name;
+			QString Location;
+		};
+		const auto rows = std::array{
+			expected_row{ QStringLiteral("A pull request opens in"), QStringLiteral("A pull request opens in"), QStringLiteral("Review · Opening") },
+			expected_row{ QStringLiteral("On return, compare"), QStringLiteral("On return, compare"), QStringLiteral("Review · Opening") },
+			expected_row{ QStringLiteral("Mark a file read"), QStringLiteral("Mark a file read"), QStringLiteral("Review · Reading") },
+			expected_row{ QStringLiteral("Comments drawer opens on"), QStringLiteral("Comments drawer opens on"), QStringLiteral("Review · Reading") },
+			expected_row{ QStringLiteral("Drawer controls"), QStringLiteral("Drawer controls"), QStringLiteral("Review · Layout") },
+			expected_row{ QStringLiteral("Line details"), QStringLiteral("Line details"), QStringLiteral("Review · Layout") },
+			expected_row{ QStringLiteral("Center ribbon width"), QStringLiteral("Center ribbon width"), QStringLiteral("Review · Layout") },
+			expected_row{ QStringLiteral("Label marks"), QStringLiteral("Label marks"), QStringLiteral("Comments · Labels") },
+			expected_row{ QStringLiteral("Feedback guidance"), QStringLiteral("Feedback guidance"), QStringLiteral("Comments · Comment workshop") },
+			expected_row{ QStringLiteral("Images"), QStringLiteral("Images"), QStringLiteral("Comments · Descriptions and comments") },
+			expected_row{ QStringLiteral("Observer reason"), QStringLiteral("Observer reason"), QStringLiteral("Home & queue · Queue defaults") },
+		};
+		for (const auto& each : rows) {
+			search->setText(each.Query);
+			QApplication::processEvents();
+			auto found = false;
+			for (auto row = 0; row < settings->search_results()->count(); ++row) {
+				auto* const item = settings->search_results()->item(row);
+				found            = found || (item->text().section(QLatin1Char('\n'), 0, 0) == each.Name && item->data(qt::settings_search_location_role).toString() == each.Location);
+			}
+			if (!found) {
+				std::cerr << "results for " << each.Query.toStdString() << ':';
+				for (auto row = 0; row < settings->search_results()->count(); ++row) {
+					std::cerr << " [" << settings->search_results()->item(row)->text().toStdString() << " @ " << settings->search_results()->item(row)->data(qt::settings_search_location_role).toString().toStdString() << ']';
+				}
+				std::cerr << '\n';
+			}
+			expect(found, "search finds " + each.Name.toStdString() + " on " + each.Location.toStdString());
+		}
+		for (const auto* const query : { "Reviews & queue", "Label", "Comment", "Queue" }) {
+			search->setText(QString::fromUtf8(query));
+			QApplication::processEvents();
+			for (auto row = 0; row < settings->search_results()->count(); ++row) {
+				expect(!settings->search_results()->item(row)->data(qt::settings_search_location_role).toString().startsWith(QStringLiteral("Reviews & queue")),
+					   "negative control: no result is under Reviews & queue");
+			}
+		}
+		// Return goes to the row on its new page, changing nothing.
+		search->setText(QStringLiteral("Feedback guidance"));
+		QApplication::processEvents();
+		auto* const helper = workbench.label_helper_switch();
+		const auto  was    = helper->isChecked();
+		expect(result_names(*settings).value(0) == QStringLiteral("Feedback guidance"), "Feedback guidance is the first result");
+		send_key(search, Qt::Key_Return);
+		QApplication::processEvents();
+		expect(settings->current_page() == qt::settings_page::comments && settings->page_widget(qt::settings_page::comments)->isAncestorOf(helper) && helper->isChecked() == was,
+			   "choosing Feedback guidance opens Comments and changes nothing");
+		search->clear();
+		QApplication::processEvents();
+		// Each page hosts its own rows.
+		expect(settings->page_widget(qt::settings_page::review)->isAncestorOf(workbench.behaviour_editor())
+				   && settings->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(workbench.queue_role_filter())
+				   && settings->page_widget(qt::settings_page::comments)->isAncestorOf(workbench.label_columns_editor()),
+			   "Review hosts the review rows, Home & queue the queue defaults, Comments the label rows");
 	}
 
 	/// \brief [[BPR-1289]]. The search field filters the settings the pages
@@ -691,6 +777,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_shortcut_selects_the_active_workbench();
 	test_settings_search_finds_and_goes_to_a_setting();
 	test_settings_search_reads_the_pages_as_shown();
+	test_settings_are_organised_by_task();
 	test_agents_page_claude_wrapper_rows();
 	test_agents_page_claude_rows_are_readable();
 	std::cout << "settings-window-tests:pass\n";
