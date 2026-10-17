@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1596"
 title: "On Windows and Linux the title row starts at the edge, with no macOS window-control gap"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
