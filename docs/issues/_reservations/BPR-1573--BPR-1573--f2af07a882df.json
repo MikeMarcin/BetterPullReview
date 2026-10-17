@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1573"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home: Close review beside Back to the review (owner request 2026-10-17)",
+  "created": "2026-10-17T07:51:48.840041+00:00",
+  "base": "eee6187fd1c4b7b86874f44afb84debf7b590c90"
+}

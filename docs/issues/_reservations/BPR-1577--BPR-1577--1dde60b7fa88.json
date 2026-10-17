@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1577"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Quiet Open/All counts toggle on the Overview's Files heading",
+  "created": "2026-10-17T08:00:05.798678+00:00",
+  "base": "d8a58b09da7d5878a5a21bf6d050aacf3f4940dd"
+}

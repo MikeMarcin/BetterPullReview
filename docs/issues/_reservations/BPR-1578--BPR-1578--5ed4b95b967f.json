@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1578"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Group Accept with the progress dropdown under the review bar's connecting underline and give Accept a button affordance",
+  "created": "2026-10-17T08:01:35.688307+00:00",
+  "base": "d8a58b09da7d5878a5a21bf6d050aacf3f4940dd"
+}
