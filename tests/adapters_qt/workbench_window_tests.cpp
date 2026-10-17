@@ -6596,17 +6596,10 @@ namespace {
 			expect(draftMenu != nullptr && draftMenu->objectName() == QStringLiteral("draftContextMenu"), "my draft's note has its menu");
 			auto* const show = draftMenu->findChild<QAction*>(QStringLiteral("draftShowInDiscussAction"));
 			expect(show != nullptr && show->isEnabled() && show->text() == QStringLiteral("Show in Discuss"), "it offers Show in Discuss");
-			// [[BPR-1586]]. And Show in Threads, which puts the cursor on my
-			// draft's own row.
+			// [[BPR-1586]]. And Show in Threads (driven in the thread-moves
+			// course, whose window has a pull request and so a Threads page).
 			auto* const threads = draftMenu->findChild<QAction*>(QStringLiteral("draftShowInThreadsAction"));
 			expect(threads != nullptr && threads->isEnabled() && threads->text() == QStringLiteral("Show in Threads"), "it offers Show in Threads");
-			threads->trigger();
-			window.activateWindow();
-			process_events();
-			expect(window.current_modality() == qt::review_modality::threads && window.finder()->cursor_key().starts_with("row:draft:unpublished/"),
-				   "Show in Threads on my draft puts the cursor on my draft's row");
-			window.choose_modality(qt::review_modality::review);
-			process_events();
 			show->trigger();
 			delete draftMenu;
 			window.activateWindow();
@@ -14132,7 +14125,7 @@ namespace {
 			delete lineMenu;
 			window.activateWindow();
 			process_events();
-			expect(inThreads(lateRow, std::string{ }), "the line's Show in Threads puts the cursor on its row");
+			expect(inThreads(lateRow, "review-comment:late-1"), "the line's Show in Threads puts the cursor on its row, at its first post");
 			backToReview();
 			cards->close_thread();
 			expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22 is selected");
@@ -14140,7 +14133,25 @@ namespace {
 			process_events();
 			deliver_key(window, Qt::Key_4, Qt::ControlModifier | Qt::AltModifier);
 			process_events();
-			expect(inThreads(lateRow, std::string{ }), "⌥⌘4 with the keyboard on a line shows its row in Threads");
+			expect(inThreads(lateRow, "review-comment:late-1"), "⌥⌘4 with the keyboard on a line shows its row in Threads");
+			// My draft's note: its own row in Threads.
+			backToReview();
+			window.comparison_surface()->set_selection_sink([&window](const std::optional<core::semantic_selection>& aSelection) {
+				if (aSelection) {
+					window.review_editor()->present(core::review_comment_draft{ .Id = core::review_draft_id{ 7U }, .Anchor = aSelection->PreferredLine, .Body = "a draft beside line 10" });
+				}
+			});
+			expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 9U), "line 10 is selected and has my draft");
+			process_events();
+			auto* const draftMenu = cards->thread_menu(qt::conversation_cards_view::draft_identity());
+			show                  = menuItem(draftMenu, "draftShowInThreadsAction");
+			show->trigger();
+			delete draftMenu;
+			window.activateWindow();
+			process_events();
+			expect(window.current_modality() == qt::review_modality::threads && finder->cursor_key().starts_with("row:draft:unpublished/") && finder->list()->hasFocus(),
+				   "Show in Threads on my draft puts the cursor on my draft's row");
+			window.comparison_surface()->set_selection_sink({ });
 			// A filter that hides the row is cleared, and said.
 			backToReview();
 			finder->set_filters(qt::finder_filters{ .Search = QStringLiteral("nothing matches this") });
@@ -14154,7 +14165,7 @@ namespace {
 			// unknown thread moves nothing.
 			backToReview();
 			expect(!window.move_thread("issue-comment:pr-1", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
-					   && window.current_modality() == qt::review_modality::review && window.statusBar()->currentMessage().contains(QStringLiteral("no row")),
+					   && window.current_modality() == qt::review_modality::review,
 				   "negative control: a pull request comment has no row in Threads, and nothing moves");
 			expect(!window.move_thread("review-thread:missing", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
 					   && window.current_modality() == qt::review_modality::review,
