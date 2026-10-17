@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <utility>
 
 namespace bpr::qt {
@@ -178,7 +179,8 @@ namespace bpr::qt {
 				aPainter.drawPath(house);
 				break;
 			}
-			case strip_glyph::private_progress: {
+			case strip_glyph::private_progress:
+			case strip_glyph::accept_file:      {
 				auto check = QPainterPath{ };
 				check.moveTo(5.0, 12.5);
 				check.lineTo(10.0, 17.5);
@@ -556,22 +558,44 @@ namespace bpr::qt {
 		return Style;
 	}
 
-	void workbench_strip::set_navigation_rails(QAction* const aFileLabel, QAction* const aFileLast, QAction* const aChangeLabel, QAction* const aChangeLast)
+	void workbench_strip::set_group_rails(const std::initializer_list<rail_group> aGroups)
 	{
-		NavigationRails = { aFileLabel, aFileLast, aChangeLabel, aChangeLast };
+		GroupRails.clear();
+		for (const auto& group : aGroups) {
+			GroupRails.emplace_back(group.First, group.Last);
+		}
 		update();
 	}
 
-	void workbench_strip::paint_navigation_rails(QPainter& aPainter) const
+	auto workbench_strip::group_rail_count() const noexcept -> std::size_t
 	{
-		for (const auto index : { 0U, 2U }) {
-			if (NavigationRails[index] == nullptr || NavigationRails[index + 1U] == nullptr) {
-				continue;
-			}
-			const auto first = actionGeometry(NavigationRails[index]);
-			const auto last  = actionGeometry(NavigationRails[index + 1U]);
-			if (!first.isEmpty() && !last.isEmpty() && first.left() < last.right()) {
-				aPainter.fillRect(QRect{ first.left() + 2, height() - 3, last.right() - first.left() - 3, 2 }, palette().color(QPalette::Active, QPalette::Highlight));
+		return GroupRails.size();
+	}
+
+	auto workbench_strip::group_rail(const std::size_t aIndex) const -> QRect
+	{
+		if (aIndex >= GroupRails.size()) {
+			return { };
+		}
+		const auto& [firstAction, lastAction] = GroupRails[aIndex];
+		if (firstAction == nullptr || lastAction == nullptr) {
+			return { };
+		}
+		// A hidden presenter keeps no geometry of its own, so a group whose
+		// end is hidden draws nothing rather than a rail to a stale place.
+		const auto first = actionGeometry(firstAction);
+		const auto last  = actionGeometry(lastAction);
+		if (first.isEmpty() || last.isEmpty() || first.left() >= last.right()) {
+			return { };
+		}
+		return QRect{ first.left() + 2, height() - 3, last.right() - first.left() - 3, 2 };
+	}
+
+	void workbench_strip::paint_group_rails(QPainter& aPainter) const
+	{
+		for (std::size_t index = 0U; index < GroupRails.size(); ++index) {
+			if (const auto rail = group_rail(index); !rail.isEmpty()) {
+				aPainter.fillRect(rail, palette().color(QPalette::Active, QPalette::Highlight));
 			}
 		}
 	}
@@ -594,7 +618,7 @@ namespace bpr::qt {
 		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
 		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
 		painter.drawLine(0, height() - 1, width(), height() - 1);
-		paint_navigation_rails(painter);
+		paint_group_rails(painter);
 	}
 
 	void workbench_strip::actionEvent(QActionEvent* const aEvent)
@@ -689,6 +713,40 @@ namespace bpr::qt {
 			return;
 		}
 		QToolBar::mouseDoubleClickEvent(aEvent);
+	}
+
+	strip_command_button::strip_command_button(QWidget* const aParent)
+		: QToolButton{ aParent }
+	{
+		setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+	}
+
+	void strip_command_button::set_glyph(const QIcon& aGlyph)
+	{
+		Glyph = aGlyph;
+		// The glyph is part of the button's size, and a button caches its
+		// size hint until a change event clears it.
+		auto changed = QEvent{ QEvent::StyleChange };
+		QCoreApplication::sendEvent(this, &changed);
+		updateGeometry();
+		update();
+	}
+
+	auto strip_command_button::glyph() const -> QIcon
+	{
+		return Glyph;
+	}
+
+	void strip_command_button::initStyleOption(QStyleOptionToolButton* const aOption) const
+	{
+		QToolButton::initStyleOption(aOption);
+		if (aOption == nullptr) {
+			return;
+		}
+		// The action's own icon is the menu's legend mark; the bar shows the
+		// command's glyph in its place, and the word beside it.
+		aOption->icon            = Glyph;
+		aOption->toolButtonStyle = Glyph.isNull() ? Qt::ToolButtonTextOnly : Qt::ToolButtonTextBesideIcon;
 	}
 
 	strip_divider::strip_divider(QWidget* const aParent)

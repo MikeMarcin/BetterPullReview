@@ -1891,15 +1891,34 @@ namespace bpr::qt {
 			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		ReviewBar->addAction(Navigation[2].Action);
 		ReviewBar->addAction(Navigation[3].Action);
-		ReviewBar->set_navigation_rails(FilePositionAction, Navigation[1].Action, ChangePositionAction, Navigation[3].Action);
 		// [[BPR-1507]]. The normal file control exposes the existing exact
 		// acceptance action directly; its state menu keeps every alternative.
-		AcceptFileButton = new QToolButton{ ReviewBar };
+		// [[BPR-1578]]. The owner, 2026-10-17: "Accept is a button next to
+		// other similar text labels in Changes and Files which are not
+		// buttons, it's kind of confusing. It also doesn't have the under bar
+		// that connects it to the dropdown control". Accept carries the
+		// command's tick beside its word, so it is the only text control in
+		// this stretch with a glyph, and it and private progress are one group
+		// on one rail, as File and Changes are with their arrows.
+		// The rails of neighbouring groups must not run together: File and
+		// Changes are parted by the Changes label's slot, Changes and this
+		// group by a bare gap.
+		auto* const progressGap = new QWidget{ ReviewBar };
+		progressGap->setObjectName(QStringLiteral("reviewBarProgressGap"));
+		progressGap->setFocusPolicy(Qt::NoFocus);
+		progressGap->setFixedWidth(8);
+		rowWidget(ReviewBar, progressGap, QStringLiteral("reviewBarProgressGapAction"));
+		AcceptFileButton = new strip_command_button{ ReviewBar };
 		AcceptFileButton->setObjectName(QStringLiteral("workbenchAcceptFileButton"));
 		AcceptFileButton->setDefaultAction(ReceiptActions[2]);
-		AcceptFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
-		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		AcceptFileButton->set_glyph(strip_icon(strip_glyph::accept_file, palette()));
+		auto* const acceptAction   = rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
+		auto* const progressAction = rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		ReviewBar->set_group_rails({
+			{ .First = FilePositionAction, .Last = Navigation[1].Action },
+			{ .First = ChangePositionAction, .Last = Navigation[3].Action },
+			{ .First = acceptAction, .Last = progressAction },
+		});
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
 		// keys work from anywhere in it without a visible presenter; the bar and
@@ -15707,6 +15726,11 @@ namespace bpr::qt {
 		// label says now.
 		const auto colours  = shown_progress_mark_colours();
 		const auto disabled = palette().color(QPalette::Disabled, QPalette::ButtonText);
+		if (AcceptFileButton != nullptr) {
+			// [[BPR-1578]]. The command's tick in the palette's ink, repainted
+			// with the progress marks whenever the palette or theme changes.
+			AcceptFileButton->set_glyph(strip_icon(strip_glyph::accept_file, palette()));
+		}
 		if (ReviewControlsButton != nullptr) {
 			ReviewControlsButton->setIcon(progress_mark_icon(shown_progress_mark(Receipt, LedgerUnavailable), colours, disabled));
 		}

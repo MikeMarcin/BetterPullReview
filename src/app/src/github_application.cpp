@@ -26099,13 +26099,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, Accept file ([[BPR-1507]]), private
-		// progress, a spacer, the
+		// change pair with its position, a gap, Accept file ([[BPR-1507]]) and
+		// private progress on one rail ([[BPR-1578]]), a spacer, the
 		// review chip ([[BPR-1345]], hidden with no review in progress),
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
 		const auto* const acceptFile          = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto        exactReviewBarOrder = reviewBarActions.size() == 16
+		const auto        exactReviewBarOrder = reviewBarActions.size() == 17
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
@@ -26116,14 +26116,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
 			&& reviewBarActions[8] == previousChange
 			&& reviewBarActions[9] == nextChange
-			&& widgetActionNamed(reviewBarActions, 10, "workbenchAcceptFileAction")
-			&& acceptFile != nullptr && reviewBar->widgetForAction(reviewBarActions[10]) == acceptFile
+			&& widgetActionNamed(reviewBarActions, 10, "reviewBarProgressGapAction")
+			&& widgetActionNamed(reviewBarActions, 11, "workbenchAcceptFileAction")
+			&& acceptFile != nullptr && reviewBar->widgetForAction(reviewBarActions[11]) == acceptFile
 			&& acceptFile->defaultAction() == window->accept_action()
-			&& reviewBar->widgetForAction(reviewBarActions[11]) == reviewControls
-			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
-			&& reviewBarActions[13] == window->review_chip_action()
-			&& reviewBarActions[14] == window->compose_review_action()
-			&& reviewBarActions[15] == window->comment_action()
+			&& reviewBar->widgetForAction(reviewBarActions[12]) == reviewControls
+			&& widgetActionNamed(reviewBarActions, 13, "reviewBarSpacerAction")
+			&& reviewBarActions[14] == window->review_chip_action()
+			&& reviewBarActions[15] == window->compose_review_action()
+			&& reviewBarActions[16] == window->comment_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the

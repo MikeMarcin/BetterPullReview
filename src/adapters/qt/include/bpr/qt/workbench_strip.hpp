@@ -11,19 +11,24 @@
 #include <QWidget>
 
 #include <QPoint>
+#include <QRect>
 #include <QToolButton>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
+#include <utility>
+#include <vector>
 
 class QAction;
 class QActionEvent;
 class QMouseEvent;
 class QPaintEvent;
 class QPainter;
+class QStyleOptionToolButton;
 class QToolButton;
 
 namespace bpr::qt {
@@ -62,6 +67,10 @@ namespace bpr::qt {
 		/// [[BPR-1338]]. Open on GitHub: a page whose corner an arrow leaves,
 		/// the common mark for "opens outside this application".
 		open_on_github,
+		/// [[BPR-1578]]. Accept file: a tick in the strip's line ink, the
+		/// command's glyph. The coloured circles are the file's state; a
+		/// command never wears one.
+		accept_file,
 	};
 
 	/// \brief Paints one strip glyph for a palette.
@@ -152,8 +161,20 @@ namespace bpr::qt {
 		/// \brief Gives a button the strip's style and focus policy.
 		void               adopt_button(QToolButton* aButton);
 		[[nodiscard]] auto button_style() const noexcept -> strip_style*;
-		/// \brief Joins each navigation label to its arrow pair with a palette-derived rail.
-		void set_navigation_rails(QAction* aFileLabel, QAction* aFileLast, QAction* aChangeLabel, QAction* aChangeLast);
+		/// \brief One group of the review bar, from its first presenter to its last.
+		struct rail_group
+		{
+			QAction* First = nullptr;
+			QAction* Last  = nullptr;
+		};
+		/// \brief Joins each group's presenters with one palette-derived rail
+		/// beneath them: File and its arrows, Changes and theirs, and
+		/// ([[BPR-1578]]) Accept and private progress.
+		void set_group_rails(std::initializer_list<rail_group> aGroups);
+		/// \brief The rail drawn beneath one group, in strip coordinates;
+		/// empty while either end is hidden or absent.
+		[[nodiscard]] auto group_rail(std::size_t aIndex) const -> QRect;
+		[[nodiscard]] auto group_rail_count() const noexcept -> std::size_t;
 		/// \brief Whether a point in the strip is bare surface, no control.
 		///
 		/// \details The spacers, the inset, the dividers and the labels are the
@@ -175,13 +196,38 @@ namespace bpr::qt {
 
 	private:
 		[[nodiscard]] auto over_empty_space(const QMouseEvent& aEvent) const -> bool;
-		void               paint_navigation_rails(QPainter& aPainter) const;
+		void               paint_group_rails(QPainter& aPainter) const;
 
-		strip_style*                     Style = nullptr;
-		strip_role                       Role  = strip_role::title_row;
-		std::array<QPointer<QAction>, 4> NavigationRails;
+		strip_style*                                                 Style = nullptr;
+		strip_role                                                   Role  = strip_role::title_row;
+		std::vector<std::pair<QPointer<QAction>, QPointer<QAction>>> GroupRails;
 		/// \brief Where inside the window frame the drag took hold, while held.
 		std::optional<QPoint> DragHold;
+	};
+
+	/// \brief [[BPR-1578]]. A strip text button that shows its default
+	/// action's word, state and enablement beside a glyph of its own.
+	///
+	/// \details The review bar's Accept presents the retained Accept action,
+	/// whose own icon is the accepted mark the private-progress menu shows as
+	/// its legend. On the bar that mark would read as the file's state, so the
+	/// button carries the command's line glyph instead and leaves the action,
+	/// and the menu, as they are. Everything else (text, check state,
+	/// enablement, tooltip, shortcut) still comes from the action.
+	class strip_command_button final : public QToolButton
+	{
+	public:
+		explicit strip_command_button(QWidget* aParent = nullptr);
+
+		/// \brief The glyph drawn beside the action's word.
+		void               set_glyph(const QIcon& aGlyph);
+		[[nodiscard]] auto glyph() const -> QIcon;
+
+	protected:
+		void initStyleOption(QStyleOptionToolButton* aOption) const override;
+
+	private:
+		QIcon Glyph;
 	};
 
 	/// \brief The 1 by 18 pixel rule between strip regions.

@@ -2062,7 +2062,7 @@ namespace bpr::qt {
 		bool                                                           TypingFocus = false;
 		std::vector<std::pair<QPointer<QAction>, QList<QKeySequence>>> LiftedOptionKeys;
 		QAction*                                                       ReviewDetailsAction  = nullptr;
-		QToolButton*                                                   AcceptFileButton     = nullptr;
+		strip_command_button*                                          AcceptFileButton     = nullptr;
 		QToolButton*                                                   ReviewControlsButton = nullptr;
 		QMenu*                                                         ReviewControlsMenu   = nullptr;
 		QWidget*                                                       ToolbarSpacer        = nullptr;
