@@ -1,5 +1,6 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include "markdown_code.hpp"
 #include "markdown_document.hpp"
 #include "markdown_github.hpp"
 #include "markdown_images.hpp"
@@ -8,6 +9,7 @@
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_conversation.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
@@ -129,11 +131,17 @@ namespace bpr::qt {
 			return fence.Count >= 3 ? fence : code_fence{ };
 		}
 
+		/// \brief A code line as Qt's import leaves it: tabs in its leading
+		/// white space expanded to four-column stops, every later tab kept
+		/// ([[BPR-1563]]: a diff line's `-\t` kept its tab, so the whole body
+		/// fell back to source).
 		auto expanded_tabs(const QString& aText) -> QString
 		{
 			QString result;
+			auto    leading = true;
 			for (const auto ch : aText) {
-				if (ch == QLatin1Char{ '\t' }) {
+				leading = leading && (ch == QLatin1Char{ ' ' } || ch == QLatin1Char{ '\t' });
+				if (leading && ch == QLatin1Char{ '\t' }) {
 					result += QString(4 - result.size() % 4, QLatin1Char{ ' ' });
 				} else {
 					result += ch;
@@ -442,18 +450,29 @@ namespace bpr::qt {
 		/// [[BPR-1544]]. Each key cap's span and the colour of its edge.
 		std::vector<std::pair<int, int>> KeySpans;
 		QColor                           KeyEdge;
+		/// [[BPR-1564]]. The body's fenced code, whose suggestions it paints.
+		const detail::markdown_code_store* Code = nullptr;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override
 		{
+			const auto offset      = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
+			const auto suggestions = Code != nullptr && Code->suggestions();
+			if (suggestions) {
+				// [[BPR-1564]]. A suggested change's rows are filled under the text.
+				auto under = QPainter{ viewport() };
+				Code->paint_under(under, *document(), offset);
+			}
 			QTextEdit::paintEvent(aEvent);
-			if (AlertBars.empty() && KeySpans.empty()) {
+			if (AlertBars.empty() && KeySpans.empty() && !suggestions) {
 				return;
 			}
 			auto painter = QPainter{ viewport() };
+			if (suggestions) {
+				Code->paint_over(painter, *document(), offset);
+			}
 			paint_key_caps(painter);
 			auto* const blocks = document()->documentLayout();
-			const auto  offset = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
 			const auto  left   = document()->documentMargin();
 			for (const auto& bar : AlertBars) {
 				auto top    = std::numeric_limits<qreal>::max();
@@ -635,6 +654,8 @@ namespace bpr::qt {
 		// timer moves animated images on while the reader is visible.
 		Images = new detail::markdown_image_store{ *Rendered };
 		Rendered->document()->documentLayout()->registerHandler(detail::markdown_image_object, Images);
+		Code                 = std::make_shared<detail::markdown_code_store>();
+		Rendered->Code       = Code.get();
 		Rendered->ImageLabel = [this](const int aPosition) -> QString {
 			const auto* slot = Images->slot_at(*Rendered->document(), aPosition);
 			return slot == nullptr ? QString{ } : detail::markdown_image_store::placeholder_of(*slot);
@@ -983,10 +1004,15 @@ namespace bpr::qt {
 			// footnotes; the import and its tab repair read the prepared text.
 			// Presentation runs before images are placed, which find them in
 			// the presented document and name them by ordinal.
-			const auto prepared = detail::prepare_github_markdown(source);
+			auto prepared = detail::prepare_github_markdown(source);
+			// [[BPR-1564]]. An empty suggestion keeps a line for its rows.
+			detail::markdown_code_store::prepare(prepared.Text, Suggestions.has_value());
 			document->setMarkdown(prepared.Text, markdown_features);
 			if (restore_code_tabs(*document, prepared.Text)) {
 				detail::present_github_markdown(*document, prepared);
+				// [[BPR-1562]]. Each fenced block found by its lines; suggestions
+				// laid out before images are placed.
+				Code->place(*document, prepared.Text, Suggestions);
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
 				if (ImageDispatch && ImagesShown) {
@@ -1027,6 +1053,7 @@ namespace bpr::qt {
 				Fallback          = QStringLiteral("This tab-bearing construct cannot be rendered without changing whitespace. The complete source is available.");
 				RenderedAvailable = false;
 				document->clear();
+				Code->clear();
 			}
 		}
 		document->setLayoutEnabled(true);
@@ -1042,8 +1069,10 @@ namespace bpr::qt {
 		Toggle->setEnabled(RenderedAvailable);
 		if (!RenderedAvailable) {
 			Images->clear();
+			Code->clear();
 		}
 		dispatch_images();
+		dispatch_code();
 		schedule_animation();
 	}
 
@@ -1185,6 +1214,9 @@ namespace bpr::qt {
 		// its tables with it.
 		detail::apply_markdown_details(*document);
 		Rendered->KeyEdge = github.KeyEdge;
+		// [[BPR-1562]]. Fenced code's colours, last: they are layout formats
+		// over whatever the document carries.
+		style_code();
 		Rendered->viewport()->update();
 		Source->setFont(CodeFont);
 		if (TabStopDistance > 0) {
@@ -1401,6 +1433,70 @@ namespace bpr::qt {
 	auto markdown_body_view::image_store() const noexcept -> const detail::markdown_image_store*
 	{
 		return Images;
+	}
+
+	void markdown_body_view::set_code_theme(const markdown_code_theme& aTheme)
+	{
+		CodeTheme = aTheme;
+		refresh_formats();
+	}
+
+	void markdown_body_view::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		CodeDispatch = std::move(aDispatch);
+		dispatch_code();
+	}
+
+	void markdown_body_view::request_code_syntax()
+	{
+		dispatch_code();
+	}
+
+	void markdown_body_view::dispatch_code()
+	{
+		if (!CodeDispatch || !RenderedAvailable) {
+			return;
+		}
+		if (auto requests = Code->requests(); !requests.empty()) {
+			CodeDispatch(std::move(requests));
+		}
+	}
+
+	void markdown_body_view::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		// Colours only: the layout keeps every line where it was, so the
+		// scroll position, selection and height stay as they are.
+		if (RenderedAvailable && Code->apply(aSpans)) {
+			style_code();
+			Rendered->viewport()->update();
+		}
+	}
+
+	void markdown_body_view::style_code()
+	{
+		auto theme = CodeTheme;
+		if (!theme) {
+			const auto variant = dark_palette() ? core::appearance_variant::dark : core::appearance_variant::light;
+			theme              = markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
+		}
+		Code->style(*Rendered->document(), detail::markdown_code_colours_of(*theme, palette()), theme->Colors, theme->Variant, font(), CodeFont);
+	}
+
+	void markdown_body_view::set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions)
+	{
+		if (Suggestions == aSuggestions) {
+			return;
+		}
+		Suggestions = std::move(aSuggestions);
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
+	auto markdown_body_view::code_store() const noexcept -> const detail::markdown_code_store*
+	{
+		return Code.get();
 	}
 
 	void markdown_body_view::schedule_animation()

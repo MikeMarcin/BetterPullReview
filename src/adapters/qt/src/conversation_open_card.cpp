@@ -739,6 +739,11 @@ namespace bpr::qt {
 		Reader->set_in_place(true);
 		Reader->set_context_controls(aStyle.Feed);
 		Reader->set_code_font(aStyle.CodeFont, 4.0 * QFontMetricsF{ aStyle.CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }));
+		if (aStyle.CodeTheme.has_value()) {
+			Reader->set_code_theme(*aStyle.CodeTheme);
+		}
+		// [[BPR-1564]]. Before the body, so it is read once.
+		Reader->set_suggestions(aStyle.Suggestions);
 		Reader->set_body(aPost.Body.toStdString(), aPost.Id);
 		auto* const rendered = Reader->rendered_view();
 		rendered->setObjectName(QStringLiteral("threadPostBody"));
@@ -1306,8 +1311,14 @@ namespace bpr::qt {
 				}
 			});
 			// RFC-BPR-0084. A published post's images load; a draft's stay text.
+			// [[BPR-1562]]. Its fenced code is classified, likewise.
 			if (!aCard.Draft) {
 				view->reader()->set_images_shown(ImagesShown);
+				view->reader()->set_code_syntax_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) {
+					if (CodeRequest) {
+						CodeRequest(std::move(aRequests));
+					}
+				});
 				view->reader()->set_image_dispatch([this, id = post.Id](std::vector<core::markdown_image_reference> aReferences) {
 					if (ImageRequest) {
 						ImageRequest(id, std::move(aReferences));
@@ -1975,6 +1986,28 @@ namespace bpr::qt {
 			}
 		}
 	}
+	void open_thread_card::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		for (auto* const view : posts()) {
+			view->reader()->apply_code_syntax(aSpans);
+		}
+	}
+
+	void open_thread_card::request_code_syntax()
+	{
+		for (auto* const view : posts()) {
+			view->reader()->request_code_syntax();
+		}
+	}
+
+	void open_thread_card::set_code_theme(const markdown_code_theme& aTheme)
+	{
+		Style.CodeTheme = aTheme;
+		for (auto* const view : posts()) {
+			view->reader()->set_code_theme(aTheme);
+		}
+	}
+
 	void open_thread_card::apply_image(const application::markdown_image_projection& aImage)
 	{
 		for (auto* const view : Posts) {

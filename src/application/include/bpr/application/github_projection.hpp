@@ -220,15 +220,18 @@ namespace bpr::application {
 	/// \brief Describes the github conversation projection record.
 	struct github_conversation_projection
 	{
-		std::string                                  Id{ };
-		std::optional<std::string>                   ParentId = std::nullopt;
-		github_conversation_kind                     Kind     = github_conversation_kind::issue_comment;
-		std::string                                  AuthorLogin{ };
-		std::string                                  Body{ };
-		std::string                                  Path{ };
-		std::optional<std::uint32_t>                 Line         = std::nullopt;
-		std::optional<std::uint32_t>                 OriginalLine = std::nullopt;
-		std::optional<github_conversation_diff_side> DiffSide     = std::nullopt;
+		std::string                  Id{ };
+		std::optional<std::string>   ParentId = std::nullopt;
+		github_conversation_kind     Kind     = github_conversation_kind::issue_comment;
+		std::string                  AuthorLogin{ };
+		std::string                  Body{ };
+		std::string                  Path{ };
+		std::optional<std::uint32_t> Line         = std::nullopt;
+		std::optional<std::uint32_t> OriginalLine = std::nullopt;
+		/// [[BPR-1564]]. GitHub's `start_line` of a comment on several lines:
+		/// its first line, on the same side as `Line`; none on one line.
+		std::optional<std::uint32_t>                 StartLine = std::nullopt;
+		std::optional<github_conversation_diff_side> DiffSide  = std::nullopt;
 		github_conversation_anchor_availability      AnchorAvailability
 			= github_conversation_anchor_availability::missing_current_line;
 		github_review_state_projection ReviewState = github_review_state_projection::none;

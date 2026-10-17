@@ -712,6 +712,22 @@ namespace bpr::qt {
 		// right in time.
 		auto updates = HistoryModel->rows();
 		std::ranges::reverse(updates);
+		// [[BPR-1557]]. The line starts with the pull request's base, the
+		// anchor Whole PR compares from, which the core named; the day this
+		// install saw it comes from its epoch's row when that row is held.
+		auto baseSeen = std::optional<core::observed_utc_milliseconds>{ };
+		if (PullRequestBase) {
+			const auto ofBase = [this](const application::epoch_row_projection& aRow) {
+				return aRow.Id.Authority == PullRequestBase->Identity.Authority && aRow.Id.Incarnation == PullRequestBase->Identity.Incarnation
+					&& aRow.Id.Ordinal == PullRequestBase->Identity.Epoch;
+			};
+			if (const auto row = std::ranges::find_if(updates, ofBase); row != updates.end()) {
+				baseSeen = row->ObservedAt;
+			} else if (CurrentEpoch && ofBase(*CurrentEpoch)) {
+				baseSeen = CurrentEpoch->ObservedAt;
+			}
+		}
+		Line->set_pull_request_base(PullRequestBase, baseSeen);
 		if (OccurrenceHistory) {
 			Line->set_occurrences(*OccurrenceHistory, CurrentEpoch, updates, AllowOccurrenceImport);
 		} else {
@@ -1183,6 +1199,7 @@ namespace bpr::qt {
 				OccurrenceHistory.reset();
 				CurrentEpoch.reset();
 				AllowOccurrenceImport = false;
+				PullRequestBase.reset();
 			}
 			Authority = aProjection.Authority->Authority;
 			// The head commit of my last review, for the line's amber tick.
@@ -1199,6 +1216,7 @@ namespace bpr::qt {
 				AllowOccurrenceImport = false;
 				Selection.reset();
 				Comparison.reset();
+				PullRequestBase.reset();
 				Continuation.reset();
 				HistoryNavigation.reset();
 				HistoryPhase.reset();
@@ -1212,8 +1230,9 @@ namespace bpr::qt {
 			}
 		}
 		if (aProjection.Comparison) {
-			Comparison = aProjection.Comparison;
-			Selection  = aProjection.Comparison->Selection;
+			Comparison      = aProjection.Comparison;
+			Selection       = aProjection.Comparison->Selection;
+			PullRequestBase = aProjection.Comparison->PullRequestBase;
 		}
 		if (aProjection.Status) {
 			Status = aProjection.Status->Status;

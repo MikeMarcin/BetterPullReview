@@ -81,6 +81,10 @@ namespace bpr::qt {
 		bool                HasCodeAnchor     = false;
 		/// [[BPR-1293]]. The post a pick in Threads named: washed amber.
 		std::string Picked;
+		/// [[BPR-1562]]. The review panes' colours for fenced code.
+		std::optional<markdown_code_theme> CodeTheme;
+		/// [[BPR-1564]]. A comment on lines: how its suggestions show.
+		std::optional<markdown_suggestion_presentation> Suggestions;
 	};
 
 	/// \brief [[BPR-1290]]. A post's quiet glyph button in its name row:
@@ -237,7 +241,14 @@ namespace bpr::qt {
 		void request_images();
 		/// \brief RFC-BPR-0084 Q3. Shows or hides every post's images, now and
 		/// for posts built later.
-		void                                set_images_shown(bool aShown);
+		void set_images_shown(bool aShown);
+		/// [[BPR-1562]]. Published posts' fenced code to classify.
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeRequest;
+		/// \brief Colours every post showing the answer's code.
+		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		/// \brief Asks again for every published post's code.
+		void                                request_code_syntax();
+		void                                set_code_theme(const markdown_code_theme& aTheme);
 		std::function<void(const QString&)> ReplyText;
 		/// [[BPR-1212]]. Each edit of my draft written in the composer.
 		std::function<void(const QString&)> DraftText;

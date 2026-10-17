@@ -6,6 +6,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDateTime>
@@ -15,6 +16,7 @@
 #include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
@@ -223,12 +225,19 @@ namespace {
 	}
 
 	[[nodiscard]] auto comparison_update(
-		const core::comparison_selection& aSelection,
-		const core::comparison_pair&      aPair,
-		const bool                        aAvailable = true,
-		const core::epoch_reason_code     aReason    = core::epoch_reason_code::none)
+		const core::comparison_selection&      aSelection,
+		const core::comparison_pair&           aPair,
+		const bool                             aAvailable = true,
+		const core::epoch_reason_code          aReason    = core::epoch_reason_code::none,
+		std::optional<core::comparison_anchor> aBase      = std::nullopt)
 		-> application::epoch_presentation_update
 	{
+		// [[BPR-1557]]. The core names the pull request's base with every
+		// resolution; Whole PR's left side is that base.
+		if (const auto* const named = std::get_if<core::named_comparison_selection>(&aSelection);
+			!aBase && named != nullptr && named->Alias == core::named_comparison::whole_pr) {
+			aBase = aPair.Left;
+		}
 		return {
 			.Transition = application::epoch_transition_projection{
 				.Changed = core::epoch_changed_domain::selection
@@ -250,6 +259,7 @@ namespace {
 					.Revision         = core::comparison_revision{ 3 },
 					.AvailableForDiff = aAvailable,
 					.Reason           = aReason,
+					.PullRequestBase  = aBase,
 				},
 				.Status = core::epoch_status_delta{
 					.Status = core::epoch_status::ready,
@@ -834,11 +844,8 @@ namespace {
 		control.publish(loaded_catalog_update({ latest, earlier }));
 		QApplication::processEvents();
 		expect(line->update_count() == 2U
-				   && line->left_stop()
-					   == qt::epoch_line_stop{
-						   .Update = 0U,
-						   .Kind   = core::comparison_anchor_kind::epoch_base }
-				   && line->right_stop() == qt::epoch_line_stop{ .Update = 1U, .Kind = core::comparison_anchor_kind::epoch_head },
+				   && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 1U },
 			   "the newest page fed after the ready pair draws every update with "
 			   "the pair's handles");
 	}
@@ -1174,9 +1181,22 @@ namespace {
 				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
 			}));
 		QApplication::processEvents();
-		expect(line->selection_offered() && line->left_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_base }
-				   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head },
-			   "the whole-PR pair puts both handles on the newest update");
+		expect(line->selection_offered() && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U },
+			   "[[BPR-1557]] the whole-PR pair puts the left handle on the base and the right one on the newest update");
+		// "Show this update alone" on the middle update: its own base and its
+		// head, the two handles on one node.
+		control.publish(comparison_update(
+			core::explicit_selection(anchor(second, core::comparison_anchor_kind::epoch_base).Identity, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+			{
+				.Left  = anchor(second, core::comparison_anchor_kind::epoch_base),
+				.Right = anchor(second, core::comparison_anchor_kind::epoch_head),
+			},
+			true, core::epoch_reason_code::none, anchor(third, core::comparison_anchor_kind::epoch_base)));
+		QApplication::processEvents();
+		expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_base, .Update = 1U }
+				   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 1U },
+			   "one update alone puts both handles on its node, its own base just before it");
 		const auto drag = [line](const QPoint& aFrom, const QPoint& aTo) {
 			auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aFrom }, QPointF{ line->mapToGlobal(aFrom) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 			QApplication::sendEvent(line, &press);
@@ -1194,9 +1214,9 @@ namespace {
 				   && chosen()->Anchor == anchor(first, core::comparison_anchor_kind::epoch_head).Identity,
 			   "a drag that starts on the left handle moves the left handle, not the right one beside it");
 		intents.clear();
-		drag(line->stop_position(*line->right_stop()), line->node_centre(1));
+		drag(line->stop_position(*line->right_stop()), line->node_centre(2));
 		expect(chosen() != nullptr && chosen()->Side == core::comparison_side::right
-				   && chosen()->Anchor == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
+				   && chosen()->Anchor == anchor(third, core::comparison_anchor_kind::epoch_head).Identity,
 			   "a drag that starts on the right handle moves the right handle");
 		const auto between = (line->stop_position(*line->left_stop()) + line->stop_position(*line->right_stop())) / 2;
 		const auto nearer  = line->stop_position(*line->left_stop()).x() + 2;
@@ -1309,21 +1329,22 @@ namespace {
 			control.publish(loaded_catalog_update({ current }));
 			QApplication::processEvents();
 			expect(line->isVisible() && line->selection_offered() && line->update_count() == 3U
-					   && line->left_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_base }
-					   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head },
-				   theme + ": the whole-PR pair puts both handles on the update seen here");
+					   && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+					   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U },
+				   theme + ": the whole-PR pair puts the left handle on the base and the right one on the update seen here");
 
 			// Both handles are painted in the theme's accent, away from the
 			// node and the track: the left one's left side, the right one's
 			// right side, on the line's top rows.
-			const auto image  = line->grab().toImage();
-			const auto ratio  = image.devicePixelRatio();
-			const auto accent = line->palette().color(QPalette::Active, QPalette::Highlight);
-			const auto ground = line->palette().color(QPalette::Active, QPalette::Window);
-			const auto inked  = [&](const double aX) {
+			const auto image   = line->grab().toImage();
+			const auto ratio   = image.devicePixelRatio();
+			const auto handles = line->handle_colours();
+			const auto accent  = handles.Fill;
+			const auto ground  = line->palette().color(QPalette::Active, QPalette::Window);
+			const auto inked   = [&](const double aX) {
 				auto best = std::numeric_limits<int>::max();
 				// Half-pixel steps over the handle's top rows and its side.
-				for (auto row = 4; row <= 10; ++row) {
+				for (auto row = 2; row <= 6; ++row) {
 					for (auto column = -3; column <= 3; ++column) {
 						const auto x     = aX + (0.5 * column);
 						const auto y     = 0.5 * row;
@@ -1334,9 +1355,11 @@ namespace {
 				return best;
 			};
 			const auto separation = std::abs(accent.red() - ground.red()) + std::abs(accent.green() - ground.green()) + std::abs(accent.blue() - ground.blue());
-			const auto leftEdge   = static_cast<double>(line->stop_position(*line->left_stop()).x()) - 3.5;
-			const auto rightEdge  = static_cast<double>(line->stop_position(*line->right_stop()).x()) + 3.5;
-			const auto emptyEdge  = static_cast<double>(line->node_centre(0U).x() + line->node_centre(1U).x()) / 2.0;
+			// [[BPR-1557]] v002: the handles are solid brackets whose stems,
+			// filled in the accent, stand on their anchors.
+			const auto leftEdge  = static_cast<double>(line->stop_position(*line->left_stop()).x()) - 1.0;
+			const auto rightEdge = static_cast<double>(line->stop_position(*line->right_stop()).x()) + 1.0;
+			const auto emptyEdge = static_cast<double>(line->node_centre(0U).x() + line->node_centre(1U).x()) / 2.0;
 			expect(separation >= 60 && inked(leftEdge) * 3 < separation && inked(rightEdge) * 3 < separation && inked(emptyEdge) * 3 >= separation * 2,
 				   theme + ": both handles are painted in the accent, which stands off the line's ground");
 
@@ -1385,15 +1408,311 @@ namespace {
 				{
 					.Left  = anchor(earlier, core::comparison_anchor_kind::epoch_head),
 					.Right = anchor(current, core::comparison_anchor_kind::epoch_head),
-				}));
+				},
+				true, core::epoch_reason_code::none, anchor(current, core::comparison_anchor_kind::epoch_base)));
 			QApplication::processEvents();
 			const auto spanned = line->grab().toImage();
 			const auto middle  = QPoint{ line->node_centre(1U).x() + 12, line->node_centre(1U).y() };
 			const auto bar     = spanned.pixelColor(static_cast<int>(std::lround(middle.x() * ratio)), static_cast<int>(std::lround(middle.y() * ratio)));
-			expect(line->left_stop() == qt::epoch_line_stop{ .Update = 0U, .Kind = core::comparison_anchor_kind::epoch_head }
-					   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head }
-					   && (std::abs(bar.red() - accent.red()) + std::abs(bar.green() - accent.green()) + std::abs(bar.blue() - accent.blue())) * 3 < separation,
+			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 0U }
+					   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U }
+					   && (std::abs(bar.red() - handles.Span.red()) + std::abs(bar.green() - handles.Span.green()) + std::abs(bar.blue() - handles.Span.blue())) * 3
+						   < std::abs(handles.Span.red() - ground.red()) + std::abs(handles.Span.green() - ground.green()) + std::abs(handles.Span.blue() - ground.blue()),
 				   theme + ": the imported pair moves the handles apart, with the accent span between them");
+		}
+	}
+
+	/// \brief [[BPR-1557]]. The owner (2026-10-16), on the first open's whole-PR
+	/// pair drawn as both handles stacked on the newest update: "Surely the
+	/// left side should be at whatever the PR's merge base is, no?" The line
+	/// starts with the pull request's base, the anchor Whole PR compares from
+	/// (the core names it with every resolution), drawn as a post; the left
+	/// handle sits on it, the right on the newest update, the accent span
+	/// between them. In each built-in theme: painted, hit, dragged off and
+	/// back, stepped, chosen from its menu, named for a screen reader, kept
+	/// while older pages are loaded, and apart from the head with one update.
+	auto test_the_line_starts_with_the_pull_request_base() -> void
+	{
+		const auto modes = std::array{
+			std::pair{ "light", core::appearance_mode::light },
+			std::pair{ "dark", core::appearance_mode::dark },
+			std::pair{ "high-contrast-light", core::appearance_mode::high_contrast_light },
+			std::pair{ "high-contrast-dark", core::appearance_mode::high_contrast_dark },
+		};
+		const auto distance = [](const QColor& aOne, const QColor& aOther) {
+			return std::abs(aOne.red() - aOther.red()) + std::abs(aOne.green() - aOther.green()) + std::abs(aOne.blue() - aOther.blue());
+		};
+		for (const auto& [name, mode] : modes) {
+			const auto                             theme = std::string{ name };
+			std::vector<application::epoch_intent> intents;
+			qt::epoch_comparison_control           control{
+				[&intents](application::epoch_intent aIntent) {
+					intents.push_back(std::move(aIntent));
+				},
+			};
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(control);
+			control.resize(700, 80);
+			control.show();
+			QApplication::processEvents();
+			auto* const line = control.line();
+
+			// One update: the whole PR is the base to that update's head, and
+			// the two handles are the line's two ends, not one node.
+			const auto only = epoch_row(1, 'b', '2');
+			control.publish(loaded_catalog_update({ only }));
+			control.publish(comparison_update(core::named_selection(core::named_comparison::whole_pr),
+											  { .Left = anchor(only, core::comparison_anchor_kind::epoch_base), .Right = anchor(only, core::comparison_anchor_kind::epoch_head) }));
+			QApplication::processEvents();
+			expect(line->has_pull_request_base() && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+					   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 0U }
+					   && line->stop_position(*line->right_stop()).x() - line->stop_position(*line->left_stop()).x() > line->width() / 2,
+				   theme + ": with one update the left handle is on the base at the line's start and the right one on the update, apart");
+
+			// Three updates; the base branch moved before the newest, so its
+			// base is the pull request's base.
+			const auto third  = epoch_row(3, 'c', '4');
+			const auto second = epoch_row(2, 'b', '3');
+			const auto first  = epoch_row(1, 'b', '2');
+			const auto prBase = anchor(third, core::comparison_anchor_kind::epoch_base);
+			control.publish(loaded_catalog_update({ third, second, first }));
+			control.publish(comparison_update(core::named_selection(core::named_comparison::whole_pr),
+											  { .Left = prBase, .Right = anchor(third, core::comparison_anchor_kind::epoch_head) }));
+			QApplication::processEvents();
+			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+					   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U }
+					   && line->stop_position(*line->left_stop()).x() < line->node_centre(0U).x() - 20,
+				   theme + ": the whole PR's left handle sits on the base at the line's start, not on the newest update");
+			expect(line->base_label() == QStringLiteral("Base") && line->base_tooltip().contains(QStringLiteral("cccccccccccc"))
+					   && line->base_tooltip().contains(QStringLiteral("Whole PR compares from here"))
+					   && line->accessibleName().contains(QStringLiteral("from the pull request base ccccccc to update 3 of 3")),
+				   theme + ": the base is named under its post, in its tooltip with its commit, and for a screen reader");
+			const auto dates = line->selection_dates();
+			expect(dates && dates->first == dates->second && line->label_text(2U).endsWith(dates->first)
+					   && control.comparing_button()->text() == QStringLiteral("Comparing whole PR, %1 → %2").arg(dates->first, dates->second),
+				   theme + ": the review bar still dates the whole PR by its newest update");
+
+			// Painted: the post in the accent inside the left handle, both
+			// handles' outer sides and the span between the base and the
+			// oldest update in the accent, which stands off the ground.
+			const auto image   = line->grab().toImage();
+			const auto ratio   = image.devicePixelRatio();
+			const auto handles = line->handle_colours();
+			// The brackets' face; v002's accent on a light ground, v003's vivid
+			// colour on a dark one.
+			const auto accent = handles.Fill;
+			const auto ground = line->palette().color(QPalette::Active, QPalette::Window);
+			const auto faint  = line->palette().color(QPalette::Active, QPalette::PlaceholderText);
+			const auto pixel  = [&](const QImage& aImage, const double aX, const double aY) {
+				return aImage.pixelColor(static_cast<int>(std::lround(aX * ratio)), static_cast<int>(std::lround(aY * ratio)));
+			};
+			const auto nearest = [&](const QImage& aImage, const double aX, const double aY, const QColor& aColour) {
+				auto best = std::numeric_limits<int>::max();
+				for (auto dy = -2; dy <= 2; ++dy) {
+					for (auto dx = -2; dx <= 2; ++dx) {
+						best = std::min(best, distance(pixel(aImage, aX + (0.25 * dx), aY + (0.25 * dy)), aColour));
+					}
+				}
+				return best;
+			};
+			const auto separation = distance(accent, ground);
+			const auto spanApart  = std::max(distance(handles.Span, ground), 1);
+			const auto baseAt     = line->stop_position(*line->left_stop());
+			const auto rightAt    = line->stop_position(*line->right_stop());
+			expect(separation >= 60 && nearest(image, baseAt.x(), baseAt.y(), accent) * 3 < separation
+					   && nearest(image, rightAt.x(), rightAt.y(), accent) * 3 < separation
+					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, baseAt.y(), handles.Span) * 3 < spanApart
+					   && nearest(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 1.5, accent) * 3 >= separation * 2,
+				   theme + ": the left handle's stem stands on the base in the accent, and the accent span runs from it to the newest update");
+
+			// [[BPR-1557]] v002. The owner, on v001: "I find these handles quite
+			// difficult to see." The theme's accent stands as little as 1.2:1
+			// off the ground, so each handle and the span carry an outline that
+			// stands at least 4.5:1 off the ground and 3:1 off the track, drawn
+			// on the brackets' outer sides; a bracket's arms reach towards the
+			// other handle, `[` on the left and `]` on the right.
+			//
+			// [[BPR-1557]] v003. The owner, on v002: "light v002 is okay but dark
+			// they need to be a different color so they stand out." On a dark
+			// ground the brackets are a vivid colour of their own, at least 7:1
+			// off the ground and the track and far from the selection colour,
+			// with a dark rim that draws their arms; on a light one they are
+			// v002's.
+			const auto outline  = handles.Outline;
+			const auto rule     = line->palette().color(QPalette::Active, QPalette::Mid);
+			const auto ink      = line->palette().color(QPalette::Active, QPalette::WindowText);
+			const auto selected = line->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto dark     = qt::epoch_line::contrast_ratio(ground, QColor{ Qt::black }) < qt::epoch_line::contrast_ratio(ink, QColor{ Qt::black });
+			const auto paired   = [&](const QColor& aColour) {
+				return [&, aColour](const QImage& aImage, const double aX, const double aY) {
+					return nearest(aImage, aX, aY, aColour) * 3 < std::max(distance(aColour, ground), 1);
+				};
+			};
+			const auto edged     = paired(outline);
+			const auto spanEdged = paired(handles.SpanEdge);
+			const auto hoverFill = paired(handles.Hover);
+			const auto ringed    = paired(handles.Ring);
+			expect(dark ? qt::epoch_line::contrast_ratio(accent, ground) >= 7.0 && qt::epoch_line::contrast_ratio(accent, rule) >= 7.0 && distance(accent, selected) >= 200
+						   && handles.Ring == accent
+						: qt::epoch_line::contrast_ratio(outline, ground) >= 4.5 && qt::epoch_line::contrast_ratio(outline, rule) >= 3.0 && accent == selected,
+				   theme + (dark ? ": on a dark ground the brackets are a vivid colour at least 7:1 off the ground and the track, far from the selection colour" : ": on a light ground the brackets keep v002's accent with an outline 4.5:1 off the ground and 3:1 off the track"));
+			expect(edged(image, baseAt.x() - 2.5, 8.0) && edged(image, rightAt.x() + 2.5, 8.0)
+					   && nearest(image, baseAt.x() + 5.0, 2.0, accent) * 3 < separation && nearest(image, rightAt.x() - 5.0, 2.0, accent) * 3 < separation
+					   && nearest(image, rightAt.x() + 6.0, 2.0, accent) * 3 >= separation * 2
+					   && spanEdged(image, (baseAt.x() + line->node_centre(0U).x()) / 2.0, 5.5),
+				   theme + ": the brackets and the span carry their edges on their outer sides, and the brackets' arms point inwards");
+			expect(rightAt.x() - baseAt.x() > 100, theme + ": the whole PR's two handles stand far apart, never stacked on one node");
+
+			// Hover: a handle under the pointer fills with its outline colour
+			// and the pointer says it moves sideways; leaving clears it.
+			auto hover = QMouseEvent{ QEvent::MouseMove, QPointF{ rightAt }, QPointF{ line->mapToGlobal(rightAt) }, Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(line, &hover);
+			const auto hovered = line->grab().toImage();
+			expect(line->hovered_side() == core::comparison_side::right && line->cursor().shape() == Qt::SizeHorCursor
+					   && hoverFill(hovered, rightAt.x(), rightAt.y()) && nearest(hovered, rightAt.x(), rightAt.y(), accent) * 3 >= separation,
+				   theme + ": a hovered handle changes its fill under a sideways pointer");
+			auto away = QEvent{ QEvent::Leave };
+			QApplication::sendEvent(line, &away);
+			expect(!line->hovered_side() && line->cursor().shape() != Qt::SizeHorCursor, theme + ": leaving the line clears the hover");
+
+			// Drag the left handle off the base onto the oldest update: an
+			// interdiff from that update to the head.
+			const auto drag = [line](const QPoint& aFrom, const QPoint& aTo) {
+				auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aFrom }, QPointF{ line->mapToGlobal(aFrom) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &press);
+				auto move = QMouseEvent{ QEvent::MouseMove, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &move);
+				auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aTo }, QPointF{ line->mapToGlobal(aTo) }, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(line, &release);
+			};
+			const auto chosen = [&intents](const core::comparison_side aSide, const core::comparison_anchor_identity& aAnchor) {
+				const auto* const intent = intents.size() == 1U ? std::get_if<core::select_comparison_anchor_intent>(&intents.back()) : nullptr;
+				return intent != nullptr && intent->Side == aSide && intent->Anchor == aAnchor;
+			};
+			intents.clear();
+			drag(baseAt, line->node_centre(0U));
+			expect(chosen(core::comparison_side::left, anchor(first, core::comparison_anchor_kind::epoch_head).Identity),
+				   theme + ": the left handle drags off the base onto the oldest update's head");
+			intents.clear();
+			drag(rightAt, baseAt);
+			expect(chosen(core::comparison_side::right, anchor(first, core::comparison_anchor_kind::epoch_head).Identity),
+				   theme + ": the right handle dragged to the line's start stops on the oldest update, never the base");
+			expect(line->hovered_side() != core::comparison_side::right, theme + ": a handle released away from the pointer is no longer hovered");
+			QApplication::sendEvent(line, &away);
+
+			// The core's pair: the oldest update to the newest. The post is
+			// back in the faint ink and the keys reach the base again.
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(first, core::comparison_anchor_kind::epoch_head).Identity, anchor(third, core::comparison_anchor_kind::epoch_head).Identity),
+				{ .Left = anchor(first, core::comparison_anchor_kind::epoch_head), .Right = anchor(third, core::comparison_anchor_kind::epoch_head) },
+				true, core::epoch_reason_code::none, prBase));
+			QApplication::processEvents();
+			const auto apart = line->grab().toImage();
+			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 0U }
+					   && nearest(apart, baseAt.x(), baseAt.y(), ink) * 3 < distance(ink, ground) && qt::epoch_line::contrast_ratio(ink, ground) >= 4.5
+					   && nearest(apart, line->node_centre(0U).x() + 5.0, 2.0, accent) * 3 < separation
+					   && nearest(apart, line->node_centre(0U).x() - 6.0, 2.0, accent) * 3 >= separation * 2,
+				   theme + ": with the left handle on an update the base is a solid post in the ink, 4.5:1 off the ground, and the left bracket's arms point right");
+			static_cast<void>(faint);
+			line->setFocus(Qt::OtherFocusReason);
+			intents.clear();
+			auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+			QApplication::sendEvent(line, &left);
+			expect(chosen(core::comparison_side::left, prBase.Identity), theme + ": Left steps the left handle from the oldest update back onto the base");
+			intents.clear();
+			auto shiftLeft = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::ShiftModifier };
+			QApplication::sendEvent(line, &shiftLeft);
+			expect(chosen(core::comparison_side::right, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+				   theme + ": Shift+Left steps the right handle and never onto the base");
+			// Focus: the handle the arrow keys move (now the right one) wears a
+			// ring in the outline colour beside its outer side.
+			const auto rightNow = line->stop_position(*line->right_stop());
+			const auto focused  = line->grab().toImage();
+			line->clearFocus();
+			QApplication::processEvents();
+			const auto unfocused = line->grab().toImage();
+			expect(ringed(focused, rightNow.x() + 6.5, 9.0) && !ringed(unfocused, rightNow.x() + 6.5, 9.0),
+				   theme + ": with the keyboard on the line the handle it moves wears a visible ring");
+			line->setFocus(Qt::OtherFocusReason);
+			QApplication::processEvents();
+
+			// A click on the post compares from it; Cmd-click does nothing.
+			const auto click = [line](const QPoint& aAt, const Qt::KeyboardModifiers aModifiers) {
+				auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aAt }, QPointF{ line->mapToGlobal(aAt) }, Qt::LeftButton, Qt::LeftButton, aModifiers };
+				QApplication::sendEvent(line, &press);
+				auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aAt }, QPointF{ line->mapToGlobal(aAt) }, Qt::LeftButton, Qt::NoButton, aModifiers };
+				QApplication::sendEvent(line, &release);
+			};
+			intents.clear();
+			click(baseAt + QPoint{ 0, 12 }, Qt::NoModifier);
+			expect(chosen(core::comparison_side::left, prBase.Identity), theme + ": a click on the base's label compares from the base");
+			intents.clear();
+			click(baseAt + QPoint{ 0, 12 }, Qt::ControlModifier);
+			expect(intents.empty(), theme + ": Cmd-click on the base asks for nothing");
+
+			// The base's menu: compare from here, copy its commit.
+			auto menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, baseAt, line->mapToGlobal(baseAt) };
+			QApplication::sendEvent(line, &menuEvent);
+			auto* const menu = line->findChild<QMenu*>(QStringLiteral("epochLineBaseMenu"));
+			auto* const from = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("compareFromBaseAction")) : nullptr;
+			auto* const copy = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("copyBaseCommitAction")) : nullptr;
+			expect(from != nullptr && copy != nullptr && from->isEnabled() && line->findChild<QMenu*>(QStringLiteral("epochLineMenu")) == nullptr,
+				   theme + ": a right-click on the base opens the base's menu, not an update's");
+			intents.clear();
+			from->trigger();
+			expect(chosen(core::comparison_side::left, prBase.Identity), theme + ": the base's Compare from here puts the left handle on it");
+			copy->trigger();
+			expect(QApplication::clipboard()->text() == QString(40, QLatin1Char{ 'c' }), theme + ": Copy base commit copies its full commit");
+			menu->close();
+			delete menu;
+
+			// The stacked handles can't come back: one update alone (its own base
+			// and head) keeps the brackets apart, and two handles on one place
+			// stand either side of it.
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(second, core::comparison_anchor_kind::epoch_base).Identity, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+				{ .Left = anchor(second, core::comparison_anchor_kind::epoch_base), .Right = anchor(second, core::comparison_anchor_kind::epoch_head) },
+				true, core::epoch_reason_code::none, prBase));
+			QApplication::processEvents();
+			const auto aloneLeft  = line->stop_position(*line->left_stop());
+			const auto aloneRight = line->stop_position(*line->right_stop());
+			const auto alone      = line->grab().toImage();
+			expect(aloneRight.x() - aloneLeft.x() >= 18 && nearest(alone, aloneLeft.x(), 8.0, accent) * 3 < separation && nearest(alone, aloneRight.x(), 8.0, accent) * 3 < separation
+					   && nearest(alone, (aloneLeft.x() + aloneRight.x()) / 2.0, 1.5, accent) * 3 >= separation,
+				   theme + ": one update alone draws two separate brackets, not a stack");
+			control.publish(comparison_update(
+				core::explicit_selection(anchor(second, core::comparison_anchor_kind::epoch_head).Identity, anchor(second, core::comparison_anchor_kind::epoch_head).Identity),
+				{ .Left = anchor(second, core::comparison_anchor_kind::epoch_head), .Right = anchor(second, core::comparison_anchor_kind::epoch_head) },
+				true, core::epoch_reason_code::none, prBase));
+			QApplication::processEvents();
+			const auto same     = line->stop_position(*line->left_stop());
+			const auto coincide = line->grab().toImage();
+			expect(line->right_stop() && line->stop_position(*line->right_stop()) == same && nearest(coincide, same.x() - 4.0, 8.0, accent) * 3 < separation
+					   && nearest(coincide, same.x() + 4.0, 8.0, accent) * 3 < separation,
+				   theme + ": an identical pair draws both brackets, either side of the update");
+
+			// Alt+1 asks the core for the whole PR, which puts the left handle
+			// back on the base.
+			intents.clear();
+			expect(control.whole_pr_action()->shortcut() == QKeySequence{ QStringLiteral("Alt+1") }, theme + ": Whole PR is Alt+1");
+			control.whole_pr_action()->trigger();
+			const auto* const named = intents.size() == 1U ? std::get_if<core::select_named_comparison_intent>(&intents.back()) : nullptr;
+			expect(named != nullptr && named->Alias == core::named_comparison::whole_pr, theme + ": Alt+1's action asks for the whole PR");
+			control.publish(comparison_update(core::named_selection(core::named_comparison::whole_pr),
+											  { .Left = prBase, .Right = anchor(third, core::comparison_anchor_kind::epoch_head) }));
+			QApplication::processEvents();
+			expect(line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base },
+				   theme + ": the whole PR the core resolves puts the left handle back on the base");
+
+			// An older page (Ctrl+Alt+PgDn) leaves the newest epoch off the
+			// line; the base stays at its start with the left handle on it.
+			control.publish(loaded_catalog_update({ second, first }, std::nullopt, core::epoch_history_navigation::older));
+			QApplication::processEvents();
+			expect(line->update_count() == 2U && line->has_pull_request_base()
+					   && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base } && !line->right_stop(),
+				   theme + ": an older page keeps the base at the line's start with the left handle on it");
+			control.hide();
 		}
 	}
 
@@ -1424,29 +1743,25 @@ namespace {
 		control.publish(comparison_update(
 			core::named_selection(core::named_comparison::whole_pr),
 			{
-				.Left  = anchor(first, core::comparison_anchor_kind::epoch_base),
+				.Left  = anchor(third, core::comparison_anchor_kind::epoch_base),
 				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
 			}));
 		QApplication::processEvents();
 		expect(line->update_count() == 3U
-				   && line->left_stop()
-					   == qt::epoch_line_stop{
-						   .Update = 0U,
-						   .Kind   = core::comparison_anchor_kind::epoch_base }
-				   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head } && line->node_centre(0).x() < line->node_centre(1).x() && line->node_centre(1).x() < line->node_centre(2).x() && line->stop_position(*line->left_stop()).x() < line->node_centre(0).x(),
+				   && line->left_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::pull_request_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Kind = core::update_line_place_kind::update_head, .Update = 2U } && line->node_centre(0).x() < line->node_centre(1).x() && line->node_centre(1).x() < line->node_centre(2).x() && line->stop_position(*line->left_stop()).x() < line->node_centre(0).x(),
 			   "the line reads oldest to newest with the whole-PR handles on the "
-			   "oldest base and the newest head");
+			   "pull request's base, before the oldest update, and the newest head");
 		expect(line->label_text(2).startsWith(QStringLiteral("First seen"))
 				   && !line->label_text(2).contains(QStringLiteral("latest"))
-				   && line->label_shown(0) && line->label_shown(1)
-				   && line->label_shown(2)
+				   && line->label_shown(2) && (line->label_shown(0) || line->label_shown(1))
 				   && line->node_tooltip(1).contains(QStringLiteral("Update 2 of 3"))
 				   && line->node_tooltip(1).contains(QStringLiteral("upload")),
 			   "legacy labels identify local first-seen without claiming a latest update");
 		// [[BPR-1129]]. The button names the comparison and the dates of the
 		// two compared updates, the bare dates the line's labels carry.
 		const auto dates = line->selection_dates();
-		expect(dates.has_value() && line->label_text(0).endsWith(dates->first)
+		expect(dates.has_value() && line->label_text(2).endsWith(dates->first)
 				   && line->label_text(2).endsWith(dates->second),
 			   "the compared updates' dates are the bare dates of their labels");
 		expect(control.comparing_button() != nullptr
@@ -1496,7 +1811,7 @@ namespace {
 				   && fromHere->ExpectedCatalogRevision == catalog().Revision,
 			   "clicking a node asks to compare from that update's head, once, "
 			   "bound to the catalog revision");
-		expect(line->left_stop()->Update == 0U,
+		expect(line->left_stop()->Kind == core::update_line_place_kind::pull_request_base,
 			   "the line shows what was published, not what was asked");
 
 		// Cmd-click: compare to it.
@@ -1510,7 +1825,7 @@ namespace {
 					   == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
 			   "Cmd-clicking a node asks to compare to that update's head");
 
-		// Keyboard: Right steps the left handle from the oldest base to its
+		// Keyboard: Right steps the left handle from the base to the oldest
 		// head; Shift+Left steps the right handle back one update.
 		intents.clear();
 		line->setFocus();
@@ -1522,8 +1837,8 @@ namespace {
 		expect(stepped != nullptr && stepped->Side == core::comparison_side::left
 				   && stepped->Anchor
 					   == anchor(first, core::comparison_anchor_kind::epoch_head).Identity,
-			   "Right steps the left handle one stop, from the oldest base to "
-			   "its head");
+			   "Right steps the left handle one stop, from the base to the "
+			   "oldest update's head");
 		intents.clear();
 		auto shiftLeft = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::ShiftModifier };
 		QApplication::sendEvent(line, &shiftLeft);
@@ -1587,7 +1902,8 @@ namespace {
 			{
 				.Left  = anchor(second, core::comparison_anchor_kind::epoch_head),
 				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
-			}));
+			},
+			true, core::epoch_reason_code::none, anchor(third, core::comparison_anchor_kind::epoch_base)));
 		control.publish(application::epoch_presentation_update{
 			.Transition = application::epoch_transition_projection{
 				.Changed   = core::epoch_changed_domain::authority,
@@ -1621,9 +1937,9 @@ namespace {
 		for (std::size_t index = 0U; index < line->update_count(); ++index) {
 			shown += line->label_shown(index) ? 1U : 0U;
 		}
-		expect(line->update_count() == 40U && line->label_shown(0)
-				   && line->label_shown(39) && shown < 40U && shown >= 2U,
-			   "a dense history keeps the end labels and thins the rest");
+		expect(line->update_count() == 40U && line->base_label() == QStringLiteral("Base")
+				   && line->label_shown(39) && shown < 40U && shown >= 1U,
+			   "a dense history keeps the base's and the newest update's labels and thins the rest");
 
 		control.set_details_visible(true);
 		QApplication::processEvents();
@@ -2322,6 +2638,7 @@ auto main(int argc, char** argv) -> int
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	test_epoch_line_handles_on_one_node_drag_apart_and_keep_the_keyboard();
 	test_github_recorded_updates_stay_reachable_by_both_handles();
+	test_the_line_starts_with_the_pull_request_base();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	test_epoch_line_menu_goes_with_its_window();
 	test_the_comparing_button_moves_to_the_review_bar();

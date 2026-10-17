@@ -6,8 +6,11 @@
 // destination under a fixed observation; 1 does the same with the payload's
 // first two parts as hostname and owner; 3 reads the payload as a body's image
 // markup and as GitHub's rendered HTML, and admits what it finds (RFC-BPR-0084);
+// 4 scans the payload's fenced code, names each block's language, marks its
+// lines as a diff and lays it out as a suggestion (RFC-BPR-0036 amendment 2);
 // anything else maps the payload as a tour document.
 
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/core/markdown_image.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
@@ -133,6 +136,43 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1562]]..[[BPR-1564]]. Fenced code: blocks in order and bounded,
+	/// their lines inside the body, marks inside their line and ordered, and
+	/// a suggestion's rows its two sides with changed words inside each row.
+	auto fenced(const std::string_view aRaw, const std::uint8_t aChoice) -> void
+	{
+		const auto blocks = core::scan_markdown_fenced_code(aRaw);
+		fuzz::require(blocks.size() <= core::markdown_code_blocks_per_body);
+		auto total = std::size_t{ 0U };
+		for (std::size_t index = 0U; index < blocks.size(); ++index) {
+			const auto& block = blocks[index];
+			fuzz::require(block.Ordinal == index && block.Info.size() <= aRaw.size());
+			for (const auto& line : block.Lines) {
+				fuzz::require(line.find('\n') == std::string::npos && line.size() <= aRaw.size());
+				total += line.size();
+			}
+			fuzz::require(total <= aRaw.size());
+			const auto language = core::markdown_code_language_of(block.Info);
+			fuzz::require((language.Kind == core::markdown_code_kind::language) == !language.Selector.empty());
+			for (const auto& line : block.Lines) {
+				auto end = std::size_t{ 0U };
+				for (const auto& mark : core::markdown_diff_marks(line)) {
+					fuzz::require(mark.Begin >= end && mark.Length > 0U && mark.Begin + mark.Length <= line.size());
+					end = mark.Begin + mark.Length;
+				}
+			}
+			const auto context = (aChoice & 1U) != 0U
+				? std::optional{ core::markdown_suggestion_context{ .FirstLine = 1U + aChoice, .Lines = { block.Lines.rbegin(), block.Lines.rend() } } }
+				: std::nullopt;
+			const auto rows    = core::markdown_suggestion_rows(block.Lines, context);
+			fuzz::require(rows.size() == block.Lines.size() + (context ? context->Lines.size() : 0U));
+			for (const auto& row : rows) {
+				fuzz::require(row.ChangedBegin <= row.ChangedEnd && row.ChangedEnd <= row.Text.size());
+				fuzz::require(row.Number.has_value() == context.has_value());
+			}
+		}
+	}
+
 	auto within(const core::tour_text_span aSpan, const std::string_view aRaw) -> bool
 	{
 		return aSpan.Begin <= aSpan.End && aSpan.End <= aRaw.size();
@@ -191,7 +231,7 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	if (input.rest().size() > 16384U) {
 		return 0;
 	}
-	switch (selector % 4U) {
+	switch (selector % 5U) {
 	case 0U:
 		admit(input.text(), "example.invalid", "owner");
 		break;
@@ -203,6 +243,9 @@ extern "C" auto LLVMFuzzerTestOneInput(const std::uint8_t* aData, const std::siz
 	}
 	case 3U:
 		images(input.text());
+		break;
+	case 4U:
+		fenced(input.text(), choice);
 		break;
 	default:
 		tour(input.text(), choice);

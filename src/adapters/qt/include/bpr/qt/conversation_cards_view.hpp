@@ -8,6 +8,7 @@
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include <QAbstractScrollArea>
 #include <QColor>
@@ -184,6 +185,9 @@ namespace bpr::qt {
 		std::optional<core::diff_side> Side;
 		/// The one-based line the thread sits on, when it has one.
 		std::optional<std::uint32_t> Line;
+		/// [[BPR-1564]]. A published thread on several lines: GitHub's
+		/// one-based `start_line`, the first of them.
+		std::optional<std::uint32_t> StartLine;
 		/// [[BPR-1212]] slice 1. My draft on several lines: its one-based
 		/// first line; `Line` is its last, where it is anchored.
 		std::optional<std::uint32_t> FirstLine;
@@ -288,6 +292,10 @@ namespace bpr::qt {
 	/// \brief Answers the code around a one-based line of a path, for Discuss.
 	using card_excerpt_locator
 		= std::function<std::optional<QString>(const QString&, core::diff_side, std::uint32_t)>;
+	/// \brief [[BPR-1564]]. Answers the exact text of one-based lines first
+	/// to last of a path on a side, when that file is the one compared.
+	using card_suggestion_locator
+		= std::function<std::optional<std::vector<std::string>>(const QString&, core::diff_side, std::uint32_t, std::uint32_t)>;
 
 	/// \brief [[BPR-1290]]. The reply written in place, as the draft editor holds it.
 	struct thread_reply_presentation
@@ -414,6 +422,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto filters() const noexcept -> discuss_filters;
 		void               set_pull_request_author(const QString& aLogin);
 		void               set_excerpt_locator(card_excerpt_locator aLocator);
+		/// \brief [[BPR-1564]]. Where a suggestion's commented lines come from.
+		void set_suggestion_locator(card_suggestion_locator aLocator);
 		/// \brief Told after every relayout, so a summary can restate the counts.
 		void               set_layout_observer(std::function<void()> aObserver);
 		[[nodiscard]] auto thread_count() const noexcept -> std::size_t;
@@ -427,6 +437,12 @@ namespace bpr::qt {
 		/// typography's.
 		void               set_code_font(const QFont& aFont);
 		[[nodiscard]] auto code_font() const -> const QFont&;
+		/// \brief [[BPR-1562]]. The review panes' colours, for posts' fenced code.
+		void set_code_theme(const markdown_code_theme& aTheme);
+		/// \brief [[BPR-1562]]. Asks for the spans of the open thread's code;
+		/// answers come back by `apply_markdown_code_syntax`.
+		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		/// \brief Adopts the read state the ledger host decided.
 		///
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
@@ -699,24 +715,27 @@ namespace bpr::qt {
 		int         PickedRevealLast  = 0;
 		std::string Hovered;
 		/// The thread whose reply editor is shown in its open card.
-		std::string                    Replying;
-		std::vector<thread_read_state> ReadState;
-		bool                           ReadStateKnown    = false;
-		bool                           Feed              = false;
-		bool                           ResolutionOffered = false;
-		bool                           HasFocus          = false;
-		discuss_filters                Filters;
-		QString                        PullRequestAuthor;
-		card_excerpt_locator           ExcerptLocator;
-		std::function<void()>          LayoutObserver;
-		QFont                          CodeFont;
-		QColor                         CodeBackground{ 0xF6, 0xF8, 0xFA };
-		QColor                         CodeInk{ 0x1F, 0x23, 0x28 };
-		cards_scope                    Scope = cards_scope::this_file;
-		QColor                         Accent{ 0x09, 0x69, 0xDA };
-		QColor                         Marker{ 0xD2, 0x99, 0x22 };
-		int                            ContentHeight = 0;
-		std::uint64_t                  Layouts       = 0U;
+		std::string                                                                 Replying;
+		std::vector<thread_read_state>                                              ReadState;
+		bool                                                                        ReadStateKnown    = false;
+		bool                                                                        Feed              = false;
+		bool                                                                        ResolutionOffered = false;
+		bool                                                                        HasFocus          = false;
+		discuss_filters                                                             Filters;
+		QString                                                                     PullRequestAuthor;
+		card_excerpt_locator                                                        ExcerptLocator;
+		card_suggestion_locator                                                     SuggestionLocator;
+		std::optional<markdown_code_theme>                                          CodeTheme;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
+		std::function<void()>                                                       LayoutObserver;
+		QFont                                                                       CodeFont;
+		QColor                                                                      CodeBackground{ 0xF6, 0xF8, 0xFA };
+		QColor                                                                      CodeInk{ 0x1F, 0x23, 0x28 };
+		cards_scope                                                                 Scope = cards_scope::this_file;
+		QColor                                                                      Accent{ 0x09, 0x69, 0xDA };
+		QColor                                                                      Marker{ 0xD2, 0x99, 0x22 };
+		int                                                                         ContentHeight = 0;
+		std::uint64_t                                                               Layouts       = 0U;
 		/// [[BPR-0673]]. Two widths, because a scroll bar that comes and goes
 		/// alternates the content width; keeping one width re-measured every
 		/// note of a large review each time it did.

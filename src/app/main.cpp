@@ -6414,7 +6414,8 @@ namespace {
 							aRun->PublicPreview.RewrittenBaseGate = QStringLiteral("event 91702 unavailable tooltip and live selection");
 							if (!rewrittenNode || !line->selection_offered()
 								|| !line->left_stop() || !line->right_stop()
-								|| line->left_stop()->Update == *rewrittenNode || line->right_stop()->Update == *rewrittenNode) {
+								|| (line->left_stop()->Kind != bpr::core::update_line_place_kind::pull_request_base && line->left_stop()->Update == *rewrittenNode)
+								|| line->right_stop()->Update == *rewrittenNode) {
 								break;
 							}
 							aRun->PublicPreview.RewrittenBaseShown = true;
@@ -6459,7 +6460,7 @@ namespace {
 							}
 							const auto left = line->left_stop();
 							if (!left || left->Update != aRun->PublicPreview.HistoricalNode
-								|| left->Kind != bpr::core::comparison_anchor_kind::epoch_head
+								|| left->Kind != bpr::core::update_line_place_kind::update_head
 								|| aApplication.status().EpochStatus != bpr::core::epoch_status::ready) {
 								break;
 							}
@@ -6495,17 +6496,24 @@ namespace {
 						// another update, then the right handle steps by key; the run
 						// waits each time until the comparison the core publishes back
 						// puts that handle there and is ready again. The course starts
-						// from the whole-PR pair, whose two handles share the newest
-						// node, which is where the owner could not take the left one.
+						// from the whole-PR pair: [[BPR-1557]] the left handle on the
+						// pull request's base at the line's start, the right one on the
+						// newest update.
 						if (aRun->PublicPreview.DragCourse && !aRun->PublicPreview.DragKeyMoved) {
-							using bpr::core::comparison_anchor_kind;
+							using bpr::core::update_line_place_kind;
 							using bpr::qt::epoch_line_stop;
 							auto* const line  = window.epoch_selectors()->line();
 							const auto  ready = aApplication.status().EpochStatus == bpr::core::epoch_status::ready;
 							const auto  left  = line->left_stop();
 							const auto  right = line->right_stop();
 							const auto  named = [](const std::optional<epoch_line_stop>& aStop) {
-								return aStop ? QStringLiteral("%1%2").arg(aStop->Kind == comparison_anchor_kind::epoch_base ? QStringLiteral("base") : QStringLiteral("head")).arg(aStop->Update) : QStringLiteral("none");
+								if (!aStop) {
+									return QStringLiteral("none");
+								}
+								if (aStop->Kind == update_line_place_kind::pull_request_base) {
+									return QStringLiteral("prbase");
+								}
+								return QStringLiteral("%1%2").arg(aStop->Kind == update_line_place_kind::update_base ? QStringLiteral("base") : QStringLiteral("head")).arg(aStop->Update);
 							};
 							aRun->PublicPreview.DragGate = QStringLiteral("stage %1 visible %2 offered %3 ready %4 left %5 right %6 target %7")
 															   .arg(aRun->PublicPreview.DragStage)
@@ -6533,13 +6541,14 @@ namespace {
 							};
 							switch (aRun->PublicPreview.DragStage) {
 							case 0:
-								if (left->Update != right->Update) {
-									aRun->PublicPreview.DragGate.append(QStringLiteral(" (expected the whole-PR pair on one node)"));
+								if (left->Kind != update_line_place_kind::pull_request_base || right->Kind != update_line_place_kind::update_head
+									|| right->Update + 1U != line->update_count()) {
+									aRun->PublicPreview.DragGate.append(QStringLiteral(" (expected the whole-PR pair on the base and the newest update)"));
 									break;
 								}
-								// The left handle, off the node it shares with the right one,
-								// to the oldest update's head.
-								drag(*left, { .Update = 0U, .Kind = comparison_anchor_kind::epoch_head });
+								// The left handle, off the pull request's base, to the oldest
+								// update's head.
+								drag(*left, { .Kind = update_line_place_kind::update_head, .Update = 0U });
 								break;
 							case 1:
 								if (left != aRun->PublicPreview.DragTarget) {
@@ -6547,7 +6556,7 @@ namespace {
 								}
 								aRun->PublicPreview.DragLeftMoved = true;
 								// The right handle, from the newest head to the update before it.
-								drag(*right, { .Update = right->Update - 1U, .Kind = comparison_anchor_kind::epoch_head });
+								drag(*right, { .Kind = update_line_place_kind::update_head, .Update = right->Update - 1U });
 								break;
 							case 2: {
 								if (right != aRun->PublicPreview.DragTarget) {
@@ -6556,7 +6565,7 @@ namespace {
 								aRun->PublicPreview.DragRightMoved = true;
 								// The keyboard alternative: Shift+Right steps the right handle
 								// back to the newest head, to the line that has focus.
-								aRun->PublicPreview.DragTarget = epoch_line_stop{ .Update = right->Update + 1U, .Kind = comparison_anchor_kind::epoch_head };
+								aRun->PublicPreview.DragTarget = epoch_line_stop{ .Kind = update_line_place_kind::update_head, .Update = right->Update + 1U };
 								aRun->PublicPreview.DragSteps.append(QStringLiteral("Shift+Right %1->%2").arg(named(right), named(aRun->PublicPreview.DragTarget)));
 								auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Right, Qt::ShiftModifier };
 								// The press that started the drag gave the line focus; the
@@ -9137,6 +9146,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows       = 4,
 					.ExpectedConversationIdentities = { "issue-comment:IC_mp_1", "issue-comment:IC_mp_2", "issue-comment:IC_mp_3", "issue-comment:IC_mp_4" },
 					.ExpectedThreadId               = std::nullopt,
+				};
+			} else if (*fixture == "markdown-code-v1") {
+				// [[BPR-1562]]. The conventional-comments pull request whose
+				// bodies hold fenced code and suggestions; see
+				// `scripts/build_markdown_code_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::markdown_code_v1;
+				fixtureName            = "markdown-code-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move the cache writer onto the serialized lane",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 7,
+					.ExpectedThreadId         = std::nullopt,
 				};
 			} else if (*fixture == "markdown-html-v1") {
 				// [[BPR-1544]]. The nested-folders pull request whose bodies are

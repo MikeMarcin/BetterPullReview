@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c99673430cbd7907ad1c2eb877ad51632418c34de0f55054982bddfcde94acc1"
+		"1c354f0f40c47ea14bdd667ea79a191c56566e8a29741b68555c1f818c78821d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2beb74fd266de3eca89b968c61b94a7e2958f2bf180e5190b03aa80d155b4b53"
+        "af44e7e408e7eae79adef781081110bd206603900f56776eb13b8780b5fee88b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2655,7 +2655,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # transport, GitHub write, mutation or publication path changes; the
 # production mutation-branch pin is unchanged. Self-review on BPR-1544.
 
-# [[BPR-1560]] reseal over main (merged after BPR-1544). Whole PR compares from the merge
+# [[BPR-1562]] reseal over main at c9ff3bf50 (BPR-1544's pins), recomputed on
+# the tree that rebases BPR-1562..1564 onto it. github_application.cpp composes
+# the Markdown readers' fenced-code classification: a host of its own over a
+# packaged classifier of its own, on the appearance effect lane with the shared
+# definitions, relayed through the window. The constructed markdown-code-v1
+# fixture joins the test-build tables, sharing conventional-comments-v1's
+# descriptor with its own contract directory. No grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# the production mutation-branch pin is unchanged. Self-review on BPR-1562.
+
+# [[BPR-1560]] reseal over main at 0f30a77a1 (after BPR-1562). Whole PR compares from the merge
 # base GitHub names, so github_application.cpp and tour_remote.cpp change in
 # production: the mutation target binding keeps GitHub's recorded base as
 # `BaseOid` (the staleness check against GitHub is unchanged) and carries the

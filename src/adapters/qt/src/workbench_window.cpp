@@ -2465,6 +2465,22 @@ namespace bpr::qt {
 				}
 				return lines.isEmpty() ? std::nullopt : std::optional{ lines.join(QLatin1Char{ '\n' }) };
 			});
+		// [[BPR-1564]]. A suggestion's commented lines, exactly as the compared
+		// document holds them, when the thread's file is the one compared.
+		ConversationPanel->cards()->set_suggestion_locator(
+			[this](const QString& aPath, const core::diff_side aSide, const std::uint32_t aFirst, const std::uint32_t aLast)
+				-> std::optional<std::vector<std::string>> {
+				if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->current_context().has_value()
+					|| ComparisonSurface->current_context()->Key.File != core::file_identity_of(aPath.toStdString()) || aFirst == 0U || aLast < aFirst) {
+					return std::nullopt;
+				}
+				const auto& result   = *ComparisonSurface->current_result();
+				const auto& document = aSide == core::diff_side::right ? result.RightDocument : result.LeftDocument;
+				if (!document.has_value()) {
+					return std::nullopt;
+				}
+				return core::suggestion_source_lines(*document, aFirst - 1U, aLast - 1U);
+			});
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
@@ -11331,6 +11347,33 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch)
 	{
 		MarkdownImageDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_markdown_code_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		MarkdownCodeDispatch = std::move(aDispatch);
+		const auto relay     = [this](std::vector<application::markdown_code_syntax_request> aRequests) {
+			if (MarkdownCodeDispatch) {
+				MarkdownCodeDispatch(std::move(aRequests));
+			}
+		};
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->set_code_syntax_dispatch(relay);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_code_syntax_dispatch(relay);
+		}
+	}
+
+	void workbench_window::apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		// A reader takes an answer only for code it shows.
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->apply_code_syntax(aSpans);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->apply_markdown_code_syntax(aSpans);
+		}
 	}
 
 	void workbench_window::set_pull_request_page_dispatch(std::function<core::markdown_link_result(const application::pull_request_page_intent&)> aDispatch)

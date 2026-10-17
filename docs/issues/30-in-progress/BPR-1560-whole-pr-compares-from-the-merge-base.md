@@ -308,6 +308,9 @@ numbers are kept here).
   refuses this branch's `NEXT_ID` as behind that allocation, which merging
   main at landing resolves. Live
   #76 on a fresh data root: PASS 3/3, LEFT threads at lines 2, 3 and 5.
+  (A fresh data root has seen one update of #76, so its interdiff is
+  unavailable there; the interdiff evidence is the squash course's, #83 and
+  #86, on one data root across every step.)
   `application_label_authoring_contract` failed once in a parallel focused
   run (40 s against 4.5 s alone, a serial GUI test) and passed alone and in
   the full run.
@@ -405,6 +408,26 @@ numbers are kept here).
   changed files, the documentation gate and the composition contracts.
 
 ## Follow-ups
+
+- **Stacked pull requests (unmeasured).** When the base branch takes commits
+  the head shares and `base.sha` does not move, the base branch's compare names
+  another merge base than `base.sha`'s, so Whole PR stays `refused`
+  (unavailable) until the next push moves `base.sha`. What GitHub's Files
+  changed shows in that state has not been measured. Proposed follow-up card:
+  measure it on BPR-Test and, if Files changed follows the base branch, trust
+  the branch's answer there instead of refusing.
+- **A race refusal appends two epochs.** A pull request that moves between the
+  snapshot and the confirming read (`refused`) hands the recorded base over,
+  appending a base-change epoch, and the next good read appends another back.
+  Rare and self-correcting; recorded, not changed.
+- **A residual carry-forward window.** When the merge base moves and the same
+  poll's compare fails transiently (`failed`), the window keeps the earlier
+  merge base for that read; the next successful read corrects it. Head,
+  `base.sha` and base branch must all be unchanged for this to happen.
+- **Refusal wording.** `refused` shows the same reason text as `failed`:
+  "GitHub did not say where this pull request branched…". It is safe but
+  inexact for a refusal; a distinct reason would need its own core reason
+  code.
 
 - An imported historical update's own merge base on a sparse review, from
   GitHub, would make "Show this update alone" available for it again.

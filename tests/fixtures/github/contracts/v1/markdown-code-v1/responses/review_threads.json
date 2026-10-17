@@ -1,0 +1,269 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_nested-folders",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/reference.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/v2/endpoints.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.vert",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/bloom.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/slider.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/engine/renderer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/build/scripts/package.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/nested-folders:21:files",
+						"hasNextPage": false
+					},
+					"totalCount": 17
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_21",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "suggestion: Name the camera the scene is drawn from.\n\n```suggestion\n\tdraw_scene(Camera);\n```\n",
+										"id": "PRRC_cc_mc1_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfbWMxXzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_mc1",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "issue: A zero size breaks the projection.\n\n```suggestion\n\tWidth  = std::max(aWidth, 1);\n\tHeight = std::max(aHeight, 1);\n```\n",
+										"id": "PRRC_cc_mc2_1",
+										"line": 13,
+										"originalLine": 13,
+										"originalStartLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null,
+										"startLine": 12
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfbWMyXzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_mc2",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 13,
+							"originalLine": 13,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "```suggestion\n{\n\tif (!Ready) {\n\t\treturn;\n\t}\n```\n",
+										"id": "PRRC_cc_mc3_1",
+										"line": 4,
+										"originalLine": 4,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfbWMzXzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_mc3",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 4,
+							"originalLine": 4,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "nitpick: `present()` clears already.\n\n```suggestion\n```\n",
+										"id": "PRRC_cc_mc4_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfbWM0XzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_mc4",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "Keep the size in one place:\n\n```suggestion\n\tconstexpr auto size = std::pair{ 1280, 720 };\n\trenderer.resize(size.first, size.second);\n```\n",
+										"id": "PRRC_cc_mc5_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2NfbWM1XzE=",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_mc5",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfY2NfbWM1",
+						"hasNextPage": false
+					},
+					"totalCount": 5
+				}
+			}
+		}
+	}
+}

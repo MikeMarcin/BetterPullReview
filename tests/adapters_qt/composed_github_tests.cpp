@@ -3004,6 +3004,153 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1564]]. A published suggestion on two lines reads, in the
+	/// composed window's drawer, against the exact lines the compared head
+	/// holds: the window's locator, the thread's start line, the post's reader.
+	auto test_a_suggestion_reads_against_the_compared_lines() -> void
+	{
+		const auto opaque = []<typename Identity>(const std::uint8_t aSeed) {
+			auto bytes    = std::array<std::uint8_t, 32U>{ };
+			bytes.front() = aSeed;
+			bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
+			return Identity{ bytes };
+		};
+		const auto blob = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (std::size_t index = 0U; index < 20U; ++index) {
+				bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+			}
+			return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+		};
+		const auto options = core::diff_options{ };
+		const auto digest  = core::options_digest(options);
+		expect(digest.has_value(), "suggestion fixture options normalize");
+		const auto scope                                   = opaque.template operator()<core::pull_request_authority_scope_id>(41U);
+		const auto incarnation                             = opaque.template operator()<core::epoch_catalog_incarnation_id>(42U);
+		const auto                               authority = core::pull_request_authority{
+			.Profile         = core::host_profile_id{ 10U },
+			.ProfileRevision = core::github_profile_revision{ 20U },
+			.Host            = core::git_host_id{ 30U },
+			.HostAuthority   = opaque.template operator()<core::host_authority_fingerprint>(43U),
+			.Account         = core::github_account_id{ 40U },
+			.Viewer          = core::github_viewer_actor_id{ 50U },
+			.Repository      = core::repository_id{ 101U },
+			.Cache           = opaque.template operator()<core::repository_cache_scope_id>(44U),
+			.PullRequest     = core::pull_request_id{ 202U },
+			.Number          = core::pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		const auto key = core::file_comparison_key{
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_base, .Epoch = core::epoch_ordinal{ 1 } },
+			.RightAnchor = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_head, .Epoch = core::epoch_ordinal{ 2 } },
+			.LeftBlob    = blob(71U),
+			.RightBlob   = blob(81U),
+			.File        = core::file_identity_of("src/review.cpp"),
+			.Options     = *digest,
+			.Algorithm   = core::supported_diff_algorithm_revision,
+		};
+		auto leftText  = std::string{ };
+		auto rightText = std::string{ };
+		for (std::size_t line = 1U; line <= 20U; ++line) {
+			const auto text = "\tauto value_" + std::to_string(line) + " = compute(" + std::to_string(line) + ");\n";
+			rightText += text;
+			if (line != 10U) {
+				leftText += text;
+			}
+		}
+		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
+		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
+		const auto result = bpr::tests::product_file_diff({
+			.Key        = key,
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(result.Reason == core::diff_reason_code::none && result.Result.has_value(), "the suggestion comparison computes");
+
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'440, 900);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		auto requests = std::vector<application::markdown_code_syntax_request>{ };
+		window.set_markdown_code_dispatch([&requests](std::vector<application::markdown_code_syntax_request> aRequests) {
+			requests.insert(requests.end(), aRequests.begin(), aRequests.end());
+		});
+		using kind       = application::github_conversation_kind;
+		auto pullRequest = pull_request_projection();
+		auto root        = conversation("review-thread:s", kind::review_thread);
+		root.AuthorLogin.clear();
+		root.Line                 = 6U;
+		root.StartLine            = 5U;
+		root.DiffSide             = application::github_conversation_diff_side::right;
+		root.AnchorAvailability   = application::github_conversation_anchor_availability::current;
+		auto post                 = conversation("review-comment:s1", kind::review_comment,
+												 "Clamp both:\n\n```suggestion\n\tauto value_5 = compute(std::max(5, 1));\n\tauto value_6 = compute(6);\n```\n", root.Id);
+		post.Line                 = 6U;
+		post.StartLine            = 5U;
+		post.DiffSide             = application::github_conversation_diff_side::right;
+		post.AnchorAvailability   = application::github_conversation_anchor_availability::current;
+		pullRequest.Conversations = { root, post };
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+			.PullRequest = std::move(pullRequest),
+		});
+		auto* const surface = window.comparison_surface();
+		const auto  context = core::diff_request_context{
+			.Request            = core::request_id{ 9U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		surface->set_loading(context);
+		surface->publish(qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*result.Result),
+		}));
+		window.set_conversation_endpoint_placement(true, true);
+		for (auto settle = 0; settle < 20 && surface->geometry_pending(); ++settle) {
+			QApplication::processEvents();
+		}
+		auto* const cards = window.conversation_panel()->cards();
+		cards->open_thread("review-thread:s");
+		QApplication::processEvents();
+		auto* const open   = cards->open_card();
+		auto* const reader = open == nullptr ? nullptr : dynamic_cast<qt::markdown_body_view*>(open->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		expect(reader != nullptr, "the suggestion's post reads through the shared reader");
+		auto rows = std::vector<std::tuple<int, int, std::string>>{ };
+		for (auto block = reader->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+			const auto row = block.blockFormat().intProperty(QTextFormat::UserProperty + 0x0B62);
+			if (row == 1 || row == 2) {
+				rows.emplace_back(row, block.blockFormat().intProperty(QTextFormat::UserProperty + 0x0B63), block.text().toStdString());
+			}
+		}
+		const auto expected = std::vector<std::tuple<int, int, std::string>>{
+			{ 1, 5, "\tauto value_5 = compute(5);" },
+			{ 1, 6, "\tauto value_6 = compute(6);" },
+			{ 2, 5, "\tauto value_5 = compute(std::max(5, 1));" },
+			{ 2, 6, "\tauto value_6 = compute(6);" },
+		};
+		expect(rows == expected, "the removed rows are the compared head's lines 5 and 6, the added rows the suggestion's");
+		expect(std::ranges::any_of(requests, [](const application::markdown_code_syntax_request& aRequest) {
+				   return aRequest.Selector == "src/review.cpp" && aRequest.Text && *aRequest.Text == "\tauto value_5 = compute(5);\n\tauto value_6 = compute(6);";
+			   }),
+			   "the window asks for the commented lines by the file's language");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1290]]. A long file's threads as notes beside the code,
 	/// one opening in place at its line, through the composed workbench.
 	///
@@ -9350,6 +9497,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1290]]. The inline drawer on a long file, alone, at each scale.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--inline-drawer"))) {
 		test_inline_drawer_follows_the_code_and_opens_threads_in_place();
+		test_a_suggestion_reads_against_the_compared_lines();
 		std::cout << "inline-drawer:pass\n";
 		return EXIT_SUCCESS;
 	}

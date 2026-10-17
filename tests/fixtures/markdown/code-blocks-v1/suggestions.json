@@ -1,0 +1,26 @@
+{
+ "source": "MikeMarcin/BPR-Test#80 review 5551993302 (BPR-1562 sample)",
+ "path": "src/cache.cpp",
+ "comments": [
+  {
+   "start_line": 9,
+   "line": 9,
+   "body": "Name the read for what it takes.\n\n```suggestion\n\t\tauto next  = read_snapshot_unlocked();\n```"
+  },
+  {
+   "start_line": 23,
+   "line": 25,
+   "body": "Reset to an empty snapshot explicitly:\n\n```suggestion\n\t\tauto guard = std::lock_guard{ Mutex };\n\t\tSnapshot   = snapshot{ };\n\t\tGeneration = 0;\n```"
+  },
+  {
+   "start_line": 17,
+   "line": 18,
+   "body": "```suggestion\n\t\tauto guard = std::lock_guard{ Mutex };\n\t\t// Read under the lock: refresh() writes it.\n\t\treturn Generation;\n```"
+  },
+  {
+   "start_line": 4,
+   "line": 4,
+   "body": "Unused now:\n\n```suggestion\n```"
+  }
+ ]
+}

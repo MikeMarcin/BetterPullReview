@@ -130,6 +130,9 @@ namespace bpr::application {
 		core::comparison_revision            Revision;
 		bool                                 AvailableForDiff = false;
 		core::epoch_reason_code              Reason           = core::epoch_reason_code::none;
+		/// [[BPR-1557]]. The pull request's base, which Whole PR compares
+		/// from, as the core published it with this resolution.
+		std::optional<core::comparison_anchor> PullRequestBase;
 
 		auto operator<=>(const epoch_comparison_projection&) const = default;
 	};

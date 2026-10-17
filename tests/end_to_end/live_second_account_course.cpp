@@ -47,6 +47,7 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -277,7 +278,14 @@ namespace {
 		auto* const control = aWindow.epoch_selectors();
 		auto* const line    = control->line();
 		const auto  stop    = [](const std::optional<qt::epoch_line_stop>& aStop) {
-			return aStop ? std::string{ aStop->Kind == core::comparison_anchor_kind::epoch_base ? "base" : "head" } + std::to_string(aStop->Update) : std::string{ "none" };
+			if (!aStop) {
+				return std::string{ "none" };
+			}
+			// [[BPR-1557]]. The pull request's base, at the line's start.
+			if (aStop->Kind == core::update_line_place_kind::pull_request_base) {
+				return std::string{ "prbase" };
+			}
+			return std::string{ aStop->Kind == core::update_line_place_kind::update_base ? "base" : "head" } + std::to_string(aStop->Update);
 		};
 		std::string labels;
 		for (std::size_t i = 0; i < line->update_count(); ++i) {
@@ -286,6 +294,7 @@ namespace {
 		say("epoch:" + aTag + " visible=" + (line->isVisible() ? "1" : "0") + " controlVisible=" + (control->isVisible() ? "1" : "0") + " size=" + std::to_string(line->width()) + "x" + std::to_string(line->height())
 			+ " updates=" + std::to_string(line->update_count()) + " offered=" + (line->selection_offered() ? "1" : "0") + " left=" + stop(line->left_stop()) + " right=" + stop(line->right_stop())
 			+ " readiness=" + text(control->readiness_text()) + " statement=" + text(line->statement()) + " status=" + text(control->status_text()) + " labels=" + labels);
+		say("epoch:" + aTag + " name=" + text(line->accessibleName()) + " base=" + text(line->base_tooltip()));
 		for (std::size_t i = 0; i < line->update_count(); ++i) {
 			const auto at        = line->node_centre(i);
 			auto       menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, at, line->mapToGlobal(at) };
@@ -341,6 +350,17 @@ namespace {
 			window_drag(*line, line->stop_position(*line->left_stop()), line->node_centre(0U));
 			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 15 });
 			epoch_dump(aWindow, aOptions.Root, "review-left-dragged");
+		}
+		// [[BPR-1557]]. Left steps the left handle back to the pull request's
+		// base, the line's first stop.
+		if (line->left_stop()) {
+			line->setFocus(Qt::OtherFocusReason);
+			auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+			for (std::size_t step = 0U; step <= line->update_count(); ++step) {
+				QCoreApplication::sendEvent(line, &left);
+				wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 8 });
+			}
+			epoch_dump(aWindow, aOptions.Root, "review-left-base");
 		}
 		dump(aWindow);
 	}

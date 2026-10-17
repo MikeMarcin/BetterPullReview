@@ -2619,6 +2619,44 @@ namespace {
 			   "the newest update alone, from its recorded base, is unavailable and says why");
 	}
 
+	// [[BPR-1557]]. Every resolution names the pull request's base, the anchor
+	// Whole PR compares from, whatever is selected, so the Updates line can
+	// start with it. It follows the newest live epoch when the base moved, and
+	// an imported epoch is never it.
+	auto test_resolution_names_the_pull_request_base() -> void
+	{
+		auto       fixture = make_ready_fixture();
+		const auto whole   = *fixture.State.AcceptedComparison;
+		expect(whole.Left == anchor(fixture.Epoch, comparison_anchor_kind::epoch_base), "the whole PR compares from the live epoch's base");
+
+		// The base branch moved: the newest live epoch has another base.
+		const auto  moved   = summary(fixture.Authority, fixture.Catalog, 2, 41U, 42U);
+		const auto  older   = anchor(fixture.Epoch, comparison_anchor_kind::epoch_head);
+		const auto  edit    = transition(fixture.State, select_comparison_anchor_intent{ .Side = comparison_side::left, .Anchor = older.Identity, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* resolve = request_from<resolve_comparison_request>(edit);
+		expect(resolve != nullptr, "a one-side edit asks for a resolution");
+		const auto explicitPair = transition(fixture.State, comparison_resolved_event{ .Context = resolve->Context, .Candidates = comparison_candidates{ .Catalog = fixture.Catalog, .LatestLive = moved, .ExplicitLeft = older, .ExplicitRight = whole.Right } });
+		expect(explicitPair.Comparison && explicitPair.Comparison->Pair && explicitPair.Comparison->Pair->Left == older
+				   && explicitPair.Comparison->PullRequestBase == anchor(moved, comparison_anchor_kind::epoch_base),
+			   "an exact pair's resolution still names the newest live epoch's base, after the base moved");
+
+		const auto  wholeAgain   = transition(fixture.State, select_named_comparison_intent{ .Alias = named_comparison::whole_pr, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* wholeRequest = request_from<resolve_comparison_request>(wholeAgain);
+		expect(wholeRequest != nullptr, "Whole PR asks for a resolution");
+		const auto wholeResolved = transition(fixture.State, comparison_resolved_event{ .Context = wholeRequest->Context, .Candidates = comparison_candidates{ .Catalog = fixture.Catalog, .LatestLive = moved } });
+		expect(wholeResolved.Comparison && wholeResolved.Comparison->Pair && wholeResolved.Comparison->PullRequestBase
+				   && wholeResolved.Comparison->Pair->Left == *wholeResolved.Comparison->PullRequestBase,
+			   "Whole PR's left side is the base the line starts with");
+
+		const auto  imported = summary(fixture.Authority, fixture.Catalog, 3, 51U, 52U, 30U, epoch_origin::explicit_historical_import);
+		const auto  retry    = transition(fixture.State, select_comparison_anchors_intent{ .Left = older.Identity, .Right = whole.Right.Identity, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* request  = request_from<resolve_comparison_request>(retry);
+		expect(request != nullptr, "an exact pair asks for a resolution");
+		const auto none = transition(fixture.State, comparison_resolved_event{ .Context = request->Context, .Candidates = comparison_candidates{ .Catalog = fixture.Catalog, .LatestLive = imported, .ExplicitLeft = older, .ExplicitRight = whole.Right } });
+		expect(none.Comparison && none.Comparison->Pair && !none.Comparison->PullRequestBase,
+			   "an imported epoch never stands for the pull request's base");
+	}
+
 	auto test_pending_one_sided_selection_supersession() -> void
 	{
 		auto        fixture      = make_ready_fixture();
@@ -4236,6 +4274,7 @@ auto main() -> int
 	test_invalid_cross_facts_and_command_policy();
 	test_selection_transition_policy();
 	test_whole_pr_compares_only_from_a_named_merge_base();
+	test_resolution_names_the_pull_request_base();
 	test_pending_one_sided_selection_supersession();
 	test_overflow_is_checked_and_invalidation_fails_closed();
 	test_bounded_epoch_history_paging();
