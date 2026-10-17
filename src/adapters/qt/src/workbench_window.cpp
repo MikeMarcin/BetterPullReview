@@ -3915,6 +3915,7 @@ namespace bpr::qt {
 		RefreshFreshness->setForegroundRole(QPalette::PlaceholderText);
 		// Its words whole: the status line beside it is the one that yields.
 		RefreshFreshness->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+		RefreshFreshness->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 		RefreshFreshness->hide();
 		connect(RefreshFreshness, &QLabel::linkActivated, this, [this](const QString&) {
 			auto* const action = showing_home() ? QueueRefreshAction : GithubRefreshAction;
@@ -14164,6 +14165,12 @@ namespace bpr::qt {
 										: words.toHtmlEscaped();
 			if (RefreshFreshness->text() != text) {
 				RefreshFreshness->setText(text);
+			}
+			// One width for every phrase it says, the widest, so neither it
+			// nor the status line beside it moves as the words change.
+			const auto widest = QFontMetrics{ RefreshFreshness->font() }.horizontalAdvance(QStringLiteral("Not refreshed · updated 59 min ago · Retry")) + 8;
+			if (RefreshFreshness->width() != widest) {
+				RefreshFreshness->setFixedWidth(widest);
 			}
 			RefreshFreshness->setToolTip(failed ? refresh_result_text(showing_home(), state) : words);
 			RefreshFreshness->setAccessibleDescription(RefreshFreshness->toolTip());
