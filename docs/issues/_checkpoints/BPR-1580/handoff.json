@@ -1,0 +1,60 @@
+{
+ "assignment": "BPR-1580",
+ "mandate": "Owner request 2026-10-17 on Home's toolbar: collapse Group, State headers and Filter into one control whose menu groups render labelled on macOS, explain unclear options, hide Added by without observer rules, Reset to defaults, a non-default indicator on the button, a filtered empty state with a reset; keep behaviour and stored settings; keyboard and screen-reader reachable. Fresh short attended session, one Accept/Reject with before/after Light and Dark renders; do not merge before acceptance; park on main.",
+ "governing_rfc": "RFC-BPR-0032 (Home strip, Group, State headers, Filter) as RFC-BPR-0066 amends it; RFC-BPR-0028 strip; RFC-BPR-0024 per-window view",
+ "decisions": {
+  "structure": "Submenus whose own item reads 'Group: value'; no QMenu::addSection anywhere. QPlatformMenuItem has no tooltip, so native macOS menus draw only item text.",
+  "explanations": "Plain-language item text for My role and Added by choices; a dimmed first line in Quiet items and Added by defines quiet and observer rules; tooltips and status tips kept for Qt-drawn menus.",
+  "indicator": "The strip's existing count pill (set_strip_badge) counting non-default choices; tooltip/accessible description names each.",
+  "reset": "Reset to defaults restores the whole view; the filtered sentence's Clear filters resets only My role, Added by and Quiet items. One typed intent per changed field.",
+  "added_by": "Shown when the profile has an observer rule or the window is already filtered by one."
+ },
+ "source_root": "/Users/jaeger/.codex/worktrees/bpr1580-home-view/BetterPullReview",
+ "branch": "bpr-1580-home-view-menu",
+ "baseline": "fa4d133cb",
+ "merged_main": "e1485e3aa (merge dd77a020e)",
+ "source_candidate": "254e0a1f096b58dc60e4c1aa50c52cd10d5a9e7c",
+ "changed_paths": [
+  "docs/ux/workbench-specification.md",
+  "src/adapters/qt/include/bpr/qt/home_list.hpp",
+  "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+  "src/adapters/qt/src/home_list.cpp",
+  "src/adapters/qt/src/workbench_window.cpp",
+  "src/app/src/github_application.cpp",
+  "tests/adapters_qt/composed_github_tests.cpp",
+  "tests/adapters_qt/surface_capture_course_tests.cpp",
+  "tests/adapters_qt/workbench_window_tests.cpp",
+  "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+  "tests/end_to_end/profile_window_layout_public_path_tests.cpp"
+ ],
+ "verification": {
+  "focused": "qt_workbench_home_discovery, qt_workbench_title_row, qt_workbench_focus_order, qt_composed_github, qt_composed_home_*, qt_surface_capture_course pass",
+  "negative_control": "In test_home_view_menu_and_its_gestures: an addSection-titled menu reads to the native-menu oracle as unlabelled choices",
+  "full_suite": "run_test_suite.py --preset dev on dd77a020e+reseal: 758 passed, 11 failed, 1 skipped; all 11 pass on serial rerun (load, disk-full minute, flakes, temporary .agents symlink). Report build/test-results/dev/20261017T095933.510853Z",
+  "format": "clang-format 22 clean",
+  "tidy": "clang-tidy 22 on 7 touched TUs: only pre-existing home_fitted_view portability findings, identical in control worktree bpr1577 at 4f559bbc1",
+  "documentation": "DOCUMENTATION_OK",
+  "composition": "round-trip composition contract resealed over e1485e3aa; application_composition_contract passed in the full suite"
+ },
+ "frozen": {
+  "root": "/Users/jaeger/.codex/attended-builds/bpr1580-view-v001.o_7wpngq",
+  "launcher": "python3 /Users/jaeger/.codex/attended-builds/bpr1580-view-v001.o_7wpngq/launch.py",
+  "source_commit": "254e0a1f096b58dc60e4c1aa50c52cd10d5a9e7c",
+  "arguments": "--github-fixture github-com --attended-launch --attended-home-look",
+  "check": "CHECK_OK (first head): ATTENDED_HOME_SHOWN:rows=3:delay=0ms",
+  "executable_sha256": "21d1ae40cd53f33f1d05acf7d2103b5c6b039603727fbef628c2004503474a9d"
+ },
+ "review": {
+  "state": "/Users/jaeger/.codex/attended-review/bpr1580-v001-CbjuXE",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "session": "579c007a8dd4b1baa59c0d089eca606d",
+  "event_cursor": 3,
+  "candidate": "BPR-1580-view-menu-v001",
+  "fingerprint": "0fd682e292b412485d89b553cbb29fdc17b4ee844655bd1adbd7046bb5b9f72c",
+  "phase": "ready, awaiting owner",
+  "server_port": 58653,
+  "complete_url": "In the state directory's serve.log; never commit the loopback bearer token.",
+  "pending": ["AC7 owner Accept/Reject"]
+ },
+ "next_action": "Read the session from cursor 3. Accept: merge the branch onto main (reseal if github_application.cpp moved), finish the card, stop the host, release the candidate, remove the frozen root. Reject: the note is v002's change."
+}
