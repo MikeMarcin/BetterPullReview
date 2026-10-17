@@ -536,8 +536,23 @@ namespace {
 		}
 		view.set_feed(false);
 		QApplication::processEvents();
-		expect(readersOf(view.open_card()).front()->rendered_view()->contextMenuPolicy() == Qt::DefaultContextMenu,
-			   "Review keeps its ordinary native reader menu");
+		// [[BPR-1581]]. Review's reader menu is the native one with Show in
+		// Discuss added, never a second Review action.
+		expect(readersOf(view.open_card()).front()->rendered_view()->contextMenuPolicy() == Qt::CustomContextMenu,
+			   "Review's reader menu is the native menu, extended");
+		// [[BPR-1581]]. In Review a comment's own menu shows it in Discuss.
+		for (auto* const reader : readersOf(view.open_card())) {
+			auto* const menu = menuFor(*reader, false);
+			expect(menu != nullptr, "the reader opens its menu in Review");
+			auto* const show = menu->findChild<QAction*>(QStringLiteral("postShowInDiscuss"));
+			expect(show && show->isEnabled() && show->text() == QStringLiteral("Show in Discuss") && menu->findChild<QAction*>(QStringLiteral("postOpenInReview")) == nullptr,
+				   "a comment's menu in Review offers Show in Discuss");
+			menu->hide();
+			show->trigger();
+			expect(actions.back() == std::pair{ qt::card_action::show_in_discuss, reader->original_body() == "First comment" ? std::string{ "first" } : std::string{ "answer" } },
+				   "Show in Discuss names the exact post");
+			delete menu;
+		}
 		view.set_feed(true);
 		auto unavailable               = thread("unavailable", "src/a.cpp", 9U);
 		unavailable.AnchorAvailability = application::github_conversation_anchor_availability::missing_current_line;
@@ -548,9 +563,12 @@ namespace {
 			QApplication::processEvents();
 			auto* const menu = menuFor(*readersOf(view.open_card()).front(), false);
 			auto* const open = menu->findChild<QAction*>(QStringLiteral("postOpenInReview"));
-			expect(open && !open->isEnabled() && !open->toolTip().isEmpty(), "unavailable anchors and PR-wide comments explain their disabled body action");
+			// [[BPR-1581]]. On a file with no current line it opens among the
+			// file's unplaced threads; a PR-wide comment explains why not.
+			expect(open && open->isEnabled() == (id == "unavailable") && !open->toolTip().isEmpty(), "a missing anchor still opens in Review; a PR-wide comment explains its disabled body action");
 			delete menu;
 		}
+
 		view.hide();
 	}
 
@@ -1454,14 +1472,30 @@ namespace {
 		general.Kind                   = application::github_conversation_kind::issue_comment;
 		general.Body                   = "A PR-wide comment";
 		view.adopt({ unavailable, reply("unavailable-post", "unavailable", "reviewer", "No current line"), general });
+		// [[BPR-1581]]. The core's route: a thread on a file with no current
+		// line opens in Review among its file's unplaced threads; a PR-wide
+		// comment has no place there and says why.
 		for (const auto& identity : { std::string{ "unavailable" }, std::string{ "general" } }) {
 			auto* const unavailableMenu = view.thread_menu(identity);
 			const auto  menuActions     = unavailableMenu->actions();
 			const auto  openInReview    = std::ranges::find_if(menuActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
-			expect(openInReview != menuActions.end() && !(*openInReview)->isEnabled() && !(*openInReview)->toolTip().isEmpty(),
-				   "a PR-wide comment or unavailable anchor keeps Open in Review disabled with a reason");
+			const auto  onFile          = identity == "unavailable";
+			expect(openInReview != menuActions.end() && (*openInReview)->isEnabled() == onFile && (onFile || !(*openInReview)->toolTip().isEmpty()),
+				   "a thread on a file offers Open in Review even with no current line; a PR-wide comment keeps it disabled with a reason");
 			delete unavailableMenu;
 		}
+		// [[BPR-1581]]. Beside the code the same menu offers Show in Discuss,
+		// at the open card's picked post.
+		view.set_feed(false);
+		view.adopt({ unavailable, reply("unavailable-post", "unavailable", "reviewer", "No current line") }, core::file_identity_of("src/a.cpp"));
+		QApplication::processEvents();
+		auto* const reviewMenu = view.thread_menu("unavailable");
+		expect(reviewMenu != nullptr, "the thread has a menu beside the code");
+		auto* const show       = reviewMenu->findChild<QAction*>(QStringLiteral("threadShowInDiscussAction"));
+		expect(show != nullptr && show->text() == QStringLiteral("Show in Discuss") && show->isEnabled()
+				   && std::ranges::none_of(reviewMenu->actions(), [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); }),
+			   "Review's thread menu offers Show in Discuss and no Open in Review");
+		delete reviewMenu;
 	}
 
 	// [[BPR-1029]]. A dispatch that relays the notes out still names the

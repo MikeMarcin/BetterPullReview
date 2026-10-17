@@ -696,6 +696,8 @@ namespace bpr::qt {
 			// the post when it is on a bead. A double click opens.
 			if (const auto bead = bead_at(item, geometry, point); bead.has_value()) {
 				Owner.Bead = static_cast<int>(*bead);
+			} else {
+				Owner.Bead = -1;
 			}
 			viewport()->update();
 		}

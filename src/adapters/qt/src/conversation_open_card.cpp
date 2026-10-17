@@ -1345,7 +1345,9 @@ namespace bpr::qt {
 				});
 			} else if (!aCard.Draft) {
 				// [[BPR-1581]]. In Review a comment's own menu shows it in
-				// Discuss, with the rest of the conversation.
+				// Discuss, with the rest of the conversation; its tools stay
+				// in its name row.
+				view->reader()->set_extended_menu(true);
 				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
