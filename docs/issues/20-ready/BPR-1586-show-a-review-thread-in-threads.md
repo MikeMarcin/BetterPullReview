@@ -4,10 +4,10 @@ id: "BPR-1586"
 title: "Show a thread selected in Review in Threads, beside Show in Discuss"
 status: "Ready"
 rfcs: []
-depends_on: ["BPR-1581"]
+depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"ux","origin":"owner note on accepting BPR-1581 v001, 2026-10-17","owner_note":"We should also be able to go from rview to show in threads because why not","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-1293","BPR-1356","BPR-1567","BPR-1581","BPR-1582"],"reservation":"docs/issues/_reservations/BPR-1586--BPR-1586--61e6e8a52fa6.json"}
+metadata: {"kind":"ux","origin":"owner note on accepting BPR-1581 v001, 2026-10-17","owner_note":"We should also be able to go from rview to show in threads because why not","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-1293","BPR-1356","BPR-1567","BPR-1581","BPR-1582"],"reservation":"docs/issues/_reservations/BPR-1586--BPR-1586--61e6e8a52fa6.json","builds_on":"BPR-1581 branch bpr-1581-thread-navigation; lands with it in one integration"}
 ---
 
 # BPR-1586: Show a thread selected in Review in Threads
