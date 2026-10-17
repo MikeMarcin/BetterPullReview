@@ -264,6 +264,26 @@ namespace bpr::core {
 		const conversation_observation& aObservation) noexcept
 		-> conversation_receipt;
 
+	/// \brief [[BPR-1582]]. What a thread's read command does.
+	enum class conversation_read_action : std::uint8_t {
+		/// Something in it is new: Mark as read.
+		mark_read,
+		/// Nothing in it is new, and someone else wrote in it: Mark as unread.
+		mark_unread,
+		/// Nothing is new and every post is mine: neither.
+		none,
+	};
+
+	/// \brief [[BPR-1582]]. Decides the read command a thread offers.
+	[[nodiscard]] constexpr auto conversation_read_action_for(const bool aUnread, const bool aSomeoneElseWrote) noexcept
+		-> conversation_read_action
+	{
+		if (aUnread) {
+			return conversation_read_action::mark_read;
+		}
+		return aSomeoneElseWrote ? conversation_read_action::mark_unread : conversation_read_action::none;
+	}
+
 	/// \brief [[BPR-1582]]. The receipt that makes a conversation new again.
 	///
 	/// \details The seen cursor moves back to the post before the latest

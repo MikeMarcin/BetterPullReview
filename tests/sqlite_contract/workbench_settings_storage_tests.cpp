@@ -52,7 +52,7 @@ namespace {
 	/// \brief Restores the pre-twenty profile and pre-nineteen Home schema of a legacy fixture, preserving its rows.
 	[[nodiscard]] auto legacy_home_bound(sqlite3* aDatabase) -> sqlite3*
 	{
-		expect(sqlite3_exec(aDatabase, "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width", nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture has no image preference or ribbon width column");
+		expect(sqlite3_exec(aDatabase, "ALTER TABLE workbench_preferences DROP COLUMN reading_width; ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width", nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture has no image preference or ribbon width column");
 		const auto definition = scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='window_layout'");
 		expect(definition.has_value(), "legacy fixture Home table exists");
 		auto       sql   = *definition;
@@ -2224,7 +2224,7 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && db->store(chosen, { }), "an explicit 56-pixel choice stores");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width; UPDATE workbench_meta SET schema_format=19; PRAGMA user_version=19", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN reading_width; ALTER TABLE workbench_preferences DROP COLUMN markdown_images; ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width; UPDATE workbench_meta SET schema_format=19; PRAGMA user_version=19", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "the actual pre-setting version-nineteen schema is seeded");
 		}
 		{
@@ -2258,7 +2258,7 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && db->store(chosen, { }), "a version-twenty-one profile stores");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN markdown_images; UPDATE workbench_meta SET schema_format=20; PRAGMA user_version=20", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN reading_width; ALTER TABLE workbench_preferences DROP COLUMN markdown_images; UPDATE workbench_meta SET schema_format=20; PRAGMA user_version=20", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "the actual version-twenty schema is seeded");
 		}
 		{
@@ -2278,6 +2278,42 @@ namespace {
 		}
 		auto refused = workbench_settings_database::open(path, { });
 		expect(!refused || !refused->load({ }), "a stored unknown image preference is refused");
+	}
+
+	/// \brief [[BPR-1584]]. Version twenty-two's reading width: a
+	/// version-twenty-one profile migrates to Wide and keeps every other
+	/// choice; every choice round-trips; an unknown value is refused.
+	void test_reading_width_migration_and_round_trip()
+	{
+		const auto scratch              = scratch_directory{ };
+		const auto path                 = scratch.file("reading-v21.sqlite3");
+		auto       chosen               = settled_profile();
+		chosen.Behaviour.MarkdownImages = application::review_markdown_images::off;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db && db->store(chosen, { }), "a version-twenty-two profile stores");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN reading_width; UPDATE workbench_meta SET schema_format=21; PRAGMA user_version=21", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "the actual version-twenty-one schema is seeded");
+		}
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "version twenty-one migrates");
+			expect(db->load({ }) == chosen && chosen.Behaviour.ReadingWidth == core::reading_width::wide, "a migrated profile reads Wide and keeps every other choice");
+			for (const auto width : { core::reading_width::narrow, core::reading_width::medium, core::reading_width::full, core::reading_width::wide, core::reading_width::medium }) {
+				chosen.Behaviour.ReadingWidth = width;
+				expect(db->store(chosen, { }) && db->load({ }) == chosen, "each reading width round-trips");
+			}
+			auto invalid                   = chosen;
+			invalid.Behaviour.ReadingWidth = static_cast<core::reading_width>(4);
+			expect(!db->store(invalid, { }), "an unknown reading width cannot be written");
+		}
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened && reopened->load({ }) == chosen, "Medium survives a restart");
+			expect(sqlite3_exec(reopened->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE workbench_preferences SET reading_width=4", nullptr, nullptr, nullptr) == SQLITE_OK, "a hostile value bypasses the check for the fixture");
+		}
+		auto refused = workbench_settings_database::open(path, { });
+		expect(!refused || !refused->load({ }), "a stored unknown reading width is refused");
 	}
 
 	void test_invalid_one_pane_window_is_refused()
@@ -2306,6 +2342,7 @@ try {
 	test_authored_collapse_upgrade_and_independent_windows();
 	test_center_ribbon_width_migration_and_bounds();
 	test_markdown_images_migration_and_round_trip();
+	test_reading_width_migration_and_round_trip();
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();

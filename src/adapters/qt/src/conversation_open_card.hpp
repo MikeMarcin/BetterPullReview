@@ -79,6 +79,8 @@ namespace bpr::qt {
 		bool                ResolutionOffered = false;
 		bool                Feed              = false;
 		bool                HasCodeAnchor     = false;
+		/// [[BPR-1581]]. The thread is on a file, so Review has a place for it.
+		bool OnFile = false;
 		/// [[BPR-1293]]. The post a pick in Threads named: washed amber.
 		std::string Picked;
 		/// [[BPR-1562]]. The review panes' colours for fenced code.
@@ -126,6 +128,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto post() const noexcept -> const card_post&;
 		[[nodiscard]] auto mark_rect() const -> QRect;
 		[[nodiscard]] auto rail_rect() const -> QRectF;
+		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
+		/// from 1 to 0.
+		void               set_arrival(qreal aStrength);
+		[[nodiscard]] auto arrival() const noexcept -> qreal;
 		/// \brief The body's height changed: a source switch, fonts.
 		std::function<void()> HeightChanged;
 
@@ -146,6 +152,7 @@ namespace bpr::qt {
 		open_card_style     Style;
 		bool                RuleAbove    = false;
 		bool                Hovered      = false;
+		qreal               Arrival      = 0.0;
 		markdown_body_view* Reader       = nullptr;
 		post_tool*          SourceButton = nullptr;
 		post_tool*          CopyButton   = nullptr;
@@ -258,6 +265,9 @@ namespace bpr::qt {
 		std::function<void(QPoint)> MoreRequested;
 		/// \brief [[BPR-1384]]. The exact comment or reply named by its body menu.
 		std::function<void(const std::string&)> OpenInReviewRequested;
+		/// \brief [[BPR-1581]]. The exact comment or reply named by its body
+		/// menu in Review, to show in Discuss.
+		std::function<void(const std::string&)> ShowInDiscussRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

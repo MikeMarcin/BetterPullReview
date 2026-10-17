@@ -725,6 +725,51 @@ namespace bpr::core {
 		const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route;
 
+	/// \brief [[BPR-1584]]. How wide Threads and Discuss let a reading column
+	/// grow on a wide screen.
+	///
+	/// \details Ordinal values are the workbench settings' schema contract.
+	/// Never applied to the code comparison.
+	enum class reading_width : std::uint8_t {
+		narrow = 0,
+		medium = 1,
+		wide   = 2,
+		full   = 3,
+	};
+
+	inline constexpr reading_width default_reading_width = reading_width::wide;
+
+	/// \brief [[BPR-1584]]. Rejects a value outside the vocabulary.
+	[[nodiscard]] constexpr auto valid(const reading_width aWidth) noexcept -> bool
+	{
+		return static_cast<std::uint8_t>(aWidth) <= static_cast<std::uint8_t>(reading_width::full);
+	}
+
+	/// \brief [[BPR-1584]]. The widest a reading column grows, in logical
+	/// pixels; none for Full width.
+	[[nodiscard]] constexpr auto reading_width_limit(const reading_width aWidth) noexcept -> std::optional<std::uint32_t>
+	{
+		switch (aWidth) {
+		case reading_width::narrow:
+			return 960U;
+		case reading_width::medium:
+			return 1'600U;
+		case reading_width::wide:
+			return 2'560U;
+		case reading_width::full:
+			return std::nullopt;
+		}
+		return 2'560U;
+	}
+
+	/// \brief [[BPR-1584]]. A reading column's width on a page: the page's
+	/// whole width up to the setting's limit.
+	[[nodiscard]] constexpr auto reading_column_width(const reading_width aWidth, const std::uint32_t aPage) noexcept -> std::uint32_t
+	{
+		const auto limit = reading_width_limit(aWidth);
+		return limit.has_value() && *limit < aPage ? *limit : aPage;
+	}
+
 	/// \brief [[BPR-1581]]. What the window holds selected when a key asks to
 	/// show "the thread" elsewhere.
 	///

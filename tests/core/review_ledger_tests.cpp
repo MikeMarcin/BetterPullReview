@@ -486,6 +486,11 @@ namespace {
 		const auto mine = std::array{ posts[2] };
 		expect(!core::mark_conversation_unread(read, mine).has_value(), "a conversation of only my posts has nothing to make new");
 		expect(!core::mark_conversation_unread(read, std::span<const core::conversation_post_observation>{ }).has_value(), "nor has an empty one");
+		expect(core::conversation_read_action_for(true, true) == core::conversation_read_action::mark_read
+				   && core::conversation_read_action_for(true, false) == core::conversation_read_action::mark_read
+				   && core::conversation_read_action_for(false, true) == core::conversation_read_action::mark_unread
+				   && core::conversation_read_action_for(false, false) == core::conversation_read_action::none,
+			   "a thread with something new offers Mark as read; a read one Mark as unread, unless every post is mine");
 		// Negative control: Mark read after Mark unread reads it again.
 		const auto latest = core::conversation_observation{ .Conversation = conversation, .LatestComment = core::review_comment_id{ 3U }, .LatestEdit = core::comment_edit_version{ 30U } };
 		expect(core::unread_posts(core::mark_conversation_read(*unread, latest), posts).empty(), "Mark read undoes it");

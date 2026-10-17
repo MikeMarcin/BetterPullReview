@@ -59,7 +59,6 @@ namespace bpr::qt {
 		constexpr int group_gap      = 6;
 		constexpr int list_left      = 6;
 		constexpr int list_right     = 8;
-		constexpr int list_maximum   = 880;
 		constexpr int line_width     = 46;
 		constexpr int line_gap       = 10;
 		constexpr int level_width    = 18;
@@ -473,6 +472,8 @@ namespace bpr::qt {
 		QRect              State;
 		/// [[BPR-1356]]. The Discuss button, while it shows.
 		QRect Discuss;
+		/// [[BPR-1582]]. The Review button, left of the Discuss button.
+		QRect Review;
 	};
 
 	/// \brief The shown subsequence of the finder's items, applied by
@@ -677,6 +678,11 @@ namespace bpr::qt {
 				return;
 			}
 			const auto geometry = Owner.geometry_of(item, visualRect(index));
+			// [[BPR-1356]] [[BPR-1582]]. The two buttons open at once.
+			if (geometry.Review.contains(point)) {
+				Owner.pick(item, std::nullopt, core::workbench_thread_destination::review);
+				return;
+			}
 			if (geometry.Discuss.contains(point)) {
 				Owner.pick(item, std::nullopt, core::workbench_thread_destination::discuss);
 				return;
@@ -686,14 +692,49 @@ namespace bpr::qt {
 				viewport()->update();
 				return;
 			}
-			const auto beads = Owner.beads_of(item);
-			for (std::size_t bead = 0U; bead < geometry.Beads.size() && bead < beads.size(); ++bead) {
-				if (geometry.Beads[bead].adjusted(-1, -1, 1, 1).contains(point)) {
-					Owner.pick(item, bead, core::workbench_thread_destination::review);
-					return;
+			// [[BPR-1582]]. A click selects, as everywhere else: the row, and
+			// the post when it is on a bead. A double click opens.
+			if (const auto bead = bead_at(item, geometry, point); bead.has_value()) {
+				Owner.Bead = static_cast<int>(*bead);
+			}
+			viewport()->update();
+		}
+
+		/// [[BPR-1582]]. A double click opens the row, at the post under the
+		/// pointer when it is on a bead: in Review, or with Shift in Discuss.
+		void mouseDoubleClickEvent(QMouseEvent* aEvent) override
+		{
+			if (aEvent->button() != Qt::LeftButton) {
+				QListView::mouseDoubleClickEvent(aEvent);
+				return;
+			}
+			const auto point = aEvent->position().toPoint();
+			const auto index = indexAt(point);
+			if (!index.isValid() || (!StickyPath.isEmpty() && StickyRect.contains(point))) {
+				return;
+			}
+			const auto item = Owner.Model->Shown[static_cast<std::size_t>(index.row())];
+			if (Owner.Items[item]->Header) {
+				return;
+			}
+			const auto geometry = Owner.geometry_of(item, visualRect(index));
+			if (geometry.Review.contains(point) || geometry.Discuss.contains(point) || geometry.Fold.contains(point)) {
+				return;
+			}
+			const auto destination = aEvent->modifiers().testFlag(Qt::ShiftModifier) ? core::workbench_thread_destination::discuss
+																					 : core::workbench_thread_destination::review;
+			Owner.pick(item, bead_at(item, geometry, point), destination);
+		}
+
+		[[nodiscard]] auto bead_at(const std::size_t aItem, const conversation_finder::row_geometry& aGeometry, const QPoint aPoint) const -> std::optional<std::size_t>
+		{
+			const auto beads = Owner.beads_of(aItem);
+			for (std::size_t bead = 0U; bead < aGeometry.Beads.size() && bead < beads.size(); ++bead) {
+				if (aGeometry.Beads[bead].adjusted(-1, -1, 1, 1).contains(aPoint)) {
+					return bead;
 				}
 			}
-			Owner.pick(item, std::nullopt, core::workbench_thread_destination::review);
+			return std::nullopt;
 		}
 
 		void mouseMoveEvent(QMouseEvent* aEvent) override
@@ -704,6 +745,7 @@ namespace bpr::qt {
 			auto       item    = std::optional<std::size_t>{ };
 			auto       bead    = std::optional<std::size_t>{ };
 			auto       discuss = false;
+			auto       review  = false;
 			if (index.isValid() && !(StickyRect.contains(point) && !StickyPath.isEmpty())) {
 				item = Owner.Model->Shown[static_cast<std::size_t>(index.row())];
 				if (!Owner.Items[*item]->Header) {
@@ -714,6 +756,7 @@ namespace bpr::qt {
 					const auto geometry = Owner.geometry_of(*item, rect);
 					Owner.HoveredItem   = hovered;
 					discuss             = geometry.Discuss.contains(point);
+					review              = geometry.Review.contains(point);
 					for (std::size_t at = 0U; at < geometry.Beads.size(); ++at) {
 						if (geometry.Beads[at].adjusted(-1, -1, 1, 1).contains(point)) {
 							bead             = at;
@@ -729,10 +772,11 @@ namespace bpr::qt {
 			if (!bead.has_value() && Owner.Bead < 0) {
 				Owner.hide_preview();
 			}
-			if (item != Owner.HoveredItem || bead != Owner.HoveredBead || discuss != Owner.HoveredDiscuss) {
+			if (item != Owner.HoveredItem || bead != Owner.HoveredBead || discuss != Owner.HoveredDiscuss || review != Owner.HoveredReview) {
 				Owner.HoveredItem    = item;
 				Owner.HoveredBead    = bead;
 				Owner.HoveredDiscuss = discuss;
+				Owner.HoveredReview  = review;
 				viewport()->update();
 			}
 			viewport()->setCursor(item.has_value() ? Qt::PointingHandCursor : Qt::ArrowCursor);
@@ -744,6 +788,7 @@ namespace bpr::qt {
 			Owner.HoveredItem.reset();
 			Owner.HoveredBead.reset();
 			Owner.HoveredDiscuss = false;
+			Owner.HoveredReview  = false;
 			if (Owner.Bead < 0) {
 				Owner.hide_preview();
 			}
@@ -1147,8 +1192,8 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("threadFinder"));
 		setAccessibleName(QStringLiteral("Threads"));
-		setAccessibleDescription(QStringLiteral("Every thread in the pull request that is on a file, grouped by file. Pick one to read it in Review, "
-												"or press Shift and Return to read it in Discuss."));
+		setAccessibleDescription(QStringLiteral("Every thread in the pull request that is on a file, grouped by file. A click selects a thread; "
+												"a double click or Return reads it in Review, and Shift with either reads it in Discuss."));
 		setAutoFillBackground(true);
 		setBackgroundRole(QPalette::Base);
 		MarkTheme = default_feedback_mark_theme(palette());
@@ -1187,7 +1232,8 @@ namespace bpr::qt {
 		List->viewport()->setAutoFillBackground(true);
 		List->viewport()->setBackgroundRole(QPalette::Base);
 		Pages->addWidget(List);
-		List->setAccessibleDescription(QStringLiteral("Return opens a thread in Review; Shift and Return open it in Discuss; the menu key lists both"));
+		List->setAccessibleDescription(QStringLiteral("Return or a double click opens a thread in Review; Shift and Return, or Shift and a double click, "
+													  "open it in Discuss; the menu key lists both and Mark as read"));
 		// The button's name, directly below it; a file's header names its path.
 		anchor_tooltips(*List->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
 			const auto index = List->indexAt(aPosition);
@@ -1199,12 +1245,18 @@ namespace bpr::qt {
 			if (Items[item]->Header) {
 				return anchored_tooltip_target{ .Anchor = rect, .Text = Items[item]->Path };
 			}
-			const auto button = geometry_of(item, rect).Discuss;
-			if (!button.contains(aPosition)) {
+			const auto geometry = geometry_of(item, rect);
+			if (geometry.Review.contains(aPosition)) {
+				return anchored_tooltip_target{
+					.Anchor = geometry.Review,
+					.Text   = QStringLiteral("Open in Review (%1)").arg(QKeySequence{ Qt::Key_Return }.toString(QKeySequence::NativeText)),
+				};
+			}
+			if (!geometry.Discuss.contains(aPosition)) {
 				return std::nullopt;
 			}
 			return anchored_tooltip_target{
-				.Anchor = button,
+				.Anchor = geometry.Discuss,
 				.Text   = QStringLiteral("Open in Discuss (%1)").arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText)),
 			};
 		});
@@ -1909,6 +1961,14 @@ namespace bpr::qt {
 		return HoveredItem == aItem || (!Cursor.empty() && Items[aItem]->Key == Cursor);
 	}
 
+	auto conversation_finder::review_shown(const std::size_t aItem) const -> bool
+	{
+		if (aItem >= Items.size() || Items[aItem]->Header) {
+			return false;
+		}
+		return HoveredItem == aItem || (!Cursor.empty() && Items[aItem]->Key == Cursor);
+	}
+
 	void conversation_finder::popup_menu(const std::size_t aItem, const std::optional<std::size_t> aBead, const QPoint aGlobal)
 	{
 		if (aItem >= Items.size() || Items[aItem]->Header) {
@@ -1956,6 +2016,27 @@ namespace bpr::qt {
 		};
 		QObject::connect(OpenReview, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::review); });
 		QObject::connect(OpenDiscuss, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::discuss); });
+		// [[BPR-1582]]. Mark as read or Mark as unread, as the core decides
+		// from the thread's read state; never on my draft.
+		const auto& conversation = Conversations[Items[aItem]->Conversation];
+		if (!conversation.Draft) {
+			menu->addSeparator();
+			const auto others = std::ranges::any_of(conversation.Posts, [](const finder_post& aPost) { return !aPost.Mine; });
+			const auto action = core::conversation_read_action_for(conversation.Unread > 0U, others);
+			ReadAction        = menu->addAction(action == core::conversation_read_action::mark_read ? QStringLiteral("Mark as Read") : QStringLiteral("Mark as Unread"));
+			ReadAction->setObjectName(QStringLiteral("threadFinderReadAction"));
+			ReadAction->setEnabled(action != core::conversation_read_action::none && static_cast<bool>(ReadDispatch));
+			ReadAction->setStatusTip(action == core::conversation_read_action::mark_read ? QStringLiteral("Mark every post in this thread as read")
+									 : action == core::conversation_read_action::mark_unread
+									 ? QStringLiteral("Show the latest post by someone else as new again")
+									 : QStringLiteral("Every post in this thread is yours"));
+			ReadAction->setToolTip(ReadAction->statusTip());
+			QObject::connect(ReadAction, &QAction::triggered, this, [this, thread = conversation.Id, read = action == core::conversation_read_action::mark_read] {
+				if (ReadDispatch) {
+					ReadDispatch(thread, read);
+				}
+			});
+		}
 		RowMenu = menu;
 		menu->popup(aGlobal, OpenReview);
 	}
@@ -1992,6 +2073,57 @@ namespace bpr::qt {
 	auto conversation_finder::open_in_discuss_action() const noexcept -> QAction*
 	{
 		return OpenDiscuss;
+	}
+
+	auto conversation_finder::read_action() const noexcept -> QAction*
+	{
+		return ReadAction;
+	}
+
+	void conversation_finder::set_read_dispatch(finder_read_dispatch aDispatch)
+	{
+		ReadDispatch = std::move(aDispatch);
+	}
+
+	void conversation_finder::set_reading_width(const core::reading_width aWidth)
+	{
+		if (ReadingWidth == aWidth) {
+			return;
+		}
+		ReadingWidth = aWidth;
+		List->doItemsLayout();
+		List->viewport()->update();
+	}
+
+	auto conversation_finder::reading_width() const noexcept -> core::reading_width
+	{
+		return ReadingWidth;
+	}
+
+	auto conversation_finder::review_button_rect(const std::string& aRowKey) const -> QRect
+	{
+		const auto at = item_index(aRowKey);
+		if (!at.has_value()) {
+			return { };
+		}
+		return geometry_of(Model->Shown[*at], List->visualRect(Model->index(static_cast<int>(*at)))).Review;
+	}
+
+	auto conversation_finder::trailing_rect(const std::string& aRowKey) const -> QRect
+	{
+		const auto at = item_index(aRowKey);
+		if (!at.has_value()) {
+			return { };
+		}
+		const auto geometry = geometry_of(Model->Shown[*at], List->visualRect(Model->index(static_cast<int>(*at))));
+		auto       left     = geometry.State.left();
+		if (!geometry.Fold.isEmpty()) {
+			left = std::min(left, geometry.Fold.left());
+		}
+		for (const auto& bead : geometry.Beads) {
+			left = std::min(left, bead.left());
+		}
+		return QRect{ QPoint{ left, geometry.State.top() }, QPoint{ geometry.Box.right(), geometry.State.bottom() } };
 	}
 
 	auto conversation_finder::discuss_button_rect(const std::string& aRowKey) const -> QRect
@@ -2273,7 +2405,10 @@ namespace bpr::qt {
 	auto conversation_finder::geometry_of(const std::size_t aItem, const QRect& aRect) const -> row_geometry
 	{
 		auto       geometry = row_geometry{ };
-		const auto width    = std::min(aRect.width() - list_left - list_right, list_maximum);
+		// [[BPR-1584]]. The rows fill the page up to the reading width; the
+		// people, counts and state stay at their right end.
+		const auto page     = std::max(0, aRect.width() - list_left - list_right);
+		const auto width    = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
 		geometry.Box        = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, std::max(0, width), row_height };
 		if (aItem >= Items.size() || Items[aItem]->Header) {
 			return geometry;
@@ -2305,13 +2440,23 @@ namespace bpr::qt {
 		}
 		const auto wordsLeft  = geometry.Mark.right() + 1 + mark_gap;
 		auto       wordsRight = x + bead_gap - people_gap;
+		const auto label   = weighted(sized(font(), 0.82), QFont::DemiBold);
+		const auto pillTop = box.top() + (row_height - discuss_height) / 2;
 		if (discuss_shown(aItem)) {
 			// [[BPR-1356]]. The button takes the end of the words, so the
 			// people never move when it shows.
-			const auto label     = weighted(sized(font(), 0.82), QFont::DemiBold);
 			const auto pillWidth = QFontMetrics{ label }.horizontalAdvance(QStringLiteral("Discuss")) + 2 * discuss_padding;
-			geometry.Discuss     = QRect{ wordsRight - pillWidth, box.top() + (row_height - discuss_height) / 2, pillWidth, discuss_height };
-			wordsRight           = geometry.Discuss.left() - discuss_gap;
+			geometry.Discuss     = QRect{ wordsRight - pillWidth, pillTop, pillWidth, discuss_height };
+			wordsRight           = geometry.Discuss.left() - discuss_gap / 2;
+		}
+		if (review_shown(aItem)) {
+			// [[BPR-1582]]. Review first, then Discuss: one pair, as the menu
+			// orders them.
+			const auto pillWidth = QFontMetrics{ label }.horizontalAdvance(QStringLiteral("Review")) + 2 * discuss_padding;
+			geometry.Review      = QRect{ wordsRight - pillWidth, pillTop, pillWidth, discuss_height };
+			wordsRight           = geometry.Review.left() - discuss_gap;
+		} else if (!geometry.Discuss.isEmpty()) {
+			wordsRight = geometry.Discuss.left() - discuss_gap;
 		}
 		geometry.Words = QRect{ wordsLeft, box.top(), std::max(0, wordsRight - wordsLeft), row_height };
 		return geometry;
@@ -2371,8 +2516,9 @@ namespace bpr::qt {
 	void conversation_finder::paint_header(QPainter& aPainter, const QString& aPath, const QRect& aRect, const bool aHovered, const bool aFocused) const
 	{
 		const auto colours = note_colours_of(palette(), New, Route);
-		const auto width   = std::min(aRect.width() - list_left - list_right, list_maximum);
-		const auto box     = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, std::max(0, width), row_height };
+		const auto page    = std::max(0, aRect.width() - list_left - list_right);
+		const auto width   = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
+		const auto box     = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, width, row_height };
 		aPainter.save();
 		aPainter.setRenderHint(QPainter::Antialiasing, true);
 		if (aFocused) {
@@ -2659,20 +2805,25 @@ namespace bpr::qt {
 				paint_conversation_glyph(aPainter, QRectF{ state.right() - 14.0, mid - 7.0, 14.0, 14.0 }, conversation_glyph::resolved, colours.Ok);
 			}
 		}
-		// [[BPR-1356]]. The Discuss button: a quiet pill on the row under the
-		// pointer and on the cursor's row, inked when the pointer is on it.
-		if (!geometry.Discuss.isEmpty()) {
-			const auto onIt  = HoveredItem == aItem && HoveredDiscuss;
-			const auto pill  = QRectF{ geometry.Discuss }.adjusted(0.5, 0.5, -0.5, -0.5);
+		// [[BPR-1356]] [[BPR-1582]]. The Review and Discuss buttons: quiet
+		// pills on the row under the pointer and on the cursor's row, inked
+		// when the pointer is on one.
+		const auto paintPill = [&](const QRect& aPill, const bool aOn, const QString& aWord) {
+			if (aPill.isEmpty()) {
+				return;
+			}
+			const auto pill  = QRectF{ aPill }.adjusted(0.5, 0.5, -0.5, -0.5);
 			const auto small = weighted(sized(font(), 0.82), QFont::DemiBold);
 			aPainter.setOpacity(1.0);
-			aPainter.setPen(QPen{ onIt ? colours.Signal : colours.Rule2, 1.0 });
-			aPainter.setBrush(onIt ? blend(ground, colours.Signal, colours.Dark ? 0.24 : 0.12) : blend(ground, colours.Panel, 0.65));
+			aPainter.setPen(QPen{ aOn ? colours.Signal : colours.Rule2, 1.0 });
+			aPainter.setBrush(aOn ? blend(ground, colours.Signal, colours.Dark ? 0.24 : 0.12) : blend(ground, colours.Panel, 0.65));
 			aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
 			aPainter.setFont(small);
-			aPainter.setPen(onIt ? colours.Ink : colours.Ink2);
-			aPainter.drawText(geometry.Discuss, Qt::AlignCenter, QStringLiteral("Discuss"));
-		}
+			aPainter.setPen(aOn ? colours.Ink : colours.Ink2);
+			aPainter.drawText(aPill, Qt::AlignCenter, aWord);
+		};
+		paintPill(geometry.Review, HoveredItem == aItem && HoveredReview, QStringLiteral("Review"));
+		paintPill(geometry.Discuss, HoveredItem == aItem && HoveredDiscuss, QStringLiteral("Discuss"));
 		aPainter.restore();
 	}
 } // namespace bpr::qt

@@ -2425,7 +2425,13 @@ namespace bpr::qt {
 				case card_action::open_in_code:
 					// [[BPR-1383]]. The same exact pick as Threads: open
 					// Comments and retain the thread until its file loads.
-					static_cast<void>(reveal_conversation_in_review(aIdentity));
+					// [[BPR-1581]]: through the one route, so an outdated
+					// thread opens among its file's unplaced ones.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::discuss, core::workbench_thread_destination::review));
+					break;
+				case card_action::show_in_discuss:
+					// [[BPR-1581]]. The thread, or the post its menu was on.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
 					break;
 				}
 			});
@@ -2693,6 +2699,9 @@ namespace bpr::qt {
 		composerColumn->setSpacing(0);
 		DiscussComposer->hide();
 		discussLayout->addWidget(DiscussComposer, 1);
+		// [[BPR-1584]]. Discuss's notes keep the page's left edge: past the
+		// reading width the rest of the page is this stretch's.
+		discussLayout->addStretch(0);
 		CentreStack->addWidget(DiscussPage);
 		// [[BPR-1293]]. Threads: the finder fills the centre, as
 		// Discuss's page does, and the drawers are hidden while it shows.
@@ -2711,6 +2720,14 @@ namespace bpr::qt {
 			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
+		// [[BPR-1582]]. The row menu's Mark as read is the card's Mark read.
+		Finder->set_read_dispatch([this](const std::string& aThread, const bool aRead) {
+			if (aRead && ConversationReadDispatch) {
+				ConversationReadDispatch(aThread);
+			} else if (!aRead && ConversationUnreadDispatch) {
+				ConversationUnreadDispatch(aThread);
+			}
+		});
 		// [[BPR-1356]]. The notice that says which filters a pick cleared
 		// goes once the reviewer changes one.
 		ConversationPanel->set_discuss_filters_changed([this] {
@@ -6248,6 +6265,7 @@ namespace bpr::qt {
 			}
 			apply_line_details();
 			apply_markdown_images();
+			apply_reading_width();
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -7561,6 +7579,11 @@ namespace bpr::qt {
 		ConversationReadDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_conversation_unread_dispatch(conversation_read_dispatch aDispatch)
+	{
+		ConversationUnreadDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::update_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
@@ -8170,7 +8193,14 @@ namespace bpr::qt {
 			DiscussComposer->setVisible(CompositionPage != nullptr);
 			if (ConversationPanel != nullptr) {
 				const auto listed = CompositionPage != nullptr && ConversationPanel->parentWidget() == DiscussPage;
-				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : QWIDGETSIZE_MAX);
+				// [[BPR-1584]]. Discuss's notes stop at the reading width,
+				// at the page's left, as Threads' rows do; beside the code
+				// the drawer keeps its own bounds.
+				const auto limit = core::reading_width_limit(Behaviour.ReadingWidth);
+				const auto read  = ConversationPanel->parentWidget() == DiscussPage && limit.has_value()
+					 ? static_cast<int>(std::min<std::uint32_t>(*limit, QWIDGETSIZE_MAX))
+					 : QWIDGETSIZE_MAX;
+				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : read);
 				if (ConversationPanel->parentWidget() == DiscussPage) {
 					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
 				}
@@ -8199,6 +8229,7 @@ namespace bpr::qt {
 		if (ShowThreadsAction != nullptr) {
 			ShowThreadsAction->setEnabled(HasGithubPullRequest);
 		}
+		update_show_thread_actions();
 	}
 
 	void workbench_window::open_review_composition(const bool aInline)
@@ -8568,6 +8599,20 @@ namespace bpr::qt {
 				open->setObjectName(QStringLiteral("codeContextMenuOpenThread"));
 				open->setToolTip(tr("Open this line's thread in the drawer"));
 				connect(open, &QAction::triggered, this, [this, side, line] { go_to_thread_at(side, line); });
+				// [[BPR-1581]]. The same thread with the rest of the conversation.
+				auto* const discuss = menu->addAction(tr("Show in Discuss"));
+				discuss->setObjectName(QStringLiteral("codeContextMenuShowInDiscuss"));
+				discuss->setToolTip(tr("Show this line's thread in Discuss"));
+				if (ShowInDiscussAction != nullptr) {
+					discuss->setShortcut(ShowInDiscussAction->shortcut());
+					discuss->setShortcutContext(Qt::WidgetShortcut);
+					discuss->setShortcutVisibleInContextMenu(true);
+				}
+				connect(discuss, &QAction::triggered, this, [this, side, line] {
+					if (const auto identity = thread_card_on_line(side, line); identity.has_value()) {
+						static_cast<void>(move_thread(*identity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+					}
+				});
 			}
 		}
 		// Add comment and Suggest change start a new comment, never a reply.
@@ -9425,6 +9470,28 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
 			});
+		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
+		// a setting." Threads and Discuss only; never the code comparison.
+		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
+		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
+		addGroup(
+			QStringLiteral("Reading"),
+			QStringLiteral("resetReading"),
+			{
+				row{ 10U,
+					 QStringLiteral("Reading width"),
+					 QStringLiteral("readingWidth"),
+					 { { QStringLiteral("Narrow"), QStringLiteral("readingWidthNarrow") },
+					   { QStringLiteral("Medium"), QStringLiteral("readingWidthMedium") },
+					   { QStringLiteral("Wide"), QStringLiteral("readingWidthWide") },
+					   { QStringLiteral("Full width"), QStringLiteral("readingWidthFull") } },
+					 readingInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.ReadingWidth = core::default_reading_width;
+			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -9695,6 +9762,16 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::apply_reading_width()
+	{
+		// [[BPR-1584]]. Threads' rows and Discuss's notes stop at the reading
+		// width, left-aligned; the code comparison is never touched.
+		if (Finder != nullptr) {
+			Finder->set_reading_width(Behaviour.ReadingWidth);
+		}
+		apply_modality_surface();
+	}
+
 	void workbench_window::apply_markdown_images()
 	{
 		const auto shown = Behaviour.MarkdownImages == application::review_markdown_images::load;
@@ -9727,6 +9804,7 @@ namespace bpr::qt {
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
 		check(9U, static_cast<std::size_t>(Behaviour.MarkdownImages));
+		check(10U, static_cast<std::size_t>(Behaviour.ReadingWidth));
 		if (CenterRibbonWidth != nullptr) {
 			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
 		}
@@ -9768,6 +9846,7 @@ namespace bpr::qt {
 			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
+			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
 		};
 	}
 
@@ -13053,7 +13132,7 @@ namespace bpr::qt {
 		return location.has_value() && open_conversation_in_review(location->Thread, location->Post);
 	}
 
-	auto workbench_window::open_conversation_in_review(const std::string& aThread, const std::string& aPost) -> bool
+	auto workbench_window::open_conversation_in_review(const std::string& aThread, const std::string& aPost, const bool aFocus) -> bool
 	{
 		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return false;
@@ -13076,6 +13155,7 @@ namespace bpr::qt {
 			.Before = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
 				: std::nullopt,
+			.Focus = aFocus,
 		};
 		choose_home(false);
 		// Review first, then the file: a file gesture that follows the
@@ -13101,40 +13181,212 @@ namespace bpr::qt {
 
 	auto workbench_window::open_thread_from_threads(const std::string& aThread, const std::string& aPost, const core::workbench_thread_destination aDestination) -> bool
 	{
-		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+		if (Finder == nullptr) {
 			return false;
 		}
 		const auto& conversations = Finder->conversations();
-		const auto  found         = std::ranges::find(conversations, aThread, &finder_conversation::Id);
-		if (found == conversations.end()) {
+		if (std::ranges::find(conversations, aThread, &finder_conversation::Id) == conversations.end()) {
+			return false;
+		}
+		return move_thread(aPost.empty() ? aThread : aPost, core::workbench_thread_origin::threads, aDestination);
+	}
+
+	auto workbench_window::move_thread(const std::string& aIdentity, const core::workbench_thread_origin aOrigin, const core::workbench_thread_destination aDestination) -> bool
+	{
+		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || aIdentity.empty()) {
 			return false;
 		}
 		if (ThreadsRevealNotice) {
 			ThreadsRevealNotice = false;
 			ConversationPanel->present_notice(QString{ });
 		}
-		// [[BPR-1356]]. The window observes; the core decides. Each fact is
-		// one of Discuss's own filters against this thread, as the notes
-		// apply them.
+		const auto say = [this](const QString& aText) {
+			statusBar()->showMessage(aText);
+			QAccessibleAnnouncementEvent event{ this, aText };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		};
+		// [[BPR-1581]]. My draft, written or pending, by its note.
+		const auto draft = aIdentity.starts_with("draft:unpublished");
+		// The window observes; the core decides. A thread on a file is the
+		// finder's; one that is not is the conversation model's alone.
+		auto thread   = aIdentity;
+		auto post     = std::string{ };
+		auto onFile   = draft;
+		auto resolved = false;
+		auto unread   = false;
+		auto path     = QString{ };
+		if (!draft) {
+			if (const auto location = Finder->locate(aIdentity); location.has_value()) {
+				thread = location->Thread;
+				post   = location->Post;
+				onFile = true;
+				path   = location->Path;
+				const auto& conversations = Finder->conversations();
+				if (const auto found = std::ranges::find(conversations, thread, &finder_conversation::Id); found != conversations.end()) {
+					resolved = found->Resolved;
+					unread   = found->Unread > 0U;
+				}
+			} else {
+				auto* const model = ConversationPanel->model();
+				auto        index = model->index_for_id(aIdentity);
+				if (!index.isValid()) {
+					return false;
+				}
+				while (index.parent().isValid()) {
+					index = index.parent();
+				}
+				thread   = model->id_for_index(index);
+				post     = aIdentity;
+				resolved = index.data(github_conversation_model::resolved_role).toBool();
+			}
+		}
+		auto placed = true;
+		if (const auto root = ConversationPanel->model()->index_for_id(thread); root.isValid() && !draft) {
+			using availability = application::github_conversation_anchor_availability;
+			const auto anchor  = static_cast<availability>(root.data(github_conversation_model::anchor_availability_role).toInt());
+			placed             = !root.data(github_conversation_model::outdated_role).toBool() && (anchor == availability::current || anchor == availability::file_level);
+		}
 		const auto view  = ConversationPanel->discuss_view();
 		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
 			.Destination = aDestination,
-			.Draft       = found->Draft,
+			.Origin      = aOrigin,
+			.Draft       = draft || thread == "draft:unpublished",
+			.OnFile      = onFile,
+			.Placed      = placed,
 			.Hiding      = core::workbench_discuss_filters{
-				.OtherFile    = view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(found->Path.toStdString()),
-				.OnlyNew      = view.OnlyNew && found->Unread == 0U,
-				.HideResolved = view.HideResolved && found->Resolved,
-				.Listing      = view.Listing.has_value() && !view.Listing->contains(aThread),
+				.OtherFile    = onFile && view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(path.toStdString()),
+				.OnlyNew      = view.OnlyNew && !unread,
+				.HideResolved = view.HideResolved && resolved,
+				.Listing      = view.Listing.has_value() && !view.Listing->contains(thread),
 			},
 		});
-		if (route.Modality == core::workbench_modality::discuss) {
-			return open_conversation_in_discuss(aThread, aPost, route.Clear);
+		if (!route.Available) {
+			say(tr("This comment is not on a file, so Review has no place for it. Discuss shows it."));
+			return false;
 		}
-		const auto opened = open_conversation_in_review(aThread, aPost);
+		if (route.Composer) {
+			const auto shown = show_draft_in_discuss(aIdentity);
+			if (shown) {
+				say(tr("Discuss lists no drafts, so your draft opens in its composer."));
+			}
+			return shown;
+		}
+		if (route.Modality == core::workbench_modality::discuss) {
+			return open_conversation_in_discuss(thread, post, route.Clear);
+		}
+		const auto opened = open_conversation_in_review(thread, post, aOrigin != core::workbench_thread_origin::threads);
 		if (opened && route.Reason == core::workbench_thread_route_reason::draft_opens_in_review) {
-			statusBar()->showMessage(tr("Your draft is written beside its line, so it opens in Review."));
+			say(tr("Your draft is written beside its line, so it opens in Review."));
+		} else if (opened && route.Reason == core::workbench_thread_route_reason::opens_without_a_line) {
+			say(tr("This thread has no current line, so it opens among %1's threads without one.").arg(path.section(QLatin1Char{ '/' }, -1)));
 		}
 		return opened;
+	}
+
+	auto workbench_window::show_draft_in_discuss(const std::string& aCard) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
+			return false;
+		}
+		auto* const cards = ConversationPanel->cards();
+		if (cards->writing_draft()) {
+			maximize_drawer_draft();
+			return true;
+		}
+		// Another line's draft is brought to its line first, as opening its
+		// note does, so the composer holds it.
+		if (aCard != "draft:unpublished") {
+			const auto& all  = cards->cards();
+			const auto  card = std::ranges::find(all, aCard, &thread_card::Id);
+			if (card == all.end() || !card->Side.has_value() || card->Line.value_or(0U) == 0U || ComparisonSurface == nullptr) {
+				return false;
+			}
+			static_cast<void>(ComparisonSurface->select_conversation_line(*card->Side, *card->Line - 1U));
+		}
+		if (!ReviewEditor->shown_draft().has_value()) {
+			return false;
+		}
+		if (begin_new_comment(false) && cards->writing_draft()) {
+			maximize_drawer_draft();
+		}
+		return CompositionPage == ComposeInlinePage;
+	}
+
+	auto workbench_window::thread_card_on_line(const core::diff_side aSide, const std::uint32_t aLine) const -> std::optional<std::string>
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return std::nullopt;
+		}
+		const auto& cards = ConversationPanel->cards()->cards();
+		const auto  card  = std::ranges::find_if(cards, [aSide, aLine](const thread_card& aCard) {
+			return aCard.Side == aSide && aCard.Line == aLine + 1U && !aCard.Outdated;
+		});
+		return card == cards.end() ? std::nullopt : std::optional{ card->Id };
+	}
+
+	auto workbench_window::show_selected_thread(const core::workbench_thread_destination aDestination) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || Modality == nullptr) {
+			return false;
+		}
+		const auto toDiscuss = aDestination == core::workbench_thread_destination::discuss;
+		const auto here      = Modality->current();
+		if ((toDiscuss && here != review_modality::review) || (!toDiscuss && here != review_modality::discuss) || CompositionPage != nullptr) {
+			return false;
+		}
+		auto* const cards     = ConversationPanel->cards();
+		auto        selection = core::workbench_thread_selection{
+				   .OpenThread = cards->open_thread_id(),
+				   .PickedPost = cards->picked_post(),
+		};
+		if (const auto current = ConversationPanel->model()->id_for_index(ConversationPanel->view()->currentIndex()); !current.empty()) {
+			auto index = ConversationPanel->model()->index_for_id(current);
+			while (index.parent().isValid()) {
+				index = index.parent();
+			}
+			selection.CurrentThread = ConversationPanel->model()->id_for_index(index);
+			selection.CurrentPost   = current == selection.CurrentThread ? std::string{ } : current;
+		}
+		if (toDiscuss && ComparisonSurface != nullptr && ComparisonSurface->selection().has_value()) {
+			const auto& line = ComparisonSurface->selection()->PreferredLine;
+			if (const auto onLine = thread_card_on_line(line.Side, line.Line); onLine.has_value()) {
+				selection.LineThread = *onLine;
+			}
+			const auto* const focus = QApplication::focusWidget();
+			selection.CodeFocused   = focus != nullptr && (focus == ComparisonSurface->left_pane() || focus == ComparisonSurface->right_pane());
+		}
+		const auto target = core::choose_workbench_thread_target(selection);
+		if (!target.has_value()) {
+			statusBar()->showMessage(tr("Select a thread first."));
+			return false;
+		}
+		const auto origin = toDiscuss ? core::workbench_thread_origin::review : core::workbench_thread_origin::discuss;
+		return move_thread(target->Post.empty() ? target->Thread : target->Post, origin, aDestination);
+	}
+
+	auto workbench_window::show_thread_in_discuss_action() const noexcept -> QAction*
+	{
+		return ShowInDiscussAction;
+	}
+
+	auto workbench_window::show_thread_in_review_action() const noexcept -> QAction*
+	{
+		return ShowInReviewAction;
+	}
+
+	void workbench_window::update_show_thread_actions()
+	{
+		const auto here    = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+		// Ctrl+Alt is AltGr on Windows, where AltGr with 2 or 3 types a
+		// character: the keys step aside while the keyboard is typing.
+		const auto reading = HasGithubPullRequest && CompositionPage == nullptr && !showing_home() && !TypingFocus;
+		if (ShowInDiscussAction != nullptr) {
+			ShowInDiscussAction->setEnabled(reading && here == review_modality::review);
+		}
+		if (ShowInReviewAction != nullptr) {
+			ShowInReviewAction->setEnabled(reading && here == review_modality::discuss);
+		}
 	}
 
 	auto workbench_window::open_conversation_in_discuss(const std::string& aThread, const std::string& aPost, const core::workbench_discuss_filters& aClear) -> bool
@@ -13148,10 +13400,19 @@ namespace bpr::qt {
 		}
 		// As a Review pick: the thread opens in place with its post washed
 		// amber and brought into view, and the selection names the post.
-		cards->open_thread_at(aThread, aPost);
-		if (const auto post = ConversationPanel->model()->index_for_id(aPost.empty() ? aThread : aPost); post.isValid()) {
-			ConversationPanel->choose(post);
+		// [[BPR-1581]]. A thread named by its root opens at its first post,
+		// and the post's arrival is marked.
+		auto post = aPost;
+		if (post.empty()) {
+			const auto& all  = cards->cards();
+			const auto  card = std::ranges::find(all, aThread, &thread_card::Id);
+			post             = card != all.end() && !card->Posts.empty() ? card->Posts.front().Id : aThread;
 		}
+		cards->open_thread_at(aThread, post);
+		if (const auto index = ConversationPanel->model()->index_for_id(post); index.isValid()) {
+			ConversationPanel->choose(index);
+		}
+		cards->mark_arrival();
 		cards->setFocus(Qt::OtherFocusReason);
 		if (aClear.any()) {
 			auto cleared = QStringList{ };
@@ -13201,6 +13462,12 @@ namespace bpr::qt {
 			// revealed comment always has; its thread stays the one open.
 			if (const auto post = ConversationPanel->model()->index_for_id(pick.Post); post.isValid()) {
 				ConversationPanel->choose(post);
+			}
+			// [[BPR-1581]]. The post's arrival is marked, as in Discuss, and a
+			// move from Discuss leaves the keyboard on the notes.
+			cards->mark_arrival();
+			if (pick.Focus) {
+				cards->setFocus(Qt::OtherFocusReason);
 			}
 			return;
 		}
@@ -14676,6 +14943,28 @@ namespace bpr::qt {
 		addAction(ShowThreadsAction);
 		ViewMenu->addAction(ShowThreadsAction);
 		connect(ShowThreadsAction, &QAction::triggered, this, [this] { toggle_threads(); });
+		// [[BPR-1581]]. The selected thread in the other view: Option-Command-3
+		// beside Command-3 for Discuss, Option-Command-2 beside Command-2 for
+		// Review. Ctrl+Alt is AltGr on Windows, which types a character with
+		// these digits, so both step aside while typing.
+		ShowInDiscussAction = new QAction{ QStringLiteral("Show Thread in Discuss"), this };
+		ShowInDiscussAction->setObjectName(QStringLiteral("showThreadInDiscussAction"));
+		ShowInDiscussAction->setShortcuts(shortcut_keys(shortcut_command::show_in_discuss));
+		ShowInDiscussAction->setShortcutContext(Qt::WindowShortcut);
+		ShowInReviewAction = new QAction{ QStringLiteral("Show Thread in Review"), this };
+		ShowInReviewAction->setObjectName(QStringLiteral("showThreadInReviewAction"));
+		ShowInReviewAction->setShortcuts(shortcut_keys(shortcut_command::show_in_review));
+		ShowInReviewAction->setShortcutContext(Qt::WindowShortcut);
+		for (auto* const action : { ShowInDiscussAction, ShowInReviewAction }) {
+			const auto tip = action == ShowInDiscussAction ? QStringLiteral("Show the selected thread in Discuss (%1)") : QStringLiteral("Show the selected thread in Review, beside its code (%1)");
+			action->setToolTip(tip.arg(action->shortcut().toString(QKeySequence::NativeText)));
+			action->setStatusTip(action->toolTip());
+			action->setEnabled(false);
+			addAction(action);
+			ViewMenu->addAction(action);
+		}
+		connect(ShowInDiscussAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::discuss)); });
+		connect(ShowInReviewAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::review)); });
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
@@ -15837,6 +16126,7 @@ namespace bpr::qt {
 		}
 		TypingFocus = typing;
 		update_accept_file_shortcut();
+		update_show_thread_actions();
 		if (!option_types_text || PrimaryMenuBar == nullptr) {
 			return;
 		}

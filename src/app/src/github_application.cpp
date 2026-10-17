@@ -7900,6 +7900,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			Window->set_conversation_read_dispatch(
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
+			Window->set_conversation_unread_dispatch(
+				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -13875,6 +13877,43 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.LatestComment = latest->Comment,
 					.LatestEdit    = latest->Edit,
 				},
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+		}
+
+		/// \brief [[BPR-1582]]. Mark as unread: the core moves the seen cursor
+		/// back so the latest post by someone else is new again, and the
+		/// thread is presented unread once that is durable.
+		void mark_conversation_unread(const std::string& aThread)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return;
+			}
+			auto observation = application::conversation_thread_observation{
+				.Conversation = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+			};
+			for (const auto& comment : thread->Comments) {
+				if (!comment.Deleted) {
+					observation.Posts.push_back(post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login));
+				}
+			}
+			ReviewLedgerHost->mark_conversation_unread(
+				observation,
 				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
 					if (!aMarked.has_value()) {
 						return;

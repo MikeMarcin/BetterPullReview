@@ -1725,6 +1725,21 @@ namespace {
 			   "from Threads my draft still opens in Review, as BPR-1356 decided");
 	}
 
+	/// [[BPR-1584]]. The reading column fills the page up to the setting's
+	/// width; Full width never stops it.
+	auto test_the_reading_width() -> void
+	{
+		expect(default_reading_width == reading_width::wide, "Wide is the default");
+		for (const auto page : { 1'280U, 1'900U, 2'560U }) {
+			expect(reading_column_width(reading_width::wide, page) == page, "Wide fills an ordinary window up to 2560 pixels");
+		}
+		expect(reading_column_width(reading_width::wide, 3'440U) == 2'560U, "and stops at 2560 on an ultra-wide one");
+		expect(reading_column_width(reading_width::narrow, 1'900U) == 960U && reading_column_width(reading_width::narrow, 800U) == 800U, "Narrow stops at 960, a narrower page is the page");
+		expect(reading_column_width(reading_width::medium, 3'440U) == 1'600U && reading_column_width(reading_width::medium, 1'280U) == 1'280U, "Medium stops at 1600");
+		expect(reading_column_width(reading_width::full, 3'440U) == 3'440U && !reading_width_limit(reading_width::full).has_value(), "Full width never stops");
+		expect(valid(reading_width::full) && !valid(static_cast<reading_width>(4)), "the vocabulary is closed");
+	}
+
 	/// [[BPR-1581]]. The thread a key shows elsewhere.
 	auto test_the_thread_a_key_shows() -> void
 	{
@@ -1798,5 +1813,6 @@ int main()
 	test_a_thread_routes_to_review_or_discuss();
 	test_a_thread_moves_between_review_and_discuss();
 	test_the_thread_a_key_shows();
+	test_the_reading_width();
 	return EXIT_SUCCESS;
 }
