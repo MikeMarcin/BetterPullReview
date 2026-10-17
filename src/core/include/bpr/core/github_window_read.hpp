@@ -18,7 +18,8 @@ namespace bpr::core {
 
 	using github_window_read_event = std::variant<open_pull_request_intent,
 												  refresh_pull_request_intent, pull_request_loaded_event,
-												  pull_request_load_failed_event, pull_request_load_cancelled_event>;
+												  pull_request_load_failed_event, pull_request_load_cancelled_event,
+												  close_pull_request_intent>;
 
 	/// A read lane cannot request authentication or retire a profile session.
 	struct github_window_read_output

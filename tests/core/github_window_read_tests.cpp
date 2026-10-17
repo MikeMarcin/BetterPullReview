@@ -1,5 +1,6 @@
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/github_window_read.hpp"
+#include <algorithm>
 #include <cstdlib>
 int main()
 {
@@ -208,6 +209,63 @@ int main()
 	github_window_read account{ { first.Profile, bpr_window_id{ 4 }, first.Generation }, application_session_id{ 40 } };
 	if (!account.adopt(foreignSession) || !load(account, 1, 66) || target.share_snapshot(account, 5)
 		|| !source.retire(session) || target.share_snapshot(source, 6)) {
+		return EXIT_FAILURE;
+	}
+	// [[BPR-1573]]. Close review forgets the window's pull request and keeps
+	// its session; a second window showing the same pull request keeps it.
+	const bpr_window_context closing{ first.Profile, bpr_window_id{ 5 }, first.Generation };
+	const bpr_window_context keeping{ first.Profile, bpr_window_id{ 6 }, first.Generation };
+	github_window_read       closed{ closing, application_session_id{ 50 } };
+	github_window_read       kept{ keeping, application_session_id{ 60 } };
+	if (!closed.adopt(session) || !kept.adopt(session)) {
+		return EXIT_FAILURE;
+	}
+	const auto nothingOpen = closed.state();
+	const auto refused     = closed.apply(closing, close_pull_request_intent{ });
+	if (closed.state() != nothingOpen || refused.Projection.PullRequest || refused.Projection.Status || refused.Fetch
+		|| refused.Projection.Diagnostics.size() != 1U || refused.Projection.Diagnostics.front().Code != github_reason_code::no_active_pull_request) {
+		return EXIT_FAILURE;
+	}
+	if (!load(closed, 7, 77) || !load(kept, 7, 78)) {
+		return EXIT_FAILURE;
+	}
+	const auto generation = closed.state().PullRequestGeneration;
+	const auto release    = closed.apply(closing, close_pull_request_intent{ });
+	const auto commandIs  = [&](const github_command_id aId, const bool aEnabled) {
+		return std::ranges::any_of(release.Projection.Commands, [&](const auto& aCommand) { return aCommand.Id == aId && aCommand.Enabled == aEnabled; });
+	};
+	const auto& after = closed.state();
+	if (release.Fetch || !release.Projection.PullRequest || release.Projection.PullRequest->Summary
+		|| release.Projection.Status != github_status_delta{ .Status = github_status::session_ready }
+		|| release.Projection.Read || !release.Projection.Diagnostics.empty()
+		|| after.ActiveLocator || after.ActiveNumber || after.Repository || after.PullRequest || after.AcceptedSnapshot || after.PendingPullRequest
+		|| after.PullRequestGeneration.value() != generation.value() + 1U
+		|| after.Host != git_host_id{ 1 } || after.Account != github_account_id{ 1 } || after.IdentityGeneration != nothingOpen.IdentityGeneration
+		|| !commandIs(github_command_id::refresh_pull_request, false) || !commandIs(github_command_id::open_pull_request, true)
+		|| !commandIs(github_command_id::show_review_threads, false)
+		|| !kept.state().AcceptedSnapshot || kept.state().ActiveNumber != pull_request_number{ 7 }) {
+		return EXIT_FAILURE;
+	}
+	if (closed.apply(closing, refresh_pull_request_intent{ }).Fetch || closed.apply(closing, close_pull_request_intent{ }).Projection.PullRequest) {
+		return EXIT_FAILURE;
+	}
+	// A read in flight ends with the close: it says it was cancelled, and its
+	// late answer is stale.
+	const auto inFlight = closed.apply(closing, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 8 } });
+	if (!inFlight.Fetch) {
+		return EXIT_FAILURE;
+	}
+	const auto abandoned = closed.apply(closing, close_pull_request_intent{ });
+	if (!abandoned.Projection.Read || abandoned.Projection.Read->Request != inFlight.Fetch->Context.Request
+		|| abandoned.Projection.Read->Stage != pull_request_read_stage::cancelled || closed.state().PendingPullRequest) {
+		return EXIT_FAILURE;
+	}
+	const auto lateAnswer = closed.apply(closing, pull_request_loaded_event{ inFlight.Fetch->Context, repository_id{ 1 }, pull_request_id{ 8 }, provider_snapshot_id{ 88 } });
+	if (lateAnswer.Projection.AcceptedSnapshot || closed.state().AcceptedSnapshot || closed.state().ActiveNumber) {
+		return EXIT_FAILURE;
+	}
+	// The window opens the same pull request again from nothing.
+	if (!load(closed, 7, 79) || closed.state().ActiveNumber != pull_request_number{ 7 }) {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
