@@ -33,6 +33,13 @@ live-course notes, criss-cross). All addressed on this branch; see the card's
 `live-2026-10-17.jsonl` beside this file (one JSON line per step: GitHub's
 state, timeline, the app's lines, the verdict).
 
+## Review round two
+
+Fable approved; Astra rejected (tours read after the confirmation; the
+agreeing path skipped the final confirmation; state the inherent GET/POST
+limit). Fixed on `bdd64ad72` and `0bdb5673b`; see the card's "Review round
+two" and "Gates, review round two".
+
 ## Pending
 
 - Fable and Astra review of the branch again (owner).

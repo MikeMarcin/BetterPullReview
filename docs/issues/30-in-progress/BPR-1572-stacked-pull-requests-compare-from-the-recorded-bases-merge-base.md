@@ -331,6 +331,26 @@ clean worktree).
   courses send; with the child's second read ignored, the source-backed reset
   course sends.
 
+## Gates, review round two
+
+On `0bdb5673b` merged with main (`9117cdf60`, then the docs-only `77e67000e`):
+clang-format 22 on the changed C++ files; clang-tidy reports nothing on lines
+changed this round; `DOCUMENTATION_OK`; the round-trip composition contract
+passes unchanged (main did not move `github_application.cpp` or the manifest).
+One full `ctest --preset dev -j 6` under load average 85-131 from other
+agents: 750/772. The 22 failures rerun one at a time all pass: the three
+documentation rows (no `.agents` skills link in the worktree during the run;
+`documentation_structure` also needed main's newer `NEXT_ID`, merged in
+`77e67000e`), and timeouts or timing budgets under load
+(`qt_composed_long_thread_scale_125`/`_200`, `qt_github_conversation_model_property`,
+`qt_diff_workbench_scale_200`, the four `application_large_review_*`,
+`large_review_replay_contract` (timed out once more alone, then passed),
+`application_setup_destination_public_path`,
+`application_personal_discovery_cli_public_path`, the three
+`application_overview_summary_*`, `application_epoch_ordinary_update_recreated`,
+`application_terminal_diagnostics`, `application_private_review_native`/`_file`,
+`application_source_pr_search_performance`).
+
 ## Live round two (`ba735233a`, records in `live-2026-10-17.jsonl`)
 
 | Course | Steps | Result |
