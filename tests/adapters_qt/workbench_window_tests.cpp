@@ -2016,6 +2016,69 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1596]]. The title row's leading inset per platform, and the
+	/// row the running platform builds from it.
+	void test_title_row_leading_inset_per_platform()
+	{
+		// Simulated: every platform's answer is checked on whichever host runs.
+		expect(qt::title_row_leading_inset(qt::title_row_platform::macos) == 78,
+			   "macOS leaves the 78 points the traffic lights take");
+		expect(qt::title_row_leading_inset(qt::title_row_platform::windows) == 0,
+			   "Windows leaves no traffic-light gap: its caption buttons are at the right");
+		expect(qt::title_row_leading_inset(qt::title_row_platform::other) == 0,
+			   "Linux leaves no traffic-light gap: the platform keeps its own title bar");
+#if defined(__APPLE__)
+		expect(qt::current_title_row_platform() == qt::title_row_platform::macos, "a macOS build lays out the macOS row");
+#elif defined(_WIN32)
+		expect(qt::current_title_row_platform() == qt::title_row_platform::windows, "a Windows build lays out the Windows row");
+#else
+		expect(qt::current_title_row_platform() == qt::title_row_platform::other, "a Linux build lays out the plain row");
+#endif
+
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		QApplication::processEvents();
+		auto* const strip   = window.primary_toolbar();
+		auto* const inset   = strip->findChild<QWidget*>(QStringLiteral("workbenchStripInset"));
+		auto* const home    = strip->widgetForAction(window.home_action());
+		const auto  leading = qt::title_row_leading_inset(qt::current_title_row_platform());
+		expect(inset != nullptr && inset->width() == leading,
+			   std::string{ "the row's inset is its platform's value: " } + std::to_string(inset == nullptr ? -1 : inset->width()));
+		// Home is the first control after the inset; on Windows the menu
+		// control stands between them.
+		auto first = home;
+#if defined(_WIN32)
+		first = window.strip_menu_button();
+		expect(first != nullptr && first->geometry().right() < home->geometry().left(),
+			   "on Windows the menu control comes before Home");
+#endif
+		// The toolbar's own margin and one item gap, and nothing more.
+		const auto slack = strip->style()->pixelMetric(QStyle::PM_ToolBarItemMargin, nullptr, strip)
+			+ strip->style()->pixelMetric(QStyle::PM_ToolBarFrameWidth, nullptr, strip)
+			+ strip->style()->pixelMetric(QStyle::PM_ToolBarItemSpacing, nullptr, strip) + 2;
+		expect(first->geometry().left() <= leading + slack,
+			   std::string{ "the first control starts right after the inset, with no gap before it: " } + std::to_string(first->geometry().left()) + " for inset " + std::to_string(leading));
+#if defined(_WIN32)
+		// And the caption buttons end the row at the right.
+		const auto actions = strip->actions();
+		expect(!actions.isEmpty() && actions.back()->objectName() == QStringLiteral("workbenchCaptionButtonsAction"),
+			   "on Windows the caption buttons end the row");
+		// The menu glyph follows the theme: drawn in the new palette's ink.
+		auto dark = window.palette();
+		dark.setColor(QPalette::Button, QColor{ 0x20, 0x22, 0x26 });
+		dark.setColor(QPalette::Window, QColor{ 0x20, 0x22, 0x26 });
+		dark.setColor(QPalette::ButtonText, QColor{ 0xF0, 0xF0, 0xF0 });
+		window.setPalette(dark);
+		QApplication::processEvents();
+		const auto glyph = window.strip_menu_button()->icon().pixmap(QSize{ 16, 16 }, 1.0).toImage();
+		expect(!glyph.isNull() && glyph.pixelColor(8, 8).lightness() > 200,
+			   "after a theme change the menu glyph is drawn in the new ink");
+#endif
+		window.hide();
+	}
+
 	void test_strip_is_the_title_row()
 	{
 		qt::workbench_window window;
@@ -16810,6 +16873,7 @@ auto main(int argc, char** argv) -> int
 		test_the_floor_follows_the_review_bar();
 		test_restored_geometry_accepts_the_raised_floor();
 		test_strip_is_the_title_row();
+		test_title_row_leading_inset_per_platform();
 		std::cout << "workbench-title-row:pass\n";
 		return EXIT_SUCCESS;
 	}

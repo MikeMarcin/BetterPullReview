@@ -117,6 +117,39 @@ namespace bpr::qt {
 	/// icon, or none, and makes the button measure itself again.
 	void set_strip_badge(QToolButton& aButton, const QString& aBadge);
 
+	/// \brief [[BPR-1596]]. The desktop a title row is laid out for.
+	enum class title_row_platform : std::uint8_t {
+		macos,
+		windows,
+		/// Linux and every other desktop Qt runs on.
+		other,
+	};
+
+	/// \brief [[BPR-1596]]. The desktop this build runs on.
+	[[nodiscard]] constexpr auto current_title_row_platform() noexcept -> title_row_platform
+	{
+#if defined(__APPLE__)
+		return title_row_platform::macos;
+#elif defined(_WIN32)
+		return title_row_platform::windows;
+#else
+		return title_row_platform::other;
+#endif
+	}
+
+	/// \brief [[BPR-1596]]. The width the title row leaves before its first
+	/// control.
+	///
+	/// \details On macOS the window's content runs under a transparent title
+	/// bar ([[BPR-0646]]), so the row leaves the 78 points the three window
+	/// buttons take. Windows draws its caption buttons at the row's right end
+	/// ([[BPR-0653]]) and Linux keeps the platform's own title bar, so neither
+	/// leaves anything: the row starts at the window's edge.
+	[[nodiscard]] constexpr auto title_row_leading_inset(const title_row_platform aPlatform) noexcept -> int
+	{
+		return aPlatform == title_row_platform::macos ? 78 : 0;
+	}
+
 	/// \brief [[BPR-1129]]. Which row a strip is.
 	///
 	/// \details The title row is the window's title bar: empty surface drags
