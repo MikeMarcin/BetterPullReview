@@ -1187,6 +1187,15 @@ namespace bpr::qt {
 		void               present(const application::home_open_projection& aProjection);
 		[[nodiscard]] auto home_open() const noexcept -> const std::optional<application::home_open_projection>&;
 		void               set_home_open_dispatch(application::home_open_dispatch aDispatch);
+		/// \brief [[BPR-1573]]. Close review on Home: the composition releases
+		/// this window's review, as the core decides.
+		void set_close_review_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1573]]. Close review's gesture, as the button gives it.
+		///
+		/// \details Only over an open review. Once the review is gone, Home has
+		/// nothing to return to: the status bar says what was closed and the bar
+		/// takes focus, since the button that had it is gone.
+		void close_review();
 		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
 		void set_home_failure_ink(const QColor& aInk);
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
@@ -2338,6 +2347,7 @@ namespace bpr::qt {
 		QPushButton*                                     HomeOpenRetry      = nullptr;
 		std::optional<application::home_open_projection> HomeOpen;
 		application::home_open_dispatch                  HomeOpenDispatch;
+		std::function<void()>                            CloseReviewDispatch;
 		/// Whether a shown Home row carries the opening, so the band does not.
 		bool                                                         HomeOpenOnRow = false;
 		QString                                                      LastHomeOpenAnnouncement;

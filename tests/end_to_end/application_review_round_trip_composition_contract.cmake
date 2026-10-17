@@ -1541,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"22d1375b5deeb0c6ac030fd8ebbb91ab871726148c2097e12fec38beb4122469"
+		"18198c31b082b3b3223c1df061f50e1c010551785e242176a66139950df5fa9b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1757,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "701d78daa74a547792511b6e449216f421218fc21d564b5dbb7787fc05d384a1"
+        "d1cf9c0a0b96b4b78b0fffaec83074d7dedb437dce28be87d959b053e7af8daa"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2719,6 +2719,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1580.
 
+# [[BPR-1573]] reseal over main at 83ed4d8fd, recomputed on the tree that
+# merges this card onto it (branch 647fbc653..the BPR-1573 product commits
+# 86d655c1c, 58ee21f56 and 6ae61c231). github_application.cpp adds Close
+# review: the window's close dispatch cancels a reading restoration, sends
+# close_pull_request_intent to this window's read lane, whose host invalidates
+# the epoch authority (the composition's existing invalidate path, as opening
+# another pull request takes), then starts the document tabs again as BPR-1539
+# does. A test-build accessor reports what the window holds of its review. No
+# grant, target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1573.
 # [[BPR-1597]] candidate seal over main at f16db2a04 merged with
 # bpr-1581-thread-navigation (BPR-1581/1582/1584, accepted, not yet landed).
 # BPR-1597 itself changes no src/app file; the digests move with BPR-1581's
