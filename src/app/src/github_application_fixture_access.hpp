@@ -246,15 +246,10 @@ namespace bpr::app::detail {
 		bool TabDestination       = false;
 		bool LedgerComposed       = false;
 		/// The window's document tabs, and the chosen file one would take.
-		std::size_t Tabs       = 0U;
-		bool        TabChosen  = false;
+		std::size_t Tabs      = 0U;
+		bool        TabChosen = false;
 		/// The bodies of the drafts the review's ledger holds now.
 		std::vector<std::string> SavedDraftBodies;
-		/// Home's recently viewed rows: all, the one this window has open, and
-		/// those Resume can return to.
-		std::size_t RecentEntries   = 0U;
-		std::size_t RecentOpen      = 0U;
-		std::size_t RecentResumable = 0U;
 	};
 
 	/// \brief [[BPR-1301]]. The `PATH` and usual install folders a Claude

@@ -71,7 +71,7 @@ namespace {
 			++AcceptCount;
 		}
 		std::vector<application::pull_request_authority_invalidation> Invalidations;
-		void invalidate(application::pull_request_authority_invalidation aInvalidation) override { Invalidations.push_back(aInvalidation); }
+		void                                                          invalidate(application::pull_request_authority_invalidation aInvalidation) override { Invalidations.push_back(aInvalidation); }
 	};
 	auto session() -> application::github_profile_session
 	{
@@ -632,17 +632,17 @@ namespace {
 	/// publishing its late answer, and changes nothing when nothing is open.
 	void test_close_review_releases_the_read()
 	{
-		reads                                                  provider;
-		application::manual_executor                           lane;
-		epoch_handoffs                                         epochs;
-		std::vector<application::github_window_read_update>    updates;
-		application::github_window_read_host                   host{
-            { core::default_bpr_profile_id, core::bpr_window_id{ 9 }, core::bpr_window_generation{ 1 } },
-            core::application_session_id{ 2 },
-            provider,
-            lane,
-            [&updates](const auto& aUpdate) { updates.push_back(aUpdate); },
-            &epochs
+		reads                                               provider;
+		application::manual_executor                        lane;
+		epoch_handoffs                                      epochs;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 9 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&updates](const auto& aUpdate) { updates.push_back(aUpdate); },
+			&epochs
 		};
 		expect(host.adopt(session()), "close fixture adopts session");
 		updates.clear();

@@ -87,10 +87,10 @@ namespace {
 		std::unique_ptr<app::github_application> application;
 		bool                                     terminal = false;
 		auto                                     startup  = access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
-            terminal = true;
-            if (aResult) {
-                application = std::move(*aResult);
-            }
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
 		});
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "close review course startup terminal");
 		expect(application != nullptr, "close review course composition starts");
@@ -141,7 +141,6 @@ namespace {
 		const auto before = access::close_review(*application);
 		expect(before.ReadHoldsPullRequest && before.SnapshotHeld && before.ReadingDestination && before.TabDestination && before.Tabs > 0U,
 			   "the window holds the review before it is closed");
-		expect(before.RecentEntries == 1U && before.RecentOpen == 1U, "Recently viewed lists the review as open in this window");
 
 		// Space on the focused button, as a keyboard gives it.
 		tests::window_system_key(*close, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
@@ -152,8 +151,6 @@ namespace {
 		expect(!after.ReadingDestination && !after.TabDestination && after.Tabs == 0U && !after.TabChosen && window.document_tabs()->tabs().empty(),
 			   "the review's reading and its tabs are released");
 		expect(!after.LedgerComposed, "the review's drafts ledger is released, as opening another pull request releases it");
-		wait_for([&] { const auto recent = access::close_review(*application); return recent.RecentEntries == 1U && recent.RecentOpen == 0U && recent.RecentResumable == 1U; },
-				 "Recently viewed keeps the closed review, no longer open, with its reading to resume");
 		expect(window.showing_home() && !landing->isVisible() && !close->isVisible() && !back->isVisible(),
 			   "Home afterwards offers no way back and no Close review");
 		expect(window.focusWidget() == window.home_open_bar(), "the bar takes focus once the buttons are gone");

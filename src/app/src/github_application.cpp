@@ -21642,13 +21642,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		for (const auto& draft : implementation->saved_draft_values()) {
 			result.SavedDraftBodies.push_back(draft.Body);
 		}
-		if (implementation->RecentPublished) {
-			for (const auto& entry : implementation->RecentPublished->Entries) {
-				++result.RecentEntries;
-				result.RecentOpen += entry.Open ? 1U : 0U;
-				result.RecentResumable += entry.Resumable ? 1U : 0U;
-			}
-		}
 		return result;
 	}
 

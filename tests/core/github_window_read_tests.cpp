@@ -232,7 +232,7 @@ int main()
 	const auto generation = closed.state().PullRequestGeneration;
 	const auto release    = closed.apply(closing, close_pull_request_intent{ });
 	const auto commandIs  = [&](const github_command_id aId, const bool aEnabled) {
-        return std::ranges::any_of(release.Projection.Commands, [&](const auto& aCommand) { return aCommand.Id == aId && aCommand.Enabled == aEnabled; });
+		return std::ranges::any_of(release.Projection.Commands, [&](const auto& aCommand) { return aCommand.Id == aId && aCommand.Enabled == aEnabled; });
 	};
 	const auto& after = closed.state();
 	if (release.Fetch || !release.Projection.PullRequest || release.Projection.PullRequest->Summary

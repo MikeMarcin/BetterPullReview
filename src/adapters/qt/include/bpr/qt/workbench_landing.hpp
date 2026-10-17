@@ -98,6 +98,7 @@ namespace bpr::qt {
 	private:
 		void                  apply_illustration_layout();
 		void                  apply_arrangement();
+		void                  set_close_idle();
 		landing_state         State = landing_state::sign_in;
 		QString               ReviewIdentity;
 		QString               ReviewPosition;

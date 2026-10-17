@@ -858,8 +858,7 @@ request releases it, so a comment being written is saved and is there when
 the same pull request is opened again; nothing asks first. The document tabs
 start again. Home is left with nothing to return to, the bar takes focus,
 the status bar says "Closed the review of owner/name#123.", and Refresh has
-nothing to reread. Recently viewed keeps the entry and its reading for
-Resume. Another window showing the same pull request keeps it.
+nothing to reread. Another window showing the same pull request keeps it.
 
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic

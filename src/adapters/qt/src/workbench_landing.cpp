@@ -147,9 +147,7 @@ namespace bpr::qt {
 			Tertiary->setAccessibleName(QStringLiteral("Add enterprise server"));
 			Tertiary->setAccessibleDescription(QStringLiteral(
 				"Opens the sign-in dialog to add an enterprise server."));
-			Close->setText(QString{ });
-			Close->setAccessibleName(QString{ });
-			Close->setAccessibleDescription(QString{ });
+			set_close_idle();
 			setAccessibleDescription(
 				GithubCliAvailable
 					? QStringLiteral("Sign in to GitHub, use GitHub CLI, or add an enterprise server")
@@ -201,9 +199,7 @@ namespace bpr::qt {
 			Tertiary->setText({ });
 			Tertiary->setAccessibleName({ });
 			Tertiary->setAccessibleDescription({ });
-			Close->setText({ });
-			Close->setAccessibleName({ });
-			Close->setAccessibleDescription({ });
+			set_close_idle();
 			setAccessibleDescription(Title->text() + QStringLiteral(" ") + Body->text());
 			break;
 		case landing_state::choose_pull_request:
@@ -220,9 +216,7 @@ namespace bpr::qt {
 			Tertiary->setText(QString{ });
 			Tertiary->setAccessibleName(QString{ });
 			Tertiary->setAccessibleDescription(QString{ });
-			Close->setText(QString{ });
-			Close->setAccessibleName(QString{ });
-			Close->setAccessibleDescription(QString{ });
+			set_close_idle();
 			setAccessibleDescription(QString{ });
 			break;
 		}
@@ -234,6 +228,16 @@ namespace bpr::qt {
 		apply_illustration_layout();
 		updateGeometry();
 		update();
+	}
+
+	void workbench_landing::set_close_idle()
+	{
+		// [[BPR-1573]]. Hidden with no review open, but still a declared focus
+		// stop of the window, so it keeps its one name and says what it does.
+		Close->setText(QStringLiteral("Close review"));
+		Close->setAccessibleName(QStringLiteral("Close review"));
+		Close->setAccessibleDescription(QStringLiteral(
+			"Closes the review open in this window; its drafts are kept for when you open it again."));
 	}
 
 	void workbench_landing::apply_arrangement()
