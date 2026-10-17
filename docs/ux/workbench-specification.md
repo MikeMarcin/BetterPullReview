@@ -2370,7 +2370,7 @@ Where it applies:
 - **The comparison panes**: code placeholders while a file comparison loads,
   then "Colouring syntax…" as partial until its classification is adopted or
   fails. The status above the panes still says the outcome.
-- **The Files drawer, conversations, Threads**: rows while the first read runs.
+- **The Files drawer, the Comments drawer and Threads**: rows while the first read runs.
 - **The repositories drawer and Home's list**: rows while the queue restores;
   on Home, "Finding my pull requests in 2 saved repositories…" while personal
   discovery runs with nothing listed yet, refreshing over the rows already

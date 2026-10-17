@@ -13649,7 +13649,7 @@ namespace bpr::qt {
 			return veil;
 		};
 		PendingPanes.Files         = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
-		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Conversations"), QStringLiteral("conversationsPendingVeil"));
+		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"));
 		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"));
 		PendingPanes.Repositories  = pane(RepositoriesTree, QStringLiteral("Repositories"), QStringLiteral("repositoriesPendingVeil"));
 		PendingPanes.HomeList      = pane(HomeList, QStringLiteral("My pull requests"), QStringLiteral("homeListPendingVeil"));
@@ -13714,7 +13714,7 @@ namespace bpr::qt {
 		// speaks once the read is slow.
 		apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
-		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading conversations…"), .Waiting = waiting });
+		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
 		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
 		// Only a composed queue restores: without one nothing is on its way.
 		const auto queued = static_cast<bool>(QueueDiscoveryDispatch);
