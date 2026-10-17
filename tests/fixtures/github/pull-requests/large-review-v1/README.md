@@ -244,3 +244,34 @@ cache, eviction, release and lifecycle assertions fail the row everywhere.
 course writes its partial report, with `Failure`, to the report path.
 `tests/end_to_end/large_review_summary.py BUILD_ROOT [CTEST_LOG ...]` condenses
 one tree's reports, with their digests, for a station return.
+
+## Timing under external load — BPR-1598
+
+The courses' limits are wall-clock limits for a machine that gives the course
+the processors it asks for. On a shared machine (several builds and test runs
+at a load average of 50 to 110) a thread's processor-bound work stretches four
+to six times, so the responsiveness, launch, active-work, pathological and
+history rows and `large_review_replay_contract` failed there and passed on a
+retry. `RUN_SERIAL`, which the rows already carry, only keeps CTest from
+running its own rows beside them; it cannot hold back another process.
+
+So every timed figure a limit reads is attributed: its wall time less the time
+spent runnable while another process held the processors, never below a
+processor time that load does not inflate, and never above the wall time. On a
+quiet machine the two agree. A GUI-thread interval (a pulse gap, a dispatch, a
+queued input) subtracts that thread's own wait and is floored by its own
+processor time, so a stall it spends working or blocked (a sleep, a lock, a
+pipe) still counts in full under any load. macOS keeps runnable time per
+process only, so the benchmark samples the GUI thread's run state and processor
+time each millisecond; Linux reads the thread's `run_delay`; Windows measures
+no wait and keeps wall time. A completion (a phase, a drain, the startup, the
+launch markers) subtracts the wait of every thread of the process and is
+floored by the busiest thread's processor time: both are lower bounds on the
+time it would take on a quiet machine, so under load it is never stricter than
+there. Each report keeps the wall readings (`Phases`' `Wall` fields and
+`Extended.Schedule`), and `application_large_review_timing_control` proves
+both sides while its own threads hold every processor: 120 ms of GUI work
+still reads at least 100 ms, and 40 ms of work kept waiting reads under it.
+The replay contract's run budget is processor time (`RLIMIT_CPU`, the 30 s the
+row held as wall time; 60 s on Linux); its CTest timeout is a backstop for a
+hang that uses none.

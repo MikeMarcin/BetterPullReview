@@ -1619,10 +1619,11 @@ namespace bpr::adapters::github::detail {
 			const fixture_json_value& aDocument) -> bool
 		{
 			switch (aOperation) {
+			// Timeline normalization belongs to the bounded production pager.
 			case read_operation::list_pull_request_timeline:
-				return false; // Timeline normalization belongs to the bounded production pager.
+			// [[BPR-1560]]. Read and bound by its own production reader.
 			case read_operation::get_merge_base:
-				return false; // [[BPR-1560]]. Read and bound by its own production reader.
+				return false;
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
 			case read_operation::get_repository:

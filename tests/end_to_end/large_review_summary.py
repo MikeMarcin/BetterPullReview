@@ -168,6 +168,14 @@ def course(report):
             "MaxSampleCostMs": rounded(heap["MaxSampleCostMs"]),
             "LimitMiB": round(extended.get("SampledPeakHeapGrowthLimitBytes", 0) / MIB, 3),
         }
+    # BPR-1598. How much of the course the machine kept its threads waiting.
+    schedule = extended.get("Schedule", {})
+    if schedule:
+        keep["Schedule"] = {
+            key: rounded(schedule[key])
+            for key in ("WaitMeasured", "CourseWallMs", "CourseThreadWaitMs", "CourseProcessWaitMs")
+            if key in schedule
+        }
     keep["Extended"] = {
         key: rounded(extended[key])
         for key in (
