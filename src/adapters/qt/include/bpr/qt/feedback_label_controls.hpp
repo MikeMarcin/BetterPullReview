@@ -24,6 +24,7 @@
 #include <span>
 #include <vector>
 
+class QKeySequence;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -161,17 +162,20 @@ namespace bpr::qt {
 		feedback_label_control_statistics          Statistics;
 	};
 
-	/// \brief The label menu: Plain comment (⌘0), the 3×4 grid of the twelve
+	/// \brief The label menu: Plain comment, the 3×4 grid of the twelve
 	/// marks with their names, and the decorations under "Adds".
 	/// \details The decorations combine ([[BPR-1083]] v004, after the owner's
 	/// `decorations-v003`): blocking and non-blocking are one weight, so each
 	/// takes the other out, and if-minor goes with either. Custom decorations
 	/// written in the comment show as toggles too, and a field takes a new
 	/// one, as in `security`, which is written as typed.
-	/// \details A popup, so ⌘0 reaches it before Actual Size's window shortcut
-	/// and is a key of the open menu only (contract, derived). Arrow keys move through
-	/// the grid; Return or Space chooses; Esc closes. Focus returns to the body
-	/// with the caret after the prefix when it closes.
+	/// \details Arrow keys move through the grid; Return or Space chooses; Esc
+	/// closes. Focus returns to the body with the caret after the prefix when
+	/// it closes.
+	/// \details [[BPR-1569]]. Plain has no key of its own (owner, 2026-10-16).
+	/// ⌘0 is Actual Size here as everywhere else: the popup holds the
+	/// keyboard, so it closes and hands ⌘0 to its window's enabled action
+	/// bound to it, and never changes the label.
 	/// \details [[BPR-1566]]. The last item, under a rule, is About
 	/// Conventional Comments: where the labels come from, opened in the
 	/// browser. It is not a label choice, edits nothing, and closes the menu.
@@ -203,6 +207,9 @@ namespace bpr::qt {
 
 	private:
 		void choose(const core::feedback_header_edit& aEdit);
+		/// [[BPR-1569]]. Closes, and triggers the window's enabled action
+		/// bound to `aKey`, if there is one.
+		void pass_to_window(const QKeySequence& aKey);
 		void decorate(const QString& aToken, bool aWritten);
 		void add_custom();
 		void move_focus(int aRows, int aColumns);
