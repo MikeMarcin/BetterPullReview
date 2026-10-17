@@ -2571,6 +2571,16 @@ namespace {
 				   && recorded.Pair->Right.Availability == anchor_availability::available,
 			   "without a named merge base Whole PR never compares from the recorded base");
 
+		// [[BPR-1572]]. GitHub's answers disagreeing is the same refusal with
+		// its own reason.
+		const auto disputed = resolve_comparison(owner, named_selection(named_comparison::whole_pr), candidates, comparison_base_basis::disputed_base);
+		expect(disputed.Reason == epoch_reason_code::merge_base_disputed && disputed.Pair && !available_for_diff(*disputed.Pair)
+				   && disputed.Pair->Left.Availability == anchor_availability::unavailable,
+			   "GitHub's answers disagreeing never compares from the recorded base, and says so");
+		expect(retained_recorded_base(comparison_base_basis::disputed_base) && retained_recorded_base(comparison_base_basis::recorded_base)
+				   && !retained_recorded_base(comparison_base_basis::merge_base),
+			   "both refusals retain only the recorded base");
+
 		const auto upload = resolve_comparison(owner, named_selection(named_comparison::previous_upload_to_latest), candidates, comparison_base_basis::recorded_base);
 		expect(upload.Reason == epoch_reason_code::none && upload.Pair && available_for_diff(*upload.Pair) && upload.Pair->Left.Commit == previous.Head,
 			   "an interdiff between updates does not depend on the merge base");
@@ -2617,6 +2627,22 @@ namespace {
 		expect(aloneResolved.Comparison && !aloneResolved.Comparison->AvailableForDiff
 				   && std::ranges::any_of(aloneResolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_unavailable; }),
 			   "the newest update alone, from its recorded base, is unavailable and says why");
+
+		// [[BPR-1572]]. Under a disputed base, Whole PR says GitHub's answers
+		// disagree.
+		auto disputedReady                = make_ready_fixture();
+		disputedReady.State.AcceptedBasis = comparison_base_basis::disputed_base;
+		const auto  disputedWhole         = transition(disputedReady.State, select_named_comparison_intent{ .Alias = named_comparison::previous_upload_to_latest, .ExpectedCatalogRevision = disputedReady.Catalog.Revision });
+		const auto* disputedUpload        = request_from<resolve_comparison_request>(disputedWhole);
+		expect(disputedUpload != nullptr, "an interdiff selection asks for resolution under a disputed base");
+		static_cast<void>(transition(disputedReady.State, comparison_resolved_event{ .Context = disputedUpload->Context, .Candidates = { .Catalog = disputedReady.Catalog, .LatestLive = disputedReady.Epoch } }));
+		const auto  backToWhole = transition(disputedReady.State, select_named_comparison_intent{ .Alias = named_comparison::whole_pr, .ExpectedCatalogRevision = disputedReady.Catalog.Revision });
+		const auto* toDisputed  = request_from<resolve_comparison_request>(backToWhole);
+		expect(toDisputed != nullptr, "Whole PR asks for resolution under a disputed base");
+		const auto disputedResolved = transition(disputedReady.State, comparison_resolved_event{ .Context = toDisputed->Context, .Candidates = { .Catalog = disputedReady.Catalog, .LatestLive = disputedReady.Epoch } });
+		expect(disputedResolved.Comparison && !disputedResolved.Comparison->AvailableForDiff && disputedReady.State.Status == epoch_status::unavailable
+				   && std::ranges::any_of(disputedResolved.Diagnostics, [](const epoch_diagnostic& aDiagnostic) { return aDiagnostic.Code == epoch_reason_code::merge_base_disputed; }),
+			   "Whole PR under a disputed base is unavailable and says GitHub's answers disagree");
 	}
 
 	// [[BPR-1557]]. Every resolution names the pull request's base, the anchor

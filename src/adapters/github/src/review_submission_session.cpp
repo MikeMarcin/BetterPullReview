@@ -182,25 +182,44 @@ namespace bpr::adapters::github::detail {
 		if (!aLeftLine) {
 			return { };
 		}
-		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
-		// which moves when the base branch takes commits the head shares, even
-		// with the recorded base and the head unchanged.
-		auto mergeBase = compile_merge_base_observation_request(Configuration.Target, Configuration.Target.ServerContract);
-		if (!mergeBase) {
-			return std::unexpected(application::review_mutation_failure::unavailable);
+		// [[BPR-1560]], [[BPR-1572]]. A LEFT line is numbered in the merge
+		// base GitHub compares the pull request from: the base branch's merge
+		// base, or, when that names another commit, the recorded base's while
+		// the base branch only moved forward from the recorded base.
+		const auto observe = [&](const merge_base_observation_basis aBasis) -> std::expected<core::git_commit_oid, application::review_mutation_failure> {
+			auto request = compile_merge_base_observation_request(Configuration.Target, Configuration.Target.ServerContract, aBasis);
+			if (!request) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			auto  observed = perform(*request, aStop);
+			auto* success  = std::get_if<github_mutation_wire_success>(&observed);
+			if (!success || success->Response.Status != 200) {
+				note_completion(observed);
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			const auto current = parse_merge_base_observation(success->Response, Configuration.Target, aBasis);
+			if (!current) {
+				note(reason::pull_request_mismatch);
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			return *current;
+		};
+		const auto branch = observe(merge_base_observation_basis::base_branch);
+		if (!branch) {
+			return std::unexpected(branch.error());
 		}
-		auto  observedMergeBase = perform(*mergeBase, aStop);
-		auto* mergeBaseSuccess  = std::get_if<github_mutation_wire_success>(&observedMergeBase);
-		if (!mergeBaseSuccess || mergeBaseSuccess->Response.Status != 200) {
-			note_completion(observedMergeBase);
-			return std::unexpected(application::review_mutation_failure::unavailable);
+		if (*branch == application::comparison_base(Configuration.Target)) {
+			return { };
 		}
-		const auto current = parse_merge_base_observation(mergeBaseSuccess->Response, Configuration.Target);
-		if (!current) {
-			note(reason::pull_request_mismatch);
-			return std::unexpected(application::review_mutation_failure::undesignated_target);
+		const auto recorded = observe(merge_base_observation_basis::recorded_base);
+		if (!recorded) {
+			return std::unexpected(recorded.error());
 		}
-		if (*current != application::comparison_base(Configuration.Target)) {
+		const auto ancestry = observe(merge_base_observation_basis::base_ancestry);
+		if (!ancestry) {
+			return std::unexpected(ancestry.error());
+		}
+		if (!left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry)) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };

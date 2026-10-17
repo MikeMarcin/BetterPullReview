@@ -114,8 +114,12 @@ def main() -> int:
     # pack cannot represent, and serving it would name commits that are not in
     # `objects.pack`. Refuse rather than generate a fixture that fails at
     # import.
+    # [[BPR-1572]]. A constructed recording whose own builder packed every
+    # commit it lists says so with `packed_history`; its commits must still end
+    # at the head.
     recorded = [commit["sha"] for commit in recording["commits"]]
-    if recorded != [pull["head"]["sha"]]:
+    packed = recording.get("packed_history") is True and recorded and recorded[-1] == pull["head"]["sha"]
+    if recorded != [pull["head"]["sha"]] and not packed:
         print(
             f"CONTRACT_REFUSED:{slug}#{number}: the pack represents one head "
             f"commit, and this recording names {len(recorded)} commit(s) "
@@ -187,12 +191,17 @@ def main() -> int:
         }
         for entry in recording["files"]
     ])
+    # A packed history's earlier commits are its builder's own and are served
+    # as they are; the head is the placeholder in either case.
+    def served(commit: dict) -> str:
+        return commit["sha"] if packed and commit["sha"] != pull["head"]["sha"] else HEAD_OID_PLACEHOLDER
+
     write(root / "responses/commits.json", [
         {
             "author": {"login": login, "node_id": f"U_{login}"},
             "commit": {"message": commit["message"]},
-            "node_id": f"C_{HEAD_OID_PLACEHOLDER[:8]}",
-            "sha": HEAD_OID_PLACEHOLDER,
+            "node_id": f"C_{served(commit)[:8]}",
+            "sha": served(commit),
         }
         for commit in recording["commits"]
     ])

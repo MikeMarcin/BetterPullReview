@@ -1051,8 +1051,10 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed intraline changes",
 				};
-			// [[BPR-1560]]. Served like nested-folders: github.com, one head.
+			// [[BPR-1560]], [[BPR-1572]]. Served like nested-folders: github.com,
+			// one head.
 			case detail::github_public_path_fixture::merge_base_v1:
+			case detail::github_public_path_fixture::stacked_merge_base_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },

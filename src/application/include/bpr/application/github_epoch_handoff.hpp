@@ -303,7 +303,7 @@ namespace bpr::application {
 			&& aHandoff.Head.algorithm() == aHandoff.ObjectFormat
 			&& (!aHandoff.RecordedBase.valid() || aHandoff.RecordedBase.algorithm() == aHandoff.ObjectFormat)
 			&& (aHandoff.BaseBasis == core::comparison_base_basis::merge_base
-				|| (aHandoff.BaseBasis == core::comparison_base_basis::recorded_base && aHandoff.Base == recorded_base(aHandoff)))
+				|| (core::retained_recorded_base(aHandoff.BaseBasis) && aHandoff.Base == recorded_base(aHandoff)))
 			&& (!aHandoff.CurrentViewerReview
 				|| application::valid(
 					*aHandoff.CurrentViewerReview,

@@ -78,6 +78,12 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1560]]. REST compare: the merge base GitHub numbers a LEFT
 		/// line in now, asked before anything on a LEFT line is published.
 		observe_merge_base,
+		/// [[BPR-1572]]. REST compare of the recorded base and the expected
+		/// head, asked when the base branch names another merge base.
+		observe_recorded_merge_base,
+		/// [[BPR-1572]]. REST compare of the recorded base and the base
+		/// branch: whether the branch only moved forward from it.
+		observe_base_ancestry,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -374,19 +380,49 @@ namespace bpr::adapters::github::detail {
 	/// \brief Validates stable PR identity for read-only recovery, ignoring revision movement.
 	[[nodiscard]] auto parse_review_submission_recovery_target(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aExpected) -> review_mutation_parse_result<void>;
 
-	/// \brief [[BPR-1560]]. Compiles GitHub's compare of the target's base
-	/// branch and exactly its expected head, on the page with no file list.
+	/// \brief [[BPR-1572]]. Which pair a merge-base observation compares:
+	/// the base branch and the expected head (`observe_merge_base`), the
+	/// recorded base and the expected head (`observe_recorded_merge_base`), or
+	/// the recorded base and the base branch (`observe_base_ancestry`, whose
+	/// merge base is the recorded base exactly when the branch only moved
+	/// forward from it).
+	enum class merge_base_observation_basis : std::uint8_t {
+		base_branch,
+		recorded_base,
+		base_ancestry,
+	};
+
+	/// \brief [[BPR-1560]]. Compiles GitHub's compare of the pair `aBasis`
+	/// names, on the page with no file list.
 	[[nodiscard]] auto compile_merge_base_observation_request(
 		const application::review_mutation_target_binding& aTarget,
-		application::github_server_contract                aServer)
+		application::github_server_contract                aServer,
+		merge_base_observation_basis                       aBasis = merge_base_observation_basis::base_branch)
 		-> review_mutation_request_result;
 
 	/// \brief [[BPR-1560]]. The merge base GitHub's compare names for the
-	/// target's base branch and expected head; the answer must echo that head.
+	/// pair `aBasis` names; the answer must echo that pair's head, and for a
+	/// pair from the recorded base, name it as its base commit.
 	[[nodiscard]] auto parse_merge_base_observation(
 		const review_mutation_wire_response&               aResponse,
-		const application::review_mutation_target_binding& aExpected)
+		const application::review_mutation_target_binding& aExpected,
+		merge_base_observation_basis                       aBasis = merge_base_observation_basis::base_branch)
 		-> review_mutation_parse_result<core::git_commit_oid>;
+
+	/// \brief [[BPR-1572]]. Whether GitHub still numbers LEFT lines in the
+	/// target's comparison base, from the answers asked for it: the base
+	/// branch's merge base, and only when that is another commit, the recorded
+	/// base's merge base and the recorded base's against the base branch.
+	/// GitHub compares a pull request from the merge base of its recorded base
+	/// and head while the base branch only moves forward from that base, so
+	/// a base branch naming another merge base still keeps the lines when
+	/// the recorded base's merge base is the comparison base and the recorded
+	/// base is an ancestor of the branch.
+	[[nodiscard]] auto left_lines_numbered_in_comparison_base(
+		const application::review_mutation_target_binding& aTarget,
+		const core::git_commit_oid&                        aBranchMergeBase,
+		const std::optional<core::git_commit_oid>&         aRecordedMergeBase,
+		const std::optional<core::git_commit_oid>&         aAncestryMergeBase) noexcept -> bool;
 
 	[[nodiscard]] auto parse_target_observation(
 		const review_mutation_wire_response&               aResponse,

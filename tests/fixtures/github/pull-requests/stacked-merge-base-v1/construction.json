@@ -1,0 +1,79 @@
+{
+	"branch_tip": "513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9",
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "the pull request's first commit",
+			"parents": [
+				"67b31e41c9867713d769174f7d631fbddfc05a6e"
+			],
+			"sha": "513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9"
+		},
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "the pull request's second commit",
+			"parents": [
+				"513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9"
+			],
+			"sha": "d160ec81ebe09b21894732b84f4f7ce3aea82258"
+		}
+	],
+	"constructed": "Synthetic BPR-1572 stacked merge-base course written by scripts/build_stacked_merge_base_fixture.py; not a recording",
+	"files": [
+		{
+			"additions": 1,
+			"base_content_base64": "eCBsaW5lIDEKeCBsaW5lIDIKeCBsaW5lIDMKeCBsaW5lIDQKeCBsaW5lIDUKeCBsaW5lIDYKeCBsaW5lIDcKeCBsaW5lIDgKeCBsaW5lIDkKeCBsaW5lIDEwCnggbGluZSAxMQp4IGxpbmUgMTIKeCBsaW5lIDEzCnggbGluZSAxNAp4IGxpbmUgMTUKeCBsaW5lIDE2CnggbGluZSAxNwp4IGxpbmUgMTgKeCBsaW5lIDE5CnggbGluZSAyMAp4IGxpbmUgMjEKeCBsaW5lIDIyCnggbGluZSAyMwp4IGxpbmUgMjQKeCBsaW5lIDI1CnggbGluZSAyNgp4IGxpbmUgMjcKeCBsaW5lIDI4CnggbGluZSAyOQp4IGxpbmUgMzAK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "x.txt",
+			"head_content_base64": "eCBsaW5lIDEKeCBsaW5lIDIKeCBsaW5lIDMgQi0xCnggbGluZSA0CnggbGluZSA1CnggbGluZSA2CnggbGluZSA3CnggbGluZSA4CnggbGluZSA5CnggbGluZSAxMAp4IGxpbmUgMTEKeCBsaW5lIDEyCnggbGluZSAxMwp4IGxpbmUgMTQKeCBsaW5lIDE1CnggbGluZSAxNgp4IGxpbmUgMTcKeCBsaW5lIDE4CnggbGluZSAxOQp4IGxpbmUgMjAKeCBsaW5lIDIxCnggbGluZSAyMgp4IGxpbmUgMjMKeCBsaW5lIDI0CnggbGluZSAyNQp4IGxpbmUgMjYKeCBsaW5lIDI3CnggbGluZSAyOAp4IGxpbmUgMjkKeCBsaW5lIDMwCg==",
+			"patch": "@@ -1,6 +1,6 @@\n x line 1\n x line 2\n-x line 3\n+x line 3 B-1\n x line 4\n x line 5\n x line 6",
+			"sha": "4b050360cad9cd7c7a4c60789b78a689f0c786fe",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "eSBsaW5lIDEKeSBsaW5lIDIKeSBsaW5lIDMKeSBsaW5lIDQKeSBsaW5lIDUKeSBsaW5lIDYKeSBsaW5lIDcKeSBsaW5lIDgKeSBsaW5lIDkKeSBsaW5lIDEwCnkgbGluZSAxMQp5IGxpbmUgMTIKeSBsaW5lIDEzCnkgbGluZSAxNAp5IGxpbmUgMTUKeSBsaW5lIDE2CnkgbGluZSAxNwp5IGxpbmUgMTgKeSBsaW5lIDE5CnkgbGluZSAyMAp5IGxpbmUgMjEKeSBsaW5lIDIyCnkgbGluZSAyMwp5IGxpbmUgMjQKeSBsaW5lIDI1CnkgbGluZSAyNgp5IGxpbmUgMjcKeSBsaW5lIDI4CnkgbGluZSAyOQp5IGxpbmUgMzAK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "y.txt",
+			"head_content_base64": "eSBsaW5lIDEKeSBsaW5lIDIKeSBsaW5lIDMgQi0yCnkgbGluZSA0CnkgbGluZSA1CnkgbGluZSA2CnkgbGluZSA3CnkgbGluZSA4CnkgbGluZSA5CnkgbGluZSAxMAp5IGxpbmUgMTEKeSBsaW5lIDEyCnkgbGluZSAxMwp5IGxpbmUgMTQKeSBsaW5lIDE1CnkgbGluZSAxNgp5IGxpbmUgMTcKeSBsaW5lIDE4CnkgbGluZSAxOQp5IGxpbmUgMjAKeSBsaW5lIDIxCnkgbGluZSAyMgp5IGxpbmUgMjMKeSBsaW5lIDI0CnkgbGluZSAyNQp5IGxpbmUgMjYKeSBsaW5lIDI3CnkgbGluZSAyOAp5IGxpbmUgMjkKeSBsaW5lIDMwCg==",
+			"patch": "@@ -1,6 +1,6 @@\n y line 1\n y line 2\n-y line 3\n+y line 3 B-2\n y line 4\n y line 5\n y line 6",
+			"sha": "6709a0a046b1b5ca22f640c0ccf3bea2f5f1a50a",
+			"status": "modified"
+		}
+	],
+	"merge_base": "67b31e41c9867713d769174f7d631fbddfc05a6e",
+	"packed_history": true,
+	"pull_request": {
+		"additions": 2,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "feature-a",
+			"sha": "67b31e41c9867713d769174f7d631fbddfc05a6e"
+		},
+		"body": "Synthetic course: the base branch fast-forwarded to the head's first commit.\n",
+		"changed_files": 2,
+		"commits": 2,
+		"deletions": 2,
+		"head": {
+			"ref": "feature-b",
+			"sha": "d160ec81ebe09b21894732b84f4f7ce3aea82258"
+		},
+		"number": 1572,
+		"state": "open",
+		"title": "A stacked pull request whose base branch took its first commit"
+	},
+	"repository": {
+		"name": "stacked-merge-base",
+		"owner": "bpr-fixtures"
+	}
+}

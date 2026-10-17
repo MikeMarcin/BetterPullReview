@@ -5,11 +5,22 @@ Builds a stacked pull request B whose base is branch A (A forked from a
 scratch main, B three commits on A), then lets A take B's commits while
 GitHub keeps B's recorded base (`base.sha`):
 
+    --variant merge (default)
     1-open           A at a1, B = a1 + b1 + b2 + b3; both merge bases agree
     2-A-merges-b1    A merges b1: the base branch's merge base is b1, the
                      recorded base's stays a1, and GitHub's Files changed
                      still lists x.txt, y.txt and z.txt (from a1)
     3-A-merges-all   A merges all of B: GitHub marks B merged (closed)
+
+    --variant ff
+    2-A-ff-to-b1     A fast-forwarded to b1 (merge bases b1 and a1)
+    3-A-ff-to-b2     A fast-forwarded to b2 (merge bases b2 and a1)
+    4-push-to-B      an ordinary push to B: `base.sha` stays a1
+
+    --variant rebase
+    2-A-rebased      A force-pushed onto a newer main: GitHub resets
+                     `base.sha` to A's new tip; both merge bases agree
+    3-B-rebased      B rebased onto A and force-pushed
 
 After each step it runs the shipped composition offscreen through
 `live_second_account_course --course parity` on one persistent data root and
@@ -100,7 +111,8 @@ class Course:
             (folder / f"{name}.txt").write_text("".join(f"{name} line {n}\n" for n in range(1, 31)))
         self.git("add", "-A")
         self.git("commit", "-q", "-m", f"{self.prefix}: scratch main")
-        self.push(self.git("rev-parse", "HEAD"), self.main)
+        self.commits["M0"] = self.git("rev-parse", "HEAD")
+        self.push(self.commits["M0"], self.main)
         self.push(self.change("a1", "w.txt", 1, "w line 1 A-1"), self.a)
         self.change("b1", "x.txt", 3, "x line 3 B-1")
         self.change("b2", "y.txt", 3, "y line 3 B-2")
@@ -148,11 +160,32 @@ class Course:
     def course(self) -> None:
         self.setup()
         self.observe("1-open")
-        self.merge_into_a("A merges b1", self.commits["b1"])
-        self.observe("2-A-merges-b1", expect_mismatch=self.arguments.negative_control)
-        if not self.arguments.negative_control:
-            self.merge_into_a("A merges all of B", self.commits["b3"])
-            self.observe("3-A-merges-all")
+        control = self.arguments.negative_control
+        if self.arguments.variant == "merge":
+            self.merge_into_a("A merges b1", self.commits["b1"])
+            self.observe("2-A-merges-b1", expect_mismatch=control)
+            if not control:
+                self.merge_into_a("A merges all of B", self.commits["b3"])
+                self.observe("3-A-merges-all")
+        elif self.arguments.variant == "ff":
+            self.push(self.commits["b1"], self.a)
+            self.observe("2-A-ff-to-b1", expect_mismatch=control)
+            self.push(self.commits["b2"], self.a)
+            self.observe("3-A-ff-to-b2", expect_mismatch=control)
+            self.git("switch", "-q", "--detach", self.commits["b3"])
+            self.push(self.change("b4", "z.txt", 20, "z line 20 B-4"), self.b)
+            self.observe("4-push-to-B", expect_mismatch=control)
+        else:
+            self.git("switch", "-q", "--detach", self.commits["M0"])
+            self.push(self.change("M1", "w.txt", 25, "w line 25 MAIN-1"), self.main)
+            self.git("cherry-pick", self.commits["a1"])
+            self.commits["a1-rebased"] = self.git("rev-parse", "HEAD")
+            self.git("push", "-q", "--force", "origin", f"{self.commits['a1-rebased']}:refs/heads/{self.a}")
+            self.observe("2-A-rebased")
+            self.git("cherry-pick", self.commits["b1"], self.commits["b2"], self.commits["b3"])
+            self.commits["b3-rebased"] = self.git("rev-parse", "HEAD")
+            self.git("push", "-q", "--force", "origin", f"{self.commits['b3-rebased']}:refs/heads/{self.b}")
+            self.observe("3-B-rebased")
 
     def cleanup(self) -> None:
         if self.pull:
@@ -166,6 +199,7 @@ def main() -> int:
     parser.add_argument("--build", required=True)
     parser.add_argument("--work", required=True)
     parser.add_argument("--prefix", required=True)
+    parser.add_argument("--variant", choices=("merge", "ff", "rebase"), default="merge")
     parser.add_argument("--negative-control", action="store_true")
     parser.add_argument("--cleanup", action="store_true")
     arguments = parser.parse_args()

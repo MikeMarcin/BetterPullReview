@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "feature-a",
+		"repo": {
+			"full_name": "bpr-fixtures/stacked-merge-base",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Synthetic course: the base branch fast-forwarded to the head's first commit.\n",
+	"changed_files": 2,
+	"commits": 2,
+	"draft": false,
+	"head": {
+		"ref": "feature-b",
+		"repo": {
+			"full_name": "bpr-fixtures/stacked-merge-base",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_1572",
+	"number": 1572,
+	"state": "open",
+	"title": "A stacked pull request whose base branch took its first commit",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

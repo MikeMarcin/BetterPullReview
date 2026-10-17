@@ -1,0 +1,36 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_stacked-merge-base",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "x.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "y.txt",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/stacked-merge-base:1572:files",
+						"hasNextPage": false
+					},
+					"totalCount": 2
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_1572",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

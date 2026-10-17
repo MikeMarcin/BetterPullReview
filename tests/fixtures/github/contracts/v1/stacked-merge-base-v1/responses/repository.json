@@ -1,0 +1,11 @@
+{
+	"default_branch": "feature-a",
+	"full_name": "bpr-fixtures/stacked-merge-base",
+	"id": 2,
+	"name": "stacked-merge-base",
+	"node_id": "R_stacked-merge-base",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

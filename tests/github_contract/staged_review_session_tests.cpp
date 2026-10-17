@@ -174,6 +174,9 @@ namespace {
 		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
 		/// merge base, which numbers LEFT lines, is no longer the target's.
 		bool        MovedMergeBase = false;
+		/// [[BPR-1572]]. The base branch names another merge base: 1, it only
+		/// moved forward from the recorded base; 2, it was rewritten.
+		int StackedBase = 0;
 		std::size_t MergeBaseReads = 0U;
 		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
@@ -351,9 +354,22 @@ namespace {
 				const auto head = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 				if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "?page=2&per_page=1") {
 					++MergeBaseReads;
-					const auto mergeBase = MovedMergeBase ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
+					const auto mergeBase = MovedMergeBase || StackedBase != 0 ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
 					return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b')
 							  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+				}
+				// [[BPR-1572]]. The recorded base against the head, and against
+				// the base branch.
+				const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+				for (const auto& pairHead : { head, target().BaseRef }) {
+					if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + pairHead + "?page=2&per_page=1") {
+						++MergeBaseReads;
+						const auto mergeBase = pairHead == head ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
+							: StackedBase == 1                  ? recorded
+																: std::string(40U, 'e');
+						return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recorded + "..." + pairHead + "\",\"base_commit\":{\"sha\":\"" + recorded
+								  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+					}
 				}
 				expect(false, "fixture answers only independently named read endpoints");
 			}
@@ -510,8 +526,26 @@ namespace {
 			remote.MovedMergeBase = true;
 			auto       provider   = session(remote, root.Path);
 			const auto result     = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
-			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 1U,
+			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
 				   "a moved merge base refuses a tour with a LEFT stop before any write");
+		}
+		for (const int stacked : { 1, 2 }) {
+			// [[BPR-1572]]. The base branch names another merge base. Moved only
+			// forward from the recorded base, GitHub still numbers LEFT in the
+			// recorded base's merge base and the tour is published; rewritten,
+			// nothing is written.
+			scratch root;
+			server  remote;
+			remote.StackedBase = stacked;
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			if (stacked == 1) {
+				expect(result.State == publication_state::published && remote.Writes > 0 && remote.MergeBaseReads >= 3U,
+					   "a base branch that only moved forward keeps a tour's LEFT stop and the tour is published");
+			} else {
+				expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
+					   "a rewritten base branch refuses a tour with a LEFT stop before any write");
+			}
 		}
 		for (const std::size_t stopped : { std::size_t{ 0U }, std::size_t{ 2U } }) {
 			// [[BPR-1560]]. A resumed tour asks again: the journal was admitted

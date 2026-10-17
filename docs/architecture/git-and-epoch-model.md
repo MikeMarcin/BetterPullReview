@@ -275,7 +275,12 @@ one to six seconds after the branch is force-pushed. So when the branch names
 another merge base, the recorded base's is accepted only while GitHub's commit
 count for the pull request equals that pair's `ahead_by` and `base.sha` is an
 ancestor of the tip the branch answer resolved; otherwise the merge base is
-refused (GitHub is replacing `base.sha`, or its answers disagree). The recorded base is not compared from. GitHub keeps
+refused (GitHub is replacing `base.sha`, or its answers disagree), and Whole
+PR says GitHub's answers disagree (`comparison_base_basis::disputed_base`,
+reason `merge_base_disputed`) rather than that GitHub named none. Before a
+`LEFT` line is published the same rule is asked again: the base branch's merge
+base, and when it names another commit, the recorded base's merge base and the
+recorded base against the base branch. The recorded base is not compared from. GitHub keeps
 it ahead of the merge base whenever the base branch moved before the pull
 request opened or before a force push; a two-dot comparison from it reverts the
 base branch's own changes and hides the pull request's changes the base branch

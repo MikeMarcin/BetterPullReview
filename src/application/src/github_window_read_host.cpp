@@ -591,7 +591,10 @@ namespace bpr::application {
 				.CurrentViewerReview   = std::move(currentReview),
 			};
 			handoff.RecordedBase = *base;
-			handoff.BaseBasis    = mergeBase ? core::comparison_base_basis::merge_base : core::comparison_base_basis::recorded_base;
+			// [[BPR-1572]]. GitHub's answers disagreeing is said as such.
+			handoff.BaseBasis = mergeBase ? core::comparison_base_basis::merge_base
+				: aSnapshot.MergeBaseAvailability == github_merge_base_availability::refused ? core::comparison_base_basis::disputed_base
+																							 : core::comparison_base_basis::recorded_base;
 			handoff.Shape        = accepted_pull_request_shape{
 				.FileCount           = aSnapshot.Files.size(),
 				.ReturnedCommitCount = aSnapshot.Commits.size(),

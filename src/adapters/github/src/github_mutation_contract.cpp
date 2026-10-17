@@ -2202,6 +2202,8 @@ namespace bpr::adapters::github::detail {
 		case operation::observe_review_comments:
 		case operation::observe_reviews:
 		case operation::observe_merge_base:
+		case operation::observe_recorded_merge_base:
+		case operation::observe_base_ancestry:
 			return review_mutation_exchange{ };
 		case operation::create_review_comment:
 			return review_mutation_exchange{
@@ -2257,20 +2259,30 @@ namespace bpr::adapters::github::detail {
 
 	auto compile_merge_base_observation_request(
 		const application::review_mutation_target_binding& aTarget,
-		const application::github_server_contract          aServer)
+		const application::github_server_contract          aServer,
+		const merge_base_observation_basis                 aBasis)
 		-> review_mutation_request_result
 	{
 		if (!application::valid(aTarget) || !valid_server(aServer) || aTarget.BaseRef.empty() || aTarget.BaseRef.size() > 256U
-			|| std::ranges::any_of(aTarget.BaseRef, [](const unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; })) {
+			|| std::ranges::any_of(aTarget.BaseRef, [](const unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; })
+			|| (aBasis != merge_base_observation_basis::base_branch && aBasis != merge_base_observation_basis::recorded_base
+				&& aBasis != merge_base_observation_basis::base_ancestry)) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
+		const auto head     = std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() };
+		const auto recorded = std::string{ core::canonical_hex(aTarget.BaseOid).view() };
+		const auto pair     = aBasis == merge_base_observation_basis::base_branch ? percent_encode(aTarget.BaseRef) + "..." + head
+				: aBasis == merge_base_observation_basis::recorded_base           ? recorded + "..." + head
+																				  : recorded + "..." + percent_encode(aTarget.BaseRef);
 		return review_mutation_wire_request{
 			.Semantic  = aTarget,
 			.Server    = aServer,
-			.Operation = review_mutation_operation::observe_merge_base,
+			.Operation = aBasis == merge_base_observation_basis::base_branch ? review_mutation_operation::observe_merge_base
+				: aBasis == merge_base_observation_basis::recorded_base      ? review_mutation_operation::observe_recorded_merge_base
+																			 : review_mutation_operation::observe_base_ancestry,
 			.Method    = http_method::get,
 			.Path      = std::string{ rest_prefix(aServer) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name)
-				+ "/compare/" + percent_encode(aTarget.BaseRef) + "..." + std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() } + "?page=2&per_page=1",
+				+ "/compare/" + pair + "?page=2&per_page=1",
 			.Headers = common_headers(),
 			.Body    = { },
 		};
@@ -2278,7 +2290,8 @@ namespace bpr::adapters::github::detail {
 
 	auto parse_merge_base_observation(
 		const review_mutation_wire_response&               aResponse,
-		const application::review_mutation_target_binding& aExpected)
+		const application::review_mutation_target_binding& aExpected,
+		const merge_base_observation_basis                 aBasis)
 		-> review_mutation_parse_result<core::git_commit_oid>
 	{
 		if (!application::valid(aExpected)) {
@@ -2294,10 +2307,27 @@ namespace bpr::adapters::github::detail {
 		const auto head      = std::string{ core::canonical_hex(aExpected.Semantic.ExpectedHead).view() };
 		const auto base      = core::parse_git_commit_oid(response->BaseCommit.Sha);
 		const auto mergeBase = core::parse_git_commit_oid(response->MergeBaseCommit.Sha);
-		if (!response->Url.ends_with("..." + head) || !base || !mergeBase || mergeBase->algorithm() != aExpected.Semantic.ExpectedHead.algorithm()) {
+		// GitHub echoes the pair in `url`; a branch named as the head comes
+		// back as its name, decoded or as asked.
+		const auto echoed = aBasis == merge_base_observation_basis::base_ancestry
+			? response->Url.ends_with("..." + aExpected.BaseRef) || response->Url.ends_with("..." + percent_encode(aExpected.BaseRef))
+			: response->Url.ends_with("..." + head);
+		if (!echoed || !base || !mergeBase || mergeBase->algorithm() != aExpected.Semantic.ExpectedHead.algorithm()
+			|| (aBasis != merge_base_observation_basis::base_branch && *base != aExpected.BaseOid)) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return *mergeBase;
+	}
+
+	auto left_lines_numbered_in_comparison_base(
+		const application::review_mutation_target_binding& aTarget,
+		const core::git_commit_oid&                        aBranchMergeBase,
+		const std::optional<core::git_commit_oid>&         aRecordedMergeBase,
+		const std::optional<core::git_commit_oid>&         aAncestryMergeBase) noexcept -> bool
+	{
+		const auto comparisonBase = application::comparison_base(aTarget);
+		return aBranchMergeBase == comparisonBase
+			|| (aRecordedMergeBase && aAncestryMergeBase && *aRecordedMergeBase == comparisonBase && *aAncestryMergeBase == aTarget.BaseOid);
 	}
 
 	auto compile_viewer_observation_request(
@@ -2562,6 +2592,10 @@ namespace bpr::adapters::github::detail {
 							? compile_review_comment_collection_request(aSemantic, aRequest.Server, collection_page(aRequest.Path))
 							: aRequest.Operation == review_mutation_operation::observe_merge_base
 							? compile_merge_base_observation_request(aSemantic, aRequest.Server)
+							: aRequest.Operation == review_mutation_operation::observe_recorded_merge_base
+							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::recorded_base)
+							: aRequest.Operation == review_mutation_operation::observe_base_ancestry
+							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::base_ancestry)
 							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
@@ -3310,24 +3344,45 @@ namespace bpr::adapters::github::detail {
 		if (!aLeftLine) {
 			return { };
 		}
-		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
-		// which moves when the base branch takes commits the head shares, even
-		// with the recorded base and the head unchanged.
-		const auto mergeBaseRequest = compile_merge_base_observation_request(
-			Configuration.Target,
-			Configuration.CredentialContext.Authority.ServerContract);
-		if (!mergeBaseRequest.has_value()) {
-			return std::unexpected(map_contract_failure(mergeBaseRequest.error()));
+		// [[BPR-1560]], [[BPR-1572]]. A LEFT line is numbered in the merge
+		// base GitHub compares the pull request from. The base branch's merge
+		// base naming it settles it; otherwise GitHub still numbers in it only
+		// while it is the recorded base's merge base and the base branch only
+		// moved forward from the recorded base.
+		const auto observe = [&](const merge_base_observation_basis aBasis) -> std::expected<core::git_commit_oid, application::review_mutation_failure> {
+			const auto request = compile_merge_base_observation_request(
+				Configuration.Target,
+				Configuration.CredentialContext.Authority.ServerContract,
+				aBasis);
+			if (!request.has_value()) {
+				return std::unexpected(map_contract_failure(request.error()));
+			}
+			auto response = perform(*request, aStop);
+			if (!response.has_value()) {
+				return std::unexpected(response.error());
+			}
+			const auto mergeBase = parse_merge_base_observation(*response, Configuration.Target, aBasis);
+			if (!mergeBase.has_value()) {
+				return std::unexpected(map_contract_failure(mergeBase.error()));
+			}
+			return *mergeBase;
+		};
+		const auto branch = observe(merge_base_observation_basis::base_branch);
+		if (!branch.has_value()) {
+			return std::unexpected(branch.error());
 		}
-		auto mergeBaseResponse = perform(*mergeBaseRequest, aStop);
-		if (!mergeBaseResponse.has_value()) {
-			return std::unexpected(mergeBaseResponse.error());
+		if (*branch == application::comparison_base(Configuration.Target)) {
+			return { };
 		}
-		const auto mergeBase = parse_merge_base_observation(*mergeBaseResponse, Configuration.Target);
-		if (!mergeBase.has_value()) {
-			return std::unexpected(map_contract_failure(mergeBase.error()));
+		const auto recorded = observe(merge_base_observation_basis::recorded_base);
+		if (!recorded.has_value()) {
+			return std::unexpected(recorded.error());
 		}
-		if (*mergeBase != application::comparison_base(Configuration.Target)) {
+		const auto ancestry = observe(merge_base_observation_basis::base_ancestry);
+		if (!ancestry.has_value()) {
+			return std::unexpected(ancestry.error());
+		}
+		if (!left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry)) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };

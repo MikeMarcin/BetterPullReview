@@ -192,6 +192,13 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "merge-base", 1560),
         "mirrors": None,
     },
+    # [[BPR-1572]]. A stacked pull request whose base branch took its first
+    # commit, written by scripts/build_stacked_merge_base_fixture.py.
+    "stacked-merge-base-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "stacked-merge-base", 1572),
+        "mirrors": None,
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {

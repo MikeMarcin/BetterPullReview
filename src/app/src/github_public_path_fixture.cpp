@@ -310,6 +310,12 @@ namespace bpr::app::detail {
 			/// branch and a served head, when the recorded base is ahead of it.
 			/// Empty: the recorded base is the merge base.
 			std::string_view MergeBaseOid;
+			/// [[BPR-1572]]. A stacked course: the base branch's tip, one of the
+			/// head's own commits, which its compare names as merge base, and
+			/// the pull request's commit count. Empty: the base branch's tip is
+			/// the recorded base.
+			std::string_view BranchTipOid;
+			std::uint64_t    Commits = 1U;
 		};
 
 		/// \brief The rewritten-base course's separate root: it shares no
@@ -744,6 +750,33 @@ namespace bpr::app::detail {
 					.Packs               = { .File = "merge-base-v1/objects.pack" },
 					.MergeBaseOid        = "cde0ff87f86343772d79af44761f472b818db1a5",
 				};
+			// [[BPR-1572]]. Constructed by
+			// `scripts/build_stacked_merge_base_fixture.py`: the recorded base
+			// A1 is the merge base; the base branch fast-forwarded to B1, the
+			// first of the head's two commits.
+			case github_public_path_fixture::stacked_merge_base_v1:
+				return {
+					.ContractDirectory   = "stacked-merge-base-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 1572U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "stacked-merge-base",
+					.BaseRef             = "refs/heads/feature-a",
+					.BaseOid             = "67b31e41c9867713d769174f7d631fbddfc05a6e",
+					.HeadOneOid          = "d160ec81ebe09b21894732b84f4f7ce3aea82258",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "stacked-merge-base-v1/objects.pack" },
+					.MergeBaseOid        = "67b31e41c9867713d769174f7d631fbddfc05a6e",
+					.BranchTipOid        = "513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9",
+					.Commits             = 2U,
+				};
 			}
 			return { };
 		}
@@ -795,8 +828,12 @@ namespace bpr::app::detail {
 		/// request: its base branch's tip (the recorded base) or the commit
 		/// asked for, and the merge base. A base that shares no history with
 		/// the head has none, which GitHub answers with not found.
+		/// [[BPR-1572]]. A stacked descriptor's answers carry `ahead_by`: the
+		/// base branch names its tip, one of the head's commits; the recorded
+		/// base names itself against the head and against that tip, unless the
+		/// course says the branch was rewritten.
 		[[nodiscard]] auto merge_base_response(const fixture_descriptor& aDescriptor, const adapters::github::detail::wire_request& aRequest, const bool aUnrelatedBase,
-											   const bool aUnavailable, const bool aUnauthorized = false) -> wire_response
+											   const bool aUnavailable, const bool aUnauthorized = false, const bool aStackedRewritten = false) -> wire_response
 		{
 			auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Completeness = page_completeness::complete };
 			if (aUnauthorized) {
@@ -805,6 +842,20 @@ namespace bpr::app::detail {
 			} else if (aUnavailable || aUnrelatedBase) {
 				response.Status = aUnavailable ? 500 : 404;
 				response.Body   = aUnavailable ? R"({"message":"fixture compare unavailable"})" : R"({"message":"Not Found"})";
+			} else if (!aDescriptor.BranchTipOid.empty()) {
+				const auto byBranch = !aRequest.Semantic.BranchRef.empty();
+				const auto ancestry = !byBranch && aRequest.Semantic.HeadOid == aDescriptor.BranchTipOid;
+				const auto tip      = byBranch ? std::string{ aDescriptor.BranchTipOid } : aRequest.Semantic.BaseOid;
+				const auto asked    = byBranch ? aRequest.Semantic.BranchRef : aRequest.Semantic.BaseOid;
+				// A rewritten branch's tip shares only the fork point with the
+				// recorded base; any commit other than it serves as that answer.
+				const auto mergeBase = byBranch ? std::string{ aDescriptor.BranchTipOid }
+					: ancestry && aStackedRewritten ? std::string{ aDescriptor.HeadOneOid }
+													: std::string{ aDescriptor.MergeBaseOid };
+				const auto ahead     = byBranch ? aDescriptor.Commits - 1U : ancestry ? 1U : aDescriptor.Commits;
+				response.Body        = R"({"url":"https://api.github.com/repos/)" + aRequest.Semantic.Owner + "/" + aRequest.Semantic.Repository + "/compare/" + asked + "..."
+					+ aRequest.Semantic.HeadOid + R"(","status":"ahead","ahead_by":)" + std::to_string(ahead) + R"(,"total_commits":)" + std::to_string(ahead)
+					+ R"(,"base_commit":{"sha":")" + tip + R"("},"merge_base_commit":{"sha":")" + mergeBase + R"("},"commits":[],"files":[]})";
 			} else {
 				const auto tip       = aRequest.Semantic.BranchRef.empty() ? aRequest.Semantic.BaseOid : std::string{ aDescriptor.BaseOid };
 				const auto mergeBase = aDescriptor.MergeBaseOid.empty() ? std::string{ aDescriptor.BaseOid } : std::string{ aDescriptor.MergeBaseOid };
@@ -1803,6 +1854,7 @@ namespace bpr::app::detail {
 			bool        MergeBaseUnavailable   = false;
 			bool        MergeBaseRace          = false;
 			bool        MergeBaseUnauthorized  = false;
+			bool        StackedBaseRewritten   = false;
 			// The pull request each snapshot read was served, by its parent,
 			// until that read asks for it again to confirm its merge base.
 			std::vector<std::pair<adapters::github::detail::github_wire_parent_context, wire_response>> ServedPullRequests;
@@ -2694,7 +2746,7 @@ namespace bpr::app::detail {
 					++State->MergeBaseReads;
 					return github_wire_success{ .Correlation = aRequest.Correlation,
 												.Response    = merge_base_response(State->Descriptor, aRequest.Wire, State->RewrittenBase && State->Descriptor.BaseOid == rewritten_base_oid, State->MergeBaseUnavailable,
-																				   State->MergeBaseUnauthorized) };
+																				   State->MergeBaseUnauthorized, State->StackedBaseRewritten) };
 				}
 				// [[BPR-1560]]. The pull request a snapshot read asks for again,
 				// after its merge base or a remembered one, is the one it was
@@ -4812,6 +4864,7 @@ namespace bpr::app::detail {
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->MergeBaseUnavailable    = aOptions.MergeBaseUnavailable;
 			Recording->MergeBaseRace           = aOptions.MergeBaseRace;
+			Recording->StackedBaseRewritten    = aOptions.StackedBaseRewritten;
 			Recording->MergeBaseUnauthorized   = aOptions.MergeBaseUnauthorized;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);

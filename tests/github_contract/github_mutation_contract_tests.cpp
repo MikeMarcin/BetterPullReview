@@ -539,6 +539,12 @@ namespace {
 		case operation::observe_merge_base:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1",
 								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/main...1111111111111111111111111111111111111111?page=2&per_page=1", "" };
+		case operation::observe_recorded_merge_base:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/compare/1010101010101010101010101010101010101010...1111111111111111111111111111111111111111?page=2&per_page=1",
+								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/1010101010101010101010101010101010101010...1111111111111111111111111111111111111111?page=2&per_page=1", "" };
+		case operation::observe_base_ancestry:
+			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/compare/1010101010101010101010101010101010101010...main?page=2&per_page=1",
+								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/1010101010101010101010101010101010101010...main?page=2&per_page=1", "" };
 		case operation::observe_viewer:
 			return request_shape{ http_method::get, "/user", "/api/v3/user", "" };
 		case operation::observe_review_comments:
@@ -667,6 +673,8 @@ namespace {
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_pending_comment, serverTarget)),
 			compile_merge_base_observation_request(serverTarget, aServer),
+			compile_merge_base_observation_request(serverTarget, aServer, merge_base_observation_basis::recorded_base),
+			compile_merge_base_observation_request(serverTarget, aServer, merge_base_observation_basis::base_ancestry),
 
 		};
 	}
@@ -711,6 +719,8 @@ namespace {
 			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
 			row{ operation::staged_update_pending_comment, http_method::post, true, 200, true },
 			row{ operation::observe_merge_base, http_method::get, false, 200, false },
+			row{ operation::observe_recorded_merge_base, http_method::get, false, 200, false },
+			row{ operation::observe_base_ancestry, http_method::get, false, 200, false },
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
@@ -1488,6 +1498,42 @@ namespace {
 		expect(!answered(std::string(40U, 'd'), std::string(40U, 'c')), "an answer about another head is refused");
 		expect(!answered(head, "cccc"), "an abbreviated merge base is refused");
 		expect(!answered(head, std::string(64U, 'c')), "a merge base of another format is refused");
+
+		// [[BPR-1572]]. The recorded base against the head and against the
+		// base branch: each answer must name the recorded base as its base
+		// commit and echo the head it was asked about.
+		const auto recordedBase = std::string{ core::canonical_hex(target().BaseOid).view() };
+		for (const auto basis : { merge_base_observation_basis::recorded_base, merge_base_observation_basis::base_ancestry }) {
+			const auto asked = compile_merge_base_observation_request(target(), application::github_server_contract::github_com_2022_11_28, basis);
+			expect(asked && asked->Method == http_method::get && validate_outbound_review_mutation_request(*asked)
+					   && asked->Operation
+						   == (basis == merge_base_observation_basis::recorded_base ? review_mutation_operation::observe_recorded_merge_base : review_mutation_operation::observe_base_ancestry),
+				   "each observation is its own canonical GET");
+			auto relabelled      = *asked;
+			relabelled.Operation = review_mutation_operation::observe_merge_base;
+			expect(!validate_outbound_review_mutation_request(relabelled), "a pair cannot travel under another observation's name");
+			const auto echoed = basis == merge_base_observation_basis::recorded_base ? head : std::string{ "main" };
+			const auto reply  = [&](const std::string& aUrlHead, const std::string& aBase) {
+				return parse_merge_base_observation(
+					{ .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + recordedBase + "..." + aUrlHead + "\",\"base_commit\":{\"sha\":\"" + aBase + "\"},\"merge_base_commit\":{\"sha\":\"" + std::string(40U, 'c') + "\"},\"files\":[]}" },
+					target(), basis);
+			};
+			expect(reply(echoed, recordedBase).has_value(), "the answer about the recorded base is read");
+			expect(!reply(echoed, std::string(40U, 'b')), "an answer about another base commit is refused");
+			expect(!reply(std::string(40U, 'd'), recordedBase), "an answer about another head is refused");
+		}
+
+		// Whether LEFT lines are still numbered in the comparison base.
+		auto       stacked              = target();
+		const auto mergeBase            = commit(0x5aU);
+		stacked.ComparisonBaseOid       = mergeBase;
+		const auto other                = commit(0x6bU);
+		expect(left_lines_numbered_in_comparison_base(stacked, mergeBase, std::nullopt, std::nullopt), "the base branch naming the comparison base settles it");
+		expect(left_lines_numbered_in_comparison_base(stacked, other, mergeBase, stacked.BaseOid),
+			   "a base branch that only moved forward from the recorded base keeps GitHub numbering in the recorded base's merge base");
+		expect(!left_lines_numbered_in_comparison_base(stacked, other, mergeBase, other), "a base branch that no longer contains the recorded base moves the lines");
+		expect(!left_lines_numbered_in_comparison_base(stacked, other, other, stacked.BaseOid), "a recorded base's merge base other than the comparison base moves the lines");
+		expect(!left_lines_numbered_in_comparison_base(stacked, other, std::nullopt, std::nullopt), "no answer for the recorded base moves the lines");
 	}
 	void test_staged_batch_contract()
 	{

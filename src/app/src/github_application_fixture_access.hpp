@@ -111,6 +111,11 @@ namespace bpr::app::detail {
 		/// landing its `b.txt` change separately. GitHub's Files changed is
 		/// the merge base's comparison; see `scripts/build_merge_base_fixture.py`.
 		merge_base_v1,
+		/// [[BPR-1572]]. A stacked pull request whose base branch fast-forwarded
+		/// to the head's first commit while GitHub kept its recorded base:
+		/// GitHub's Files changed is still the recorded base's comparison; see
+		/// `scripts/build_stacked_merge_base_fixture.py`.
+		stacked_merge_base_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -285,7 +290,11 @@ namespace bpr::app::detail {
 		bool MergeBaseRace = false;
 		/// [[BPR-1560]]. GitHub's compare answers that the credential is no
 		/// longer accepted.
-		bool MergeBaseUnauthorized          = false;
+		bool MergeBaseUnauthorized = false;
+		/// [[BPR-1572]]. On a stacked fixture, GitHub's compare answers that the
+		/// recorded base is not an ancestor of the base branch's tip: the
+		/// branch was rewritten, so GitHub is replacing the recorded base.
+		bool StackedBaseRewritten           = false;
 		bool EmptyHistoricalTimeline        = false;
 		bool UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file
