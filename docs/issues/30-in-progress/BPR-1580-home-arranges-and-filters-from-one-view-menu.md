@@ -46,22 +46,27 @@ it; this card changes how the choices are reached, named and summarised.
   Observer rules are in Settings › Reviews & queue." and **Open Reviews &
   queue**. Every group's label is an ordinary menu item's text, so the native
   macOS menu draws it; the menu uses no section titles. Each submenu is one
-  exclusive choice. Every choice carries a tooltip and status tip that says
-  in plain words what it shows, including Participant, No role, each rule
-  kind and what makes an item quiet.
+  exclusive choice. A native macOS menu draws no tooltip, so every choice
+  whose meaning is not obvious says it in its own text (My role: Any role, I
+  opened it, I reviewed it, My review is requested, I took part in it, None of
+  these (a rule or a follow added it); Added by: Any way, A rule on a
+  repository, an author or a path; Quiet items opens with what quiet means),
+  while the parent item shows the short value; every choice also has a
+  tooltip and status tip where the platform draws them.
 - AC2: Added by is shown only when the profile has an observer rule, or when
   the window is already filtered by one (so a filter is never out of reach).
 - AC3: The button reads **View** at the defaults. When any choice in the menu
-  differs from its default it carries a small neutral count of how many do,
-  drawn from the palette, and its accessible description and tooltip name
-  each such choice. **Reset to defaults** is enabled exactly then and in one
+  differs from its default it carries the strip's count pill (the one the
+  comments button carries) with how many do, and its accessible description
+  and tooltip name each such choice. **Reset to defaults** is enabled exactly then and in one
   gesture restores Group None, State headers on, My role Any, Added by Any,
   Quiet items Show and Sort Priority; the profile hears the filter part as it
   hears a filter choice.
 - AC4: When the queue has rows and the view hides all of them, the list says
-  so in one sentence with a **Reset view** link that Tab, Return and Space
-  reach, instead of an empty page; on Home the status line does not repeat
-  it. An empty queue keeps its own sentence.
+  so in one sentence with a **Clear filters** link that Tab, Return and Space
+  reach and that puts My role, Added by and Quiet items back to their
+  defaults, instead of an empty page; on Home the line under the bar does not
+  repeat it. An empty queue keeps its own sentence.
 - AC5: Behaviour is kept: each choice dispatches the same typed queue intent
   and per-window view as before, two windows still filter independently, the
   stored view and preferences are unchanged (no schema change), the button is

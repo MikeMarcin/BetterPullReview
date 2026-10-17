@@ -45,6 +45,7 @@
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/theme_preview_strip.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAccessible>
@@ -56,6 +57,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
 #include <QScrollBar>
@@ -948,8 +951,7 @@ namespace {
 
 		// Home's own strip controls are declared in the window's focus order, so
 		// the reading order is the window's rather than a second one invented here.
-		for (auto* const stop : { static_cast<QWidget*>(window.home_group_button()),
-								  static_cast<QWidget*>(window.home_filter_button()) }) {
+		for (auto* const stop : { static_cast<QWidget*>(window.home_view_button()) }) {
 			expect(
 				stop != nullptr && window.focus_order().contains(stop)
 					&& !stop->accessibleName().isEmpty(),
@@ -1132,6 +1134,124 @@ namespace {
 
 		capture_the_profiles_sheet(appearance, aMode);
 	}
+	// ------------------------------------------ [[BPR-1580]]: Home's View menu
+
+	/// \brief Paints a closed menu where it opens: under its button, held
+	/// inside the window, with an open submenu beside the item that opened it.
+	///
+	/// \details The offscreen platform places a popup against its own small
+	/// screen, not against the window, so the course places the grabs itself.
+	/// A capture is written only when `BPR_HOME_VIEW_CAPTURE_DIR` names a
+	/// directory; the assertions run either way.
+	void capture_home_view_state(
+		qt::workbench_window&       aWindow,
+		const QString&              aState,
+		const core::appearance_mode aMode,
+		QMenu* const                aMenu    = nullptr,
+		QMenu* const                aSubmenu = nullptr)
+	{
+		process_events();
+		auto image = aWindow.grab();
+		expect(!image.isNull(), QStringLiteral("View state %1 composes").arg(aState));
+		auto bottom = aWindow.home_list()->mapTo(&aWindow, QPoint{ 0, 0 }).y() + 220;
+		// A menu is drawn at the size it asks for, whatever the offscreen
+		// screen would have allowed it.
+		const auto grabbed = [](QMenu& aOpen) {
+			aOpen.ensurePolished();
+			aOpen.resize(aOpen.sizeHint());
+			return aOpen.grab();
+		};
+		if (aMenu != nullptr) {
+			auto* const button = aWindow.home_view_button();
+			const auto  menu   = grabbed(*aMenu);
+			auto        at     = button->mapTo(&aWindow, QPoint{ 0, button->height() });
+			at.setX(std::min(at.x(), aWindow.width() - aMenu->width() - 4));
+			auto painter = QPainter{ &image };
+			painter.drawPixmap(at, menu);
+			bottom = std::max(bottom, at.y() + aMenu->height() + 12);
+			if (aSubmenu != nullptr) {
+				const auto sub  = grabbed(*aSubmenu);
+				const auto row  = aMenu->actionGeometry(aSubmenu->menuAction());
+				auto       left = at.x() + aMenu->width() - 2;
+				if (left + aSubmenu->width() > aWindow.width()) {
+					left = at.x() - aSubmenu->width() + 2;
+				}
+				const auto top = at.y() + row.top();
+				painter.drawPixmap(QPoint{ left, top }, sub);
+				bottom = std::max(bottom, top + aSubmenu->height() + 12);
+			}
+		}
+		++StatesCaptured;
+		const auto directory = qEnvironmentVariable("BPR_HOME_VIEW_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		const auto ratio = image.devicePixelRatio();
+		image            = image.copy(QRect{ 0, 0, image.width(), static_cast<int>(std::lround(std::min(bottom, aWindow.height()) * ratio)) });
+		const auto path  = QStringLiteral("%1/view-%2-%3.png").arg(directory, aState, appearance_slug(aMode));
+		expect(image.save(path, "PNG"), QStringLiteral("the View capture %1 is written").arg(aState));
+		++CapturesWritten;
+	}
+
+	/// \brief The View control and its menu in one appearance: closed at the
+	/// defaults, open, a submenu open, a changed view and a view that hides
+	/// every row.
+	void capture_the_home_view(const core::appearance_mode aMode)
+	{
+		auto appearance = qt::appearance_profile{ };
+		static_cast<void>(appearance.select_mode(aMode));
+		auto window = qt::workbench_window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			host_profiles(),
+			[](application::github_intent) { },
+		};
+		apply_appearance(appearance, window);
+		window.set_queue_preferences_dispatch([](application::queue_preferences_intent) { });
+		window.set_home_view_dispatch([](application::home_view_state) { });
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		publish_session_ready(window);
+		auto queue  = default_queue();
+		queue.Rules = { core::observer_rule{ .Kind = core::observer_rule_kind::path, .Pattern = "src/" } };
+		window.publish(queue);
+		process_events();
+		// A native menu takes the desktop's appearance; the course gives these
+		// the appearance being captured, which is what that desktop would show.
+		auto* const menu = window.home_view_menu();
+		apply_appearance(appearance, *menu);
+		for (const auto choice : { qt::home_view_choice::group, qt::home_view_choice::sort, qt::home_view_choice::role,
+								   qt::home_view_choice::added_by, qt::home_view_choice::quiet }) {
+			apply_appearance(appearance, *window.home_view_submenu(choice));
+		}
+
+		auto* const button = window.home_view_button();
+		expect(button->isVisible() && button->text() == QStringLiteral("View")
+				   && button->property(qt::strip_style::badge_property).toString().isEmpty(),
+			   "View starts at the defaults, with no count");
+		capture_home_view_state(window, QStringLiteral("closed"), aMode);
+		capture_home_view_state(window, QStringLiteral("open"), aMode, menu);
+		capture_home_view_state(window, QStringLiteral("my-role"), aMode, menu, window.home_view_submenu(qt::home_view_choice::role));
+		capture_home_view_state(window, QStringLiteral("quiet-items"), aMode, menu, window.home_view_submenu(qt::home_view_choice::quiet));
+
+		window.home_group_action(application::home_grouping::repository)->trigger();
+		window.home_view_menu()->findChild<QAction*>(QStringLiteral("homeFilterHideAction"))->trigger();
+		process_events();
+		expect(button->property(qt::strip_style::badge_property).toString() == QStringLiteral("2"),
+			   "a view changed twice carries the count 2");
+		capture_home_view_state(window, QStringLiteral("changed"), aMode);
+		capture_home_view_state(window, QStringLiteral("changed-open"), aMode, menu);
+
+		window.home_view_reset_action()->trigger();
+		window.home_view_menu()->findChild<QAction*>(QStringLiteral("homeFilterAuthorAction"))->trigger();
+		process_events();
+		expect(window.home_list()->filtered_sentence()->isVisible(), "a view that hides every row says so in the list");
+		capture_home_view_state(window, QStringLiteral("filtered-empty"), aMode);
+		window.hide();
+		process_events();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1158,6 +1278,7 @@ auto main(int argc, char** argv) -> int
 
 	for (const auto mode : appearance_modes) {
 		capture_one_appearance(mode);
+		capture_the_home_view(mode);
 	}
 
 	// The reachability walks do not vary with the palette, so they run once per

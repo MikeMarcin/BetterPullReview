@@ -478,6 +478,28 @@ namespace bpr::qt {
 		Layout->setContentsMargins(0, 12, 0, 12);
 		Layout->setSpacing(panel_gap);
 
+		// [[BPR-1580]]. A queue with rows that the view's filters hide entirely
+		// is not an empty queue: one sentence says so, above where the panels
+		// would be, with the way out. Like the empty queue's, it is a sentence
+		// and never a box.
+		FilteredSentence = new QLabel{ Column };
+		FilteredSentence->setObjectName(QStringLiteral("homeFilteredSentence"));
+		FilteredSentence->setTextFormat(Qt::RichText);
+		FilteredSentence->setWordWrap(true);
+		FilteredSentence->setOpenExternalLinks(false);
+		FilteredSentence->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		FilteredSentence->setFocusPolicy(Qt::StrongFocus);
+		FilteredSentence->setContentsMargins(sentence_inset, sentence_inset_vertical, sentence_inset, sentence_inset_vertical);
+		FilteredSentence->setAccessibleDescription(QStringLiteral("Clear filters sets My role, Added by and Quiet items back to their defaults"));
+		FilteredSentence->installEventFilter(this);
+		FilteredSentence->hide();
+		connect(FilteredSentence, &QLabel::linkActivated, this, [this](const QString&) {
+			if (ClearFiltersDispatch) {
+				ClearFiltersDispatch();
+			}
+		});
+		Layout->addWidget(FilteredSentence);
+
 		Delegate = new home_row_delegate{ this };
 		for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
 			const auto  group   = groups[index];
@@ -723,6 +745,11 @@ namespace bpr::qt {
 	void home_list::set_settings_dispatch(std::function<void()> aDispatch)
 	{
 		SettingsDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_clear_filters_dispatch(std::function<void()> aDispatch)
+	{
+		ClearFiltersDispatch = std::move(aDispatch);
 	}
 
 	void home_list::set_recent_action_dispatch(std::function<void(int aRow)> aDispatch)
@@ -989,6 +1016,18 @@ namespace bpr::qt {
 		} else {
 			retire_groups({ });
 		}
+
+		// [[BPR-1580]]. Rows exist and the view hides every one of them.
+		const auto hidden   = shown && !allEmpty && !Onboarding && source != nullptr ? source->rowCount() : 0;
+		const auto filtered = hidden > 0 && Queue.rowCount() == 0;
+		if (filtered) {
+			const auto said = hidden == 1 ? QStringLiteral("Filters hide the only pull request.")
+										  : QStringLiteral("Filters hide all %1 pull requests.").arg(hidden);
+			FilteredSentence->setProperty("homeSaid", said);
+			write_filtered_sentence();
+			FilteredSentence->setAccessibleName(said + QStringLiteral(" Clear filters or change them under View."));
+		}
+		FilteredSentence->setVisible(filtered);
 
 		RecentPanel->setVisible(RecentView != nullptr && RecentCount > 0);
 		if (CurrentRows != nullptr) {
@@ -1617,6 +1656,28 @@ namespace bpr::qt {
 		return EmptySentence;
 	}
 
+	void home_list::write_filtered_sentence()
+	{
+		// The link is coloured in the markup, in the sentence's own ink: a rich
+		// text anchor takes the application's link colour when it is parsed,
+		// not the label's, and blue on Home is a state, which a link is not.
+		// Rewritten when the palette changes, so a theme change follows.
+		const auto said = FilteredSentence->property("homeSaid").toString();
+		if (said.isEmpty()) {
+			return;
+		}
+		const auto ink  = FilteredSentence->palette().color(QPalette::WindowText).name();
+		const auto text = QStringLiteral("%1 <a href=\"clear\" style=\"color:%2\">Clear filters</a> or change them under View.").arg(said, ink);
+		if (FilteredSentence->text() != text) {
+			FilteredSentence->setText(text);
+		}
+	}
+
+	auto home_list::filtered_sentence() const noexcept -> QLabel*
+	{
+		return FilteredSentence;
+	}
+
 	auto home_list::recent_panel() const noexcept -> home_panel*
 	{
 		return RecentPanel;
@@ -1640,6 +1701,9 @@ namespace bpr::qt {
 	auto home_list::focus_chain() const -> std::vector<QWidget*>
 	{
 		auto chain = std::vector<QWidget*>{ };
+		if (FilteredSentence != nullptr && !FilteredSentence->isHidden()) {
+			chain.push_back(FilteredSentence);
+		}
 		for (const auto& stop : reading_order()) {
 			if (stop.Panel->header_shown()) {
 				chain.push_back(stop.Panel->header());
@@ -1890,6 +1954,19 @@ namespace bpr::qt {
 		}
 		if (aWatched == EmptySentence && aEvent->type() == QEvent::PaletteChange) {
 			derive_link_colour();
+		}
+		if (aWatched == FilteredSentence && aEvent->type() == QEvent::PaletteChange) {
+			write_filtered_sentence();
+		}
+		if (aWatched == FilteredSentence && aEvent->type() == QEvent::KeyPress) {
+			// As the empty queue's sentence: the focused sentence is its link.
+			const auto key = static_cast<QKeyEvent*>(aEvent)->key();
+			if (key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Space) {
+				if (ClearFiltersDispatch) {
+					ClearFiltersDispatch();
+				}
+				return true;
+			}
 		}
 		const auto views = row_views();
 		if (aEvent->type() == QEvent::Wheel) {
