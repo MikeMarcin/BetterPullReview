@@ -221,7 +221,7 @@ namespace bpr::qt {
 	///
 	/// An empty state, band or group is not shown. When the ready queue of a
 	/// signed-in window is empty, Needs me holds one sentence whose link opens
-	/// Reviews & queue; no empty box is drawn in any arrangement. The list
+	/// Home & queue; no empty box is drawn in any arrangement. The list
 	/// decides nothing: it reports a row chosen, a link followed, a row action
 	/// taken and a collapse changed, and the window acts.
 	class home_list final : public QScrollArea

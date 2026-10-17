@@ -13,7 +13,7 @@ namespace bpr::core {
 	/// conventions.
 	///
 	/// \details A reader names the page and never an address. The comment
-	/// label chip's menu and Settings › Reviews & queue › Comment labels both
+	/// label chip's menu and Settings › Comments › Labels both
 	/// name `conventional_comments`, for reviewers who do not know where the
 	/// twelve labels and their decorations come from (owner, 2026-10-16).
 	enum class reference_page : std::uint8_t {

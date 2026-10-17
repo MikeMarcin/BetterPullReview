@@ -20,6 +20,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/writing_hooks_panel.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -31,6 +32,7 @@
 #include <QPalette>
 #include <QPoint>
 #include <QRect>
+#include <QScrollArea>
 #include <QStatusBar>
 #include <QToolButton>
 
@@ -39,6 +41,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -114,7 +117,7 @@ namespace {
 		auto* const info    = dynamic_cast<qt::info_glyph*>(f.Window.findChild<QToolButton*>(QStringLiteral("labelHelperInfo")));
 		auto* const heading = f.Window.findChild<QLabel*>(QStringLiteral("resetCommentLabelsHeading"));
 		expect(helper != nullptr && marks != nullptr && open != nullptr && all != nullptr && link != nullptr && chips != nullptr && reset != nullptr && info != nullptr && heading != nullptr,
-			   "Comment labels holds the helper, Label marks, Overview counts, Mark colours and Overview chips");
+			   "Comment labels holds Label marks, Overview counts, Mark colours and Overview chips; Comment workshop the helper");
 		for (QWidget* const widget : std::array<QWidget*, 6>{ helper, marks, open, link, chips, reset }) {
 			expect(page->isAncestorOf(widget), "every row is on Reviews & queue");
 		}
@@ -127,14 +130,32 @@ namespace {
 		f.Window.settings()->resize(1'100, 900);
 		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
 		settle();
-		expect(top(helper) < top(marks) && top(marks) < top(open) && top(open) < top(link) && top(link) < top(chips),
-			   "in order: Label helper, Label marks, Overview counts, Mark colours, Overview chips");
+		// [[BPR-1568]] v002. The helper left Comment labels for its own group,
+		// Comment workshop, below it (negative control: no row of Comment
+		// labels is the helper any more, and no row there is named for it).
+		auto* const workshop = f.Window.findChild<QLabel*>(QStringLiteral("resetCommentWorkshopHeading"));
+		auto* const guidance = f.Window.workshop_guidance_link();
+		expect(workshop != nullptr && workshop->text() == QStringLiteral("Comment workshop") && guidance != nullptr && page->isAncestorOf(guidance),
+			   "Reviews & queue has a Comment workshop group with the guidance link");
+		expect(top(marks) < top(open) && top(open) < top(link) && top(link) < top(chips) && top(chips) < top(workshop) && top(workshop) < top(helper) && top(helper) < top(guidance),
+			   "in order: Label marks, Overview counts, Mark colours, Overview chips; then Comment workshop: Feedback guidance, Guidance text");
 		const auto label = [&f](const char* const aName) { return f.Window.findChild<QLabel*>(QString::fromLatin1(aName)); };
-		expect(label("labelHelperLabel")->text() == QStringLiteral("Label helper") && label("overviewCountsLabel")->text() == QStringLiteral("Overview counts")
+		expect(label("labelHelperLabel")->text() == QStringLiteral("Feedback guidance") && label("workshopGuidanceLabel")->text() == QStringLiteral("Guidance text")
+				   && label("overviewCountsLabel")->text() == QStringLiteral("Overview counts")
 				   && label("markColoursLabel")->text() == QStringLiteral("Mark colours") && label("labelColumnsLabel")->text() == QStringLiteral("Overview chips"),
 			   "the row names are the design's");
-		expect(info->consequence() == QStringLiteral("Sends the Review feedback guidance with each comment workshop request. Off: requests go without it. Labels count either way."),
-			   "the helper's info glyph says what it does since the codes were removed, with no :shortcodes:");
+		for (const auto* const each : page->findChildren<QLabel*>()) {
+			expect(!each->text().contains(QStringLiteral("Label helper")), "no row is named Label helper any more");
+		}
+		expect(info->consequence() == QStringLiteral("The Review feedback guidance tells the agent how comment labels and decorations work. On: each comment workshop request carries it. Off, the default: requests go without it. Labels count either way."),
+			   "the switch's info glyph says what it sends");
+		expect(helper->text() == QStringLiteral("Send with each workshop request") && helper->accessibleDescription() == info->consequence()
+				   && (helper->focusPolicy() & Qt::TabFocus) != 0,
+			   "the switch says what it does, is described like its glyph, and Tab reaches it");
+		// The button draws "&&" as one "&"; a single "&" would draw as a
+		// mnemonic underline ("Agents _context", v002's first render).
+		expect(guidance->text() == QStringLiteral("Agents && context › Review feedback ›") && guidance->accessibleName() == QStringLiteral("Guidance text: Agents & context, Review feedback"),
+			   "Guidance text names where the guidance lives, with its ampersand drawn");
 		expect(!helper->isChecked(), "the helper is off by default");
 		expect(open->isChecked() && !all->isChecked(), "Overview counts start on Open");
 		expect(link->text() == QStringLiteral("Appearance › Colours ›") && link->toolTip() == QStringLiteral("Opens Appearance with the filter set to Label"), "Mark colours is the design's link");
@@ -285,10 +306,17 @@ namespace {
 		f.find("resetCommentLabels")->click();
 		auto expected           = chosen;
 		expected.FeedbackMarks  = application::review_feedback_marks::icons;
-		expected.LabelHelper    = application::review_label_helper::off;
 		expected.OverviewCounts = application::review_overview_counts::open;
 		expected.LabelColumns   = { };
-		expect(!f.Records.empty() && f.Records.back() == expected, "Reset dispatches the label defaults and keeps every other preference, the drawer filter included");
+		expect(!f.Records.empty() && f.Records.back() == expected && f.Records.back().LabelHelper == application::review_label_helper::on,
+			   "Reset dispatches the label defaults and keeps every other preference, the drawer filter and (BPR-1568) the helper included");
+		// [[BPR-1568]]. Comment workshop's own Reset turns the helper off and nothing else.
+		f.Records.clear();
+		f.find("resetCommentWorkshop")->click();
+		auto workshopExpected        = chosen;
+		workshopExpected.LabelHelper = application::review_label_helper::off;
+		expect(!f.Records.empty() && f.Records.back() == workshopExpected, "Comment workshop's Reset turns the feedback guidance off and changes nothing else");
+		expect(f.find("resetCommentWorkshop")->toolTip() == QStringLiteral("Reset comment workshop"), "and says what it resets");
 		f.Records.clear();
 		f.find("resetReadingBehaviour")->click();
 		expect(!f.Records.empty() && f.Records.back().LabelColumns == chosen.LabelColumns && f.Records.back().LabelHelper == chosen.LabelHelper
@@ -377,7 +405,7 @@ namespace {
 			   "the link says where it goes, for the eye and assistive technology, and Tab reaches it");
 		expect(link->palette().color(QPalette::ButtonText) == qt::readable_link_colour(link->palette()), "it is drawn as a link");
 		const auto top = [page](const QWidget* aWidget) { return aWidget->mapTo(page, QPoint{ 0, 0 }).y(); };
-		expect(top(heading) < top(link) && top(link) < top(f.Window.label_helper_switch()), "it sits under the heading, above Label helper");
+		expect(top(heading) < top(link) && top(link) < top(f.find("feedbackMarksIcons")), "it sits under the heading, above Label marks");
 		save_render(*page, "comment-labels-conventional-comments");
 		// Review renders in the built-in Light and Dark palettes, applied to
 		// the window as the composition applies a profile; Settings follows.
@@ -446,6 +474,70 @@ namespace {
 		expect(!link->isVisibleTo(page) && !editor->reference_offered(), "unbinding takes both away");
 	}
 
+	/// \brief [[BPR-1568]] v002. Guidance text opens Agents & context with the
+	/// Review feedback hook chosen, whose line says whether it is sent and
+	/// where that is decided; the switch is keyboard-operable.
+	void test_the_comment_workshop_group()
+	{
+		fixture f;
+		f.publish({ });
+		f.Window.settings()->resize(1'100, 900);
+		f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+		settle();
+		auto* const helper = f.Window.label_helper_switch();
+		helper->setFocus(Qt::TabFocusReason);
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(helper, &press);
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(helper, &release);
+		settle();
+		auto on        = application::review_behaviour_settings{ };
+		on.LabelHelper = application::review_label_helper::on;
+		expect(!f.Records.empty() && f.Records.back() == on, "Space on the switch asks for the whole record with only the helper on");
+		f.publish(on);
+		expect(helper->isChecked(), "and it shows what is published");
+
+		f.Window.workshop_guidance_link()->click();
+		settle();
+		auto* const hooks = f.Window.writing_hooks();
+		auto* const scope = hooks->findChild<QLabel*>(QStringLiteral("writingHookScope"));
+		expect(f.Window.settings()->current_page() == qt::settings_page::agents_and_context && hooks->selected_hook() == core::writing_hook::feedback,
+			   "Guidance text opens Agents & context on the Review feedback hook");
+		expect(scope->isVisibleTo(hooks) && scope->text() == QStringLiteral("On. Sent with each comment workshop request: Reviews & queue › Comment workshop."),
+			   "whose line says it is sent and where that is decided");
+		expect(hooks->findChildren<QCheckBox*>().isEmpty(), "the writing hooks panel has no switch of its own");
+		save_render(*hooks, "writing-hooks-pointer-on");
+		f.publish({ });
+		expect(scope->text() == QStringLiteral("Off. Not sent with comment workshop requests; turn it on in Reviews & queue › Comment workshop."), "and when it is not");
+
+		// Review renders of the two Settings pages in the built-in Light and
+		// Dark palettes, the switch on, applied as the composition does.
+		if (!qEnvironmentVariable("BPR_FEEDBACK_RENDER_DIR").isEmpty()) {
+			f.publish(on);
+			const auto original = f.Window.palette();
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				f.Window.setPalette(profile.derive(original));
+				f.Window.settings()->present(qt::settings_page::reviews_and_queue);
+				auto* const page   = f.Window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+				auto* const scroll = f.Window.settings()->findChild<QScrollArea*>();
+				if (scroll != nullptr) {
+					scroll->ensureWidgetVisible(f.Window.workshop_guidance_link(), 0, 120);
+				}
+				settle();
+				expect(page != nullptr && qt::contrast_ratio(qt::to_appearance_color(f.Window.workshop_guidance_link()->palette().color(QPalette::ButtonText)), qt::to_appearance_color(page->palette().color(QPalette::Window))) >= 4.5,
+					   "the guidance link reads at 4.5:1 or better");
+				save_render(*f.Window.settings(), (std::string{ "workshop-reviews-" } + name).c_str());
+				f.Window.workshop_guidance_link()->click();
+				settle();
+				save_render(*f.Window.settings(), (std::string{ "workshop-hooks-" } + name).c_str());
+			}
+			f.Window.setPalette(original);
+			f.publish({ });
+		}
+	}
+
 	/// \brief At Settings' minimum size the list fits and drops the descriptions.
 	void test_the_section_fits_at_the_minimum_size()
 	{
@@ -489,6 +581,7 @@ auto main(int argc, char** argv) -> int
 	test_mark_colours_opens_the_label_tints();
 	test_the_section_fits_at_the_minimum_size();
 	test_about_conventional_comments_names_the_page();
+	test_the_comment_workshop_group();
 	std::cout << "feedback-label-settings-tests:pass\n";
 	return EXIT_SUCCESS;
 }
