@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Compose review directions</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.finish { flex:1; min-width:0; overflow:hidden; background:var(--bg); }
+.finish .col { max-width:680px; margin:0 auto; padding:30px 24px; }
+.finish h2 { font-size:20px; font-weight:650; margin:0; }
+.finish .sub { color:var(--ink-3); margin-top:3px; }
+.box { margin-top:18px; border-radius:9px; background:var(--panel); box-shadow:0 0 0 1px var(--rule); overflow:hidden; }
+.box .bh { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--rule); font-weight:600; }
+.prow { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid color-mix(in srgb, var(--rule) 70%, transparent); }
+.prow .f { flex:0 0 120px; font-weight:600; } .prow .f.rep { color:var(--ink-3); font-weight:500; }
+.prow .l { flex:0 0 58px; font:600 11.5px var(--mono); color:var(--route); }
+.prow .w { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); }
+.prow .w .pfx { font-weight:600; color:var(--ink-2); }
+.summ { padding:12px 14px; min-height:110px; color:var(--ink-3); font-size:13px; }
+.verdicts { display:flex; gap:8px; margin-top:16px; align-items:center; }
+.vd { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 14px; border-radius:8px; font-weight:600; background:var(--panel); box-shadow:inset 0 0 0 1px var(--rule-2); }
+.vd.ap svg { color:var(--ok); }
+.vd.rc svg { color:var(--danger); }
+.foot { display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--ink-3); font-size:12px; }
+.disc { margin-top:18px; color:var(--ink-2); display:flex; gap:6px; align-items:center; font-weight:600; }
+.manifest { flex:0 0 360px; background:var(--drawer); border-right:1px solid var(--rule); overflow:hidden; display:flex; flex-direction:column; }
+.manifest .mh { padding:16px 16px 4px; font-weight:650; font-size:14px; }
+.tally { display:flex; flex-wrap:wrap; gap:6px; padding:8px 16px 4px; }
+.tally .tg { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 8px 0 4px; border-radius:6px; background:var(--panel); box-shadow:inset 0 0 0 1px var(--rule); font-weight:600; font-size:12px; }
+.sheet { position:absolute; right:0; top:76px; bottom:24px; width:540px; background:var(--panel); box-shadow:-18px 0 40px rgba(0,0,0,.16), -1px 0 0 var(--rule); z-index:20; overflow:hidden; }
+.waitpanel { margin-top:14px; display:flex; gap:10px; padding:12px 14px; border-radius:9px; background:color-mix(in srgb, var(--route) 5%, var(--panel)); box-shadow:inset 0 0 0 1px var(--rule), inset 3px 0 0 var(--route); }
+</style></head>
+<body><script>
+"use strict";
+const prow = (file, rep, lines, label, weight, text) => `<div class="prow"><span class="f ${rep ? "rep" : ""}">${file}</span><span class="l">${lines}</span>${mark(label, weight)}<span class="w"><span class="pfx">${label}${weight === "blocking" ? " (blocking)" : ""}:</span> ${text}</span><span style="color:var(--ink-3)">${ic("close", "s")}</span></div>`;
+const pendingRows = prow("renderer.cpp", false, "440", "issue", "blocking", "The budget resets every frame, so it never stops a retry loop.")
+  + prow("renderer.cpp", true, "433–434", "suggestion", "normal", "Compute the factor once per frame and pass it in.");
+const verdicts = `<div class="verdicts"><span class="vd">${ic("comments", "s")}Comment</span><span class="vd ap">${ic("check", "s")}Approve</span><span class="vd rc">${ic("warn", "s")}Request changes</span></div>
+  <div class="foot">Nothing is published until you submit.<span class="sp"></span><span style="color:var(--danger)">Discard review</span></div>
+  <div class="disc">${ic("right", "xs")}Pull request and account</div>`;
+const summary = `<div class="summ">Leave a summary (optional)…</div>`;
+const discussModes = { modality: "Discuss", drawerOn: false, bar: { right: `<span class="revpill"><i></i>Review · 2 pending</span><span class="pill quiet">${ic("back", "s")}Back</span>` } };
+
+/* ---------- A: focused page ---------- */
+const aCentre = `<div class="finish"><div class="col">
+  <h2>Finish your review</h2><div class="sub">bpr-fixtures/engine #22 · Clamp device scale and bound frame retries</div>
+  <div class="box"><div class="bh">2 pending comments<span class="sp"></span><span class="chip" style="height:20px;color:var(--danger)">${mark("issue", "blocking")} 1 blocking</span></div>${pendingRows}${summary}</div>
+  <div class="callout blue" style="margin-top:12px"><span style="color:var(--signal)">${ic("question", "s")}</span><div><div class="t">Not in this review</div><div class="s">Your draft on renderer.cpp:416 is unsent. 3 threads have replies you have not read.</div></div><span class="sp"></span><span class="pill outline sm">Add the draft</span></div>
+  ${verdicts}</div></div>`;
+const aFrame = win({ ...discussModes, centre: aCentre }) + annot(1, 1110, 160, "Only the review: no thread list, no drawers") + annot(2, 1110, 420, "What is left out is said once, with the one fix it needs");
+const waitState = `<div class="stcard" style="grid-column:span 2"><div class="cap">While GitHub has not confirmed (BPR-1541's accepted panel, unchanged)</div><div style="padding:12px">
+  <div class="waitpanel"><span style="color:var(--route)">${ic("question", "s")}</span><div style="flex:1"><div style="font-weight:600">We couldn't confirm this review</div><div style="color:var(--ink-2);font-size:12.5px;margin-top:2px">GitHub couldn't be reached. Check your connection, then check status again.</div><div style="color:var(--ink-3);font-size:12px;margin-top:2px">Nothing will be sent twice. Your review may already be on GitHub.</div><div style="margin-top:8px"><span class="pill outline sm" style="background:var(--signal-soft)">Check status</span></div></div></div>
+  <div style="color:var(--ink-3);font-size:12px;margin-top:8px">It sits directly under the title in every direction; verdicts stay disabled and Discard steps aside, as accepted.</div></div></div>`;
+
+/* ---------- B: what will be published ---------- */
+const mini = (who, label, weight, line, text) => `<div class="card flow closed" style="margin:0 10px 4px">${post(who, line, text, { label, weight })}</div>`;
+const bCentre = `<div class="manifest"><div class="mh">What will be published</div>
+    <div style="padding:0 16px;color:var(--ink-3)">One review on GitHub, as you</div>
+    <div class="tally"><span class="tg">${mark("issue", "blocking")}1 blocking issue</span><span class="tg">${mark("suggestion")}1 suggestion</span><span class="tg">${ic("file", "xs")}1 file</span></div>
+    <div class="grouph"><b>renderer.cpp</b><span class="sp"></span>2</div>
+    ${mini("you", "issue", "blocking", "line 440", "The budget resets every frame, so it never stops a retry loop.")}
+    ${mini("you", "suggestion", "normal", "lines 433–434", "Compute the factor once per frame and pass it in.")}
+    <div class="grouph" style="margin-top:6px"><b>Not in this review</b></div>
+    <div class="card flow draft closed" style="margin:0 10px 6px">${post("you", "line 416 · unsent draft", "Check what <code>device_pixel_ratio()</code> returns on Wayland.", { label: "question" })}</div>
+    <div style="padding:0 10px"><div class="callout blue"><span style="color:var(--signal)">${ic("newonly", "s")}</span><div><div class="t">3 threads have new replies</div><div class="s">Read them before you decide.</div></div></div></div></div>
+  <div class="finish"><div class="col" style="max-width:620px">
+    <h2>Finish your review</h2><div class="sub">2 comments are ready. Add a summary and choose a verdict.</div>
+    <div class="box">${summary}</div>${verdicts}</div></div>`;
+const bFrame = win({ ...discussModes, centre: bCentre }) + annot(1, 380, 140, "The left side earns its place: exactly what this review will publish") + annot(2, 380, 560, "And what it will not: your unsent draft, unread replies");
+
+/* ---------- C: a sheet over the code ---------- */
+const at = (n) => (n - 412) * 20 + 2;
+const cSheet = `<div class="sheet"><div style="display:flex;align-items:center;gap:8px;padding:14px 16px 10px;border-bottom:1px solid var(--rule)"><span style="font-size:17px;font-weight:650">Finish your review</span><span class="sp"></span><span class="kbd">esc</span>${tool("close")}</div>
+  <div style="padding:6px 16px 14px"><div class="box" style="margin-top:8px"><div class="bh">2 pending comments</div>${pendingRows.replaceAll('flex:0 0 120px', 'flex:0 0 96px')}${summary}</div>
+  <div style="color:var(--ink-3);font-size:12px;margin-top:8px">Choosing a row shows its line in the code behind this sheet.</div>${verdicts}</div></div>`;
+const cFrame = win({ badge: 2, drawerOn: false,
+  centre: codeCol({ marks: { 428: "thread", 433: "note", 440: "note" }, cls: { 440: "pick" }, ticks: [[36, "u"], [62, "r"]] }),
+  drawer: cSheet,
+  bar: { right: `<span class="revpill"><i></i>Review · 2 pending</span><span class="pill primary">Finish review</span>` } })
+  + annot(1, 520, 640, "Code stays behind the sheet; a pending row reveals its line") + annot(2, 520, 120, "Esc closes it; nothing else about the window changes");
+
+page({
+  nav: "Compose review",
+  title: "Compose review: three layouts",
+  lede: "Compose review (⌥R, and Finish review) opens “Finish your review” in Discuss. Its left side is Discuss's thread list narrowed to 340 pixels, every thread of the pull request with Discuss's scope and filters. BPR-1212 placed the full composer in Discuss with the conversations narrowed beside it, for writing a maximized draft next to its neighbours; Compose review inherited the same column (owner's Q3: “A: move to Discuss”, which drew pending comments beside the summary, not every thread). The page itself already lists the pending comments, so the left list repeats and distracts. The owner: “I don't think I've ever done more than try to ignore it.”",
+  directions: [
+    { id: "compose-A", letter: "A", name: "Focused: one column, nothing beside it", frame: aFrame, states: waitState,
+      idea: "<p>Compose review shows only the review: the pending comments, the summary, the three verdicts and Discard, in one comfortable column. Anything outside the review that matters (an unsent draft, unread replies) is one sentence with its one fix. Discuss's list is not shown while composing.</p>",
+      pros: ["The simplest page; nothing to ignore", "Keeps the owner's v002 Finish page exactly, minus the list", "BPR-1541's waiting panel sits under the title unchanged"],
+      cons: ["No sense of the comments' context beyond their first line", "Wide windows show a lot of empty margin"] },
+    { id: "compose-B", letter: "B", name: "What will be published, beside the verdict", frame: bFrame, states: waitState,
+      idea: "<p>The left side is replaced by a purpose-built manifest: a tally by label, the files touched, every pending comment drawn as the Comments drawer draws a note, and what is not in the review (your unsent draft, threads with new replies). The right is the summary and the verdicts.</p>",
+      pros: ["The left side becomes the pre-flight check people actually do", "Reuses the accepted note anatomy, marks and rails", "Blocking feedback is visible before you choose Approve"],
+      cons: ["More to build than A", "Two columns to read before submitting"] },
+    { id: "compose-C", letter: "C", name: "A sheet over the code", frame: cFrame, states: waitState,
+      idea: "<p>Finish review slides a sheet over Review from the right instead of switching to Discuss. The code stays behind it; choosing a pending row reveals its line. Esc closes the sheet and leaves everything as it was.</p>",
+      pros: ["Never leaves the code you were reviewing", "Feels light: a review is finished in place"],
+      cons: ["Reverses the owner's 2026-10-06 answer to BPR-1212's Q3 (“A: move to Discuss”)", "The sheet covers the drawers while it is open"] },
+  ],
+});
+</script></body></html>

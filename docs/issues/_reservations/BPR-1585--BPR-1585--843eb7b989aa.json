@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1585"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview files table: subtle alternating row band",
+  "created": "2026-10-17T08:34:48.490391+00:00",
+  "base": "988a65cec43663fb55992068f2d9372457a52937"
+}

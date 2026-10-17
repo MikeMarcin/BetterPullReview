@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1583"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "One shared person avatar and colour rule across Threads, Comments, Discuss, Overview, Home and composers",
+  "created": "2026-10-17T08:18:58.274349+00:00",
+  "base": "4fd3b0ecb2be28dd36698f780b5a0f9002e7378d"
+}

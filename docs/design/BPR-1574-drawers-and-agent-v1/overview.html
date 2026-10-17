@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Overview side panel directions</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.ov { flex:1; min-width:0; padding:18px 20px 0; display:flex; flex-direction:column; background:var(--bg); }
+.ov h2 { margin:0; font-size:18px; font-weight:650; }
+.ov .by { color:var(--ink-3); margin-top:2px; }
+.ov .desc { margin-top:12px; padding:10px 12px; border-radius:8px; background:var(--panel); box-shadow:0 0 0 1px var(--rule); color:var(--ink); font-size:13px; line-height:1.5; }
+.ftable { margin-top:14px; flex:1; background:var(--panel); border-radius:8px 8px 0 0; box-shadow:0 0 0 1px var(--rule); overflow:hidden; }
+.frow { display:grid; grid-template-columns:28px 1fr 64px 76px 56px 80px; align-items:center; height:28px; padding:0 10px; border-bottom:1px solid color-mix(in srgb, var(--rule) 60%, transparent); }
+.frow.h { color:var(--ink-3); font-weight:600; font-size:11.5px; background:var(--panel-2); }
+.frow.dir { color:var(--ink-3); font-weight:600; }
+.frow .a { color:var(--ok); text-align:right; } .frow .r { color:var(--danger); text-align:right; padding-right:16px; }
+.st { display:inline-flex; width:16px; height:16px; border-radius:4px; align-items:center; justify-content:center; font:700 9.5px var(--ui); box-shadow:inset 0 0 0 1.2px var(--ink-3); color:var(--ink-2); }
+.readring { width:11px; height:11px; border-radius:50%; box-shadow:inset 0 0 0 1.5px var(--ink-3); display:inline-block; }
+.grip { position:absolute; left:-3px; top:0; bottom:0; width:6px; z-index:5; }
+.grip::after { content:""; position:absolute; left:2px; top:50%; margin-top:-14px; width:2px; height:28px; border-radius:1px; background:var(--rule-2); }
+.sec { margin:10px 10px 0; border-radius:9px; background:var(--panel); box-shadow:0 0 0 1px var(--rule); overflow:hidden; }
+.sec .sh { display:flex; align-items:center; gap:7px; padding:9px 12px 6px; font-weight:650; font-size:12.5px; }
+.sec .sh .sp + * { color:var(--ink-3); font-weight:500; }
+.item { display:flex; align-items:center; gap:9px; padding:7px 12px; }
+.item + .item { border-top:1px solid color-mix(in srgb, var(--rule) 60%, transparent); }
+.item .tx2 { flex:1; min-width:0; }
+.item .tx2 b { font-weight:600; }
+.item .tx2 .s2 { color:var(--ink-3); font-size:11.5px; }
+.dotc { width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+.bar3 { display:flex; height:6px; border-radius:3px; overflow:hidden; margin:2px 12px 6px; background:var(--panel-2); }
+.prog { height:6px; border-radius:3px; background:var(--panel-2); margin:6px 0 2px; overflow:hidden; }
+.avs { display:inline-flex; } .avs .av { box-shadow:0 0 0 2px var(--panel); } .avs .av + .av { margin-left:-5px; }
+.sub2 { position:relative; display:inline-flex; }
+.sub2 i { position:absolute; right:-3px; bottom:-3px; width:11px; height:11px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 1.5px var(--panel); }
+.band { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; align-items:center; }
+.band .bc { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:7px; background:var(--panel); box-shadow:inset 0 0 0 1px var(--rule-2); font-weight:600; font-size:12px; white-space:nowrap; }
+.band .bc.red { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent); background:var(--danger-soft); }
+.band .bc.on { box-shadow:inset 0 0 0 1.5px var(--signal); background:var(--signal-soft); }
+.oldpanel { flex:0 0 300px; background:var(--side); border-left:1px solid var(--rule); padding:12px 14px; font-size:12px; overflow:hidden; color:var(--ink); }
+.oldpanel .lbl { color:var(--ink-3); font-weight:700; font-size:11px; margin-top:10px; }
+.oldpanel .kv { display:flex; justify-content:space-between; padding:2px 0; }
+.oldpanel .kv span:last-child { color:var(--ink-3); }
+.oldpanel .btn { margin-top:8px; text-align:center; padding:6px; border-radius:5px; box-shadow:inset 0 0 0 1px var(--rule-2); background:var(--panel); }
+.oldpanel .disc2 { margin-top:8px; padding:6px 8px; border-radius:5px; background:var(--panel-2); box-shadow:inset 0 0 0 1px var(--rule-2); }
+.ckrow { display:flex; align-items:center; gap:8px; padding:6px 12px; }
+.ckrow.sel { background:var(--route-soft); }
+.ckrow .nm2 { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style></head>
+<body><script>
+"use strict";
+const ok = (s = "") => `<span class="dotc" style="background:var(--ok-soft);color:var(--ok)">${ic("check", "xs")}</span>`;
+const bad = () => `<span class="dotc" style="background:var(--danger-soft);color:var(--danger)">${ic("close", "xs")}</span>`;
+const amber = (n = "warn") => `<span class="dotc" style="background:var(--route-soft);color:var(--route)">${ic(n, "xs")}</span>`;
+const blue = (n) => `<span class="dotc" style="background:var(--signal-soft);color:var(--signal)">${ic(n, "xs")}</span>`;
+const files = [["dir", "src/engine"], ["M", "renderer.cpp", "+48", "−6", "2"], ["M", "renderer.h", "+5", "", ""], ["dir", "src/engine/shaders"], ["M", "basic.frag", "+2", "−1", "1"], ["A", "bloom.frag", "+31", "", ""], ["dir", "tests/engine"], ["M", "renderer_tests.cpp", "+64", "−2", ""], ["dir", "tools"], ["M", "package.py", "+2", "−1", ""]];
+const ftable = `<div class="ftable"><div class="frow h"><span></span><span>File</span><span style="text-align:right">Added</span><span style="text-align:right">Removed</span><span>Read</span><span>Comments</span></div>
+  ${files.map((f) => f[0] === "dir" ? `<div class="frow dir"><span>${ic("down", "xs")}</span><span>${f[1]}</span></div>` : `<div class="frow"><span class="st">${f[0]}</span><span>${f[1]}</span><span class="a">${f[2]}</span><span class="r">${f[3]}</span><span><i class="readring"></i></span><span style="color:var(--ink-3)">${f[4] ? `${ic("comments", "xs")}` : ""}</span></div>`).join("")}</div>`;
+const ovCentre = (band = "") => `<div class="ov"><h2>Clamp device scale and bound frame retries</h2><div class="by">fixture-author wants to merge 3 commits into main from scale-and-retries</div>
+  <div class="desc">A view with zero width during a resize made <code>scale()</code> return 0 and the frame retried forever. This clamps the device scale, treats a zero width as one pixel, and gives each frame one retry budget.</div>${band}
+  <div style="display:flex;align-items:center;margin-top:12px;color:var(--ink-3);font-weight:600;font-size:11.5px">Files: 6 in this pull request, 6 not read<span class="sp"></span><span class="chip">${ic("newonly", "xs")}Open</span></div>${ftable}</div>`;
+const ovWin = (o) => win({ modality: "Overview", drawerOn: false, noReviewBar: false, ...o });
+
+/* the panel as it is today, on a busy pull request (recreated from the owner's screenshot description) */
+const old = `<aside class="oldpanel"><div class="lbl">Merge</div><div style="color:var(--danger);font-weight:600">Conflicts</div>
+  <div>build-linux failed</div><div>test-windows failed</div><div>lint failed</div><div class="disc2" style="margin-top:6px">▸ Requirement details</div>
+  <div class="lbl">Participants</div>${["fixture-author uploaded", "tbutler approved", "jiayin commented", "observer-three commented"].map((p) => `<div class="kv"><span>${p.split(" ")[0]}</span><span>${p.split(" ")[1]}</span></div>`).join("")}
+  <div class="lbl">Since my last review: none yet</div><div class="kv"><span>Uploads</span><span>—</span></div><div class="kv"><span>Files changed</span><span>—</span></div><div class="kv"><span>New comments</span><span>not available</span></div><div class="kv"><span>Replies to me</span><span>0</span></div><div class="kv"><span>My unresolved threads</span><span>0</span></div><div class="kv"><span>Checks</span><span style="color:var(--signal)">33 passed, 3 failed, 2 skipped</span></div>
+  <div class="lbl">My review</div><div class="kv"><span>Files read</span><span>0 of 6</span></div><div class="kv"><span>Private notes</span><span>0</span></div><div class="kv"><span>Drafted comments</span><span>not available</span></div>
+  <div class="btn" style="background:var(--signal);color:#fff;box-shadow:none">Start review</div><div class="disc2">▾ Check details: 3 failed</div>
+  <div style="color:var(--ink-3);margin-top:4px">Head commit 51d2dad… Test merge evaluation is not observed.</div>
+  <div style="margin-top:4px;border:1px solid var(--rule-2);background:var(--panel);height:86px;padding:4px;line-height:1.5">✕ build-linux<br>✕ test-windows<br>✕ lint<br>✓ build-mac</div>
+  <div style="margin-top:4px;border:1px solid var(--rule-2);background:var(--panel);padding:4px;color:var(--ink-3)">No details were supplied.</div>
+  <div class="btn">Open check details</div><div class="btn">Prepare review tour</div></aside>`;
+const beforeFrame = ovWin({ centre: ovCentre(), drawer: old });
+
+/* ---------- A: attention first ---------- */
+const aPanel = `<aside class="drawer" style="width:340px"><i class="grip"></i><div class="dhead"><span class="tab on">Status</span><div class="tools">${tool("tour", false, "Prepare review tour (⌥T)")}${tool("ext", false, "Open on GitHub (⇧⌘O)")}${tool("panel", false, "Hide (⌥⇧6)")}</div></div>
+  <div class="dbody" style="overflow:hidden">
+    <div class="sec"><div class="sh">Needs attention<span class="sp"></span><span>4</span></div>
+      <div class="item">${bad()}<div class="tx2"><b>Conflicts with main</b><div class="s2">Rebase or merge main to continue</div></div></div>
+      <div class="item">${bad()}<div class="tx2"><b>3 checks failed</b><div class="s2">build-linux, test-windows, lint</div></div>${ic("down", "s")}</div>
+      <div class="item">${amber("user")}<div class="tx2"><b>Waiting on render-owners</b><div class="s2">Code owner review required</div></div></div>
+      <div class="item">${blue("comments")}<div class="tx2"><b>2 replies to you</b><div class="s2">renderer.cpp, basic.frag</div></div>${ic("right", "s")}</div>
+      <div style="padding:2px 12px 10px"><span style="color:var(--ink-3);font-size:11.5px;display:inline-flex;align-items:center;gap:3px">Merge requirements ${ic("right", "xs")}</span></div></div>
+    <div class="sec"><div class="sh">Your review</div>
+      <div style="padding:0 12px 10px"><div style="display:flex;font-size:12px;color:var(--ink-2)"><span>0 of 6 files read</span><span class="sp"></span><span>first time</span></div><div class="prog"><i style="display:block;width:2%;height:100%;background:var(--signal)"></i></div>
+      <div style="display:flex;gap:6px;margin-top:8px"><span class="chip">${ic("lock", "xs")}1 note</span><span class="chip">${ic("comments", "xs")}2 pending</span></div></div></div>
+    <div class="sec"><div class="sh">Checks<span class="sp"></span><span>38</span></div>
+      <div class="bar3"><i style="flex:33;background:var(--ok)"></i><i style="flex:3;background:var(--danger)"></i><i style="flex:2;background:var(--rule-2)"></i></div>
+      <div style="padding:0 12px 10px;display:flex;gap:12px;font-size:12px;color:var(--ink-2)"><span><b style="color:var(--ink)">33</b> passed</span><span><b style="color:var(--danger)">3</b> failed</span><span><b style="color:var(--ink)">2</b> skipped</span><span class="sp"></span><span style="color:var(--signal)">All checks</span></div></div>
+    <div class="sec"><div class="sh">People</div><div style="display:flex;align-items:center;gap:10px;padding:0 12px 10px">
+      <span class="avs">${["tbutler", "jiayin", "observer-three"].map((p, i) => `<span class="sub2">${av(p, "lg")}${i === 0 ? `<i style="background:var(--ok);color:#fff">${ic("check", "xs")}</i>` : ""}</span>`).join("")}</span><span style="color:var(--ink-2);font-size:12px">1 approved · 2 commented</span></div></div>
+  </div></aside>`;
+const aFrame = ovWin({ centre: ovCentre(), drawer: aPanel })
+  + annot(1, 760, 520, "A real drawer: drag its edge, collapse it, its width is remembered") + annot(2, 760, 580, "Only what needs you, each failure said once") + annot(3, 760, 640, "Zero and “not available” rows are not drawn; checks are one bar") + annot(4, 760, 700, "No Start review: Review (⌘2), double-click a file, or Next file");
+
+/* ---------- B: tabs, like the right tray ---------- */
+const ck = (state, name, sel = false) => `<div class="ckrow ${sel ? "sel" : ""}">${state === "f" ? bad() : state === "s" ? `<span class="dotc" style="background:var(--panel-2);color:var(--ink-3)">${ic("unres", "xs")}</span>` : ok()}<span class="nm2">${name}</span></div>`;
+const bPanel = `<aside class="drawer" style="width:360px"><i class="grip"></i><div class="dhead"><span class="tab">Summary</span><span class="tab on">Checks <span class="cnt" style="background:var(--danger)">3</span></span><span class="tab">People</span><div class="tools">${tool("ext", false, "Open on GitHub")}</div></div>
+  <div class="dbody" style="display:flex;flex-direction:column">
+    <div style="padding:9px 12px;color:var(--ink-3);font-size:11.5px;border-bottom:1px solid var(--rule)">Head 51d2dad · 33 passed, 3 failed, 2 skipped · test merge not observed</div>
+    <div class="grouph" style="padding-top:8px"><b>Failed</b></div>${ck("f", "build-linux", true)}${ck("f", "test-windows")}${ck("f", "lint")}
+    <div style="margin:6px 12px 8px;padding:10px;border-radius:8px;background:var(--panel);box-shadow:0 0 0 1px var(--rule)"><div style="font-weight:600">build-linux</div><div style="color:var(--ink-3);font-size:12px;margin:2px 0 8px">GitHub Actions · failure · requirement unknown</div><div style="color:var(--ink-2);font-size:12px">No details were supplied.</div><div style="margin-top:8px"><span class="pill outline sm">${ic("ext", "xs")}Open check details</span></div></div>
+    <div class="grouph"><b>Skipped</b><span class="cnt quiet">2</span></div>
+    <div class="grouph"><b>Passed</b><span class="cnt quiet">33</span><span class="sp"></span>${ic("right", "xs")}</div></div></aside>`;
+const summaryTab = `<div class="stcard"><div class="cap">Summary tab (opens first)</div><div style="padding:10px;display:flex;flex-direction:column;gap:6px">
+  <div class="item" style="padding:0">${bad()}<div class="tx2"><b>Conflicts with main</b></div></div><div class="item" style="padding:6px 0 0">${bad()}<div class="tx2"><b>3 checks failed</b></div>${ic("right", "s")}</div>
+  <div class="item" style="padding:6px 0 0">${blue("comments")}<div class="tx2"><b>2 replies to you</b></div></div><div style="color:var(--ink-3);font-size:12px;margin-top:4px">0 of 6 files read · 1 note · 2 pending</div></div></div>`;
+const peopleTab = `<div class="stcard"><div class="cap">People tab</div><div style="padding:10px;display:flex;flex-direction:column;gap:8px">${[["tbutler", "approved"], ["jiayin", "commented"], ["observer-three", "commented"]].map(([p, s]) => `<div style="display:flex;align-items:center;gap:8px">${av(p)}<span>${p}</span><span class="sp"></span><span style="color:var(--ink-3)">${s}</span></div>`).join("")}<div style="display:flex;align-items:center;gap:8px"><span class="av" style="border-radius:4px;--avb:var(--panel-2);--avk:var(--ink-2)">R</span><span>render-owners</span><span class="sp"></span><span style="color:var(--route)">code owner</span></div></div></div>`;
+const bFrame = ovWin({ centre: ovCentre(), drawer: bPanel })
+  + annot(1, 740, 520, "The header is its tabs, as the right tray's is") + annot(2, 740, 600, "Checks get a tab of their own: failures first, one detail card, no repeats elsewhere");
+
+/* ---------- C: a status band, and checks as a drawer on demand ---------- */
+const band = `<div class="band"><span class="bc red">${ic("close", "xs")}Conflicts with main</span><span class="bc red on">${ic("close", "xs")}3 checks failed</span><span class="bc">${ic("user", "xs")}Waiting on render-owners</span><span class="bc">${ic("comments", "xs")}2 replies to you</span><span class="bc">0 of 6 read</span>
+  <span class="bc"><span class="avs">${["tbutler", "jiayin", "observer-three"].map((p) => av(p, "xs")).join("")}</span>1 approved</span></div>`;
+const cDrawer = `<aside class="drawer" style="width:340px"><i class="grip"></i><div class="dhead"><span class="tab on">Checks <span class="cnt" style="background:var(--danger)">3</span></span><div class="tools">${tool("close", false, "Close")}</div></div>
+  <div class="dbody"><div class="grouph" style="padding-top:10px"><b>Failed</b></div>${ck("f", "build-linux", true)}${ck("f", "test-windows")}${ck("f", "lint")}
+  <div style="margin:6px 12px 8px;padding:10px;border-radius:8px;background:var(--panel);box-shadow:0 0 0 1px var(--rule)"><div style="font-weight:600">build-linux</div><div style="color:var(--ink-3);font-size:12px;margin:2px 0 8px">GitHub Actions · failure</div><span class="pill outline sm">${ic("ext", "xs")}Open check details</span></div>
+  <div class="grouph"><b>Passed</b><span class="cnt quiet">33</span><span class="sp"></span>${ic("right", "xs")}</div><div class="grouph"><b>Skipped</b><span class="cnt quiet">2</span><span class="sp"></span>${ic("right", "xs")}</div></div></aside>`;
+const cFrame = ovWin({ centre: ovCentre(band), drawer: cDrawer })
+  + annot(1, 260, 560, "Status is one band of chips over the files; nothing calm is drawn") + annot(2, 740, 600, "Choosing a chip opens its detail as a drawer; here, Checks");
+
+page({
+  nav: "Overview panel",
+  title: "Overview's side panel: three directions",
+  lede: "The Overview's right column stacks Merge (with each failed check), Requirement details, Participants, Since my last review (Uploads —, New comments not available, Replies 0…), My review, Start review, a grey Check details bar that opens a head-commit note, a list of every check, a details box and two full-width buttons. Failed checks appear three times; empty rows are drawn; the column cannot be resized or collapsed like the drawers. Owner decision (2026-10-17): Start review goes in every direction, because Review (⌘2), a double-click on a file and Next file already start a review.",
+  before: `<section class="dir" id="overview-before"><div class="dh"><span class="letter">•</span><h2>Today, on a busy pull request (recreated from the owner's screenshot)</h2></div><div class="framebox"><div class="scaler">${beforeFrame}</div></div></section>`,
+  directions: [
+    { id: "overview-A", letter: "A", name: "Attention first, in a real drawer", frame: aFrame,
+      idea: "<p>The column becomes a resizable, collapsible drawer called Status. It opens with what needs you (conflicts, failed checks said once and expandable, who you are waiting on, replies to you), then your progress, one checks bar and the people as faces. Rows that would say 0, — or not available are not drawn. Prepare tour and Open on GitHub are icons in its header.</p>",
+      pros: ["The first thing in the column is what needs action", "Each fact appears once", "Behaves like every other drawer: drag, collapse, remembered width, a key"],
+      cons: ["Hiding empty rows means a calm pull request shows a short panel", "Check detail lives one expansion down"] },
+    { id: "overview-B", letter: "B", name: "Tabs: Summary, Checks, People", frame: bFrame, states: summaryTab + peopleTab,
+      idea: "<p>The drawer's header is its tabs, as the right tray's is. Summary holds merge state and your progress; Checks is a full list, failures first, with one detail card and Open check details; People holds participants and the request roster. Each tab scrolls on its own and keeps its place.</p>",
+      pros: ["Checks finally have room, and live in exactly one place", "Same tab idiom as Comments, Notes and Tour", "Summary stays short"],
+      cons: ["A failing check is a tab away from the summary (its count is on the tab)", "Three tabs for what is sometimes very little"] },
+    { id: "overview-C", letter: "C", name: "A status band over Files; checks as a drawer on demand", frame: cFrame,
+      idea: "<p>The column goes. Everything that needs attention is one band of chips over the file list, so Files and the description get the full width. Choosing a chip opens its detail: Checks as a drawer on the right (resizable like the others), replies in Threads, the waiting roster in a popover.</p>",
+      pros: ["Most room for the description and Files", "A calm pull request shows a short, quiet band", "Detail appears only when asked for"],
+      cons: ["Participants and progress shrink to chips", "Prepare review tour moves to the Pull Request menu and ⌥T only"] },
+  ],
+});
+</script></body></html>

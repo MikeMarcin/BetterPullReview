@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Notes drawer directions</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script></head>
+<body><script>
+"use strict";
+const at = (n) => (n - 412) * 20 + 2;
+const trayTabs = (on) => [["Comments", ' <span class="cnt">2</span>', on === "Comments"], ["Notes", "", on === "Notes"], ["Tour", "", on === "Tour"]];
+const noteHead = (where, time, extra = "") => `<div class="nm"><span class="loc">${where}</span><time>${time}</time><span class="meta">${extra}</span></div>`;
+const privPost = (where, time, body, o = {}) => `<div class="post dash" style="--t:var(--ink-3)"><i class="rail"></i>
+  <div class="gut"><span style="color:var(--ink-3)">${ic("lock", "s")}</span></div>
+  <div class="pb">${noteHead(where, time, o.meta || "")}<div class="tx">${body}</div>${o.after || ""}</div></div>`;
+
+/* ---------- A: margin notes ---------- */
+const aBody = `
+  <div class="edgechips" style="position:absolute;top:0;left:0;right:0;z-index:8"><span class="ech">${ic("pr", "xs")} 2 notes on the pull request</span><span class="ech">${ic("up", "xs")} 1 above</span></div>
+  <div class="card priv closed" style="top:${at(416) + 18}px">${privPost("416", "2h", "Check what <code>device_pixel_ratio()</code> returns on Wayland with fractional scaling before asking.")}</div>
+  <div class="card open write notch" style="top:${at(433) - 6}px;--notch:13px">
+    <div class="ch"><span class="where">${ic("lock", "xs")} 433</span><span class="state">Private note</span><span class="sp"></span>${tool("max")}${tool("close")}</div>
+    <div style="padding:10px 10px 10px 12px">
+      <div class="field focus" style="min-height:96px">Is <code>device_scale()</code> cheap enough to call per pass? <code>scale()</code> runs for every pass in <code>begin_frame</code>. Ask whether to cache the factor per frame.<span style="border-left:1.5px solid var(--signal);margin-left:1px"></span></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:9px">
+        <span class="lockline">${ic("lock", "xs")}Only you</span><span class="sp"></span>
+        <span class="ib" title="Delete note">${ic("close", "s")}</span>
+        <span class="pill outline sm">${ic("promote", "xs")}Make it a comment</span>
+        <span class="pill primary sm">Save <span class="kk">⌘↩</span></span></div></div></div>
+  <div class="card priv closed" style="top:${at(444) + 12}px">${privPost("444", "yesterday", "Retry budget: compare with how <code>submit()</code> handles a full queue. Probably fine.")}</div>
+  <div class="edgechips" style="position:absolute;bottom:0;left:0;right:0"><span class="ech">${ic("down", "xs")} 1 below · line 512</span></div>`;
+const aFrame = win({
+  badge: 2,
+  centre: codeCol({ marks: { 416: "note", 428: "thread", 433: "note", 444: "note" }, cls: { 433: "write" }, ticks: [[18, ""], [36, "u"], [39, "r"], [44, ""], [71, ""]] }),
+  drawer: drawer({ tabs: trayTabs("Notes"), tools: tool("plus", false, "New note on the selected line (N)") + tool("pr", false, "Notes on the whole pull request"), body: aBody }),
+}) + annot(1, 790, 196, "A note hangs from its line and moves with the code, as a thread does") + annot(2, 790, 590, "Private: dashed edge and a lock. Blue edge while you write, as a new comment has") + annot(3, 790, 676, "Make it a comment copies it to a draft at the same line; the note stays") + annot(4, 790, 118, "Notes on the pull request or other files wait at the edges");
+
+/* ---------- B: notebook ---------- */
+const nbCard = (where, time, body, o = {}) => `<div class="card flow ${o.open ? "open privo" : "priv closed"} ${o.hov ? "hov" : ""}" style="${o.open ? "" : ""}">${privPost(where, time, body, { meta: o.meta, after: o.after })}</div>`;
+const bBody = `<div style="position:absolute;inset:0;overflow:hidden">
+  <div style="padding:10px 10px 6px">
+    <div class="field" style="display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px">
+      <span class="ph" style="flex:1">Write a note for yourself…</span><span class="chip">${ic("file", "xs")} renderer.cpp:433 ${ic("down", "xs")}</span><span class="kbd">N</span></div></div>
+  <div class="grouph"><b>This file</b><span class="cnt quiet">3</span><span class="sp"></span>renderer.cpp</div>
+  ${nbCard("433", "4m", "Is <code>device_scale()</code> cheap enough to call per pass? <code>scale()</code> runs for every pass in <code>begin_frame</code>. Ask whether to cache the factor per frame.", { open: true, after: `<div style="display:flex;gap:6px;margin-top:9px;align-items:center"><span class="pill outline sm">${ic("promote", "xs")}Make it a comment</span><span class="pill quiet sm">${ic("eye", "xs")}Show line</span><span class="sp"></span><span class="ib">${ic("pencil", "s")}</span><span class="ib">${ic("more", "s")}</span></div>` })}
+  ${nbCard("416", "2h", "Check what <code>device_pixel_ratio()</code> returns on Wayland with fractional scaling before asking.", { hov: true, meta: `<span title="Make it a comment">${ic("promote", "s")}</span>` })}
+  ${nbCard("whole file", "yesterday", "The new clamp at 4.0 changes behaviour on 5K external displays. Worth a test?")}
+  <div class="grouph"><b>Pull request</b><span class="cnt quiet">1</span></div>
+  ${nbCard("PR", "yesterday", "Before approving: run the soak test with the retry budget at 1, and read the BPR-1288 thread on frame pacing.")}
+  <div class="grouph"><b>Other files</b><span class="cnt quiet">2</span></div>
+  ${nbCard("basic.frag:31", "2d", "Gamma: is this still sRGB after the scale change?")}
+  ${nbCard("main.cpp:88", "2d", "Flag parsing moved; check the help text.")}
+</div>`;
+const bFrame = win({
+  badge: 2,
+  centre: codeCol({ marks: { 416: "note", 428: "thread", 433: "note" }, cls: { 433: "pick" }, ticks: [[18, ""], [36, "u"], [39, "r"]] }),
+  drawer: drawer({ tabs: trayTabs("Notes"), tools: tool("search", false, "Find a note") + tool("file", true, "This file first"), body: bBody }),
+}) + annot(1, 790, 118, "One field to start a note; it attaches to the selected line, the file or the pull request") + annot(2, 790, 520, "The open note washes its line amber, as an open thread does") + annot(3, 790, 600, "Grouped: this file first, then the pull request, then other files");
+
+/* ---------- C: scratchpad ---------- */
+const cBody = `<div style="position:absolute;inset:0;padding:14px 16px;overflow:hidden;font-size:13px;line-height:1.6">
+  <div style="font-weight:650;font-size:15px;margin-bottom:6px">Before I approve</div>
+  <div style="display:flex;gap:7px;align-items:flex-start"><span style="margin-top:3px;width:13px;height:13px;border-radius:3px;box-shadow:inset 0 0 0 1.5px var(--ink-3);flex:none"></span><span>Soak test with the retry budget at 1.</span></div>
+  <div style="display:flex;gap:7px;align-items:flex-start"><span style="margin-top:3px;width:13px;height:13px;border-radius:3px;background:var(--ok);flex:none;color:#fff">${ic("check", "xs")}</span><span style="color:var(--ink-3);text-decoration:line-through">Read the frame pacing thread.</span></div>
+  <div style="font-weight:650;font-size:13.5px;margin:14px 0 4px">renderer.cpp</div>
+  <p style="margin:0 0 8px"><span class="loc amber">renderer.cpp:416</span> what does <code class="c">device_pixel_ratio()</code> return with fractional scaling on Wayland?</p>
+  <p style="margin:0 0 8px;position:relative"><span class="loc">renderer.cpp:433</span> <span style="background:color-mix(in srgb, var(--signal) 22%, transparent);border-radius:3px">is the factor worth caching per frame? <code class="c">scale()</code> runs once per pass.</span>
+    <span style="position:absolute;left:60px;top:-38px;display:flex;gap:4px;padding:4px;border-radius:8px;background:var(--panel);box-shadow:var(--shadow), 0 0 0 1px var(--rule)"><span class="pill primary sm">${ic("promote", "xs")}Comment at 433</span><span class="pill outline sm">${ic("agent", "xs")}Ask agent</span></span></p>
+  <p style="margin:0 0 8px"><span class="loc">renderer.cpp:444</span> retry budget vs. a full queue in <code class="c">submit()</code>. Probably fine.</p>
+  <div style="font-weight:650;font-size:13.5px;margin:14px 0 4px">Elsewhere</div>
+  <p style="margin:0"><span class="loc">basic.frag:31</span> still sRGB after the scale change?</p>
+  <span style="display:inline-block;width:1.5px;height:16px;background:var(--signal);vertical-align:-3px"></span>
+</div>`;
+const cFrame = win({
+  badge: 2,
+  centre: codeCol({ marks: { 416: "note", 428: "thread", 433: "note", 444: "note" }, cls: { 416: "pick" }, ticks: [[18, ""], [36, "u"]] }),
+  drawer: drawer({ tabs: trayTabs("Notes"), tools: `<span class="lockline" style="margin-right:6px">${ic("lock", "xs")}Saved</span>` + tool("more"), body: cBody }),
+}) + annot(1, 790, 118, "One private page per pull request; Markdown as you type") + annot(2, 790, 196, "Typing a file:line makes a reference chip; hovering one washes its line") + annot(3, 790, 520, "Select words to make them a comment at that line, or to ask the agent");
+
+page({
+  nav: "Notes",
+  title: "Notes drawer: three directions",
+  lede: "Today Notes is a sentence of purpose, then tabs inside the tab (Private history, Agent tools) of stock Qt fields and stacked buttons. Every direction below gives Notes one job, your private notes, and moves agent material to the Agent surface. Each keeps the Comments drawer's header, card anatomy and colour meaning.",
+  directions: [
+    { id: "notes-A", letter: "A", name: "Margin notes: private notes at their lines", frame: aFrame,
+      idea: "<p>Notes behave exactly like the Comments drawer: each note hangs from its line beside the code and opens in place. Private is said by a dashed edge and a lock, never by a different layout. Notes on the whole pull request and on other files wait in the edge chips.</p>",
+      pros: ["Nothing new to learn: the same keys (Up, Down, Return, Esc, N for a new note), the same edges and gutter marks", "The code you were thinking about is beside the note", "Make it a comment lands the draft on the same line"],
+      cons: ["Notes attach to a file or the pull request today, not to a line: needs a line anchor in the private ledger (core and host work)", "Pull-request notes are one click away rather than in view", "Busy files put threads and notes in the same gutter"] },
+    { id: "notes-B", letter: "B", name: "Notebook: one list, this file first", frame: bFrame,
+      idea: "<p>A calm list of your notes, newest first, grouped by where they are: this file, the pull request, other files. One field at the top starts a note on the selected line, the file or the pull request. A note opens in place with Make it a comment and Show line.</p>",
+      pros: ["Fits today's data: file and pull-request notes need no new anchor", "Every note in one scroll; easy to review before you approve", "Same card anatomy as threads, so it still reads as one product"],
+      cons: ["Not spatial: the link to the code is a chip, not a position", "A long review gives a long list (search and the file-first order help)"] },
+    { id: "notes-C", letter: "C", name: "Scratchpad: one private page per pull request", frame: cFrame,
+      idea: "<p>Notes become a single Markdown page you write freely, like a paper notebook. Typing <code>renderer.cpp:433</code> makes a chip that reveals that line. Selecting words offers Comment at 433 or Ask agent. Checklists work.</p>",
+      pros: ["Fastest capture: no note objects to create or file", "Reads like a reviewer's own thinking, with a checklist for before you approve", "Selection-to-comment keeps promotion explicit"],
+      cons: ["Replaces many notes with one page: a model change, and per-note delete and promote go", "Promotion depends on a selection and its nearest reference", "Least like the Comments drawer"] },
+  ],
+});
+</script></body></html>
