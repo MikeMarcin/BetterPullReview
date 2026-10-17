@@ -12,9 +12,10 @@
   "source_root": "/Users/jaeger/.codex/worktrees/bpr1573-close-review/BetterPullReview",
   "branch": "bpr-1573-close-review",
   "baseline": "647fbc6539d59b1a785be3543afd08f823f77cb8",
-  "source_candidate": "58ee21f56610a72ff0d97fd29ce891bbcbc22315",
+  "source_candidate": "58ee21f56610a72ff0d97fd29ce891bbcbc22315 (reviewed); 6ae61c231 (owner's tooltip note)",
   "changed_paths": [
     "docs/ux/workbench-specification.md",
+    "scripts/verify_test_network_isolation.py",
     "src/adapters/qt/include/bpr/qt/workbench_landing.hpp",
     "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
     "src/adapters/qt/src/workbench_landing.cpp",
@@ -30,6 +31,7 @@
     "tests/application/github_window_read_host_tests.cpp",
     "tests/core/github_window_read_tests.cpp",
     "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
     "tests/end_to_end/close_review_public_path_tests.cpp"
   ],
   "verification": {
@@ -49,28 +51,41 @@
     "open": "--open-pull-request (Overview)",
     "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
     "executable_sha256": "95eb34a85e7bd327fdf55afee5cd617688490b390fef7b6a9a05166447fcbc09",
-    "note": "Built with an APFS clone of the worktree's dependency cache (--generate cp -cR) because the disk was full; a first freeze root failed with ENOSPC and was removed."
+    "note": "Built with an APFS clone of the worktree's dependency cache (--generate cp -cR) because the disk was full; a first freeze root failed with ENOSPC and was removed.",
+    "removed": true
   },
   "review": {
     "state": "/Users/jaeger/.codex/attended-review/bpr1573-v001-P5dxr1",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "71540c0b93725af935e64bedcdc66c9a",
-    "event_cursor": 3,
+    "event_cursor": 5,
     "candidates": {
       "BPR-1573-close-review-v001": "e365e4eb0820da261b84d408484fde3b1eaa11c3775b4f8c6dc328af509ed4c3"
     },
-    "phase": "ready",
-    "protected": true,
-    "server_pid": 25294,
+    "phase": "decided",
+    "protected": false,
+    "server_pid": null,
     "server_port": 56448,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept, note \"Move this hotkey into the tooltip.\", 838c32d9-e1fd-4076-b959-7bc3d767f29a (2026-10-17T15:33:04Z, event 4); handed back at event 5"
   },
-  "pending": [
-    "AC5 owner Accept/Reject on BPR-1573-close-review-v001."
-  ],
+  "pending": [],
   "uncertainties": [
     "Another window keeping the same pull request is shown by the core lane test (independent lanes) and by construction (close touches only this window's read host, tabs and drafts consumer), not by a composed two-window course.",
     "Recently viewed after Close review was not observed: the fixture composition publishes no restoration list. The specification makes no claim about it."
   ],
-  "next_action": "On hand-back after cursor 3: Accept -> recheck main HEAD, merge main into bpr-1573-close-review, rebuild dev, rerun the focused set plus qt_workbench_window_scale_200 and application_profile_multi_window_public_path, run the full dev ctest once on the merged tree (check free disk first), reseal composition contracts if required, land on main, finish Done, stop server pid 25294, release protection, remove the frozen root and the worktree's build. Reject -> the note becomes v002."
+  "next_action": "None: accepted, landed on main at 2809447c8, finished Done. Server stopped, protection released, frozen root and build trees removed.",
+  "landed": {
+    "main": "2809447c8",
+    "merged_tree": "6225c690e",
+    "branch_head": "6225c690e"
+  },
+  "merged_tree_verification": {
+    "focused": "26/26 on 6225c690e (dev, Debug): documentation_structure, test_network_isolation_manifest, architecture_boundaries, architecture_boundary_contract, core_github_policy, core_github_window_read, core_home_open, application_github_window_read_host, application_home_open_host, qt_composed_github_scale_100/125/200, qt_composed_home_sign_in, qt_composed_home_refusal_scale_100, qt_workbench_home_discovery_scale_100, qt_workbench_open_review_from_home_scale_100, qt_workbench_window_scale_100/125/200, qt_home_list_scale_100, application_review_round_trip_composition_contract, application_profile_multi_window_public_path, application_home_open_feedback_public_path, application_active_changed_scaling, application_review_navigation_entry, application_close_review",
+    "full_ctest": "ctest --preset dev on 452d67ab2 (main 605dc11cc merged): 768/773 pass, 1 skipped (large_review_cache_bytes, exit 77). Failures: documentation_structure (NEXT_ID high water, cleared by the final main merge), test_network_isolation_manifest (application_close_review entry added in 65feb7564), qt_markdown_body_2_0 (passes alone), release_update_native_https (inbound-header-truncated, intermittent 1 of 3 alone; release-updater proxy fixture outside this change), application_large_review_history (epoch refresh benchmark budget under load ~100-200; known load-sensitive, BPR-1567, BPR-1598)",
+    "core_only": "ctest --preset core-only: all pass except documentation_structure (same NEXT_ID high water)",
+    "reseal": "round-trip composition contract resealed over main 83ed4d8fd merged with this card; mutation-branch pin unchanged",
+    "tidy": "clang-tidy 22 clean on workbench_landing.cpp and close_review_public_path_tests.cpp after the tooltip change",
+    "documentation": "DOCUMENTATION_OK on 6225c690e"
+  }
 }

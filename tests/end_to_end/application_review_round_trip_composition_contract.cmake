@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ee1795efd20e39a943cb2990c09bc55c4997456235cb48c757466bc3c603ba0b"
+		"18198c31b082b3b3223c1df061f50e1c010551785e242176a66139950df5fa9b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "bfb21e555567772e00ee0f35396942bed969ba09a61842becadbc6a94b2d5b4c"
+        "d1cf9c0a0b96b4b78b0fffaec83074d7dedb437dce28be87d959b053e7af8daa"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2710,7 +2710,19 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1580.
 
-# [[BPR-1572]] reseal over main at 83ed4d8fd, recomputed on the tree that
+# [[BPR-1573]] reseal over main at 83ed4d8fd, recomputed on the tree that
+# merges this card onto it (branch 647fbc653..the BPR-1573 product commits
+# 86d655c1c, 58ee21f56 and 6ae61c231). github_application.cpp adds Close
+# review: the window's close dispatch cancels a reading restoration, sends
+# close_pull_request_intent to this window's read lane, whose host invalidates
+# the epoch authority (the composition's existing invalidate path, as opening
+# another pull request takes), then starts the document tabs again as BPR-1539
+# does. A test-build accessor reports what the window holds of its review. No
+# grant, target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1573.
+
+# [[BPR-1572]] reseal over main at c77419079, recomputed on the tree that
 # merges this card onto it. github_application.cpp serves the new
 # stacked-merge-base-v1 fixture with the same github.com host profile as
 # merge-base-v1. No grant, target, provider, credential, transport, GitHub

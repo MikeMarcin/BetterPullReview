@@ -1523,6 +1523,41 @@ namespace bpr::application {
 			} catch (...) { }
 			dispatch_core(core::pull_request_load_cancelled_event{ request.Context });
 		}
+		/// \brief [[BPR-1573]]. Close review: the core forgets the pull request,
+		/// then the host lets go of what it held for it.
+		///
+		/// \details The release is the one opening another pull request makes
+		/// (`dispatch_core`): the epoch authority, and with it the composition's
+		/// review, is invalidated and the mutation transport revoked. A read in
+		/// flight is stopped without a cancelled answer, because the core has
+		/// already ended it; a refusal changes nothing here.
+		void close_pull_request()
+		{
+			auto output = decide(core::close_pull_request_intent{ });
+			if (!core::has_changed(output.Changed, core::github_changed_domain::pull_request)) {
+				publish_transition(output);
+				return;
+			}
+			if (Images) {
+				Images->reset();
+			}
+			forget_cached_source();
+			CacheReadStop.request_stop();
+			if (PendingProvider) {
+				const auto request = *PendingProvider;
+				PendingProvider.reset();
+				++ProviderOperationToken;
+				record_pull_request(diagnostic_outcome::cancelled, request.Context.Request);
+				try {
+					pull_request_port_for(request).cancel_pull_request(request);
+				} catch (...) { }
+			}
+			invalidate_epoch_authority();
+			revoke_review_mutation_transport();
+			AcceptedSnapshot.reset();
+			StagedSnapshot.reset();
+			publish_transition(output);
+		}
 		void release()
 		{
 			cancel();
@@ -1823,6 +1858,10 @@ namespace bpr::application {
 	void github_window_read_host::advance_request_floor(const core::request_id aNext) noexcept { Implementation->Policy.advance_request_floor(aNext); }
 	void github_window_read_host::dispatch(const core::github_window_read_event& aEvent)
 	{
+		if (!Implementation->Closing && std::holds_alternative<core::close_pull_request_intent>(aEvent)) {
+			Implementation->close_pull_request();
+			return;
+		}
 		if (!Implementation->Closing
 			&& (std::holds_alternative<core::open_pull_request_intent>(aEvent)
 				|| std::holds_alternative<core::refresh_pull_request_intent>(aEvent))) {
