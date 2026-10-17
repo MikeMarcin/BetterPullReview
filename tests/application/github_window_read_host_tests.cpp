@@ -2,8 +2,11 @@
 #include "bpr/application/github_read_admission.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/reference_page.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace {
@@ -792,6 +795,37 @@ namespace {
 		lane.drain();
 	}
 
+	/// [[BPR-1566]]. A named reference page opens at exactly its HTTPS address
+	/// through the window's browser, and only there.
+	void test_reference_page_opening()
+	{
+		struct browser final : application::device_authorization_browser_port
+		{
+			std::vector<std::string> Opened;
+			bool                     Succeeds = true;
+			bool                     Throws   = false;
+			auto                     open(const std::string_view aAddress) -> bool override
+			{
+				if (Throws) {
+					throw std::runtime_error{ "launch" };
+				}
+				Opened.emplace_back(aAddress);
+				return Succeeds;
+			}
+		} opener;
+		const auto page = core::reference_page::conventional_comments;
+		expect(application::reference_page_address({ .Hostname = "conventionalcomments.org", .Path = "/" }) == "https://conventionalcomments.org/", "the address is HTTPS, the host and the path");
+		expect(application::open_reference_page(page, &opener) == core::markdown_link_result::opened && opener.Opened == std::vector<std::string>{ "https://conventionalcomments.org/" },
+			   "Conventional Comments opens at exactly its site's root, once");
+		expect(application::open_reference_page(page, nullptr) == core::markdown_link_result::unavailable && opener.Opened.size() == 1U, "no browser capability, no page");
+		expect(application::open_reference_page(static_cast<core::reference_page>(9), &opener) == core::markdown_link_result::refused && opener.Opened.size() == 1U,
+			   "a value that names no page reaches no browser");
+		opener.Succeeds = false;
+		expect(application::open_reference_page(page, &opener) == core::markdown_link_result::failed, "a browser that declines is a failure");
+		opener.Throws = true;
+		expect(application::open_reference_page(page, &opener) == core::markdown_link_result::failed && opener.Opened.size() == 2U, "and so is one that throws");
+	}
+
 	void test_markdown_link_admission()
 	{
 		struct browser final : application::device_authorization_browser_port
@@ -1104,6 +1138,7 @@ int main()
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
 	test_pull_request_page_admission();
+	test_reference_page_opening();
 	test_provisional_overview_is_bounded_and_never_authority();
 	test_loading_budget_shape();
 	test_shared_backoff_lifecycle();

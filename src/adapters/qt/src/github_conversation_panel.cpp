@@ -756,6 +756,11 @@ namespace bpr::qt {
 		Cards->set_link_dispatch(std::move(aDispatch));
 	}
 
+	void github_conversation_panel::set_reference_dispatch(std::function<void(core::reference_page)> aDispatch)
+	{
+		Cards->set_reference_dispatch(std::move(aDispatch));
+	}
+
 	void github_conversation_panel::set_label_marks(const feedback_mark_theme& aTheme)
 	{
 		Cards->set_label_marks(aTheme);

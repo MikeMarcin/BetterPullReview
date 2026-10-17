@@ -6,6 +6,7 @@
 #include "bpr/qt/suggestion_mark.hpp"
 
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/reference_page.hpp"
 
 #include <QAbstractButton>
 #include <QAccessible>
@@ -1272,6 +1273,9 @@ namespace {
 		view.adopt({ thread("t10", "src/a.cpp", 10U), reply("c10", "t10", "a", "first") }, core::file_identity_of("src/a.cpp"));
 		auto typed = std::vector<QString>{ };
 		view.set_reply_text_dispatch([&typed](const std::string&, const QString& aText) { typed.push_back(aText); });
+		// [[BPR-1566]]. The view's reference dispatch reaches the reply's menu.
+		auto asked = std::vector<core::reference_page>{ };
+		view.set_reference_dispatch([&asked](const core::reference_page aPage) { asked.push_back(aPage); });
 		view.open_thread("t10");
 		view.begin_reply("t10");
 		QApplication::processEvents();
@@ -1307,6 +1311,21 @@ namespace {
 		expect(editor->toPlainText() == QStringLiteral("suggestion: why") && !labels->menu()->isVisible(), "the menu changes the reply's label");
 		expect(labels->chip()->accessibleName() == QStringLiteral("Label: suggestion"), "the chip names the label chosen");
 		expect(!typed.empty() && typed.back() == QStringLiteral("suggestion: why"), "the labelled text goes to the draft editor");
+
+		// [[BPR-1566]]. About Conventional Comments in the reply's menu names
+		// the page through the view and leaves the reply as it is.
+		QApplication::sendEvent(editor, &command);
+		QApplication::processEvents();
+		auto* const about = labels->menu()->about_button();
+		expect(labels->reference_offered() && about->isVisible(), "the reply's menu ends with About Conventional Comments");
+		const auto replies = typed.size();
+		about->click();
+		QApplication::processEvents();
+		expect(asked == std::vector<core::reference_page>{ core::reference_page::conventional_comments } && !labels->menu()->isVisible()
+				   && editor->toPlainText() == QStringLiteral("suggestion: why") && typed.size() == replies,
+			   "it names the page once, closes the menu and changes nothing in the reply");
+		view.set_reference_dispatch({ });
+		expect(!labels->reference_offered(), "unbinding the view takes it from the open reply's menu");
 		view.hide();
 	}
 

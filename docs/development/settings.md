@@ -119,6 +119,9 @@ the order. **Mark colours** opens Appearance › Colours with the filter set to
 and never changed by these rows. If the saved chips name a label this build
 does not know, or one label twice, the row says how many were left out; the
 rest keep their order, and changing a chip or Reset saves the list as shown.
+Above the rows, **About Conventional Comments** ([[BPR-1566]]) opens
+conventionalcomments.org, where the labels come from, in the browser; the
+comment label menu ends with the same item.
 
 Observer rules match local repository, author or path facts. Add/remove changes
 the local rule and its matched membership. Observer rules stay on this page

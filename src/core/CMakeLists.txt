@@ -35,6 +35,7 @@ add_library(
         src/home_open.cpp
         src/cached_review_overview.cpp
         src/markdown_navigation.cpp
+        src/reference_page.cpp
         src/markdown_image.cpp
         src/markdown_code.cpp
         src/model.cpp

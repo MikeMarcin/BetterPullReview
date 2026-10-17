@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
@@ -229,6 +230,28 @@ namespace bpr::qt {
 	void feedback_label_controls::set_status_sink(std::function<void(const QString&)> aSink)
 	{
 		StatusSink = std::move(aSink);
+	}
+
+	void feedback_label_controls::set_reference_dispatch(std::function<void(core::reference_page)> aDispatch)
+	{
+		ReferenceDispatch = std::move(aDispatch);
+	}
+
+	auto feedback_label_controls::reference_offered() const noexcept -> bool
+	{
+		return static_cast<bool>(ReferenceDispatch);
+	}
+
+	void feedback_label_controls::open_reference(const core::reference_page aPage)
+	{
+		if (!ReferenceDispatch) {
+			return;
+		}
+		++Statistics.References;
+		// The window's answer can rebuild the editor that holds these
+		// controls; keep the callback alive for its own call.
+		const auto dispatch = ReferenceDispatch;
+		dispatch(aPage);
 	}
 
 	auto feedback_label_controls::apply(const core::feedback_header_edit& aEdit) -> bool
@@ -517,6 +540,35 @@ namespace bpr::qt {
 		Hint->setForegroundRole(QPalette::PlaceholderText);
 		Hint->setText(QStringLiteral("Arrow keys move · Return chooses · Esc closes"));
 		column->addWidget(Hint);
+		// [[BPR-1566]]. The owner, 2026-10-16: a small way to the page the
+		// labels come from, "for people who don't know where those come from
+		// or how to use them". Under a rule and in the link colour, so it
+		// reads as a way out rather than a thirteenth label. It names the
+		// page; the window hands the name to the application, which builds
+		// the address and opens it. Shown only when a window bound it.
+		AboutRule = new QFrame{ this };
+		AboutRule->setObjectName(QStringLiteral("feedbackLabelMenuAboutRule"));
+		AboutRule->setFrameShape(QFrame::HLine);
+		AboutRule->setFrameShadow(QFrame::Plain);
+		AboutRule->setForegroundRole(QPalette::Midlight);
+		column->addWidget(AboutRule);
+		About = new QToolButton{ this };
+		About->setObjectName(QStringLiteral("feedbackLabelMenuAbout"));
+		About->setText(QStringLiteral("About Conventional Comments"));
+		About->setAccessibleName(QStringLiteral("About Conventional Comments"));
+		About->setAccessibleDescription(QStringLiteral("Where these labels come from and how to use them. Opens conventionalcomments.org in your browser."));
+		About->setToolTip(QStringLiteral("Where these labels come from and how to use them.\nOpens conventionalcomments.org in your browser."));
+		About->setAutoRaise(true);
+		About->setFocusPolicy(Qt::StrongFocus);
+		About->setCursor(Qt::PointingHandCursor);
+		anchor_tooltips(*About);
+		column->addWidget(About, 0, Qt::AlignLeft);
+		connect(About, &QToolButton::clicked, this, [this] {
+			// Not a choice: the text is untouched. The menu closes first, so
+			// focus is back in the comment before the browser takes it.
+			close();
+			Controls.open_reference(core::reference_page::conventional_comments);
+		});
 		connect(Plain, &QToolButton::clicked, this, [this] { choose({ .Change = core::feedback_label_change::remove }); });
 		setTabOrder(Plain, Labels.front());
 	}
@@ -556,6 +608,16 @@ namespace bpr::qt {
 		CustomRow->setVisible(!Custom.empty());
 		CustomField->setEnabled(aState.Label.has_value());
 		CustomAdd->setEnabled(aState.Label.has_value() && !CustomField->text().isEmpty());
+		const auto offered = Controls.reference_offered();
+		AboutRule->setVisible(offered);
+		About->setVisible(offered);
+		{
+			// The link colour of the palette on screen, read again at every
+			// opening so a change of appearance is followed.
+			auto linkPalette = About->palette();
+			linkPalette.setColor(QPalette::ButtonText, palette().color(QPalette::Link));
+			About->setPalette(linkPalette);
+		}
 		if (hadFocus) {
 			(Custom.empty() ? static_cast<QWidget*>(CustomField) : Custom.front())->setFocus(Qt::TabFocusReason);
 		}
@@ -590,6 +652,7 @@ namespace bpr::qt {
 	auto feedback_label_menu::custom_buttons() const -> std::vector<QToolButton*> { return Custom; }
 	auto feedback_label_menu::custom_field() const noexcept -> QLineEdit* { return CustomField; }
 	auto feedback_label_menu::custom_add_button() const noexcept -> QToolButton* { return CustomAdd; }
+	auto feedback_label_menu::about_button() const noexcept -> QToolButton* { return About; }
 
 	void feedback_label_menu::choose(const core::feedback_header_edit& aEdit)
 	{
@@ -648,7 +711,8 @@ namespace bpr::qt {
 	void feedback_label_menu::move_focus(const int aRows, const int aColumns)
 	{
 		// Row 0 is Plain, rows 1 to 4 the grid, row 5 the decorations, row 6
-		// the custom ones written (when there are any) and row 7 the field.
+		// the custom ones written (when there are any), row 7 the field and
+		// row 8 About Conventional Comments ([[BPR-1566]]), when offered.
 		const auto at = [this](const int aRow, const int aColumn) -> QWidget* {
 			if (aRow <= 0) {
 				return Plain;
@@ -662,6 +726,9 @@ namespace bpr::qt {
 			}
 			if (aRow == 6 && !Custom.empty()) {
 				return Custom[static_cast<std::size_t>(std::clamp(aColumn, 0, static_cast<int>(Custom.size()) - 1))];
+			}
+			if (aRow >= 8) {
+				return About;
 			}
 			return CustomField;
 		};
@@ -688,11 +755,27 @@ namespace bpr::qt {
 		if (focusWidget() == CustomField || focusWidget() == CustomAdd) {
 			row = 7;
 		}
-		auto next = std::clamp(row + aRows, 0, 7);
+		if (focusWidget() == About) {
+			row = 8;
+		}
+		const auto last = About->isHidden() ? 7 : 8;
+		const auto step = aRows < 0 ? -1 : 1;
+		auto       next = std::clamp(row + aRows, 0, last);
 		if (next == 6 && Custom.empty()) {
-			next += aRows < 0 ? -1 : 1;
+			next += step;
 		}
 		auto* target = at(next, column + aColumns);
+		// [[BPR-1566]]. On a plain comment the decorations and the field are
+		// disabled; an up or down move passes them, so About is reached from
+		// the grid and the grid from About. With About hidden this stops
+		// where it always did.
+		while (aRows != 0 && !target->isEnabled() && next > 0 && next < last) {
+			next += step;
+			if (next == 6 && Custom.empty()) {
+				next += step;
+			}
+			target = at(next, column + aColumns);
+		}
 		if (target->isEnabled()) {
 			target->setFocus(Qt::TabFocusReason);
 		}

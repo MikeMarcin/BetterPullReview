@@ -101,6 +101,7 @@ add_library(
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
         src/github_window_read_host.cpp
+        src/reference_page.cpp
         src/home_open_host.cpp
         src/github_read_admission.cpp
         src/github_credential_vault.cpp

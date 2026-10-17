@@ -5,6 +5,7 @@
 #include "product_diff.hpp"
 
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/reference_page.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -3770,6 +3771,29 @@ namespace {
 			   "question typed out in full labels the reply, in place and in its draft");
 		expect(replyLabels->chip()->accessibleName() == QStringLiteral("Label: question") && composer->statistics().Edits == 0U,
 			   "the reply's chip names the label typed");
+		// [[BPR-1566]]. The window's reference dispatch reaches the open
+		// reply's label menu through the drawer: About Conventional Comments
+		// names the page once and leaves the reply and its draft as they are.
+		{
+			auto asked = std::vector<core::reference_page>{ };
+			window.set_reference_page_dispatch([&asked](const core::reference_page aPage) {
+				asked.push_back(aPage);
+				return core::markdown_link_result::opened;
+			});
+			expect(replyLabels->reference_offered() && composer->reference_offered(), "the window binds the open reply's label menu and the composer's");
+			replyLabels->open_menu();
+			QApplication::processEvents();
+			expect(replyLabels->menu()->isVisible() && replyLabels->menu()->about_button()->isVisible(), "the reply's menu ends with About Conventional Comments");
+			replyLabels->menu()->about_button()->click();
+			QApplication::processEvents();
+			expect(asked == std::vector<core::reference_page>{ core::reference_page::conventional_comments } && !replyLabels->menu()->isVisible()
+					   && replyBox->toPlainText() == QStringLiteral("question: ") && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: ")
+					   && replyLabels->statistics().Edits == 0U,
+				   "it names the page once, closes the menu and changes neither the reply nor its draft");
+			expect(window.statusBar()->currentMessage() == QStringLiteral("Opened conventionalcomments.org in your browser."), "the window says the page opened");
+			window.set_reference_page_dispatch({ });
+			expect(!replyLabels->reference_offered() && !composer->reference_offered(), "unbound, neither menu offers it");
+		}
 		typeInto(replyBox, QStringLiteral("why"));
 		capture_layout_state(window, QStringLiteral("inline-reply-label"));
 		replyBox->clear();
