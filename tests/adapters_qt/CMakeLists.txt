@@ -1254,6 +1254,20 @@ set_tests_properties(qt_change_end_keys PROPERTIES
     TIMEOUT 60
 )
 
+# [[BPR-1567]]. Help → Keyboard Shortcuts: the catalogue against every key
+# the assembled window, the resident menu bar and a Review Cycle view bind
+# (with a negative control), and the page's listing, search, keyboard, Esc,
+# themes and layout at each scale.
+foreach(bpr_shortcuts_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_shortcuts_whole "${bpr_shortcuts_scale} / 100")
+    math(EXPR bpr_shortcuts_fraction "${bpr_shortcuts_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_keyboard_shortcuts_scale_${bpr_shortcuts_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --keyboard-shortcuts)
+    set_tests_properties(qt_keyboard_shortcuts_scale_${bpr_shortcuts_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_shortcuts_whole}.${bpr_shortcuts_fraction};BPR_EXPECTED_QT_SCALE=${bpr_shortcuts_whole}.${bpr_shortcuts_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/keyboard-shortcuts-${bpr_shortcuts_scale}.png"
+        PASS_REGULAR_EXPRESSION "keyboard-shortcuts:pass" TIMEOUT 120)
+endforeach()
+
 # [[BPR-1331]]. The review bar's progress button shows the selected file's
 # decided mark: glyph, name and tooltip, through a change, a file switch and a
 # palette refresh.

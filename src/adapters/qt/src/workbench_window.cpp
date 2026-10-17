@@ -32,6 +32,8 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -857,22 +859,12 @@ namespace bpr::qt {
 		/// (Ctrl+Alt+Up and Ctrl+Alt+Down) are Previous and Next file.
 		[[nodiscard]] auto previous_change_key() -> QKeySequence
 		{
-			return QKeySequence{ QStringLiteral("Alt+Up") };
+			return shortcut_key(shortcut_command::previous_change);
 		}
 
 		[[nodiscard]] auto next_change_key() -> QKeySequence
 		{
-			return QKeySequence{ QStringLiteral("Alt+Down") };
-		}
-
-		[[nodiscard]] auto previous_file_key() -> QKeySequence
-		{
-			return QKeySequence{ QStringLiteral("Ctrl+Alt+Up") };
-		}
-
-		[[nodiscard]] auto next_file_key() -> QKeySequence
-		{
-			return QKeySequence{ QStringLiteral("Ctrl+Alt+Down") };
+			return shortcut_key(shortcut_command::next_change);
 		}
 
 		/// \brief [[BPR-1532]]. The owner, 2026-10-15: Option-Shift-Up and
@@ -880,7 +872,7 @@ namespace bpr::qt {
 		/// the first and the last change in the current file.
 		[[nodiscard]] auto change_end_keys() -> std::array<QKeySequence, 2>
 		{
-			return { QKeySequence{ QStringLiteral("Alt+Shift+Up") }, QKeySequence{ QStringLiteral("Alt+Shift+Down") } };
+			return { shortcut_key(shortcut_command::first_change), shortcut_key(shortcut_command::last_change) };
 		}
 
 		/// \brief [[BPR-1532]]. Whether the focused widget, or a widget between
@@ -934,7 +926,7 @@ namespace bpr::qt {
 		/// elsewhere (owner, 2026-10-15, replacing Command-Shift-A).
 		[[nodiscard]] auto accept_file_key() -> QKeySequence
 		{
-			return QKeySequence{ QStringLiteral("Alt+A") };
+			return shortcut_key(shortcut_command::accept_file);
 		}
 
 		/// \brief [[BPR-1531]] [[BPR-1532]] [[BPR-1536]]. Whether a focused
@@ -1444,7 +1436,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
 			QStringLiteral("Hide the file drawer and give its width to the comparison."),
 			QStringLiteral("Show the file drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+Shift+1") });
+			shortcut_key(shortcut_command::files_drawer));
 		Drawers[1] = makeDrawer(
 			// [[BPR-1293]]. The drawer is Comments, as its tab and title-row
 			// toggle say; only the modality is called Threads ([[BPR-1341]]).
@@ -1454,7 +1446,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
 			QStringLiteral("Hide the comments drawer and give its width to the comparison."),
 			QStringLiteral("Show the comments drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+Shift+2") });
+			shortcut_key(shortcut_command::comments_drawer));
 		// [[BPR-0651]]. The repositories drawer, left of the files. Alt+Shift+3
 		// to 5 are taken by the line numbers, review controls and review
 		// details, so this one is mnemonic.
@@ -1465,7 +1457,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchRepositoriesDrawerAction"),
 			QStringLiteral("Hide the repositories drawer and give its width to the comparison."),
 			QStringLiteral("Show the repositories drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+Shift+R") });
+			shortcut_key(shortcut_command::repositories_drawer));
 
 		const auto make = [this](const QString&             aText,
 								 const QString&             aName,
@@ -1494,13 +1486,13 @@ namespace bpr::qt {
 							 QStringLiteral("Previous file"),
 							 QStringLiteral("previousWorkbenchFileAction"),
 							 QStringLiteral("Select the previous actionable file."),
-							 { previous_file_key() });
+							 shortcut_keys(shortcut_command::previous_file));
 		Navigation[1] = make(QStringLiteral("&Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("nextWorkbenchFileAction"),
 							 QStringLiteral("Select the next actionable file."),
-							 { next_file_key() });
+							 shortcut_keys(shortcut_command::next_file));
 		Navigation[2] = make(QStringLiteral("Pre&vious change"),
 							 QStringLiteral("Previous change"),
 							 QStringLiteral("Previous change"),
@@ -1508,13 +1500,13 @@ namespace bpr::qt {
 							 QStringLiteral("Select the previous semantic change."),
 							 // [[BPR-1328]]. Option-Up (Alt+Up) first, which the
 							 // tooltip names; Option-Page Up stays as before.
-							 { previous_change_key(), QKeySequence{ QStringLiteral("Alt+PgUp") } });
+							 shortcut_keys(shortcut_command::previous_change));
 		Navigation[3] = make(QStringLiteral("Ne&xt change"),
 							 QStringLiteral("Next change"),
 							 QStringLiteral("Next change"),
 							 QStringLiteral("nextWorkbenchChangeAction"),
 							 QStringLiteral("Select the next semantic change."),
-							 { next_change_key(), QKeySequence{ QStringLiteral("Alt+PgDown") } });
+							 shortcut_keys(shortcut_command::next_change));
 
 		// The native menu and toolbar share each retained navigation action.
 		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
@@ -1568,8 +1560,7 @@ namespace bpr::qt {
 		// the strip and the epoch line; the exact anchors and the selected
 		// change's details are shown on request.
 		ReviewDetailsAction->setChecked(false);
-		ReviewDetailsAction->setShortcut(
-			QKeySequence{ QStringLiteral("Alt+Shift+3") });
+		ReviewDetailsAction->setShortcuts(shortcut_keys(shortcut_command::review_details));
 		ReviewDetailsAction->setShortcutContext(Qt::WindowShortcut);
 		ReviewDetailsAction->setToolTip(QStringLiteral(
 			"Show the exact review anchors."));
@@ -1627,7 +1618,7 @@ namespace bpr::qt {
 		ReviewControlsButton = new menu_tool_button{ this };
 		ReviewControlsButton->setObjectName(QStringLiteral("workbenchReviewControlsButton"));
 		ReviewControlsButton->setText(QStringLiteral("Private &progress"));
-		ReviewControlsButton->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+4") });
+		ReviewControlsButton->setShortcut(shortcut_key(shortcut_command::private_progress));
 		ReviewControlsButton->setAccessibleName(QStringLiteral("Private progress"));
 		ReviewControlsButton->setAccessibleDescription(QStringLiteral(
 			"Open private seen, read, acceptance, and exclusion actions"));
@@ -1738,7 +1729,7 @@ namespace bpr::qt {
 		HomeAction = new QAction{ QStringLiteral("&Home"), this };
 		HomeAction->setObjectName(QStringLiteral("workbenchHomeAction"));
 		HomeAction->setCheckable(true);
-		HomeAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+H") });
+		HomeAction->setShortcuts(shortcut_keys(shortcut_command::home));
 		HomeAction->setShortcutContext(Qt::WindowShortcut);
 		HomeAction->setIconText(QStringLiteral("Home"));
 		HomeAction->setToolTip(QStringLiteral(
@@ -1770,7 +1761,7 @@ namespace bpr::qt {
 		// control in the row.
 		OpenOnGithubAction = new QAction{ tr("Open on &GitHub"), this };
 		OpenOnGithubAction->setObjectName(QStringLiteral("openOnGithubAction"));
-		OpenOnGithubAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+O") });
+		OpenOnGithubAction->setShortcuts(shortcut_keys(shortcut_command::open_on_github));
 		OpenOnGithubAction->setShortcutContext(Qt::WindowShortcut);
 		OpenOnGithubAction->setIconText(QStringLiteral("Open on GitHub"));
 		OpenOnGithubAction->setToolTip(QStringLiteral("Open on GitHub (%1)").arg(OpenOnGithubAction->shortcut().toString(QKeySequence::NativeText)));
@@ -1803,7 +1794,7 @@ namespace bpr::qt {
 		NextNewCommentAction->setToolTip(QStringLiteral("Next new comment"));
 		NextNewCommentAction->setStatusTip(QStringLiteral(
 			"Reveal the next thread with a post newer than what you have read."));
-		NextNewCommentAction->setShortcut(QKeySequence{ QStringLiteral("Alt+N") });
+		NextNewCommentAction->setShortcuts(shortcut_keys(shortcut_command::next_new_comment));
 		NextNewCommentAction->setShortcutContext(Qt::WindowShortcut);
 		NextNewCommentAction->setEnabled(false);
 		addAction(NextNewCommentAction);
@@ -1914,11 +1905,11 @@ namespace bpr::qt {
 		// keys work from anywhere in it without a visible presenter; the bar and
 		// the Pull Request menu present them. They keep the object names the
 		// composition pages and their tests already know.
-		const auto makeComposition = [this](const QString& aText, const QString& aName, const QString& aKey, const bool aInline) {
+		const auto makeComposition = [this](const QString& aText, const QString& aName, const shortcut_command aKey, const bool aInline) {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aName);
 			action->setIconText(action->text().remove(QLatin1Char{ '&' }));
-			action->setShortcut(QKeySequence{ aKey });
+			action->setShortcuts(shortcut_keys(aKey));
 			action->setShortcutContext(Qt::WindowShortcut);
 			addAction(action);
 			connect(action, &QAction::triggered, this, [this, aInline] {
@@ -1932,8 +1923,8 @@ namespace bpr::qt {
 			});
 			return action;
 		};
-		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), QStringLiteral("Alt+R"), false);
-		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), QStringLiteral("Alt+C"), true);
+		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), shortcut_command::compose_review, false);
+		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), shortcut_command::comment, true);
 		// [[BPR-1345]]. While a review is in progress the bar says so, with
 		// how many comments it holds, and Finish review opens its summary in
 		// Discuss (the start-a-review frames, owner's Accept 2026-10-08).
@@ -1947,7 +1938,7 @@ namespace bpr::qt {
 		// cmd+option+enter"), bound once, for the whole window.
 		FinishReviewAction = new QAction{ tr("Finish review"), this };
 		FinishReviewAction->setObjectName(QStringLiteral("finishReviewAction"));
-		FinishReviewAction->setShortcuts({ QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Enter } });
+		FinishReviewAction->setShortcuts(shortcut_keys(shortcut_command::finish_review));
 		FinishReviewAction->setShortcutContext(Qt::WindowShortcut);
 		FinishReviewAction->setEnabled(false);
 		addAction(FinishReviewAction);
@@ -1971,14 +1962,14 @@ namespace bpr::qt {
 		PullRequestMenu->addAction(CommentAction);
 		PrepareTourAction = new QAction{ tr("Prepare review &tour"), this };
 		PrepareTourAction->setObjectName(QStringLiteral("prepareReviewTourAction"));
-		PrepareTourAction->setShortcut(QKeySequence{ QStringLiteral("Alt+T") });
+		PrepareTourAction->setShortcuts(shortcut_keys(shortcut_command::prepare_tour));
 		PrepareTourAction->setEnabled(false);
 		addAction(PrepareTourAction);
 		PullRequestMenu->addAction(PrepareTourAction);
 		connect(PrepareTourAction, &QAction::triggered, this, [this] { open_review_tour(); });
 		AddTourStopAction = new QAction{ tr("Add tour stop"), this };
 		AddTourStopAction->setObjectName(QStringLiteral("addTourStopAction"));
-		AddTourStopAction->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+T") });
+		AddTourStopAction->setShortcuts(shortcut_keys(shortcut_command::add_tour_stop));
 		AddTourStopAction->setEnabled(false);
 		addAction(AddTourStopAction);
 		PullRequestMenu->addAction(AddTourStopAction);
@@ -2746,18 +2737,18 @@ namespace bpr::qt {
 			back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
 			// [[BPR-1345]] v002. ⌘⇧M, as Maximize took the draft here; ⌘⇧↩
 			// is Add single comment now.
-			const auto key = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_M }.toString(QKeySequence::NativeText);
+			const auto key = shortcut_key(shortcut_command::draft_to_discuss).toString(QKeySequence::NativeText);
 			back->setToolTip(tr("%1, without publishing  %2 or Esc").arg(aBack, key));
 			back->setAccessibleDescription(tr("Return to the previous surface without submitting"));
 			connect(back, &QPushButton::clicked, this, [this] { close_review_composition(); });
 			// [[BPR-1129]]. Esc is Back, from anywhere on the page; so is
 			// ⌘⇧M, the key that brought the draft here ([[BPR-1212]];
 			// ⌘⇧↩ until [[BPR-1345]] v002).
-			auto* const escape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, scroll };
+			auto* const escape = new QShortcut{ shortcut_key(shortcut_command::leave_composer), scroll };
 			escape->setObjectName(aName + QStringLiteral("Escape"));
 			escape->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(escape, &QShortcut::activated, this, [this] { close_review_composition(); });
-			auto* const restore = new QShortcut{ QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_M }, scroll };
+			auto* const restore = new QShortcut{ shortcut_key(shortcut_command::draft_to_discuss), scroll };
 			restore->setObjectName(aName + QStringLiteral("Restore"));
 			restore->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(restore, &QShortcut::activated, this, [this] { close_review_composition(); });
@@ -2790,7 +2781,8 @@ namespace bpr::qt {
 		// scrolls. Mascot preferences must never hide these semantic controls.
 		WorkshopHeader = new QWidget{ CentreSurface };
 		WorkshopHeader->setObjectName(QStringLiteral("workbenchWorkshopHeader"));
-		auto* workshopEscape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, WorkshopHeader };
+		auto* workshopEscape = new QShortcut{ shortcut_key(shortcut_command::leave_composer), WorkshopHeader };
+		workshopEscape->setObjectName(QStringLiteral("workbenchWorkshopHeaderEscape"));
 		workshopEscape->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(workshopEscape, &QShortcut::activated, this, [this] { close_review_composition(); });
 		auto* workshopHeader = new QHBoxLayout{ WorkshopHeader };
@@ -3078,7 +3070,7 @@ namespace bpr::qt {
 			HomeOpenAction->setObjectName(QStringLiteral("homeOpenAction"));
 			HomeFocusBarAction = new QAction{ tr("Go to the Open bar"), this };
 			HomeFocusBarAction->setObjectName(QStringLiteral("homeFocusBarAction"));
-			HomeFocusBarAction->setShortcut(QKeySequence{ Qt::CTRL | Qt::Key_L });
+			HomeFocusBarAction->setShortcuts(shortcut_keys(shortcut_command::home_open_bar));
 			HomeFocusBarAction->setShortcutContext(Qt::WindowShortcut);
 			addAction(HomeFocusBarAction);
 			connect(HomeFocusBarAction, &QAction::triggered, this, [this] { focus_home_bar(); });
@@ -3281,7 +3273,7 @@ namespace bpr::qt {
 			// click made current, with Open Review and Open Review in New
 			// Window before Resume and Open on GitHub ([[BPR-1338]]). Its
 			// key, ⇧Return, is shown there; it is read by the list, below.
-			HomeRecentResumeAction->setShortcut(QKeySequence{ Qt::SHIFT | Qt::Key_Return });
+			HomeRecentResumeAction->setShortcuts(shortcut_keys(shortcut_command::home_resume));
 			HomeRecentResumeAction->setShortcutContext(Qt::WidgetShortcut);
 			HomeRecentResumeAction->setShortcutVisibleInContextMenu(true);
 			HomeRecentList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -3446,21 +3438,20 @@ namespace bpr::qt {
 		// still measure the same thing.
 		GithubConnectAction = new QAction{ QStringLiteral("&Connect"), this };
 		GithubConnectAction->setObjectName(QStringLiteral("connectGithubAction"));
-		GithubConnectAction->setShortcut(
-			QKeySequence{ QStringLiteral("Ctrl+Shift+C") });
+		GithubConnectAction->setShortcuts(shortcut_keys(shortcut_command::connect));
 		GithubConnectAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubConnectAction);
 		GithubOpenAction = new QAction{
 			QStringLiteral("&Open pull request"), this
 		};
 		GithubOpenAction->setObjectName(QStringLiteral("openPullRequestAction"));
-		GithubOpenAction->setShortcut(QKeySequence::Open);
+		GithubOpenAction->setShortcuts(shortcut_keys(shortcut_command::open_pull_request));
 		GithubOpenAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubOpenAction);
 		GithubRefreshAction = new QAction{ QStringLiteral("&Refresh"), this };
 		GithubRefreshAction->setObjectName(
 			QStringLiteral("refreshPullRequestAction"));
-		GithubRefreshAction->setShortcut(QKeySequence::Refresh);
+		GithubRefreshAction->setShortcuts(shortcut_keys(shortcut_command::refresh));
 		GithubRefreshAction->setShortcutContext(Qt::ApplicationShortcut);
 		addAction(GithubRefreshAction);
 		// [[BPR-0990]]. Home's refresh glyph is the profile's discovery, not
@@ -4018,21 +4009,21 @@ namespace bpr::qt {
 		// GitHub. Each shows its key. The keys are read by the lists
 		// themselves, so these shortcuts are context-bound to the menu and
 		// never act from the window.
-		const auto menuKey = [](QAction& aAction, const QKeySequence& aKey) {
-			aAction.setShortcut(aKey);
+		const auto menuKey = [](QAction& aAction, const shortcut_command aKey) {
+			aAction.setShortcuts(shortcut_keys(aKey));
 			aAction.setShortcutContext(Qt::WidgetShortcut);
 			aAction.setShortcutVisibleInContextMenu(true);
 		};
 		HomeOpenReviewAction = new QAction{ tr("Open Review"), this };
 		HomeOpenReviewAction->setObjectName(QStringLiteral("homeOpenReviewAction"));
 		HomeOpenReviewAction->setStatusTip(QStringLiteral("Open this pull request in this window"));
-		menuKey(*HomeOpenReviewAction, QKeySequence{ Qt::Key_Return });
+		menuKey(*HomeOpenReviewAction, shortcut_command::home_open_review);
 		HomeOpenReviewAction->setEnabled(false);
 		connect(HomeOpenReviewAction, &QAction::triggered, this, [this] { open_home_review(false); });
 		HomeOpenReviewWindowAction = new QAction{ tr("Open Review in New Window"), this };
 		HomeOpenReviewWindowAction->setObjectName(QStringLiteral("homeOpenReviewInNewWindowAction"));
 		HomeOpenReviewWindowAction->setStatusTip(QStringLiteral("Open this pull request in a new window of this profile"));
-		menuKey(*HomeOpenReviewWindowAction, QKeySequence{ Qt::CTRL | Qt::Key_Return });
+		menuKey(*HomeOpenReviewWindowAction, shortcut_command::home_open_window);
 		HomeOpenReviewWindowAction->setEnabled(false);
 		connect(HomeOpenReviewWindowAction, &QAction::triggered, this, [this] { open_home_review(true); });
 		OpenOnGithubAction->setShortcutVisibleInContextMenu(true);
@@ -8591,7 +8582,7 @@ namespace bpr::qt {
 			// no window shortcut ever claims Return.
 			auto* const item = new QAction{ action->icon(), action->text(), menu };
 			item->setObjectName(action->objectName());
-			item->setShortcut(action == AddCommentAction ? QKeySequence{ Qt::Key_Return } : QKeySequence{ Qt::SHIFT | Qt::Key_Return });
+			item->setShortcuts(shortcut_keys(action == AddCommentAction ? shortcut_command::add_comment : shortcut_command::suggest_change));
 			item->setShortcutContext(Qt::WidgetShortcut);
 			item->setEnabled(action->isEnabled());
 			item->setToolTip(action->toolTip());
@@ -14373,7 +14364,7 @@ namespace bpr::qt {
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("quitProfilesAction"));
 		QuitProfilesAction->setMenuRole(QAction::QuitRole);
-		QuitProfilesAction->setShortcut(QKeySequence::Quit);
+		QuitProfilesAction->setShortcuts(shortcut_keys(shortcut_command::quit));
 		QuitProfilesAction->setEnabled(false);
 		connect(QuitProfilesAction, &QAction::triggered, this, [this] {
 			if (QuitProfiles) {
@@ -14429,15 +14420,7 @@ namespace bpr::qt {
 			auto* action = new QAction{ findTitles[index], this };
 			action->setObjectName(findNames[index]);
 			action->setShortcutContext(Qt::WindowShortcut);
-			if (index == 0U) {
-				action->setShortcut(QKeySequence::Find);
-			} else {
-				QList<QKeySequence> keys{ QKeySequence{ index == 1U ? QStringLiteral("F3") : QStringLiteral("Shift+F3") } };
-#if defined(Q_OS_MACOS)
-				keys.push_back(QKeySequence{ index == 1U ? QStringLiteral("Ctrl+G") : QStringLiteral("Ctrl+Shift+G") });
-#endif
-				action->setShortcuts(keys);
-			}
+			action->setShortcuts(shortcut_keys(std::array{ shortcut_command::find, shortcut_command::find_next, shortcut_command::find_previous }[index]));
 			SourceFindActions[index] = action;
 			action->setEnabled(false);
 			addAction(action);
@@ -14459,8 +14442,7 @@ namespace bpr::qt {
 		for (std::size_t index = 0; index < SourceFilesActions.size(); ++index) {
 			auto* action = new QAction{ fileTitles[index], this };
 			action->setObjectName(fileNames[index]);
-			action->setShortcut(QKeySequence{ index == 0 ? QStringLiteral("Ctrl+Shift+F") : index == 1 ? QStringLiteral("F4")
-																									   : QStringLiteral("Shift+F4") });
+			action->setShortcuts(shortcut_keys(std::array{ shortcut_command::find_in_files, shortcut_command::next_result, shortcut_command::previous_result }[index]));
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setEnabled(false);
 			SourceFilesActions[index] = action;
@@ -14475,7 +14457,7 @@ namespace bpr::qt {
 			QStringLiteral("Presentation options for the comparison surface"));
 		HeaderSourceAction = new QAction{ tr("Go to header/source"), this };
 		HeaderSourceAction->setObjectName(QStringLiteral("goToHeaderSourceAction"));
-		HeaderSourceAction->setShortcut(QKeySequence{ QStringLiteral("Alt+O") });
+		HeaderSourceAction->setShortcuts(shortcut_keys(shortcut_command::header_source));
 		HeaderSourceAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(HeaderSourceAction);
 		ViewMenu->addAction(HeaderSourceAction);
@@ -14492,8 +14474,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchLineNumbersAction"));
 		LineNumbersAction->setCheckable(true);
 		LineNumbersAction->setChecked(true);
-		LineNumbersAction->setShortcut(
-			QKeySequence{ QStringLiteral("Alt+Shift+5") });
+		LineNumbersAction->setShortcuts(shortcut_keys(shortcut_command::line_numbers));
 		LineNumbersAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(LineNumbersAction);
 		ViewMenu->addAction(LineNumbersAction);
@@ -14533,7 +14514,7 @@ namespace bpr::qt {
 		ToggleDrawersAction->setObjectName(QStringLiteral("toggleWorkbenchDrawersAction"));
 		ToggleDrawersAction->setIconText(QStringLiteral("Hide drawers"));
 		ToggleDrawersAction->setCheckable(true);
-		ToggleDrawersAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+B") });
+		ToggleDrawersAction->setShortcuts(shortcut_keys(shortcut_command::hide_drawers));
 		ToggleDrawersAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(ToggleDrawersAction);
 		ViewMenu->addAction(ToggleDrawersAction);
@@ -14544,7 +14525,7 @@ namespace bpr::qt {
 		// Threads from Overview, Review or Discuss, and back from it.
 		ShowThreadsAction = new QAction{ QStringLiteral("&Threads"), this };
 		ShowThreadsAction->setObjectName(QStringLiteral("showWorkbenchThreadsAction"));
-		ShowThreadsAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+J") });
+		ShowThreadsAction->setShortcuts(shortcut_keys(shortcut_command::find_thread));
 		ShowThreadsAction->setShortcutContext(Qt::WindowShortcut);
 		ShowThreadsAction->setEnabled(false);
 		{
@@ -14589,10 +14570,10 @@ namespace bpr::qt {
 		// Command-Option-0 rather than adding to it. Inside the open label menu
 		// Command-0 is still Plain: the popup claims it before the window.
 		ViewMenu->addSeparator();
-		const auto zoomAction = [this](const QString& aText, const QString& aName, const QList<QKeySequence>& aKeys, const core::code_zoom_step aStep) {
+		const auto zoomAction = [this](const QString& aText, const QString& aName, const shortcut_command aKeys, const core::code_zoom_step aStep) {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aName);
-			action->setShortcuts(aKeys);
+			action->setShortcuts(shortcut_keys(aKeys));
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setEnabled(false);
 			addAction(action);
@@ -14600,9 +14581,9 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, this, [this, aStep] { dispatch_code_zoom(aStep); });
 			return action;
 		};
-		ZoomInAction     = zoomAction(tr("Zoom In"), QStringLiteral("zoomInCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }, core::code_zoom_step::in);
-		ZoomOutAction    = zoomAction(tr("Zoom Out"), QStringLiteral("zoomOutCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+-") } }, core::code_zoom_step::out);
-		ActualSizeAction = zoomAction(tr("Actual Size"), QStringLiteral("actualSizeCodeAction"), { QKeySequence{ QStringLiteral("Ctrl+0") } }, core::code_zoom_step::actual_size);
+		ZoomInAction     = zoomAction(tr("Zoom In"), QStringLiteral("zoomInCodeAction"), shortcut_command::zoom_in, core::code_zoom_step::in);
+		ZoomOutAction    = zoomAction(tr("Zoom Out"), QStringLiteral("zoomOutCodeAction"), shortcut_command::zoom_out, core::code_zoom_step::out);
+		ActualSizeAction = zoomAction(tr("Actual Size"), QStringLiteral("actualSizeCodeAction"), shortcut_command::actual_size, core::code_zoom_step::actual_size);
 		apply_code_zoom();
 #if defined(Q_OS_WIN)
 		qApp->installEventFilter(new typed_text_yield{ this });
@@ -14613,23 +14594,18 @@ namespace bpr::qt {
 		// move between the tabs (the Control key on macOS too, where Qt names
 		// it Meta), and Cmd-W (Ctrl+W) closes the active tab. Nothing had
 		// Cmd-W before, so no window command moves to Cmd-Shift-W.
-		const auto tabAction = [this](const QString& aText, const QString& aName, const QKeySequence& aKey) {
+		const auto tabAction = [this](const QString& aText, const QString& aName, const shortcut_command aKey) {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aName);
-			action->setShortcut(aKey);
+			action->setShortcuts(shortcut_keys(aKey));
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setEnabled(false);
 			addAction(action);
 			return action;
 		};
-#if defined(Q_OS_MACOS)
-		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Tab") });
-		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Meta+Shift+Tab") });
-#else
-		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Tab") });
-		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") });
-#endif
-		CloseTabAction = tabAction(tr("Close Tab"), QStringLiteral("closeDocumentTabAction"), QKeySequence{ QStringLiteral("Ctrl+W") });
+		NextTabAction     = tabAction(tr("Next Tab"), QStringLiteral("nextDocumentTabAction"), shortcut_command::next_tab);
+		PreviousTabAction = tabAction(tr("Previous Tab"), QStringLiteral("previousDocumentTabAction"), shortcut_command::previous_tab);
+		CloseTabAction    = tabAction(tr("Close Tab"), QStringLiteral("closeDocumentTabAction"), shortcut_command::close_tab);
 		ViewMenu->addAction(NextTabAction);
 		ViewMenu->addAction(PreviousTabAction);
 		fileMenu->addAction(CloseTabAction);
@@ -14656,6 +14632,18 @@ namespace bpr::qt {
 		// preferences shortcut; on macOS the role places it in the app menu.
 		auto* diagnosticMenu = menuBar()->addMenu(QStringLiteral("&Help"));
 		diagnosticMenu->setObjectName(QStringLiteral("releaseUpdateMenu"));
+		// [[BPR-1567]]. Keyboard Shortcuts, first: Command-/ (Ctrl+/), the key
+		// Slack and Google's editors list their shortcuts with. Command-? is
+		// macOS's own Help-menu search, so it is not taken.
+		KeyboardShortcutsAction = new QAction{ QStringLiteral("&Keyboard Shortcuts"), this };
+		KeyboardShortcutsAction->setObjectName(QStringLiteral("keyboardShortcutsAction"));
+		KeyboardShortcutsAction->setShortcuts(shortcut_keys(shortcut_command::keyboard_shortcuts));
+		KeyboardShortcutsAction->setShortcutContext(Qt::WindowShortcut);
+		KeyboardShortcutsAction->setStatusTip(QStringLiteral("List every keyboard shortcut, grouped by area and searchable"));
+		addAction(KeyboardShortcutsAction);
+		diagnosticMenu->addAction(KeyboardShortcutsAction);
+		diagnosticMenu->addSeparator();
+		connect(KeyboardShortcutsAction, &QAction::triggered, this, [this] { show_keyboard_shortcuts(); });
 		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
 		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
@@ -14672,7 +14660,7 @@ namespace bpr::qt {
 		SettingsAction->setMenuRole(QAction::PreferencesRole);
 		// Preferences has no standard binding on Windows/GNOME. Qt maps CTRL
 		// to Command on macOS; keep the explicit product shortcut on every host.
-		SettingsAction->setShortcut(QKeySequence{ Qt::CTRL | Qt::Key_Comma });
+		SettingsAction->setShortcuts(shortcut_keys(shortcut_command::settings));
 		// Each workbench owns this action. Application scope makes sibling
 		// windows' identical shortcuts ambiguous instead of selecting the caller.
 		SettingsAction->setShortcutContext(Qt::WindowShortcut);
@@ -14953,6 +14941,22 @@ namespace bpr::qt {
 	{
 		return MountedSettings ? MountedSettings.data() : SettingsWindow;
 	}
+
+	auto workbench_window::keyboard_shortcuts_action() const noexcept -> QAction* { return KeyboardShortcutsAction; }
+
+	void workbench_window::show_keyboard_shortcuts()
+	{
+		// Created on first use and kept: it reads a static table, and a
+		// second press raises the same window rather than opening another.
+		if (KeyboardShortcuts == nullptr) {
+			KeyboardShortcuts = new keyboard_shortcuts_window{ this };
+		}
+		KeyboardShortcuts->show();
+		KeyboardShortcuts->raise();
+		KeyboardShortcuts->activateWindow();
+	}
+
+	auto workbench_window::keyboard_shortcuts() const noexcept -> keyboard_shortcuts_window* { return KeyboardShortcuts; }
 
 	auto workbench_window::settings_action() const noexcept -> QAction*
 	{

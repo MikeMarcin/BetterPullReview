@@ -121,6 +121,7 @@ namespace bpr::qt {
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
+	class keyboard_shortcuts_window;
 	class home_panel;
 	class diff_workbench;
 	class epoch_comparison_control;
@@ -1256,6 +1257,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto sign_in_dialog() const noexcept -> QDialog*;
 		[[nodiscard]] auto settings() const noexcept -> settings_window*;
 		[[nodiscard]] auto settings_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1567]]. Help → Keyboard Shortcuts, on Command-/ (Ctrl+/).
+		[[nodiscard]] auto keyboard_shortcuts_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1567]]. Opens the window's Keyboard Shortcuts, or raises it.
+		void show_keyboard_shortcuts();
+		/// \brief [[BPR-1567]]. The window's Keyboard Shortcuts, once opened.
+		[[nodiscard]] auto keyboard_shortcuts() const noexcept -> keyboard_shortcuts_window*;
 		[[nodiscard]] auto appearance_settings() const noexcept
 			-> appearance_settings_panel*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
@@ -2362,10 +2369,12 @@ namespace bpr::qt {
 		bool                                               SignInCliOnly = false;
 		std::vector<core::host_profile_id>                 SignInCliProfiles;
 		std::function<void()>                              SignInCancelDispatch;
-		QAction*                                           SettingsAction       = nullptr;
-		QStackedWidget*                                    PullRequestStack     = nullptr;
-		QLabel*                                            EmptyStateTitleLabel = nullptr;
-		QLabel*                                            EmptyStateBodyLabel  = nullptr;
+		QAction*                                           SettingsAction          = nullptr;
+		QAction*                                           KeyboardShortcutsAction = nullptr;
+		keyboard_shortcuts_window*                         KeyboardShortcuts       = nullptr;
+		QStackedWidget*                                    PullRequestStack        = nullptr;
+		QLabel*                                            EmptyStateTitleLabel    = nullptr;
+		QLabel*                                            EmptyStateBodyLabel     = nullptr;
 		QString                                            LastGithubAnnouncement;
 		QAction*                                           GithubConnectAction = nullptr;
 		QAction*                                           GithubOpenAction    = nullptr;

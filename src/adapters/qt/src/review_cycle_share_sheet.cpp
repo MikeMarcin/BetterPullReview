@@ -4,6 +4,7 @@
 #include "bpr/core/suggestion_text_editing.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/review_cycle_share_marks.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 
@@ -489,14 +490,19 @@ namespace bpr::qt {
 			return static_cast<int>(QString::number(widest).size());
 		}
 
-		/// Control-C cancels on macOS, as in the code view (BPR-1157); elsewhere Ctrl+C is Copy.
-		void cancel_with_control_c([[maybe_unused]] QDialog& aDialog)
+		/// Control-C cancels on macOS, as in the code view (BPR-1157); elsewhere Ctrl+C is Copy,
+		/// and the catalogue gives the sheet no key.
+		void cancel_with_control_c(QDialog& aDialog)
 		{
-#ifdef Q_OS_MACOS
-			auto* const keys = new QShortcut{ QKeySequence{ Qt::META | Qt::Key_C }, &aDialog };
-			keys->setContext(Qt::WindowShortcut);
-			QObject::connect(keys, &QShortcut::activated, &aDialog, [&aDialog] { aDialog.reject(); });
-#endif
+			const auto keys = shortcut_keys(shortcut_command::cycle_sheet_close);
+			if (keys.isEmpty()) {
+				return;
+			}
+			auto* const shortcut = new QShortcut{ &aDialog };
+			shortcut->setObjectName(QStringLiteral("cycleSheetCloseKeys"));
+			shortcut->setKeys(keys);
+			shortcut->setContext(Qt::WindowShortcut);
+			QObject::connect(shortcut, &QShortcut::activated, &aDialog, [&aDialog] { aDialog.reject(); });
 		}
 
 		constexpr auto inline_rows = static_cast<int>(core::cycle_excerpt_rows) + 1;
@@ -1417,7 +1423,7 @@ namespace bpr::qt {
 
 		// Option+Up and Option+Down move the focused note (Alt elsewhere).
 		for (const auto key : { Qt::Key_Up, Qt::Key_Down }) {
-			auto* const shortcut = new QShortcut{ QKeySequence{ Qt::ALT | key }, this };
+			auto* const shortcut = new QShortcut{ shortcut_key(key == Qt::Key_Up ? shortcut_command::cycle_share_earlier : shortcut_command::cycle_share_later), this };
 			shortcut->setObjectName(key == Qt::Key_Up ? QStringLiteral("cycleShareMoveEarlier") : QStringLiteral("cycleShareMoveLater"));
 			shortcut->setContext(Qt::WindowShortcut);
 			connect(shortcut, &QShortcut::activated, this, [this, key] {

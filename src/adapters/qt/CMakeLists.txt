@@ -15,6 +15,8 @@ add_library(
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
+        src/keyboard_shortcuts.cpp
+        src/keyboard_shortcuts_window.cpp
         src/writing_hooks_panel.cpp
         src/claude_wrapper_panel.cpp
         src/release_maintenance_panel.cpp

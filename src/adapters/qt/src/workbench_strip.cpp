@@ -2,6 +2,7 @@
 
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include "painted_glyph_icon.hpp"
 
@@ -727,13 +728,13 @@ namespace bpr::qt {
 	{
 		switch (aModality) {
 		case review_modality::overview:
-			return QKeySequence{ QStringLiteral("Ctrl+1") };
+			return shortcut_key(shortcut_command::overview);
 		case review_modality::review:
-			return QKeySequence{ QStringLiteral("Ctrl+2") };
+			return shortcut_key(shortcut_command::review);
 		case review_modality::discuss:
-			return QKeySequence{ QStringLiteral("Ctrl+3") };
+			return shortcut_key(shortcut_command::discuss);
 		case review_modality::threads:
-			return QKeySequence{ QStringLiteral("Ctrl+4") };
+			return shortcut_key(shortcut_command::threads);
 		}
 		return QKeySequence{ };
 	}

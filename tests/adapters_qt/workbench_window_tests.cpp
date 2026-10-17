@@ -10,6 +10,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -20,10 +21,13 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
@@ -42,6 +46,7 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCursor>
+#include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
@@ -96,6 +101,7 @@
 #include <qpa/qwindowsysteminterface.h>
 
 #include <QTreeView>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -16098,6 +16104,420 @@ void test_native_geometry_fits_current_displays_and_observes_only_after_restore(
 	window.hide();
 }
 
+namespace {
+	// [[BPR-1567]]. Help → Keyboard Shortcuts and the catalogue its rows and
+	// the window's bindings are made from.
+
+	/// \brief One object that carries keys: an action, a widget shortcut, or a
+	/// button's own key (not its mnemonic, nor the key of the action it shows).
+	struct live_binding
+	{
+		QString             Name;
+		QList<QKeySequence> Keys;
+		QString             Owner;
+	};
+
+	[[nodiscard]] auto keys_text(const QList<QKeySequence>& aKeys) -> std::string
+	{
+		auto words = QStringList{ };
+		for (const auto& key : aKeys) {
+			words.push_back(key.toString(QKeySequence::PortableText));
+		}
+		return words.join(QStringLiteral(", ")).toStdString();
+	}
+
+	[[nodiscard]] auto live_bindings(const QObject& aRoot) -> std::vector<live_binding>
+	{
+		const auto owner = [](const QObject* const aObject) {
+			return aObject->parent() == nullptr ? QString{ } : aObject->parent()->objectName();
+		};
+		auto bindings = std::vector<live_binding>{ };
+		for (const auto* const action : aRoot.findChildren<QAction*>()) {
+			bindings.push_back({ .Name = action->objectName(), .Keys = action->shortcuts(), .Owner = owner(action) });
+		}
+		for (const auto* const shortcut : aRoot.findChildren<QShortcut*>()) {
+			bindings.push_back({ .Name = shortcut->objectName(), .Keys = shortcut->keys(), .Owner = owner(shortcut) });
+		}
+		for (const auto* const button : aRoot.findChildren<QAbstractButton*>()) {
+			const auto key = button->shortcut();
+			if (key.isEmpty() || key == QKeySequence::mnemonic(button->text())) {
+				continue;
+			}
+			if (const auto* const tool = qobject_cast<const QToolButton*>(button);
+				tool != nullptr && tool->defaultAction() != nullptr && tool->defaultAction()->shortcuts().contains(key)) {
+				continue;
+			}
+			bindings.push_back({ .Name = button->objectName(), .Keys = { key }, .Owner = owner(button) });
+		}
+		return bindings;
+	}
+
+	/// \brief Everything that disagrees between the catalogue and the live
+	/// bindings under `aRoots`: a bound key the catalogue does not list, a key
+	/// that differs, a binding that lost its key, and a catalogue entry with no
+	/// live binding.
+	[[nodiscard]] auto catalogue_problems(const std::vector<const QObject*>& aRoots) -> std::vector<std::string>
+	{
+		auto problems = std::vector<std::string>{ };
+		auto entries  = std::map<QString, const qt::shortcut_entry*>{ };
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			for (const auto& name : qt::shortcut_objects(entry)) {
+				if (!entries.emplace(name, &entry).second) {
+					problems.push_back("named by two entries: " + name.toStdString());
+				}
+			}
+		}
+		auto seen = std::vector<qt::shortcut_command>{ };
+		for (const auto* const root : aRoots) {
+			for (const auto& binding : live_bindings(*root)) {
+				const auto found = entries.find(binding.Name);
+				if (found == entries.end() || binding.Name.isEmpty()) {
+					if (!binding.Keys.isEmpty()) {
+						problems.push_back("not in the catalogue: '" + binding.Name.toStdString() + "' (" + keys_text(binding.Keys) + ") in " + binding.Owner.toStdString());
+					}
+					continue;
+				}
+				const auto& entry    = *found->second;
+				const auto  expected = qt::shortcut_keys(entry);
+				if (binding.Keys.isEmpty()) {
+					if (entry.Conditional) {
+						seen.push_back(entry.Command);
+					} else if (entry.Binding == qt::shortcut_binding::bound && !expected.isEmpty()) {
+						problems.push_back("lost its keys: " + binding.Name.toStdString());
+					}
+					continue;
+				}
+				if (binding.Keys != expected) {
+					problems.push_back("keys differ: " + binding.Name.toStdString() + " has " + keys_text(binding.Keys) + ", the catalogue " + keys_text(expected));
+				}
+				seen.push_back(entry.Command);
+			}
+		}
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			if (entry.Binding == qt::shortcut_binding::bound && !qt::shortcut_keys(entry).isEmpty()
+				&& std::ranges::find(seen, entry.Command) == seen.end()) {
+				problems.push_back("no live binding: " + std::string{ entry.Title });
+			}
+		}
+		return problems;
+	}
+
+	[[nodiscard]] auto joined(const std::vector<std::string>& aLines) -> std::string
+	{
+		auto text = std::string{ };
+		for (const auto& line : aLines) {
+			text += "\n  " + line;
+		}
+		return text;
+	}
+
+	/// \brief The assembled window a course reads: Review, every command offered.
+	void assemble(qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1'280, 820);
+		aWindow.show();
+		aWindow.activateWindow();
+		aWindow.publish(every_primary_command_offered());
+		aWindow.choose_modality(qt::review_modality::review);
+		process_events();
+	}
+
+	/// \brief Every key the window, the resident menu bar and a Review Cycle
+	/// view bind is in the catalogue with the same keys, and every bound
+	/// catalogue entry is bound; a stray, a changed and a removed binding are
+	/// each reported.
+	void test_shortcut_catalogue_is_what_the_window_binds()
+	{
+		// The catalogue itself.
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			expect(!entry.Title.empty(), "every entry has a title");
+			expect(entry.Keys.empty() || entry.Standard == QKeySequence::UnknownKey, std::string{ "an entry has keys or a standard key, not both: " } + std::string{ entry.Title });
+			expect(entry.Binding == qt::shortcut_binding::read || !qt::shortcut_objects(entry).isEmpty(), std::string{ "a bound entry names its objects: " } + std::string{ entry.Title });
+			for (const auto& key : qt::shortcut_keys(entry)) {
+				expect(!key.isEmpty() && key.count() == 1 && key[0].key() != Qt::Key_unknown, std::string{ "every key parses: " } + std::string{ entry.Title });
+			}
+		}
+		expect(qt::shortcut_keys(qt::shortcut_command::settings) == QList{ QKeySequence{ Qt::CTRL | Qt::Key_Comma } }
+				   && qt::shortcut_keys(qt::shortcut_command::keyboard_shortcuts) == QList{ QKeySequence{ Qt::CTRL | Qt::Key_Slash } }
+				   && qt::shortcut_keys(qt::shortcut_command::finish_review) == QList{ QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Enter } }
+				   && qt::shortcut_keys(qt::shortcut_command::tour_remove) == QList{ QKeySequence{ Qt::Key_Delete }, QKeySequence{ Qt::Key_Backspace } },
+			   "the portable texts read as the keys they name, ⌘, and ⌘/ among them");
+
+		qt::workbench_window window;
+		assemble(window);
+		qt::desktop_menu_bar  desktop;
+		qt::review_cycle_view cycle;
+		const auto            problems = catalogue_problems({ &window, &desktop, &cycle });
+		expect(problems.empty(), "the catalogue is exactly what the window, the resident bar and a Review Cycle bind:" + joined(problems));
+
+		// Negative control: each kind of drift is reported, by name.
+		qt::workbench_window drifted;
+		assemble(drifted);
+		auto* const stray = new QAction{ QStringLiteral("Stray"), &drifted };
+		stray->setObjectName(QStringLiteral("strayAction"));
+		stray->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Shift+K") });
+		drifted.addAction(stray);
+		auto* const unnamed = new QShortcut{ QKeySequence{ QStringLiteral("Ctrl+Shift+Y") }, &drifted };
+		static_cast<void>(unnamed);
+		drifted.findChild<QAction*>(QStringLiteral("nextNewCommentAction"))->setShortcut(QKeySequence{ QStringLiteral("Alt+M") });
+		drifted.findChild<QAction*>(QStringLiteral("toggleWorkbenchLineNumbersAction"))->setShortcuts({ });
+		delete drifted.findChild<QShortcut*>(QStringLiteral("overviewLabelKeyShortcut"));
+		const auto reported = catalogue_problems({ &drifted, &desktop, &cycle });
+		const auto has      = [&reported](const std::string_view aText) {
+			return std::ranges::any_of(reported, [aText](const std::string& aLine) { return aLine.find(aText) != std::string::npos; });
+		};
+		expect(has("not in the catalogue: 'strayAction' (Ctrl+Shift+K)"), "a stray action's key is reported" + joined(reported));
+		expect(has("not in the catalogue: '' (Ctrl+Shift+Y)"), "an unnamed widget shortcut is reported" + joined(reported));
+		expect(has("keys differ: nextNewCommentAction has Alt+M, the catalogue Alt+N"), "a changed key is reported" + joined(reported));
+		expect(has("lost its keys: toggleWorkbenchLineNumbersAction"), "a binding that lost its key is reported" + joined(reported));
+		expect(has("no live binding: Show the label key"), "a catalogue entry with nothing bound is reported" + joined(reported));
+		expect(reported.size() == 5U, "and nothing else is" + joined(reported));
+	}
+
+	/// \brief Delivers one key press and release to a top-level widget through
+	/// the window system, as the keyboard would.
+	void widget_key(QWidget& aWidget, const int aKey, const Qt::KeyboardModifiers aModifiers)
+	{
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(
+				aWidget.windowHandle(), type, aKey, type == QEvent::KeyPress ? aModifiers : Qt::NoModifier);
+			QApplication::processEvents();
+		}
+	}
+
+	[[nodiscard]] auto row_of(const qt::keyboard_shortcuts_window& aPage, const qt::shortcut_command aCommand) -> QTreeWidgetItem*
+	{
+		auto* const list = aPage.list();
+		for (int group = 0; group < list->topLevelItemCount(); ++group) {
+			auto* const heading = list->topLevelItem(group);
+			for (int row = 0; row < heading->childCount(); ++row) {
+				if (heading->child(row)->data(0, Qt::UserRole + 1).toInt() == static_cast<int>(aCommand)) {
+					return heading->child(row);
+				}
+			}
+		}
+		return nullptr;
+	}
+
+	/// \brief The commands a fresh page lists: every entry with a key here.
+	[[nodiscard]] auto listed_commands() -> std::vector<qt::shortcut_command>
+	{
+		auto commands = std::vector<qt::shortcut_command>{ };
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			if (!qt::shortcut_keys(entry).isEmpty()) {
+				commands.push_back(entry.Command);
+			}
+		}
+		return commands;
+	}
+
+	void save_page_render(QWidget& aPage, const QString& aSuffix)
+	{
+		const auto rendered = aPage.grab();
+		expect(!rendered.isNull(), "the page renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"), "the page render is saved");
+		}
+	}
+
+	[[nodiscard]] auto colour_distance(const QColor& aA, const QColor& aB) -> int
+	{
+		return std::abs(aA.red() - aB.red()) + std::abs(aA.green() - aB.green()) + std::abs(aA.blue() - aB.blue());
+	}
+
+	/// \brief Help → Keyboard Shortcuts and ⌘/ open one page; it lists the
+	/// catalogue grouped, in native notation, with places and typing notes;
+	/// search filters and says when nothing matches; the keyboard reaches the
+	/// rows; Esc closes; it follows the theme at this scale.
+	void test_keyboard_shortcuts_page()
+	{
+		if (const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE"); !expected.isEmpty()) {
+			expect(std::abs(QGuiApplication::primaryScreen()->devicePixelRatio() - expected.toDouble()) < 0.01, "the course runs at its registered scale");
+		}
+		qt::workbench_window window;
+		assemble(window);
+
+		// Help's first item, on ⌘/; the resident bar mirrors it disabled.
+		auto* const help = window.menuBar()->findChild<QMenu*>(QStringLiteral("releaseUpdateMenu"));
+		expect(help != nullptr && !help->actions().isEmpty() && help->actions().front() == window.keyboard_shortcuts_action()
+				   && help->actions().at(1)->isSeparator(),
+			   "Keyboard Shortcuts is Help's first item, before a separator");
+		auto* const action = window.keyboard_shortcuts_action();
+		expect(action->text().remove(QLatin1Char{ '&' }) == QStringLiteral("Keyboard Shortcuts") && action->shortcuts() == QList{ QKeySequence{ Qt::CTRL | Qt::Key_Slash } }
+				   && action->shortcutContext() == Qt::WindowShortcut && action->isEnabled(),
+			   "its key is ⌘/ (Ctrl+/), for the window");
+		qt::desktop_menu_bar desktop;
+		auto* const          mirror = desktop.help_menu()->actions().front();
+		expect(mirror->objectName() == QStringLiteral("desktopKeyboardShortcutsAction") && !mirror->isEnabled() && mirror->shortcuts() == action->shortcuts(),
+			   "the resident bar offers it disabled, with the same key");
+
+		// ⌘/ is free: no other binding in the window, no Qt standard key, and
+		// no text widget claims it.
+		const auto slash = QKeySequence{ Qt::CTRL | Qt::Key_Slash };
+		for (const auto& binding : live_bindings(window)) {
+			expect(binding.Name == QStringLiteral("keyboardShortcutsAction") || !binding.Keys.contains(slash), "nothing else in the window binds ⌘/: " + binding.Name.toStdString());
+		}
+		for (int standard = QKeySequence::HelpContents; standard <= QKeySequence::Cancel; ++standard) {
+			expect(!QKeySequence::keyBindings(static_cast<QKeySequence::StandardKey>(standard)).contains(slash), "⌘/ is no Qt standard key here: " + std::to_string(standard));
+		}
+		{
+			auto field  = QLineEdit{ };
+			auto editor = QPlainTextEdit{ };
+			for (QWidget* const widget : std::initializer_list<QWidget*>{ &field, &editor }) {
+				auto event = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_Slash, Qt::ControlModifier, QStringLiteral("/") };
+				event.ignore();
+				QApplication::sendEvent(widget, &event);
+				expect(!event.isAccepted(), "a text widget does not claim ⌘/");
+			}
+		}
+
+		// Opened from the menu.
+		expect(window.keyboard_shortcuts() == nullptr, "nothing is built until it is asked for");
+		action->trigger();
+		process_events();
+		auto* const page = window.keyboard_shortcuts();
+		expect(page != nullptr && page->isVisible() && page->windowTitle() == QStringLiteral("Keyboard Shortcuts"), "Help → Keyboard Shortcuts opens the page");
+		expect(QApplication::focusWidget() == page->search_field(), "the search field has the keyboard");
+		expect(page->shown_commands() == listed_commands(), "it lists every catalogue entry with a key here, in the catalogue's order");
+		auto groups = std::vector<qt::shortcut_group>{ };
+		for (const auto command : listed_commands()) {
+			if (groups.empty() || groups.back() != qt::shortcut(command).Group) {
+				groups.push_back(qt::shortcut(command).Group);
+			}
+		}
+		expect(page->shown_groups() == groups && groups.size() >= 10U && groups.front() == qt::shortcut_group::navigation && groups.back() == qt::shortcut_group::application,
+			   "grouped by area, Navigation first and Application last");
+		expect(page->list()->topLevelItem(0)->text(0) == QStringLiteral("Navigation") && page->list()->topLevelItem(0)->isFirstColumnSpanned(),
+			   "a group's heading spans the row");
+
+		// Native notation, places and the typing note.
+		const auto previousFile = QKeySequence{ QStringLiteral("Ctrl+Alt+Up") }.toString(QKeySequence::NativeText);
+		expect(row_of(*page, qt::shortcut_command::previous_file)->text(1) == previousFile, "keys are the platform's own text");
+#if defined(Q_OS_MACOS)
+		expect(previousFile.contains(QChar{ 0x2318 }) && previousFile.contains(QChar{ 0x2325 }), "on macOS the ⌘ and ⌥ glyphs");
+		expect(row_of(*page, qt::shortcut_command::previous_file)->data(1, Qt::AccessibleTextRole).toString() == QStringLiteral("Option-Command-Up Arrow"),
+			   "and a screen reader hears the keys' names");
+		expect(row_of(*page, qt::shortcut_command::compose_review)->data(0, Qt::UserRole + 2).toString() == QStringLiteral("Not while typing"),
+			   "an Option-letter key says a text field takes it");
+		expect(page->findChild<QLabel*>(QStringLiteral("keyboardShortcutsFooter"))->text().contains(QStringLiteral("Option with a letter")), "and the footer gives the rule");
+#else
+		expect(previousFile.contains(QStringLiteral("Ctrl+Alt")), "elsewhere Ctrl+Alt in words");
+		expect(row_of(*page, qt::shortcut_command::compose_review)->data(0, Qt::UserRole + 2).toString().isEmpty(), "Alt-letter keys act while typing here");
+#endif
+		expect(row_of(*page, qt::shortcut_command::accept_file)->data(0, Qt::UserRole + 2).toString() == QStringLiteral("Not while typing"),
+			   "Accept file steps aside while typing on every platform");
+		expect(row_of(*page, qt::shortcut_command::tour_move_up)->data(0, Qt::UserRole + 2).toString() == QStringLiteral("In the tour outline"),
+			   "a scoped key says where it acts");
+		expect(row_of(*page, qt::shortcut_command::finish_review)->data(1, Qt::UserRole + 3).toStringList().size() == 1,
+			   "the keypad's Enter is bound but not listed twice");
+		expect(row_of(*page, qt::shortcut_command::zoom_in)->text(1).contains(QStringLiteral(" or ")), "alternative keys read as one or the other");
+
+		// Search.
+		auto* const search = page->search_field();
+		search->setText(QStringLiteral("zoom"));
+		expect(page->shown_commands() == std::vector{ qt::shortcut_command::zoom_in, qt::shortcut_command::zoom_out, qt::shortcut_command::actual_size }
+				   && page->shown_groups() == std::vector{ qt::shortcut_group::zoom },
+			   "searching a group's name shows that group");
+		search->setText(QStringLiteral("tour outline"));
+		expect(!page->shown_commands().empty()
+				   && std::ranges::all_of(page->shown_commands(), [](const qt::shortcut_command aCommand) { return qt::shortcut(aCommand).Place == "In the tour outline"; }),
+			   "every word must match, a place among them");
+		search->setText(QStringLiteral("Ctrl+0"));
+		expect(page->shown_commands() == std::vector{ qt::shortcut_command::actual_size }, "a key finds its command");
+		search->setText(QKeySequence{ QStringLiteral("Ctrl+Shift+H") }.toString(QKeySequence::NativeText));
+		expect(page->shown_commands() == std::vector{ qt::shortcut_command::home }, "so does the key as the platform writes it");
+		search->setText(QStringLiteral("xyzzy"));
+		expect(page->shown_commands().empty() && page->empty_label()->isVisible() && !page->list()->isVisible()
+				   && page->empty_label()->text() == QStringLiteral("No shortcut matches “xyzzy”."),
+			   "nothing matching says so in place of the list");
+		search->clear();
+		expect(page->shown_commands() == listed_commands() && page->list()->isVisible() && !page->empty_label()->isVisible(), "clearing shows everything again");
+
+		// The keyboard: Down from the search to the first row, Tab order.
+		search->setFocus(Qt::OtherFocusReason);
+		process_events();
+		widget_key(*page, Qt::Key_Down, Qt::NoModifier);
+		expect(QApplication::focusWidget() == page->list() && page->list()->currentItem() == row_of(*page, listed_commands().front()),
+			   "Down Arrow moves from the search to the first row");
+		widget_key(*page, Qt::Key_Down, Qt::NoModifier);
+		expect(page->list()->currentItem() == row_of(*page, listed_commands().at(1)), "and on down the rows");
+
+		// Accessibility.
+		expect(search->accessibleName() == QStringLiteral("Search shortcuts") && page->list()->accessibleName() == QStringLiteral("Keyboard shortcuts")
+				   && !page->accessibleDescription().isEmpty(),
+			   "the search field, the list and the page are named");
+
+		// Layout: resizable down to its minimum, nothing clipped sideways.
+		const auto initial = page->size();
+		expect(page->isSizeGripEnabled() && page->minimumWidth() < page->width() && page->maximumWidth() > page->width(), "the page is resizable");
+		for (const auto& size : { page->size(), page->minimumSize() }) {
+			page->resize(size);
+			process_events();
+			auto* const list = page->list();
+			expect(list->columnWidth(0) > list->fontMetrics().horizontalAdvance(QStringLiteral("Previous file")) && list->columnWidth(0) + list->columnWidth(1) <= list->viewport()->width() + 1,
+				   "titles keep room beside the keys, and nothing runs off the side");
+			const auto* const row  = row_of(*page, qt::shortcut_command::delete_cache);
+			const auto        hint = list->itemDelegate()->sizeHint(QStyleOptionViewItem{ }, list->indexFromItem(row, 1));
+			expect(list->columnWidth(1) >= hint.width(), "the widest keys fit their column");
+		}
+		page->resize(initial);
+		process_events();
+
+		// Theme: the key caps are tinted from the list's base and text.
+		const auto checkCaps = [&](const QString& aName) {
+			page->list()->clearSelection();
+			page->list()->setCurrentItem(nullptr);
+			page->list()->scrollToTop();
+			process_events();
+			auto* const list    = page->list();
+			const auto  index   = list->indexFromItem(row_of(*page, qt::shortcut_command::previous_file), 1);
+			const auto  rect    = list->visualRect(index);
+			const auto  margin  = std::max(6, list->fontMetrics().horizontalAdvance(QLatin1Char{ ' ' }) * 2);
+			const auto  image   = list->viewport()->grab().toImage();
+			const auto  ratio   = image.devicePixelRatio();
+			const auto  sample  = image.pixelColor(static_cast<int>((rect.right() - margin - 3) * ratio), static_cast<int>(rect.center().y() * ratio));
+			const auto  base    = list->palette().color(QPalette::Active, QPalette::Base);
+			const auto  text    = list->palette().color(QPalette::Active, QPalette::Text);
+			const auto  outside = image.pixelColor(static_cast<int>((rect.left() + 2) * ratio), static_cast<int>(rect.center().y() * ratio));
+			expect(colour_distance(outside, base) < 12, "the row is the list's base in " + aName.toStdString());
+			expect(colour_distance(sample, base) > 6 && colour_distance(sample, text) > colour_distance(sample, base),
+				   "a key cap is a light tint of the text over the base in " + aName.toStdString());
+			save_page_render(*page, aName);
+		};
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") },
+										  std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
+										  std::pair{ core::appearance_mode::high_contrast_light, QStringLiteral("high-contrast-light") },
+										  std::pair{ core::appearance_mode::high_contrast_dark, QStringLiteral("high-contrast-dark") } }) {
+			auto settings = qt::default_appearance_settings();
+			settings.Mode = mode;
+			auto profile  = qt::appearance_profile{ settings };
+			profile.apply_to(*page);
+			process_events();
+			checkCaps(name);
+		}
+		search->setText(QStringLiteral("tour"));
+		process_events();
+		save_page_render(*page, QStringLiteral("search-tour"));
+		search->clear();
+
+		// Esc closes; ⌘/ in the window brings the same page back.
+		search->setFocus(Qt::OtherFocusReason);
+		process_events();
+		widget_key(*page, Qt::Key_Escape, Qt::NoModifier);
+		expect(!page->isVisible(), "Esc closes the page");
+		window.activateWindow();
+		window.comparison_surface()->right_pane()->setFocus(Qt::OtherFocusReason);
+		process_events();
+		window_key(window, Qt::Key_Slash, Qt::ControlModifier);
+		expect(window.keyboard_shortcuts() == page && page->isVisible(), "⌘/ opens the same page again");
+		auto* const close = page->findChild<QDialogButtonBox*>(QStringLiteral("keyboardShortcutsButtons"))->button(QDialogButtonBox::Close);
+		close->click();
+		process_events();
+		expect(!page->isVisible(), "Close closes it");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -16133,6 +16553,13 @@ auto main(int argc, char** argv) -> int
 		test_tour_retarget_key_reaches_only_the_outline();
 		test_dif_uses_the_corner_except_for_prime_spots();
 		std::cout << "dif-workshop-placement:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1567]]. Help → Keyboard Shortcuts and its catalogue.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--keyboard-shortcuts"))) {
+		test_shortcut_catalogue_is_what_the_window_binds();
+		test_keyboard_shortcuts_page();
+		std::cout << "keyboard-shortcuts:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--change-end-keys"))) {
