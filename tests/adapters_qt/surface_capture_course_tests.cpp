@@ -1230,7 +1230,7 @@ namespace {
 		auto* const button = window.home_view_button();
 		expect(button->isVisible() && button->text() == QStringLiteral("View")
 				   && button->property(qt::strip_style::badge_property).toString().isEmpty(),
-			   "View starts at the defaults, with no count");
+			   "View starts at the defaults, plain");
 		capture_home_view_state(window, QStringLiteral("closed"), aMode);
 		capture_home_view_state(window, QStringLiteral("open"), aMode, menu);
 		capture_home_view_state(window, QStringLiteral("my-role"), aMode, menu, window.home_view_submenu(qt::home_view_choice::role));
@@ -1239,8 +1239,8 @@ namespace {
 		window.home_group_action(application::home_grouping::repository)->trigger();
 		window.home_view_menu()->findChild<QAction*>(QStringLiteral("homeFilterHideAction"))->trigger();
 		process_events();
-		expect(button->property(qt::strip_style::badge_property).toString() == QStringLiteral("2"),
-			   "a view changed twice carries the count 2");
+		expect(button->property(qt::strip_style::badge_property).toString().isEmpty() && button->toolTip().contains(QStringLiteral("2 changed")),
+			   "a view changed twice keeps View plain and names both changes in its tooltip");
 		capture_home_view_state(window, QStringLiteral("changed"), aMode);
 		capture_home_view_state(window, QStringLiteral("changed-open"), aMode, menu);
 

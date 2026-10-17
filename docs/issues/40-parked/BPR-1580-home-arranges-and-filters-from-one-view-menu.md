@@ -56,10 +56,10 @@ it; this card changes how the choices are reached, named and summarised.
   tooltip and status tip where the platform draws them.
 - AC2: Added by is shown only when the profile has an observer rule, or when
   the window is already filtered by one (so a filter is never out of reach).
-- AC3: The button reads **View** at the defaults. When any choice in the menu
-  differs from its default it carries the strip's count pill (the one the
-  comments button carries) with how many do, and its accessible description
-  and tooltip name each such choice. **Reset to defaults** is enabled exactly then and in one
+- AC3: The button always reads **View**; its accessible description and
+  tooltip name each choice in the menu that differs from its default. (v001
+  also carried the strip's count pill; the owner's acceptance note removed
+  it.) **Reset to defaults** is enabled exactly then and in one
   gesture restores Group None, State headers on, My role Any, Added by Any,
   Quiet items Show and Sort Priority; the profile hears the filter part as it
   hears a filter choice.

@@ -745,10 +745,12 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Group by and the state order do their work. These are the same typed
   controls Settings presents as queue defaults, not a mirror of them.
 
-  The button reads **View** at the defaults. When any choice differs from
-  its default it carries the strip's count pill with how many do, and its
-  tooltip and accessible description name each one ("2 changed: Group by
-  Repository; My role Requested."). **Reset to defaults** is enabled exactly
+  The button always reads **View**, with no count or mark (the owner on
+  2026-10-17, of a first candidate that counted the changed choices: "I'm
+  not sure why View carries a count"). Its tooltip and accessible
+  description name each choice that differs from its default ("2 changed:
+  Group by Repository; My role Requested."), and the menu's own items show
+  every value. **Reset to defaults** is enabled exactly
   then and restores Group by None, Sort by Priority, State headers on, My role
   Any, Added by Any and Quiet items Show in one gesture; the profile hears its
   filter part as it hears a filter choice. When the queue has rows and the

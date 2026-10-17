@@ -14526,7 +14526,7 @@ namespace {
 				   && window.home_state_headers_action()->isChecked()
 				   && toolbar->widgetForAction(window.queue_refresh_action())->isVisible()
 				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
-			   "signed in on Home View and the refresh glyph are shown, View carries no count and State headers is on");
+			   "signed in on Home View and the refresh glyph are shown, View is plain and State headers is on");
 		expect(view->focusPolicy() == Qt::StrongFocus && view->accessibleName() == QStringLiteral("View")
 				   && view->accessibleDescription().contains(QStringLiteral("default view"))
 				   && window.focus_order().contains(view),
@@ -14544,23 +14544,24 @@ namespace {
 				   && window.home_list()->grouping() == application::home_grouping::repository
 				   && views.size() == 1U && views.back().Grouping == application::home_grouping::repository,
 			   "choosing a grouping regroups Home, names it on Group by and dispatches the whole view");
-		expect(view->property(qt::strip_style::badge_property).toString() == QStringLiteral("1")
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
 				   && view->accessibleDescription().contains(QStringLiteral("1 changed: Group by Repository"))
 				   && view->toolTip() == view->accessibleDescription()
 				   && window.home_view_reset_action()->isEnabled(),
-			   message_for("a changed view shows its count on View and names the change",
+			   message_for("a changed view leaves View's face quiet and names the change in its tooltip",
 						   view->accessibleDescription().toStdString()));
 		window.home_state_headers_action()->trigger();
 		process_events();
 		expect(!window.home_list()->state_headers() && views.size() == 2U && !views.back().StateHeaders
-				   && view->property(qt::strip_style::badge_property).toString() == QStringLiteral("2")
+				   && view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
+				   && view->accessibleDescription().contains(QStringLiteral("2 changed"))
 				   && view->accessibleDescription().contains(QStringLiteral("State headers off")),
-			   "turning State headers off from the menu does the same and is counted");
+			   "turning State headers off from the menu does the same and is named");
 		// Collapsing one of the panels that carry no name is part of the view.
 		window.home_group_action(application::home_grouping::none)->trigger();
 		window.home_state_headers_action()->trigger();
 		process_events();
-		expect(view->property(qt::strip_style::badge_property).toString().isEmpty(), "back at the defaults the count goes");
+		expect(view->accessibleDescription().contains(QStringLiteral("default view")), "back at the defaults the tooltip says so");
 		const auto before = views.size();
 		window.home_list()->state_panel(qt::home_group::needs_you)->set_collapsed(true);
 		process_events();
@@ -15474,10 +15475,10 @@ namespace {
 		expect(window.home_view().FilterOwned && window.queue_filter_model()->rowCount() == 1,
 			   "Home filters by the window's own filter at once");
 		auto* const view = window.home_view_button();
-		expect(view->property(qt::strip_style::badge_property).toString() == QStringLiteral("1")
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
 				   && view->accessibleDescription().contains(QStringLiteral("My role Requested"))
 				   && window.home_view_submenu(qt::home_view_choice::role)->title() == QStringLiteral("My role: Requested"),
-			   message_for("a filter that is not the default is counted on View, named, and shown on its group",
+			   message_for("a filter that is not the default is named in View's tooltip and shown on its group",
 						   view->accessibleDescription().toStdString()));
 
 		// Every choice is reachable and applied: each value of each group, by
@@ -15528,10 +15529,10 @@ namespace {
 		}
 		// Last of each group was Path rule, Only quiet, Pull request number and
 		// Account; My role was left at No role.
-		expect(view->property(qt::strip_style::badge_property).toString() == QStringLiteral("5")
+		expect(view->property(qt::strip_style::badge_property).toString().isEmpty() && view->text() == QStringLiteral("View")
 				   && view->accessibleDescription().contains(
 					   QStringLiteral("5 changed: Group by Account; Sort by Pull request number; My role No role; Added by Path rule; Quiet items Only quiet")),
-			   message_for("every changed choice is counted and named", view->accessibleDescription().toStdString()));
+			   message_for("every changed choice is named, and View carries no count", view->accessibleDescription().toStdString()));
 
 		// [[BPR-1580]]. The view hides every row: the list says so, with the way out.
 		auto* const filtered = window.home_list()->filtered_sentence();
@@ -15570,10 +15571,10 @@ namespace {
 				   && views.back().FilterOwned && views.back().Filter == application::home_filter{ }
 				   && intents.size() == intentsBeforeReset + 1U && intents.back().Field == application::queue_preference_field::sort
 				   && intents.back().Preferences.Sort == application::queue_sort_order::core_priority
-				   && view->property(qt::strip_style::badge_property).toString().isEmpty()
+				   && view->accessibleDescription().contains(QStringLiteral("default view"))
 				   && !window.home_view_reset_action()->isEnabled()
 				   && native_menu_labels(*menu).front() == QStringLiteral("Group by: None"),
-			   "Reset to defaults puts every choice back, tells the profile only what changed, and the count goes");
+			   "Reset to defaults puts every choice back, tells the profile only what changed, and View says the default");
 
 		// The profile moving on does not move an owning window.
 		auto moved             = projection;
@@ -15604,8 +15605,9 @@ namespace {
 		expect(followingAuthor != nullptr && followingAuthor->isChecked()
 				   && following.home_view_submenu(qt::home_view_choice::role)->title() == QStringLiteral("My role: Author"),
 			   "the profile preference a window follows is ticked and named in its View menu");
-		expect(following.home_view_button()->property(qt::strip_style::badge_property).toString() == QStringLiteral("1"),
-			   "and the View control counts it");
+		expect(following.home_view_button()->accessibleDescription().contains(QStringLiteral("My role Author"))
+				   && following.home_view_button()->property(qt::strip_style::badge_property).toString().isEmpty(),
+			   "and the View control names it in its tooltip, without a count");
 		expect(!following.home_view_submenu(qt::home_view_choice::added_by)->menuAction()->isVisible()
 				   && !native_menu_labels(*following.home_view_menu()).contains(QStringLiteral("Added by: Any")),
 			   "with no observer rule Added by is not offered");

@@ -5021,7 +5021,7 @@ namespace bpr::qt {
 			menu->menuAction()->setVisible(!QueueRules.empty() || filter.AddedBy.has_value());
 		}
 
-		// What differs from the default, said on the button without opening it.
+		// What differs from the default, said in the button's tooltip.
 		auto changed = QStringList{ };
 		if (HomeView.Grouping != application::home_grouping::none) {
 			changed.push_back(QStringLiteral("Group by %1").arg(group));
@@ -5045,7 +5045,10 @@ namespace bpr::qt {
 			HomeViewReset->setEnabled(!changed.isEmpty());
 		}
 		if (HomeViewButton != nullptr) {
-			set_strip_badge(*HomeViewButton, changed.isEmpty() ? QString{ } : QString::number(changed.size()));
+			// [[BPR-1580]] owner's note on v001: "I'm not sure why View carries a
+			// count". The button stays "View" whatever is chosen; what differs is
+			// said in its tooltip and description, the menu's own items name
+			// every value, and a view that hides every row says so in the list.
 			const auto purpose = changed.isEmpty()
 				? QStringLiteral("Arrange and filter Home's pull requests. The default view: nothing is grouped or hidden.")
 				: QStringLiteral("Arrange and filter Home's pull requests. %1 changed: %2.")
