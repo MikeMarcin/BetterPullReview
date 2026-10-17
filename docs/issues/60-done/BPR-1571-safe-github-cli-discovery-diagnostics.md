@@ -59,3 +59,30 @@ course. No Windows/Linux runtime qualification is claimed. The requested
 frontend-design skill was unavailable in the installed catalog/files; this
 slice changes existing status copy and selectability, with offscreen Qt and
 composed tests rather than a new visual design.
+
+## Composition contract review
+
+`fbec1f08c` changed `src/app/src/github_application.cpp` and
+`src/app/src/github_cli_runtime.{cpp,hpp}` without resealing, so
+`application_composition_contract` and
+`application_review_round_trip_composition_contract` failed on main on the
+full-application and production-manifest digests. It was the only `src/app`
+change between the BPR-1566 reseal (`938adfbfa`) and `bf7b4221d`.
+
+Reviewed against what the contracts guard: discovery still runs the same two
+read-only, write-constrained `gh` requests (`--version`;
+`auth status --json hosts`) behind the same opt-in and setup gates, with the
+same version acceptance, the same SignedIn and KeychainHeld eligibility and the
+same single-account connect. The change adds content-free `GH_DISCOVERY` lines
+(stage, failure category, elapsed time, exit code, byte and account counts) to
+the terminal and the sanitized diagnostic log, finer discovery failure states,
+and `gh_cli_executable_available()`. The opted-in transport still admits `gh`
+through the unchanged version probe. No grant, target, provider, credential,
+transport, GitHub write, mutation or publication path changes; the production
+mutation-branch pin held (`ASYNC_MUTATION_HOST_INVENTORY_OK`).
+
+A reseal over `bf7b4221d` passed both contracts and `architecture_boundaries`
+(macOS arm64 dev build). BPR-1570's reseal landed first (`770f5c9fa`, merged at
+`0c38a0909`), and its pins cover this change too, so no separate reseal was
+committed. On `b96107686` the round-trip contract's source and digest check
+passes.
