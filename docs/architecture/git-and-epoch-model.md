@@ -260,12 +260,22 @@ comparison_anchor
 
 The friendly `Branch base` label resolves to the latest live epoch's accepted
 base anchor. [[BPR-1560]]: a live epoch's base is the merge base GitHub names,
-through its compare API, for the pull request's current head and its base
-branch's current tip (the recorded base `base.sha` for a closed pull request), which must agree
-with its merge base against `base.sha` and be confirmed by the pull request
-read again unchanged, so the file list and the merge base describe one state:
-the commit GitHub's Files changed compares from, and so the left side of every
-file row the review lists. The recorded base is not compared from. GitHub keeps
+through its compare API, for the pull request's recorded base `base.sha` and
+its current head, confirmed by the pull request read again unchanged, so the
+file list and the merge base describe one state: the commit GitHub's Files
+changed compares from, and so the left side of every file row the review
+lists. For an open pull request the base branch's current tip is asked too.
+When it names the same merge base the answer stands. [[BPR-1572]], measured on
+github.com stacked pull requests (2026-10-17): GitHub's Files changed, its
+commit list and the lines a `LEFT` comment is numbered in follow the merge base
+of `base.sha` and the head, not of the base branch tip. GitHub keeps
+`base.sha` while the base branch only moves forward, also when it fast-forwards
+to, or merges, commits the head has, and replaces it with the branch's new tip
+one to six seconds after the branch is force-pushed. So when the branch names
+another merge base, the recorded base's is accepted only while GitHub's commit
+count for the pull request equals that pair's `ahead_by` and `base.sha` is an
+ancestor of the tip the branch answer resolved; otherwise the merge base is
+refused (GitHub is replacing `base.sha`, or its answers disagree). The recorded base is not compared from. GitHub keeps
 it ahead of the merge base whenever the base branch moved before the pull
 request opened or before a force push; a two-dot comparison from it reverts the
 base branch's own changes and hides the pull request's changes the base branch
@@ -275,8 +285,9 @@ revision carries the recorded base under `comparison_base_basis::recorded_base`
 so updates stay comparable with each other, and Whole PR resolves with its
 base unavailable and the reason `merge_base_unavailable`. A window keeps a
 merge base GitHub named for the same head, recorded base and base branch across
-a read that failed, never across answers that refuse it (the base branch
-naming another merge base, or the pull request moving under the read). A merge from the base
+a read that failed, never across answers that refuse it (the pull request
+moving under the read, or a base branch naming another merge base without
+GitHub's answers showing it still compares from the recorded base). A merge from the base
 branch, a rebase or a squash onto another base commit moves the merge base and
 so appends an epoch whose cause is a base change; an ordinary push does not.
 Catalogues written before [[BPR-1560]] hold the recorded base on their earlier

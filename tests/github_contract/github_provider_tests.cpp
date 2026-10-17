@@ -1806,42 +1806,72 @@ namespace {
 		}
 	}
 
-	/// [[BPR-1560]]. The provider says why a snapshot has no merge base: a
-	/// read that failed (a window may keep the merge base it had) differs from
-	/// answers proving there is no single one (the base branch and the
-	/// recorded base name different merge bases, or the pull request moved
-	/// between the snapshot and the read confirming it), which a window must
-	/// never override with an earlier answer.
+	/// [[BPR-1560]], [[BPR-1572]]. The provider says why a snapshot has no
+	/// merge base: a read that failed (a window may keep the merge base it
+	/// had) differs from answers proving there is no single one (the pull
+	/// request moved between the snapshot and the read confirming it, or the
+	/// base branch names another merge base while GitHub's own answers do not
+	/// show it still compares from the recorded base), which a window must
+	/// never override with an earlier answer. A base branch that only moved
+	/// forward from the recorded base, as a stacked pull request's does when
+	/// it takes some of the head's commits, leaves GitHub comparing from the
+	/// recorded base's merge base, which is accepted.
 	void test_merge_base_failure_and_refusal_are_distinct()
 	{
 		enum class course : std::uint8_t { agree,
 										   tip_disagrees,
 										   moved,
-										   compare_fails };
+										   compare_fails,
+										   stacked_forward,
+										   stacked_rewritten,
+										   stacked_count_differs,
+										   stacked_ancestry_fails,
+										   stacked_moved };
 		const auto mergeBase = std::string(40, 'a');
 		const auto otherBase = std::string(40, 'c');
-		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails }) {
+		const auto branchTip = std::string(40, 'b');
+		const auto recorded  = std::string(40, '1');
+		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails, course::stacked_forward, course::stacked_rewritten,
+								  course::stacked_count_differs, course::stacked_ancestry_fails, course::stacked_moved }) {
 			provider_fixture fixture{ application::github_authentication_transport::native_https };
-			const auto       request       = pull_request_for(fixture, account_lease(fixture));
-			auto             pullRequests  = 0U;
-			auto             compares      = 0U;
+			const auto       request      = pull_request_for(fixture, account_lease(fixture));
+			auto             pullRequests = 0U;
+			auto             compares     = 0U;
+			auto             ancestries   = 0U;
+			const auto       stacked      = which == course::stacked_forward || which == course::stacked_rewritten || which == course::stacked_count_differs
+				|| which == course::stacked_ancestry_fails || which == course::stacked_moved;
 			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
 				if (aWire.Wire.Operation == read_operation::get_merge_base) {
 					++compares;
 					expect(validate_outbound_read_request(aWire.Wire).has_value(), "the compare request is canonical");
-					auto response = viewer_response();
-					if (which == course::compare_fails) {
+					auto       response = viewer_response();
+					const auto byBranch = !aWire.Wire.Semantic.BranchRef.empty();
+					// The recorded base against the branch tip GitHub resolved:
+					// whether the base branch only moved forward from it.
+					const auto ancestry = !byBranch && aWire.Wire.Semantic.HeadOid == branchTip;
+					ancestries += ancestry ? 1U : 0U;
+					if (which == course::compare_fails || (ancestry && which == course::stacked_ancestry_fails)) {
 						response.Status = 500;
 						response.Body   = R"({"message":"fixture compare unavailable"})";
 						return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 					}
-					const auto byBranch = !aWire.Wire.Semantic.BranchRef.empty();
-					const auto asked    = byBranch ? aWire.Wire.Semantic.BranchRef : aWire.Wire.Semantic.BaseOid;
-					const auto named    = byBranch && which == course::tip_disagrees ? otherBase : mergeBase;
-					response.Body       = R"({"url":"https://api.github.com/repos/)";
+					const auto asked = byBranch ? aWire.Wire.Semantic.BranchRef : aWire.Wire.Semantic.BaseOid;
+					auto       named = mergeBase;
+					auto       ahead = std::string{ };
+					if (byBranch && (which == course::tip_disagrees || stacked)) {
+						named = otherBase;
+						ahead = R"("ahead_by":1,)";
+					} else if (ancestry) {
+						named = which == course::stacked_rewritten ? std::string(40, 'e') : recorded;
+						ahead = R"("ahead_by":2,)";
+					} else if (stacked) {
+						// The pull request reports one commit (pull_request.json).
+						ahead = which == course::stacked_count_differs ? R"("ahead_by":2,)" : R"("ahead_by":1,)";
+					}
+					response.Body = R"({"url":"https://api.github.com/repos/)";
 					response.Body.append(aWire.Wire.Semantic.Owner).append("/").append(aWire.Wire.Semantic.Repository).append("/compare/").append(asked).append("...");
-					response.Body.append(aWire.Wire.Semantic.HeadOid).append(R"(","status":"ahead","base_commit":{"sha":")");
-					response.Body.append(byBranch ? std::string(40, 'b') : aWire.Wire.Semantic.BaseOid).append(R"("},"merge_base_commit":{"sha":")");
+					response.Body.append(aWire.Wire.Semantic.HeadOid).append(R"(","status":"ahead",)").append(ahead).append(R"("base_commit":{"sha":")");
+					response.Body.append(byBranch ? branchTip : aWire.Wire.Semantic.BaseOid).append(R"("},"merge_base_commit":{"sha":")");
 					response.Body.append(named).append(R"("},"commits":[],"files":[]})");
 					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 				}
@@ -1866,8 +1896,8 @@ namespace {
 				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
 					response.Headers.back().Value = "search";
 				}
-				if (aWire.Wire.Operation == read_operation::get_pull_request && ++pullRequests == 2U && which == course::moved) {
-					const auto position = response.Body.find("1111111111111111111111111111111111111111");
+				if (aWire.Wire.Operation == read_operation::get_pull_request && ++pullRequests == 2U && (which == course::moved || which == course::stacked_moved)) {
+					const auto position = response.Body.find(recorded);
 					expect(position != std::string::npos, "the recorded pull request names its base");
 					response.Body.replace(position, 40U, std::string(40, 'd'));
 				}
@@ -1878,23 +1908,45 @@ namespace {
 			fixture.Effects.run_next();
 			const auto& success  = require_one<application::github_pull_request_success>(completions, "the read completes with or without a merge base");
 			const auto& snapshot = success.Snapshot;
+			const auto  refused  = snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid;
 			switch (which) {
 			case course::agree:
 				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
-						   && snapshot.MergeBaseOid->value() == mergeBase && compares == 2U && pullRequests == 2U,
+						   && snapshot.MergeBaseOid->value() == mergeBase && snapshot.MergeBaseTipOid && snapshot.MergeBaseTipOid->value() == branchTip
+						   && compares == 2U && ancestries == 0U && pullRequests == 2U,
 					   "the recorded base and the base branch name one merge base, and the pull request is unchanged");
 				break;
 			case course::tip_disagrees:
-				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && compares == 2U,
-					   "the base branch naming another merge base is a refusal, not a failure");
+				expect(refused && compares == 2U && ancestries == 0U,
+					   "the base branch naming another merge base, with no commit count from GitHub to say which it compares from, is a refusal");
 				break;
 			case course::moved:
-				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && pullRequests == 2U,
-					   "the pull request moving under the read is a refusal, not a failure");
+				expect(refused && pullRequests == 2U, "the pull request moving under the read is a refusal, not a failure");
 				break;
 			case course::compare_fails:
 				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::failed && !snapshot.MergeBaseOid,
 					   "a compare that fails is a failure a window may outlive");
+				break;
+			case course::stacked_forward:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+						   && snapshot.MergeBaseOid->value() == mergeBase && snapshot.MergeBaseTipOid && snapshot.MergeBaseTipOid->value() == recorded
+						   && compares == 3U && ancestries == 1U && pullRequests == 2U,
+					   "a base branch that only moved forward from the recorded base leaves GitHub comparing from the recorded base's merge base");
+				break;
+			case course::stacked_rewritten:
+				expect(refused && compares == 3U && ancestries == 1U,
+					   "a base branch that no longer contains the recorded base is about to replace it: refused");
+				break;
+			case course::stacked_count_differs:
+				expect(refused && compares == 2U && ancestries == 0U,
+					   "GitHub's commit count for the pull request not being the recorded base's is a refusal, asked nothing more");
+				break;
+			case course::stacked_ancestry_fails:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::failed && !snapshot.MergeBaseOid && ancestries == 1U,
+					   "the ancestry read failing is a failure, not an acceptance");
+				break;
+			case course::stacked_moved:
+				expect(refused && compares == 3U && pullRequests == 2U, "the pull request moving under a stacked read is a refusal");
 				break;
 			}
 		}

@@ -120,8 +120,13 @@ namespace bpr::adapters::github::detail {
 	/// exact head, and the base commit it was computed against.
 	struct github_merge_base_read
 	{
-		std::string                          MergeBaseOid;
-		std::string                          BaseCommitOid;
+		std::string MergeBaseOid;
+		std::string BaseCommitOid;
+		/// [[BPR-1572]]. `ahead_by`: the commits the head has that the base
+		/// commit lacks, which for the pull request's recorded base is the
+		/// commit count GitHub reports for the pull request. Absent when the
+		/// answer did not say.
+		std::optional<std::uint64_t>         AheadBy;
 		application::github_rate_limit_state RateLimits;
 	};
 

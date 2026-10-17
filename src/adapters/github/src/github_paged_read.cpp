@@ -4121,12 +4121,19 @@ namespace bpr::adapters::github::detail {
 			// reply about another base commit, or in another object format, is
 			// not this pull request's comparison base.
 			const auto echoedHead = json_is_string(url) && text(url).ends_with("..." + std::string{ aHead });
+			const auto aheadBy    = json_member(document, "ahead_by");
 			if (!echoedHead || !hexadecimal_oid(baseSha) || !hexadecimal_oid(mergeSha)
 				|| (aBasis.BaseRef.empty() && text(baseSha) != aBasis.BaseOid)
-				|| text(mergeSha).size() != aHead.size() || text(baseSha).size() != aHead.size()) {
+				|| text(mergeSha).size() != aHead.size() || text(baseSha).size() != aHead.size()
+				|| (!json_is_undefined(aheadBy) && !exact_integer(aheadBy))) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			return github_merge_base_read{ .MergeBaseOid = text(mergeSha), .BaseCommitOid = text(baseSha), .RateLimits = rates };
+			return github_merge_base_read{
+				.MergeBaseOid  = text(mergeSha),
+				.BaseCommitOid = text(baseSha),
+				.AheadBy       = json_is_undefined(aheadBy) ? std::nullopt : std::optional<std::uint64_t>{ integer(aheadBy) },
+				.RateLimits    = rates,
+			};
 		} catch (...) {
 			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
 		}

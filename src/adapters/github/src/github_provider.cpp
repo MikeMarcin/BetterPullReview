@@ -257,9 +257,16 @@ namespace bpr::adapters::github::detail {
 			/// pair's merge base never changes, so a poll that finds the same pair
 			/// asks nothing; only answers are kept, never failures. An open pull
 			/// request's base branch moves, so its merge base is asked every read.
-			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
-			std::atomic<std::uint64_t>                                                                               NextSnapshot{ 1U };
-			bool                                                                                                     Closing = false;
+			/// [[BPR-1572]]: with the commit count GitHub's answer gave for the
+			/// pair, which is as fixed as its merge base.
+			struct remembered_merge_base
+			{
+				std::string                  MergeBaseOid;
+				std::optional<std::uint64_t> AheadBy;
+			};
+			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, remembered_merge_base> MergeBases;
+			std::atomic<std::uint64_t>                                                                                         NextSnapshot{ 1U };
+			bool                                                                                                               Closing = false;
 			/// RFC-BPR-0084. Serial image lanes, each with its own media
 			/// transport per profile, touched only on that lane.
 			struct media_lane
@@ -2447,22 +2454,35 @@ namespace bpr::adapters::github::detail {
 								break;
 							}
 						}
-						// [[BPR-1560]]. GitHub's Files changed compares from the
-						// merge base of the base branch and the head, not from the
-						// base commit GitHub records for the pull request, which
-						// may lag or lead. Three reads bind it to this snapshot:
-						// the merge base against the recorded base (an exact pair,
-						// remembered); for an open pull request the merge base
-						// against the base branch, which must name the same commit,
-						// or GitHub's two bases disagree and its file list's basis
-						// is not knowable; then the pull request's metadata again,
+						// [[BPR-1560]], [[BPR-1572]]. GitHub's Files changed, its
+						// commit list and the lines a LEFT comment is numbered in
+						// compare from the merge base of the base commit GitHub
+						// records for the pull request (`base.sha`) and the head,
+						// not from `base.sha` itself, which may lag or lead. GitHub
+						// keeps `base.sha` while the base branch only moves forward,
+						// even when it takes commits the head has (a stacked pull
+						// request's base branch fast-forwarded to, or merging, part
+						// of it), and replaces it with the branch's new tip a few
+						// seconds after the branch is force-pushed (measured on
+						// github.com, 2026-10-17). The reads that bind it to this
+						// snapshot: the merge base against the recorded base (an
+						// exact pair, remembered); for an open pull request the
+						// merge base against the base branch, which either names
+						// the same commit or, when it names another, is accepted
+						// only while GitHub's own commit count for the pull request
+						// is the recorded base's and the recorded base is an
+						// ancestor of the branch tip GitHub resolved, so the base
+						// branch only moved forward and GitHub keeps comparing from
+						// the recorded base; otherwise GitHub is replacing the
+						// recorded base, or its answers disagree, and the merge
+						// base is refused. Then the pull request's metadata again,
 						// which must still be the snapshot's, so the file list and
 						// the merge base describe one state. A closed pull request,
 						// whose branch may have moved on or taken the head, is
-						// compared with its recorded base only. Lost authentication
-						// fails the whole read, as on every optional read; any
-						// other failure leaves the merge base unavailable and never
-						// stands in another base.
+						// compared with its recorded base only. Lost
+						// authentication fails the whole read, as on every optional
+						// read; any other failure leaves the merge base unavailable
+						// and never stands in another base.
 						{
 							enum class merge_base_step : std::uint8_t {
 								answered,
@@ -2492,8 +2512,8 @@ namespace bpr::adapters::github::detail {
 								}
 								return merge_base_step::unavailable;
 							};
-							auto ask = [&](const github_merge_base_basis& aBasis, std::optional<github_merge_base_read>& aAnswer) {
-								auto read = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository, aBasis, head,
+							auto ask = [&](const github_merge_base_basis& aBasis, const std::string& aHead, std::optional<github_merge_base_read>& aAnswer) {
+								auto read = perform_github_merge_base_read(*readTransport, *profile, aRequest, result->Repository.Repository, aBasis, aHead,
 																		   job->Stop.get_token(), { }, state->ReadAuthority, &observer);
 								if (!read) {
 									return settle(read.error());
@@ -2507,25 +2527,40 @@ namespace bpr::adapters::github::detail {
 							{
 								std::scoped_lock lock{ state->Mutex };
 								if (const auto found = state->MergeBases.find(key); found != state->MergeBases.end()) {
-									exact = github_merge_base_read{ .MergeBaseOid = found->second, .BaseCommitOid = recorded };
+									exact = github_merge_base_read{ .MergeBaseOid = found->second.MergeBaseOid, .BaseCommitOid = recorded, .AheadBy = found->second.AheadBy };
 								}
 							}
-							auto step = exact ? merge_base_step::answered : ask(github_merge_base_basis{ .BaseOid = recorded }, exact);
+							auto step = exact ? merge_base_step::answered : ask(github_merge_base_basis{ .BaseOid = recorded }, head, exact);
 							if (step == merge_base_step::answered && exact) {
 								constexpr auto   maximumRemembered = std::size_t{ 256U };
 								std::scoped_lock lock{ state->Mutex };
 								if (state->MergeBases.size() >= maximumRemembered) {
 									state->MergeBases.clear();
 								}
-								state->MergeBases.emplace(key, exact->MergeBaseOid);
+								state->MergeBases.emplace(key, provider_state::remembered_merge_base{ .MergeBaseOid = exact->MergeBaseOid, .AheadBy = exact->AheadBy });
 							}
 							auto chosen = exact;
 							if (step == merge_base_step::answered && open) {
 								auto tip = std::optional<github_merge_base_read>{ };
-								step     = ask(github_merge_base_basis{ .BaseRef = result->PullRequest.BaseRef, .BaseOid = recorded }, tip);
-								if (step == merge_base_step::answered) {
-									step   = tip->MergeBaseOid == exact->MergeBaseOid ? merge_base_step::answered : merge_base_step::refused;
+								step     = ask(github_merge_base_basis{ .BaseRef = result->PullRequest.BaseRef, .BaseOid = recorded }, head, tip);
+								if (step == merge_base_step::answered && tip->MergeBaseOid == exact->MergeBaseOid) {
 									chosen = std::move(tip);
+								} else if (step == merge_base_step::answered) {
+									// [[BPR-1572]]. The base branch names another merge
+									// base. GitHub still compares from the recorded
+									// base when its commit count for the pull request
+									// is that base's and the base branch only moved
+									// forward from it.
+									const auto& reported = result->PullRequest.ReportedCommitCount;
+									if (!exact->AheadBy || !reported || *exact->AheadBy != *reported) {
+										step = merge_base_step::refused;
+									} else {
+										auto ancestry = std::optional<github_merge_base_read>{ };
+										step          = ask(github_merge_base_basis{ .BaseOid = recorded }, tip->BaseCommitOid, ancestry);
+										if (step == merge_base_step::answered && ancestry->MergeBaseOid != recorded) {
+											step = merge_base_step::refused;
+										}
+									}
 								}
 							}
 							if (step == merge_base_step::answered) {
