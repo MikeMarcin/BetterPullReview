@@ -15,7 +15,6 @@
 #include <QImage>
 #include <QPainter>
 #include <QStyle>
-#include <QStyleFactory>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -76,15 +75,17 @@ namespace {
 	struct bar_reading
 	{
 		QColor Fill;
-		double Text    = 0.0;
+		double Text = 0.0;
 		QColor Chevron;
 		QImage Image;
 	};
 
 	/// \brief Reads a disclosure as it paints: once with its title and once
 	/// without, so the title is exactly the pixels that differ.
-	[[nodiscard]] auto read_bar(QToolButton& aBar) -> bar_reading
+	[[nodiscard]] auto read_bar(QToolButton& aBar, const bool aHovered = false) -> bar_reading
 	{
+		// Whether the pointer is over the bar, as the hover tint asks.
+		aBar.setAttribute(Qt::WA_UnderMouse, aHovered);
 		const auto title   = aBar.text();
 		const auto with    = aBar.grab().toImage().convertToFormat(QImage::Format_ARGB32);
 		const auto blocked = aBar.blockSignals(true);
@@ -149,10 +150,10 @@ namespace {
 	/// \brief One disclosure in its real host.
 	struct site
 	{
-		std::string                                     Name;
-		std::function<std::unique_ptr<QWidget>()>       Make;
-		std::function<QToolButton*(QWidget&)>           Find;
-		QString                                         Title;
+		std::string                               Name;
+		std::function<std::unique_ptr<QWidget>()> Make;
+		std::function<QToolButton*(QWidget&)>     Find;
+		QString                                   Title;
 	};
 
 	[[nodiscard]] auto named(const char* aName) -> std::function<QToolButton*(QWidget&)>
@@ -165,11 +166,11 @@ namespace {
 		auto all = std::vector<site>{ };
 		all.push_back({ "Overview Check details", [] { return std::make_unique<qt::pull_request_overview_page>(); }, named("overviewChecksDisclosure"), QStringLiteral("Check details: 3 failed") });
 		all.push_back({ "Overview Requirement details", [] { return std::make_unique<qt::pull_request_overview_page>(); }, named("overviewRequirementDisclosure"), QString{ } });
-		all.push_back({ "Compose review Pull request and account", [] { return std::make_unique<qt::review_submission_editor>([](const auto&) {}); }, named("wholeReviewDetails"), QString{ } });
+		all.push_back({ "Compose review Pull request and account", [] { return std::make_unique<qt::review_submission_editor>([](const auto&) { }); }, named("wholeReviewDetails"), QString{ } });
 		all.push_back({ "Source search skipped sides", [] { return std::make_unique<qt::source_search_panel>(nullptr); }, named("sourceSearchSkippedToggle"), QStringLiteral("2 sides not searched") });
 		all.push_back({ "Diagnostics About local diagnostics", [] { return std::make_unique<qt::diagnostic_settings_panel>(); },
 						[](QWidget& aHost) -> QToolButton* {
-							for (auto* const button : aHost.findChildren<qt::disclosure_button*>()) {
+							for (auto* const button : aHost.findChildren<QToolButton*>()) {
 								if (button->text() == QStringLiteral("About local diagnostics")) {
 									return button;
 								}
@@ -253,6 +254,9 @@ namespace {
 				const auto pressed = read_bar(*bar);
 				bar->setDown(false);
 				expect(pressed.Text >= 4.5, label + " pressed: the title stays readable (" + std::to_string(pressed.Text) + ")");
+				const auto hovered = read_bar(*bar, true);
+				bar->setAttribute(Qt::WA_UnderMouse, false);
+				expect(hovered.Text >= 4.5, label + " hovered: the title stays readable (" + std::to_string(hovered.Text) + ")");
 				bar->setChecked(false);
 			}
 		}
@@ -272,49 +276,88 @@ namespace {
 		return bar;
 	}
 
+	/// \brief A palette whose button family is a native bezel's light grey,
+	/// as macOS draws a checked tool button in the light system appearance,
+	/// under the theme's own text.
+	[[nodiscard]] auto under_native_bezel(QPalette aColours) -> QPalette
+	{
+		const auto bezel = QColor{ 0xE3, 0xE3, 0xE3 };
+		for (const auto group : { QPalette::Active, QPalette::Inactive }) {
+			aColours.setColor(group, QPalette::Button, bezel);
+			aColours.setColor(group, QPalette::Light, bezel.lighter(110));
+			aColours.setColor(group, QPalette::Midlight, bezel.lighter(105));
+			aColours.setColor(group, QPalette::Mid, bezel.darker(120));
+			aColours.setColor(group, QPalette::Dark, bezel.darker(150));
+		}
+		return aColours;
+	}
+
 	void test_the_old_platform_bar_fails_the_reading(const QString& aRoot)
 	{
-		// The negative control: the reading must refuse what the owner saw.
-		// On macOS the native style draws the old bar as a bezel in the system
-		// appearance's grey; other platforms draw the style's own button
-		// fill, which is not the raised surface either.
-		const auto themes = built_in_themes();
-		const auto dark   = std::ranges::find_if(themes, [](const theme& aTheme) { return aTheme.Mode == core::appearance_mode::dark; });
-		std::unique_ptr<QStyle> native{ QStyleFactory::create(QStringLiteral("macos")) };
-		for (const auto& colours : themes) {
+		// The negative controls: the reading must refuse the old bar. The
+		// offscreen platform cannot draw the macOS style's native bezel (it
+		// paints nothing there), so the owner's bezel is reproduced by giving
+		// the old bar's button family the bezel's light grey under the theme's
+		// text, and the style draws it from that.
+		for (const auto& colours : built_in_themes()) {
 			auto profile = qt::appearance_profile{ };
 			static_cast<void>(profile.select_mode(colours.Mode));
+			const auto title = QStringLiteral("Check details: 3 failed");
+
+			// As the application's style draws the old bar from the theme.
+			// The high-contrast themes are flat, their raised surface their
+			// surface, so only Light and Dark can tell the fills apart.
+			{
+				auto host = QWidget{ };
+				profile.apply_to(host);
+				host.resize(300, 60);
+				auto* const bar = old_disclosure(host, title);
+				host.show();
+				settle();
+				const auto reading = read_bar(*bar);
+				const auto label   = "the old bar as " + QApplication::style()->name().toStdString() + " draws it in " + colours.Name;
+				std::cout << label << ": fill " << hex(reading.Fill) << ", title " << reading.Text << ":1\n";
+				if (colours.Raised != colours.Surface) {
+					expect(!passes(reading, colours), label + " fails the disclosure reading");
+				}
+			}
+
+			// As the owner saw it: the native bezel's grey under the theme's text.
 			auto host = QWidget{ };
 			profile.apply_to(host);
-			host.resize(300, 60);
-			auto* const bar = old_disclosure(host, QStringLiteral("Check details: 3 failed"));
-			if (native) {
-				bar->setStyle(native.get());
-			}
+			host.setPalette(under_native_bezel(host.palette()));
+			host.resize(276, 84);
+			auto* const bar = old_disclosure(host, title);
 			host.show();
 			settle();
-			const auto reading = read_bar(*bar);
-			const auto label   = "the old " + std::string{ native ? "macOS" : "platform" } + " bar in " + colours.Name;
-			std::cout << label << ": fill " << hex(reading.Fill) << ", title " << reading.Text << ":1\n";
-			expect(!passes(reading, colours), label + " fails the disclosure reading");
+			const auto before = read_bar(*bar);
+			const auto label  = "the old bar on the native bezel in " + colours.Name;
+			std::cout << label << ": fill " << hex(before.Fill) << ", title " << before.Text << ":1\n";
+			expect(!passes(before, colours), label + " fails the disclosure reading");
+			if (colours.Mode == core::appearance_mode::dark) {
+				expect(before.Text < 4.5, "the owner's report: Dark's title on the bezel is below 4.5:1 (" + std::to_string(before.Text) + ")");
+			}
+			// The shared bar under the same palette falls back to the surface.
+			auto* const after = new qt::disclosure_button{ &host };
+			after->setText(title);
+			after->setChecked(true);
+			after->setGeometry(QRect{ QPoint{ 8, bar->geometry().bottom() + 12 }, QSize{ 260, after->sizeHint().height() } });
+			after->show();
+			settle();
+			const auto fixed = read_bar(*after);
+			expect(fixed.Text >= 4.5, "the shared bar under the bezel palette in " + colours.Name + " still reads (" + std::to_string(fixed.Text) + ")");
+			expect(colour_near(fixed.Fill, qt::disclosure_fill(host.palette(), QPalette::Active)), "the shared bar under the bezel palette in " + colours.Name + " is that palette's readable fill, not " + hex(fixed.Fill));
+			if (colours.Mode == core::appearance_mode::dark || colours.Mode == core::appearance_mode::high_contrast_dark) {
+				expect(colour_near(fixed.Fill, colours.Surface), "under light text the bezel grey is refused for the surface " + hex(colours.Surface));
+			}
 			if (!aRoot.isEmpty()) {
-				static_cast<void>(reading.Image.save(aRoot + QStringLiteral("/before-") + QString::fromStdString(colours.Name) + QStringLiteral(".png")));
+				// The card's evidence: the old bar above the shared one, on the theme's surface.
+				auto themed = QWidget{ };
+				profile.apply_to(themed);
+				after->setPalette(themed.palette());
+				settle();
+				static_cast<void>(host.grab().save(aRoot + QStringLiteral("/before-after-") + QString::fromStdString(colours.Name) + QStringLiteral(".png")));
 			}
-			bar->setStyle(nullptr);
-		}
-		if (native && dark != themes.end()) {
-			// What the owner reported: the Dark title on the native bezel.
-			auto profile = qt::appearance_profile{ };
-			static_cast<void>(profile.select_mode(core::appearance_mode::dark));
-			auto host = QWidget{ };
-			profile.apply_to(host);
-			auto* const bar = old_disclosure(host, QStringLiteral("Check details: 3 failed"));
-			bar->setStyle(native.get());
-			host.show();
-			settle();
-			const auto reading = read_bar(*bar);
-			expect(reading.Text < 4.5, "the old macOS bar's Dark title is below 4.5:1 on its bezel (" + std::to_string(reading.Text) + ")");
-			bar->setStyle(nullptr);
 		}
 	}
 
