@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1584"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "One reading width setting for Threads and Discuss",
+  "created": "2026-10-17T08:26:27.496074+00:00",
+  "base": "85c94f5e20c2c91b68ec2a49058b0ab5fc88db97"
+}
