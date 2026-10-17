@@ -273,6 +273,24 @@ write.
   X1; the app matched it line for line. Documented in the architecture doc:
   the review follows the one merge base compare names.
 
+## Gates, review round one
+
+On `1745f83bf` (main merged at `79a4652ad`): clang-format 22 on every changed
+C++ file; clang-tidy on the changed translation units passes, and the
+findings it reported in this round's new test code were fixed (the rest are on
+lines this card does not touch); `DOCUMENTATION_OK`; round-trip composition
+contract resealed (full application digest `16c45b7b…`, production manifest
+`450c878e…`) and passing. One full `ctest --preset dev -j 6`: 762/772 under
+load average up to 47 with other agents' builds; the ten failures rerun alone
+all pass: `qt_workbench_window_scale_200`, `application_composition_contract`,
+`application_offline_inventory` and `application_terminal_diagnostics`
+(timeouts under load), the five `application_large_review_*` timing budgets
+(`large_file_selection` 13 s under load; `application_large_review_launch`
+once more failed alone with "fixture exit code 1" and passed twice after),
+and `rfc0016_production_identity_security` (failed while the ignored
+`.agents` skills link the documentation rows need was present; passes in the
+clean worktree).
+
 ## Live round two (`ba735233a`, records in `live-2026-10-17.jsonl`)
 
 | Course | Steps | Result |
