@@ -1,5 +1,5 @@
-#include "bpr/core/workbench_interaction.hpp"
 #include "conversation_open_card.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 
 #include "conversation_glyphs.hpp"
 

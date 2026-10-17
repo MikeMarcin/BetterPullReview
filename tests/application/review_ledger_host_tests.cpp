@@ -645,6 +645,12 @@ namespace {
 			Host.mark_conversation_read(aLatest, into(got));
 			return settled(got);
 		}
+		auto unmark(const application::conversation_thread_observation& aThread) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.mark_conversation_unread(aThread, into(got));
+			return settled(got);
+		}
 		/// Loads first, as a caller that has never observed would.
 		auto private_observation() -> std::expected<application::private_ledger_observation, application::ledger_store_failure>
 		{
@@ -1194,6 +1200,39 @@ namespace {
 				   && cold.Host.statistics().ConversationLoads == 1U && store.ConversationReceipts.size() == before.size() + 1U
 				   && cold.Host.unread_conversations(threads).has_value(),
 			   "a cold Mark read loads, decides against the loaded receipts, writes and keeps them");
+	}
+
+	/// [[BPR-1582]]. Mark as unread goes through the same store: the latest
+	/// post someone else wrote is new again, acceptance stays, a thread of
+	/// only my posts is refused before the store, and Mark read undoes it.
+	void test_conversation_marks_unread_through_the_store()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto thread = core::review_conversation_id{ 51U };
+		const auto posts  = std::vector<core::conversation_post_observation>{
+			{ .Comment = core::review_comment_id{ 1U }, .Edit = core::comment_edit_version{ 11U } },
+			{ .Comment = core::review_comment_id{ 2U }, .Edit = core::comment_edit_version{ 12U } },
+			{ .Comment = core::review_comment_id{ 3U }, .Edit = core::comment_edit_version{ 13U }, .Mine = true },
+		};
+		const auto threads = std::vector<application::conversation_thread_observation>{ { .Conversation = thread, .Posts = posts } };
+		expect(rigged.mark(core::conversation_observation{ .Conversation = thread, .LatestComment = core::review_comment_id{ 3U }, .LatestEdit = core::comment_edit_version{ 13U } }).has_value()
+				   && rigged.observe_conversations(threads)->Threads.empty(),
+			   "the fixture starts read");
+		const auto unread = rigged.unmark(threads[0]);
+		const auto state  = rigged.observe_conversations(threads);
+		expect(unread.has_value() && store.ConversationReceipts.size() == 1U && store.ConversationReceipts[0].SeenComment == core::review_comment_id{ 1U }
+				   && state->UnreadThreads == 1U && state->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 2U } } && state->Threads[0].SeenBefore,
+			   "Mark as unread stores the cursor before the latest other post, which is new again");
+		const auto mine    = application::conversation_thread_observation{ .Conversation = core::review_conversation_id{ 52U }, .Posts = { posts[2] } };
+		const auto writes  = rigged.Host.statistics().ConversationWrites;
+		const auto refused = rigged.unmark(mine);
+		expect(!refused.has_value() && refused.error() == application::ledger_store_failure::invalid_record && rigged.Host.statistics().ConversationWrites == writes,
+			   "a thread of only my posts is refused before the store");
+		expect(rigged.mark(core::conversation_observation{ .Conversation = thread, .LatestComment = core::review_comment_id{ 3U }, .LatestEdit = core::comment_edit_version{ 13U } }).has_value()
+				   && rigged.observe_conversations(threads)->Threads.empty(),
+			   "Mark read reads it again");
 	}
 
 	void test_receipt_action_projection_contains_only_core_legal_changes()
@@ -1883,6 +1922,7 @@ auto main() -> int
 	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
+	test_conversation_marks_unread_through_the_store();
 	test_a_held_store_operation_leaves_the_decision_lane_free();
 	test_admission_is_bounded();
 	test_rapid_gestures_are_fifo_and_a_failure_rolls_back_only_itself();

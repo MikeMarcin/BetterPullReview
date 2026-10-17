@@ -217,7 +217,7 @@ namespace bpr::qt {
 		/// unread go.
 		void set_read_dispatch(finder_read_dispatch aDispatch);
 		/// \brief [[BPR-1584]]. How wide the rows grow on a wide page.
-		void set_reading_width(core::reading_width aWidth);
+		void               set_reading_width(core::reading_width aWidth);
 		[[nodiscard]] auto reading_width() const noexcept -> core::reading_width;
 		/// \brief Esc on an empty search.
 		void set_leave_dispatch(std::function<void()> aDispatch);

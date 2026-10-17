@@ -509,7 +509,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1581]]. Show in Discuss (⌥⌘3) or Show in Review (⌥⌘2)
 		/// for what the window holds selected, as
 		/// `core::choose_workbench_thread_target` chooses it.
-		auto show_selected_thread(core::workbench_thread_destination aDestination) -> bool;
+		auto               show_selected_thread(core::workbench_thread_destination aDestination) -> bool;
 		[[nodiscard]] auto show_thread_in_discuss_action() const noexcept -> QAction*;
 		[[nodiscard]] auto show_thread_in_review_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.

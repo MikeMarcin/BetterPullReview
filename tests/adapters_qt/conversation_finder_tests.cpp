@@ -1,5 +1,5 @@
-#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 
 #include <QAbstractButton>
 #include <QAccessible>
@@ -809,11 +809,11 @@ namespace {
 	/// the people, counts and state stay at the row's right end.
 	void test_rows_fill_the_reading_width()
 	{
-		auto        shown  = page{ };
-		auto&       finder = shown.Finder;
-		const auto  t656   = std::string{ "row:review-thread:t656/review-comment:t656-1" };
-		const auto  prefix = qEnvironmentVariable("BPR_QT_FINDER_RENDER_PATH");
-		const auto  page   = [&finder] { return finder.list()->viewport()->width(); };
+		auto       shown  = page{ };
+		auto&      finder = shown.Finder;
+		const auto t656   = std::string{ "row:review-thread:t656/review-comment:t656-1" };
+		const auto prefix = qEnvironmentVariable("BPR_QT_FINDER_RENDER_PATH");
+		const auto page   = [&finder] { return finder.list()->viewport()->width(); };
 		struct width_case
 		{
 			int                 Window;

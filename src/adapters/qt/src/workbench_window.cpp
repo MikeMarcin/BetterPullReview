@@ -8198,8 +8198,8 @@ namespace bpr::qt {
 				// the drawer keeps its own bounds.
 				const auto limit = core::reading_width_limit(Behaviour.ReadingWidth);
 				const auto read  = ConversationPanel->parentWidget() == DiscussPage && limit.has_value()
-					 ? static_cast<int>(std::min<std::uint32_t>(*limit, QWIDGETSIZE_MAX))
-					 : QWIDGETSIZE_MAX;
+					? static_cast<int>(std::min<std::uint32_t>(*limit, QWIDGETSIZE_MAX))
+					: QWIDGETSIZE_MAX;
 				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : read);
 				if (ConversationPanel->parentWidget() == DiscussPage) {
 					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
@@ -13155,7 +13155,7 @@ namespace bpr::qt {
 			.Before = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
 				: std::nullopt,
-			.Focus = aFocus,
+			.Focus  = aFocus,
 		};
 		choose_home(false);
 		// Review first, then the file: a file gesture that follows the
@@ -13218,10 +13218,10 @@ namespace bpr::qt {
 		auto path     = QString{ };
 		if (!draft) {
 			if (const auto location = Finder->locate(aIdentity); location.has_value()) {
-				thread = location->Thread;
-				post   = location->Post;
-				onFile = true;
-				path   = location->Path;
+				thread                    = location->Thread;
+				post                      = location->Post;
+				onFile                    = true;
+				path                      = location->Path;
 				const auto& conversations = Finder->conversations();
 				if (const auto found = std::ranges::find(conversations, thread, &finder_conversation::Id); found != conversations.end()) {
 					resolved = found->Resolved;
@@ -13337,8 +13337,8 @@ namespace bpr::qt {
 		}
 		auto* const cards     = ConversationPanel->cards();
 		auto        selection = core::workbench_thread_selection{
-				   .OpenThread = cards->open_thread_id(),
-				   .PickedPost = cards->picked_post(),
+			.OpenThread = cards->open_thread_id(),
+			.PickedPost = cards->picked_post(),
 		};
 		if (const auto current = ConversationPanel->model()->id_for_index(ConversationPanel->view()->currentIndex()); !current.empty()) {
 			auto index = ConversationPanel->model()->index_for_id(current);
@@ -13377,7 +13377,7 @@ namespace bpr::qt {
 
 	void workbench_window::update_show_thread_actions()
 	{
-		const auto here    = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+		const auto here = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
 		// Ctrl+Alt is AltGr on Windows, where AltGr with 2 or 3 types a
 		// character: the keys step aside while the keyboard is typing.
 		const auto reading = HasGithubPullRequest && CompositionPage == nullptr && !showing_home() && !TypingFocus;

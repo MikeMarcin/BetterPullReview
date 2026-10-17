@@ -1113,9 +1113,9 @@ namespace bpr::application {
 	}
 
 	void review_ledger_application_host::store_conversation_receipt(
-		const core::review_conversation_id                                                             aConversation,
+		const core::review_conversation_id                                                          aConversation,
 		std::function<std::optional<core::conversation_receipt>(const core::conversation_receipt&)> aDecide,
-		ledger_completion<void>                                                                        aDone)
+		ledger_completion<void>                                                                     aDone)
 	{
 		using impl       = implementation;
 		auto* const self = Implementation.get();

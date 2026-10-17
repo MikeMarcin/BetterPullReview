@@ -1491,7 +1491,7 @@ namespace {
 		QApplication::processEvents();
 		auto* const reviewMenu = view.thread_menu("unavailable");
 		expect(reviewMenu != nullptr, "the thread has a menu beside the code");
-		auto* const show       = reviewMenu->findChild<QAction*>(QStringLiteral("threadShowInDiscussAction"));
+		auto* const show = reviewMenu->findChild<QAction*>(QStringLiteral("threadShowInDiscussAction"));
 		expect(show != nullptr && show->text() == QStringLiteral("Show in Discuss") && show->isEnabled()
 				   && std::ranges::none_of(reviewMenu->actions(), [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); }),
 			   "Review's thread menu offers Show in Discuss and no Open in Review");

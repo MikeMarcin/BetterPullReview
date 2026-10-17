@@ -2029,9 +2029,9 @@ namespace bpr::qt {
 			ReadAction->setObjectName(QStringLiteral("threadFinderReadAction"));
 			ReadAction->setEnabled(action != core::conversation_read_action::none && static_cast<bool>(ReadDispatch));
 			ReadAction->setStatusTip(action == core::conversation_read_action::mark_read ? QStringLiteral("Mark every post in this thread as read")
-									 : action == core::conversation_read_action::mark_unread
-									 ? QStringLiteral("Show the latest post by someone else as new again")
-									 : QStringLiteral("Every post in this thread is yours"));
+										 : action == core::conversation_read_action::mark_unread
+										 ? QStringLiteral("Show the latest post by someone else as new again")
+										 : QStringLiteral("Every post in this thread is yours"));
 			ReadAction->setToolTip(ReadAction->statusTip());
 			QObject::connect(ReadAction, &QAction::triggered, this, [this, thread = conversation.Id, read = action == core::conversation_read_action::mark_read] {
 				if (ReadDispatch) {
@@ -2406,12 +2406,12 @@ namespace bpr::qt {
 
 	auto conversation_finder::geometry_of(const std::size_t aItem, const QRect& aRect) const -> row_geometry
 	{
-		auto       geometry = row_geometry{ };
+		auto geometry = row_geometry{ };
 		// [[BPR-1584]]. The rows fill the page up to the reading width; the
 		// people, counts and state stay at their right end.
-		const auto page     = std::max(0, aRect.width() - list_left - list_right);
-		const auto width    = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
-		geometry.Box        = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, std::max(0, width), row_height };
+		const auto page  = std::max(0, aRect.width() - list_left - list_right);
+		const auto width = static_cast<int>(core::reading_column_width(ReadingWidth, static_cast<std::uint32_t>(page)));
+		geometry.Box     = QRect{ aRect.left() + list_left, aRect.bottom() - row_height + 1, std::max(0, width), row_height };
 		if (aItem >= Items.size() || Items[aItem]->Header) {
 			return geometry;
 		}
@@ -2442,8 +2442,8 @@ namespace bpr::qt {
 		}
 		const auto wordsLeft  = geometry.Mark.right() + 1 + mark_gap;
 		auto       wordsRight = x + bead_gap - people_gap;
-		const auto label   = weighted(sized(font(), 0.82), QFont::DemiBold);
-		const auto pillTop = box.top() + (row_height - discuss_height) / 2;
+		const auto label      = weighted(sized(font(), 0.82), QFont::DemiBold);
+		const auto pillTop    = box.top() + (row_height - discuss_height) / 2;
 		if (discuss_shown(aItem)) {
 			// [[BPR-1356]]. The button takes the end of the words, so the
 			// people never move when it shows.

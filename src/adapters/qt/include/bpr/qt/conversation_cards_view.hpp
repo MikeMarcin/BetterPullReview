@@ -12,10 +12,10 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <QAbstractScrollArea>
-#include <QPointer>
 #include <QColor>
 #include <QFont>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
 #include <QString>
 
@@ -731,13 +731,13 @@ namespace bpr::qt {
 		std::string Picked;
 		std::string PickedNext;
 		/// [[BPR-1581]]. The arrival mark's post and its animation.
-		std::string                  ArrivalPost;
+		std::string                 ArrivalPost;
 		QPointer<QVariantAnimation> ArrivalAnimation;
-		bool        RevealPicked      = false;
-		QTimer*     PickedReveal      = nullptr;
-		int         PickedRevealSteps = 0;
-		int         PickedRevealLast  = 0;
-		std::string Hovered;
+		bool                        RevealPicked      = false;
+		QTimer*                     PickedReveal      = nullptr;
+		int                         PickedRevealSteps = 0;
+		int                         PickedRevealLast  = 0;
+		std::string                 Hovered;
 		/// The thread whose reply editor is shown in its open card.
 		std::string                                                                 Replying;
 		std::vector<thread_read_state>                                              ReadState;

@@ -13715,8 +13715,10 @@ namespace {
 		auto* menu    = finder->row_menu();
 		auto* review  = finder->open_in_review_action();
 		auto* discuss = finder->open_in_discuss_action();
-		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions() == QList<QAction*>{ review, discuss },
-			   "a right click opens the row menu: Open in Review, then Open in Discuss");
+		// [[BPR-1582]]. Then a separator and Mark as Read or Mark as Unread.
+		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions().size() == 4
+				   && menu->actions().mid(0, 2) == QList<QAction*>{ review, discuss } && menu->actions()[2]->isSeparator() && menu->actions()[3] == finder->read_action(),
+			   "a right click opens the row menu: Open in Review, then Open in Discuss, then the read command");
 		expect(review->text() == QStringLiteral("Open in Review") && discuss->text() == QStringLiteral("Open in Discuss") && menu->defaultAction() == review
 				   && review->shortcut() == QKeySequence{ Qt::Key_Return } && discuss->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return }
 				   && review->isShortcutVisibleInContextMenu() && discuss->isShortcutVisibleInContextMenu()
@@ -13806,11 +13808,11 @@ namespace {
 	/// core, with an outdated thread and a pull request comment added.
 	struct thread_moves_fixture
 	{
-		core::workbench_interaction_state              State;
-		std::vector<core::workbench_interaction_intent> Intents;
+		core::workbench_interaction_state                   State;
+		std::vector<core::workbench_interaction_intent>     Intents;
 		std::vector<application::review_behaviour_settings> Behaviour;
-		qt::workbench_window*                           Shown = nullptr;
-		std::unique_ptr<qt::workbench_window>           Window;
+		qt::workbench_window*                               Shown = nullptr;
+		std::unique_ptr<qt::workbench_window>               Window;
 
 		void publish(const std::optional<core::workbench_reason_code> aRefusal) const
 		{
@@ -13824,13 +13826,13 @@ namespace {
 
 		explicit thread_moves_fixture(const int aWidth = 1'280)
 		{
-			Window = std::make_unique<qt::workbench_window>([this](core::workbench_interaction_intent aIntent) {
+			Window       = std::make_unique<qt::workbench_window>([this](core::workbench_interaction_intent aIntent) {
 				Intents.push_back(aIntent);
 				const auto output = core::transition(State, aIntent);
 				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
 			});
-			Shown         = Window.get();
-			auto& window  = *Window;
+			Shown        = Window.get();
+			auto& window = *Window;
 			window.set_behaviour_dispatch([this](const application::review_behaviour_settings& aSettings) { Behaviour.push_back(aSettings); });
 			window.resize(aWidth, 820);
 			window.show();
@@ -13904,10 +13906,10 @@ namespace {
 	/// the jump in Light and Dark.
 	void test_thread_moves_between_review_and_discuss()
 	{
-		auto        fixture = thread_moves_fixture{ };
-		auto&       window  = *fixture.Window;
-		auto* const cards   = window.conversation_panel()->cards();
-		auto* const panel   = window.conversation_panel();
+		auto        fixture    = thread_moves_fixture{ };
+		auto&       window     = *fixture.Window;
+		auto* const cards      = window.conversation_panel()->cards();
+		auto* const panel      = window.conversation_panel();
 		const auto  selectedId = [&window] { return window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()); };
 		const auto  inView     = [cards] {
 			auto* const card = cards->open_card();
@@ -13964,7 +13966,7 @@ namespace {
 		process_events();
 		expect(landed(qt::review_modality::discuss, "review-thread:late", "review-comment:late-1"), "a closed note's Show in Discuss opens its thread at the first post");
 		// Open in Review from Discuss's thread menu is the same route back.
-		menu = cards->thread_menu("review-thread:late");
+		menu       = cards->thread_menu("review-thread:late");
 		auto* back = menuItem(menu, "threadOpenInReviewAction");
 		back->trigger();
 		delete menu;
@@ -14004,7 +14006,7 @@ namespace {
 		auto* const code = window.comparison_surface()->right_pane();
 		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, 21U));
 		process_events();
-		const auto row      = window.comparison_surface()->line_rect(core::diff_side::right, 21U);
+		const auto  row      = window.comparison_surface()->line_rect(core::diff_side::right, 21U);
 		auto* const codeMenu = window.code_context_menu(code, code->viewport()->mapFrom(window.comparison_surface(), row.center()));
 		show                 = menuItem(codeMenu, "codeContextMenuShowInDiscuss");
 		expect(show->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Alt+3") } && show->isShortcutVisibleInContextMenu(), "the code's item shows its key");
@@ -14086,7 +14088,7 @@ namespace {
 			static_cast<void>(profile.select_mode(mode));
 			profile.apply_to(window);
 			process_events();
-			const auto name   = mode == core::appearance_mode::light ? QStringLiteral("light") : QStringLiteral("dark");
+			const auto  name  = mode == core::appearance_mode::light ? QStringLiteral("light") : QStringLiteral("dark");
 			auto* const cards = window.conversation_panel()->cards();
 			cards->open_thread_at("review-thread:late", "review-comment:late-2");
 			process_events();

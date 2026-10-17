@@ -33,12 +33,12 @@
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
-#include <QVariantAnimation>
 #include <QShowEvent>
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
+#include <QVariantAnimation>
 #include <QWheelEvent>
 
 #include <algorithm>

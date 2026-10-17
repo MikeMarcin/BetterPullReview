@@ -859,7 +859,7 @@ namespace bpr::qt {
 
 	void markdown_body_view::set_extended_menu(const bool aExtended)
 	{
-		ExtendedMenu = aExtended;
+		ExtendedMenu      = aExtended;
 		const auto policy = ContextControls || ExtendedMenu ? Qt::CustomContextMenu : Qt::DefaultContextMenu;
 		Rendered->setContextMenuPolicy(policy);
 		Source->setContextMenuPolicy(policy);
