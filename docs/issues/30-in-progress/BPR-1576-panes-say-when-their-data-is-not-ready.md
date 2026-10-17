@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1576"
 title: "Panes say when their data is not ready"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
