@@ -56,10 +56,10 @@ it; this card changes how the choices are reached, named and summarised.
   tooltip and status tip where the platform draws them.
 - AC2: Added by is shown only when the profile has an observer rule, or when
   the window is already filtered by one (so a filter is never out of reach).
-- AC3: The button reads **View** at the defaults. When any choice in the menu
-  differs from its default it carries the strip's count pill (the one the
-  comments button carries) with how many do, and its accessible description
-  and tooltip name each such choice. **Reset to defaults** is enabled exactly then and in one
+- AC3: The button always reads **View**; its accessible description and
+  tooltip name each choice in the menu that differs from its default. (v001
+  also carried the strip's count pill; the owner's acceptance note removed
+  it.) **Reset to defaults** is enabled exactly then and in one
   gesture restores Group None, State headers on, My role Any, Added by Any,
   Quiet items Show and Sort Priority; the profile hears the filter part as it
   hears a filter choice.
@@ -164,10 +164,36 @@ the owner checks the frozen build themselves.
   renders in Light and Dark (closed, open, My role, Quiet items, changed,
   changed and open, filtered-empty).
 
+## Owner decision and landing
+
+- 2026-10-17, session `579c007a…`, decision `feb4b217-e3cf-4c58-a8a3-13dc265dd895`
+  (event 4): **Accept** of `BPR-1580-view-menu-v001`, with the note "I'm not
+  sure why view carries a count, otherwise it looks good. I also noticed the
+  home button looks misplaced on windows. Seems like it's still offset for
+  the macos window controls." Handed back at event 5; cursor consumed 5;
+  candidate released at 6; host stopped; frozen root removed.
+- As the coordinator directed, landed as accepted without a new review: View
+  now carries no count or mark at all (the quietest of the two options the
+  coordinator allowed); its tooltip and accessible description still name
+  each changed choice, the menu's items show every value, and the filtered
+  sentence with Clear filters covers a list the filters empty. Commit
+  `0f19f1da8`; AC3, the spec and the tests say so. The Windows title-row note
+  became [[BPR-1596]].
+- Landing evidence on the branch merged with main at `c29d90e19`:
+  focused Qt and composed rows (workbench window, title row, focus order, Home
+  discovery, composed GitHub and Home, capture course, personal discovery and
+  profile window layout public paths) pass; the round-trip composition
+  contract passes; `DOCUMENTATION_OK`. One full `run_test_suite.py --preset
+  dev` on the merge with `b96107686`: 764 passed, 8 failed, 1 skipped. Of the
+  eight, the three documentation rows need the MASK `.agents` link this
+  worktree lacks and pass with it; `application_composition_contract` timed
+  out under a load average near 200; `application_large_review_history` and
+  `qt_hide_drawers_native_menu_key` and `application_private_review_file`
+  pass alone. `application_private_review_native` fails alone too
+  (`COURSE_MODALITY_STALLED` wanting Review); it fails the same way in
+  [[BPR-1575]]'s own suite run at 15:58Z without this change, and passed in
+  this card's first full run, so it is outside this card.
+
 ## Next
 
-Read session `579c007a…` from cursor 3. Accept satisfies AC7: merge the
-branch onto main (reseal again if main's `github_application.cpp` moved),
-finish the card, stop the host, release the candidate and remove the frozen
-root with `scripts/freeze_attended_build.py remove`. A Reject's note is
-v002's change.
+Done.
