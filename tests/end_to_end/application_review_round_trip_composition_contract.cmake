@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"07d1e30ef4154d45d0c5a0012c39fdb0485fa6c4e9199ab9c6caf23b6c458be6"
+		"e457aca8eb0e60c7550ba03496d0de37e5e1c814fed84ecc502e8d5d0913fa74"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c29a489f5aa00eb77010cb75e0de189675ed408f3223f86f59194f3afad2efc2"
+        "220f231ffdb0297f92a5a82151cb77f57afb971cd1ffa9b518e9933a9fa2673d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2702,3 +2702,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # to make the kept answer one about another path. No grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1570.
+
+# [[BPR-1573]] reseal over main at 605dc11cc (branch 647fbc653..the BPR-1573
+# product commits 86d655c1c, 58ee21f56 and the tooltip follow-up).
+# github_application.cpp adds Close review: the window's close dispatch cancels
+# a reading restoration, sends close_pull_request_intent to this window's read
+# lane, whose host invalidates the epoch authority (the composition's existing
+# invalidate path, as opening another pull request takes), then starts the
+# document tabs again as BPR-1539 does. A test-build accessor reports what the
+# window holds of its review. No grant, target, provider, credential,
+# transport, GitHub write, mutation or publication path changes; the
+# production mutation-branch pin is unchanged. Self-review on BPR-1573.
