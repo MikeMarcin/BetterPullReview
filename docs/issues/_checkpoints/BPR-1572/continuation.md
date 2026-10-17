@@ -40,6 +40,13 @@ agreeing path skipped the final confirmation; state the inherent GET/POST
 limit). Fixed on `bdd64ad72` and `0bdb5673b`; see the card's "Review round
 two" and "Gates, review round two".
 
+## Review round three
+
+Fable approved; Astra rejected (the GitHub CLI account wrapper's account
+checks read after the final confirmation). Fixed on `3b79ec5a1`: the wrapper
+reads the pull request once more after its pre-write account check. Three
+large-review timing budgets still to rerun on a quiet machine.
+
 ## Pending
 
 - Fable and Astra review of the branch again (owner).

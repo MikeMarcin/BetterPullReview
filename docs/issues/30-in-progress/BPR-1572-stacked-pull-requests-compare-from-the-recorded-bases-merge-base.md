@@ -362,6 +362,23 @@ clean worktree).
   coordinates are carried by every later write that edits it and become
   public only with the final submit, which each write leads up to.
 
+## Gates, review round three
+
+On `3b79ec5a1` (main already merged): clang-format 22 on the changed C++
+files; clang-tidy reports nothing in the changed regions;
+`DOCUMENTATION_OK`; no `src/app` change, the composition contracts unchanged.
+One full `ctest --preset dev -j 6`: 764/772. Rerun one at a time,
+`rfc0016_production_identity_security`, `live_mutation_isolation` (a timeout),
+`release_update_native_https`, `native_git_smart_transport_fixture` and
+`application_terminal_diagnostics` pass. `application_large_review_responsiveness`,
+`_pathological` and `_history` failed again alone, each on a timing budget
+("responsiveness budget exceeded", "pathological fallback completion/input
+budget exceeded", "epoch refresh exceeded its measured platform budget") with
+the machine's load average at 56-66 from other agents; they are fixture read
+courses over the fixture transports, which the CLI account wrapper changed
+here is not installed on, and they passed alone in rounds one and two. Still
+to rerun on a quiet machine.
+
 ## Gates, review round two
 
 On `0bdb5673b` merged with main (`9117cdf60`, then the docs-only `77e67000e`):
