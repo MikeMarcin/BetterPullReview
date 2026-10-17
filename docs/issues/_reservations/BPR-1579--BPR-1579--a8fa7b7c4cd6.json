@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1579"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Dark disclosure bars draw light native bezels; apply BPR-1513 raised surface",
+  "created": "2026-10-17T08:07:38.741308+00:00",
+  "base": "aad57fb189a6719ffbb15d33475c4037544167ab"
+}

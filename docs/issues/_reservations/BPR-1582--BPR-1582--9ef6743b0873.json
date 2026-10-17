@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1582"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Threads rows select on click, open on double click, with a Review chip",
+  "created": "2026-10-17T08:16:22.434909+00:00",
+  "base": "fa4d133cb43036ea25ed1c262307cf7b6f6788bd"
+}

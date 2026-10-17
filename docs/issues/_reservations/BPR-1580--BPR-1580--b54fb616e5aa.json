@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1580"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "One View control for Home's Group, State headers and Filter, with labelled groups on macOS",
+  "created": "2026-10-17T08:11:26.517034+00:00",
+  "base": "d4ea462f600c5065972e15dbf308119b77a816ea"
+}
