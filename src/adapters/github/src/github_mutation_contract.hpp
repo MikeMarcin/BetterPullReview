@@ -455,6 +455,11 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected)
 		-> review_mutation_parse_result<review_mutation_target_observation>;
+	/// \brief [[BPR-1572]]. The pull request a witnessed write is bound to:
+	/// the target of a review comment, a reply, a review or a tour write.
+	/// None for a read or an unwitnessed write.
+	[[nodiscard]] auto written_target(const review_mutation_wire_request& aRequest)
+		-> std::optional<application::review_mutation_target_binding>;
 	/// \brief [[BPR-1572]]. Whether the answer is the expected pull request in
 	/// every respect `parse_target_observation` checks except its recorded
 	/// base, which GitHub has replaced: the target moving, as opposed to a

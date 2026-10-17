@@ -2708,6 +2708,29 @@ namespace bpr::adapters::github::detail {
 		return review_mutation_target_observation{ .Target = std::move(observed), .Commits = response->Commits };
 	}
 
+	auto written_target(const review_mutation_wire_request& aRequest)
+		-> std::optional<application::review_mutation_target_binding>
+	{
+		const auto exchange = review_mutation_exchange_for(aRequest.Operation);
+		if (!exchange || !exchange->Witnessed) {
+			return std::nullopt;
+		}
+		return std::visit(
+			[](const auto& aSemantic) -> std::optional<application::review_mutation_target_binding> {
+				using semantic_type = std::remove_cvref_t<decltype(aSemantic)>;
+				if constexpr (std::same_as<semantic_type, review_submission_request>) {
+					return aSemantic.Target;
+				} else if constexpr (std::same_as<semantic_type, application::staged_review_request>) {
+					return aSemantic.Binding.Target;
+				} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
+					return aSemantic.LiveBinding ? std::optional{ aSemantic.LiveBinding->Target } : std::nullopt;
+				} else {
+					return std::nullopt;
+				}
+			},
+			aRequest.Semantic);
+	}
+
 	auto target_recorded_base_moved(
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected) -> bool
@@ -3355,10 +3378,12 @@ namespace bpr::adapters::github::detail {
 
 		// Viewer identity is checked first so no other network operation widens
 		// the target-revalidation window. Target/head is the last observation
-		// before the POST, except that a LEFT line's merge-base reads follow it
+		// before the POST. A LEFT line's merge-base reads follow it
 		// ([[BPR-1572]]): one compare when the base branch names the comparison
-		// base, or, when it names another, two more compares and then the
-		// target read again, last.
+		// base, or, when it names another, two more; on both paths the target
+		// is then read again, last. A transport that checks the account with
+		// reads of its own before the POST (the GitHub CLI account wrapper)
+		// reads the target once more after them.
 		const auto targetRequest = compile_target_observation_request(
 			Configuration.Target,
 			Configuration.CredentialContext.Authority.ServerContract);

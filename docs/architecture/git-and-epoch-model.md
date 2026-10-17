@@ -311,7 +311,13 @@ count included, so a recorded base GitHub replaced while these were asked is
 not taken for the one they describe. The pull request is read again after an
 agreeing answer too, and it is the last read before every write on every
 publication path (a single comment, a review, each tour write, first or
-resumed). That narrows but cannot close the window: a read and the POST that
+resumed), through every transport: the GitHub CLI account wrapper checks the
+account with reads of its own before each write, so for a write bound to a
+pull request it reads the pull request once more after that check and refuses
+the write when its head or recorded base moved (a moved recorded base, with or
+without the head, is `target_moved`; a moved head alone `stale_head`). The
+native HTTPS transport (github.com and GHES alike) adds no read before a write,
+and a signed-out session cannot write. That narrows but cannot close the window: a read and the POST that
 follows are not atomic, and GitHub's review and review-comment requests carry
 the head (`commit_id`) and the coordinates but no precondition on the base, so
 a recorded base GitHub replaces after the last read and before the POST

@@ -250,10 +250,15 @@ namespace {
 			if (MutationHook) {
 				MutationHook();
 			}
+			if (MutationHandler) {
+				return MutationHandler(aRequest);
+			}
 			return github_mutation_wire_success{ };
 		}
 		unsigned              MutationCalls = 0;
 		std::function<void()> MutationHook;
+		/// [[BPR-1572]]. Answers a mutation-transport exchange, when set.
+		std::function<github_mutation_wire_completion(const github_mutation_wire_request&)> MutationHandler;
 
 		read_handler                                      ReadHandler;
 		capability_handler                                CapabilityHandler;
@@ -2546,6 +2551,9 @@ namespace {
 			const application::review_mutation_acting_identity identity{ .Account = core::github_account_id{ 1001 }, .DatabaseId = 1001, .NodeId = "U_viewer", .Login = "viewer" };
 			const github_mutation_wire_request                 request{ .Context = lease->credential_context(), .Wire = *compile_viewer_observation_request(identity) };
 			const auto                                         before = fixture.Transport->ReadRequests.size();
+			// A read: the account is checked before and after it. A write bound
+			// to a pull request also reads the pull request after its pre-write
+			// check ([[BPR-1572]], test_cli_wrapper_reads_the_pull_request_last_before_a_write).
 			expect(std::holds_alternative<github_mutation_wire_success>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; })) && fixture.Transport->ReadRequests.size() == before + 2, "mutation dispatch has pre/post account checks");
 			changed                         = !postflight;
 			fixture.Transport->MutationHook = [&] { changed = true; };
@@ -2557,6 +2565,93 @@ namespace {
 			const auto after = fixture.Transport->MutationCalls;
 			static_cast<void>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; }));
 			expect(fixture.Transport->MutationCalls == after, "mismatched lease cannot publish again after account returns");
+		}
+	}
+
+	/// [[BPR-1572]]. Through the production GitHub CLI account wrapper, whose
+	/// account checks are reads of their own: the session reads the pull
+	/// request, then writes; between them the wrapper checks the account after
+	/// the read and before the write. The wrapper reads the pull request once
+	/// more after its pre-write check, so the pull request is the last read
+	/// before the write. GitHub replacing the recorded base during either
+	/// intervening account read, moving the head, or both, sends nothing.
+	void test_cli_wrapper_reads_the_pull_request_last_before_a_write()
+	{
+		enum class course : std::uint8_t { unchanged,
+										   base_during_read_postcheck,
+										   base_during_write_precheck,
+										   head_during_write_precheck,
+										   both_during_write_precheck };
+		for (const auto which : { course::unchanged, course::base_during_read_postcheck, course::base_during_write_precheck, course::head_during_write_precheck, course::both_during_write_precheck }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			auto sequence                  = std::vector<std::string>{ };
+			auto moveAt                    = std::size_t{ 0U };
+			auto baseMoved                 = false;
+			auto headMoved                 = false;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				sequence.emplace_back("viewer");
+				if (moveAt != 0U && sequence.size() == moveAt) {
+					baseMoved = which != course::head_during_write_precheck;
+					headMoved = which == course::head_during_write_precheck || which == course::both_during_write_precheck;
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+			};
+			auto  viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			auto& success = std::get<application::github_viewer_success>(viewer);
+			auto* factory = dynamic_cast<application::review_mutation_transport_factory_port*>(success.AccountTransport.get());
+			auto  lease   = std::dynamic_pointer_cast<github_review_mutation_transport_lease>(factory->acquire_review_mutation_transport());
+			expect(lease && lease->mutation_transport(), "CLI lease exposes observed mutation transport");
+			const auto target = application::review_mutation_target_binding{
+				.Semantic                 = { .Host = lease->credential_context().Authority.Host, .Repository = core::repository_id{ 12U }, .PullRequest = core::pull_request_id{ 13U }, .ExpectedHead = *core::parse_git_commit_oid(std::string(40U, '2')) },
+				.Hostname                 = lease->credential_context().Authority.Hostname,
+				.ServerContract           = lease->credential_context().Authority.ServerContract,
+				.Repository               = { .Owner = "octo-org", .Name = "review-repository" },
+				.Number                   = core::pull_request_number{ 7U },
+				.RepositoryDatabaseId     = 101U,
+				.RepositoryNodeId         = "R_fixture",
+				.PullRequestDatabaseId    = 7001U,
+				.PullRequestNodeId        = "PR_fixture",
+				.BaseRepositoryDatabaseId = 101U,
+				.BaseOid                  = *core::parse_git_commit_oid(std::string(40U, '1')),
+				.BaseRef                  = "main",
+				.HeadRef                  = "feature",
+				.Open                     = true,
+			};
+			fixture.Transport->MutationHandler = [&](const github_mutation_wire_request& aRequest) -> github_mutation_wire_completion {
+				sequence.emplace_back(aRequest.Wire.Operation == review_mutation_operation::observe_pull_request ? "pull" : "write");
+				if (aRequest.Wire.Operation != review_mutation_operation::observe_pull_request) {
+					return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{}" } };
+				}
+				auto body = std::string{ R"({"id":7001,"node_id":"PR_fixture","number":7,"state":"open","head":{"sha":")" };
+				body.append(headMoved ? std::string(40U, '3') : std::string(40U, '2')).append(R"(","ref":"feature"},"base":{"sha":")");
+				body.append(baseMoved ? std::string(40U, 'b') : std::string(40U, '1')).append(R"(","ref":"main","repo":{"id":101,"node_id":"R_fixture","full_name":"octo-org/review-repository"}}})");
+				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = std::move(body) } };
+			};
+			const auto identity  = application::review_mutation_acting_identity{ .Account = core::github_account_id{ 1001 }, .DatabaseId = 1001, .NodeId = "U_viewer", .Login = "viewer" };
+			const auto pullRead  = github_mutation_wire_request{ .Context = lease->credential_context(), .Wire = *compile_target_observation_request(target, target.ServerContract) };
+			const auto writeWire = compile_review_submission_request({ .Target = target, .ActingIdentity = identity, .Body = "Looks good." }, target.ServerContract);
+			expect(writeWire.has_value(), "a review compiles for the fixture pull request");
+			const auto write = github_mutation_wire_request{ .Context = lease->credential_context(), .Wire = *writeWire };
+			sequence.clear();
+			// The session's last read: viewer, pull request, viewer. Then the
+			// write: viewer, the wrapper's pull request read, the POST, viewer.
+			moveAt          = which == course::base_during_read_postcheck ? 3U : which == course::unchanged ? 0U
+																											: 4U;
+			const auto read = lease->mutation_transport()->perform_review_mutation(pullRead, { }, { });
+			expect(std::holds_alternative<github_mutation_wire_success>(read), "the session's read of the pull request is answered");
+			const auto result = lease->mutation_transport()->perform_review_mutation(write, { }, [] { return true; });
+			if (which == course::unchanged) {
+				expect(std::holds_alternative<github_mutation_wire_success>(result)
+						   && sequence == std::vector<std::string>{ "viewer", "pull", "viewer", "viewer", "pull", "write", "viewer" },
+					   "the wrapper reads the pull request after its account check, last before the write");
+			} else {
+				const auto* error    = std::get_if<github_mutation_wire_error>(&result);
+				const auto  expected = which == course::head_during_write_precheck ? application::review_mutation_failure::stale_head : application::review_mutation_failure::target_moved;
+				expect(error && error->Failure == expected && error->Transmission == github_mutation_transmission::definitely_not_sent
+						   && std::ranges::count(sequence, std::string{ "write" }) == 0,
+					   "a recorded base or head moved during an intervening account read sends nothing; a moved recorded base is the target moving, a moved head alone a stale head");
+			}
 		}
 	}
 
@@ -2795,5 +2890,6 @@ int main(int aArgc, char** aArgv)
 	test_cli_git_lease_forwarding();
 	test_cli_exact_blob_cancellation();
 	test_cli_mutation_lease_account_checks();
+	test_cli_wrapper_reads_the_pull_request_last_before_a_write();
 	return EXIT_SUCCESS;
 }

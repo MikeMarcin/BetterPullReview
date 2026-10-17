@@ -331,6 +331,37 @@ clean worktree).
   courses send; with the child's second read ignored, the source-backed reset
   course sends.
 
+## Review round three (Fable approve, Astra reject; on `d4ee19341`)
+
+- **P1** (the GitHub CLI account wrapper reads after the final confirmation):
+  `cli_observed_account_transport::perform_review_mutation` checks the
+  account (a `/user` read) before and after every exchange, so a write went
+  out after the session's last pull-request read, its trailing account check
+  and the write's leading one. The wrapper now reads the pull request once
+  more after its pre-write account check, for every witnessed write bound to
+  a pull request (`written_target`: a review comment or reply, a review, a
+  tour write), and refuses the write, not sent, when the head or recorded base
+  moved; the account binding is unchanged (checks before and after). The
+  sequence for a write is: account, pull request, POST, account. Audited the
+  other transports: the native HTTPS transport (github.com and GHES) adds no
+  read before a write; the GitHub CLI transport's operation scope reads its
+  credential locally; a signed-out session cannot write; no retry or
+  rate-limit wrapper re-reads before a POST. `github_provider`
+  (`test_cli_wrapper_reads_the_pull_request_last_before_a_write`, through the
+  production wrapper): unchanged, the exact read order; GitHub replacing the
+  recorded base during the session read's trailing account check or the
+  write's leading one, the head moving, or both, sends nothing. With the
+  wrapper's read removed, the test fails.
+- **Fable.** The stale comment in `observe_exact` is corrected. Both the
+  recorded base and the head moving on the second read is `target_moved` (the
+  pull request moved; a moved head alone is `stale_head`): new courses in
+  `live_review_mutation_provider` and `live_review_submission_provider`, and
+  in the wrapper test. Deliberate: a tour whose plan has any LEFT stop asks
+  the merge-base reads before every write of the tour, its RIGHT stops'
+  writes included: the stops form one pending review, so its LEFT
+  coordinates are carried by every later write that edits it and become
+  public only with the final submit, which each write leads up to.
+
 ## Gates, review round two
 
 On `0bdb5673b` merged with main (`9117cdf60`, then the docs-only `77e67000e`):

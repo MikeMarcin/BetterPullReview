@@ -1819,7 +1819,8 @@ namespace {
 										   count_differs,
 										   reset,
 										   agree_head_moves,
-										   agree_target_fails };
+										   agree_target_fails,
+										   agree_both_move };
 		const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
 		const auto head     = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 		const auto tip      = std::string(40U, 'b');
@@ -1838,8 +1839,8 @@ namespace {
 			}
 			return aTarget;
 		};
-		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset, course::agree_head_moves, course::agree_target_fails }) {
-			const auto agrees         = which == course::agree_head_moves || which == course::agree_target_fails;
+		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset, course::agree_head_moves, course::agree_target_fails, course::agree_both_move }) {
+			const auto agrees         = which == course::agree_head_moves || which == course::agree_target_fails || which == course::agree_both_move;
 			auto       stacked        = target();
 			stacked.ComparisonBaseOid = base;
 			auto configured           = configuration();
@@ -1869,6 +1870,14 @@ namespace {
 							 compare(pair(recorded, tip), recorded, which == course::rewritten ? std::string(40U, 'e') : recorded));
 			if (which == course::agree_head_moves) {
 				transport.answer(pull_request_get(), target_response(1'328'277'631U, commit(0x77U)));
+			} else if (which == course::agree_both_move) {
+				// The recorded base and the head both moved: the pull request
+				// moved, `target_moved`, as a moved recorded base alone is; a
+				// moved head alone is a stale head.
+				auto  both = target_response(1'328'277'631U, commit(0x77U));
+				auto& body = std::get<github_mutation_wire_success>(both).Response.Body;
+				body.replace(body.find(recorded), recorded.size(), tip);
+				transport.answer(pull_request_get(), std::move(both));
 			} else if (which == course::agree_target_fails) {
 				transport.answer(pull_request_get(), github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } });
 			} else {
@@ -1886,7 +1895,9 @@ namespace {
 				// too, and classified as the first read is.
 				expect(asked && !sent && !result
 						   && result.error()
-							   == (which == course::agree_head_moves ? application::review_mutation_failure::stale_head : application::review_mutation_failure::unavailable),
+							   == (which == course::agree_head_moves      ? application::review_mutation_failure::stale_head
+									   : which == course::agree_both_move ? application::review_mutation_failure::target_moved
+																		  : application::review_mutation_failure::unavailable),
 					   "after an agreeing merge base a moved head is a stale head and a failing read unavailable; nothing is sent");
 			} else if (which == course::forward) {
 				expect(asked && sent, "a base branch that only moved forward keeps a LEFT comment's line and the comment is sent");

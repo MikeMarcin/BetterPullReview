@@ -1090,6 +1090,18 @@ namespace bpr::adapters::github::detail {
 					return aStop.stop_requested() ? github_mutation_wire_completion{ github_mutation_wire_cancelled{ } }
 												  : github_mutation_wire_completion{ github_mutation_wire_error{ } };
 				}
+				// [[BPR-1572]]. The account check is a read, after the session's
+				// last observation of the pull request. A write bound to a pull
+				// request reads it once more here, after the check, so the pull
+				// request is still the last read before the write: a head or a
+				// recorded base GitHub moved during the account reads sends
+				// nothing. Its head and recorded base unchanged, the merge base
+				// GitHub numbers lines in is the one the session confirmed.
+				if (const auto target = written_target(aRequest.Wire)) {
+					if (auto refused = confirm_written_target(*inner, aRequest, *target, aStop)) {
+						return *refused;
+					}
+				}
 				bool attempted = false;
 				auto result    = inner->perform_review_mutation(aRequest, aStop, [&] {
 					if (!aWitness || !aWitness()) {
@@ -1128,6 +1140,41 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
+			/// [[BPR-1572]]. The pull request `aTarget` names, read through the
+			/// inner transport and held to the target: no refusal when its
+			/// head and recorded base are the target's, else the refusal the
+			/// write is answered with, not sent.
+			static auto confirm_written_target(github_mutation_wire_transport& aInner, const github_mutation_wire_request& aWrite,
+											   const application::review_mutation_target_binding& aTarget, std::stop_token aStop)
+				-> std::optional<github_mutation_wire_completion>
+			{
+				using transmission = github_mutation_transmission;
+				const auto refuse  = [](const application::review_mutation_failure aFailure) {
+					return std::optional<github_mutation_wire_completion>{ github_mutation_wire_error{ .Failure = aFailure, .Transmission = transmission::definitely_not_sent } };
+				};
+				const auto request = compile_target_observation_request(aTarget, aTarget.ServerContract);
+				if (!request) {
+					return refuse(application::review_mutation_failure::unavailable);
+				}
+				const auto answer = aInner.perform_review_mutation(github_mutation_wire_request{ .Context = aWrite.Context, .Wire = *request }, aStop, { });
+				if (std::holds_alternative<github_mutation_wire_cancelled>(answer)) {
+					return std::optional<github_mutation_wire_completion>{ github_mutation_wire_cancelled{ .Transmission = transmission::definitely_not_sent } };
+				}
+				const auto* success = std::get_if<github_mutation_wire_success>(&answer);
+				if (success == nullptr) {
+					return refuse(application::review_mutation_failure::unavailable);
+				}
+				const auto observed = parse_target_observation(success->Response, aTarget);
+				if (!observed) {
+					return refuse(target_recorded_base_moved(success->Response, aTarget) ? application::review_mutation_failure::target_moved
+																						 : application::review_mutation_failure::unavailable);
+				}
+				if (observed->Target.Semantic.ExpectedHead != aTarget.Semantic.ExpectedHead) {
+					return refuse(application::review_mutation_failure::stale_head);
+				}
+				return std::nullopt;
+			}
+
 			auto check(const github_wire_request& aViewer, std::stop_token aStop) -> std::optional<application::github_provider_error>
 			{
 				if (Mismatch.load()) {
