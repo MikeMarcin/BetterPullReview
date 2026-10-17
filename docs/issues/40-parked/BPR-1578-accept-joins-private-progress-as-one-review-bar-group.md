@@ -138,3 +138,65 @@ Offered as one choice in the fresh session
 at cursor 3. v001's server was stopped, its protection released (event 8)
 and its frozen root removed. The chosen direction is built next as v002 for
 a final Accept or Reject.
+
+## Owner decision on round 1, and round 2, 2026-10-17
+
+**Reject** of the three round-1 directions, 2026-10-17T18:02:17Z: "I like
+progress the best but I'm not in love with any of them. Let's try one more
+round, present progress again and more fresh alternatives." (decision
+`3b3fdc7d-185c-454a-b3f4-2a4a60588f3f`, session
+`9aa0f416eba08632f0d5ca48bc4d5ff0`, handed back at event 5). Event cursor
+consumed: 5. That session's server was stopped and its candidate released.
+
+Round 2 (`frontend-design:frontend-design` loaded; render-only
+`--review-bar-directions-round-2`, `342838cf2`): the progress track refined
+and three new directions. Round 1 showed that soft tints and one-pixel
+frames vanish in Dark, so each current state is a solid fill. The step still
+to take is the acceptance green's tick beside a word in full ink (the
+palette's highlight is too faint as text in both themes):
+
+- **C2. Progress track, refined**: steps still to come in full ink, the
+  current step solid accent, Accepted solid green, the chevron folded into
+  the track's end, narrower.
+- **D. Stepper**: Seen and Read dots joined by lines, ending in the Accept
+  pill, which becomes a solid green "Accepted".
+- **E. Meter chip**: one rounded chip with a ring that fills by thirds, the
+  state's word and Accept as its action.
+- **F. Accept only**: the button alone, filled, solid green when accepted;
+  Seen and Read automatic, Exclude and Mark unread moved to menus.
+
+Offered as one choice in the fresh session
+`bf324baca66b72b02d331b235f5d586a`, candidate
+`BPR-1578-progress-group-direction-v002-r2`, fingerprint `7eeeda67…`, ready
+at cursor 3.
+
+## Owner choice in round 2, and candidate v002, 2026-10-17
+
+**Select: "C2. Progress track, refined"**, no note, 2026-10-17T19:06:14Z
+(decision `ffeeb765-300f-4d8e-a325-e325e29de873`, session
+`bf324baca66b72b02d331b235f5d586a`, handed back at event 5). Event cursor
+consumed: 5. That session's server was stopped and its candidate released.
+
+v002 on branch `bpr-1578-review-bar-accept`: product `e525d18c3`, main
+merged at `06f7d7a9f`, tidy fixes in tests at `d82023470` (differs from the
+frozen commit only in `tests/`). Seen, Read and Accept are steps of one
+`progress_track` with private progress's chevron as its last cell, on one rail
+behind the gap. The track lays out and paints the window's own buttons (two
+new step buttons, the retained Accept button and the menu button); it decides
+nothing. Click rules, the least surprising: Seen marks an unread file seen,
+Read marks it read, a step already reached does nothing (Mark unread stays in
+the menu), Accept toggles to Revoke with Option-A as before. The track's last
+width yield shows Seen and Read as marks alone, which keeps the 900-pixel
+floor. v001's `strip_command_button` is removed.
+
+| Acceptance | Evidence on the merged tree (`06f7d7a9f`, tests at `d82023470`) | Result |
+|---|---|---|
+| AC1 | `qt_workbench_title_row_scale_{100,125,200}`: one rail under the track, at least 12 px from the Changes rail; controls (old rails, no gap) fail; `qt_workbench_window_scale_*`: the rail and the compact track at the width floor | Pass |
+| AC2 | `qt_review_state_icon` (`test_progress_track_shows_and_takes_each_step`): unread has no solid step, seen and read are solid accent, accepted is solid green "Accepted", excluded and no file rest the track; names, tooltips, Space on a step, palette refresh. Mutation dispatching from a reached step fails the never-un-read check; the menu's Read on a read file marks it unread (the negative the step avoids) | Pass |
+| AC3 | Same, plus Option-A, focus order with the two new stops, `qt_option_keys_typing`, floor and yield tests, the exact 16-item bar order in the app composition | Pass |
+| AC4 human | Session `3760f12fb3aa7cf76b495c277c7d32d5`, candidate `BPR-1578-progress-track-v002`, fingerprint `b1c5e24a…`, ready and protected at cursor 3; frozen root `bpr1578-progress-track-v002.bebcwn1p` (`--check` CHECK_OK) | Pending |
+
+Gates: clang-format 22.1.8 clean on the six C++ files; clang-tidy
+`--warnings-as-errors` passes on the four translation units (three test-only
+findings fixed at `d82023470`); `DOCUMENTATION_OK`. The full dev `ctest`
+runs on the merged tree at integration after acceptance.

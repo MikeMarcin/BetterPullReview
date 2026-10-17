@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_HOME_ROW_DELEGATE_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_HOME_ROW_DELEGATE_HPP
 
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 
 #include <QColor>
@@ -124,10 +125,13 @@ namespace bpr::qt {
 	[[nodiscard]] auto mix_colour(const QColor& aTone, const QColor& aGround, qreal aStrength)
 		-> QColor;
 
-	/// \brief [[BPR-0783]]. The ink an account chip or an avatar tile is drawn in.
+	/// \brief [[BPR-0783]]. The ink an account chip's outline and login, or a
+	/// profile's tile, is drawn in.
 	///
 	/// \details Neutral palette roles only. On Home colour means state, so a chip
 	/// drawn in a state's colour would claim a state its account does not have.
+	/// [[BPR-1583]] The chip's avatar is the person's own colour instead, the
+	/// one they have on every surface.
 	struct home_chip_ink
 	{
 		QColor Label;
@@ -154,16 +158,22 @@ namespace bpr::qt {
 	/// the width its login needs and the row's text yields instead.
 	[[nodiscard]] auto home_chip_size(const QFont& aFont, const QString& aText) -> QSize;
 
-	/// \brief Draws one account chip: a round initial tile, then its text, in a
-	/// bordered pill.
+	/// \brief Draws one account chip: the account's avatar ([[BPR-1583]]), then
+	/// its text, in a bordered pill.
 	void draw_home_chip(
-		QPainter& aPainter, const QRect& aRect, const QString& aText, const QFont& aFont, const home_chip_ink& aInk);
+		QPainter&                      aPainter,
+		const QRect&                   aRect,
+		const QString&                 aText,
+		const QFont&                   aFont,
+		const home_chip_ink&           aInk,
+		const identity_avatar_grounds& aGrounds);
 
 	/// \brief An avatar tile's extent for a font.
 	[[nodiscard]] auto home_tile_extent(const QFont& aFont) -> int;
 
-	/// \brief Draws one initial tile: round for an account, a small radius for an
-	/// owner that is not one ([[BPR-0783]]; no avatar image is cached).
+	/// \brief Draws one neutral initial tile, round or with a small radius: the
+	/// Profiles sheet's, because a profile is not a person. A person or a GitHub
+	/// owner is drawn with `paint_identity_avatar` ([[BPR-1583]]).
 	void draw_home_tile(
 		QPainter&            aPainter,
 		const QRect&         aRect,

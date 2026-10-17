@@ -1541,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"79b726e434a5d093c4af846291e9507f6b3a899b644fa8f83b6feca9982aa31c"
+		"22d1375b5deeb0c6ac030fd8ebbb91ab871726148c2097e12fec38beb4122469"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1757,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5caf87403a9a82856fcf848209e440bfc2b6427b92798fb62d3f0d8b16b58043"
+        "701d78daa74a547792511b6e449216f421218fc21d564b5dbb7787fc05d384a1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2711,3 +2711,16 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # to make the kept answer one about another path. No grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1570.
+
+# [[BPR-1580]] reseal over main at c29d90e19, recomputed on the tree that
+# merges this card onto it. github_application.cpp's strip-order check names
+# Home's one View action (homeViewAction) where Group, State headers and Filter
+# stood, so the title row holds sixteen actions. No grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# the production mutation-branch pin is unchanged. Self-review on BPR-1580.
+
+# [[BPR-1597]] candidate seal over main at f16db2a04 merged with
+# bpr-1581-thread-navigation (BPR-1581/1582/1584, accepted, not yet landed).
+# BPR-1597 itself changes no src/app file; the digests move with BPR-1581's
+# composition change on top of main. Recompute at landing, after BPR-1581 is
+# on main. Self-review on BPR-1597.

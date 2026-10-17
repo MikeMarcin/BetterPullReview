@@ -292,12 +292,16 @@ namespace bpr::qt {
 		style()->drawPrimitive(Panel.collapsed() ? QStyle::PE_IndicatorArrowRight : QStyle::PE_IndicatorArrowDown,
 							   &arrow, &painter, this);
 
-		// [[BPR-0783]]. The group's avatar, in neutral ink: colour on Home means
-		// state, and an owner is not one.
+		// [[BPR-1583]]. The group's avatar is its owner's own: an account or an
+		// organization, or a repository's owner, in the colour that owner has on
+		// every surface. Rows and bands keep colour for state.
 		const auto neutral = home_chip_ink_for(colours, QPalette::Active, false);
+		const auto grounds = identity_avatar_grounds_of(colours);
 		if (!geometry.Avatar.isEmpty()) {
-			draw_home_tile(painter, geometry.Avatar, home_tile_initial(Panel.avatar_name()),
-						   Panel.avatar_round(), font(), neutral);
+			const auto owner = Panel.avatar_name().section(QLatin1Char{ '/' }, 0, 0);
+			paint_identity_avatar(painter, QRectF{ geometry.Avatar }.adjusted(0.5, 0.5, -0.5, -0.5),
+								  { .Identity = owner, .Shape = Panel.avatar_round() ? identity_avatar_shape::person : identity_avatar_shape::group },
+								  grounds, font());
 		}
 		painter.setPen(colours.color(QPalette::Active, QPalette::Text));
 		painter.setFont(title_font(font()));
@@ -307,7 +311,7 @@ namespace bpr::qt {
 		painter.drawText(geometry.Count, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Panel.count()));
 		if (!geometry.Trailing.isEmpty()) {
 			if (Panel.trailing_is_chip()) {
-				draw_home_chip(painter, geometry.Trailing, Panel.trailing(), summary_font(font()), neutral);
+				draw_home_chip(painter, geometry.Trailing, Panel.trailing(), summary_font(font()), neutral, grounds);
 			} else {
 				painter.setFont(summary_font(font()));
 				painter.setPen(colours.color(QPalette::Active, QPalette::PlaceholderText));
