@@ -9988,13 +9988,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		/// \brief [[BPR-1570]]. Whether the kept answer answers this question:
+		/// it was asked for it, or it is definite (`same` or `differs`) and
+		/// about the same base, head, left commit and path. A definite answer
+		/// is a fact about those commits, so a refresh that keeps the file and
+		/// adopts it under a new workbench authority ([[BPR-1277]]) keeps it;
+		/// `unavailable` depends on what the cache held and is asked again.
+		[[nodiscard]] auto base_numbering_answers(const application::github_base_numbering_request& aRequest) const -> bool
+		{
+			if (!BaseNumbering) {
+				return false;
+			}
+			const auto& kept = BaseNumbering->Request;
+			if (kept == aRequest) {
+				return true;
+			}
+			const auto definite = BaseNumbering->Status == application::github_base_numbering_status::same
+				|| BaseNumbering->Status == application::github_base_numbering_status::differs;
+			return definite && kept.BaseTip == aRequest.BaseTip && kept.Head == aRequest.Head && kept.Left == aRequest.Left && kept.LeftPath == aRequest.LeftPath;
+		}
+
 		[[nodiscard]] auto base_numbered_as_github() const -> bool
 		{
 			if (!BaseNumbering || BaseNumbering->Status != application::github_base_numbering_status::same) {
 				return false;
 			}
 			const auto request = base_numbering_request();
-			return request && *request == BaseNumbering->Request;
+			return request && base_numbering_answers(*request);
 		}
 
 		/// \brief [[BPR-1212]]. Asks the epoch host once per comparison, and
@@ -10002,7 +10022,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void observe_base_numbering()
 		{
 			const auto request = base_numbering_request();
-			if (!request || EpochHost == nullptr || (BaseNumbering && BaseNumbering->Request == *request)) {
+			if (!request || EpochHost == nullptr || base_numbering_answers(*request)) {
 				apply_base_numbering();
 				return;
 			}
@@ -12967,9 +12987,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-1212]]. A base line takes a draft only once its numbering
 			// is known to be GitHub's; the answer presents it again.
+			// [[BPR-1570]]. An answer given at once ([[BPR-1560]]'s named merge
+			// base) leaves an already placed left side as it was, so nothing
+			// presents it again: the draft goes on here.
 			if (aSelection.PreferredLine.Side == core::diff_side::left && !base_numbered_as_github()) {
 				observe_base_numbering();
-				return;
+				if (!base_numbered_as_github()) {
+					return;
+				}
 			}
 			if (resume_reply_at(aSelection.PreferredLine) || resume_comment_at(aSelection.PreferredLine)) {
 				return;
@@ -17319,6 +17344,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					|| revalidates_kept_tab(aPublication.Request))) {
 				if (SelectedDiffPublication->Key == aPublication.Key) {
 					SelectedDiffPublication = aPublication;
+					// [[BPR-1570]]. No new publication follows, so the base
+					// numbering is checked against the adopted request here,
+					// where its kept answer normally still holds.
+					observe_base_numbering();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
 					LastSelectedDiff = aPublication;
@@ -18880,6 +18909,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_range_published,
 				// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
 				awaiting_base_numbering,
+				// [[BPR-1570]]. A refresh that keeps the file comes first.
+				awaiting_kept_refresh,
 				awaiting_base_line,
 				awaiting_base_published,
 				awaiting_single_line,
@@ -18910,9 +18941,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                          NativeBefore = 0U;
 			/// The free line chosen for the next root comment, chosen once.
 			std::optional<std::uint32_t> Line;
-			phase                        Phase = phase::awaiting_review_empty;
-			std::string                  Diagnostic;
-			std::size_t                  Renders = 0U;
+			/// [[BPR-1570]]. The workbench authority the shown file had when
+			/// the course asked for a refresh.
+			std::optional<application::workbench_pull_request_authority> RefreshedFrom;
+			phase                                                        Phase = phase::awaiting_review_empty;
+			std::string                                                  Diagnostic;
+			std::size_t                                                  Renders = 0U;
 			/// Characters still to type, one a tick once the draft has the
 			/// text on screen, as a person's keystrokes arrive.
 			QString Typing;
@@ -19382,11 +19416,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_BUILD_TESTING)
 		/// [[BPR-1212]]. Answers to turn into `cancelled` before they apply.
 		std::size_t ForcedBaseNumberingCancellations = 0U;
-		bool        PreparationDisabled              = false;
-		std::size_t PreparationRounds                = 0U;
-		std::size_t PreparedResolutions              = 0U;
-		std::size_t PreparedRemoteBlobs              = 0U;
-		std::size_t PreparedRemoteBatches            = 0U;
+		/// [[BPR-1570]]. The label-authoring course makes the kept base
+		/// numbering answer one about another question after its refresh.
+		bool        StaleBaseNumberingQuestion = false;
+		bool        PreparationDisabled        = false;
+		std::size_t PreparationRounds          = 0U;
+		std::size_t PreparedResolutions        = 0U;
+		std::size_t PreparedRemoteBlobs        = 0U;
+		std::size_t PreparedRemoteBatches      = 0U;
 #endif
 		std::unique_ptr<application::workbench_settings_port>     SessionWorkbenchSettings;
 		profile_window_layout_port*                               DurableWindowLayout       = nullptr;
@@ -21185,6 +21222,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	void detail::github_application_fixture_access::cancel_base_numbering_answers(github_application& aApplication, const std::size_t aCount)
 	{
 		aApplication.Implementation->ForcedBaseNumberingCancellations = aCount;
+	}
+
+	void detail::github_application_fixture_access::stale_base_numbering_question(github_application& aApplication)
+	{
+		aApplication.Implementation->StaleBaseNumberingQuestion = true;
 	}
 
 	void detail::github_application_fixture_access::set_preparation_enabled(github_application& aApplication, const bool aEnabled)
@@ -29293,8 +29335,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The range's publication refreshes the conversations; the next
 			// publication waits for that read to finish, as a reviewer's
 			// would, so the fixture's recorded reads stay in order.
+			// [[BPR-1570]]. Its owed reread of the pull request too, which
+			// starts only once a pending read settles.
 			if (!window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			note("left-current=" + std::to_string(window->left_conversation_endpoint_current() ? 1 : 0)
@@ -29303,6 +29348,48 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& implementation->ReviewSourceMaterial->BaseNumberedAsGitHub;
 			if (!probe.Evidence.BaseNumberedKnown) {
 				return result::pending;
+			}
+			probe.RefreshedFrom.reset();
+			probe.Phase = state_type::phase::awaiting_kept_refresh;
+			return result::pending;
+		}
+		// [[BPR-1570]]. A refresh that keeps the file adopts it under a new
+		// workbench authority without publishing it again, as the range's
+		// publication refresh does at a time of its own. Forced here before the
+		// base line is chosen, so the course always meets that order: the
+		// numbering holds across it and the base line still takes its draft.
+		case state_type::phase::awaiting_kept_refresh: {
+			const auto& selected = implementation->SelectedDiffPublication;
+			if (!selected) {
+				return fail("no-selected-diff");
+			}
+			if (!probe.RefreshedFrom) {
+				if (!window->github_refresh_action()->isEnabled()) {
+					return result::pending;
+				}
+				probe.RefreshedFrom = selected->Request.WorkbenchAuthority;
+				window->github_refresh_action()->trigger();
+				return result::pending;
+			}
+			const auto adopted = selected->Request.WorkbenchAuthority != *probe.RefreshedFrom;
+			note("adopted=" + std::to_string(adopted ? 1 : 0) + " numbered=" + std::to_string(implementation->base_numbered_as_github() ? 1 : 0)
+				 + " left-current=" + std::to_string(window->left_conversation_endpoint_current() ? 1 : 0));
+			if (!adopted || !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
+				return result::pending;
+			}
+			probe.Evidence.BaseNumberingKept = implementation->base_numbered_as_github() && window->left_conversation_endpoint_current()
+				&& implementation->ReviewSourceMaterial && implementation->ReviewSourceMaterial->BaseNumberedAsGitHub;
+			if (!probe.Evidence.BaseNumberingKept) {
+				return fail("base-numbering-lost-on-kept-refresh");
+			}
+			// `--stale-base-numbering`: the kept answer becomes one about
+			// another path with the window's left side still placed, the state
+			// such a refresh left before [[BPR-1570]]. The base line's own
+			// question is then answered at once, and must still take a draft.
+			if (std::exchange(implementation->StaleBaseNumberingQuestion, false) && implementation->BaseNumbering) {
+				implementation->BaseNumbering->Request.LeftPath = std::filesystem::path{ "bpr-1570/another-path" };
 			}
 			probe.Line.reset();
 			probe.KeySent = false;
@@ -29371,9 +29458,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto mutations = implementation->Fixture->review_mutation_evidence();
 			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts) + " side="
 				 + mutations.LastSide + " line=" + std::to_string(mutations.LastLine.value_or(0U)) + " status=" + editor->mutation_status_label()->text().toStdString());
+			// [[BPR-1570]]. The publication's owed reread finishes before the
+			// course does, or the run ends with it reading and the fixture's
+			// recording unconsumed.
 			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore
 				|| !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.BasePublishedLeft = mutations.NativePosts == probe.NativeBefore + 1U && !mutations.LastFile && mutations.LastPath == path

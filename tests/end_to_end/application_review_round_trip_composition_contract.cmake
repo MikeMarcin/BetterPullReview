@@ -1532,7 +1532,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e3b3ec1adcf906d5e275af6ce5bd7c6741147c00174926c1eab382dfc8107053"
+		"07d1e30ef4154d45d0c5a0012c39fdb0485fa6c4e9199ab9c6caf23b6c458be6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1748,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "20a8f7f9238382615ae989a28c77bed96357b6cece3209b4a4b8f388eb1bfa33"
+        "c29a489f5aa00eb77010cb75e0de189675ed408f3223f86f59194f3afad2efc2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2691,7 +2691,19 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # GitHub write, mutation or publication path changes; the production
 # mutation-branch pin is unchanged. Self-review on BPR-1566.
 
-# [[BPR-1580]] reseal over main at e1485e3aa, recomputed on the tree that
+# [[BPR-1570]] reseal over main at eee6187fd, recomputed on the tree that
+# merges this card onto it. github_application.cpp keeps a definite BPR-1212
+# base-numbering answer (same or differs) for any request about the same base,
+# head, left commit and path, checks it when a kept refresh adopts the same
+# diff under a new workbench authority (BPR-1277), and lets
+# present_review_draft go on when its own question was answered at once
+# (BPR-1560's named merge base). Testing only: the line-draft course forces a
+# kept refresh before the base line, and main.cpp takes --stale-base-numbering
+# to make the kept answer one about another path. No grant, target, provider,
+# credential, transport, GitHub write, mutation or publication path changes;
+# the production mutation-branch pin is unchanged. Self-review on BPR-1570.
+
+# [[BPR-1580]] reseal over main at b96107686, recomputed on the tree that
 # merges this card onto it. github_application.cpp's strip-order check names
 # Home's one View action (homeViewAction) where Group, State headers and Filter
 # stood, so the title row holds sixteen actions. No grant, target, provider,

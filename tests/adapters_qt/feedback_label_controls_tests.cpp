@@ -1,7 +1,8 @@
 /// \file
 /// \brief [[BPR-1083]]. Proves the selected authoring controls in the real
 /// comment editor: the label chip and its menu, the decoration toggles, ⌘L
-/// and ⌘0 (RFC-BPR-0048 R09, R10; `docs/ux/conventional-comments-feedback.md`).
+/// and, since [[BPR-1569]], ⌘0 as Actual Size even in the open menu (RFC-BPR-0048
+/// R09, R10; `docs/ux/conventional-comments-feedback.md`).
 /// [[BPR-1565]] removed the leading `:xx:` codes and their completion (owner,
 /// 2026-10-16): a typed code stays the text it is.
 /// \details Every check drives `review_draft_editor` as composed, with the
@@ -9,6 +10,7 @@
 /// emits. A label chosen with a control must leave the editor exactly as the
 /// same text typed by hand does: one ordinary whole-body edit.
 
+#include "../support/window_system_keys.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
@@ -19,6 +21,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -295,7 +298,7 @@ namespace {
 
 		f.controls()->open_menu();
 		settle();
-		expect(overrides(f.menu()->label_button(core::feedback_label::issue), Qt::Key_0), "inside the open menu ⌘0 is the menu's own key");
+		expect(overrides(f.menu()->label_button(core::feedback_label::issue), Qt::Key_0), "inside the open menu ⌘0 is claimed, to pass it to the window");
 		{
 			// [[BPR-1336]]. ⌘⌥0 is never Plain ([[BPR-1535]]: the window binds
 			// it to nothing now that Actual Size is ⌘0).
@@ -309,8 +312,13 @@ namespace {
 		}
 		key(f.menu(), Qt::Key_0, Qt::ControlModifier);
 		settle();
-		expect(f.text() == "Fix it." && !f.menu()->isVisible(), "⌘0 in the menu makes the comment plain and closes it");
+		expect(f.text() == "question (blocking): Fix it." && !f.menu()->isVisible(), "[[BPR-1569]] ⌘0 in the menu closes it and leaves the label");
 		expect(!overrides(f.body(), Qt::Key_0), "outside the menu ⌘0 stays the window's Actual Size shortcut");
+		f.controls()->open_menu();
+		settle();
+		f.menu()->plain_button()->click();
+		settle();
+		expect(f.text() == "Fix it." && !f.menu()->isVisible(), "Plain comment, clicked, makes the comment plain and closes the menu");
 		expect(f.Commands.size() == 11U, "each change was one draft edit");
 
 		// A header typed by hand with several and custom decorations shows on
@@ -486,12 +494,14 @@ namespace {
 		expect(menu->focusWidget() == about, "on a labelled comment Down from the custom field reaches About");
 		key(menu, Qt::Key_Up);
 		expect(menu->focusWidget() == menu->custom_field(), "and Up goes back to the field");
-		// ⌘0 is still Plain anywhere in the open menu, About focused included.
+		// [[BPR-1569]]. ⌘0 with About focused closes the menu, asks for no
+		// page and leaves the label; Plain is chosen by its item.
 		about->setFocus(Qt::TabFocusReason);
-		expect(overrides(menu, Qt::Key_0), "the open menu still claims ⌘0");
 		key(menu, Qt::Key_0, Qt::ControlModifier);
 		settle();
-		expect(f.text() == "Subject." && !menu->isVisible() && asked.size() == 1U, "⌘0 with About focused is Plain comment, and asks for no page");
+		expect(f.text() == "issue: Subject." && !menu->isVisible() && asked.size() == 1U, "⌘0 with About focused closes the menu, keeps the label and asks for no page");
+		f.controls()->apply({ .Change = core::feedback_label_change::remove });
+		settle();
 
 		// A click is the same request and still no choice.
 		key(f.body(), Qt::Key_L, Qt::ControlModifier);
@@ -532,6 +542,88 @@ namespace {
 			QApplication::setPalette(original);
 			settle();
 		}
+	}
+
+	/// \brief [[BPR-1569]]. The owner, 2026-10-16: Plain needs no key of its
+	/// own, and ⌘0 is Actual Size with the label menu open as everywhere else.
+	/// Keys arrive as the window system delivers them, through the shortcut map.
+	void test_command_0_is_actual_size_in_the_open_menu()
+	{
+		auto  f          = fixture{ "issue: Subject." };
+		auto* actualSize = new QAction{ QStringLiteral("Actual Size"), &f.Window };
+		actualSize->setShortcut(QKeySequence{ QStringLiteral("Ctrl+0") });
+		actualSize->setShortcutContext(Qt::WindowShortcut);
+		f.Window.addAction(actualSize);
+		auto sized = 0;
+		QObject::connect(actualSize, &QAction::triggered, &f.Window, [&sized] { ++sized; });
+		const auto commands = f.Commands.size();
+
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		auto* const menu = f.menu();
+		expect(menu->isVisible() && menu->plain_button()->text() == QStringLiteral("Plain comment") && !menu->plain_button()->toolTip().contains(QKeySequence{ Qt::CTRL | Qt::Key_0 }.toString(QKeySequence::NativeText))
+				   && menu->plain_button()->accessibleDescription() == QStringLiteral("Removes the label"),
+			   "Plain comment names no key");
+		tests::window_system_key(*menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 1 && !menu->isVisible(), "⌘0 with the menu open is the window's Actual Size, once, and the menu closes");
+		expect(f.text() == "issue: Subject." && f.controls()->state().Label == core::feedback_label::issue && f.Commands.size() == commands,
+			   "negative control for the removed key: ⌘0 never picks Plain");
+
+		// On a plain comment, and with the window's action disabled: nothing
+		// else happens, and Plain is not chosen either way.
+		f.controls()->apply({ .Change = core::feedback_label_change::remove });
+		settle();
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		tests::window_system_key(*menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 2 && !menu->isVisible() && f.text() == "Subject.", "on a plain comment ⌘0 is Actual Size too");
+		actualSize->setEnabled(false);
+		f.controls()->apply({ .Change = core::feedback_label_change::set, .Label = core::feedback_label::note });
+		settle();
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		tests::window_system_key(*menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 2 && !menu->isVisible() && f.text() == "note: Subject.", "with Actual Size unavailable ⌘0 does nothing but close the menu");
+		actualSize->setEnabled(true);
+
+		// Outside the menu ⌘0 stays the window's, and Plain is still a
+		// normal item: arrow keys and Return reach it.
+		// A window shortcut answers only in the active window, as a hand
+		// pressing the key in it has.
+		f.Window.activateWindow();
+		for (auto round = 0; round < 50 && !f.Window.isActiveWindow(); ++round) {
+			settle();
+		}
+		expect(f.Window.isActiveWindow(), "the editor's window is active for its keys");
+		f.body()->setFocus(Qt::OtherFocusReason);
+		tests::window_system_key(*f.body(), Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 3 && f.text() == "note: Subject.", "outside the menu ⌘0 is Actual Size");
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		for (auto step = 0; step < 6; ++step) {
+			key(menu, Qt::Key_Up);
+		}
+		key(menu, Qt::Key_Return);
+		settle();
+		expect(f.text() == "Subject." && sized == 3, "Plain is reached by the arrow keys and Return");
+
+		// With the window active, so its shortcut could also answer, ⌘0 in
+		// the open menu is still Actual Size exactly once.
+		f.controls()->apply({ .Change = core::feedback_label_change::set, .Label = core::feedback_label::praise });
+		f.Window.activateWindow();
+		for (auto round = 0; round < 50 && !f.Window.isActiveWindow(); ++round) {
+			settle();
+		}
+		key(f.body(), Qt::Key_L, Qt::ControlModifier);
+		settle();
+		tests::window_system_key(*menu, Qt::Key_0, Qt::ControlModifier);
+		settle();
+		expect(sized == 4 && !menu->isVisible() && f.controls()->state().Label == core::feedback_label::praise,
+			   "with the window active ⌘0 in the open menu is Actual Size once, and keeps the label");
 	}
 
 	void test_controls_and_typed_syntax_are_the_same_draft()
@@ -826,6 +918,7 @@ auto main(int argc, char** argv) -> int
 	test_the_chip_keeps_its_size_when_narrow();
 	test_a_small_gap_between_the_mark_and_the_word();
 	test_about_conventional_comments_is_a_way_out_not_a_label();
+	test_command_0_is_actual_size_in_the_open_menu();
 	std::cout << "feedback-label-controls-tests:pass\n";
 	return EXIT_SUCCESS;
 }
