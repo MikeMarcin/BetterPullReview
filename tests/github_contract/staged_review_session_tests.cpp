@@ -179,14 +179,14 @@ namespace {
 		/// moved forward, but GitHub replaces the recorded base with its tip
 		/// right after the ancestry answer, so the pull request read again
 		/// names the tip. The pull request reports two commits throughout.
-		int         StackedBase    = 0;
-		bool        RecordedReset  = false;
+		int  StackedBase   = 0;
+		bool RecordedReset = false;
 		/// [[BPR-1572]]. GitHub replaces the recorded base while the tour
 		/// reads its review list or its review: the reads between one
 		/// observation of the pull request and the write.
-		bool ResetOnReviewRead = false;
-		std::size_t MergeBaseReads = 0U;
-		bool        DenyWitness    = false;
+		bool        ResetOnReviewRead = false;
+		std::size_t MergeBaseReads    = 0U;
+		bool        DenyWitness       = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
 		/// of other people's comments; or reports the second stop a line off.
 		bool        CollectionNoise = false, WrongLine = false;

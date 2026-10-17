@@ -289,6 +289,10 @@ class Course:
             "pull_again": {"base.sha": self.name(again["base"]["sha"]), "head": self.name(again["head"]["sha"]), "commits": again["commits"]},
             "left_comment": {"side": comment.get("side"), "line": comment.get("line"), "path": comment.get("path"), "diff_hunk": comment.get("diff_hunk")},
         }
+        # B forks at a1, the recorded base, so the recorded base's merge base
+        # is `base.sha` itself: the comparison base the app named for this
+        # state. On another fork point the expected merge base would be that
+        # commit, not `base.sha`.
         rule = (entry["recorded"]["merge_base"] == self.name(base_sha) and entry["recorded"]["ahead_by"] == pull["commits"]
                 and entry["ancestry"]["merge_base"] == self.name(base_sha) and entry["pull_again"]["base.sha"] == self.name(base_sha)
                 and entry["pull_again"]["commits"] == pull["commits"])

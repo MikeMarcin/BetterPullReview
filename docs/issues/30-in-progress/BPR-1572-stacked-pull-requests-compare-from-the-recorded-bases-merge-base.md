@@ -266,7 +266,8 @@ write.
   `gh` on `x.txt` line 3, a line only the recorded base's comparison has:
   #102 (A merged b1) and #103 (A fast-forwarded to b2) both satisfy the rule
   and GitHub accepted the LEFT line each time (comment deleted).
-- **Criss-cross** (Astra): measured live on #101 and #106. Git names two merge
+- **Criss-cross** (Astra): measured live on #106 (#101 was the probe's first
+  run, whose record compared only file counts and was superseded). Git names two merge
   bases X1 and Y1 whose comparisons with the head change different lines of
   `c.txt`; Git's recursive virtual base changes neither. compare named X1, and
   GitHub's Files changed, patches included, was exactly the comparison from
@@ -291,6 +292,45 @@ and `rfc0016_production_identity_security` (failed while the ignored
 `.agents` skills link the documentation rows need was present; passes in the
 clean worktree).
 
+## Review round two (Fable approve, Astra reject; on `6bee33df2`)
+
+- **P1** (tours read after the confirmation): `verify_staged` now does every
+  other read (review list, review, its comments, description) first and
+  observes the pull request (and, for a LEFT stop, the merge base and the pull
+  request again) last, so the pull request is the last network read before
+  every tour write, first and resumed. Audited the other paths: a single
+  comment (legacy route and the source-backed child, `execute_publication_child`)
+  and a review observe the target immediately before the POST.
+  `staged_review_session`: GitHub replacing the recorded base during the
+  baseline review-list read of a first publication, and during the review or
+  review-list read of a resumed tour after a denied first write and after a
+  Stop, writes nothing. `github_review_comment_permalink`
+  (`test_left_source_backed_child_on_a_stacked_pull_request`): a LEFT comment
+  through the source-backed child is sent after two complete observations;
+  a reset at the admission's second read, the child's first read or the
+  child's last read sends nothing.
+- **P2** (the agreeing path skipped the final confirmation): the pull request
+  is read again after an agreeing branch answer too. `live_review_mutation_provider`
+  and `live_review_submission_provider`: a head that moved during that compare
+  is `stale_head`, a 500 on the second read is `unavailable`, nothing sent.
+- **Inherent limit**, now stated in the architecture doc: a read and the POST
+  are not atomic, and GitHub's review and review-comment requests carry
+  `commit_id` and coordinates but no base precondition, so a recorded base
+  replaced after the last read cannot be ruled out; the publication is then
+  reconciled from what GitHub stored.
+- **Fable.** The second read is classified as the first: a transport failure
+  or non-200 as the first read is (`unavailable`), a malformed answer through
+  `map_contract_failure` (submission: `undesignated_target`), a moved head
+  `stale_head`, and only an answer that is the same pull request with
+  another recorded base (`target_recorded_base_moved`) `target_moved`. The
+  live course's rule check now says it relies on B forking at a1. Criss-cross
+  cites #106 only.
+- **Negative controls.** With the old tour order (observe first), the resumed
+  tour with a reset during the review reads writes; with the agreeing path
+  returning before the second read, the single-comment and review agree
+  courses send; with the child's second read ignored, the source-backed reset
+  course sends.
+
 ## Live round two (`ba735233a`, records in `live-2026-10-17.jsonl`)
 
 | Course | Steps | Result |
@@ -299,7 +339,7 @@ clean worktree).
 | fast-forward #103 | open; A to b1; A to b2 (+ LEFT wire); push b4 to B | PASS 4/4, wire rule holds, LEFT accepted |
 | rebase #104 | open; A rebased (base.sha reset to the new tip within 0.9 s of the push); B rebased | PASS 3/3 |
 | force #105 | open; A advances; A force-pushed back to b1 (base.sha reset to b1) | PASS 3/3 |
-| criss-cross #101, #106 | open | PASS, GitHub = comparison from compare's merge base |
+| criss-cross #106 | open | PASS, GitHub = comparison from compare's merge base |
 | negative control #107 (stacked acceptance reverted) | open; A merges b1 | step 1 agrees; step 2 shows "GitHub's answers … disagree", no comparison: reproduced |
 
 ## Follow-ups

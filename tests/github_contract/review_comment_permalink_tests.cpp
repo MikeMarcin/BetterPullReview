@@ -482,12 +482,14 @@ namespace {
 			// from that pull request read on, GitHub names the branch's tip as
 			// the recorded base.
 			if (Stacked && (wire.Operation == operation::observe_merge_base || wire.Operation == operation::observe_recorded_merge_base || wire.Operation == operation::observe_base_ancestry)) {
-				const auto recorded = std::string{ "1010101010101010101010101010101010101010" };
-				const auto head     = std::string(40U, '1');
-				const auto tip      = std::string(40U, 'b');
-				const auto pair     = wire.Operation == operation::observe_merge_base ? "main..." + head : wire.Operation == operation::observe_recorded_merge_base ? recorded + "..." + head : recorded + "..." + tip;
-				const auto mergeBase = wire.Operation == operation::observe_merge_base ? std::string(40U, 'c') : wire.Operation == operation::observe_recorded_merge_base ? std::string{ "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a" } : recorded;
-				response.Body = R"({"url":"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/)" + pair + R"(",)" + (wire.Operation == operation::observe_recorded_merge_base ? std::string{ R"("ahead_by":2,)" } : std::string{ })
+				const auto recorded  = std::string{ "1010101010101010101010101010101010101010" };
+				const auto head      = std::string(40U, '1');
+				const auto tip       = std::string(40U, 'b');
+				const auto pair      = wire.Operation == operation::observe_merge_base ? "main..." + head : wire.Operation == operation::observe_recorded_merge_base ? recorded + "..." + head
+																																									 : recorded + "..." + tip;
+				const auto mergeBase = wire.Operation == operation::observe_merge_base ? std::string(40U, 'c') : wire.Operation == operation::observe_recorded_merge_base ? std::string{ "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a" }
+																																										  : recorded;
+				response.Body        = R"({"url":"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/)" + pair + R"(",)" + (wire.Operation == operation::observe_recorded_merge_base ? std::string{ R"("ahead_by":2,)" } : std::string{ })
 					+ R"("base_commit":{"sha":")" + (wire.Operation == operation::observe_merge_base ? tip : recorded) + R"("},"merge_base_commit":{"sha":")" + mergeBase + R"("}})";
 				boundary();
 				return github_mutation_wire_success{ .Response = std::move(response) };
@@ -786,22 +788,22 @@ namespace {
 	void test_left_source_backed_child_on_a_stacked_pull_request()
 	{
 		for (const unsigned resetAt : { 0U, 2U, 3U, 4U }) {
-			auto source                     = permalink_source();
-			source.Target.ComparisonBaseOid = commit(0x5aU);
-			auto endpoint                   = source.Endpoint->request();
+			auto source                          = permalink_source();
+			source.Target.ComparisonBaseOid      = commit(0x5aU);
+			auto endpoint                        = source.Endpoint->request();
 			endpoint.Diff.Comparison.Left.Commit = commit(0x5aU);
-			source.Endpoint                 = application::make_workbench_selected_diff_endpoint_for_testing(endpoint, core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
-			auto request                    = publication_request(source);
-			request.Proposal.Anchor.Side    = core::diff_side::left;
+			source.Endpoint                      = application::make_workbench_selected_diff_endpoint_for_testing(endpoint, core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+			auto request                         = publication_request(source);
+			request.Proposal.Anchor.Side         = core::diff_side::left;
 			request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
-			request.IdempotencyKey          = application::idempotency_key_for(request.Proposal, request.Target);
-			auto scratch                    = tests::sqlite_contract::scratch_root{ "stacked-publication" };
-			auto transport                  = publication_transport{ };
-			transport.Stacked               = true;
-			transport.ResetAtTarget         = resetAt;
-			auto       session              = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
-			const auto result               = session.submit_and_reconcile(request);
-			const auto ancestries           = std::ranges::count(transport.Operations, review_mutation_operation::observe_base_ancestry);
+			request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
+			auto scratch                         = tests::sqlite_contract::scratch_root{ "stacked-publication" };
+			auto transport                       = publication_transport{ };
+			transport.Stacked                    = true;
+			transport.ResetAtTarget              = resetAt;
+			auto       session                   = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			const auto result                    = session.submit_and_reconcile(request);
+			const auto ancestries                = std::ranges::count(transport.Operations, review_mutation_operation::observe_base_ancestry);
 			if (resetAt == 0U) {
 				expect(result.Result && transport.Posts.size() == 1U && ancestries == 2 && transport.Targets >= 4U,
 					   "a stacked LEFT comment through the source-backed child is sent after two complete observations");

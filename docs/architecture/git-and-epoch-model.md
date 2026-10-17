@@ -293,7 +293,7 @@ pull request's changes the base branch already carries. The application never
 computes this merge base itself. GitHub's compare names one merge base even
 where Git has several (criss-cross histories); the review compares from that
 one, the one GitHub names. Measured on a criss-cross pull
-request (BPR-Test #101 and #106, 2026-10-17: two merge bases X1 and Y1 whose
+request (BPR-Test #106, 2026-10-17: two merge bases X1 and Y1 whose
 comparisons with the head change different lines of one file, and a virtual
 merge of both that changes neither): compare named X1, and GitHub's Files
 changed, patches included, was exactly the comparison from X1, not from Y1 nor
@@ -308,7 +308,15 @@ recorded base's (its `ahead_by` must equal the commit count the pull request
 reports) and the recorded base's against the exact tip the first answer
 resolved; then the pull request is read again and must be unchanged, commit
 count included, so a recorded base GitHub replaced while these were asked is
-not taken for the one they describe.
+not taken for the one they describe. The pull request is read again after an
+agreeing answer too, and it is the last read before every write on every
+publication path (a single comment, a review, each tour write, first or
+resumed). That narrows but cannot close the window: a read and the POST that
+follows are not atomic, and GitHub's review and review-comment requests carry
+the head (`commit_id`) and the coordinates but no precondition on the base, so
+a recorded base GitHub replaces after the last read and before the POST
+arrives cannot be ruled out. The publications are then reconciled from what
+GitHub stored.
 
 A window keeps a merge base GitHub named for the same head, recorded base and
 base branch across a read that failed, never across answers that refuse it. A

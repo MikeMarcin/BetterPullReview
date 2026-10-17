@@ -1839,8 +1839,8 @@ namespace {
 			return aTarget;
 		};
 		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset, course::agree_head_moves, course::agree_target_fails }) {
-			const auto agrees = which == course::agree_head_moves || which == course::agree_target_fails;
-			auto stacked              = target();
+			const auto agrees         = which == course::agree_head_moves || which == course::agree_target_fails;
+			auto       stacked        = target();
 			stacked.ComparisonBaseOid = base;
 			auto configured           = configuration();
 			configured.Target         = stacked;
