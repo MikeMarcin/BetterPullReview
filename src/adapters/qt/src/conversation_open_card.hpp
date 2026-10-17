@@ -57,16 +57,8 @@ namespace bpr::qt {
 	};
 	[[nodiscard]] auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours;
 
-	/// \brief An author's muted hue: background and initials.
-	struct avatar_colours
-	{
-		QColor Background;
-		QColor Ink;
-	};
-	[[nodiscard]] auto avatar_colours_of(const QString& aLogin, bool aDark) -> avatar_colours;
-	/// \brief "tbutler" is T; "reviewer-four" is RF.
-	[[nodiscard]] auto avatar_initials(const QString& aLogin) -> QString;
-	/// \brief An 18 px avatar (14 px small), ringed when it is mine.
+	/// \brief An 18 px avatar (14 px small), ringed when it is mine: the shared
+	/// `paint_identity_avatar` ([[BPR-1583]]) over the notes' grounds.
 	void paint_avatar(QPainter& aPainter, const QRectF& aBox, const QString& aLogin, bool aMine, const note_colours& aColours, const QFont& aFont);
 
 	/// \brief What the open card draws with.

@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1580"
 title: "Home arranges and filters from one View menu whose groups are labelled"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"I wonder if we should collapse these 3 into one. I don't understand what half these options on Filter are even meant to do.","governing_rfc":"RFC-BPR-0032","related_rfcs":["RFC-BPR-0066","RFC-BPR-0028","RFC-BPR-0024"],"related_cards":["BPR-0783","BPR-1567","BPR-1573","BPR-1575"],"reservation":"docs/issues/_reservations/BPR-1580--BPR-1580--b54fb616e5aa.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"qt_workbench_home_discovery (test_home_strip_holds_view_and_refresh, test_home_view_menu_and_its_gestures): one View strip item where Group, State headers and Filter stood; the menu inventory as a native menu draws it (visible non-separator item text), every submenu's words, no section title anywhere, tooltips on every choice; negative control: an addSection-grouped menu reads as unlabelled choices."}},{"criterion":"AC2","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"Same rows: Added by hidden with no observer rule, shown with one, and kept while a window is filtered by a rule."}},{"criterion":"AC3","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"As amended by the owner's acceptance note: View carries no count or mark; tooltip and accessible description name each changed choice (1, 2, 5 changes); Reset to defaults enabled exactly then and restores the whole view with one intent per changed field."}},{"criterion":"AC4","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"Filtered sentence with Clear filters, first keyboard stop, Return clears My role, Added by and Quiet items (three intents) and keeps the arrangement; the status line does not repeat it; link in the sentence's ink in four themes (capture course)."}},{"criterion":"AC5","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"Typed intents and per-window view unchanged; profile window layout and personal discovery public paths pass; no schema change; focus order and accessible names asserted."}},{"criterion":"AC6","outcome":"pass","revision":"d3d8855e9","evidence":{"kind":"command","detail":"Focused rows pass on the merge with c29d90e19; full run_test_suite --preset dev on the merge with b96107686: 764 passed, 8 failed, 1 skipped; seven pass alone or with the MASK link, application_private_review_native also fails in BPR-1575's own run without this change; clang-format 22 clean; clang-tidy 22 only pre-existing home_fitted_view findings; DOCUMENTATION_OK; round-trip composition contract resealed and passing."}},{"criterion":"AC7","outcome":"pass","revision":"254e0a1f0","evidence":{"kind":"observation","detail":"Owner Accept, session 579c007a8dd4b1baa59c0d089eca606d, decision feb4b217-e3cf-4c58-a8a3-13dc265dd895 (2026-10-17T16:15:57Z, event 4), candidate BPR-1580-view-menu-v001 fingerprint 0fd682e2, frozen root bpr1580-view-v001.o_7wpngq; note asked to drop the count (done in 0f19f1da8) and raised the Windows title row (BPR-1596)."}}]
 ---
 
 # BPR-1580: Home arranges and filters from one View menu whose groups are labelled
@@ -56,10 +56,10 @@ it; this card changes how the choices are reached, named and summarised.
   tooltip and status tip where the platform draws them.
 - AC2: Added by is shown only when the profile has an observer rule, or when
   the window is already filtered by one (so a filter is never out of reach).
-- AC3: The button reads **View** at the defaults. When any choice in the menu
-  differs from its default it carries the strip's count pill (the one the
-  comments button carries) with how many do, and its accessible description
-  and tooltip name each such choice. **Reset to defaults** is enabled exactly then and in one
+- AC3: The button always reads **View**; its accessible description and
+  tooltip name each choice in the menu that differs from its default. (v001
+  also carried the strip's count pill; the owner's acceptance note removed
+  it.) **Reset to defaults** is enabled exactly then and in one
   gesture restores Group None, State headers on, My role Any, Added by Any,
   Quiet items Show and Sort Priority; the profile hears the filter part as it
   hears a filter choice.
@@ -164,10 +164,36 @@ the owner checks the frozen build themselves.
   renders in Light and Dark (closed, open, My role, Quiet items, changed,
   changed and open, filtered-empty).
 
+## Owner decision and landing
+
+- 2026-10-17, session `579c007a…`, decision `feb4b217-e3cf-4c58-a8a3-13dc265dd895`
+  (event 4): **Accept** of `BPR-1580-view-menu-v001`, with the note "I'm not
+  sure why view carries a count, otherwise it looks good. I also noticed the
+  home button looks misplaced on windows. Seems like it's still offset for
+  the macos window controls." Handed back at event 5; cursor consumed 5;
+  candidate released at 6; host stopped; frozen root removed.
+- As the coordinator directed, landed as accepted without a new review: View
+  now carries no count or mark at all (the quietest of the two options the
+  coordinator allowed); its tooltip and accessible description still name
+  each changed choice, the menu's items show every value, and the filtered
+  sentence with Clear filters covers a list the filters empty. Commit
+  `0f19f1da8`; AC3, the spec and the tests say so. The Windows title-row note
+  became [[BPR-1596]].
+- Landing evidence on the branch merged with main at `c29d90e19`:
+  focused Qt and composed rows (workbench window, title row, focus order, Home
+  discovery, composed GitHub and Home, capture course, personal discovery and
+  profile window layout public paths) pass; the round-trip composition
+  contract passes; `DOCUMENTATION_OK`. One full `run_test_suite.py --preset
+  dev` on the merge with `b96107686`: 764 passed, 8 failed, 1 skipped. Of the
+  eight, the three documentation rows need the MASK `.agents` link this
+  worktree lacks and pass with it; `application_composition_contract` timed
+  out under a load average near 200; `application_large_review_history` and
+  `qt_hide_drawers_native_menu_key` and `application_private_review_file`
+  pass alone. `application_private_review_native` fails alone too
+  (`COURSE_MODALITY_STALLED` wanting Review); it fails the same way in
+  [[BPR-1575]]'s own suite run at 15:58Z without this change, and passed in
+  this card's first full run, so it is outside this card.
+
 ## Next
 
-Read session `579c007a…` from cursor 3. Accept satisfies AC7: merge the
-branch onto main (reseal again if main's `github_application.cpp` moved),
-finish the card, stop the host, release the candidate and remove the frozen
-root with `scripts/freeze_attended_build.py remove`. A Reject's note is
-v002's change.
+Done.

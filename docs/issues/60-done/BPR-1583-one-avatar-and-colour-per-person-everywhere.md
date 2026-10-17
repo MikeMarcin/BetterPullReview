@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1583"
 title: "One avatar and one colour per person on every surface"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"It's weird that people have coloured icons in Threads but they're not coloured in Overview.","related_rfcs":["RFC-BPR-0032","RFC-BPR-0069","RFC-BPR-0070"],"related_cards":["BPR-1290","BPR-0783","BPR-1405","BPR-1083"],"reservation":"docs/issues/_reservations/BPR-1583--BPR-1583--657886ed2474.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1583:AC1","outcome":"pass","revision":"1acac4288","evidence":{"kind":"command","command":"ctest --preset dev -R '^core_identity_avatar$'","detail":"core identity_avatar: slot from FNV-1a over the case-folded login with MurmurHash3's finalizer modulo ten (tbutler is slot 2), ten tabled tones with light- and dark-ground halves, neutral ? face, custom-ground step, one initials rule (T, RF, D for dependabot[bot], ? for none)."}},{"criterion":"BPR-1583:AC2","outcome":"pass","revision":"1acac4288","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_identity_avatar$'","detail":"One Qt painter and widget (identity_avatar.hpp); Threads' paint_avatar calls it; Overview roster, Home chips and group headers and the Settings account card and CLI rows use it; Profiles keeps its neutral tile."}},{"criterion":"BPR-1583:AC3","outcome":"pass","revision":"1acac4288","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core|qt)_identity_avatar$'","detail":"Every tone clears 3:1 against window and base and holds its initials at 7:1 in Light, Dark, High Contrast Light and High Contrast Dark; negative control: BPR-1290's pastel fails 3:1 on white."}},{"criterion":"BPR-1583:AC4","outcome":"pass","revision":"1acac4288","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_identity_avatar$'","detail":"The drawn fill of tbutler and of a login in another slot is equal on a Threads note, an Overview row, a Home chip, a Home group header and the Settings card in all four themes and equals the rule; a mutation keying Overview on another identity fails the test."}},{"criterion":"BPR-1583:AC5","outcome":"pass","revision":"1acac4288","evidence":{"kind":"command","command":"ctest --preset dev -j6; python3 scripts/verify_documentation.py --root .","detail":"Merged tree: 765 of 774 passed, one skipped; the eight failures and the focused run's qt_workbench_conversation_reveal were timing budgets under load and passed on serial rerun (large_review_responsiveness on its third try); documentation_structure passed after merging main's counter. clang-format 22 clean; clang-tidy 22 clean on new and changed lines (two base-line findings untouched). DOCUMENTATION_OK; the rule is the UX spec's People's avatars section."}},{"criterion":"BPR-1583:owner-look","outcome":"pass","revision":"b36884c40","evidence":{"kind":"observation","detail":"Owner accepted BPR-1583-avatars-v001 (frozen b36884c40, executable 7bb26a1f9994...) without a note in attended-review session c566f771417daea60e5d8d3c58ec0b14, decision f2f73f44-ea60-4468-870a-2d63c9c64959 at event 4, handed back at 5."}}]
 ---
 
 # BPR-1583: One avatar and one colour per person on every surface
@@ -138,3 +138,20 @@ Read session `c566f771…` from cursor 3. Accept satisfies AC6: merge
 card, stop the host, release the candidate, remove the frozen root with
 `scripts/freeze_attended_build.py remove` and the worktree and its build tree.
 A Reject's note is v002's change.
+
+## Landed
+
+The owner accepted `BPR-1583-avatars-v001` with no note (session
+`c566f771…`, decision `f2f73f44…`, handed back at event 5). Main merged into
+the branch twice (`8fcef1e49`, `1acac4288`; include-only conflicts in
+`server_card.cpp` and `pull_request_overview_page.cpp`, no new avatar
+drawing on main) and fast-forwarded to `1acac4288`. On the merged tree:
+`core_identity_avatar` and `qt_identity_avatar` pass; the focused selector
+passed 35 of 36 with `qt_workbench_conversation_reveal` (100 ms target)
+passing alone; the full `ctest --preset dev -j6` passed 765 of 774 with one
+skipped, and its eight failures (timing budgets, and
+`documentation_structure` on the then-merged counter) passed on serial rerun
+or after the second merge (`application_large_review_responsiveness` on its
+third try). Both composition contracts pass (main resealed them in
+BPR-1570). `DOCUMENTATION_OK`. The review host is stopped, the candidate
+released, and the frozen root removed.

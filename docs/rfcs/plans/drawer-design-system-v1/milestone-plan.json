@@ -1,0 +1,82 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "drawer-design-system-v1",
+  "scope": {
+    "rfcs": ["RFC-BPR-0085"],
+    "issues": ["BPR-1587", "BPR-1588", "BPR-1589", "BPR-1590", "BPR-1591", "BPR-1592", "BPR-1593", "BPR-1594", "BPR-1595"]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "drawer-foundation",
+      "outcome": "One set of shared drawer parts exists, and the Overview's side column is a real Status drawer with no Start review button.",
+      "work": [{"issue": "BPR-1587"}, {"issue": "BPR-1588"}],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01 and AC02 hold on the composed application with Qt courses and negative controls in four themes and three scales; one full suite passes before landing; the owner accepts the frozen build and answers the promote-label question."
+      ],
+      "boundary": "Qt presentation, workbench layout persistence for the new drawer, and the entry rule D1; no content change inside the Status drawer."
+    },
+    {
+      "id": "overview-status",
+      "outcome": "Status leads with my role and what needs attention, discloses details on demand, and takes me to unread threads.",
+      "work": [{"issue": "BPR-1589"}],
+      "depends_on": ["drawer-foundation"],
+      "exit_criteria": [
+        "AC03 holds through core role and unread decisions and composed Overview courses; BPR-1576's loading pattern and BPR-1583's avatars are reused; the owner accepts the frozen build."
+      ],
+      "boundary": "Core role and attention decisions, overview projection fields, Qt Status content."
+    },
+    {
+      "id": "compose-sheet",
+      "outcome": "Compose review is a sheet over the code that expands to a focused page.",
+      "work": [{"issue": "BPR-1590"}],
+      "depends_on": ["drawer-foundation"],
+      "exit_criteria": [
+        "AC04 holds with composed review-submission courses unchanged in outcome; the owner accepts the frozen build."
+      ],
+      "boundary": "Qt presentation and composition-page placement; submission semantics unchanged."
+    },
+    {
+      "id": "notes-margin",
+      "outcome": "Private notes can be anchored to lines and Notes shows them as margin notes; agent tools leave Notes.",
+      "work": [{"issue": "BPR-1591"}, {"issue": "BPR-1592"}],
+      "depends_on": ["drawer-foundation"],
+      "exit_criteria": [
+        "AC05 holds with ledger migration and restart courses; the owner accepts the frozen build."
+      ],
+      "boundary": "Core note anchor, host and SQLite ledger change, Qt Notes tab; agent panels move unchanged into a provisional Agent tab."
+    },
+    {
+      "id": "tours-route",
+      "outcome": "The Tour tab is the route and expands to the tour page.",
+      "work": [{"issue": "BPR-1593"}],
+      "depends_on": ["drawer-foundation"],
+      "exit_criteria": [
+        "AC06 holds with the existing tour courses passing; the owner accepts the frozen build."
+      ],
+      "boundary": "Qt presentation of the existing tour model; publication and recovery unchanged."
+    },
+    {
+      "id": "agent-tab",
+      "outcome": "Agent is a first-class drawer tab with its keys, history and four states.",
+      "work": [{"issue": "BPR-1594"}],
+      "depends_on": ["notes-margin"],
+      "exit_criteria": [
+        "AC07 holds with the agent composition contracts passing; the owner accepts the frozen build."
+      ],
+      "boundary": "Qt presentation and keys over the existing agent hosts; agent authority unchanged."
+    },
+    {
+      "id": "drawer-closeout",
+      "outcome": "Every criterion has evidence and the RFC closes.",
+      "work": [{"issue": "BPR-1595"}, {"rfc": "RFC-BPR-0085"}],
+      "depends_on": ["overview-status", "compose-sheet", "tours-route", "agent-tab"],
+      "exit_criteria": [
+        "AC08 and AC09 have recorded evidence; documentation gate and integration pass on main."
+      ],
+      "boundary": "Verification, documentation and closeout."
+    }
+  ],
+  "unplanned_work": []
+}
