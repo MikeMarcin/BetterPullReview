@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1571"
 title: "Explain GitHub CLI discovery failures without exposing child output"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
