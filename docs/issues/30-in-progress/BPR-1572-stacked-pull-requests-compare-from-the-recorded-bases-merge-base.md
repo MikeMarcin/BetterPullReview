@@ -136,6 +136,22 @@ write.
 - **Live**: `bpr1560_live_parity.py` takes GitHub's basis from
   compare(`base.sha`...head); `tests/end_to_end/bpr1572_stacked_live_course.py`
   runs the merge, fast-forward and rebase variants with a negative control.
+- **Sparse lineage for an unchanged head** (`installed_git_cache.cpp`, found by
+  the rebase course): on a selected-objects (signed-in) review the Git cache
+  reported head lineage `unknown` whenever there was a prior head, even when
+  it was the same commit, and the core refuses an unchanged head with any
+  lineage but `not_applicable` as an invalid observation. So a revision whose
+  merge base alone moved (the base branch rebased, GitHub resetting
+  `base.sha` with the head unchanged) left review history "could not be
+  updated. The review-history observation is invalid." and no comparison.
+  Predates this card (BPR-1560's courses always moved the head). The sparse
+  path now claims lineage only when the head changed, as the complete path
+  already did.
+- **Live course tool**: `live_second_account_course --course parity` prints
+  what the review shows when the first file's comparison does not settle.
+- **Composition**: the round-trip composition contract is resealed over main
+  at `0c6d520ad` (full application digest `ec46df28…`, production manifest
+  `c16d0693…`); `github_application.cpp` only serves the new fixture.
 - **Docs**: `docs/architecture/git-and-epoch-model.md`.
 
 ## Evidence (branch `bpr-1572-stacked-merge-base`)
@@ -169,9 +185,63 @@ write.
     A merges all of B (merged): PASS 3/3 files at every step.
   - fast-forward, #95: open, A fast-forwarded to b1, then b2, ordinary push b4
     to B (`base.sha` stays a1): PASS at every step.
-  - rebase, #96: open PASS; A rebased onto a newer main (both merge bases
-    agree, the path BPR-1560 already had): the course timed out waiting for the
-    first file's comparison, with the provider read and epoch preparation
-    logged as succeeded, while a second course ran beside it; B rebased onto
-    A: PASS. Rerun alone: see below.
+  - rebase, #96, #98, #99 before the lineage fix: open PASS; A rebased onto a
+    newer main (GitHub resets `base.sha` to the new tip, both merge bases
+    agree on the fork point, the head is unchanged): no comparison, "Review
+    history could not be updated. The review-history observation is invalid."
+    (#99, with the new diagnostic line); B rebased onto A: PASS.
+  - rebase, #100, with the lineage fix: open, A rebased (w.txt, x.txt, y.txt,
+    z.txt from the fork point), B rebased: PASS at every step.
+  - negative control, #97, a build with the stacked acceptance reverted:
+    step 1 agrees with GitHub; step 2 (A merges b1) reproduces the defect,
+    Whole PR shows nothing ("negative control: reproduced the mismatch").
+- **Lineage negative control.** `git_sparse_cache_contract` fails ("sparse
+  witness binds exact operation objects without ancestry claim") with the
+  fix reverted and passes with it.
+- **Gates.** clang-format 22 on every changed C++ file. clang-tidy on the
+  changed translation units passes; the remaining warnings are on lines this
+  card does not touch (`github_paged_read.cpp` 4401, older test helpers);
+  three string-concatenation findings in the new test code were fixed.
+  `DOCUMENTATION_OK` and `verify_documentation_tests` OK on the branch merged
+  with main at `0c6d520ad`. Composition contracts: the round-trip contract
+  resealed and passing, `application_composition_contract` and the other nine
+  passing. Full `ctest --preset dev -j 6` on `b39c5a8c0`-equivalent tree
+  (main merged at `0c6d520ad`): 762/770 under load average 80-156 with other
+  agents' builds; the eight failures, rerun alone, all pass:
+  `documentation_structure`, `documentation_issue_graph_contract` and
+  `issue_id_allocation_contract` (the worktree lacks the ignored `.agents`
+  skills link the board model is imported from; passed with it linked),
+  `coding_format_check` (`git_cache_contract_tests.cpp` lines this card added,
+  reformatted with clang-format 22), `qt_composed_long_thread_scale_100` and
+  `_200`, `release_update_native_https`, `application_line_draft_contract`
+  (load).
+
+## Follow-ups
+
+- **Endpoint lag.** For up to about 5 s after a push, GitHub's files endpoint
+  can answer a newer state than `pulls/N` (#91, #92). The snapshot's
+  file-count, commit-count and last-commit checks and the confirming read
+  catch it when the counts differ. Predates this card; unchanged.
+- **A base force-pushed onto a descendant of `base.sha`** (#93): for the 1-6 s
+  before GitHub resets `base.sha`, the provider accepts the recorded base's
+  merge base, which is what GitHub's Files changed still shows in that window;
+  the next read follows the reset.
+- **Residual carry-forward window** (BPR-1560): unchanged; a failed read keeps
+  the merge base named for the same head, recorded base and base branch.
+
+## Acceptance
+
+- `BPR-1572:measurement`: the table above.
+- `BPR-1572:provider`: `github_provider` and `github_paged_read`.
+- `BPR-1572:publication`: `github_mutation_contract`,
+  `live_review_submission_provider`, `staged_review_session`.
+- `BPR-1572:wording`: `core_epoch_policy`, `application_github_window_read_host`,
+  `qt_epoch_comparison_scale_*`, `application_merge_base_public_path`.
+- `BPR-1572:fixture`: `application_merge_base_public_path` on
+  stacked-merge-base-v1 and `merge_base_fixture_contract`.
+- `BPR-1572:live`: `bpr1572_stacked_live_course.py`, merge, fast-forward and
+  rebase variants, every step PASS.
+- `BPR-1572:negative-control`: the unit, fixture and live controls above.
+- `BPR-1572:gates`: one full `ctest --preset dev`, clang-format 22, tidy on the
+  changed sources, the documentation gate, the composition contracts.
 

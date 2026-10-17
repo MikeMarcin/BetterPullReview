@@ -1358,8 +1358,8 @@ namespace {
 					.InventoryToken          = inventory->OpaqueToken,
 					.DurableRecordToken      = token(0xd0U),
 				},
-				.Base      = course == 3U ? *core::parse_git_commit_oid(blobText) : head,
-				.Head      = head,
+				.Base = course == 3U ? *core::parse_git_commit_oid(blobText) : head,
+				.Head = head,
 				// [[BPR-1572]]. Course 0's prior head is the head itself: only the
 				// base moved, so there is no lineage to claim.
 				.PriorHead = course == 4U ? std::nullopt : std::optional{ course == 0U ? head : parent },
