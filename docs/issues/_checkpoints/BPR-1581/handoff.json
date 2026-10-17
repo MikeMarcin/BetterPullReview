@@ -20,7 +20,7 @@
  "baseline": "05eacbaa3",
  "merged_main": "b6b066285",
  "source_candidate": "c6644bad7e3ecc05a70965bcd9910ef2a173725c",
- "build": "build/dev configured with -DCPM_SOURCE_CACHE=<main>/build/.cpm-cache -DCMAKE_{C,CXX,OBJCXX}_FLAGS_DEBUG=-gline-tables-only (disk)",
+ "build": "build/dev configured with -DCPM_SOURCE_CACHE=<main>/build/.cpm-cache -DCMAKE_{C,CXX,OBJCXX}_FLAGS_DEBUG=-gline-tables-only (disk); removed after the run (rebuild before landing)",
  "changed_paths": [
   "docs/ux/workbench-specification.md",
   "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
@@ -78,7 +78,7 @@
   "tidy": "clang-tidy 22 (llvm@22) over touched sources: no diagnostics",
   "docs": "DOCUMENTATION_OK (main's scripts/verify_documentation.py --root worktree; worktree lacks .agents)",
   "composition_contracts": "application_review_round_trip_composition_contract and dependants fail on full github_application.cpp digest; main's own source prints 06b0059363b3... against pinned 315f7078ac1c... (pre-existing drift). Branch prints full f95aeeb45db3..., manifest 4c062b0d48a3..., mutation e067befefeff... (unchanged). Reseal at landing on the merged tree.",
-  "full_suite": "pending: cmake --build build/dev then scripts/run_test_suite.py --preset dev --jobs 4 --output-dir <scratchpad>/fullsuite"
+  "full_suite": "Not completed. The full dev build reached 828/859 and stopped with ENOSPC (the shared volume fell to 259 MiB from other agents' builds); the suite, started on the partial build, was stopped by its owner at 44/773 (41 passed). Its three failures (documentation_structure, documentation_issue_graph_contract, issue_id_allocation_contract) are environmental: the worktree has no untracked .agents, so their board_model import fails; the same gate passes from the main checkout (DOCUMENTATION_OK). The 9.9 GB build tree was then removed to free the volume. Obligation: one full dev ctest on the merged tree at landing, when the disk allows."
  },
  "review": {
   "session": "c1a9372af55350e3cb63fe7d8377eafa",
@@ -98,5 +98,6 @@
   "offline_html": "/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001/review.html",
   "waiter": "python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.claude/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001 wait --after 9 --kind handed-back"
  },
- "next": "On hand-back: Accept -> merge current main into the branch, reseal the round-trip composition pins over the merged tree with a review note, rerun focused rows, land on main, finish the three cards, stop host 30090, resume-development --all, remove the frozen root with scripts/freeze_attended_build.py remove, remove the worktree and build. Reject -> notes become v002 on the same branch."
+ "next": "On hand-back: Accept -> merge current main into the branch, reseal the round-trip composition pins over the merged tree with a review note, rerun focused rows, land on main, finish the three cards, stop host 30090, resume-development --all, remove the frozen root with scripts/freeze_attended_build.py remove, remove the worktree and build. Reject -> notes become v002 on the same branch.",
+ "renders": "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/95e13352-2b39-4bf8-84d4-9d2570fea6ca/scratchpad/renders (transient; the session embeds contact sheets)"
 }

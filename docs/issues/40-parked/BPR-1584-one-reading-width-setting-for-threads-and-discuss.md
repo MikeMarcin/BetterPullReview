@@ -107,8 +107,9 @@ clean; clang-tidy 22 reports nothing in the touched sources; documentation gate
 `DOCUMENTATION_OK`. The round-trip composition contract's pins already differ
 on main (`06b00593…` against the pinned `315f7078…`) without this branch; the
 reseal covering `src/app`'s new Mark as Unread wiring is done at landing on the
-merged tree. The full `dev` suite on the merged tree is recorded in the
-checkpoint.
+merged tree. The full `dev` suite did not complete: the shared volume ran out
+of space during the full build (828/859), so it remains owed at landing; see
+the checkpoint.
 
 Owner look: session `c1a9372af55350e3cb63fe7d8377eafa`, state
 `/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001`,
