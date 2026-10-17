@@ -175,8 +175,12 @@ namespace {
 		/// merge base, which numbers LEFT lines, is no longer the target's.
 		bool MovedMergeBase = false;
 		/// [[BPR-1572]]. The base branch names another merge base: 1, it only
-		/// moved forward from the recorded base; 2, it was rewritten.
+		/// moved forward from the recorded base; 2, it was rewritten; 3, it only
+		/// moved forward, but GitHub replaces the recorded base with its tip
+		/// right after the ancestry answer, so the pull request read again
+		/// names the tip. The pull request reports two commits throughout.
 		int         StackedBase    = 0;
+		bool        RecordedReset  = false;
 		std::size_t MergeBaseReads = 0U;
 		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
@@ -306,6 +310,13 @@ namespace {
 				if (wire.Path == Pull) {
 					auto  response = target_response(target().RepositoryDatabaseId, WrongHead ? commit(0x22) : target().Semantic.ExpectedHead);
 					auto& body     = std::get<github_mutation_wire_success>(response).Response.Body;
+					if (StackedBase != 0) {
+						body.insert(body.find(R"("head")"), R"("commits":2,)");
+					}
+					if (RecordedReset) {
+						const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+						body.replace(body.find(recorded), recorded.size(), std::string(40U, 'b'));
+					}
 					body.pop_back();
 					body += ",\"body\":" + json_quote(Description) + "}";
 					return response;
@@ -359,18 +370,22 @@ namespace {
 							  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
 				}
 				// [[BPR-1572]]. The recorded base against the head, and against
-				// the base branch.
+				// the base branch's tip the first answer resolved.
 				const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
-				for (const auto& pairHead : { head, target().BaseRef }) {
+				for (const auto& pairHead : { head, std::string(40U, 'b') }) {
 					auto pair = std::string{ recorded };
 					pair.append("...").append(pairHead);
 					if (wire.Path == std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(pair).append("?page=2&per_page=1")) {
 						++MergeBaseReads;
 						const auto mergeBase = pairHead == head ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
-							: StackedBase == 1                  ? recorded
-																: std::string(40U, 'e');
-						auto       body      = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
-						body.append(pair).append("\",\"base_commit\":{\"sha\":\"").append(recorded).append("\"},\"merge_base_commit\":{\"sha\":\"").append(mergeBase).append("\"}}");
+							: StackedBase == 2 || MovedMergeBase ? std::string(40U, 'e')
+																: recorded;
+						if (pairHead != head && StackedBase == 3) {
+							RecordedReset = true;
+						}
+						auto body = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
+						body.append(pair).append(pairHead == head ? "\",\"ahead_by\":2," : "\",").append("\"base_commit\":{\"sha\":\"").append(recorded);
+						body.append("\"},\"merge_base_commit\":{\"sha\":\"").append(mergeBase).append("\"}}");
 						return ok(body);
 					}
 				}
@@ -532,11 +547,12 @@ namespace {
 			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
 				   "a moved merge base refuses a tour with a LEFT stop before any write");
 		}
-		for (const int stacked : { 1, 2 }) {
+		for (const int stacked : { 1, 2, 3 }) {
 			// [[BPR-1572]]. The base branch names another merge base. Moved only
 			// forward from the recorded base, GitHub still numbers LEFT in the
 			// recorded base's merge base and the tour is published; rewritten,
-			// nothing is written.
+			// or with GitHub replacing the recorded base while the answers were
+			// asked, nothing is written.
 			scratch root;
 			server  remote;
 			remote.StackedBase  = stacked;
@@ -547,10 +563,14 @@ namespace {
 					   "a base branch that only moved forward keeps a tour's LEFT stop and the tour is published");
 			} else {
 				expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
-					   "a rewritten base branch refuses a tour with a LEFT stop before any write");
+					   "a rewritten base branch, or a recorded base replaced under the reads, refuses a tour with a LEFT stop before any write");
 			}
 		}
-		for (const std::size_t stopped : { std::size_t{ 0U }, std::size_t{ 2U } }) {
+		for (const auto& [stopped, reset] : std::array{ std::pair{ std::size_t{ 0U }, false }, std::pair{ std::size_t{ 2U }, false }, std::pair{ std::size_t{ 0U }, true },
+														std::pair{ std::size_t{ 2U }, true } }) {
+			// [[BPR-1572]], `reset`: on resume the base branch names another
+			// merge base and GitHub replaces the recorded base with its tip while
+			// the merge-base answers are asked.
 			// [[BPR-1560]]. A resumed tour asks again: the journal was admitted
 			// (and, the second time, part of it written) on the merge base it was
 			// staged against, then the merge base moved with base.sha and head
@@ -572,7 +592,8 @@ namespace {
 				expect(remote.Writes == stopped + 1, "Stop leaves part of the tour written");
 			}
 			const auto written    = remote.Writes;
-			remote.MovedMergeBase = true;
+			remote.MovedMergeBase = !reset;
+			remote.StackedBase    = reset ? 3 : 0;
 			provider.reset();
 			provider          = session(remote, root.Path);
 			const auto reads  = remote.MergeBaseReads;
@@ -580,6 +601,8 @@ namespace {
 			expect(resume.State == publication_state::conflict && remote.Writes == written && remote.MergeBaseReads > reads,
 				   "Resume asks GitHub's merge base again and writes no LEFT coordinate from a moved one");
 			remote.MovedMergeBase = false;
+			remote.StackedBase    = 0;
+			remote.RecordedReset  = false;
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5,

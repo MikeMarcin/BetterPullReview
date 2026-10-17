@@ -174,7 +174,8 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief [[BPR-1560]]. Reads the pull request's metadata again after the
 	/// merge-base read and reports whether its head, recorded base, base
-	/// branch, state and changed-file count are still the snapshot's, which
+	/// branch, state, changed-file count and reported commit count
+	/// ([[BPR-1572]]) are still the snapshot's, which
 	/// binds the snapshot's file list and the merge base to one state of the
 	/// pull request.
 	[[nodiscard]] auto perform_github_pull_request_confirmation(

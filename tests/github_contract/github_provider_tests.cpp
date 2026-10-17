@@ -1826,20 +1826,24 @@ namespace {
 										   stacked_rewritten,
 										   stacked_count_differs,
 										   stacked_ancestry_fails,
-										   stacked_moved };
+										   stacked_moved,
+										   stacked_commits_drop };
 		const auto mergeBase = std::string(40, 'a');
 		const auto otherBase = std::string(40, 'c');
 		const auto branchTip = std::string(40, 'b');
 		const auto recorded  = std::string(40, '1');
 		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails, course::stacked_forward, course::stacked_rewritten,
-								  course::stacked_count_differs, course::stacked_ancestry_fails, course::stacked_moved }) {
+								  course::stacked_count_differs, course::stacked_ancestry_fails, course::stacked_moved, course::stacked_commits_drop }) {
 			provider_fixture fixture{ application::github_authentication_transport::native_https };
 			const auto       request      = pull_request_for(fixture, account_lease(fixture));
 			auto             pullRequests = 0U;
 			auto             compares     = 0U;
 			auto             ancestries   = 0U;
 			const auto       stacked      = which == course::stacked_forward || which == course::stacked_rewritten || which == course::stacked_count_differs
-				|| which == course::stacked_ancestry_fails || which == course::stacked_moved;
+				|| which == course::stacked_ancestry_fails || which == course::stacked_moved || which == course::stacked_commits_drop;
+			// [[BPR-1572]]. The snapshot's pull request reports two commits; the
+			// confirming read, one (GitHub's commit count moved, n to n-1).
+			const auto twoCommits = which == course::stacked_commits_drop;
 			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
 				if (aWire.Wire.Operation == read_operation::get_merge_base) {
 					++compares;
@@ -1865,8 +1869,9 @@ namespace {
 						named = which == course::stacked_rewritten ? std::string(40, 'e') : recorded;
 						ahead = R"("ahead_by":2,)";
 					} else if (stacked) {
-						// The pull request reports one commit (pull_request.json).
-						ahead = which == course::stacked_count_differs ? R"("ahead_by":2,)" : R"("ahead_by":1,)";
+						// The pull request reports one commit (pull_request.json),
+						// or two on the commits-drop course.
+						ahead = which == course::stacked_count_differs || twoCommits ? R"("ahead_by":2,)" : R"("ahead_by":1,)";
 					}
 					response.Body = R"({"url":"https://api.github.com/repos/)";
 					response.Body.append(aWire.Wire.Semantic.Owner).append("/").append(aWire.Wire.Semantic.Repository).append("/compare/").append(asked).append("...");
@@ -1896,7 +1901,16 @@ namespace {
 				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
 					response.Headers.back().Value = "search";
 				}
-				if (aWire.Wire.Operation == read_operation::get_pull_request && ++pullRequests == 2U && (which == course::moved || which == course::stacked_moved)) {
+				const auto pullRequestRead = aWire.Wire.Operation == read_operation::get_pull_request ? ++pullRequests : 0U;
+				if (twoCommits && pullRequestRead == 1U) {
+					const auto position = response.Body.find(R"("commits": 1)");
+					expect(position != std::string::npos, "the recorded pull request reports its commits");
+					response.Body.replace(position, 12U, R"("commits": 2)");
+				} else if (twoCommits && aWire.Wire.Operation == read_operation::list_pull_request_commits) {
+					const auto at = response.Body.find('{');
+					response.Body.insert(at, R"({"sha":"3333333333333333333333333333333333333333","node_id":"C_fixture_first","commit":{"message":"first"},"author":{"node_id":"U_fixture_author","login":"octo-author"}},)");
+				}
+				if (pullRequestRead == 2U && (which == course::moved || which == course::stacked_moved)) {
 					const auto position = response.Body.find(recorded);
 					expect(position != std::string::npos, "the recorded pull request names its base");
 					response.Body.replace(position, 40U, std::string(40, 'd'));
@@ -1947,6 +1961,10 @@ namespace {
 				break;
 			case course::stacked_moved:
 				expect(refused && compares == 3U && pullRequests == 2U, "the pull request moving under a stacked read is a refusal");
+				break;
+			case course::stacked_commits_drop:
+				expect(refused && compares == 3U && ancestries == 1U && pullRequests == 2U && snapshot.PullRequest.ReportedCommitCount == std::optional<std::size_t>{ 2U },
+					   "GitHub's commit count moving from 2 to 1 between the snapshot and the confirming read is a refusal");
 				break;
 			}
 		}

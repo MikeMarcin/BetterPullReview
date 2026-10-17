@@ -3556,6 +3556,11 @@ namespace {
 		badBody.insert(badBody.find(R"("total_commits")"), R"("ahead_by":"3",)");
 		badCount.Responses.push_back(success_response(badBody));
 		expect(!read(badCount, exact, profile(), provider_request()), "a malformed ahead_by is refused");
+		auto negativeCount = merge_base_fixture_transport{ };
+		auto negativeBody  = compare_body(recorded, mergeBase);
+		negativeBody.insert(negativeBody.find(R"("total_commits")"), R"("ahead_by":-1,)");
+		negativeCount.Responses.push_back(success_response(negativeBody));
+		expect(!read(negativeCount, exact, profile(), provider_request()), "a negative ahead_by is refused");
 
 		const auto refused = [&](std::string aBody, const int aStatus, const char* aMessage) {
 			auto scripted   = merge_base_fixture_transport{ };

@@ -185,9 +185,12 @@ namespace bpr::adapters::github::detail {
 		// [[BPR-1560]], [[BPR-1572]]. A LEFT line is numbered in the merge
 		// base GitHub compares the pull request from: the base branch's merge
 		// base, or, when that names another commit, the recorded base's while
-		// the base branch only moved forward from the recorded base.
-		const auto observe = [&](const merge_base_observation_basis aBasis) -> std::expected<core::git_commit_oid, application::review_mutation_failure> {
-			auto request = compile_merge_base_observation_request(Configuration.Target, Configuration.Target.ServerContract, aBasis);
+		// GitHub's commit count is that pair's and the base branch only moved
+		// forward from the recorded base to the tip its answer resolved. The
+		// pull request is then read again and must be unchanged.
+		const auto observe = [&](const application::review_mutation_target_binding& aBinding, const merge_base_observation_basis aBasis)
+			-> std::expected<merge_base_observation, application::review_mutation_failure> {
+			auto request = compile_merge_base_observation_request(aBinding, Configuration.Target.ServerContract, aBasis);
 			if (!request) {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
@@ -197,29 +200,37 @@ namespace bpr::adapters::github::detail {
 				note_completion(observed);
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
-			const auto current = parse_merge_base_observation(success->Response, Configuration.Target, aBasis);
+			const auto current = parse_merge_base_observation(success->Response, aBinding, aBasis);
 			if (!current) {
 				note(reason::pull_request_mismatch);
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
 			}
 			return *current;
 		};
-		const auto branch = observe(merge_base_observation_basis::base_branch);
+		const auto branch = observe(Configuration.Target, merge_base_observation_basis::base_branch);
 		if (!branch) {
 			return std::unexpected(branch.error());
 		}
-		if (*branch == application::comparison_base(Configuration.Target)) {
+		if (branch->MergeBase == application::comparison_base(Configuration.Target)) {
 			return { };
 		}
-		const auto recorded = observe(merge_base_observation_basis::recorded_base);
+		const auto recorded = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
 		if (!recorded) {
 			return std::unexpected(recorded.error());
 		}
-		const auto ancestry = observe(merge_base_observation_basis::base_ancestry);
+		const auto ancestry = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
 		if (!ancestry) {
 			return std::unexpected(ancestry.error());
 		}
-		if (!left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry)) {
+		auto  again        = perform(*target, aStop);
+		auto* againSuccess = std::get_if<github_mutation_wire_success>(&again);
+		if (!againSuccess || againSuccess->Response.Status != 200) {
+			note_completion(again);
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		const auto confirmed = parse_target_observation(againSuccess->Response, Configuration.Target);
+		if (!confirmed || confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead || confirmed->Commits != parsed->Commits
+			|| !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, *recorded, *ancestry, parsed->Commits)) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };

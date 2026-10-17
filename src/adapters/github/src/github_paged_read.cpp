@@ -4174,7 +4174,10 @@ namespace bpr::adapters::github::detail {
 			const auto& was = aSnapshot.PullRequest;
 			return github_pull_request_confirmation{
 				.Unchanged = now.PullRequest == was.PullRequest && now.HeadOid == was.HeadOid && now.BaseOid == was.BaseOid
-					&& now.BaseRef == was.BaseRef && now.State == was.State && pullRequest->ChangedFiles == aSnapshot.Files.size(),
+					&& now.BaseRef == was.BaseRef && now.State == was.State && pullRequest->ChangedFiles == aSnapshot.Files.size()
+					// [[BPR-1572]]. The commit count the stacked-base rule
+					// compares with `ahead_by` must be the snapshot's too.
+					&& now.ReportedCommitCount == was.ReportedCommitCount,
 				.RateLimits = rates,
 			};
 		} catch (...) {
