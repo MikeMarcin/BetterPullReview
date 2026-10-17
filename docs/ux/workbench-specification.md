@@ -82,15 +82,20 @@ modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
 [[BPR-1293]]. The owner, 2026-10-06, verbatim: "can we swap discuss to 3 and
 conversations to 4". The strip reads in its keys' order: Overview, Review,
 Discuss, Threads. Read is merged into Review: every path that entered
-Read (an Overview file row, Continue review, Open in Review, Resume, a link to a
-file, a tour) enters Review. Review remembers the drawer arrangement it last
+Read (an Overview file row, Open in Review, Resume, a link to a file, a tour)
+enters Review. Review remembers the drawer arrangement it last
 had in the window, hidden drawers included, and applies its preset (Files and
 Comments open, Repositories as they were) only on the window's first entry and
 when ⌘2 is pressed while already in Review (the strip's Review button is the
 same gesture). Entering Review any other way, while it shows, changes nothing.
-"Continue review enters" is gone from Settings: Start and Continue review both
-enter Review, and "A pull request opens in" offers Overview, Review and Last
-used, a stored Read opening in Review.
+"Continue review enters" is gone from Settings, and "A pull request opens in"
+offers Overview, Review and Last used, a stored Read opening in Review. The
+Overview has no Start review or Continue review button (RFC-BPR-0085 D1, owner
+2026-10-17: "Start review is probably unnecessary now that the Review tab is so
+convenient"): the first entry into Review (⌘2 or the Review segment) from the
+Overview of a pull request this window has not entered Review for selects the
+first unseen change's file, as the button did; later entries keep the file the
+reviewer is on, and a file row the reviewer opens is never replaced.
 
 **Threads beside Discuss** ([[BPR-1293]], owner decision 2026-10-06,
 amended by the owner's answers the same day: "Hide drawers" and "just keep
@@ -437,6 +442,18 @@ orderly restart, and is stored only as a fraction of shared height. A temporary
 small-window clamp or empty body does not erase it; Reset does. New windows
 use content-aware sizing. No description text is stored as a layout preference.
 Owner acceptance of the changed native surface remains in RFC0063's ledger.
+
+## The Overview's Status drawer
+
+The Overview's right column is **Status**, a drawer ([[BPR-1588]], RFC-BPR-0085
+principle 7). It opens at 340 pixels and its seam drags it from 260 to 560 (or
+wider than 260 when a larger font needs it, so no control clips); Hide on its
+tab row, its 18-pixel rail and Alt+Shift+6 collapse and expand it. Its width and
+collapsed state belong to the window: they survive a restart through the
+window's layout record and new windows start expanded at 340. Its header is its
+one tab, Status, with Prepare review tour (⌥T) and Open on GitHub (⇧⌘O) as icons
+at the right; the full-width Prepare review tour button is gone. Its content is
+the summary column described below until [[BPR-1589]] rebuilds it.
 
 ## Overview check details
 

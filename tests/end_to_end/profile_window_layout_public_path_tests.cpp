@@ -7,6 +7,7 @@
 #include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -270,6 +271,13 @@ auto main(int aArgc, char** aArgv) -> int
 		saved[4] = resize_summary(*a, 1);
 		saved[5] = resize_summary(*b, -1);
 		expect(saved[4] != saved[5], "windows choose distinct summary fractions");
+		// [[BPR-1588]]. B hides its Status drawer from the drawer's own Hide;
+		// A keeps its open.
+		b->modality()->action(qt::review_modality::overview)->trigger();
+		wait_for([&] { return b->showing_overview() && b->overview_page()->status_drawer()->hide_button()->isVisible(); }, "B's Status drawer shows on the Overview");
+		b->overview_page()->status_drawer()->hide_button()->click();
+		wait_for([&] { return b->overview_page()->status_drawer()->rail()->isVisible(); }, "Hide leaves B's Status rail");
+		b->modality()->action(qt::review_modality::review)->trigger();
 		// [[BPR-1334]]. A chooses a Line details height; then B hides Line
 		// details, which is the profile's choice and so hides it in A too.
 		saved[6] = grow_line_details(*a);
@@ -364,6 +372,8 @@ auto main(int aArgc, char** aArgv) -> int
 		}
 		open_review(*owner, *b, 18, true);
 		wait_for([&] { return b->overview_page()->summary_fraction() == saved[5]; }, "B restores only its own summary fraction");
+		wait_for([&] { return b->overview_page()->status_drawer()->drawer().State == core::workbench_drawer_state::collapsed; },
+				 "B restores its collapsed Status drawer");
 		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
@@ -384,6 +394,7 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(a != nullptr, "A stable window restored");
 			open_review(*owner, *a, 17, false);
 			wait_for([&] { return a->overview_page()->summary_fraction() == saved[4]; }, "A restores its distinct summary fraction");
+			expect(a->overview_page()->status_drawer()->drawer().State == core::workbench_drawer_state::expanded, "A's Status drawer stays open");
 			wait_for([&] { return a->comparison_surface()->line_details_height() == std::optional{ static_cast<std::uint32_t>(saved[6]) }; },
 					 "A restores its own Line details height");
 			expect(!b->comparison_surface()->line_details_height().has_value(), "B never had A's Line details height");

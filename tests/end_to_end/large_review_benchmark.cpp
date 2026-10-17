@@ -2234,7 +2234,7 @@ namespace bpr::e2e::large_review {
 					return;
 				}
 				if (!report.Extended.ProvisionalMetadataObserved && page->summary_label()->text().contains(QStringLiteral("Provisional metadata"))
-					&& !page->entry_button()->isEnabled() && page->file_model()->file_count() == 0U) {
+					&& !page->entry_path() && page->file_model()->file_count() == 0U) {
 					const auto captureStart                     = metadataClock.nsecsElapsed();
 					provisionalFrame                            = window.grab();
 					report.Extended.ProvisionalCaptureMs        = static_cast<double>(metadataClock.nsecsElapsed() - captureStart) / 1'000'000.0;

@@ -7039,13 +7039,14 @@ namespace {
 							|| overview->projection()->Entry
 								!= bpr::application::overview_entry_kind::start_review
 							|| !overview->projection()->EntryPath.has_value()
-							|| !overview->entry_button()->isEnabled()) {
+							|| !overview->entry_path().has_value()) {
 							break;
 						}
 						const auto before = bpr::app::detail::
 							github_application_fixture_access::review_mutation_evidence(
 								aApplication);
-						overview->entry_button()->click();
+						// [[BPR-1588]]. Start review is gone; ⌘2 is its entry.
+						window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
 						QApplication::processEvents();
 						const auto after = bpr::app::detail::
 							github_application_fixture_access::review_mutation_evidence(
@@ -7494,9 +7495,10 @@ namespace {
 							&& overview->file_model()->file_count()
 								== static_cast<std::size_t>(
 									window.files_drawer()->contents()->rowCount())
-							&& overview->entry_button()->isEnabled();
+							&& overview->entry_path().has_value();
 						if (overview != nullptr) {
-							overview->entry_button()->click();
+							// [[BPR-1588]]. Start review is gone; ⌘2 is its entry.
+							window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
 						}
 						QApplication::processEvents();
 						aRun->OverviewReturned = !window.showing_overview()
@@ -8013,13 +8015,14 @@ namespace {
 						|| overview->projection()->Entry
 							!= bpr::application::overview_entry_kind::continue_review
 						|| !overview->projection()->EntryPath.has_value()
-						|| !overview->entry_button()->isEnabled()) {
+						|| !overview->entry_path().has_value()) {
 						break;
 					}
 					const auto before = bpr::app::detail::
 						github_application_fixture_access::review_mutation_evidence(
 							aApplication);
-					overview->entry_button()->click();
+					// [[BPR-1588]]. Start review is gone; ⌘2 is its entry.
+					window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
 					QApplication::processEvents();
 					const auto after = bpr::app::detail::
 						github_application_fixture_access::review_mutation_evidence(

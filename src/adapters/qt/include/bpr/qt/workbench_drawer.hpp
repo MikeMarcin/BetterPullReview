@@ -141,6 +141,9 @@ namespace bpr::qt {
 		explicit workbench_drawer_rail(
 			core::workbench_drawer aDrawer,
 			QWidget*               aParent = nullptr);
+		/// \brief [[BPR-1588]]. A rail for a drawer that is not one of the
+		/// core's: the Overview's Status. `aObjectName` names it for courses.
+		workbench_drawer_rail(QString aLabel, const QString& aObjectName, QWidget* aParent = nullptr);
 
 		static constexpr int width_pixels = 18;
 
@@ -156,8 +159,10 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		core::workbench_drawer Drawer;
+		core::workbench_drawer Drawer = core::workbench_drawer::files;
 		QString                Summary;
+		/// [[BPR-1588]]. Set for a drawer that is not one of the core's.
+		QString Label;
 	};
 
 	/// \brief Presents one collapsible, resizable review drawer.

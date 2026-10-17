@@ -11897,10 +11897,10 @@ namespace {
 		auto behaviour = application::workbench_projection{ };
 		window.choose_modality(qt::review_modality::overview);
 		process_events();
-		window.overview_page()->entry_button()->click();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		process_events();
 		expect(window.current_modality() == qt::review_modality::review,
-			   "Continue review enters Review");
+			   "Command-2 from the Overview enters Review");
 
 		const auto openFromHome = [&window, &opened] {
 			const auto before = opened;
@@ -14117,9 +14117,9 @@ namespace {
 		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "one receipt signals one page row and one tree row");
 		expect(treeModel->index_for_file(file).data(qt::files_tree_model::read_role).toInt() == static_cast<int>(core::file_read_state::read),
 			   "the drawer tree presents the committed read state");
-		expect(window.overview_page()->entry_button()->text() == QStringLiteral("Continue review")
+		expect(window.overview_page()->entry_path().has_value()
 				   && window.overview_page()->files_heading()->text().contains(QStringLiteral("514 not read")),
-			   "the progress and the one action follow the receipt");
+			   "the progress and the entry file follow the receipt");
 		window.publish(changed);
 		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "the equivalent complete overview is already presented");
 	}
@@ -14180,14 +14180,6 @@ namespace {
 			   "once decided, Overview shows the page beneath the epoch line in place "
 			   "of the comparison");
 
-		window.choose_modality(qt::review_modality::review);
-		process_events();
-		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
-			   "every other modality shows the comparison");
-		window.choose_modality(qt::review_modality::overview);
-		process_events();
-		expect(window.showing_overview(), "Overview returns to the page");
-
 		// [[BPR-1348]]. The file an Overview gesture selects, provided the
 		// selection follows Review's modality intent: choosing Review
 		// presents its active tab, so a selection sent before it loses.
@@ -14204,27 +14196,31 @@ namespace {
 			}
 			return file;
 		};
+		// [[BPR-1588]]. The owner's decision D1: no Start review. The first
+		// entry into Review from a fresh Overview lands where it did.
+		expect(window.overview_page()->findChild<QPushButton*>(QStringLiteral("overviewEntryButton")) == nullptr,
+			   "the Overview has no Start review button");
 		log.Workbench.clear();
-		window.overview_page()->entry_button()->click();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		process_events();
 		expect(selectedAfterReview() == workbench_file(2U),
-			   "Start review selects the entry file through the core, after entering Review");
-		expect(window.current_modality() == qt::review_modality::review,
-			   "Start review enters Review even while Continue review defaults to Read");
+			   "the first Review (Command-2) from a fresh Overview selects the first unseen change's file, after entering Review");
 		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
-			   "Start review shows the comparison");
+			   "every other modality shows the comparison");
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(window.showing_overview(), "Overview returns to the page");
+		log.Workbench.clear();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		expect(!selectedAfterReview() && window.current_modality() == qt::review_modality::review,
+			   "a later Review keeps the file the reviewer is on");
 
-		overview.Entry = application::overview_entry_kind::continue_review;
+		// Another pull request in the window is fresh again; a picked row wins.
+		overview.Number = core::pull_request_number{ 2U };
 		window.publish(overview);
 		window.choose_modality(qt::review_modality::overview);
-		log.Workbench.clear();
-		window.overview_page()->entry_button()->click();
 		process_events();
-		expect(selectedAfterReview() == workbench_file(2U)
-				   && window.current_modality() == qt::review_modality::review,
-			   "Continue review keeps its intended entry file and enters Review");
-
-		window.choose_modality(qt::review_modality::overview);
 		log.Workbench.clear();
 		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
 		window.overview_page()->files_view()->activated(first);
@@ -14233,7 +14229,7 @@ namespace {
 				   && window.current_modality() == qt::review_modality::review,
 			   "activating a file row enters Review, then selects that file");
 		expect(githubIntents == 0U,
-			   "Start review, Continue review, and file-row navigation publish no GitHub intent");
+			   "Review entry and file-row navigation publish no GitHub intent");
 
 		window.choose_modality(qt::review_modality::overview);
 		window.clear_overview();

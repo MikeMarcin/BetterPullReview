@@ -2236,3 +2236,27 @@ foreach(bpr_disclosure_scale IN ITEMS 100 200)
             TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1587]] [[BPR-1588]]. RFC-BPR-0085's shared drawer parts in the four
+# built-in themes with the principles audit's negative controls, and the
+# Overview's Status drawer: resize bounds, collapse and adopt.
+bpr_add_executable(test_better_pull_review_qt_drawer_parts_tests drawer_parts_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_drawer_parts_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_drawer_parts_tests)
+bpr_enable_warnings(test_better_pull_review_qt_drawer_parts_tests)
+foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_drawer_parts_whole "${bpr_drawer_parts_scale} / 100")
+    math(EXPR bpr_drawer_parts_fraction "${bpr_drawer_parts_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_drawer_parts_scale_${bpr_drawer_parts_scale}
+        COMMAND test_better_pull_review_qt_drawer_parts_tests
+    )
+    set_tests_properties(
+        qt_drawer_parts_scale_${bpr_drawer_parts_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_drawer_parts_whole}.${bpr_drawer_parts_fraction}"
+            PASS_REGULAR_EXPRESSION "drawer-parts-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()

@@ -100,6 +100,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
 			shortcut_entry{ .Command = command::hide_drawers, .Group = views, .Binding = bound, .Title = "Hide or show every drawer", .Keys = "Ctrl+B", .StepsAsideWhileTyping = true, .Objects = "toggleWorkbenchDrawersAction;desktopToggleDrawersAction" },
+			// [[BPR-1588]]. Alt+Shift+1 to 5 are the other drawers and views.
+			shortcut_entry{ .Command = command::status_drawer, .Group = views, .Binding = bound, .Title = "Status drawer", .Place = "On Overview", .Keys = "Alt+Shift+6", .Objects = "toggleOverviewStatusAction" },
 			shortcut_entry{ .Command = command::overview, .Group = views, .Binding = bound, .Title = "Overview", .Keys = "Ctrl+1", .Objects = "reviewModalityOverviewAction" },
 			shortcut_entry{ .Command = command::review, .Group = views, .Binding = bound, .Title = "Review", .Keys = "Ctrl+2", .Objects = "reviewModalityReviewAction" },
 			shortcut_entry{ .Command = command::discuss, .Group = views, .Binding = bound, .Title = "Discuss", .Keys = "Ctrl+3", .Objects = "reviewModalityDiscussAction" },

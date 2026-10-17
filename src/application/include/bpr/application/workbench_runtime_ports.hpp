@@ -754,6 +754,35 @@ namespace bpr::application {
 		return !aHeight || (*aHeight > 0U && *aHeight <= maximum_line_details_height);
 	}
 
+	/// \brief [[BPR-1588]]. The Overview's Status drawer: the narrowest and
+	/// widest it drags to and the width it opens at, in logical pixels
+	/// (RFC-BPR-0085).
+	inline constexpr std::uint32_t minimum_status_drawer_width = 260U;
+	inline constexpr std::uint32_t maximum_status_drawer_width = 560U;
+	inline constexpr std::uint32_t default_status_drawer_width = 340U;
+
+	/// \brief [[BPR-1588]]. This window's Status drawer: its chosen width,
+	/// empty for the default, and whether it is collapsed.
+	///
+	/// \details Like the summary share and Line details height it belongs to
+	/// the window alone and travels the window's layout path. It is not one of
+	/// the core's drawers: the Overview keeps those collapsed ([[BPR-0727]]),
+	/// while Status is the Overview's own column.
+	struct workbench_status_drawer
+	{
+		std::optional<std::uint32_t> Width = { };
+		core::workbench_drawer_state State = core::workbench_drawer_state::expanded;
+
+		auto operator<=>(const workbench_status_drawer&) const = default;
+	};
+
+	/// \brief An empty width (the default) or one within the bounds, and a known state.
+	[[nodiscard]] constexpr auto valid(const workbench_status_drawer& aDrawer) noexcept -> bool
+	{
+		return (!aDrawer.Width || (*aDrawer.Width >= minimum_status_drawer_width && *aDrawer.Width <= maximum_status_drawer_width))
+			&& (aDrawer.State == core::workbench_drawer_state::expanded || aDrawer.State == core::workbench_drawer_state::collapsed);
+	}
+
 	/// \brief Describes the workbench layout settings record.
 	///
 	/// \details This is the whole durable workbench layout: the semantic drawer
@@ -791,6 +820,8 @@ namespace bpr::application {
 		/// [[BPR-1334]]. This window's preferred Line details height in
 		/// logical pixels; empty is the default height.
 		std::optional<std::uint32_t> LineDetailsHeight = { };
+		/// [[BPR-1588]]. This window's Status drawer on the Overview.
+		workbench_status_drawer StatusDrawer = { };
 		/// [[BPR-1375]]. The profile's Claude model, carried here only
 		/// because this record is what the store writes.
 		std::string ClaudeModel = { };
@@ -814,8 +845,10 @@ namespace bpr::application {
 		core::workbench_updates_line UpdatesLine     = core::workbench_updates_line::folded;
 		std::optional<std::uint32_t> SummaryFraction = { };
 		/// [[BPR-1334]].
-		std::optional<std::uint32_t> LineDetailsHeight                                 = { };
-		auto                         operator<=>(const workbench_window_layout&) const = default;
+		std::optional<std::uint32_t> LineDetailsHeight = { };
+		/// [[BPR-1588]].
+		workbench_status_drawer StatusDrawer                                      = { };
+		auto                    operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
 	{
@@ -836,7 +869,7 @@ namespace bpr::application {
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
 				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry,
-				 aSettings.UpdatesLine, aSettings.SummaryFraction, aSettings.LineDetailsHeight };
+				 aSettings.UpdatesLine, aSettings.SummaryFraction, aSettings.LineDetailsHeight, aSettings.StatusDrawer };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
@@ -846,6 +879,7 @@ namespace bpr::application {
 															  aLayout.UpdatesLine };
 		result.SummaryFraction   = aLayout.SummaryFraction;
 		result.LineDetailsHeight = aLayout.LineDetailsHeight;
+		result.StatusDrawer      = aLayout.StatusDrawer;
 		return result;
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
@@ -858,7 +892,7 @@ namespace bpr::application {
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
 			&& valid(aLayout.Home) && valid(aLayout.Geometry)
 			&& (!aLayout.SummaryFraction || (*aLayout.SummaryFraction > 0 && *aLayout.SummaryFraction < 10000))
-			&& valid_line_details_height(aLayout.LineDetailsHeight)
+			&& valid_line_details_height(aLayout.LineDetailsHeight) && valid(aLayout.StatusDrawer)
 			&& (aLayout.UpdatesLine == core::workbench_updates_line::folded || aLayout.UpdatesLine == core::workbench_updates_line::open);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
@@ -866,7 +900,8 @@ namespace bpr::application {
 		return core::valid(aPreferences.WritingHooks) && core::storable_agent_wrapper(aPreferences.ClaudeWrapper) && core::storable_claude_model(aPreferences.ClaudeModel) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
 		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded
-			&& !aPreferences.NewWindowDefaults.SummaryFraction && !aPreferences.NewWindowDefaults.LineDetailsHeight;
+			&& !aPreferences.NewWindowDefaults.SummaryFraction && !aPreferences.NewWindowDefaults.LineDetailsHeight
+			&& aPreferences.NewWindowDefaults.StatusDrawer == workbench_status_drawer{ };
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -955,6 +990,9 @@ namespace bpr::application {
 		std::optional<std::optional<std::uint32_t>> SummaryFraction = { };
 		/// [[BPR-1334]]. The same for the window's Line details height.
 		std::optional<std::optional<std::uint32_t>> LineDetailsHeight = { };
+		/// [[BPR-1588]]. The window's Status drawer, absent until the window
+		/// layout is loaded.
+		std::optional<workbench_status_drawer> StatusDrawer = { };
 
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};

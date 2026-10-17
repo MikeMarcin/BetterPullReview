@@ -956,6 +956,8 @@ namespace bpr::qt {
 			-> QToolButton*;
 		[[nodiscard]] auto review_controls_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto menu_bar() const noexcept -> QMenuBar*;
+		/// \brief [[BPR-1588]]. Collapses or expands the Overview's Status drawer.
+		[[nodiscard]] auto toggle_status_drawer_action() const noexcept -> QAction*;
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		/// [[BPR-1334]]. View > Line Details.
@@ -1642,10 +1644,8 @@ namespace bpr::qt {
 		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
-		/// \brief Selects the overview entry file and enters its semantic modality.
-		void enter_overview_at(
-			application::overview_entry_kind aEntry,
-			const QString&                   aPath);
+		/// \brief [[BPR-1588]]. The pull request the Overview shows, as owner/name#number.
+		[[nodiscard]] auto overview_review_key() const -> QString;
 		/// \brief Selects a file-row or thread path and enters Review.
 		void enter_review_at(const QString& aPath);
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
@@ -2435,10 +2435,14 @@ namespace bpr::qt {
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
 		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;
 		std::optional<core::markdown_context>                                                   PageContext;
-		QAction*                                                                                OpenOnGithubAction       = nullptr;
-		QToolButton*                                                                            OpenOnGithubButton       = nullptr;
-		QAction*                                                                                OpenOnGithubButtonAction = nullptr;
-		QMenu*                                                                                  HomeRowMenu              = nullptr;
+		QAction*                                                                                OpenOnGithubAction = nullptr;
+		/// [[BPR-1588]]. The Overview's Status drawer toggle (Alt+Shift+6).
+		QAction* ToggleStatusDrawerAction = nullptr;
+		/// [[BPR-1588]]. The pull request this window last entered Review for.
+		QString      ReviewEnteredFor;
+		QToolButton* OpenOnGithubButton       = nullptr;
+		QAction*     OpenOnGithubButtonAction = nullptr;
+		QMenu*       HomeRowMenu              = nullptr;
 		/// [[BPR-1342]]. Open Review and Open Review in New Window, in Home's row menu.
 		QAction*                                                      HomeOpenReviewAction       = nullptr;
 		QAction*                                                      HomeOpenReviewWindowAction = nullptr;
