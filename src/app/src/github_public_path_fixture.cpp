@@ -1856,6 +1856,7 @@ namespace bpr::app::detail {
 			bool        MergeBaseRace          = false;
 			bool        MergeBaseUnauthorized  = false;
 			bool        StackedBaseRewritten   = false;
+			bool        StackedBaseReset       = false;
 			// The pull request each snapshot read was served, by its parent,
 			// until that read asks for it again to confirm its merge base.
 			std::vector<std::pair<adapters::github::detail::github_wire_parent_context, wire_response>> ServedPullRequests;
@@ -2761,10 +2762,12 @@ namespace bpr::app::detail {
 						State->RecordingFailure = -5;
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
-					if (State->MergeBaseRace) {
+					if (State->MergeBaseRace || State->StackedBaseReset) {
 						auto object = QJsonDocument::fromJson(QByteArray::fromStdString(again.Body)).object();
 						auto base   = object.value(QStringLiteral("base")).toObject();
-						base.insert(QStringLiteral("sha"), QStringLiteral("abababababababababababababababababababab"));
+						// [[BPR-1572]]. The reset names the branch's tip.
+						base.insert(QStringLiteral("sha"), State->StackedBaseReset ? QString::fromUtf8(State->Descriptor.BranchTipOid.data(), static_cast<qsizetype>(State->Descriptor.BranchTipOid.size()))
+																				   : QStringLiteral("abababababababababababababababababababab"));
 						object.insert(QStringLiteral("base"), base);
 						again.Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 					}
@@ -4866,6 +4869,7 @@ namespace bpr::app::detail {
 			Recording->MergeBaseUnavailable    = aOptions.MergeBaseUnavailable;
 			Recording->MergeBaseRace           = aOptions.MergeBaseRace;
 			Recording->StackedBaseRewritten    = aOptions.StackedBaseRewritten;
+			Recording->StackedBaseReset        = aOptions.StackedBaseReset;
 			Recording->MergeBaseUnauthorized   = aOptions.MergeBaseUnauthorized;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);

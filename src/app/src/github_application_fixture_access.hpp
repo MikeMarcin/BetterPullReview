@@ -295,6 +295,11 @@ namespace bpr::app::detail {
 		/// recorded base is not an ancestor of the base branch's tip: the
 		/// branch was rewritten, so GitHub is replacing the recorded base.
 		bool StackedBaseRewritten           = false;
+		/// [[BPR-1572]]. On a stacked fixture, GitHub replaces the recorded
+		/// base with the base branch's tip (a descendant of it) between the
+		/// snapshot and the read that confirms it: the window after the base
+		/// branch is force-pushed, before the snapshot shows the new base.
+		bool StackedBaseReset               = false;
 		bool EmptyHistoricalTimeline        = false;
 		bool UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file

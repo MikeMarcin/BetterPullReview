@@ -87,7 +87,8 @@ namespace {
 	};
 
 	auto start(course& aCourse, const bool aMergeBaseUnavailable, const bool aMergeBaseRace = false, const bool aUnauthorized = false,
-			   const app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::merge_base_v1, const bool aStackedRewritten = false)
+			   const app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::merge_base_v1, const bool aStackedRewritten = false,
+			   const bool aStackedReset = false)
 		-> qt::workbench_window&
 	{
 		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
@@ -98,6 +99,7 @@ namespace {
 		options.MergeBaseRace         = aMergeBaseRace;
 		options.MergeBaseUnauthorized = aUnauthorized;
 		options.StackedBaseRewritten  = aStackedRewritten;
+		options.StackedBaseReset      = aStackedReset;
 		auto terminal                 = false;
 		auto startup                  = access::start(aFixture, options, [&](auto aResult) {
 			terminal = true;
@@ -199,10 +201,15 @@ namespace {
 	/// recorded base is not an ancestor of its tip): GitHub is replacing the
 	/// recorded base, so Whole PR says GitHub's answers disagree and compares
 	/// nothing from the recorded base.
-	void stacked_rewritten_base_says_answers_disagree()
+	/// [[BPR-1572]]. `aReset`: the base branch only moved forward, every compare
+	/// agrees with the recorded base, but GitHub replaces the recorded base
+	/// with the branch's tip before the confirming read (the window after the
+	/// branch is force-pushed onto a descendant): the merge base is refused, not
+	/// taken for the old recorded base.
+	void stacked_rewritten_base_says_answers_disagree(const bool aReset = false)
 	{
 		auto  run    = course{ };
-		auto& window = start(run, false, false, false, app::detail::github_public_path_fixture::stacked_merge_base_v1, true);
+		auto& window = start(run, false, false, false, app::detail::github_public_path_fixture::stacked_merge_base_v1, !aReset, aReset);
 		wait_for([&] { return window.epoch_selectors()->status_text().contains(QStringLiteral("GitHub's answers about where this pull request branched disagree")); },
 				 "Whole PR says GitHub's answers disagree");
 		select(window, "x.txt");
@@ -215,9 +222,9 @@ namespace {
 			expect(!context || context->Key.LeftAnchor.Kind != core::comparison_anchor_kind::epoch_base || !window.comparison_surface()->current_result(),
 				   "nothing is compared from the recorded base");
 		}
-		std::cout << "stacked rewritten status=" << window.epoch_selectors()->status_text().toStdString() << '\n';
-		expect(access::evidence(*run.Application).MergeBaseReads >= 3U && access::evidence(*run.Application).MergeBaseConfirmations == 0U,
-			   "the recorded base, the base branch and the ancestry were asked; nothing was confirmed");
+		std::cout << (aReset ? "stacked reset" : "stacked rewritten") << " status=" << window.epoch_selectors()->status_text().toStdString() << '\n';
+		expect(access::evidence(*run.Application).MergeBaseReads >= 3U && access::evidence(*run.Application).MergeBaseConfirmations == (aReset ? 1U : 0U),
+			   "the recorded base, the base branch and the ancestry were asked; only the reset course reaches the confirming read");
 		finish(run);
 	}
 
@@ -276,6 +283,7 @@ int main(int aArgc, char** aArgv)
 	whole_pr_is_githubs_files_changed();
 	whole_pr_is_githubs_files_changed(true);
 	stacked_rewritten_base_says_answers_disagree();
+	stacked_rewritten_base_says_answers_disagree(true);
 	whole_pr_without_a_merge_base_says_so(false);
 	whole_pr_without_a_merge_base_says_so(true);
 	lost_authentication_fails_the_read();
