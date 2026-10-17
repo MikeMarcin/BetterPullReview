@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1582"
 title: "Threads rows select on a click, open on a double click, and offer Review, Discuss and Mark read"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
