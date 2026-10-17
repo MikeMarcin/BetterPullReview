@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1587"
 title: "Shared drawer parts: header, card, ownership marks and empty state"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: []
 priority: "P2"
