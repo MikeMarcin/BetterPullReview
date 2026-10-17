@@ -26557,7 +26557,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			"next_file_rect_in_bar",
 			rectangle_json(requiredPresenters[2]->geometry()),
 			"private_progress_rect_in_bar",
-			rectangle_json(reviewControls->geometry()),
+			// [[BPR-1578]]. Private progress is the progress track's last cell,
+			// so its rectangle is mapped from the track into the bar.
+			rectangle_json(QRect{ reviewControls->mapTo(reviewBar, QPoint{ }), reviewControls->size() }),
 			"compose_review_rect_in_bar",
 			rectangle_json(reviewBar->actionGeometry(window->compose_review_action())),
 			"comment_rect_in_bar",
