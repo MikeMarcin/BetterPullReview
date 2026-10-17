@@ -41,7 +41,11 @@ themes, rendering mechanics, and event translation.
 - Keep connection, locator, pull-request, and conversation hierarchy compact
   and responsive. Secondary capability, rate-limit, and exact-identity facts
   belong behind disclosures rather than competing with the primary review
-  content.
+  content. A chevron disclosure is a `disclosure_button`, which paints its
+  bar, title and chevron from the palette's raised surface and text roles. A
+  plain `QToolButton` with an arrow is drawn by the platform style, which on
+  macOS is a native bezel in the system appearance's grey under the
+  profile's text (BPR-1579).
 - Preserve local expansion and selection across incremental accepted
   refreshes whenever the semantic identity still exists.
 - Custom delegates must retain native selection and focus painting, wrap

@@ -2447,6 +2447,8 @@ bpr_bound_automated_run(
 )
 
 # [[BPR-1212]]. The keyboard line cursor and Return in the composed application.
+# [[BPR-1570]]. Three runs: plain, the first answer cancelled, and a kept answer
+# about another question after the course's refresh.
 bpr_add_network_isolated_test(
     NAME application_line_draft_contract
     WINDOWS_UNCONTAINED
@@ -2465,9 +2467,9 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_line_draft_contract
-    TIMEOUT 120
+    TIMEOUT 180
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 1
+    RUNS 3
     RESERVE_MS 4000
 )
 

@@ -1,4 +1,5 @@
 #include "bpr/qt/diagnostic_settings_panel.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QGroupBox>
@@ -56,18 +57,15 @@ namespace bpr::qt {
 		row(QStringLiteral("Diagnostic detail"), QStringLiteral("Choose how much diagnostic detail is saved locally."), selector(QStringLiteral("diagnosticDetail"), { QStringLiteral("Standard"), QStringLiteral("Verbose") }, Detail));
 		row(QStringLiteral("Identifying details"), QStringLiteral("Choose whether new records keep identifiers. Existing logs are unchanged."), selector(QStringLiteral("diagnosticPrivacy"), { QStringLiteral("Anonymized"), QStringLiteral("Include locally") }, Privacy));
 		layout->addWidget(group);
-		auto* more = new QToolButton{ this };
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		auto* more = new disclosure_button{ this };
 		more->setText(QStringLiteral("About local diagnostics"));
-		more->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		more->setArrowType(Qt::RightArrow);
-		more->setCheckable(true);
-		more->setAutoRaise(true);
 		layout->addWidget(more);
 		auto* context = new QLabel{ QStringLiteral("Credentials and review content are never recorded. Anonymized replaces identifiers with session labels; sanitized explanations can still reveal context. Standard keeps recent sanitized detail for up to 3 minutes (512 events / 2 MiB), included in exports only when selected. Off, privacy changes, Clear and Sign out discard this context. Off keeps older files."), this };
 		context->setWordWrap(true);
 		context->hide();
 		layout->addWidget(context);
-		connect(more, &QToolButton::toggled, context, [more, context](bool aExpanded) { more->setArrowType(aExpanded ? Qt::DownArrow : Qt::RightArrow); context->setVisible(aExpanded); });
+		connect(more, &QToolButton::toggled, context, [context](bool aExpanded) { context->setVisible(aExpanded); });
 		Open = new QPushButton{ QStringLiteral("Open logs folder"), this };
 		Open->setObjectName(QStringLiteral("diagnosticOpen"));
 		Clear = new QPushButton{ QStringLiteral("Clear local diagnostics…"), this };
