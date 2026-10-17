@@ -99,3 +99,42 @@ Gates: clang-format 22.1.8 dry run over the six C++ files and clang-tidy
 `DOCUMENTATION_OK` and 67 documentation tests pass. The full dev `ctest` has
 not run: the shared disk filled during the full build, so the dev tree was
 removed for the freeze. It runs once on the merged tree at integration.
+
+## Owner decision on v001, 2026-10-17
+
+**Reject**, 2026-10-17T15:26:11Z: "I think we can do better, feel free to try
+some redesigns of this element." (decision
+`b607aea4-cbe4-4969-8b09-f1b7a6544f95`, superseding the earlier note "I think
+we can do better." `c6744efd…`), session
+`0466d1f8235d8b124c055885370d2ea1`, candidate `BPR-1578-accept-group-v001`,
+fingerprint `d05d4488…`; handed back at event 7. Event cursor consumed: 7.
+AC1–AC3 evidence stands for v001's code but the design is not accepted.
+
+Next (v002): two or three genuinely different directions for the third group,
+rendered in the real bar in Light and Dark (unaccepted, accepted/Revoke,
+disabled), offered as one choice in a fresh short session; the chosen one is
+then built as v002 for a final Accept or Reject. Frames are faint in Dark, so
+each direction must read as a control there without relying on them.
+
+## v002 directions, 2026-10-17
+
+Loaded `frontend-design:frontend-design` again. Three directions for the
+third group, each one group on one rail, painted as prototypes into the real
+bar by the render-only `--review-bar-directions` mode (`bb4f84cfb`), in Light
+and Dark with a seen, an accepted, an excluded and an absent file:
+
+- **A. Caption and action**: `◐ Seen  [✓ Accept] [▾]`. The state is the
+  group's caption, as "File 3 of 40" is File's; accepted reads
+  `● Accepted  [Revoke] [▾]`.
+- **B. Split button**: `[✓ Accept | ◐ ▾]`, Accept the accent-filled half until
+  the file is accepted, then `[Revoke acceptance | ● ▾]` unfilled. The only
+  one that does not depend on Dark's faint frames.
+- **C. Progress track**: `[◐ Seen | ○ Read | ✓ Accept] [▾]`, reached steps
+  marked, the current one tinted, Accept the last step; the widest.
+
+Offered as one choice in the fresh session
+`9aa0f416eba08632f0d5ca48bc4d5ff0`, candidate
+`BPR-1578-progress-group-direction-v002`, fingerprint `c62c1f68…`, ready
+at cursor 3. v001's server was stopped, its protection released (event 8)
+and its frozen root removed. The chosen direction is built next as v002 for
+a final Accept or Reject.
