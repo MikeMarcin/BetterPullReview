@@ -6854,7 +6854,7 @@ namespace bpr::qt {
 		// review gone, the first entry into Review from the Overview of a pull
 		// request this window has not reviewed yet lands where the button did,
 		// at the first unseen change's file. Later entries keep the file.
-		const auto reviewKey   = overview_review_key();
+		const auto reviewKey = overview_review_key();
 		// Only the reviewer's own choice (Command-2 or the Review segment); a
 		// link, Resume or a tour enters with its own target.
 		const auto firstReview = aModality == review_modality::review && aEntry == core::workbench_modality_entry::choose && Modality != nullptr
