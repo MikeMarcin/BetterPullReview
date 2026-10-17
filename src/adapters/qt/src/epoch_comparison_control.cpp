@@ -1,5 +1,6 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
 
 #include <QAccessible>
@@ -208,12 +209,12 @@ namespace bpr::qt {
 		}
 
 		void configure_action(
-			QAction* const      aAction,
-			const QString&      aObjectName,
-			const QKeySequence& aShortcut)
+			QAction* const         aAction,
+			const QString&         aObjectName,
+			const shortcut_command aShortcut)
 		{
 			aAction->setObjectName(aObjectName);
-			aAction->setShortcut(aShortcut);
+			aAction->setShortcuts(shortcut_keys(aShortcut));
 			aAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 		}
 
@@ -281,17 +282,17 @@ namespace bpr::qt {
 		WholePrAction = new QAction{ QStringLiteral("&Whole PR"), this };
 		configure_action(WholePrAction,
 						 QStringLiteral("wholePrComparisonAction"),
-						 QKeySequence{ QStringLiteral("Alt+1") });
+						 shortcut_command::whole_pr);
 		WholePrAction->setCheckable(true);
 		PreviousUploadAction = new QAction{ QStringLiteral("Previous &upload → latest"), this };
 		configure_action(PreviousUploadAction,
 						 QStringLiteral("previousUploadComparisonAction"),
-						 QKeySequence{ QStringLiteral("Alt+2") });
+						 shortcut_command::previous_upload);
 		PreviousUploadAction->setCheckable(true);
 		LastReviewedAction = new QAction{ QStringLiteral("My last &reviewed → latest"), this };
 		configure_action(LastReviewedAction,
 						 QStringLiteral("lastReviewedComparisonAction"),
-						 QKeySequence{ QStringLiteral("Alt+3") });
+						 shortcut_command::last_reviewed);
 		LastReviewedAction->setCheckable(true);
 		auto* const aliases = new QActionGroup{ this };
 		aliases->setExclusive(true);
@@ -307,31 +308,31 @@ namespace bpr::qt {
 		LoadHistoryAction = new QAction{ QStringLiteral("Load &earlier epochs"), this };
 		configure_action(LoadHistoryAction,
 						 QStringLiteral("loadEpochHistoryAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+PgDown") });
+						 shortcut_command::load_earlier);
 		ReturnNewestAction = new QAction{ QStringLiteral("Return to &newest epochs"), this };
 		configure_action(ReturnNewestAction,
 						 QStringLiteral("returnToNewestEpochsAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+PgUp") });
+						 shortcut_command::return_newest);
 		RefreshAction = new QAction{ QStringLiteral("Refresh review &history"), this };
 		configure_action(RefreshAction,
 						 QStringLiteral("refreshEpochsAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+R") });
+						 shortcut_command::refresh_history);
 		CancelAction = new QAction{ QStringLiteral("&Cancel history refresh"), this };
 		configure_action(CancelAction,
 						 QStringLiteral("cancelEpochRefreshAction"),
-						 QKeySequence{ QStringLiteral("Escape") });
+						 shortcut_command::cancel_refresh);
 		PruneAction = new QAction{ QStringLiteral("&Prune selected epochs"), this };
 		configure_action(PruneAction,
 						 QStringLiteral("pruneSelectedEpochsAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+P") });
+						 shortcut_command::prune_epochs);
 		DeleteCacheAction = new QAction{ QStringLiteral("Delete repository &cache"), this };
 		configure_action(DeleteCacheAction,
 						 QStringLiteral("deleteRepositoryCacheAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+D") });
+						 shortcut_command::delete_cache);
 		CancelMaintenanceAction = new QAction{ QStringLiteral("Cancel history &maintenance"), this };
 		configure_action(CancelMaintenanceAction,
 						 QStringLiteral("cancelEpochMaintenanceAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+Escape") });
+						 shortcut_command::cancel_maintenance);
 		addAction(LoadHistoryAction);
 		addAction(ReturnNewestAction);
 		addAction(RefreshAction);

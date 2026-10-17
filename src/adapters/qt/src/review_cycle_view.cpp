@@ -4,6 +4,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -254,12 +255,7 @@ namespace bpr::qt {
 		/// only labels menus.
 		auto note_key(const bool aShift) -> QKeySequence
 		{
-#if defined(Q_OS_MACOS)
-			const auto key = Qt::Key_Return;
-#else
-			const auto key = Qt::Key_Enter;
-#endif
-			return aShift ? QKeySequence{ Qt::SHIFT | key } : QKeySequence{ key };
+			return shortcut_key(aShift ? shortcut_command::cycle_suggest : shortcut_command::cycle_note);
 		}
 
 		/// The same key in words, for a tooltip or an accessible description.
@@ -289,11 +285,7 @@ namespace bpr::qt {
 		/// Copy, so it never cancels there.
 		auto composer_cancel_keys() -> QList<QKeySequence>
 		{
-#if defined(Q_OS_MACOS)
-			return { QKeySequence{ Qt::Key_Escape }, QKeySequence{ Qt::META | Qt::Key_C } };
-#else
-			return { QKeySequence{ Qt::Key_Escape } };
-#endif
+			return shortcut_keys(shortcut_command::cycle_cancel);
 		}
 
 		/// The same keys in words, for tooltips and accessible descriptions.
@@ -315,7 +307,7 @@ namespace bpr::qt {
 		/// caret's line in the read-only code.
 		auto composer_save_keys() -> QList<QKeySequence>
 		{
-			return { QKeySequence{ Qt::CTRL | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::Key_Enter } };
+			return shortcut_keys(shortcut_command::cycle_save);
 		}
 
 		/// The save key as the platform writes it: ⌘↩ on macOS, Ctrl+Enter elsewhere.

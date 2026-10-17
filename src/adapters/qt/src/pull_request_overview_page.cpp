@@ -5,6 +5,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/steady_columns.hpp"
 #include "overview_summary_splitter.hpp"
@@ -2352,7 +2353,7 @@ namespace bpr::qt {
 		SummarySplit->NaturalHeight  = [this] { return std::max(Body->natural_height(), FullView->sizeHint().height() + Body->chrome_height()); };
 		SummarySplit->SummaryMinimum = [this] { return std::max(3 * Body->line_height(), FullView->sizeHint().height()) + Body->chrome_height(); };
 		SummarySplit->FilesMinimum   = [this] { return FilesHeading->sizeHint().height() + 4 + Files->header()->sizeHint().height() + 3 * std::max(Files->fontMetrics().height() + 8, Files->sizeHintForRow(0)); };
-		auto* escape                 = new QShortcut{ QKeySequence{ Qt::Key_Escape }, this };
+		auto* escape                 = new QShortcut{ shortcut_key(shortcut_command::fold_description), this };
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
 		escape->setEnabled(false);
 		connect(escape, &QShortcut::activated, this, [this] { set_description_expanded(false); });
@@ -2431,11 +2432,11 @@ namespace bpr::qt {
 		anchor_tooltips(*Uncertain);
 		connect(Uncertain, &QToolButton::clicked, this, [this] { drill(application::overview_feedback_row_kind::pull_request, { }, { .Kind = core::feedback_count_kind::uncertain }); });
 		LabelKey = folderButton(QStringLiteral("Label key"), QStringLiteral("overviewLabelKey"));
-		LabelKey->setToolTip(QStringLiteral("Label key (%1)").arg(QKeySequence{ Qt::ALT | Qt::Key_K }.toString(QKeySequence::NativeText)));
+		LabelKey->setToolTip(QStringLiteral("Label key (%1)").arg(shortcut_key(shortcut_command::label_key).toString(QKeySequence::NativeText)));
 		LabelKey->setAccessibleDescription(QStringLiteral("Lists every label mark with its name, and the state marks"));
 		anchor_tooltips(*LabelKey);
 		connect(LabelKey, &QToolButton::clicked, this, [this] { show_label_key(); });
-		auto* const keyShortcut = new QShortcut{ QKeySequence{ Qt::ALT | Qt::Key_K }, this };
+		auto* const keyShortcut = new QShortcut{ shortcut_key(shortcut_command::label_key), this };
 		keyShortcut->setContext(Qt::WidgetWithChildrenShortcut);
 		keyShortcut->setObjectName(QStringLiteral("overviewLabelKeyShortcut"));
 		connect(keyShortcut, &QShortcut::activated, this, [this] {

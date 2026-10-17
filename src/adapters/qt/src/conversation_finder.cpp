@@ -4,6 +4,7 @@
 #include "bpr/core/feedback_conversation.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -1928,18 +1929,18 @@ namespace bpr::qt {
 		menu->setAccessibleName(QStringLiteral("Thread row"));
 		menu->setToolTipsVisible(true);
 		QObject::connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
-		const auto makeItem = [menu](const QString& aText, const QString& aName, const QKeySequence& aKey, const QString& aTip) {
+		const auto makeItem = [menu](const QString& aText, const QString& aName, const shortcut_command aKey, const QString& aTip) {
 			auto* const action = menu->addAction(aText);
 			action->setObjectName(aName);
-			action->setShortcut(aKey);
+			action->setShortcuts(shortcut_keys(aKey));
 			action->setShortcutContext(Qt::WidgetShortcut);
 			action->setShortcutVisibleInContextMenu(true);
 			action->setStatusTip(aTip);
 			return action;
 		};
-		OpenReview  = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), QKeySequence{ Qt::Key_Return },
+		OpenReview  = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), shortcut_command::thread_open_review,
 							   QStringLiteral("Read this thread beside its code"));
-		OpenDiscuss = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), QKeySequence{ Qt::SHIFT | Qt::Key_Return },
+		OpenDiscuss = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), shortcut_command::thread_open_discuss,
 							   QStringLiteral("Read this thread with the rest of the pull request's conversation"));
 		menu->setDefaultAction(OpenReview);
 		// My draft is written beside its line; Discuss does not list it.
