@@ -8613,6 +8613,12 @@ namespace {
 		caption_and_action,
 		split_button,
 		progress_track,
+		/// Round 2 ([[BPR-1578]], the owner: "I like progress the best but I'm
+		/// not in love with any of them").
+		progress_track_refined,
+		stepper,
+		meter_chip,
+		accept_only,
 	};
 
 	enum class progress_case : std::uint8_t {
@@ -8769,6 +8775,14 @@ namespace {
 				return split_button(aPainter);
 			case progress_direction::progress_track:
 				return progress_track(aPainter);
+			case progress_direction::progress_track_refined:
+				return progress_track_refined(aPainter);
+			case progress_direction::stepper:
+				return stepper(aPainter);
+			case progress_direction::meter_chip:
+				return meter_chip(aPainter);
+			case progress_direction::accept_only:
+				return accept_only(aPainter);
 			}
 			return 0;
 		}
@@ -8901,6 +8915,248 @@ namespace {
 			return static_cast<int>(std::ceil(menu.right()));
 		}
 
+		[[nodiscard]] auto accent() const -> QColor
+		{
+			return palette().color(QPalette::Active, QPalette::Highlight);
+		}
+
+		[[nodiscard]] auto on_accent() const -> QColor
+		{
+			return palette().color(QPalette::Active, QPalette::HighlightedText);
+		}
+
+		/// Legible text on a solid fill: the window's dark or light, whichever
+		/// contrasts with it.
+		[[nodiscard]] static auto ink_on(const QColor& aFill) -> QColor
+		{
+			const auto luminance = (0.2126 * aFill.redF()) + (0.7152 * aFill.greenF()) + (0.0722 * aFill.blueF());
+			return luminance > 0.55 ? QColor{ 0x1F, 0x23, 0x28 } : QColor{ Qt::white };
+		}
+
+		void pill(QPainter* const aPainter, const QRectF& aBox, const QColor& aFill, const QColor& aBorder) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(aBorder.alpha() == 0 ? QPen{ Qt::NoPen } : QPen{ aBorder, 1.0 });
+			aPainter->setBrush(aFill);
+			const auto box = aBox.adjusted(0.5, 0.5, -0.5, -0.5);
+			aPainter->drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+		}
+
+		void ring(QPainter* const aPainter, const QPointF aCentre, const qreal aRadius, const QColor& aColour) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(QPen{ aColour, 1.6 });
+			aPainter->setBrush(Qt::NoBrush);
+			aPainter->drawEllipse(aCentre, aRadius, aRadius);
+		}
+
+		/// C2. The progress track again: steps still to come in full ink, the
+		/// current step solid in the accent, Accept in the accent while it is
+		/// to do and solid green once taken; the menu's chevron is the track's
+		/// last cell.
+		[[nodiscard]] auto progress_track_refined(QPainter* const aPainter) const -> int
+		{
+			constexpr qreal step     = 6.0;
+			constexpr qreal gap      = 3.0;
+			const auto      accepted = Case == progress_case::accepted;
+			const auto      live     = Case == progress_case::seen || accepted;
+			const auto      words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Read"), accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept") };
+			const auto      reached  = Case == progress_case::seen ? 0 : accepted ? 2
+																				  : -1;
+			auto            widths   = std::array<qreal, 3>{ };
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				widths[index] = step + glyph + gap + text_width(words[index]) + step;
+			}
+			const auto tail  = Case == progress_case::excluded ? glyph + 8.0 : 18.0;
+			const auto whole = QRectF{ 0.5, top(), widths[0] + widths[1] + widths[2] + tail, frame_height };
+			frame(aPainter, whole, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			auto x = whole.left();
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				const auto segment = QRectF{ x, whole.top(), widths[index], whole.height() };
+				const auto current = live && static_cast<int>(index) == reached;
+				const auto done    = live && static_cast<int>(index) < reached;
+				const auto taken   = current && index == 2U;
+				const auto fill    = taken ? Colours.Accepted : accent();
+				if (aPainter != nullptr && current) {
+					aPainter->save();
+					aPainter->setClipRect(segment.adjusted(index == 0U ? -1.0 : 0.0, 0.0, 0.0, 0.0));
+					frame(aPainter, whole, fill, fill);
+					aPainter->restore();
+				}
+				if (aPainter != nullptr && index > 0U && !current && static_cast<int>(index) - 1 != reached) {
+					aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+					aPainter->drawLine(QPointF{ x + 0.5, whole.top() + 4.0 }, QPointF{ x + 0.5, whole.bottom() - 4.0 });
+				}
+				const auto marks  = std::array{ mark::seen, mark::read, mark::accepted };
+				const auto onFill = current ? ink_on(fill) : ink();
+				const auto box    = QRectF{ x + step, top() + 3.0, glyph, glyph };
+				if (!live) {
+					if (index == 2U) {
+						tick(aPainter, box.left(), dim());
+					} else {
+						ring(aPainter, box.center(), 6.0, dim());
+					}
+				} else if (current) {
+					if (aPainter != nullptr) {
+						// The mark on the solid step, in that step's own ink.
+						qt::paint_progress_mark(*aPainter, box, marks[index], qt::monochrome_progress_mark_colours(onFill));
+					}
+				} else if (done) {
+					progress(aPainter, box.left(), marks[index], true);
+				} else if (index == 2U) {
+					// The step still to take previews its outcome: the
+					// acceptance green's tick, beside the word in full ink.
+					tick(aPainter, box.left(), Colours.Accepted);
+				} else {
+					ring(aPainter, box.center(), 6.0, ink());
+				}
+				const auto wordInk = !live ? dim() : current ? onFill
+															 : ink();
+				text(aPainter, x + step + glyph + gap, words[index], wordInk);
+				x += widths[index];
+			}
+			if (aPainter != nullptr) {
+				aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				aPainter->drawLine(QPointF{ x + 0.5, whole.top() + 4.0 }, QPointF{ x + 0.5, whole.bottom() - 4.0 });
+			}
+			if (Case == progress_case::excluded && aPainter != nullptr) {
+				// Excluded: the track rests, and its last cell carries the mark.
+				qt::paint_progress_mark(*aPainter, QRectF{ x + 4.0, top() + 3.0, glyph, glyph }, mark::excluded, Colours);
+			} else {
+				chevron(aPainter, x + (tail / 2.0), Case == progress_case::no_file ? dim() : ink());
+			}
+			return static_cast<int>(std::ceil(whole.right()));
+		}
+
+		/// D. A stepper: Seen and Read as dots joined by short lines, ending in
+		/// the Accept pill, which becomes a solid green "Accepted" check.
+		[[nodiscard]] auto stepper(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto mid      = top() + (frame_height / 2.0);
+			auto       x        = 3.0;
+			const auto dot      = [&](const bool aReached, const QColor& aColour) {
+				const auto centre = QPointF{ x + 6.0, mid };
+				if (aPainter != nullptr) {
+					if (!live) {
+						ring(aPainter, centre, 5.0, dim());
+					} else if (aReached) {
+						aPainter->setPen(Qt::NoPen);
+						aPainter->setBrush(aColour);
+						aPainter->drawEllipse(centre, 6.0, 6.0);
+					} else {
+						ring(aPainter, centre, 5.0, ink());
+					}
+				}
+				x += 12.0;
+			};
+			const auto joint = [&](const bool aReached) {
+				if (aPainter != nullptr) {
+					aPainter->setPen(QPen{ live && aReached ? ink() : palette().color(QPalette::Active, QPalette::Mid), 2.0 });
+					aPainter->drawLine(QPointF{ x + 2.0, mid }, QPointF{ x + 10.0, mid });
+				}
+				x += 12.0;
+			};
+			dot(live, Colours.Seen);
+			joint(accepted);
+			dot(accepted, Colours.Read);
+			joint(accepted);
+			const auto label  = accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept");
+			const auto button = QRectF{ x, top(), 8.0 + glyph + 3.0 + text_width(label) + 10.0, frame_height };
+			if (accepted) {
+				pill(aPainter, button, Colours.Accepted, Colours.Accepted);
+			} else {
+				pill(aPainter, button, palette().color(QPalette::Active, QPalette::Button), live ? Colours.Accepted : palette().color(QPalette::Active, QPalette::Mid));
+			}
+			const auto face = accepted ? ink_on(Colours.Accepted) : live ? ink()
+																		 : dim();
+			tick(aPainter, button.left() + 8.0, accepted || !live ? face : Colours.Accepted);
+			text(aPainter, button.left() + 8.0 + glyph + 3.0, label, face);
+			x               = button.right() + 4.0;
+			const auto menu = QRectF{ x, top(), Case == progress_case::excluded ? 7.0 + glyph + 3.0 + 8.0 + 6.0 : 20.0, frame_height };
+			frame(aPainter, menu, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			if (Case == progress_case::excluded) {
+				progress(aPainter, menu.left() + 7.0, mark::excluded, true);
+				chevron(aPainter, menu.left() + 7.0 + glyph + 3.0 + 4.0, ink());
+			} else {
+				chevron(aPainter, menu.center().x(), Case == progress_case::no_file ? dim() : ink());
+			}
+			return static_cast<int>(std::ceil(menu.right()));
+		}
+
+		/// E. One rounded chip: a ring that fills as the file progresses, the
+		/// state's word, then Accept as the chip's action and the menu.
+		[[nodiscard]] auto meter_chip(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
+			const auto word     = words[static_cast<std::size_t>(Case)];
+			const auto action   = accepted ? QStringLiteral("Revoke") : QStringLiteral("Accept");
+			const auto first    = 8.0 + glyph + 4.0 + text_width(word) + 8.0;
+			const auto second   = 8.0 + (accepted ? 0.0 : glyph + 3.0) + text_width(action) + 8.0;
+			const auto chip     = QRectF{ 0.5, top(), first + second + 20.0, frame_height };
+			pill(aPainter, chip, palette().color(QPalette::Active, QPalette::Button), live ? accent() : palette().color(QPalette::Active, QPalette::Mid));
+			const auto box = QRectF{ chip.left() + 8.0, top() + 3.0, glyph, glyph };
+			if (aPainter != nullptr) {
+				if (Case == progress_case::seen) {
+					// A third of the way: the ring's track, and its first arc.
+					ring(aPainter, box.center(), 6.5, palette().color(QPalette::Active, QPalette::Mid));
+					aPainter->setPen(QPen{ Colours.Seen, 2.4, Qt::SolidLine, Qt::RoundCap });
+					aPainter->drawArc(QRectF{ box.center().x() - 6.5, box.center().y() - 6.5, 13.0, 13.0 }, 90 * 16, -120 * 16);
+				} else {
+					progress(aPainter, box.left(), state_mark(), Case != progress_case::no_file);
+				}
+			}
+			text(aPainter, box.right() + 4.0, word, Case == progress_case::no_file ? dim() : palette().color(QPalette::Active, QPalette::WindowText));
+			auto x = chip.left() + first;
+			if (aPainter != nullptr) {
+				aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				aPainter->drawLine(QPointF{ x + 0.5, top() + 4.0 }, QPointF{ x + 0.5, chip.bottom() - 4.0 });
+				aPainter->drawLine(QPointF{ x + second + 0.5, top() + 4.0 }, QPointF{ x + second + 0.5, chip.bottom() - 4.0 });
+			}
+			const auto face = live ? ink() : dim();
+			x += 8.0;
+			if (!accepted) {
+				tick(aPainter, x, live ? Colours.Accepted : face);
+				x += glyph + 3.0;
+			}
+			text(aPainter, x, action, face);
+			chevron(aPainter, chip.left() + first + second + 9.0, Case == progress_case::no_file ? dim() : ink());
+			return static_cast<int>(std::ceil(chip.right()));
+		}
+
+		/// F. Accept alone: no state and no menu on the bar. Seen and Read are
+		/// automatic and shown in Files and Overview; Exclude and Mark unread
+		/// live in the Pull Request menu and the file's context menu.
+		[[nodiscard]] auto accept_only(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto label    = accepted ? QStringLiteral("Accepted") : Case == progress_case::excluded ? QStringLiteral("Excluded")
+																										  : QStringLiteral("Accept");
+			const auto button   = QRectF{ 0.5, top(), pad + glyph + 4.0 + text_width(label) + pad + 2.0, frame_height };
+			const auto fill     = accepted ? Colours.Accepted : accent();
+			if (live) {
+				frame(aPainter, button, fill, fill);
+			} else {
+				frame(aPainter, button, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			}
+			const auto face = live ? ink_on(fill) : dim();
+			if (Case == progress_case::excluded) {
+				progress(aPainter, button.left() + pad, mark::excluded, false);
+			} else {
+				tick(aPainter, button.left() + pad, face);
+			}
+			text(aPainter, button.left() + pad + glyph + 4.0, label, face);
+			return static_cast<int>(std::ceil(button.right()));
+		}
+
 		progress_direction        Direction;
 		qt::progress_mark_colours Colours;
 		progress_case             Case = progress_case::seen;
@@ -8946,19 +9202,15 @@ namespace {
 	/// in Light and Dark with a seen file (Accept offered), an accepted file
 	/// (Revoke), an excluded file and no file yet (disabled). Written beside
 	/// `BPR_QT_RENDER_PATH` as `<name>-<direction>.png`.
-	void render_review_bar_direction_sheets()
+	void render_review_bar_direction_sheets(const std::vector<std::pair<progress_direction, QString>>& aDirections)
 	{
 		const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH");
 		if (path.isEmpty()) {
 			return;
 		}
 		const QFileInfo file{ path };
-		const auto      directions = std::array{
-			std::pair{ progress_direction::caption_and_action, QStringLiteral("a-caption-and-action") },
-			std::pair{ progress_direction::split_button, QStringLiteral("b-split-button") },
-			std::pair{ progress_direction::progress_track, QStringLiteral("c-progress-track") },
-		};
-		const auto cases = std::array{
+		const auto&     directions = aDirections;
+		const auto      cases      = std::array{
 			std::pair{ progress_case::seen, QStringLiteral("seen file, Accept offered") },
 			std::pair{ progress_case::accepted, QStringLiteral("accepted file, Revoke offered") },
 			std::pair{ progress_case::excluded, QStringLiteral("excluded file, Accept disabled") },
@@ -17234,8 +17486,23 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions"))) {
 		// [[BPR-1578]] v002. Three directions for the progress group, for a person.
-		render_review_bar_direction_sheets();
+		render_review_bar_direction_sheets({
+			{ progress_direction::caption_and_action, QStringLiteral("a-caption-and-action") },
+			{ progress_direction::split_button, QStringLiteral("b-split-button") },
+			{ progress_direction::progress_track, QStringLiteral("c-progress-track") },
+		});
 		std::cout << "review-bar-directions:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions-round-2"))) {
+		// [[BPR-1578]] v002 round 2: the progress track refined, and three new directions.
+		render_review_bar_direction_sheets({
+			{ progress_direction::progress_track_refined, QStringLiteral("c2-progress-track") },
+			{ progress_direction::stepper, QStringLiteral("d-stepper") },
+			{ progress_direction::meter_chip, QStringLiteral("e-meter-chip") },
+			{ progress_direction::accept_only, QStringLiteral("f-accept-only") },
+		});
+		std::cout << "review-bar-directions-round-2:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-accept-sheet"))) {
