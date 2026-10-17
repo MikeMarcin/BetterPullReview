@@ -243,6 +243,21 @@ numbers are kept here).
   `base.sha` is the merge base (steps 1, 2, 4) the two agree.
 - **Merged #75** (closed, merged): Whole PR PASS 3/3 against GitHub, asked
   against the recorded base.
+- **Round three, on `b5b2d4c04`** (snapshot-bound confirmation, carried-forward
+  merge base, proven bases only, publication recheck). Squash course
+  `--prefix bpr1560-r3`, #86: every step passes, the same five as above; steps
+  3, 4 and 5 are single-commit pull requests (GitHub's compare on page 2 of
+  one commit per page still names the merge base). #76 on a fresh data root:
+  PASS 3/3, LEFT threads at "Line 2", "Line 3" and "Line 5" (the interdiff is
+  unavailable there because that root has seen one update only, as before).
+  Negative control (the handoff given `base.sha` as a merge base), `--prefix
+  bpr1560-r3m`, #88: steps 1, 2 and 4 agree with GitHub; steps 3 and 5
+  reproduce the owner's state (`b.txt` shown `+0 -0` against GitHub's `+1 -1`,
+  `shared.txt` likewise at step 3, `a.txt` reverting a base line at step 5). An
+  earlier negative run (#87, load average above 7) timed out at step 3 waiting
+  for the first file and at step 4 waiting for GitHub CLI discovery; the course
+  reports both steps failed rather than as a reproduction, and #88 repeated it
+  cleanly. Zero commits: #85 above (GitHub closes it).
 - **Gates.** One full `ctest --preset dev` on `d8cdf5970` (main merged at
   `ec097d8dc`): 746/754 passed. The eight failures and their dispositions:
   `coding_format_check` (the merge's `github_provider.cpp` alignment,
@@ -261,6 +276,19 @@ numbers are kept here).
   on lines this change does not touch (identifier naming at 2194 and 9664, an
   optional conversion at 10143, a use after move at 10151, from `bf04e3918f`
   and earlier); `DOCUMENTATION_OK`.
+- **Gates, round three.** One full `ctest --preset dev` on `b5b2d4c04` (main
+  merged at `c9ff3bf50`): 761/761 passed (`application_large_review_cache_bytes`
+  skipped as on main). Before it, `application_github_window_read_host` (its
+  snapshot named no merge base, so the offline reader kept nothing; the test
+  now names one), `application_attended_recent_replay` and
+  `application_label_authoring_contract` failed: the fixture answered the
+  confirming pull request read only after a compare on the wire, so a
+  remembered merge base (no compare) sent the confirmation into the strict
+  recording. The fixture now answers a snapshot read's second pull request
+  read with the one that read was served, by its parent. clang-format 22
+  clean; clang-tidy clean on the changed sources (two identifier-naming
+  findings in `github_window_read_host_tests.cpp` at 375 and 379 are from
+  `ca000e791a`); the composition contracts pass; `DOCUMENTATION_OK`.
 
 ## Not changed, deliberately
 

@@ -49,7 +49,8 @@ def gh_json(path: str) -> object:
 
 
 def remaining() -> int:
-    headers = run("gh", "api", "-i", "/rate_limit")
+    # A counted read: /rate_limit itself can keep reporting a full budget.
+    headers = run("gh", "api", "-i", f"/repos/{REPOSITORY}")
     for line in headers.splitlines():
         if line.lower().startswith("x-ratelimit-remaining:"):
             return int(line.split(":", 1)[1])
