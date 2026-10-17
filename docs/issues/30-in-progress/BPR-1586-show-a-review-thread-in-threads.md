@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1586"
 title: "Show a thread selected in Review in Threads, beside Show in Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
