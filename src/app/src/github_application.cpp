@@ -29337,8 +29337,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The range's publication refreshes the conversations; the next
 			// publication waits for that read to finish, as a reviewer's
 			// would, so the fixture's recorded reads stay in order.
+			// [[BPR-1570]]. Its owed reread of the pull request too, which
+			// starts only once a pending read settles.
 			if (!window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			note("left-current=" + std::to_string(window->left_conversation_endpoint_current() ? 1 : 0)
@@ -29374,7 +29377,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			note("adopted=" + std::to_string(adopted ? 1 : 0) + " numbered=" + std::to_string(implementation->base_numbered_as_github() ? 1 : 0)
 				 + " left-current=" + std::to_string(window->left_conversation_endpoint_current() ? 1 : 0));
 			if (!adopted || !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.BaseNumberingKept = implementation->base_numbered_as_github() && window->left_conversation_endpoint_current()
@@ -29456,9 +29460,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto mutations = implementation->Fixture->review_mutation_evidence();
 			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts) + " side="
 				 + mutations.LastSide + " line=" + std::to_string(mutations.LastLine.value_or(0U)) + " status=" + editor->mutation_status_label()->text().toStdString());
+			// [[BPR-1570]]. The publication's owed reread finishes before the
+			// course does, or the run ends with it reading and the fixture's
+			// recording unconsumed.
 			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore
 				|| !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
-				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.BasePublishedLeft = mutations.NativePosts == probe.NativeBefore + 1U && !mutations.LastFile && mutations.LastPath == path
