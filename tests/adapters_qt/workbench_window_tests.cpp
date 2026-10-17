@@ -6596,6 +6596,17 @@ namespace {
 			expect(draftMenu != nullptr && draftMenu->objectName() == QStringLiteral("draftContextMenu"), "my draft's note has its menu");
 			auto* const show = draftMenu->findChild<QAction*>(QStringLiteral("draftShowInDiscussAction"));
 			expect(show != nullptr && show->isEnabled() && show->text() == QStringLiteral("Show in Discuss"), "it offers Show in Discuss");
+			// [[BPR-1586]]. And Show in Threads, which puts the cursor on my
+			// draft's own row.
+			auto* const threads = draftMenu->findChild<QAction*>(QStringLiteral("draftShowInThreadsAction"));
+			expect(threads != nullptr && threads->isEnabled() && threads->text() == QStringLiteral("Show in Threads"), "it offers Show in Threads");
+			threads->trigger();
+			window.activateWindow();
+			process_events();
+			expect(window.current_modality() == qt::review_modality::threads && window.finder()->cursor_key().starts_with("row:draft:unpublished/"),
+				   "Show in Threads on my draft puts the cursor on my draft's row");
+			window.choose_modality(qt::review_modality::review);
+			process_events();
 			show->trigger();
 			delete draftMenu;
 			window.activateWindow();
@@ -14061,6 +14072,98 @@ namespace {
 		process_events();
 		expect(window.current_modality() == qt::review_modality::discuss && fixture.Intents.size() == intents, "⌥⌘2 on it leaves Discuss and asks the core for nothing");
 
+		// [[BPR-1586]]. Show in Threads beside Show in Discuss: the thread's
+		// row is the cursor's, at the post named, with the keyboard on the
+		// list; ⌥⌘4 does the same for the selection.
+		{
+			auto* const finder    = window.finder();
+			const auto  lateRow   = std::string{ "row:review-thread:late/review-comment:late-1" };
+			const auto  inThreads = [&](const std::string& aRow, const std::string& aPost) {
+				return window.current_modality() == qt::review_modality::threads && finder->cursor_key() == aRow && finder->cursor_post() == aPost && finder->list()->hasFocus();
+			};
+			const auto backToReview = [&] {
+				window.choose_modality(qt::review_modality::review);
+				process_events();
+			};
+			backToReview();
+			cards->open_thread_at("review-thread:late", "review-comment:late-2");
+			process_events();
+			expect(window.show_thread_in_threads_action()->isEnabled(), "in Review, Show Thread in Threads is offered");
+			menu = cards->thread_menu("review-thread:late");
+			show = menuItem(menu, "threadShowInThreadsAction");
+			expect(show->text() == QStringLiteral("Show in Threads"), "the thread menu names Show in Threads beside Show in Discuss");
+			show->trigger();
+			delete menu;
+			window.activateWindow();
+			process_events();
+			expect(inThreads(lateRow, "review-comment:late-2"), "the thread menu's Show in Threads puts the cursor on its row at the picked post, focused");
+			save_render(window, QStringLiteral("thread-moves-show-in-threads"));
+			backToReview();
+			cards->open_thread_at("review-thread:late", "review-comment:late-1");
+			process_events();
+			auto* const replyReader = [cards]() -> qt::markdown_body_view* {
+				for (auto* const widget : cards->open_card()->findChildren<QWidget*>()) {
+					if (auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget); reader != nullptr && reader->original_body() == "a reply that names the cause") {
+						return reader;
+					}
+				}
+				return nullptr;
+			}();
+			expect(replyReader != nullptr, "the reply's reader is shown");
+			auto replyContext = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ 5, 5 }, replyReader->rendered_view()->viewport()->mapToGlobal(QPoint{ 5, 5 }) };
+			QApplication::sendEvent(replyReader->rendered_view()->viewport(), &replyContext);
+			process_events();
+			menu = replyReader->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+			show = menuItem(menu, "postShowInThreads");
+			menu->hide();
+			show->trigger();
+			window.activateWindow();
+			process_events();
+			expect(inThreads(lateRow, "review-comment:late-2"), "a reply's own menu shows its row in Threads at that reply");
+			backToReview();
+			cards->close_thread();
+			static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, 21U));
+			process_events();
+			const auto  lineRow  = window.comparison_surface()->line_rect(core::diff_side::right, 21U);
+			auto* const lineMenu = window.code_context_menu(code, code->viewport()->mapFrom(window.comparison_surface(), lineRow.center()));
+			show                 = menuItem(lineMenu, "codeContextMenuShowInThreads");
+			expect(show->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Alt+4") } && show->isShortcutVisibleInContextMenu(), "the code's item shows ⌥⌘4");
+			show->trigger();
+			delete lineMenu;
+			window.activateWindow();
+			process_events();
+			expect(inThreads(lateRow, std::string{ }), "the line's Show in Threads puts the cursor on its row");
+			backToReview();
+			cards->close_thread();
+			expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 21U), "line 22 is selected");
+			code->setFocus(Qt::OtherFocusReason);
+			process_events();
+			deliver_key(window, Qt::Key_4, Qt::ControlModifier | Qt::AltModifier);
+			process_events();
+			expect(inThreads(lateRow, std::string{ }), "⌥⌘4 with the keyboard on a line shows its row in Threads");
+			// A filter that hides the row is cleared, and said.
+			backToReview();
+			finder->set_filters(qt::finder_filters{ .Search = QStringLiteral("nothing matches this") });
+			cards->open_thread_at("review-thread:late", "review-comment:late-1");
+			process_events();
+			expect(window.move_thread("review-comment:late-1", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
+					   && inThreads(lateRow, "review-comment:late-1") && finder->search_field()->text().isEmpty()
+					   && window.statusBar()->currentMessage().contains(QStringLiteral("cleared")),
+				   "a search hiding the row is cleared, the row shown and the status bar says so");
+			// Negative controls: a comment not on a file has no row, and an
+			// unknown thread moves nothing.
+			backToReview();
+			expect(!window.move_thread("issue-comment:pr-1", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
+					   && window.current_modality() == qt::review_modality::review && window.statusBar()->currentMessage().contains(QStringLiteral("no row")),
+				   "negative control: a pull request comment has no row in Threads, and nothing moves");
+			expect(!window.move_thread("review-thread:missing", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
+					   && window.current_modality() == qt::review_modality::review,
+				   "negative control: an unknown thread moves nothing");
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			expect(!window.show_thread_in_threads_action()->isEnabled(), "in Discuss Show Thread in Threads is not offered");
+		}
+
 		// Negative controls: a move names no thread the window has; and while
 		// a reply is being typed the keys step aside.
 		expect(!window.move_thread("review-thread:missing", core::workbench_thread_origin::review, core::workbench_thread_destination::discuss)
@@ -14072,7 +14175,8 @@ namespace {
 		process_events();
 		auto* const typing = qobject_cast<QPlainTextEdit*>(QApplication::focusWidget());
 		expect(cards->open_card() != nullptr && typing != nullptr && cards->open_card()->isAncestorOf(typing), "a reply is being typed");
-		expect(!window.show_thread_in_discuss_action()->isEnabled(), "negative control: Show Thread in Discuss steps aside while the keyboard types");
+		expect(!window.show_thread_in_discuss_action()->isEnabled() && !window.show_thread_in_threads_action()->isEnabled(),
+			   "negative control: Show Thread in Discuss and in Threads step aside while the keyboard types");
 		cards->close_thread();
 		window.hide();
 	}

@@ -906,6 +906,18 @@ namespace bpr::core {
 	auto route_workbench_thread(const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route
 	{
+		if (aIntent.Destination == workbench_thread_destination::threads) {
+			// [[BPR-1586]]. Threads lists every thread on a file, my draft
+			// included, and nothing else.
+			if (!aIntent.OnFile) {
+				return workbench_thread_route{
+					.Modality  = aIntent.Origin == workbench_thread_origin::discuss ? workbench_modality::discuss : workbench_modality::review,
+					.Reason    = workbench_thread_route_reason::not_on_a_file,
+					.Available = false,
+				};
+			}
+			return workbench_thread_route{ .Modality = workbench_modality::threads };
+		}
 		const auto toDiscuss = aIntent.Destination == workbench_thread_destination::discuss;
 		if (toDiscuss && aIntent.Draft && aIntent.Origin == workbench_thread_origin::review) {
 			// [[BPR-1581]]. Discuss shows my draft in its composer.

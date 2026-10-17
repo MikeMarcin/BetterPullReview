@@ -197,6 +197,7 @@ namespace bpr::qt {
 		for (const auto& [text, name, command] : {
 				 std::tuple{ QStringLiteral("Show Thread in Discuss"), QStringLiteral("desktopShowThreadInDiscussAction"), shortcut_command::show_in_discuss },
 				 std::tuple{ QStringLiteral("Show Thread in Review"), QStringLiteral("desktopShowThreadInReviewAction"), shortcut_command::show_in_review },
+				 std::tuple{ QStringLiteral("Show Thread in Threads"), QStringLiteral("desktopShowThreadInThreadsAction"), shortcut_command::show_in_threads },
 			 }) {
 			auto* const show = ViewMenu->addAction(text);
 			show->setObjectName(name);

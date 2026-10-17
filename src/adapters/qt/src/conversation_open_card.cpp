@@ -1361,6 +1361,17 @@ namespace bpr::qt {
 							dispatch(id);
 						}
 					});
+					// [[BPR-1586]]. And its row in Threads.
+					auto* const threads = aMenu.addAction(QStringLiteral("Show in Threads"));
+					threads->setObjectName(QStringLiteral("postShowInThreads"));
+					threads->setEnabled(static_cast<bool>(ShowInThreadsRequested));
+					threads->setToolTip(QStringLiteral("Show this comment's thread in Threads"));
+					connect(threads, &QAction::triggered, this, [this, id] {
+						const auto dispatch = ShowInThreadsRequested;
+						if (dispatch) {
+							dispatch(id);
+						}
+					});
 				});
 			}
 			view->reader()->set_link_dispatch([this, id = post.Id](const std::string& aDestination) {

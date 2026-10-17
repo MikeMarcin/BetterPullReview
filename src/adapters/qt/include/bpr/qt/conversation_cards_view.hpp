@@ -105,6 +105,8 @@ namespace bpr::qt {
 		discard_reply,
 		/// [[BPR-1581]]. Show this thread, or the post named, in Discuss.
 		show_in_discuss,
+		/// [[BPR-1586]]. Show this thread's row, at the post named, in Threads.
+		show_in_threads,
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands

@@ -1740,6 +1740,22 @@ namespace {
 		expect(valid(reading_width::full) && !valid(static_cast<reading_width>(4)), "the vocabulary is closed");
 	}
 
+	/// [[BPR-1586]]. Show in Threads from Review: the thread's row, my
+	/// draft's included; a comment not on a file has none.
+	auto test_a_thread_shows_in_threads() -> void
+	{
+		const auto toThreads = workbench_thread_destination::threads;
+		for (const auto placed : { true, false }) {
+			const auto route = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .Placed = placed, .Hiding = { .OnlyNew = true } });
+			expect(route == workbench_thread_route{ .Modality = workbench_modality::threads }, "a thread on a file shows in Threads, placed or outdated, clearing no Discuss filter");
+		}
+		const auto draft = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .Draft = true });
+		expect(draft.Available && draft.Modality == workbench_modality::threads && !draft.Composer, "my draft has its row in Threads");
+		const auto general = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .OnFile = false });
+		expect(!general.Available && general.Modality == workbench_modality::review && general.Reason == workbench_thread_route_reason::not_on_a_file,
+			   "a comment not on a file has no row: nothing moves");
+	}
+
 	/// [[BPR-1581]]. The thread a key shows elsewhere.
 	auto test_the_thread_a_key_shows() -> void
 	{
@@ -1813,6 +1829,7 @@ int main()
 	test_a_thread_routes_to_review_or_discuss();
 	test_a_thread_moves_between_review_and_discuss();
 	test_the_thread_a_key_shows();
+	test_a_thread_shows_in_threads();
 	test_the_reading_width();
 	return EXIT_SUCCESS;
 }

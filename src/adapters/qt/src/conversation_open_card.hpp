@@ -268,6 +268,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1581]]. The exact comment or reply named by its body
 		/// menu in Review, to show in Discuss.
 		std::function<void(const std::string&)> ShowInDiscussRequested;
+		/// \brief [[BPR-1586]]. The same post, to show in Threads.
+		std::function<void(const std::string&)> ShowInThreadsRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

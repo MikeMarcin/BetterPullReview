@@ -481,6 +481,16 @@ namespace bpr::qt {
 					ActionDispatch(card_action::show_in_discuss, identity);
 				}
 			});
+			// [[BPR-1586]]. My draft's own row in Threads.
+			auto* const threads = menu->addAction(QStringLiteral("Show in Threads"));
+			threads->setObjectName(QStringLiteral("draftShowInThreadsAction"));
+			threads->setEnabled(static_cast<bool>(ActionDispatch));
+			threads->setToolTip(QStringLiteral("Show this draft's row in Threads"));
+			connect(threads, &QAction::triggered, menu, [this, identity = at->Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::show_in_threads, identity);
+				}
+			});
 			return menu;
 		}
 		// Selection can rebuild Cards; retain this exact card across the dispatch.
@@ -522,6 +532,12 @@ namespace bpr::qt {
 			show->setEnabled(static_cast<bool>(ActionDispatch));
 			show->setToolTip(QStringLiteral("Show this thread in Discuss, with the rest of the conversation"));
 			connect(show, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_discuss, post); } });
+			// [[BPR-1586]]. The same thread's row in Threads.
+			auto* threads = menu->addAction(QStringLiteral("Show in Threads"));
+			threads->setObjectName(QStringLiteral("threadShowInThreadsAction"));
+			threads->setEnabled(static_cast<bool>(ActionDispatch));
+			threads->setToolTip(QStringLiteral("Show this thread's row in Threads"));
+			connect(threads, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_threads, post); } });
 		}
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));
@@ -1898,6 +1914,12 @@ namespace bpr::qt {
 			const auto dispatch = ActionDispatch;
 			if (dispatch) {
 				dispatch(card_action::show_in_discuss, aPost);
+			}
+		};
+		OpenCard->ShowInThreadsRequested = [this](const std::string& aPost) {
+			const auto dispatch = ActionDispatch;
+			if (dispatch) {
+				dispatch(card_action::show_in_threads, aPost);
 			}
 		};
 		// [[BPR-1581]]. A card rebuilt while an arrival is marked carries it.

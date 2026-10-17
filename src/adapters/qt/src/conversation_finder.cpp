@@ -1491,6 +1491,63 @@ namespace bpr::qt {
 		Search->selectAll();
 	}
 
+	auto conversation_finder::reveal(const std::string& aThread, const std::string& aPost, bool* const aCleared) -> bool
+	{
+		refresh();
+		auto target = std::optional<std::size_t>{ };
+		auto post   = std::optional<std::size_t>{ };
+		for (std::size_t at = 0U; at < Items.size(); ++at) {
+			const auto& entry = *Items[at];
+			if (entry.Header || Conversations[entry.Conversation].Id != aThread) {
+				continue;
+			}
+			const auto& conversation = Conversations[entry.Conversation];
+			const auto& row          = conversation.Rows[entry.Row];
+			if (!target.has_value()) {
+				target = at;
+			}
+			const auto named = std::ranges::find(row.Posts, aPost, [&conversation](const std::size_t aIndex) { return conversation.Posts[aIndex].Id; });
+			if (!aPost.empty() && named != row.Posts.end()) {
+				target = at;
+				post   = *named;
+				break;
+			}
+		}
+		if (!target.has_value()) {
+			return false;
+		}
+		auto cleared = false;
+		if (std::ranges::find(Model->Shown, *target) == Model->Shown.end()) {
+			// The row is hidden: the search, a filter or its folded file.
+			cleared = true;
+			Folded.erase(Items[*target]->Path);
+			Unfolded.insert(Items[*target]->Key);
+			set_filters({ });
+		}
+		if (aCleared != nullptr) {
+			*aCleared = cleared;
+		}
+		Cursor = Items[*target]->Key;
+		Unfolded.insert(Cursor);
+		const auto at = item_index(Cursor);
+		if (!at.has_value()) {
+			return false;
+		}
+		const auto index = Model->index(static_cast<int>(*at));
+		List->setCurrentIndex(index);
+		Bead = -1;
+		if (post.has_value()) {
+			const auto beads = beads_of(*target);
+			if (const auto bead = std::ranges::find(beads, *post, &bead::Post); bead != beads.end()) {
+				Bead = static_cast<int>(bead - beads.begin());
+			}
+		}
+		List->scrollTo(index, QAbstractItemView::PositionAtCenter);
+		List->setFocus(Qt::OtherFocusReason);
+		List->viewport()->update();
+		return true;
+	}
+
 	void conversation_finder::set_pick_dispatch(finder_pick_dispatch aDispatch)
 	{
 		PickDispatch = std::move(aDispatch);

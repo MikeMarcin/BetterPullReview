@@ -609,6 +609,8 @@ namespace bpr::core {
 	enum class workbench_thread_destination : std::uint8_t {
 		review,
 		discuss,
+		/// [[BPR-1586]]. Show in Threads from Review: the thread's row.
+		threads,
 	};
 
 	/// \brief [[BPR-1581]]. Where the gesture that moves a thread was made.
@@ -683,7 +685,8 @@ namespace bpr::core {
 		/// Maximize does.
 		draft_opens_in_composer,
 		/// [[BPR-1581]]. Review was asked for a comment that is not on a file;
-		/// Review has no place for it, so nothing moves.
+		/// Review has no place for it, so nothing moves. [[BPR-1586]]: nor
+		/// has Threads a row for it.
 		not_on_a_file,
 		/// [[BPR-1581]]. Review was asked for a thread with no current line;
 		/// it opens among its file's threads that have no line.
@@ -720,7 +723,8 @@ namespace bpr::core {
 	/// Discuss is Discuss with every filter that would hide the thread
 	/// cleared, so asking for a thread always shows it. My draft is not in
 	/// Discuss's list: asked for from Threads it opens in Review, and from
-	/// Review in Discuss's composer.
+	/// Review in Discuss's composer. [[BPR-1586]]: Threads shows the thread's
+	/// row, my draft's included; a comment not on a file has none.
 	[[nodiscard]] auto route_workbench_thread(
 		const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route;

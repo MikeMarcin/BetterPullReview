@@ -244,7 +244,16 @@ pick does, saying so in the status bar. A pull request comment or review
 summary is not on a file: Review has no place for it, so its Open in Review
 is disabled with that reason and ⌥⌘2 leaves Discuss where it is. Discuss lists
 no draft: Show in Discuss on my draft, written or pending, opens it in
-Discuss's composer as Maximize does, and the status bar says so.
+Discuss's composer as Maximize does, and the status bar says so. **Show in
+Threads** ([[BPR-1586]], the owner accepting [[BPR-1581]]: "We should also be
+able to go from rview to show in threads because why not") stands beside
+Show in Discuss in each of those menus, my draft's note included, and **Show
+Thread in Threads** (`Ctrl+Alt+4`, ⌥⌘4, beside ⌘4) does it for the selection:
+Threads opens with the thread's row as the cursor's, at the named post's
+avatar, scrolled into view and holding the keyboard; a search, filter or
+folded file that hides the row is cleared and the status bar says so. A
+comment not on a file has no row, so nothing moves and the status bar says
+why.
 
 **Reading width** ([[BPR-1584]], the owner, 2026-10-17: "is it weird that
 threads is seemingly fixed-width"; "We can make that capped width a
@@ -1340,6 +1349,7 @@ never invents enabled state.
 | In Threads, open the cursor's thread in Review, or in Discuss ([[BPR-1356]]); a double click, with Shift for Discuss ([[BPR-1582]]) | `Return`; `Shift+Return` (⇧↩) |
 | Show the selected thread in Discuss, from Review ([[BPR-1581]]) | `Ctrl+Alt+3` (⌥⌘3) |
 | Show the selected thread in Review, from Discuss ([[BPR-1581]]) | `Ctrl+Alt+2` (⌥⌘2) |
+| Show the selected thread's row in Threads, from Review ([[BPR-1586]]) | `Ctrl+Alt+4` (⌥⌘4) |
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |

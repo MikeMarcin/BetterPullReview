@@ -212,6 +212,11 @@ namespace bpr::qt {
 		/// \brief Shown as the page: the search has focus and the cursor is on
 		/// the conversation open in Review, or kept, or on the first row.
 		void enter();
+		/// \brief [[BPR-1586]]. Puts the cursor on a thread's row, at \p aPost
+		/// when the row holds it, scrolled into view with the keyboard on the
+		/// list. A filter or a folded file that hides the row is cleared, and
+		/// \p aCleared says so. False when the finder has no such thread.
+		auto reveal(const std::string& aThread, const std::string& aPost, bool* aCleared = nullptr) -> bool;
 		void set_pick_dispatch(finder_pick_dispatch aDispatch);
 		/// \brief [[BPR-1582]]. Where the row menu's Mark as read and Mark as
 		/// unread go.

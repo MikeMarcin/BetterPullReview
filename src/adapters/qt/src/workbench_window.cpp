@@ -2433,6 +2433,10 @@ namespace bpr::qt {
 					// [[BPR-1581]]. The thread, or the post its menu was on.
 					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
 					break;
+				case card_action::show_in_threads:
+					// [[BPR-1586]]. Its row in Threads, at that post.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::review, core::workbench_thread_destination::threads));
+					break;
 				}
 			});
 		ConversationPanel->cards()->set_excerpt_locator(
@@ -8613,6 +8617,20 @@ namespace bpr::qt {
 						static_cast<void>(move_thread(*identity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
 					}
 				});
+				// [[BPR-1586]]. And its row in Threads.
+				auto* const threads = menu->addAction(tr("Show in Threads"));
+				threads->setObjectName(QStringLiteral("codeContextMenuShowInThreads"));
+				threads->setToolTip(tr("Show this line's thread in Threads"));
+				if (ShowInThreadsAction != nullptr) {
+					threads->setShortcut(ShowInThreadsAction->shortcut());
+					threads->setShortcutContext(Qt::WidgetShortcut);
+					threads->setShortcutVisibleInContextMenu(true);
+				}
+				connect(threads, &QAction::triggered, this, [this, side, line] {
+					if (const auto identity = thread_card_on_line(side, line); identity.has_value()) {
+						static_cast<void>(move_thread(*identity, core::workbench_thread_origin::review, core::workbench_thread_destination::threads));
+					}
+				});
 			}
 		}
 		// Add comment and Suggest change start a new comment, never a reply.
@@ -13262,8 +13280,12 @@ namespace bpr::qt {
 			},
 		});
 		if (!route.Available) {
-			say(tr("This comment is not on a file, so Review has no place for it. Discuss shows it."));
+			say(aDestination == core::workbench_thread_destination::threads ? tr("This comment is not on a file, so Threads has no row for it. Discuss shows it.")
+																			: tr("This comment is not on a file, so Review has no place for it. Discuss shows it."));
 			return false;
+		}
+		if (route.Modality == core::workbench_modality::threads) {
+			return show_thread_in_threads(draft ? std::string{ "draft:unpublished" } : thread, draft ? std::string{ } : post);
 		}
 		if (route.Composer) {
 			const auto shown = show_draft_in_discuss(aIdentity);
@@ -13330,7 +13352,8 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || Modality == nullptr) {
 			return false;
 		}
-		const auto toDiscuss = aDestination == core::workbench_thread_destination::discuss;
+		// [[BPR-1586]]. Threads, like Discuss, is shown from Review.
+		const auto toDiscuss = aDestination != core::workbench_thread_destination::review;
 		const auto here      = Modality->current();
 		if ((toDiscuss && here != review_modality::review) || (!toDiscuss && here != review_modality::discuss) || CompositionPage != nullptr) {
 			return false;
@@ -13375,6 +13398,29 @@ namespace bpr::qt {
 		return ShowInReviewAction;
 	}
 
+	auto workbench_window::show_thread_in_threads_action() const noexcept -> QAction*
+	{
+		return ShowInThreadsAction;
+	}
+
+	auto workbench_window::show_thread_in_threads(const std::string& aThread, const std::string& aPost) -> bool
+	{
+		if (Finder == nullptr || Modality == nullptr) {
+			return false;
+		}
+		choose_home(false);
+		choose_modality(review_modality::threads);
+		auto cleared = false;
+		if (!Finder->reveal(aThread, aPost, &cleared)) {
+			statusBar()->showMessage(tr("Threads has no row for this thread."));
+			return false;
+		}
+		if (cleared) {
+			statusBar()->showMessage(tr("To show this thread, Threads cleared its search and filters."));
+		}
+		return true;
+	}
+
 	void workbench_window::update_show_thread_actions()
 	{
 		const auto here = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
@@ -13386,6 +13432,9 @@ namespace bpr::qt {
 		}
 		if (ShowInReviewAction != nullptr) {
 			ShowInReviewAction->setEnabled(reading && here == review_modality::discuss);
+		}
+		if (ShowInThreadsAction != nullptr) {
+			ShowInThreadsAction->setEnabled(reading && here == review_modality::review);
 		}
 	}
 
@@ -14965,6 +15014,17 @@ namespace bpr::qt {
 		}
 		connect(ShowInDiscussAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::discuss)); });
 		connect(ShowInReviewAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::review)); });
+		// [[BPR-1586]]. Option-Command-4 beside Command-4 for Threads.
+		ShowInThreadsAction = new QAction{ QStringLiteral("Show Thread in Threads"), this };
+		ShowInThreadsAction->setObjectName(QStringLiteral("showThreadInThreadsAction"));
+		ShowInThreadsAction->setShortcuts(shortcut_keys(shortcut_command::show_in_threads));
+		ShowInThreadsAction->setShortcutContext(Qt::WindowShortcut);
+		ShowInThreadsAction->setToolTip(QStringLiteral("Show the selected thread's row in Threads (%1)").arg(ShowInThreadsAction->shortcut().toString(QKeySequence::NativeText)));
+		ShowInThreadsAction->setStatusTip(ShowInThreadsAction->toolTip());
+		ShowInThreadsAction->setEnabled(false);
+		addAction(ShowInThreadsAction);
+		ViewMenu->addAction(ShowInThreadsAction);
+		connect(ShowInThreadsAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::threads)); });
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();

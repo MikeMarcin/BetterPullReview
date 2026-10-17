@@ -109,6 +109,8 @@ namespace bpr::qt {
 			// ⌘2. Ctrl+Alt is AltGr on Windows, so both step aside while typing.
 			shortcut_entry{ .Command = command::show_in_discuss, .Group = views, .Binding = bound, .Title = "Show the selected thread in Discuss", .Place = "In Review", .Keys = "Ctrl+Alt+3", .StepsAsideWhileTyping = true, .Objects = "showThreadInDiscussAction;desktopShowThreadInDiscussAction;codeContextMenuShowInDiscuss;threadShowInDiscussAction;postShowInDiscuss" },
 			shortcut_entry{ .Command = command::show_in_review, .Group = views, .Binding = bound, .Title = "Show the selected thread in Review", .Place = "In Discuss", .Keys = "Ctrl+Alt+2", .StepsAsideWhileTyping = true, .Objects = "showThreadInReviewAction;desktopShowThreadInReviewAction;threadOpenInReviewAction;postOpenInReview" },
+			// [[BPR-1586]]. Its row in Threads, beside ⌘4.
+			shortcut_entry{ .Command = command::show_in_threads, .Group = views, .Binding = bound, .Title = "Show the selected thread in Threads", .Place = "In Review", .Keys = "Ctrl+Alt+4", .StepsAsideWhileTyping = true, .Objects = "showThreadInThreadsAction;desktopShowThreadInThreadsAction;codeContextMenuShowInThreads;threadShowInThreadsAction;postShowInThreads;draftShowInThreadsAction" },
 
 			// The comparison and its history.
 			shortcut_entry{ .Command = command::whole_pr, .Group = comparison, .Binding = bound, .Title = "Whole pull request", .Place = in_updates, .Keys = "Alt+1", .Objects = "wholePrComparisonAction" },

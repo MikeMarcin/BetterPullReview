@@ -512,6 +512,8 @@ namespace bpr::qt {
 		auto               show_selected_thread(core::workbench_thread_destination aDestination) -> bool;
 		[[nodiscard]] auto show_thread_in_discuss_action() const noexcept -> QAction*;
 		[[nodiscard]] auto show_thread_in_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1586]]. Show Thread in Threads (⌥⌘4), from Review.
+		[[nodiscard]] auto show_thread_in_threads_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.
 		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
@@ -1731,6 +1733,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto thread_card_on_line(core::diff_side aSide, std::uint32_t aLine) const -> std::optional<std::string>;
 		/// [[BPR-1581]]. Updates Show in Discuss and Show in Review.
 		void update_show_thread_actions();
+		/// [[BPR-1586]]. Threads with the thread's row the cursor's, at its post.
+		auto show_thread_in_threads(const std::string& aThread, const std::string& aPost) -> bool;
 		void apply_line_numbers();
 		void dispatch_one_pane_toggle();
 		void apply_one_pane();
@@ -2113,6 +2117,7 @@ namespace bpr::qt {
 		/// [[BPR-1581]]. ⌥⌘3 and ⌥⌘2.
 		QAction* ShowInDiscussAction = nullptr;
 		QAction* ShowInReviewAction  = nullptr;
+		QAction* ShowInThreadsAction = nullptr;
 		/// The modality Threads was entered from, and where focus was.
 		std::optional<review_modality> ThreadsReturn;
 		QPointer<QWidget>              ThreadsReturnFocus;
