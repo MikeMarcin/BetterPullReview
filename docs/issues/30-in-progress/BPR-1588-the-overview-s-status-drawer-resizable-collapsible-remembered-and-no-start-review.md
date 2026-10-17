@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1588"
 title: "The Overview's Status drawer: resizable, collapsible, remembered, and no Start review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: []
 priority: "P2"
