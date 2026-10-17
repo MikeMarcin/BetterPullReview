@@ -483,8 +483,8 @@ configured minimum, changes requested, each failed check, and each expected
 required result that has not reported. They remain visible together.
 **Waiting on** lists outstanding requests as roster rows in Participants'
 anatomy, code-owner requests first and marked "code owner", ordinary requests
-marked "requested". A team has a square tile and its organization-qualified
-slug; its supplied name is in the row's tooltip and accessible name. Names
+marked "requested". A team has a square avatar ([People's avatars](#peoples-avatars))
+and its organization-qualified slug; its supplied name is in the row's tooltip and accessible name. Names
 elide in the middle, so teams of one organization stay distinguishable. A
 complete empty roster shows nothing; a partial or last-known one says so. A
 prior approval stays in Participants while a re-request stays in the roster.
@@ -716,9 +716,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   No empty
   box is drawn in any arrangement.
 - **Group** is a strip menu of None (the default), Organization, Repository
-  and Account. A group is a neutral panel headed by an initial tile — round
-  for an account, a small radius for an owner that is not one — and its name,
-  with its count; no avatar image is cached, so the tile is all there is.
+  and Account. A group is a neutral panel headed by its owner's avatar
+  ([People's avatars](#peoples-avatars)) — round for an account, a small
+  radius for an owner that is not one; a repository's is its owner's — and
+  its name, with its count.
   With State headers on, a slim tinted band per non-empty state nests inside
   each group and collapses on its own; with it off, the group's rows sit
   directly in state order carrying their marks.
@@ -726,9 +727,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   queue names more than one account. A group whose rows are all one account
   carries the chip in its header instead and its rows drop it; under Account
   grouping no row carries one; with a single account none is drawn anywhere.
-  A chip uses neutral palette roles only, because on Home colour means state
-  and a chip in a state's colour would claim a state its account does not
-  have.
+  A chip's outline and login use neutral palette roles only, because on Home
+  colour means state and a chip in a state's colour would claim a state its
+  account does not have; its avatar is the account's own
+  ([People's avatars](#peoples-avatars)), which is a person, not a state.
 - **Filter** is a strip menu of exactly four sections over the surviving
   typed queue preferences — My role, Added by, Quiet items, and Sort within a
   group — each an exclusive choice listing every value of its vocabulary, so
@@ -892,7 +894,7 @@ job.
   Connected, Connecting, Signing in, Signed out, or the short refusal "Could
   not connect". Connected is drawn in the accepted green and is the only
   colour on the page.
-- The account row is a letter avatar, the login, and one consequence sentence
+- The account row is the account's avatar ([People's avatars](#peoples-avatars)), the login, and one consequence sentence
   built from the existing grant projection; signed out it reads "No account"
   with the terms of signing in instead. **Sign out** stands at its right
   while a session exists, **Sign in** while the card speaks for the chosen
@@ -1314,9 +1316,11 @@ moved Home to ⌘⇧H on 2026-10-15 ([[BPR-1535]]), ⌘0 was Home and Actual Siz
 had ⌘⌥0 (`Ctrl+Alt+0`); ⌘0 replaced it rather than adding to it, so `Ctrl+Alt+0`
 is bound to nothing. ⌘⇧H is Home in Safari and Finder, and no text widget or
 macOS system command takes it; ⌘-backtick was considered and rejected because macOS
-cycles an application's windows with it. Inside the open label menu ⌘0 is
-still Plain ([[BPR-1080]]): the menu is a popup and claims the key before the
-window's Actual Size. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0
+cycles an application's windows with it. Inside the open label menu ⌘0 was
+Plain ([[BPR-1080]]) until the owner removed that key on 2026-10-16
+([[BPR-1569]]): it is now Actual Size there too. The menu is a popup that holds
+the keyboard, so it closes and triggers the window's enabled action bound to
+⌘0; it never changes the label. On Windows, AltGr arrives as `Ctrl+Alt`, and AltGr+0
 types `}` on German and Nordic layouts. An editable text field that receives
 `Ctrl+Alt` with a typed character claims it in `ShortcutOverride`, so the
 character is typed and no window shortcut on that key fires. The read-only
@@ -2256,6 +2260,46 @@ shared registry/updater data, exports and sibling profiles. Follow the
 [typed maintenance contract](../architecture/release-maintenance.md). Component
 rendering/public-path evidence does not supply the still-pending complete native
 accessibility, vault, purge or uninstall qualification.
+
+## People's avatars
+
+[[BPR-1583]] (owner, 2026-10-17: "It's weird that people have coloured icons
+in Threads but they're not coloured in Overview."). A person, a team or a
+GitHub owner is drawn by one avatar everywhere: Threads and the Comments
+drawer's notes and reply faces, the open thread's posts, the reply
+composer's own face, Discuss and the thread finder, Overview's participants
+and review requests, Home's account chips and group headers, and the
+Settings account card with its GitHub CLI accounts. No surface shows or
+fetches a GitHub avatar image.
+
+- **Colour.** An identity keeps one of ten tones on every surface. Its slot is
+  FNV-1a over the login with ASCII letters folded to lower case (logins are
+  case-insensitive), then MurmurHash3's 32-bit finalizer, modulo ten; a team
+  is keyed on `organization/slug`, a repository group on its owner. The tones
+  are ten hues round the wheel with the muddy yellow band left out. On a light
+  ground each is a deep fill with white initials; on a dark ground a light
+  fill with initials in the hue's own near-black. Every fill stands out from
+  the window and base of all four built-in themes at 3:1 or more, and its
+  initials read at 7:1 or more, which is the high-contrast text minimum as
+  well as the standard one. A custom theme whose grounds a tone does not clear
+  moves the fill a sixteenth at a time towards black on a light ground or
+  white on a dark one until it does. No identity (a signed-out account, a
+  hidden reviewer) is a neutral grey face with `?`.
+- **Initials.** The name is split at every ASCII character that is not a
+  letter or digit, after a trailing `[bot]` is dropped; the first character of
+  the first word, and of the second when there is one, upper-cased:
+  `tbutler` is T, `reviewer-four` is RF, `dependabot[bot]` is D. A team is
+  initialled from its slug, a repository group from its owner.
+- **Shape and size.** A person or an account is a disc; a team, or an owner
+  that is not one of the queue's accounts, a square with a corner radius of 0.22
+  of its side. Each surface keeps its own size (18 px on notes, posts and
+  Overview's rows, 14 px for reply faces, Home's line height, 32 px on the
+  account card); the initials are bold at 0.53 of the side for one letter
+  and 0.44 for two. Mine carries a one-pixel ring two pixels outside the
+  disc in the placeholder ink, on Threads and Overview alike.
+- The Profiles sheet keeps its neutral letter tile: a profile is not a
+  person. On Home a person's colour is the person's own; rows, bands and tags
+  keep colour for state.
 
 ## Command placement
 

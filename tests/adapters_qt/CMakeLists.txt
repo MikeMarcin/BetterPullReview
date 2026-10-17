@@ -2101,6 +2101,30 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "feedback-label-threads-tests:pass"
 )
 
+# [[BPR-1583]]. One avatar and one colour per person: the same login is the
+# same fill on Threads, Overview, Home and Settings in all four themes.
+bpr_add_executable(
+    test_better_pull_review_qt_identity_avatar_tests
+    identity_avatar_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_identity_avatar_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_identity_avatar_tests)
+bpr_enable_warnings(test_better_pull_review_qt_identity_avatar_tests)
+bpr_add_network_isolated_test(
+    NAME qt_identity_avatar
+    COMMAND test_better_pull_review_qt_identity_avatar_tests
+)
+set_tests_properties(
+    qt_identity_avatar
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "identity-avatar-tests:pass"
+)
+
 # [[BPR-1354]]. Every tooltip sits next to its control: a button, a list item,
 # a tab, a header section, a menu action, and a button at the screen's edge.
 bpr_add_executable(
@@ -2210,5 +2234,29 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
         ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${markdown_scale};BPR_MARKDOWN_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-code-${markdown_suffix}"
         PASS_REGULAR_EXPRESSION "markdown-code-tests:pass"
         TIMEOUT 120
+    )
+endforeach()
+
+# [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
+# 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,
+# and the old platform-drawn bar refused (on macOS, the native bezel).
+bpr_add_executable(test_better_pull_review_qt_disclosure_button_tests disclosure_button_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_disclosure_button_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_disclosure_button_tests)
+bpr_enable_warnings(test_better_pull_review_qt_disclosure_button_tests)
+foreach(bpr_disclosure_scale IN ITEMS 100 200)
+    math(EXPR bpr_disclosure_whole "${bpr_disclosure_scale} / 100")
+    math(EXPR bpr_disclosure_fraction "${bpr_disclosure_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_disclosure_button_scale_${bpr_disclosure_scale}
+        COMMAND test_better_pull_review_qt_disclosure_button_tests
+    )
+    set_tests_properties(
+        qt_disclosure_button_scale_${bpr_disclosure_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_disclosure_whole}.${bpr_disclosure_fraction}"
+            PASS_REGULAR_EXPRESSION "disclosure-button-tests:pass"
+            TIMEOUT 120
     )
 endforeach()

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Tours drawer directions</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.route { position:relative; padding:4px 10px 10px 0; }
+.route::before { content:""; position:absolute; left:22px; top:16px; bottom:24px; width:2px; border-radius:1px; background:var(--route-line); }
+.stop { position:relative; display:flex; gap:10px; padding:7px 8px 7px 12px; margin:0 0 2px 0; border-radius:8px; }
+.stop .n { position:relative; z-index:1; flex:none; width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font:700 11px var(--ui); background:var(--drawer); box-shadow:inset 0 0 0 1.5px var(--route); color:var(--ink); }
+.stop.cur .n { background:var(--route); color:#fff; box-shadow:none; }
+body.dark .stop.cur .n { color:#1A1E24; }
+.stop.ready .n { box-shadow:inset 0 0 0 1.5px var(--ok); color:var(--ok); }
+.stop.sugg .n { box-shadow:none; border:1.5px dashed var(--ink-3); color:var(--ink-3); }
+.stop .sb { flex:1; min-width:0; }
+.stop .st { display:flex; align-items:center; gap:6px; font-weight:600; font-size:12.5px; color:var(--ink); }
+.stop .st .meta { margin-left:auto; color:var(--ink-3); font-weight:500; font-size:11.5px; display:inline-flex; gap:4px; align-items:center; }
+.stop .sx { color:var(--ink-2); font-size:12.5px; line-height:1.45; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.stop.sugg .st { color:var(--ink-3); font-weight:500; font-style:italic; }
+.stop.open { background:var(--panel); box-shadow:var(--shadow), 0 0 0 1px var(--route-line); margin:4px 0 8px; }
+.stop.open::before { content:""; position:absolute; left:-1px; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:var(--route); }
+.filediv { position:relative; z-index:1; display:flex; align-items:center; gap:6px; margin:6px 0 4px 12px; color:var(--ink-3); font-size:11.5px; font-weight:600; }
+.filediv .loc { background:var(--drawer); }
+.brief { margin:10px 10px 8px; border-radius:8px; box-shadow:inset 0 0 0 1px var(--rule); background:var(--panel); }
+.brief .row { display:flex; gap:8px; padding:8px 10px; align-items:flex-start; }
+.brief .row + .row { border-top:1px solid var(--rule); }
+.brief .bk { flex:0 0 62px; color:var(--ink-3); font-weight:600; font-size:11.5px; padding-top:1px; }
+.brief .v { flex:1; color:var(--ink); font-size:12.5px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.stepper { display:flex; align-items:center; gap:0; padding:10px 12px 8px; background:var(--panel); border-bottom:1px solid var(--rule); }
+.stepper .sn { width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font:700 10.5px var(--ui); box-shadow:inset 0 0 0 1.5px var(--route); color:var(--ink); background:var(--panel); flex:none; }
+.stepper .sn.cur { background:var(--route); color:#fff; box-shadow:none; }
+body.dark .stepper .sn.cur { color:#1A1E24; }
+.stepper .sn.done { box-shadow:inset 0 0 0 1.5px var(--ok); color:var(--ok); }
+.stepper .bar { flex:1; height:2px; background:var(--route-line); min-width:10px; }
+.stepper .bar.far { background:repeating-linear-gradient(90deg, var(--route-line) 0 4px, transparent 4px 7px); }
+.tourpage { flex:1; display:flex; min-width:0; background:var(--bg); }
+.tolist { flex:0 0 290px; border-right:1px solid var(--rule); background:var(--drawer); display:flex; flex-direction:column; }
+.tolist .oh { padding:14px 14px 6px; font-weight:650; font-size:14px; display:flex; align-items:center; }
+.editor { flex:1; min-width:0; padding:18px 26px; overflow:hidden; }
+.preview { flex:0 0 380px; border-left:1px solid var(--rule); background:var(--panel); padding:16px 18px; overflow:hidden; }
+.excerpt { border-radius:8px; overflow:hidden; box-shadow:inset 0 0 0 1px var(--rule); background:var(--code); font:12px/19px var(--mono); margin:10px 0 14px; }
+.excerpt .ln { height:19px; } .excerpt .ln .g { flex-basis:40px; }
+.gh { border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+.gh .gh-h { display:flex; align-items:center; gap:7px; padding:8px 10px; background:var(--panel-2); border-bottom:1px solid var(--rule); font-size:12px; color:var(--ink-2); }
+.gh .gh-b { padding:10px 12px; font-size:13px; line-height:1.55; }
+</style></head>
+<body><script>
+"use strict";
+const at = (n) => (n - 412) * 20 + 2;
+const trayTabs = (on, wide) => [["Comments", ' <span class="cnt">2</span>', on === "Comments"], ["Notes", "", on === "Notes"], ["Tour", ' <span class="cnt quiet">5</span>', on === "Tour"]];
+const stop = (n, title, loc, text, cls = "", meta = "") => `<div class="stop ${cls}"><span class="n">${cls.includes("ready") ? ic("check", "xs") : n}</span><div class="sb">
+  <div class="st">${title}<span class="meta">${meta}</span></div>
+  <div style="display:flex;gap:6px;align-items:center;margin-top:3px"><span class="loc">${loc}</span></div>
+  ${text ? `<div class="sx">${text}</div>` : ""}</div></div>`;
+
+/* ---------- A: the route ---------- */
+const aBody = `<div style="position:absolute;inset:0;overflow:hidden">
+  <div class="brief"><div class="row"><span class="kk">Problem</span><span class="v">A view with zero width during a resize made <code>scale()</code> return 0 and the frame retried forever.</span><span style="color:var(--ok)">${ic("check", "s")}</span></div>
+  <div class="row"><span class="kk">Solution</span><span class="v">Clamp the device scale, treat a zero width as one pixel, and give each frame one retry budget.</span><span style="color:var(--ok)">${ic("check", "s")}</span></div></div>
+  <div class="route">
+    ${stop(1, "Where the scale comes from", "renderer.cpp:413", "The ratio is clamped to 1–4 so a broken display report cannot zero the frame.", "ready")}
+    <div class="stop open cur"><span class="n">2</span><div class="sb">
+      <div class="st">Zero width is a real state<span class="meta">${ic("pencil", "xs")} Editing</span></div>
+      <div style="display:flex;gap:6px;align-items:center;margin:4px 0 8px"><span class="loc amber">renderer.cpp:424–427</span><span class="chip" style="height:20px">${ic("link", "xs")} renderer.h:58</span><span class="chip" style="height:20px">${ic("plus", "xs")}</span></div>
+      <div class="field focus" style="min-height:92px;font-size:12.5px">During an interactive resize Qt reports a width of 0 for one frame. Returning 1 keeps <code>scale()</code> positive.<br><br><span class="ph">What would you like checked?</span></div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:9px"><span class="pill quiet sm">${ic("target", "xs")}Use selected lines</span><span class="sp"></span><span class="ib">${ic("more", "s")}</span><span class="pill primary sm">${ic("check", "xs")}Ready, next <span class="kk">⌥↩</span></span></div></div></div>
+    ${stop(3, "One retry budget per frame", "renderer.cpp:440", "The budget resets in begin_frame and is spent once; exhausting it logs and skips the frame.", "", ic("pencil", "xs"))}
+    <div class="filediv"><span class="loc">basic.frag</span></div>
+    ${stop(4, "Gamma stays sRGB", "basic.frag:31", "", "", `<span style="color:var(--route)">${ic("warn", "xs")}</span> Lines changed`)}
+    <div class="filediv"><span class="loc">renderer_tests.cpp</span></div>
+    ${stop(5, "Suggested: the zero-width test", "renderer_tests.cpp:120", "", "sugg")}
+  </div></div>`;
+const aFrame = win({
+  badge: 2,
+  centre: codeCol({ marks: { 413: "stop:1", 424: "stop:2", 428: "thread", 440: "stop:3" }, cls: { 424: "pick", 425: "pick", 426: "pick", 427: "pick" }, ticks: [[4, "r"], [36, "r"], [62, "r"]] }),
+  drawer: drawer({ tabs: trayTabs("Tour"), tools: tool("plus", false, "Add tour stop (⌥⇧T)") + tool("play", false, "Follow the tour as a reviewer") + tool("max", false, "Open in Discuss"),
+    body: aBody, foot: `<span class="lockline">${ic("lock", "xs")}Private draft · saved</span><span class="sp"></span><span class="pill outline sm">${ic("eye", "xs")}Preview and publish</span>` }),
+}) + annot(1, 790, 118, "The brief first: Problem and Solution, one line each, open in place") + annot(2, 790, 330, "The route is the drawer: an amber line through numbered stops, in tour order") + annot(3, 790, 560, "The current stop opens in place and its lines wash amber, like an open thread") + annot(4, 790, 690, "Ready, Editing, Needs attention and Suggested read from the stop's ring");
+
+/* ---------- B: stops at their lines ---------- */
+const anchoredStop = (n, title, text, top, cls = "") => `<div class="card closed ${cls}" style="top:${top}px"><div class="post" style="--t:var(--route)"><i class="rail"></i>
+  <div class="gut"><span class="gm stop">${n}</span></div>
+  <div class="pb"><div class="nm"><b>${title}</b></div><div class="tx">${text}</div></div></div></div>`;
+const bBody = `
+  <div class="stepper"><span class="sn done">${ic("check", "xs")}</span><span class="bar"></span><span class="sn cur">2</span><span class="bar"></span><span class="sn">3</span><span class="bar far"></span><span class="sn">4</span><span class="bar far"></span><span class="sn">5</span>
+    <span style="margin-left:10px;color:var(--ink-2);font-size:11.5px;white-space:nowrap">Stop 2 of 5</span></div>
+  <div style="position:absolute;top:40px;left:0;right:0;bottom:0">
+  ${anchoredStop(1, "Where the scale comes from", "The ratio is clamped to 1–4 so a broken display report cannot zero the frame.", 8)}
+  <div class="card open notch" style="top:${at(424) - 46}px;--notch:13px">
+    <div class="ch"><span class="where" style="color:var(--ink)"><span class="gm stop" style="width:16px;height:16px">2</span> 424–427</span><span class="state">${ic("pencil", "xs")} Editing</span><span class="sp"></span>${tool("left")}${tool("right")}${tool("more")}</div>
+    <div style="padding:10px 10px 10px 12px">
+      <div class="field" style="padding:6px 9px;font-weight:600">Zero width is a real state</div>
+      <div class="field focus" style="min-height:84px;margin-top:7px;font-size:12.5px">During an interactive resize Qt reports a width of 0 for one frame. Returning 1 keeps <code>scale()</code> positive.</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:9px"><span class="chip" style="height:20px">${ic("link", "xs")} renderer.h:58</span><span class="sp"></span><span class="pill primary sm">${ic("check", "xs")}Ready, next <span class="kk">⌥↩</span></span></div></div></div>
+  ${anchoredStop(3, "One retry budget per frame", "The budget resets in begin_frame and is spent once; exhausting it logs and skips the frame.", at(440) - 10)}
+  <div class="edgechips" style="position:absolute;bottom:0;left:0;right:0"><span class="ech"><span class="gm stop">4</span> basic.frag</span><span class="ech"><span class="gm stop">5</span> renderer_tests.cpp</span></div></div>`;
+const bFrame = win({
+  badge: 2,
+  centre: codeCol({ marks: { 413: "stop:1", 424: "stop:2", 428: "thread", 440: "stop:3" }, cls: { 424: "pick", 425: "pick", 426: "pick", 427: "pick" }, ticks: [[4, "r"], [36, "r"], [62, "r"]] }),
+  drawer: drawer({ tabs: trayTabs("Tour"), tools: tool("plus", false, "Add tour stop (⌥⇧T)") + tool("notes", false, "Brief and publish, in Discuss"), body: bBody,
+    foot: `<span class="lockline">${ic("lock", "xs")}Private draft · saved</span><span class="sp"></span><span class="pill outline sm">Brief and publish</span>` }),
+}) + annot(1, 790, 118, "The route as a stepper: where you are, what is done, what is in other files") + annot(2, 790, 380, "Stops hang from their lines exactly like threads, numbered") + annot(3, 790, 700, "Stops in other files wait at the edge; the stepper jumps to them");
+
+/* ---------- C: tour page + player ---------- */
+const ex = (from, to, pick) => CODE.filter((r) => r[0] >= from && r[0] <= to).map(([n, src, k]) => `<div class="ln ${k === "add" ? "add" : ""} ${pick.includes(n) ? "pick" : ""}"><span class="g">${n}</span><span class="m"></span><span class="t">${hl(src.replace(/^    /, ""))}</span></div>`).join("");
+const oStop = (n, title, loc, cls = "") => `<div class="stop ${cls}" style="align-items:center"><span style="color:var(--ink-3)">${ic("grip", "s")}</span><span class="n">${cls.includes("ready") ? ic("check", "xs") : n}</span><div class="sb"><div class="st">${title}</div><div style="margin-top:2px"><span class="loc">${loc}</span></div></div></div>`;
+const cCentre = `<div class="tourpage">
+  <div class="tolist"><div class="oh">Review tour<span class="sp"></span><span class="cnt quiet">5 stops</span></div>
+    <div class="brief" style="margin-top:4px"><div class="row"><span class="kk">Problem</span><span class="v">A view with zero width during a resize made <code>scale()</code> return 0.</span></div><div class="row"><span class="kk">Solution</span><span class="v">Clamp the scale, treat zero width as one pixel, one retry budget per frame.</span></div></div>
+    <div class="route" style="padding-left:0">${oStop(1, "Where the scale comes from", "renderer.cpp:413", "ready")}<div style="background:var(--panel);border-radius:8px;box-shadow:0 0 0 1px var(--route-line)">${oStop(2, "Zero width is a real state", "renderer.cpp:424", "cur")}</div>${oStop(3, "One retry budget per frame", "renderer.cpp:440")}${oStop(4, "Gamma stays sRGB", "basic.frag:31")}${oStop(5, "Suggested: the zero-width test", "renderer_tests.cpp:120", "sugg")}</div>
+    <div style="padding:6px 14px;display:flex;gap:6px"><span class="pill outline sm">${ic("plus", "xs")}Add stop</span><span class="pill quiet sm">${ic("agent", "xs")}Suggest an outline</span></div></div>
+  <div class="editor"><div style="display:flex;align-items:center;gap:10px"><span class="gm stop" style="width:22px;height:22px;font-size:11px">2</span><span style="font-size:18px;font-weight:650">Zero width is a real state</span><span class="sp"></span><span class="pill quiet sm">${ic("left", "xs")}Stop 1</span><span class="pill quiet sm">Stop 3${ic("right", "xs")}</span></div>
+    <div class="excerpt">${ex(421, 430, [424, 425, 426, 427])}</div>
+    <div style="font-weight:600;font-size:12px;color:var(--ink-3);margin-bottom:5px">Explanation</div>
+    <div class="field focus" style="min-height:150px">During an interactive resize Qt reports a width of 0 for one frame. Returning 1 keeps <code>scale()</code> positive, so the frame still renders at one pixel and the next frame is correct.<br><br>Please check: is one pixel right for an offscreen target too?</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:10px"><span class="chip">${ic("link", "xs")} renderer.h:58</span><span class="chip">${ic("plus", "xs")} Related source</span><span class="sp"></span><span class="pill primary">${ic("check", "s")}Ready, next stop <span class="kk">⌥↩</span></span></div></div>
+  <div class="preview"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><b>On GitHub</b><span class="sp"></span><span class="lockline">${ic("lock", "xs")}Not published</span></div>
+    <div class="gh"><div class="gh-h">${av("you")} <b style="color:var(--ink)">fixture-author</b> commented on renderer.cpp lines 424–427</div><div class="gh-b"><b>Tour stop 2 of 5: Zero width is a real state</b><br>During an interactive resize Qt reports a width of 0 for one frame. Returning 1 keeps <code>scale()</code> positive…<br><span style="color:var(--signal)">← Stop 1 · Stop 3 →</span></div></div>
+    <div style="margin-top:16px;color:var(--ink-2);font-size:12px;line-height:1.5">Publishing posts the brief to the description and the five stops as one review. Nothing is sent until you press Publish.</div>
+    <div style="margin-top:12px;display:flex;gap:6px"><span class="pill primary">Preview and publish</span></div></div></div>`;
+const cFrame = win({
+  badge: 2, modality: "Review", bar: { right: `<span class="pill quiet">${ic("back", "s")}Back to the code</span>` }, drawerOn: false,
+  centre: cCentre,
+}) + annot(1, 300, 600, "Authoring gets a page: outline with drag handles, stop editor, live GitHub preview") + annot(2, 560, 300, "The code excerpt under the same amber bracket keeps code and explanation together");
+const player = `<div class="stcard"><div class="cap">Reviewer: the Tour tab in Review becomes a player</div><div style="padding:10px">
+  <div class="stepper" style="padding:6px 0 10px;background:none;border:0"><span class="sn done">${ic("check", "xs")}</span><span class="bar"></span><span class="sn cur">2</span><span class="bar"></span><span class="sn">3</span><span class="bar far"></span><span class="sn">4</span><span class="bar far"></span><span class="sn">5</span></div>
+  <div style="font-weight:600">Zero width is a real state</div><div style="color:var(--ink-2);margin-top:3px;font-size:12px">During an interactive resize Qt reports a width of 0 for one frame…</div>
+  <div style="display:flex;gap:6px;margin-top:10px"><span class="pill outline sm">${ic("left", "xs")}Previous</span><span class="pill primary sm">Next stop${ic("right", "xs")}</span></div></div></div>`;
+
+page({
+  nav: "Tours",
+  title: "Tours drawer: three directions",
+  lede: "Today the Tour tab is RFC-BPR-0039's whole authoring wizard in a 375-pixel column: a paragraph, an import list, a second row of tabs (Problem, Solution, Tour stops, Preview) and a stack of stock buttons, with no sign of the code its stops point at. A tour is an ordered route through the code, which is what the amber of the Comments drawer already means: where you read. Each direction draws the route with that amber.",
+  directions: [
+    { id: "tours-A", letter: "A", name: "The route: the drawer is the tour", frame: aFrame,
+      idea: "<p>The brief (Problem, Solution) is one compact card at the top; under it the stops run down an amber route line, numbered because a tour really is a sequence. The current stop opens in place to edit, and its lines wash amber in the code. Preview and publish sits in the foot. A reviewer following a published tour sees the same route, read-only, with Previous and Next.</p>",
+      pros: ["The whole tour and its order in one view, for author and reader alike", "Editing a stop keeps its code beside it, as RFC-BPR-0039 asks", "Drag to reorder works on the list; ⌥⇧↑/↓ keeps a keyboard way"],
+      cons: ["Problem and Solution are written in a narrow field (Maximize opens them in Discuss)", "Stops hang in tour order, not at their line heights"] },
+    { id: "tours-B", letter: "B", name: "Stops at their lines, with a route stepper", frame: bFrame,
+      idea: "<p>Tour stops behave exactly like threads: numbered cards hang from their lines and open in place. A stepper at the top shows the route (done, current, ahead, other files) and steps through it. The brief and publishing move to a page in Discuss, as Compose review did.</p>",
+      pros: ["One idiom with Comments: code and explanation side by side at the line", "The stepper is a compact, always-visible sense of progress", "Following a tour is the same gesture as reading threads"],
+      cons: ["Reordering and the brief need the Discuss page", "Stops in other files are only edge chips until you step to them"] },
+    { id: "tours-C", letter: "C", name: "A tour page for authoring, a player in the drawer", frame: cFrame, states: player + `<div class="stcard" style="grid-column:span 3"><div class="cap">Where it lives</div><div style="padding:12px;color:var(--ink-2);line-height:1.55">Prepare review tour (⌥T) opens the page over Review, like Compose review opens over Discuss; Back to the code returns. The drawer's Tour tab only plays a tour: one stop, a stepper and Previous/Next.</div></div>`,
+      idea: "<p>Writing a tour is a task of its own, so it gets the main pane: the outline on the left with drag handles, the stop being written in the middle with its code excerpt under the same amber bracket, and a live preview of the GitHub comment on the right. The drawer's Tour tab becomes a small player for following a tour.</p>",
+      pros: ["Room for the brief, the route, the editor and the preview at once", "The drawer stays calm and serves readers", "Preview is always visible, so publishing holds no surprise"],
+      cons: ["Authoring shows an excerpt, not the live, scrollable file", "Two surfaces for one feature", "A larger build than A or B"] },
+  ],
+});
+</script></body></html>

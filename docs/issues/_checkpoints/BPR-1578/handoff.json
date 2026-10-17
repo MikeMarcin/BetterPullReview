@@ -1,0 +1,114 @@
+{
+  "schema": "bpr.handoff.v1",
+  "card": "BPR-1578",
+  "mandate": "owner feedback 2026-10-17 (review bar Accept grouping and button affordance)",
+  "branch": "bpr-1578-review-bar-accept",
+  "worktree": "/Users/jaeger/.codex/worktrees/bpr1578-review-bar-accept/BetterPullReview",
+  "candidate": {
+    "product_commit": "70373c686",
+    "candidate_head": "06a7d1f5dca7d159d237168a6d84e09cc3509879",
+    "harness_commit": "210b92bdd",
+    "merged_main": "e3751b7cf..06a7d1f5d (docs only: BPR-1585 card and counter)",
+    "changed_paths": [
+      "src/adapters/qt/include/bpr/qt/workbench_strip.hpp",
+      "src/adapters/qt/src/workbench_strip.cpp",
+      "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+      "src/adapters/qt/src/workbench_window.cpp",
+      "src/app/src/github_application.cpp",
+      "tests/adapters_qt/workbench_window_tests.cpp",
+      "docs/ux/workbench-specification.md"
+    ]
+  },
+  "design": "Accept is a strip_command_button: the retained Accept action's word, state and enablement beside the strip's own line tick (strip_glyph::accept_file, button ink), not the green accepted state mark the menu item shows. The strip's rails became a list of groups; a third rail runs under Accept and private progress from Accept's left edge to the menu's right edge, and an 8-pixel bare gap (reviewBarProgressGapAction, NoFocus) parts it from the Changes rail. Revoke keeps the tick in the checked, accent-tinted frame; disabled paints it in the disabled ink. Behaviour, key, eligibility and accessible text are unchanged.",
+  "verification": {
+    "platform": "macOS 26.6.2 arm64, Qt 6.11.2, dev preset Debug with -g0, shared CPM cache",
+    "focused": "qt_review_state_icon (adds test_accept_reads_as_a_button_beside_plain_captions), qt_option_keys_typing, qt_workbench_focus_order_scale_{100,125,200}, qt_workbench_title_row_scale_{100,125,200} (third rail, separation >= 12 px, negative controls: old two rails, no gap), qt_workbench_window_scale_{100,125,200} (rail at the width floor; floor and yield tests): all pass",
+    "composition": "application_uiforetw_selected_diff_contract passes (exact 17-item review bar order). application_review_ledger_composition_contract failed once while the disk was full (output not captured) and passed on immediate rerun (16.05 s).",
+    "negative_controls": "old two rails fail the progress rail; removing the gap fails separation; Accept without its glyph renders differently and narrower",
+    "format": "clang-format 22.1.8 dry run clean over the six C++ files",
+    "tidy": "_coding-standard/scripts/tidy.py --warnings-as-errors over workbench_strip.cpp, workbench_window.cpp, github_application.cpp, workbench_window_tests.cpp: clang-tidy passed",
+    "documentation": "verify_documentation.py DOCUMENTATION_OK on 06a7d1f5d; verify_documentation_tests 67 OK",
+    "renders": "better_pull_review_qt_workbench_window_tests --review-bar-accept-sheet, offscreen, QT_SCALE_FACTOR=2: before (base 210b92bdd harness, product as main) sha256 7f603dd3c578c0285fee6aa604e4034c00a5de9ce2fec8a39eba8d71e387118f; after sha256 811dd565e42aae616fcee5d7a5d290fd71d9745022474db4a521e75176e77ffa; kept uncommitted under the worktree's build/bpr1578-evidence",
+    "full_ctest": "not run: the disk filled during the full dev build (other agents' builds), so the 5.8 GB dev tree was removed to make room for the freeze. Run one full dev ctest on the merged tree at integration after acceptance."
+  },
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1578-accept-group-v001.yp__s3p_",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1578-accept-group-v001.yp__s3p_/launch.py",
+    "source_commit": "06a7d1f5dca7d159d237168a6d84e09cc3509879",
+    "fixture": "nested-folders-v1",
+    "open_file": "src/engine/renderer.cpp",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/engine/renderer.cpp head b20cb443428212543f5911e091a0ffeb407d23cf",
+    "executable_sha256": "4ec3008c0778999e620e5c6d5e68bd2023afa60a403499b0e78123717b5fca88",
+    "removed": true
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1578-v001-aQrrKw",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "0466d1f8235d8b124c055885370d2ea1",
+    "event_cursor": 7,
+    "candidates": {
+      "BPR-1578-accept-group-v001": "d05d4488d5f87a2d5bc742c539febde760f9e60f280b86494920d2dd74b75042"
+    },
+    "phase": "decided",
+    "protected": false,
+    "server_port": null,
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)",
+    "released": "v001 server stopped, protection released at event 8, frozen root removed"
+  },
+  "pending": [
+    "owner's round-2 choice (session bf324bac\u2026)",
+    "v002 final Accept or Reject"
+  ],
+  "next_action": "After hand-back past cursor 3 in session bf324bac\u2026: build the chosen direction (with any note) as v002 on branch bpr-1578-review-bar-accept; tests with negative controls, format, tidy, docs gate; freeze; final Accept or Reject in a fresh session; then stop the round-2 server.",
+  "directions": {
+    "harness_commit": "bb4f84cfb",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "a-caption-and-action": "c7c331969d81be22697244c9abcf453ff856ab7880ef597a9c4a2f099ea9a085",
+      "b-split-button": "5c2a30869a5824feb8ea0c77b6fe3b773b1405842ba705e48efaf1e2fe96f8a4",
+      "c-progress-track": "eaaaf9bf1c823901f855b2af5bdab16e05b70f1db1f65bbddf7c61d34397f1f5"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-directions-cgPXyb",
+      "session": "9aa0f416eba08632f0d5ca48bc4d5ff0",
+      "candidate": "BPR-1578-progress-group-direction-v002",
+      "fingerprint": "c62c1f683442cf4e73ea38aba30f7d2019aa72ea7e38928c8b9363e22dfdade2",
+      "options": [
+        "A. Caption and action",
+        "B. Split button",
+        "C. Progress track"
+      ],
+      "event_cursor": 5,
+      "server_port": null,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+      "decision": "reject: 'I like progress the best but I'm not in love with any of them. Let's try one more round, present progress again and more fresh alternatives.' (3b3fdc7d-185c-454a-b3f4-2a4a60588f3f)",
+      "released": "server stopped, candidate released"
+    }
+  },
+  "round_2": {
+    "harness_commit": "342838cf2",
+    "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions-round-2 (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
+    "renders": {
+      "c2-progress-track": "53fcbd243c67c1d2be1219e1e0956c74d1a09264e8456515530aeb45e5e09ccf",
+      "d-stepper": "77a97eec2e9974928848c224f07fdbe272ae3df9ac15cbe1e21979f98cfd8ffb",
+      "e-meter-chip": "87d2d75e2e477096d5918bbf420f4832fb7d802fb317eac44cdc397b26aee756",
+      "f-accept-only": "9872b3a44f777a80d494f47abd900f4b703046dfb5e4d39939bd6a06d8543fa1"
+    },
+    "review": {
+      "state": "/Users/jaeger/.codex/attended-review/bpr1578-v002-round2-OQvAy6",
+      "session": "bf324baca66b72b02d331b235f5d586a",
+      "candidate": "BPR-1578-progress-group-direction-v002-r2",
+      "fingerprint": "7eeeda67d38522451b7d647e09a4ce6ced45c7f3961d541f7691e8a9dda69293",
+      "options": [
+        "C2. Progress track, refined",
+        "D. Stepper",
+        "E. Meter chip",
+        "F. Accept only"
+      ],
+      "event_cursor": 3,
+      "server_port": 49165,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    }
+  }
+}

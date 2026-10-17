@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1574 · Drawers, Agent, Compose review and Overview: design round v1</title>
+<link rel="stylesheet" href="kit.css"><script src="kit.js"></script>
+<style>
+.gal { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:12px; }
+.gal figure { margin:0; background:var(--panel); border-radius:10px; box-shadow:0 0 0 1px var(--rule); overflow:hidden; }
+.gal img { width:100%; display:block; border-bottom:1px solid var(--rule); }
+.gal figcaption { padding:9px 12px; font-size:12.5px; color:var(--ink-2); line-height:1.45; }
+.gal figcaption b { color:var(--ink); }
+.cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:12px; }
+.cards a { display:block; text-decoration:none; color:inherit; background:var(--panel); border-radius:10px; box-shadow:0 0 0 1px var(--rule); padding:14px 16px; }
+.cards a b { font-size:14px; } .cards a p { margin:6px 0 0; color:var(--ink-2); font-size:12.5px; line-height:1.5; }
+h2.sec { margin:30px 0 4px; }
+</style></head>
+<body><script>
+"use strict";
+const fig = (file, title, text) => `<figure><img data-file="${file}" alt="${title}"><figcaption><b>${title}.</b> ${text}</figcaption></figure>`;
+page({
+  nav: "Summary",
+  title: "Drawers, Agent, Compose review and the Overview panel: design round v1",
+  lede: "Owner, 2026-10-17: “I think that comments drawer is beautiful now, but the notes and tours drawers are pretty ugly, and I think agent probably deserves a first-class tab, not to be tucked away.” Compose review and the Overview's side panel joined the round the same day. Every direction here is drawn in the accepted Comments drawer's tokens and anatomy; nothing in the product has changed.",
+  directions: [],
+  after: `
+  <h2 class="sec">Today, rendered offscreen from main (928dd4191)</h2>
+  <p class="lede" style="margin-bottom:0">Captured from a tests-on build of main on the inline-drawer-v1 and conventional-comments-v1 fixtures, 1440 × 900, never the owner's desktop. The theme switch at the top swaps Light and Dark.</p>
+  <div class="gal">
+    ${fig("comments-drawer", "Comments drawer (accepted)", "One job: this file's threads beside their lines, one open in place with the amber edge. Tabs are the header; tools are icons.")}
+    ${fig("notes-agent-tools", "Notes › Agent tools", "A purpose paragraph, tabs inside the tab, stock list and editor, four stacked buttons, a clipped Tour tab and labelled fields that run off the edge.")}
+    ${fig("notes-private-history", "Notes › Private history", "A third row of tabs (History, Sources, Write), paging buttons and empty boxes: RFC-BPR-0023's private runs as raw controls.")}
+    ${fig("tour-tab", "Tour tab", "RFC-BPR-0039's wizard in 375 pixels: a paragraph, a second tab row (Problem, Solution, Tour stops, Pre…) and a blank editor, with no sign of the code.")}
+    ${fig("compose-review", "Compose review", "Discuss's whole thread list, narrowed, beside a page that already lists the pending comments.")}
+    ${fig("overview-panel", "Overview side panel", "Stacked sections with rows that say —, 0 or not available, a Start review button and a grey Check details bar; fixed width.")}
+  </div>
+  <h2 class="sec">The five questions, and one about rules</h2>
+  <div class="cards">
+    <a href="principles.html"><b>Principles</b><p>Eight rules for every drawer and side surface, from the Comments drawer. Accept or Reject.</p></a>
+    <a href="notes.html"><b>Notes</b><p>A margin notes · B notebook · C scratchpad.</p></a>
+    <a href="tours.html"><b>Tours</b><p>A the route · B stops at their lines · C tour page and player.</p></a>
+    <a href="agent.html"><b>Agent</b><p>A fifth modality (⌘5) · B drawer tab · C dock under the code.</p></a>
+    <a href="compose.html"><b>Compose review</b><p>A focused · B what will be published · C sheet over the code.</p></a>
+    <a href="overview.html"><b>Overview panel</b><p>A attention first · B Summary/Checks/People tabs · C status band and checks drawer.</p></a>
+  </div>`,
+});
+const swap = () => document.querySelectorAll("img[data-file]").forEach((i) => { i.src = `before/${i.dataset.file}-${document.body.classList.contains("dark") ? "dark" : "light"}.webp`; });
+swap(); document.getElementById("themeBtn").addEventListener("click", swap);
+</script></body></html>

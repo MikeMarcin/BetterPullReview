@@ -15,6 +15,7 @@ add_library(
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
+        src/disclosure_button.cpp
         src/keyboard_shortcuts.cpp
         src/keyboard_shortcuts_window.cpp
         src/writing_hooks_panel.cpp
@@ -32,6 +33,7 @@ add_library(
         src/review_queue_model.cpp
         src/review_landing_model.cpp
         src/home_row_delegate.cpp
+        src/identity_avatar.cpp
         src/home_panel.cpp
         src/home_list.cpp
         src/home_status_line.cpp
