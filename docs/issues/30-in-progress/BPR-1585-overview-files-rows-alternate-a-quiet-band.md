@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1585"
 title: "Overview's file rows alternate a quiet band within each folder"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
