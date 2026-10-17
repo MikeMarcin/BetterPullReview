@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1579"
 title: "Disclosure bars read in every theme"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e57e40212","evidence":{"kind":"command","path":"src/adapters/qt/src/disclosure_button.cpp","detail":"All eight chevron disclosures (Check details, Requirement details, Pull request and account, skipped sides, About local diagnostics, Technical details, server card Details, the three maintenance disclosures) construct bpr::qt::disclosure_button, which paints from QPalette Light/Window and WindowText with no style sheet or second palette; qt_disclosure_button asserts each host's disclosure is the shared bar."}},{"criterion":"AC2","outcome":"pass","revision":"e57e40212","evidence":{"kind":"command","path":"tests/adapters_qt/disclosure_button_tests.cpp","detail":"qt_disclosure_button_scale_100 and _200 pass (also run at 125% and 150%): every disclosure in four built-in themes, closed, open, pressed and hovered, title >= 4.5:1 on the bar, bar = theme Light (#FFFFFF on #F6F7F9, #2A3039 on #1C2026), chevron = text colour. Negative controls: the old bar on the native bezel grey fails in all four themes (Dark title 1.3:1); the old Fusion bar fails in Light and Dark; the old integer size hint fails the whole-title check for four bars."}},{"criterion":"AC3","outcome":"pass","revision":"e57e40212","evidence":{"kind":"command","detail":"Object names, accessible names, tooltips, focus policies and show/hide wiring unchanged; arrowType follows the checked state. qt_composed_github (walks the connection and technical disclosures by their arrow), qt_pull_request_overview_page, qt_review_submission_editor, qt_source_search_panel, qt_release_maintenance and qt_settings_window rows pass on the merged tree."}},{"criterion":"AC4","outcome":"pass","revision":"e57e40212","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1579-disclosure-bars-read-in-dark.md","detail":"Full ctest --preset dev on the merged tree: 744/772 under heavy machine contention; the 28 failures rerun serially pass except rfc0016_production_identity_security (passes with a real .agents copy instead of a symlink) and application_composition_contract / application_review_round_trip_composition_contract, which fail on main's github_application.cpp digest drift from BPR-1571 (no file of this card). Focused 28/28 on the final merge. clang-format 22, clang-tidy 22 (new files clean; only pre-existing server_card.cpp:738 finding) and the documentation gate pass. Before/after renders committed under docs/design/BPR-1579-disclosure-bars/; no new owner review since the treatment is BPR-1513 v003."}}]
 metadata: {"origin":"owner bug 2026-10-17","owner_note":"In Dark, Overview's \"Check details: 3 failed\" disclosure bar draws white text on a light-grey fill (low contrast, a \"flashbang\"). \"Requirement details\" and \"Pull request and account\" (Compose review) look affected too.","related_cards":["BPR-1513","BPR-1157","BPR-0207"],"reservation":"docs/issues/_reservations/BPR-1579--BPR-1579--a8fa7b7c4cd6.json","accepted_treatment":"BPR-1513 v003 (session 0fec6737, decision d96dea45)"}
 ---
 
@@ -165,3 +166,23 @@ does not touch. The documentation gate passes.
 
 Documentation impact: presentation only. There is no core, host, persistence,
 provider or command change, and no RFC acceptance is rewritten.
+
+Closeout, 2026-10-17. Main was merged in at `e57e40212`, which brought in
+BPR-1569's label-menu change and no new arrow disclosure. On that tree:
+
+- `ctest --preset dev`: 744 of 772 pass. Several agents were running full
+  suites at once (load average above 100), and the 28 failures were timing
+  and timeout failures.
+- A serial rerun of those 28 passes all but three:
+  - `rfc0016_production_identity_security` fails only because this worktree's
+    `.agents` was a symlink out of the repository. It passes with a copy.
+  - `application_composition_contract` and
+    `application_review_round_trip_composition_contract` fail on main itself.
+    BPR-1571 (`fbec1f08c`) changed `src/app/src/github_application.cpp`
+    after BPR-1566 resealed its digest. This card touches no file in `src/app`
+    or `src/application`.
+- The focused and integration rows pass, 28 of 28, on the final merge.
+
+All four criteria pass. The treatment is the one the owner accepted in
+BPR-1513 v003 (session `0fec6737`, decision `d96dea45`), so no new attended
+review is needed.
