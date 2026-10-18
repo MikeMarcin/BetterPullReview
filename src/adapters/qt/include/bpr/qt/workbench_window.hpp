@@ -1560,7 +1560,10 @@ namespace bpr::qt {
 		/// announces what it changed.
 		void apply_refresh_event(bool aHome, const core::refresh_event& aEvent);
 		/// [[BPR-1575]]. The buttons, the note and the freshness, from both refreshes.
-		void               present_refresh();
+		void present_refresh();
+		/// [[BPR-1600]]. Puts the Refresh key on Home's refresh while Home
+		/// shows and on the pull request's otherwise.
+		void               apply_refresh_key(bool aHome);
 		[[nodiscard]] auto refresh_clock() const -> std::int64_t;
 		[[nodiscard]] auto refresh_result_text(bool aHome, const core::refresh_state& aState) const -> QString;
 		/// [[BPR-1576]]. Puts each window pane's veil in the look its facts give.

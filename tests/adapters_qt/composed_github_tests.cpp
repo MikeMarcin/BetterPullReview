@@ -767,7 +767,8 @@ namespace {
 		expect(
 			!window.github_connect_action()->shortcut().isEmpty()
 				&& !window.github_open_action()->shortcut().isEmpty()
-				&& !window.github_refresh_action()->shortcut().isEmpty(),
+				// [[BPR-1600]]. The Refresh key is on the refresh showing.
+				&& !(window.showing_home() ? window.queue_refresh_action() : window.github_refresh_action())->shortcut().isEmpty(),
 			"primary actions expose keyboard shortcuts");
 		expect(
 			window.active_account_text() == "Not authenticated",

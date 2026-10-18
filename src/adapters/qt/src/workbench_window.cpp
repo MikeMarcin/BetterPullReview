@@ -3376,8 +3376,9 @@ namespace bpr::qt {
 		addAction(GithubRefreshAction);
 		// [[BPR-0990]]. Home's refresh glyph is the profile's discovery, not
 		// the pull request's refresh: the same place in the strip, its own
-		// action, shown only on Home with an account. It has no shortcut of
-		// its own; the window's Refresh shortcut stays the pull request's.
+		// action, shown only on Home with an account. [[BPR-1600]]: the
+		// window's Refresh key moves to it while Home shows
+		// (`apply_refresh_key`).
 		QueueRefreshAction = new QAction{ QStringLiteral("Refresh my pull requests"), this };
 		QueueRefreshAction->setObjectName(QStringLiteral("refreshQueueAction"));
 		QueueRefreshAction->setIconText(QStringLiteral("Refresh"));
@@ -10289,6 +10290,7 @@ namespace bpr::qt {
 			if (QueueRefreshAction != nullptr) {
 				QueueRefreshAction->setVisible(home && HomeAccount);
 			}
+			apply_refresh_key(home);
 			apply_strip_width();
 			// [[BPR-1295]]. Home has no review, so Hide Drawers is disabled.
 			apply_drawers_toggle();
@@ -10529,6 +10531,20 @@ namespace bpr::qt {
 	auto workbench_window::home_cycles_list() const noexcept -> QListWidget*
 	{
 		return HomeCyclesList;
+	}
+
+	void workbench_window::apply_refresh_key(const bool aHome)
+	{
+		// [[BPR-1600]]. One window shows Home or a pull request, and the Refresh
+		// key does the refresh that is showing. The key is on one action at a
+		// time, taken off before it is put on, so no press is ever ambiguous.
+		if (GithubRefreshAction == nullptr || QueueRefreshAction == nullptr) {
+			return;
+		}
+		auto* const from = aHome ? GithubRefreshAction : QueueRefreshAction;
+		auto* const to   = aHome ? QueueRefreshAction : GithubRefreshAction;
+		from->setShortcuts({ });
+		to->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_refresh : shortcut_command::refresh));
 	}
 
 	auto workbench_window::showing_home() const -> bool

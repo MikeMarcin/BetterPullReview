@@ -520,8 +520,14 @@ pull request read the core names in its transition, and discovery's state.
   shows a note and is announced only when it brought news ("Updated
   automatically: 1 new comment.", "Updated from another window: …") or failed.
 - **Keys.** Refresh is the platform's Refresh key (⌘R on macOS, F5 or Ctrl+R
-  elsewhere), listed in Keyboard Shortcuts as "Refresh the pull request";
-  Home's refresh has no key of its own.
+  elsewhere), and it does whichever refresh the window shows ([[BPR-1600]],
+  the owner's 2026-10-17 amendment of [[BPR-0990]]): on Home, Home's refresh
+  with the same note, result, failure and Retry as its button; on a pull
+  request, the pull request's. The key is on one of the two actions at a time,
+  so a press is never ambiguous, and like the pull request's it acts while the
+  keyboard is in Home's Open bar. Keyboard Shortcuts lists "Refresh the pull
+  request" (with a pull request showing) and "Refresh my pull requests" (on
+  Home).
 
 Every result and failure is announced once, politely, from the button; the
 button's description carries the state and the age. The note is laid over

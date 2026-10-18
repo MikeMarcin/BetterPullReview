@@ -27,6 +27,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -17019,6 +17020,26 @@ namespace {
 		qt::review_cycle_view cycle;
 		const auto            problems = catalogue_problems({ &window, &desktop, &cycle });
 		expect(problems.empty(), "the catalogue is exactly what the window, the resident bar and a Review Cycle bind:" + joined(problems));
+		// [[BPR-1600]]. On Home the Refresh key is Home's refresh's, as the
+		// catalogue writes it, and bound once.
+		window.choose_home(true);
+		process_events();
+		const auto bound = [&window](const QKeySequence& aKey) {
+			auto names = QStringList{ };
+			for (const auto& binding : live_bindings(window)) {
+				if (binding.Keys.contains(aKey)) {
+					names.push_back(binding.Name);
+				}
+			}
+			return names;
+		};
+		const auto refreshKeys = qt::shortcut_keys(qt::shortcut_command::home_refresh);
+		expect(window.showing_home() && refreshKeys == qt::shortcut_keys(qt::shortcut_command::refresh) && !refreshKeys.isEmpty()
+				   && window.queue_refresh_action()->shortcuts() == refreshKeys && bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshQueueAction") },
+			   "on Home the Refresh key is bound once, on Home's refresh: " + bound(refreshKeys.front()).join(QLatin1Char{ ',' }).toStdString());
+		window.choose_home(false);
+		process_events();
+		expect(bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshPullRequestAction") }, "and back in the review, once, on the pull request's");
 
 		// Negative control: each kind of drift is reported, by name.
 		qt::workbench_window drifted;
@@ -17286,6 +17307,146 @@ namespace {
 		process_events();
 		expect(!page->isVisible(), "Close closes it");
 	}
+
+	/// \brief [[BPR-1600]]. The owner's amendment of 2026-10-17: the Refresh key
+	/// (⌘R, or the platform's) does whichever refresh the window shows. On Home
+	/// it is Home's discovery, with [[BPR-1575]]'s note, result, failure and
+	/// Retry; on a pull request it is the pull request's. The key is on one
+	/// action at a time. Like the pull request's it does not step aside while
+	/// typing, so it acts from Home's Open bar and leaves the bar's text alone.
+	/// Signed out, or while a discovery runs, it refreshes nothing.
+	void test_refresh_key_does_the_refresh_showing()
+	{
+		const auto refreshKey = QKeySequence{ QKeySequence::Refresh };
+		expect(!refreshKey.isEmpty(), "the platform has a Refresh key");
+		const auto key       = static_cast<int>(refreshKey[0].key());
+		const auto modifiers = refreshKey[0].keyboardModifiers();
+		const auto press     = [&](qt::workbench_window& aWindow) { window_key(aWindow, key, modifiers); };
+
+		auto pullIntents = 0;
+		auto other       = 0;
+		auto discovery   = std::vector<application::queue_discovery_intent>{ };
+		auto window      = qt::workbench_window{
+			{ },
+			{ },
+			{ },
+			{ },
+			[&](const application::github_intent& aIntent) {
+				++(std::holds_alternative<core::refresh_pull_request_intent>(aIntent) ? pullIntents : other);
+			},
+		};
+		// Arriving at Home also asks discovery to catch up ([[BPR-0990]]);
+		// what the key sends is the explicit refresh.
+		const auto refreshes = [&discovery] { return std::ranges::count(discovery, application::queue_discovery_intent::refresh); };
+		window.resize(1'280, 820);
+		window.set_queue_discovery_dispatch([&discovery](application::queue_discovery_intent aIntent) { discovery.push_back(aIntent); });
+		window.show();
+		window.activateWindow();
+		process_events();
+		auto* const home         = window.queue_refresh_action();
+		auto* const pull         = window.github_refresh_action();
+		auto        homeTriggers = 0;
+		auto        pullTriggers = 0;
+		QObject::connect(home, &QAction::triggered, [&homeTriggers] { ++homeTriggers; });
+		QObject::connect(pull, &QAction::triggered, [&pullTriggers] { ++pullTriggers; });
+		const auto keyOn = [&refreshKey](const QAction* const aAction) { return aAction->shortcuts() == QList{ refreshKey }; };
+
+		// Negative control: Home signed out has no refresh to run.
+		expect(window.showing_home() && keyOn(home) && pull->shortcuts().isEmpty(), "on Home the key is Home's refresh's, and only its");
+		press(window);
+		expect(discovery.empty() && homeTriggers == 0 && pullTriggers == 0 && pullIntents == 0, "signed out, the key refreshes nothing");
+
+		// Signed in, ⌘R on Home is one discovery refresh, the reviewer's.
+		sign_in(window);
+		using state = application::queue_discovery_state;
+		auto status = application::queue_discovery_status{ .Host = "github.com", .Account = "octo-reviewer", .State = state::current, .LastSuccess = 1'700'000'000, .Repositories = 1U };
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(window.showing_home() && home->isEnabled() && keyOn(home) && pull->shortcuts().isEmpty(), "signed in, Home's refresh can run and has the key");
+		press(window);
+		expect(discovery == std::vector{ application::queue_discovery_intent::refresh } && homeTriggers == 1, "⌘R on Home sends exactly one refresh");
+		expect(pullTriggers == 0 && pullIntents == 0, "and does not refresh the pull request");
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		process_events();
+		auto* const note = window.refresh_note_widget();
+		expect(window.home_refresh().Phase == core::refresh_phase::refreshing && window.home_refresh().Trigger == core::refresh_trigger::reviewer,
+			   "the refresh it started is the reviewer's");
+		expect(note->isVisible() && note->text() == QStringLiteral("Finding my pull requests…"), "and says so under the button");
+		press(window);
+		expect(refreshes() == 1 && homeTriggers == 1, "while it runs a second press starts nothing");
+		status.State             = state::stale;
+		status.Problem           = application::queue_discovery_problem::rate_limited;
+		status.RetryAfterSeconds = 30U;
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(note->tone() == qt::refresh_note_tone::failed && note->retry_button()->isVisible(), "a failure is said, with Retry");
+		status.State       = state::current;
+		status.Problem     = application::queue_discovery_problem::none;
+		status.LastSuccess = 1'700'000'100;
+		window.publish(discovery_projection(status));
+		process_events();
+		press(window);
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		process_events();
+		status.State       = state::current;
+		status.LastSuccess = 1'700'000'200;
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(refreshes() == 2 && note->tone() == qt::refresh_note_tone::settled && !note->text().isEmpty(), "a finished refresh says what it found: " + note->text().toStdString());
+
+		// Typing in the Open bar: the pull request's key does not step aside,
+		// and neither does Home's.
+		expect(!qt::steps_aside_while_typing(qt::shortcut(qt::shortcut_command::refresh)) && !qt::steps_aside_while_typing(qt::shortcut(qt::shortcut_command::home_refresh)),
+			   "neither refresh key steps aside while typing");
+		auto* const bar = window.home_open_bar();
+		bar->setFocus(Qt::OtherFocusReason);
+		bar->setText(QStringLiteral("octo-org/app#1"));
+		process_events();
+		press(window);
+		expect(refreshes() == 3 && bar->text() == QStringLiteral("octo-org/app#1") && bar->hasFocus(), "from the Open bar ⌘R refreshes Home and leaves the bar as it was");
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		status.State       = state::current;
+		status.LastSuccess = 1'700'000'300;
+		window.publish(discovery_projection(status));
+		bar->clear();
+		process_events();
+
+		// On a pull request the key is the pull request's refresh.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = { { .Id = core::github_command_id::refresh_pull_request, .Enabled = true } },
+				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+			.PullRequest = application::github_pull_request_projection{
+				.Snapshot       = core::provider_snapshot_id{ 1U },
+				.Repository     = core::repository_id{ 3U },
+				.PullRequest    = core::pull_request_id{ 4U },
+				.Owner          = "octo-org",
+				.RepositoryName = "app",
+				.Number         = core::pull_request_number{ 7U },
+				.Title          = "Seven",
+				.HeadOid        = "aaaa",
+				.CommitCount    = 1U,
+			},
+		});
+		window.choose_home(false);
+		process_events();
+		expect(!window.showing_home() && pull->isEnabled() && keyOn(pull) && home->shortcuts().isEmpty(), "on a pull request the key is the pull request's, and only its");
+		const auto homeBefore = homeTriggers;
+		press(window);
+		expect(pullTriggers == 1 && pullIntents == 1 && homeTriggers == homeBefore && refreshes() == 3, "⌘R on a pull request refreshes the pull request, once");
+
+		// Back on Home with the review behind it, the key is Home's again.
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && keyOn(home) && pull->shortcuts().isEmpty(), "Home over the review takes the key back");
+		press(window);
+		expect(refreshes() == 4 && pullTriggers == 1 && pullIntents == 1 && other == 0, "and ⌘R refreshes Home, not the review behind it");
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -17338,6 +17499,8 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--keyboard-shortcuts"))) {
 		test_shortcut_catalogue_is_what_the_window_binds();
 		test_keyboard_shortcuts_page();
+		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
+		test_refresh_key_does_the_refresh_showing();
 		std::cout << "keyboard-shortcuts:pass\n";
 		return EXIT_SUCCESS;
 	}
