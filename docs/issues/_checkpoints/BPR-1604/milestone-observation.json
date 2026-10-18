@@ -1,0 +1,173 @@
+{
+  "run_id": "polish-20261018",
+  "segment_id": "post-attendance-1",
+  "mandate_revision": "owner-polish-2026-10-18-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr-polish-contrast-blocking",
+    "plan_path": "docs/rfcs/plans/bpr-polish-contrast-blocking/milestone-plan.json",
+    "milestone_id": "polish-review",
+    "definition_fingerprint": "sha256:117efe1e835f4abe971dda048e341f715cfae9a2ecab1bc5f305b5554dc11221",
+    "obligations": [
+      {
+        "id": "BPR-1604:*",
+        "source": "BPR-1604",
+        "selector": null,
+        "source_fingerprint": "sha256:97270a5387c5e94712c34e5694c86e96612361ee255dd0cf6f981b683da92369"
+      },
+      {
+        "id": "BPR-1605:*",
+        "source": "BPR-1605",
+        "selector": null,
+        "source_fingerprint": "sha256:41471cbff1ca2f0ff60bb231ceeaa8ccc1491cb3ae88f316f9e373b39a8fa961"
+      }
+    ],
+    "obligation_fingerprint": "sha256:7f874a333d7c993f2872f946f307ed672877b087da0e147cd61e67f95f5bd55c",
+    "exit_criteria": [
+      {
+        "id": "polish-review:exit:1",
+        "text": "BPR-1604 AC1 and AC2 pass through the built-in palette and Files rendering with no grandfathered failures."
+      },
+      {
+        "id": "polish-review:exit:2",
+        "text": "BPR-1605 AC1 and AC2 pass through review submission workflow, editor, and feedback source observations."
+      },
+      {
+        "id": "polish-review:exit:3",
+        "text": "Both AC3 owner judgments supplied against exact frozen before/after candidates; until then remain human-pending."
+      },
+      {
+        "id": "polish-review:exit:4",
+        "text": "Focused composition, format and documentation checks complete; explicit commits pushed; handoffs record candidates, pending decisions and commands."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "polish-review",
+  "disposition": "pack-complete",
+  "candidate_revision": "4afe1dd1ca7a18e5cf274efdfd03db58e021f79c",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1604/handoff.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+    "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+    "docs/issues/_checkpoints/BPR-1604/verification.md",
+    "docs/issues/_checkpoints/BPR-1604/handoff.md",
+    "docs/issues/_checkpoints/BPR-1605/handoff.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1604:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    },
+    {
+      "id": "BPR-1605:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    },
+    {
+      "id": "polish-review:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    },
+    {
+      "id": "polish-review:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    },
+    {
+      "id": "polish-review:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    },
+    {
+      "id": "polish-review:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1604/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1605/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1604/verification.md",
+        "docs/issues/_checkpoints/BPR-1604/handoff.md",
+        "docs/issues/_checkpoints/BPR-1605/handoff.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "Both owner accepts reconciled, all criteria and seven merged integration checks pass, both cards Done, explicit commits pushed and main landed. Final checkpoint-only push completes upkeep; no successor assigned."
+  },
+  "ownership": "quiescent"
+}
