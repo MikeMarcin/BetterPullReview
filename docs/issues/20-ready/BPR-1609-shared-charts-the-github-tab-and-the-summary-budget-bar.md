@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1609"
 title: "Shared charts, the GitHub tab and the Summary budget bar"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1608"]
 platforms: ["mac", "win", "linux"]
