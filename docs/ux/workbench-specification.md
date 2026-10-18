@@ -589,6 +589,17 @@ exposes each folder's path, file count and expansion state to accessibility.
 [[BPR-0934]] recorded the earlier nested hierarchy, which the owner's
 clarification on [[BPR-1213]] replaced with these flat rows.
 
+The table is wide, so file rows alternate between the ground and a quiet band
+to keep the eye on its row across it ([[BPR-1585]]). The band is the theme's
+`Base` moved toward its `Text` until the two stand 1.08:1 apart: neutral, one
+step in every theme, high contrast included. Each folder header starts its
+group on the ground and the files under it take turns, the first on the band,
+counted over the rows shown, so closing a folder, a sort or a hidden row moves
+no other group's turns. Folder headers and Not on a file stay on the ground.
+On a banded row the band is the ground a mark mixes with or cuts its letter
+to, and a selected row is the selection's. Not on a file draws its name and
+its chips only, never an operation, change or read mark.
+
 ## Home
 
 Home is the window's other page, shown whenever no pull request is open and

@@ -1,4 +1,4 @@
-# BPR-1582 reseal over main 1afb7a6f9 (whose pins main matched): the only
+# BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
 # production-app change is 2a789264e in github_application.cpp, the Threads
 # row menu's Mark as Unread: the window's new unread dispatch and
 # mark_conversation_unread, which builds the accepted thread's post
