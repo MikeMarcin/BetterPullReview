@@ -46,7 +46,7 @@
   "documentation": "verify_documentation.py DOCUMENTATION_OK and verify_documentation_tests OK at 2f0850a2e (branch merged with main c0a62280e).",
   "attended_fixture_probe": "A transient (uncommitted) harness drove the frozen look's fixture (conventional-comments-v1) and script through the composition: press 1 'Updated: 1 new comment.', 2 'Up to date: nothing new.', 3 offline, 4 'Updated: 1 new comment.', 5 rate limited 'Try again in 2 min.'"
  },
- "next_action": "Owner decides BPR-1576-loading-states-v001 in session 232e2c2e; on Accept land per 'landing' and finish Done; on Reject read the note and revise.",
+ "next_action": "Done.",
  "source_root": "/Users/jaeger/.codex/worktrees/bpr1575-refresh/BetterPullReview",
  "branch": "bpr-1575-1576",
  "baseline_main": "c0a62280e",
@@ -59,20 +59,28 @@
   "open": "--open-pull-request (Overview)",
   "arguments": "--fixture-read-delay-ms 3000 --fixture-page-delay-ms 900 --fixture-refresh-delay-ms 3000 --fixture-refresh-script new-reply,serve,offline,new-reply,rate-limited",
   "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
-  "executable_sha256": "4f90f529957522ffddcc9aef0aa65a6280b8741709250c46fc2f5c9630dbd452"
+  "executable_sha256": "4f90f529957522ffddcc9aef0aa65a6280b8741709250c46fc2f5c9630dbd452",
+  "removed": true
  },
  "review": {
   "state": "/Users/jaeger/.codex/attended-review/bpr1575-1576-v001-xlbj29",
   "registry": "/Users/jaeger/.mask/attended-review-resources",
   "session": "232e2c2eee171af499adac505a0e561e",
   "event_cursor": 6,
-  "url": "http://127.0.0.1:62444/#token=6kgLwKntIk_UW1VzxC0vmVbKQLA3BIsMAZnoDLRwFrM",
+  "url": "stopped",
   "server_pid": 13570,
   "candidates": {
    "BPR-1575-refresh-feedback-v001": "04a11365bf159de4ba7a7e1c7a99584f766c949405f06d449d9bf71093e85416",
    "BPR-1576-loading-states-v001": "2cc7f473b8123e43262cd4d9e47648d7d20405989a3ba6103e019f925061137b"
   },
-  "phase": "prepared and served; awaiting owner"
+  "phase": "decided: Accept (decision 93a98cb7-076b-4387-9734-99051e0cfac6); handed back 9; server stopped; candidates released (resume-development --all, sequence 10)"
  },
- "landing": "Do not merge before acceptance. main has moved (33 commits incl. src and the round-trip contract) since c0a62280e: merge main, reseal both digests in application_review_round_trip_composition_contract.cmake, rerun the focused rows and the composition contracts, then land. The earlier worktree branch bpr-1575-refresh-and-loading holds WIP history only and can be deleted after landing."
+ "landing": "Do not merge before acceptance. main has moved (33 commits incl. src and the round-trip contract) since c0a62280e: merge main, reseal both digests in application_review_round_trip_composition_contract.cmake, rerun the focused rows and the composition contracts, then land. The earlier worktree branch bpr-1575-refresh-and-loading holds WIP history only and can be deleted after landing.",
+ "landed": {
+  "main": "a30b1fa4a",
+  "branch_head": "fcfb70e01",
+  "merges_of_main": 4,
+  "veil_work_fix": "7e385f8d8",
+  "full_suite": "Full dev suite on the merged tree (second merge, before the veil-work fix 7e385f8d8 and the later merges): 778 rows, 754 passed at load ~90; 24 failed, all re-run serially: 21 passed, documentation_structure was NEXT_ID high water (passes on main), and the large-review timing courses fail under machine load with and without the new presenters alike (A/B with the veils, refresh presentation and pane updates disabled: 3 of 3 failed each way at load ~57). A second full suite after 7e385f8d8 at load ~70-90: 764 passed; the 13 failures re-run serially passed except the load-bound large-review timing courses and private_review_retry. The large-review responsiveness, launch and history courses passed at 7e385f8d8 at load ~35; without that fix the paged-load input gap stayed over 100 ms."
+ }
 }
