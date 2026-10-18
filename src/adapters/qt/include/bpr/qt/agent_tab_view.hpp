@@ -77,7 +77,10 @@ namespace bpr::qt {
 
 	private:
 		void rebuild_findings();
-		void present_banner();
+		/// \brief Folds a card's actions into More when the drawer is narrow.
+		static void        fit_card_actions(QWidget& aCard, int aRoom);
+		[[nodiscard]] auto card_room() const -> int;
+		void               present_banner();
 
 		agent_launch_panel&            Launch;
 		side_chat_panel&               Chat;
@@ -95,6 +98,7 @@ namespace bpr::qt {
 		QPushButton*                   BannerFirst  = nullptr;
 		QPushButton*                   BannerSecond = nullptr;
 		QWidget*                       Cards        = nullptr;
+		QWidget*                       Viewport     = nullptr;
 		QVBoxLayout*                   CardColumn   = nullptr;
 		QWidget*                       Start        = nullptr;
 		QLabel*                        Head         = nullptr;

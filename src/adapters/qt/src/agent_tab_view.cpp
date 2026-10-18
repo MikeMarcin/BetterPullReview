@@ -21,6 +21,8 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStackedWidget>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -94,6 +96,29 @@ namespace bpr::qt {
 			}
 
 		private:
+		};
+
+		/// \brief A tool button whose menu opens on a press and draws no
+		/// arrow: the word or the dots are the affordance in a narrow drawer.
+		class menu_word final : public QToolButton
+		{
+		public:
+			explicit menu_word(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setAutoRaise(true);
+				setPopupMode(QToolButton::InstantPopup);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QStylePainter{ this };
+				auto option  = QStyleOptionToolButton{ };
+				initStyleOption(&option);
+				option.features &= ~QStyleOptionToolButton::HasMenu;
+				painter.drawComplexControl(QStyle::CC_ToolButton, option);
+			}
 		};
 
 		/// \brief A quiet chip: the agent's head, the scope, a context.
@@ -179,7 +204,7 @@ namespace bpr::qt {
 		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 		row->addWidget(scope);
 		row->addStretch(1);
-		History = new QToolButton{ context };
+		History = new menu_word{ context };
 		History->setObjectName(QStringLiteral("agentHistory"));
 		History->setText(tr("History"));
 		History->setToolTip(tr("Sessions, sessions on earlier heads and private runs"));
@@ -227,6 +252,9 @@ namespace bpr::qt {
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
 		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// The cards fit the drawer's width, not the other way round.
+		Viewport = scroll->viewport();
+		Viewport->installEventFilter(this);
 		auto* const content    = new QWidget{ scroll };
 		auto* const contentCol = new QVBoxLayout{ content };
 		contentCol->setContentsMargins(12, 8, 12, 12);
@@ -431,7 +459,14 @@ namespace bpr::qt {
 		present_banner();
 		rebuild_findings();
 		Start->setVisible(State == agent_tab_state::idle && Findings.finding_count() == 0U && Chat.replies_list()->count() == 0);
-		Chat.replies_list()->setVisible(Chat.replies_list()->count() > 0);
+		// The replies take the height of their rows, not a list's default.
+		auto* const replies = Chat.replies_list();
+		replies->setVisible(replies->count() > 0);
+		auto rows = 0;
+		for (auto row = 0; row < replies->count(); ++row) {
+			rows += replies->sizeHintForRow(row);
+		}
+		replies->setFixedHeight(rows + (2 * replies->frameWidth()));
 	}
 
 	void agent_tab_view::present_banner()
@@ -534,8 +569,10 @@ namespace bpr::qt {
 			meta->addWidget(severity);
 			auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
 			kind->setForegroundRole(QPalette::PlaceholderText);
-			meta->addWidget(kind);
-			meta->addStretch(1);
+			// The kind gives way to the anchor when the drawer is narrow.
+			kind->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			kind->setToolTip(kind->text());
+			meta->addWidget(kind, 1);
 			auto* const where = new QLabel{ QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(finding.Lines.Begin).arg(finding.Lines.End), card };
 			where->setObjectName(QStringLiteral("agentFindingAnchor"));
 			auto code = QFont{ QStringLiteral("Menlo") };
@@ -576,19 +613,26 @@ namespace bpr::qt {
 			follow->setObjectName(QStringLiteral("agentFindingFollowUp"));
 			connect(follow, &QPushButton::clicked, this, [act] { act(finding_queue_action::ask_follow_up); });
 			actions->addWidget(follow);
+			actions->addStretch(1);
+			// Add to notes, then Ask follow-up, fold into More when the
+			// drawer is too narrow for them; fit_card_actions decides.
 			auto* const notes = new QPushButton{ tr("Add to notes"), card };
 			notes->setObjectName(QStringLiteral("agentFindingAddToNotes"));
 			notes->setFlat(true);
 			connect(notes, &QPushButton::clicked, this, [act] { act(finding_queue_action::add_to_private_notes); });
 			actions->addWidget(notes);
-			actions->addStretch(1);
-			auto* const more = new QToolButton{ card };
+			auto* const more = new menu_word{ card };
 			more->setObjectName(QStringLiteral("agentFindingMore"));
 			more->setText(QStringLiteral("⋯"));
 			more->setAutoRaise(true);
 			more->setPopupMode(QToolButton::InstantPopup);
 			more->setAccessibleName(tr("More finding actions"));
-			auto* const menu = new QMenu{ more };
+			auto* const menu       = new QMenu{ more };
+			auto* const followItem = menu->addAction(tr("Ask follow-up"), this, [act] { act(finding_queue_action::ask_follow_up); });
+			followItem->setObjectName(QStringLiteral("agentFindingFollowUpItem"));
+			auto* const notesItem = menu->addAction(tr("Add to notes"), this, [act] { act(finding_queue_action::add_to_private_notes); });
+			notesItem->setObjectName(QStringLiteral("agentFindingAddToNotesItem"));
+			menu->addSeparator();
 			menu->addAction(tr("Show the code"), this, [act] { act(finding_queue_action::open_evidence); });
 			menu->addAction(tr("Draft a defect"), this, [act] { act(finding_queue_action::convert_to_draft_defect); });
 			menu->addAction(tr("Dismiss"), this, [act] { act(finding_queue_action::dismiss); });
@@ -599,14 +643,57 @@ namespace bpr::qt {
 			card->installEventFilter(this);
 			card->setProperty("agentFindingOrdinal", QVariant::fromValue<qulonglong>(ordinal));
 			card->setCursor(Qt::PointingHandCursor);
+			fit_card_actions(*card, card_room());
 			CardColumn->addWidget(card);
 			CardWidgets.emplace_back(card);
 		}
 		Cards->setVisible(!delivery->Findings.empty());
 	}
 
+	auto agent_tab_view::card_room() const -> int
+	{
+		// The viewport, less the conversation's and the card's margins.
+		constexpr auto margins = 12 + 12 + 14 + 12;
+		return Viewport == nullptr ? 0 : Viewport->width() - margins;
+	}
+
+	void agent_tab_view::fit_card_actions(QWidget& aCard, const int aRoom)
+	{
+		auto* const draft  = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		auto* const follow = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
+		auto* const notes  = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingAddToNotes"));
+		auto* const more   = aCard.findChild<QToolButton*>(QStringLiteral("agentFindingMore"));
+		if (draft == nullptr || follow == nullptr || notes == nullptr || more == nullptr || more->menu() == nullptr) {
+			return;
+		}
+		const auto     room       = aRoom;
+		constexpr auto gap        = 6;
+		const auto     base       = draft->sizeHint().width() + gap + more->sizeHint().width();
+		const auto     withFollow = base + gap + follow->sizeHint().width();
+		const auto     withNotes  = withFollow + gap + notes->sizeHint().width();
+		const auto     showFollow = withFollow <= room;
+		const auto     showNotes  = withNotes <= room;
+		follow->setVisible(showFollow);
+		notes->setVisible(showNotes);
+		for (auto* const item : more->menu()->actions()) {
+			if (item->objectName() == QStringLiteral("agentFindingFollowUpItem")) {
+				item->setVisible(!showFollow);
+			} else if (item->objectName() == QStringLiteral("agentFindingAddToNotesItem")) {
+				item->setVisible(!showNotes);
+			}
+		}
+	}
+
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
+		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {
+			for (const auto& card : CardWidgets) {
+				if (card != nullptr) {
+					fit_card_actions(*card, card_room());
+				}
+			}
+			return false;
+		}
 		if (aEvent->type() == QEvent::MouseButtonRelease && aWatched->objectName() == QStringLiteral("agentFindingCard")) {
 			const auto ordinal = static_cast<std::size_t>(aWatched->property("agentFindingOrdinal").toULongLong());
 			Findings.select(ordinal);

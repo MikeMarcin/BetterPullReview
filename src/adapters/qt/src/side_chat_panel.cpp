@@ -42,6 +42,22 @@ namespace bpr::qt {
 			offered_scopes.size() == core::agent_chat_scope_kind_count,
 			"every declared chat scope must be offerable");
 
+		/// \brief [[BPR-1594]]. A scope as the reviewer reads it.
+		[[nodiscard]] auto scope_words(const core::agent_chat_scope_kind aScope) -> QString
+		{
+			switch (aScope) {
+			case core::agent_chat_scope_kind::selected_lines:
+				return QStringLiteral("Selected lines");
+			case core::agent_chat_scope_kind::file:
+				return QStringLiteral("This file");
+			case core::agent_chat_scope_kind::pull_request:
+				return QStringLiteral("Pull request");
+			case core::agent_chat_scope_kind::repository:
+				return QStringLiteral("Repository");
+			}
+			return QStringLiteral("Selected lines");
+		}
+
 		/// \brief Creates one named field label owned by the panel.
 		[[nodiscard]] auto make_field(
 			QWidget*       aParent,
@@ -130,7 +146,7 @@ namespace bpr::qt {
 			QStringLiteral("Context to add"));
 		for (const auto scope : offered_scopes) {
 			Members.ScopeSelector->addItem(
-				text(core::stable_name(scope)),
+				scope_words(scope),
 				QVariant::fromValue<uint>(static_cast<uint>(scope)));
 		}
 
