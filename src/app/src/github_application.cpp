@@ -5118,33 +5118,8 @@ namespace bpr::app {
 				};
 			}
 			ApplicationDataRoot = applicationDataRoot;
-			InsightsEffects.post([this, root = applicationDataRoot] {
-				std::shared_ptr<application::insights_storage_port> storage;
-				try {
-					storage = adapters::sqlite::make_insights_storage(root, [root] { return adapters::git::measure_installed_git_storage(root); });
-				} catch (...) { }
-				DecisionLane.post([this, admittedStorage = std::shared_ptr<application::insights_storage_port>{ std::move(storage) }] {
-					InsightsInitializing = false;
-					if (!admittedStorage) {
-						if (Insights) {
-							Insights->apply({ });
-						}
-						return;
-					}
-					InsightsHost = std::make_shared<application::insights_host>(admittedStorage, InsightsEffects, DecisionLane, [this](const auto& aSnapshot) {
-						if (!Closing && Insights && Insights->isVisible()) {
-							Insights->apply(aSnapshot);
-						}
-					});
-					if (Closing) {
-						InsightsHost->shutdown();
-					} else if (Insights) {
-						Insights->refresh();
-					}
-				});
-			});
-			ConnectionStore = std::move(aConnectionStore);
-			Connections     = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
+			ConnectionStore     = std::move(aConnectionStore);
+			Connections         = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
 			if (!Connections->available()) {
 				RestorationGlobalNotice = QStringLiteral("Saved connections could not be read. Sign in explicitly to continue; the saved data has been preserved.");
 			}
@@ -5582,6 +5557,36 @@ namespace bpr::app {
 		}
 		void start_services()
 		{
+			// Start only after construction succeeds; callbacks require a live decision lane.
+			try {
+				InsightsEffects.post([this, root = ApplicationDataRoot] {
+					std::shared_ptr<application::insights_storage_port> storage;
+					try {
+						storage = adapters::sqlite::make_insights_storage(root, [root] { return adapters::git::measure_installed_git_storage(root); });
+					} catch (...) { }
+					DecisionLane.post([this, admittedStorage = std::shared_ptr<application::insights_storage_port>{ std::move(storage) }] {
+						InsightsInitializing = false;
+						if (!admittedStorage) {
+							if (Insights) {
+								Insights->apply({ });
+							}
+							return;
+						}
+						InsightsHost = std::make_shared<application::insights_host>(admittedStorage, InsightsEffects, DecisionLane, [this](const auto& aSnapshot) {
+							if (!Closing && Insights && Insights->isVisible()) {
+								Insights->apply(aSnapshot);
+							}
+						});
+						if (Closing) {
+							InsightsHost->shutdown();
+						} else if (Insights) {
+							Insights->refresh();
+						}
+					});
+				});
+			} catch (...) {
+				InsightsInitializing = false;
+			}
 			QueueHost->restore();
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);

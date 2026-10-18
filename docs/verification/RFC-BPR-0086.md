@@ -66,3 +66,10 @@ The live continuation keeps the exact candidate, attended session and cursor.
 
 The manifest initially refused an unbuilt gh transport helper in the cold tree;
 its prescribed target was built, and the unchanged manifest then passed.
+
+A final lifetime audit moved Insights initialization into the existing
+post-construction `start_services` phase. A constructor that subsequently
+refused the profile could otherwise destroy its decision executor before the
+new task posted its terminal. The corrected candidate reuses the public startup
+recovery course as well as the Insights path; the first frozen build was
+superseded before preparation or owner review.
