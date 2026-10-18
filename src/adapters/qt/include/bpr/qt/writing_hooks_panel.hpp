@@ -20,6 +20,8 @@ namespace bpr::qt {
 		void               present_label_helper(application::review_label_helper aHelper);
 		void               show_notice(std::string_view aText);
 		[[nodiscard]] auto selected_hook() const -> core::writing_hook;
+		/// \brief [[BPR-1568]]. Shows one hook, as choosing it in the list does.
+		void select_hook(core::writing_hook aHook);
 
 	private:
 		void                                                 show_hook();

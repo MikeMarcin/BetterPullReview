@@ -676,18 +676,22 @@ namespace bpr::qt {
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
 		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
-		/// \brief [[BPR-0661]]. Adopts the sink the Reviews & queue preference rows dispatch to.
+		/// \brief [[BPR-0661]]. Adopts the sink the Review and Comments preference rows dispatch to.
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
 		/// \brief The review-behaviour preferences the host last published.
 		[[nodiscard]] auto behaviour() const noexcept -> const application::review_behaviour_settings&;
-		/// \brief The Reviews & queue preference editor ([[BPR-0661]]).
+		/// \brief The Settings › Review preference editor ([[BPR-0661]], [[BPR-1597]]).
 		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
 		/// \brief [[BPR-1083]]. The marks beside Comment labels › Label marks.
 		[[nodiscard]] auto feedback_marks_preview() const noexcept -> feedback_mark_preview*;
-		/// \brief [[BPR-1088]]. Comment labels › Label helper: since
-		/// [[BPR-1565]] only whether comment workshop requests carry the
-		/// Review feedback guidance ([[BPR-1091]]).
+		/// \brief [[BPR-1088]]. The label helper's switch: since [[BPR-1565]]
+		/// only whether comment workshop requests carry the Review feedback
+		/// guidance ([[BPR-1091]]); since [[BPR-1597]] Comments ›
+		/// Comment workshop › Feedback guidance.
 		[[nodiscard]] auto label_helper_switch() const noexcept -> QCheckBox*;
+		/// \brief [[BPR-1568]]. Comment workshop › Guidance text, which opens
+		/// Agents & context with Review feedback chosen.
+		[[nodiscard]] auto workshop_guidance_link() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1088]]. Comment labels › Overview chips.
 		[[nodiscard]] auto label_columns_editor() const noexcept -> feedback_label_columns_editor*;
 		/// \brief [[BPR-1088]]. What the Overview chips row says when the stored
@@ -1048,7 +1052,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto review_submission_editor_view() const noexcept -> review_submission_editor*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 		/// \brief [[BPR-1083]]. The label tints of the theme on screen. With the
-		/// mark style the reviewer chose on Reviews & queue, they reach every
+		/// mark style the reviewer chose on Settings › Comments, they reach every
 		/// surface in this window that draws a label mark.
 		void set_label_tints(const feedback_label_tints& aTints);
 		/// \brief [[BPR-1085]]. The theme's attention amber (`state_attention`),
@@ -1141,7 +1145,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_view_reset_action() const noexcept -> QAction*;
 		[[nodiscard]] auto home_group_action(application::home_grouping aGrouping) const noexcept -> QAction*;
 		[[nodiscard]] auto home_state_headers_action() const noexcept -> QAction*;
-		/// \brief The View menu's way to Settings › Reviews & queue, where the
+		/// \brief The View menu's way to Settings › Home & queue, where the
 		/// saved repositories and the observer rules are.
 		[[nodiscard]] auto home_filter_settings_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0776]]. The current queue row on Home, whichever state holds it.
@@ -1372,7 +1376,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-0981]]. The repositories drawer's filter and its empty state.
 		[[nodiscard]] auto repositories_filter() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto repositories_filter_notice() const noexcept -> filter_empty_notice*;
-		/// \brief [[BPR-0652]]. The observer-rule editor, on Reviews & queue.
+		/// \brief [[BPR-0652]]. The observer-rule editor, on Home & queue.
 		[[nodiscard]] auto rules_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
@@ -1787,7 +1791,9 @@ namespace bpr::qt {
 		/// the thread's card open at \p aPost, selected, in view and focused.
 		auto open_conversation_in_discuss(const std::string& aThread, const std::string& aPost, const core::workbench_discuss_filters& aClear) -> bool;
 		// [[BPR-0661]]. The preference rows and what honours them.
-		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
+		/// [[BPR-1597]]. The review rows go on Settings › Review, the comment
+		/// rows on Settings › Comments.
+		void               build_behaviour_editor(QWidget* aReviewPage, QVBoxLayout* aReviewColumn, QWidget* aCommentsPage, QVBoxLayout* aCommentsColumn);
 		void               apply_behaviour_controls();
 		void               apply_label_marks();
 		void               dispatch_behaviour_from_controls();
@@ -1865,6 +1871,11 @@ namespace bpr::qt {
 		void               dispatch_file_selection(const QModelIndex& aIndex);
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
+		/// [[BPR-1578]]. Whether a click on the Seen or Read step moves the
+		/// file forward; a step already reached does nothing.
+		[[nodiscard]] auto progress_step_offered(std::size_t aIndex) const -> bool;
+		void               take_progress_step(std::size_t aIndex);
+		void               update_progress_track();
 		void               update_accept_file_shortcut();
 		/// [[BPR-1536]]. Re-reads whether the keyboard is in a widget that
 		/// takes typed text; when that changed, refreshes Accept file's key
@@ -2187,16 +2198,20 @@ namespace bpr::qt {
 		/// typed text, and the menu-bar keys lifted while it is.
 		bool                                                           TypingFocus = false;
 		std::vector<std::pair<QPointer<QAction>, QList<QKeySequence>>> LiftedOptionKeys;
-		QAction*                                                       ReviewDetailsAction  = nullptr;
-		QToolButton*                                                   AcceptFileButton     = nullptr;
-		QToolButton*                                                   ReviewControlsButton = nullptr;
-		QMenu*                                                         ReviewControlsMenu   = nullptr;
-		QWidget*                                                       ToolbarSpacer        = nullptr;
-		QLabel*                                                        StatusLabel          = nullptr;
-		QWidget*                                                       ReviewSurface        = nullptr;
-		std::optional<application::github_read_progress>               ReadProgress;
-		workbench_central_splitter*                                    CentralSplitter = nullptr;
-		pending_panes                                                  PendingPanes;
+		QAction*                                                       ReviewDetailsAction = nullptr;
+		QToolButton*                                                   AcceptFileButton    = nullptr;
+		/// [[BPR-1578]]. The review bar's progress track and its two steps.
+		progress_track*                                  ProgressTrack        = nullptr;
+		QToolButton*                                     SeenStepButton       = nullptr;
+		QToolButton*                                     ReadStepButton       = nullptr;
+		QToolButton*                                     ReviewControlsButton = nullptr;
+		QMenu*                                           ReviewControlsMenu   = nullptr;
+		QWidget*                                         ToolbarSpacer        = nullptr;
+		QLabel*                                          StatusLabel          = nullptr;
+		QWidget*                                         ReviewSurface        = nullptr;
+		std::optional<application::github_read_progress> ReadProgress;
+		workbench_central_splitter*                      CentralSplitter = nullptr;
+		pending_panes                                    PendingPanes;
 		/// [[BPR-1575]]. Both refreshes and what their presentation holds.
 		core::refresh_state                                          PullRefresh;
 		core::refresh_state                                          HomeRefresh;
@@ -2478,6 +2493,7 @@ namespace bpr::qt {
 		review_behaviour_dispatch                 BehaviourDispatch;
 		application::review_behaviour_settings    Behaviour;
 		QWidget*                                  BehaviourEditor = nullptr;
+		QWidget*                                  CommentsEditor  = nullptr;
 		std::array<std::vector<QToolButton*>, 11> BehaviourOptions{ };
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
@@ -2487,6 +2503,7 @@ namespace bpr::qt {
 		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
 		QLabel*                        LabelColumnsRecovery = nullptr;
 		QToolButton*                   MarkColoursLink      = nullptr;
+		QToolButton*                   WorkshopGuidanceLink = nullptr;
 		/// [[BPR-1566]]. Comment labels' first line and its outcome.
 		QWidget*     ConventionalCommentsRow     = nullptr;
 		QLabel*      ConventionalCommentsCaption = nullptr;

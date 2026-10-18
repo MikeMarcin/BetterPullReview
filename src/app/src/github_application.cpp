@@ -26259,8 +26259,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, Accept file ([[BPR-1507]]), private
-		// progress, a spacer, the
+		// change pair with its position, a gap, the progress track holding
+		// Seen, Read, Accept file ([[BPR-1507]]) and private progress on one
+		// rail ([[BPR-1578]]), a spacer, the
 		// review chip ([[BPR-1345]], hidden with no review in progress),
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
@@ -26276,10 +26277,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
 			&& reviewBarActions[8] == previousChange
 			&& reviewBarActions[9] == nextChange
-			&& widgetActionNamed(reviewBarActions, 10, "workbenchAcceptFileAction")
-			&& acceptFile != nullptr && reviewBar->widgetForAction(reviewBarActions[10]) == acceptFile
+			&& widgetActionNamed(reviewBarActions, 10, "reviewBarProgressGapAction")
+			&& widgetActionNamed(reviewBarActions, 11, "workbenchProgressTrackAction")
+			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& acceptFile->defaultAction() == window->accept_action()
-			&& reviewBar->widgetForAction(reviewBarActions[11]) == reviewControls
+			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
 			&& reviewBarActions[13] == window->review_chip_action()
 			&& reviewBarActions[14] == window->compose_review_action()
@@ -26675,7 +26677,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			"next_file_rect_in_bar",
 			rectangle_json(requiredPresenters[2]->geometry()),
 			"private_progress_rect_in_bar",
-			rectangle_json(reviewControls->geometry()),
+			// [[BPR-1578]]. Private progress is the progress track's last cell,
+			// so its rectangle is mapped from the track into the bar.
+			rectangle_json(QRect{ reviewControls->mapTo(reviewBar, QPoint{ }), reviewControls->size() }),
 			"compose_review_rect_in_bar",
 			rectangle_json(reviewBar->actionGeometry(window->compose_review_action())),
 			"comment_rect_in_bar",
