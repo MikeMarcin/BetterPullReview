@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1591"
 title: "Private notes can be anchored to a line"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1587"]
 priority: "P2"
