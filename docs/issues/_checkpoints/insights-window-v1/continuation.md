@@ -1,5 +1,52 @@
 # Insights window continuation
 
+Mandate `insights-window-v1-r1`; current assignment **github-budget**, BPR-1608
+and BPR-1609, owner `/root/insights_github_budget`, coordinator-implementer r2.
+The accepted first milestone and its exact owner verdict remain below.
+
+## Current engineering frontier
+
+- Branch/source/tracker: `codex/insights-window-v1`,
+  `/Users/jaeger/.codex/worktrees/3996/BetterPullReview`.
+- Adopted at `55ea64194211eb42194d6dd9fc3e7ae11c9aefa4`; RFC_BASE_SHA and
+  mandate remain unchanged. BPR-1608 promoted `fb0bc8cab`, claimed `c87c604862`.
+- Accounting source `1c8bded96`: pure numeric per-account budget/history,
+  nonblocking host intake, SQLite schema 2, passive native and gh observation,
+  process/supervision facts and Problems tallies independent of diagnostics.
+- The native loopback, gh transport, core, SQLite and public courses pass;
+  exact formatted rebuild passes. The process course observes each required
+  failure, quarantine and abandonment. The native course verifies actual hops,
+  headerless responses and preflight refusal. Initial added assertion wrongly
+  expected a rate tuple on the deliberately headerless GHES success course;
+  corrected to test absence there and the tuple on response-metadata.
+- The architecture guard initially refused the added passive callbacks because
+  it pins the exact quarantine/reap sequence. Its exact patterns and matching
+  negative-control anchors now include those callbacks while retaining ordering.
+  Its focused negative control passes; the production scan passes in 15.54 s.
+- Follow-up correction preserves the channel through the anonymous wrapper,
+  includes capability fixture facts and global profile gh discovery processes,
+  and keeps process costs across account partitions. Correction source `7fdcc9cd1`; focused build and three affected courses pass (12.01 s).
+- Runtime binding and logs:
+  `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m`.
+- No chart acceptance or new attended candidate yet. BPR-1608 has passing acceptance and is being finished; a shared chart draft is in task-owned temporary
+  files outside the checkout. Nothing from a future milestone is claimed.
+
+The UI plan loads `frontend-design` at the required installed path, preserves
+900 × 542 and the accepted compact shell, and follows the supplied HTML's
+budget/tiles and paired facts. Native profile surface, text, muted text,
+accepted-state and unread-state roles form its palette; native UI typography
+provides the type scale. Two narrow area lanes separate request rate from Core
+remaining, with maxima, gaps, reset rules and a bounded hover card. The shared
+component also supports the later foreground/background stack. Calendar remains
+with its authored successor. No extra motion or decorative page structure.
+
+All commands are task-owned; no delegation, desktop access, browser-profile
+access, live GitHub mutation, push, stash or recurring waiter. Finish current
+build/test handles before handoff. Next: claim BPR-1609, integrate charts and run the affected public/render checks;
+freeze a self-contained candidate and prepare one fresh short attended session.
+
+# Accepted window-and-storage record
+
 Mandate `insights-window-v1-r1`; assignment `window-and-storage`, BPR-1606 and
 BPR-1607. Fresh post-attended engineering owner `/root/insights_first_acceptance`.
 The first milestone is **accepted**, and BPR-1606/BPR-1607 are Done. No later

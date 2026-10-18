@@ -189,3 +189,35 @@ public path plus composition contract pass **2/2 in 5.51 seconds**. Other
 unchanged passing evidence above is reused. No extra product change or owner
 decision was needed. Final local integration uses a clean-tree, exact-main
 revision, ancestry and shared-main-board-lock guard; no push is authorized.
+
+## GitHub budget milestone, engineering round 1
+
+Assignment `github-budget`, mandate `insights-window-v1-r1`; source begins at
+`55ea64194`, with accounting implementation `1c8bded96`. No chart or milestone
+acceptance is yet claimed. The current continuation records the exact frontier.
+
+Core derives the lowest-remaining Core split per numeric host/account, preserves
+headerless request counts and explicit expired/no-reading states, and gives
+GraphQL no split. The host records bounded content-free events on the existing
+Insights effect lane. Schema 2 migrates the existing store, retains current
+window counts across restart, compacts history and persists the selected account.
+Native observation occurs at API hop creation and header completion, including
+redirects and errors; gh emits its API count at actual process start. Process
+terminals and the shared lane supply failure, quarantine and abandonment facts.
+Failed diagnostic outcomes are tallied before the logger's enabled preference.
+No Insights refresh can call a provider, Git capability or process runner.
+
+The first focused run passes 6/6 in 26.34 seconds: pure core split/reset,
+Insights host, SQLite history/restart, native HTTPS loopback, gh transport and
+public Insights composition. The real gh process course separately passes in
+9.89 seconds with exact launch/failure/duration and quarantine/abandon assertions.
+The exact formatted candidate rebuild passes and its affected behavior rechecks
+pass. The architecture source guard needed its exact passive-callback patterns
+and matching mutation anchors updated; its bounded negative control passes.
+Production boundary scan passes in 15.54 seconds. Correction `7fdcc9cd1` keeps anonymous and capability observations and includes profile-level gh discovery. Its three affected courses pass in 12.01 seconds; unchanged passing transport/storage evidence is reused. BPR-1608 meets its whole-card acceptance.
+The documentation gate passes. Existing accepted shell/storage evidence is reused.
+
+`frontend-design` was read before UI work. The supplied HTML and AllTheThings'
+Energy chart source are the chart references; the current plan is recorded in
+the continuation. No owner's desktop or browser data was read. All future
+milestones, native platform qualification and human chart acceptance remain open.
