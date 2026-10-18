@@ -147,6 +147,9 @@ namespace bpr::qt {
 		, Chat{ aChat }
 		, Findings{ aFindings }
 		, HistoryPanel{ aHistory }
+		, LaunchAlive{ static_cast<QWidget*>(&aLaunch) }
+		, ChatAlive{ static_cast<QWidget*>(&aChat) }
+		, FindingsAlive{ static_cast<QWidget*>(&aFindings) }
 	{
 		setObjectName(QStringLiteral("agentTab"));
 		setAccessibleName(tr("Agent"));
@@ -161,6 +164,7 @@ namespace bpr::qt {
 		row->setContentsMargins(10, 8, 8, 8);
 		row->setSpacing(5);
 		auto* const profiles = Launch.profile_selector();
+		Borrowed.emplace_back(profiles, profiles->parentWidget());
 		profiles->setParent(context);
 		profiles->setToolTip(tr("The agent this tab asks"));
 		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
@@ -169,6 +173,7 @@ namespace bpr::qt {
 		Head->setToolTip(tr("The head the session reads"));
 		row->addWidget(Head);
 		auto* const scope = Chat.scope_selector();
+		Borrowed.emplace_back(scope, scope->parentWidget());
 		scope->setParent(context);
 		scope->setToolTip(tr("What the agent may read"));
 		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
@@ -213,11 +218,11 @@ namespace bpr::qt {
 		Pages->addWidget(Empty);
 
 		// The conversation: the state's callout, the replies, the findings.
-		Conversation           = new QWidget{ Pages };
-		auto* const talk       = new QVBoxLayout{ Conversation };
+		Conversation     = new QWidget{ Pages };
+		auto* const talk = new QVBoxLayout{ Conversation };
 		talk->setContentsMargins(0, 0, 0, 0);
 		talk->setSpacing(0);
-		auto* const scroll     = new QScrollArea{ Conversation };
+		auto* const scroll = new QScrollArea{ Conversation };
 		scroll->setObjectName(QStringLiteral("agentConversationScroll"));
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
@@ -226,7 +231,7 @@ namespace bpr::qt {
 		auto* const contentCol = new QVBoxLayout{ content };
 		contentCol->setContentsMargins(12, 8, 12, 12);
 		contentCol->setSpacing(10);
-		Banner                = new rounded{ rounded::look::callout, content };
+		Banner = new rounded{ rounded::look::callout, content };
 		Banner->setObjectName(QStringLiteral("agentStateBanner"));
 		auto* const bannerCol = new QVBoxLayout{ Banner };
 		bannerCol->setContentsMargins(12, 10, 12, 10);
@@ -262,8 +267,8 @@ namespace bpr::qt {
 		bannerCol->addWidget(Log);
 		contentCol->addWidget(Banner);
 		// Start: run a review that finds findings, when none are shown.
-		Start                  = new QWidget{ content };
-		auto* const startRow   = new QHBoxLayout{ Start };
+		Start                = new QWidget{ content };
+		auto* const startRow = new QHBoxLayout{ Start };
 		startRow->setContentsMargins(0, 0, 0, 0);
 		auto* const startWords = new QLabel{ tr("Ask a question below, or let the agent review the pull request for findings."), Start };
 		startWords->setWordWrap(true);
@@ -276,6 +281,7 @@ namespace bpr::qt {
 		startRow->addWidget(review, 0, Qt::AlignTop);
 		contentCol->addWidget(Start);
 		auto* const replies = Chat.replies_list();
+		Borrowed.emplace_back(replies, replies->parentWidget());
 		replies->setParent(content);
 		replies->setFrameShape(QFrame::NoFrame);
 		replies->setWordWrap(true);
@@ -292,15 +298,16 @@ namespace bpr::qt {
 		talk->addWidget(scroll, 1);
 
 		// The question field: the words, its context chips, Context and Ask.
-		auto* const ask      = new QWidget{ Conversation };
+		auto* const ask = new QWidget{ Conversation };
 		ask->setObjectName(QStringLiteral("agentQuestion"));
-		auto* const askCol   = new QVBoxLayout{ ask };
+		auto* const askCol = new QVBoxLayout{ ask };
 		askCol->setContentsMargins(10, 8, 10, 10);
 		auto* const field    = new rounded{ rounded::look::field, ask };
 		auto* const fieldCol = new QVBoxLayout{ field };
 		fieldCol->setContentsMargins(8, 6, 8, 6);
 		fieldCol->setSpacing(4);
 		auto* const composer = Chat.composer();
+		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
 		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
@@ -330,14 +337,15 @@ namespace bpr::qt {
 		Pages->addWidget(Conversation);
 
 		// History: the private history, with the way back.
-		HistoryPage          = new QWidget{ Pages };
-		auto* const histCol  = new QVBoxLayout{ HistoryPage };
+		HistoryPage         = new QWidget{ Pages };
+		auto* const histCol = new QVBoxLayout{ HistoryPage };
 		histCol->setContentsMargins(0, 0, 0, 0);
 		auto* const back = new QPushButton{ tr("Back to the conversation"), HistoryPage };
 		back->setObjectName(QStringLiteral("agentHistoryBack"));
 		back->setFlat(true);
 		connect(back, &QPushButton::clicked, this, [this] { show_history(false); });
 		histCol->addWidget(back, 0, Qt::AlignLeft);
+		Borrowed.emplace_back(&HistoryPanel, HistoryPanel.parentWidget());
 		HistoryPanel.setParent(HistoryPage);
 		histCol->addWidget(&HistoryPanel, 1);
 		HistoryPanel.show();
@@ -357,10 +365,26 @@ namespace bpr::qt {
 		refresh();
 	}
 
+	agent_tab_view::~agent_tab_view()
+	{
+		Dying = true;
+		// The panels hold these controls by pointer and outlive this tab; the
+		// tab never deletes what it only shows.
+		for (auto& [widget, owner] : Borrowed) {
+			if (widget != nullptr && owner != nullptr) {
+				widget->hide();
+				widget->setParent(owner);
+			}
+		}
+	}
+
 	void agent_tab_view::set_setup_dispatch(std::function<void()> aDispatch) { Setup = std::move(aDispatch); }
 
 	void agent_tab_view::focus_question()
 	{
+		if (!panels_alive()) {
+			return;
+		}
 		show_history(false);
 		if (Chat.composer()->isVisible()) {
 			Chat.composer()->setFocus(Qt::OtherFocusReason);
@@ -378,16 +402,19 @@ namespace bpr::qt {
 
 	void agent_tab_view::refresh()
 	{
-		const auto setUp = Launch.profile_selector()->count() > 0;
+		if (!panels_alive()) {
+			return;
+		}
+		const auto setUp   = Launch.profile_selector()->count() > 0;
 		const auto running = Launch.cancel_action()->isEnabled();
 		const auto status  = Launch.status_text();
 		const auto failed  = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
 		const auto moved   = !Chat.offered_continuations().empty();
 		State              = !setUp ? agent_tab_state::not_set_up
-						   : running ? agent_tab_state::working
-						   : moved   ? agent_tab_state::head_moved
-						   : failed  ? agent_tab_state::stopped
-									 : agent_tab_state::idle;
+			: running               ? agent_tab_state::working
+			: moved                 ? agent_tab_state::head_moved
+			: failed                ? agent_tab_state::stopped
+									: agent_tab_state::idle;
 		if (Pages->currentWidget() != HistoryPage) {
 			Pages->setCurrentWidget(State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty) : Conversation);
 		}
@@ -409,6 +436,9 @@ namespace bpr::qt {
 
 	void agent_tab_view::present_banner()
 	{
+		if (!panels_alive()) {
+			return;
+		}
 		auto* const callout = static_cast<rounded*>(Banner);
 		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
 		BannerFirst->disconnect();
@@ -465,6 +495,9 @@ namespace bpr::qt {
 
 	void agent_tab_view::rebuild_findings()
 	{
+		if (!panels_alive()) {
+			return;
+		}
 		for (auto& card : CardWidgets) {
 			if (card != nullptr) {
 				card->deleteLater();
@@ -481,8 +514,8 @@ namespace bpr::qt {
 			const auto& finding = delivery->Findings[ordinal].Finding;
 			auto* const card    = new rounded{ rounded::look::card, Cards };
 			card->setObjectName(QStringLiteral("agentFindingCard"));
-			card->Edge     = severity_colour(finding.Severity, palette());
-			card->Selected = selected == std::optional{ ordinal };
+			card->Edge      = severity_colour(finding.Severity, palette());
+			card->Selected  = selected == std::optional{ ordinal };
 			auto* const col = new QVBoxLayout{ card };
 			col->setContentsMargins(14, 10, 12, 10);
 			col->setSpacing(5);

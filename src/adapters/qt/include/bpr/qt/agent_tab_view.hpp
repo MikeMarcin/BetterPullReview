@@ -5,6 +5,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <utility>
 #include <vector>
 
 class QAbstractButton;
@@ -47,6 +48,10 @@ namespace bpr::qt {
 	{
 	public:
 		agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent = nullptr);
+		/// \brief Gives the borrowed controls back to the panels that own them.
+		~agent_tab_view() override;
+		agent_tab_view(const agent_tab_view&)                    = delete;
+		auto operator=(const agent_tab_view&) -> agent_tab_view& = delete;
 
 		/// \brief Set up an agent: Settings › Agents & context.
 		void set_setup_dispatch(std::function<void()> aDispatch);
@@ -74,32 +79,51 @@ namespace bpr::qt {
 		void rebuild_findings();
 		void present_banner();
 
-		agent_launch_panel&   Launch;
-		side_chat_panel&      Chat;
-		finding_queue_view&   Findings;
-		QWidget&              HistoryPanel;
-		std::function<void()> Setup;
-		agent_tab_state       State = agent_tab_state::not_set_up;
-		QStackedWidget*       Pages        = nullptr;
-		drawer_empty_state*   Empty        = nullptr;
-		QWidget*              Conversation = nullptr;
-		QWidget*              HistoryPage  = nullptr;
-		QWidget*              Banner       = nullptr;
-		QLabel*               BannerTitle  = nullptr;
-		QLabel*               BannerText   = nullptr;
-		QPushButton*          BannerFirst  = nullptr;
-		QPushButton*          BannerSecond = nullptr;
-		QWidget*              Cards        = nullptr;
-		QVBoxLayout*          CardColumn   = nullptr;
-		QWidget*              Start        = nullptr;
-		QLabel*               Head         = nullptr;
-		QToolButton*          History      = nullptr;
-		QPushButton*          Ask          = nullptr;
-		QPushButton*          Context      = nullptr;
-		QLabel*               Chips        = nullptr;
-		QLabel*               Log          = nullptr;
-		bool                  LogShown     = false;
+		agent_launch_panel&            Launch;
+		side_chat_panel&               Chat;
+		finding_queue_view&            Findings;
+		QWidget&                       HistoryPanel;
+		std::function<void()>          Setup;
+		agent_tab_state                State        = agent_tab_state::not_set_up;
+		QStackedWidget*                Pages        = nullptr;
+		drawer_empty_state*            Empty        = nullptr;
+		QWidget*                       Conversation = nullptr;
+		QWidget*                       HistoryPage  = nullptr;
+		QWidget*                       Banner       = nullptr;
+		QLabel*                        BannerTitle  = nullptr;
+		QLabel*                        BannerText   = nullptr;
+		QPushButton*                   BannerFirst  = nullptr;
+		QPushButton*                   BannerSecond = nullptr;
+		QWidget*                       Cards        = nullptr;
+		QVBoxLayout*                   CardColumn   = nullptr;
+		QWidget*                       Start        = nullptr;
+		QLabel*                        Head         = nullptr;
+		QToolButton*                   History      = nullptr;
+		QPushButton*                   Ask          = nullptr;
+		QPushButton*                   Context      = nullptr;
+		QLabel*                        Chips        = nullptr;
+		QLabel*                        Log          = nullptr;
+		bool                           LogShown     = false;
 		std::vector<QPointer<QWidget>> CardWidgets;
+		/// The panels' controls this tab shows, and where each came from.
+		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
+		/// The panels may go first when the window closes.
+		QPointer<QObject>  LaunchAlive;
+		QPointer<QObject>  ChatAlive;
+		QPointer<QObject>  FindingsAlive;
+		bool               Dying = false;
+		[[nodiscard]] auto panels_alive() const noexcept -> bool
+		{
+			if (Dying || LaunchAlive == nullptr || ChatAlive == nullptr || FindingsAlive == nullptr) {
+				return false;
+			}
+			for (const auto& [widget, owner] : Borrowed) {
+				if (widget == nullptr) {
+					return false;
+				}
+			}
+			return true;
+		}
 	};
 } // namespace bpr::qt
 

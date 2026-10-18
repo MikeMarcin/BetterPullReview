@@ -2194,9 +2194,9 @@ namespace bpr::qt {
 		bool     TourPageOpen = false;
 		void     wire_tour_page();
 		/// [[BPR-1594]]. The Agent tab, and its keys.
-		agent_tab_view* AgentTab              = nullptr;
-		QAction*        OpenAgentAction       = nullptr;
-		QAction*        AskAgentAction        = nullptr;
+		agent_tab_view* AgentTab        = nullptr;
+		QAction*        OpenAgentAction = nullptr;
+		QAction*        AskAgentAction  = nullptr;
 		/// [[BPR-1594]]. Opens the drawer on the Agent tab; with \p aAsk, the
 		/// selected lines go with the question and the keyboard goes to it.
 		void show_agent(bool aAsk);

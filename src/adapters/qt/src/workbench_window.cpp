@@ -8009,7 +8009,7 @@ namespace bpr::qt {
 		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() < 3) {
 			return;
 		}
-		const auto    narrow  = TrayHeader->width() > 0 && TrayHeader->width() < 340;
+		const auto narrow = TrayHeader->width() > 0 && TrayHeader->width() < 340;
 		// [[BPR-1594]]. Four tabs; the Agent keeps its spark beside its name.
 		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
 		const QIcon   icons[] = { conversation_icon(conversation_glyph::comment, palette()), conversation_icon(conversation_glyph::lock, palette()), drawer_icon(drawer_glyph::tour, palette()),
