@@ -470,7 +470,7 @@ namespace {
 			body += kind == 0 ? "```cpp\n" : kind == 1 ? "```diff\n@@ -1,4 +1,4 @@\n"
 													   : "```suggestion\n";
 			for (auto line = 0; line < 8; ++line) {
-				const auto text = "auto value" + n + "_" + std::to_string(line) + " = compute(first, second, third) + offset; // note " + n;
+				const auto text = std::string{ "auto value" }.append(n).append("_").append(std::to_string(line)).append(" = compute(first, second, third) + offset; // note ").append(n);
 				body.append(kind == 1 ? (line % 2 == 0 ? "-" : "+") : "").append(text).append("\n");
 			}
 			body += "```\n\n";

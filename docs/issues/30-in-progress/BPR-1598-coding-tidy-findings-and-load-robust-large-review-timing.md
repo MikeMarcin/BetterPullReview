@@ -77,12 +77,16 @@ The handoff inventory covered 885 translation units. After merging main
 covers naming, explicit static calls, fixed-size constant schema tables,
 integer loop counters, direct optional conversions and fewer temporary
 allocations. Copies that must survive an erase or UI update retain narrow,
-explained suppressions; Glaze option names and reflected fixture keys keep
+explained suppressions. Home’s two supported list types explicitly instantiate
+all virtual overrides in `home_list.cpp`; three narrow annotations account for
+the analyzer’s inability to see those definitions from callers. Glaze option
+names and reflected fixture keys keep
 their required spelling. Output markers retain explicit flushing.
 
 The migration payload now derives its length from its array bounds and keeps
 both NUL bytes. Its two-statement malformed-value mutation remains one SQL
-call. The app retains the fixture name for the later attended read. Benchmark
+call. The app retains the fixture name for the later attended read and passes the
+optional tour-stop body directly to the fixture staging method. Benchmark
 arguments use checked integer conversion. These details receive their existing
 focused storage, app and benchmark coverage.
 
@@ -101,8 +105,16 @@ work; accepted visual designs are preserved.
 
 ## Verification
 
-The full format gate passes across 1,628 files. All 73 changed test targets
-and focused consumers build. The full tidy gate and focused rows are running.
+The full format gate passes across 1,628 files. The changed test targets
+and focused consumers build, including the final workbench test file. The full
+tidy gate and 84 focused rows are running. The 16-row large-review
+batch completed in 592.19 seconds: 15 passed, and the documented Debug-only
+cache-byte row skipped. History passed in 413.43 seconds while the analyzer
+was running. Responsiveness and history each used their single bounded
+retry after a timing miss with measured GUI scheduler wait (3,538 ms of a
+15,380 ms course and 15,500 ms of a 200,972 ms course respectively). The
+first-attempt reports are retained by the runner. All other rows passed on
+the first attempt.
 The fresh timing control records 120.19 ms of GUI work despite 585.28 ms wall
 time, 40.22 ms of GUI work despite 152.15 ms wall time, and a blocked GUI
 interval of 125.10 ms. The fresh replay negative control
@@ -115,3 +127,9 @@ evidence. No new full-suite run is made for this card; item 9 owns it.
 
 The diff benchmark accepts `3 0` and refuses a non-integer repetition count
 and negative unsigned line count. The documentation gate passes.
+
+The first complete native gate exposed follow-on diagnostics after the initial
+fixes. All six affected translation units pass their direct recheck, including
+a caller of the explicitly instantiated Home list types. The final full gate
+is rerunning; the latest app-manifest pin is
+`235e94e1a255863ab4e3ebdf4150ca3e5ff7191776b51df00634a26cc57bdef1`.

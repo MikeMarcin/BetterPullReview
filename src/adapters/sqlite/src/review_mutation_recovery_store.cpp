@@ -1697,7 +1697,7 @@ namespace bpr::adapters::sqlite {
 				if (!bytes || !digest || digest->size() != 32 || !std::ranges::equal(core::sha256(*bytes), *digest)) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				const auto record = decode_staged_record(*bytes);
+				auto record = decode_staged_record(*bytes);
 				if (!record || !matches_scope(record->Plan.Submission) || record->Plan.Submission.IdempotencyKey != aKey) {
 					return std::unexpected(failure::integrity_failure);
 				}

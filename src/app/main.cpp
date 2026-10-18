@@ -10254,7 +10254,7 @@ auto main(int argc, char** argv) -> int
 							"issue (blocking): A zero-width view divides by zero in the aspect ratio below.\n\nThe clamp keeps the renderer safe until the caller checks the size itself.",
 							navigation, "https://github.com/bpr-fixtures/nested-folders/blob/b20cb443428212543f5911e091a0ffeb407d23cf/src/engine/renderer.cpp#L10-L14");
 						if (stop) {
-							bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_2", *stop, std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+							bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_2", stop, std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
 						}
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}

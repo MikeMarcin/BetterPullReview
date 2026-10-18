@@ -47,7 +47,12 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    and documentation gate pass. The 899-unit inventory is complete; 121 runs reported findings. Fixes
    are in place, 73 changed test targets plus focused consumers build, full
    format22 and documentation checks pass, and replay’s five-second CPU
-   negative control fails as intended. Full tidy and focused rows are running.
+   negative control fails as intended. The initial complete native gate exposed follow-on findings; those are
+   fixed and six direct rechecks pass. Source slices are `9e73d212d` and
+   `b1b416c17`, with final residual fixes in this commit. All large-review rows
+   pass (15 executed, one documented Debug skip), with the bounded retry used
+   by responsiveness and history. The 84-row focused run and final full tidy
+   pass are running.
    No full-suite run per card.
 7. BPR-1599: not started.
 8. Task-owned housekeeping: pending.

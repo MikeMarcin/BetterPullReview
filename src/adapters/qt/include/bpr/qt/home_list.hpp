@@ -141,11 +141,15 @@ namespace bpr::qt {
 			this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		}
 
+		// Both supported bases explicitly instantiate every override in home_list.cpp.
+		// The per-translation-unit check cannot see those definitions in callers.
+		// NOLINTNEXTLINE(portability-template-virtual-member-function)
 		[[nodiscard]] auto sizeHint() const -> QSize override
 		{
 			return { TView::sizeHint().width(), fitted_height() };
 		}
 
+		// NOLINTNEXTLINE(portability-template-virtual-member-function)
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override
 		{
 			return { 0, fitted_height() };
@@ -157,6 +161,7 @@ namespace bpr::qt {
 		}
 
 	protected:
+		// NOLINTNEXTLINE(portability-template-virtual-member-function)
 		void updateGeometries() override
 		{
 			TView::updateGeometries();
