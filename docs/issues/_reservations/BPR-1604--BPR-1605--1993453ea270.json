@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1604",
+    "BPR-1605"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "contrast debt and pending blocking chip (owner 2026-10-18)",
+  "created": "2026-10-18T21:39:50.953628+00:00",
+  "base": "6ca8aacccca46b057af7592d5d62d0ccda1ec7fc"
+}
