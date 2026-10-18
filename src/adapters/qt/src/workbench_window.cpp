@@ -7153,6 +7153,12 @@ namespace bpr::qt {
 		if (HasGithubPullRequest) {
 			LastUsedModality = aModality;
 		}
+		// [[BPR-1599]]. A choice made while the pull request loads is the
+		// reviewer's, and its arrival keeps it.
+		if (!EnteringOpeningModality && !HasGithubPullRequest && SessionPanel != nullptr
+			&& SessionPanel->status() == core::github_status::loading_pull_request) {
+			LoadingChoice = aModality;
+		}
 		ModalityChosen = true;
 		apply_modality_surface();
 		if (HomeRequested) {
@@ -7203,6 +7209,17 @@ namespace bpr::qt {
 			.Drawer = core::workbench_drawer::conversations,
 			.State  = core::workbench_drawer_state::expanded,
 		});
+	}
+
+	void workbench_window::enter_opening_modality(const review_modality aModality)
+	{
+		// [[BPR-1599]]. Pressing Review while a pull request loads used to be
+		// undone when it arrived: the arrival entered Overview over it, and
+		// the reviewer had to choose Review again.
+		const auto chosen       = LoadingChoice;
+		EnteringOpeningModality = true;
+		choose_modality(chosen.value_or(aModality));
+		EnteringOpeningModality = false;
 	}
 
 	auto workbench_window::home_landing() const noexcept -> workbench_landing*
@@ -11340,7 +11357,7 @@ namespace bpr::qt {
 			HomeRequested     = false;
 			OverviewPage->present_cached(*aUpdate.CachedOverview);
 			update_status_text();
-			choose_modality(review_modality::overview);
+			enter_opening_modality(review_modality::overview);
 			apply_modality_surface();
 		}
 		if (aUpdate.CachedSource && HasCachedOverview && !HasGithubPullRequest) {
@@ -11489,11 +11506,19 @@ namespace bpr::qt {
 			if (aTransition.Status->Status == core::github_status::loading_pull_request && !HasGithubPullRequest) {
 				HasCachedOverview = false;
 				HomeRequested     = false;
+				// [[BPR-1599]]. A load starts with no choice of its own.
+				LoadingChoice.reset();
 				OverviewPage->present_loading();
-				choose_modality(review_modality::overview);
+				enter_opening_modality(review_modality::overview);
 			}
 			if (aTransition.Status->Status != core::github_status::loading_pull_request && !HasGithubPullRequest) {
 				OverviewPage->clear();
+			}
+			// [[BPR-1599]]. A load that ends without its pull request leaves
+			// no choice for the next one.
+			if (aTransition.Status->Status == core::github_status::pull_request_failed
+				|| aTransition.Status->Status == core::github_status::pull_request_cancelled) {
+				LoadingChoice.reset();
 			}
 			apply_modality_surface();
 		}
@@ -11615,8 +11640,10 @@ namespace bpr::qt {
 			OpenOnOverview = false;
 			// [[BPR-0661]]. The modality is the reviewer's preference: the
 			// overview the design opens on, Review, or the one last used here.
-			choose_modality(opening_modality());
+			// [[BPR-1599]]: or the one chosen while it loaded.
+			enter_opening_modality(opening_modality());
 		}
+		LoadingChoice.reset();
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
 		// are the reviewer's preferences too; the comparison waits until the
 		// history offers it.
