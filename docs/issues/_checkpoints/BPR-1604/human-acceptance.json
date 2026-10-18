@@ -1,0 +1,20 @@
+{
+  "session_id": "3b007b57637c66122767174fe1a527be",
+  "consumed_event_cursor": 11,
+  "decision_event": 9,
+  "handed_back_event": 11,
+  "candidate_id": "BPR-1604-contrast-v001",
+  "fingerprint": "18165d213f8efc13646e35315ea5674870c522faa7f649c1f043cbf842d742e5",
+  "decision": {
+    "candidate": "BPR-1604-contrast-v001",
+    "fingerprint": "18165d213f8efc13646e35315ea5674870c522faa7f649c1f043cbf842d742e5",
+    "decision_id": "e0d9c8b1-6351-45d2-ad4b-57646094073a",
+    "outcome": "accept",
+    "note": "",
+    "saved_at": "2026-10-18T23:25:11.568872+00:00",
+    "actor": "human"
+  },
+  "product_revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+  "executable_sha256": "4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66",
+  "pending_decisions": []
+}
