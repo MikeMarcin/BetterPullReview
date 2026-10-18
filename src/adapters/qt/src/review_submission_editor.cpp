@@ -712,18 +712,9 @@ namespace bpr::qt {
 				painter.setPen(accent_ink(colours, drawer_card_colours{ }.Reading));
 				painter.drawText(QRect{ x, 0, LinesColumn, height() }, Qt::AlignLeft | Qt::AlignVCenter, Lines);
 				x += LinesColumn + spacing;
-				// Show and its chevron, at the end, stronger while the row is
-				// under the pointer or the keyboard.
-				const auto show      = review_submission_editor::tr("Open in Review");
-				const auto showWidth = metrics.horizontalAdvance(show) + 14;
-				const auto showLeft  = width() - gutter - showWidth;
+				// The chevron at the end, stronger while the row is under the
+				// pointer or the keyboard; no words (owner, compose-sheet v003).
 				painter.setFont(font());
-				// The words only while the row is under the pointer or selected;
-				// the chevron always.
-				painter.setPen(accent_ink(colours));
-				if (hovered) {
-					painter.drawText(QRect{ showLeft, 0, showWidth - 10, height() }, Qt::AlignRight | Qt::AlignVCenter, show);
-				}
 				{
 					auto       chevron = QPainterPath{ };
 					const auto cx      = static_cast<qreal>(width() - gutter - 4);
@@ -735,10 +726,8 @@ namespace bpr::qt {
 					painter.drawPath(chevron);
 				}
 				// The words: the label's header in bold, then the rest, cut to
-				// the one line.
-				// They run to the chevron, and give way to "Open in Review"
-				// while it shows.
-				const auto room   = std::max(0, (hovered ? showLeft : width() - gutter - 16) - 8 - x);
+				// the one line at the chevron.
+				const auto room   = std::max(0, width() - gutter - 16 - 8 - x);
 				auto       prefix = QString{ };
 				auto       rest   = Words;
 				if (Mark.Label) {

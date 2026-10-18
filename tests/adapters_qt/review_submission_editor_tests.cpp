@@ -363,6 +363,25 @@ auto main(int argc, char** argv) -> int
 	mouse(rowsShown.at(1), QEvent::MouseButtonPress);
 	mouse(rowsShown.at(1), QEvent::MouseButtonRelease);
 	expect(goneTo.empty() && rowsShown.at(1)->hasFocus(), "negative control: a single click selects the row and opens nothing");
+	{
+		// [[BPR-1590]] v003, accepted: a selected row shows no "Open in
+		// Review" words before its chevron (owner: "fine without that").
+		const auto before = editor.size();
+		editor.resize(1'000, editor.height());
+		rowsShown.at(0)->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		const auto image = rowsShown.at(0)->grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		auto       inks  = std::set<QRgb>{ };
+		for (auto x = rowsShown.at(0)->width() - 120; x < rowsShown.at(0)->width() - 30; ++x) {
+			for (auto y = 4; y < rowsShown.at(0)->height() - 4; ++y) {
+				inks.insert(image.pixel(qRound(x * ratio), qRound(y * ratio)));
+			}
+		}
+		expect(rowsShown.at(0)->width() > 700 && inks.size() <= 2U, "a selected row draws no words before its chevron");
+		editor.resize(before);
+		QApplication::processEvents();
+	}
 	doubleClick(rowsShown.at(1));
 	expect(goneTo.size() == 1U && goneTo.front() == range && intents.size() == beforeRows, "a double click opens the comment in Review and submits nothing");
 	editor.set_pending_open([&](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) { opened.emplace_back(aComment, aDestination); });
