@@ -499,6 +499,29 @@ names the retained-identity risk and defaults to Cancel. Its explicit Save actio
 carries the existing core confirmation bit for that exact descriptor. No new
 capture, classification, destination, mutation or network authority is added.
 
+## Troubleshooting resets (BPR-1602)
+
+`core/profile_data_reset.hpp` names four resets (caches, settings, review data,
+everything) and the area each store or top-level folder belongs to. The policy
+is closed: an unnamed store is kept, and the sign-in stores, logs and shared
+stores are never in scope. Core admits a request only with the acknowledgement
+a destructive reset needs. The maintenance adapter's purge flag is a journalled
+scope (0 clear, 1 purge, 11–14 the resets), so a reset reuses the exact native
+inventory, `BPRMNT03` journal and startup replay. Its scan passes everything
+outside the scope unread, accepts any owner-private descendant of a cache folder
+(so a damaged cache can be cleared), keeps the purge's exact layout for the
+publication store, and never calls the credential port; the credential receipt
+it appends is empty. An optional copy of the removed `state/v1` files goes to a
+new owner-private folder before the journal, and its failure removes nothing.
+
+The reset runs in the profile startup's lease-holding root step, after
+`recover_release_profile` and before any store, logger or producer opens. The
+desktop closes every window of the profile through the management host, waits
+until its runtime has gone, then starts it with the confirmed request; a reset
+that stops part-way refuses that start and the next start replays its journal.
+Reset settings then restores Home's queue display choices through the queue
+store, keeping saved repositories, servers and observer rules.
+
 ## Remembered connection metadata (RFC-BPR-0071)
 
 The profile-private `state/v1/remembered-connections.sqlite3` snapshot and its recognized SQLite sidecars are state-store inventory/purge targets. They carry connection selection and disable facts, never CLI credentials. Profile purge removes them through the existing exact inventory; it neither changes gh authentication/configuration nor removes shared updater/registry state. Storage/policy and composed restart/refusal evidence are mapped in the [RFC-BPR-0071 ledger](../verification/RFC-BPR-0071.md); they add no uninstall or shared-state purge claim.

@@ -77,7 +77,9 @@ namespace bpr::app {
 
 	private:
 		[[nodiscard]] static auto configuration_for_profile(const github_application_config& aConfig, core::bpr_profile_id aProfile, const std::filesystem::path& aRoot) -> github_application_config;
-		using startup_factory = std::function<std::unique_ptr<github_application_startup>(core::bpr_profile_id, const std::filesystem::path&, core::profile_launch_intent, github_application_startup_completion)>;
+		/// The reset is [[BPR-1602]]'s: present only for the runtime that reopens a
+		/// profile after a confirmed Troubleshooting reset.
+		using startup_factory = std::function<std::unique_ptr<github_application_startup>(core::bpr_profile_id, const std::filesystem::path&, core::profile_launch_intent, std::optional<core::profile_data_reset_request>, github_application_startup_completion)>;
 		[[nodiscard]] static auto start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent = core::profile_launch_intent::activate, empty_desktop_policy aPolicy = { }, bool aNativeLifetime = false, std::shared_ptr<QSystemTrayIcon> aStatusItem = { }) -> std::unique_ptr<profile_desktop>;
 		class implementation;
 		explicit profile_desktop(std::shared_ptr<implementation> aImplementation);

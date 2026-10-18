@@ -252,6 +252,60 @@ Export applies the selected privacy policy to every classified field; the
 legacy metadata-only API remains available for compatibility. Older records
 are not retroactively enriched.
 
+## Reset this profile's local data
+
+[[BPR-1602]]. When the application misbehaves because a profile's local data is
+in a bad state, **Settings → Storage & privacy → Troubleshooting** offers four
+resets. None of them signs out, reads or deletes a credential, changes GitHub,
+removes diagnostic logs, or touches another profile, the shared registry and
+updater state, agent workspaces, exported files or a Git checkout.
+
+| Reset | Removes (whole files with their sidecars) | Keeps |
+|---|---|---|
+| Clear caches | `repositories/`, `incoming/`, `locks/`, `quarantine/`, `mcp-snapshot/`, `state/v1/epoch-catalog.sqlite3` and its lock, `markdown-images.sqlite3`, `review-overviews.sqlite3` | everything else |
+| Reset settings | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `window-restoration`; Home's queue display choices are restored inside `review-queue` | saved repositories, servers, observer rules, review data, caches |
+| Reset review data | `review-ledger`, `review-tours`, `review-cycles`, `review-mutation-recovery`, `publication-git-v1/` | settings, caches, saved sources |
+| Reset everything | all of the above and `review-queue` (saved repositories, servers, observer rules, Home's queue) | sign-in (`device-bindings`, `remembered-connections` and the vault), logs |
+
+Clearing caches also discards the record of earlier pushes; pushes that GitHub
+no longer has after a force-push cannot be compared again. Reset review data
+deletes private notes, unsent comments and Review Cycles that exist only on
+this computer, so its confirmation needs an explicit acknowledgement and offers
+**Save a copy of the removed data in Downloads first** (on by default). The copy
+is a new owner-private folder named `BetterPullReview reset <date> <time>` in
+Downloads, else Documents or home, holding the removed `state/v1` files; a reset
+whose copy cannot be made removes nothing.
+
+A confirmed reset closes the profile's windows, so its stores and logger close
+and the runtime lease is released. The profile then starts again: under its new
+lease, after maintenance recovery and before any store opens, the reset records
+its exact inventory in the `.bpr-maintenance-v1` journal and removes it. A crash
+part-way leaves the journal, and the next start finishes exactly that inventory
+before the profile opens. Anything unexpected inside a removed folder (a link, a
+file another account owns, a folder where a store belongs) refuses the reset and
+removes nothing. The reopened window's status bar says what was reset, or why it
+did not run.
+
+### When a profile cannot open
+
+Most damaged stores do not stop a profile opening: the feature that uses them
+fails, and a reset above clears it. Some do: a damaged comparison history
+(`epoch-catalog.sqlite3`) stops the profile at start. The application then shows
+**Profile "…" couldn't open** with **Clear caches and try again** (the default),
+**Reset everything…** (which asks its confirmation) and **Quit**. A chosen reset
+runs before the profile's stores open, and the profile opens again in the same
+process; a second failure offers the dialog once more.
+
+Start the application with `--reset-profile-data` to open the same dialog
+before anything in the profile loads, for example when the profile crashes
+before it can show it. `--reset-profile-data-scope caches|settings|review-data|everything`
+runs that reset directly (naming a destructive one is its acknowledgement), and
+`--reset-profile-data-copy` adds the copy. On macOS run the executable inside
+the application bundle, for example
+`/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --reset-profile-data`.
+Damage to the profile list shared by all profiles (`profile-registry.sqlite3`)
+is outside these resets.
+
 ## Clear diagnostics or purge a profile
 
 1. Finish or save work in every window of the selected profile. In **Storage &

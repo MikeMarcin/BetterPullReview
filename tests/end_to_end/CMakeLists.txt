@@ -3589,6 +3589,27 @@ bpr_add_network_isolated_test(NAME application_release_maintenance_public_path W
 set_tests_properties(application_release_maintenance_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_MAINTENANCE_PUBLIC_RENDER=${CMAKE_CURRENT_BINARY_DIR}/maintenance-public.png"
     RUN_SERIAL TRUE TIMEOUT 90 PASS_REGULAR_EXPRESSION "release-maintenance-public-path:pass")
+# [[BPR-1602]]. Troubleshooting on the real profile desktop: each reset closes,
+# removes exactly its stores and reopens; a damaged catalog recovers.
+bpr_add_executable(test_profile_data_reset_public_path profile_data_reset_public_path_tests.cpp)
+target_link_libraries(test_profile_data_reset_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_profile_data_reset_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_profile_data_reset_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_profile_data_reset_public_path)
+bpr_enable_warnings(test_profile_data_reset_public_path)
+bpr_add_network_isolated_test(NAME application_profile_data_reset_public_path WINDOWS_UNCONTAINED
+    COMMAND test_profile_data_reset_public_path)
+set_tests_properties(application_profile_data_reset_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    RUN_SERIAL TRUE TIMEOUT 240 PASS_REGULAR_EXPRESSION "profile-data-reset-public-path:pass")
+# [[BPR-1602]]. A profile that cannot open, through the shipped entry point:
+# the recovery dialog answered without a person, Quit, Clear caches and try
+# again, --reset-profile-data, and a healthy profile offered nothing.
+bpr_add_network_isolated_test(NAME application_profile_recovery_public_path WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/profile_recovery_course.py"
+        $<TARGET_FILE:app_better_pull_review> "${PROJECT_SOURCE_DIR}")
+set_tests_properties(application_profile_recovery_public_path PROPERTIES
+    RUN_SERIAL TRUE TIMEOUT 300 PASS_REGULAR_EXPRESSION "PROFILE_RECOVERY_COURSE_OK")
 bpr_add_executable(test_release_update_recovery release_update_recovery_tests.cpp)
 target_link_libraries(test_release_update_recovery PRIVATE BetterPullReview::AdapterSQLite Qt6::Core)
 bpr_enable_hardening(test_release_update_recovery)

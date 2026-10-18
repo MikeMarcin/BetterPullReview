@@ -2322,3 +2322,26 @@ foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
             TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1602]]. Settings › Storage & privacy › Troubleshooting, its confirmations and the recovery dialog.
+bpr_add_executable(
+    test_better_pull_review_qt_profile_data_reset_views_tests
+    profile_data_reset_views_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_profile_data_reset_views_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_profile_data_reset_views_tests)
+bpr_enable_warnings(test_better_pull_review_qt_profile_data_reset_views_tests)
+bpr_add_network_isolated_test(
+    NAME qt_profile_data_reset_views
+    COMMAND test_better_pull_review_qt_profile_data_reset_views_tests
+)
+set_tests_properties(
+    qt_profile_data_reset_views
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "profile-data-reset-views-tests:pass"
+)
