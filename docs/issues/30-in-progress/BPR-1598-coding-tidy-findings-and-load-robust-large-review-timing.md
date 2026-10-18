@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner-approved cleanup, 2026-10-17","related_cards":["BPR-1373","BPR-0967","BPR-1247","BPR-1495","BPR-1580","BPR-1583","BPR-1560","BPR-1557"],"reservation":"docs/issues/_reservations/BPR-1598--BPR-1598--95fbc5d6a30d.json"}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0bea4e26d","evidence":{"kind":"observation","detail":"Native coding-format-check and coding-tidy complete with exit 0: 1,628 files and all 899 translation units, LLVM 22. Tidy helper contract covers four cases. Accepted visual designs preserved; frontend-design skill loaded."}},{"criterion":"AC2","outcome":"pass","revision":"0bea4e26d","evidence":{"kind":"observation","detail":"Unchanged limits use measured scheduling attribution, with wall readings retained. Loaded-machine large-review batch passes 15 executed rows; Debug cache-byte row skips as documented. Windows retains its documented wall fallback."}},{"criterion":"AC3","outcome":"pass","revision":"0bea4e26d","evidence":{"kind":"observation","detail":"Fresh timing control counts 120.19 ms GUI work within 585.28 ms wall, 40.22 ms within 152.15 ms wall, and 125.10 ms blocked GUI. Fresh five-second replay CPU negative control fails with LARGE_REVIEW_REPLAY_CPU_LIMIT. Unchanged product-path sleep/spin negative controls at 9252502e4 each fail both loaded attempts."}},{"criterion":"AC4","outcome":"pass","revision":"0bea4e26d","evidence":{"kind":"observation","detail":"Affected targets build. All 84 focused rows pass (1212.24 s), then all nine final residual/composition checks pass (201.40 s). Large-review batch passes under concurrent analyzer load (592.19 s; one documented Debug skip); responsiveness/history each use one bounded retry. Documentation and diff checks pass. Integrated full suite remains assigned to handoff item 9."}}]
 ---
 
 # BPR-1598: The coding-tidy gate passes, and the large-review timing rows hold on a loaded machine
@@ -107,7 +107,10 @@ work; accepted visual designs are preserved.
 
 The full format gate passes across 1,628 files. The changed test targets
 and focused consumers build, including the final workbench test file. The full
-tidy gate and 84 focused rows are running. The 16-row large-review
+tidy gate passes all 899 translation units with LLVM 22. All 84 focused rows pass in 1,212.24 seconds; nine
+final checks also pass, covering the follow-on edits and both composition
+contracts on `0bea4e26d` (201.40 seconds). The
+16-row large-review
 batch completed in 592.19 seconds: 15 passed, and the documented Debug-only
 cache-byte row skipped. History passed in 413.43 seconds while the analyzer
 was running. Responsiveness and history each used their single bounded
@@ -131,5 +134,5 @@ and negative unsigned line count. The documentation gate passes.
 The first complete native gate exposed follow-on diagnostics after the initial
 fixes. All six affected translation units pass their direct recheck, including
 a caller of the explicitly instantiated Home list types. The final full gate
-is rerunning; the latest app-manifest pin is
+passes; the verified app-manifest pin is
 `235e94e1a255863ab4e3ebdf4150ca3e5ff7191776b51df00634a26cc57bdef1`.
