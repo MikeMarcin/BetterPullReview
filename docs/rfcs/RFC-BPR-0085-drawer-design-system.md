@@ -59,8 +59,14 @@ drawer and expand to their page.
 Milestone 6 ([[BPR-1594]]) landed on 2026-10-18 after the owner's Accept
 of v001 with no note (session `5547b234…`). Agent has its own drawer tab,
 opened by its shortcut or Ask about these lines. The accepted candidate's
-known gaps remain recorded on its handoff. [[BPR-1603]] and [[BPR-1595]]
-remain open; this milestone does not close the RFC.
+known gaps remain recorded on its handoff.
+
+The AC10 amendment ([[BPR-1603]]) landed on 2026-10-18 after the owner’s
+Accept of direction A built v001 with no note (session `d28b9f71…`, decision
+6, handback 7). PR comments and review summaries open from the top-edge
+chip into the drawer’s chronological list. Replies use durable private
+drafts and explicit Send through the existing witnessed publication path.
+[[BPR-1595]] remains open; this amendment does not close the RFC.
 
 **Amendment, 2026-10-18 ([[BPR-1603]]).** The owner, while [[BPR-1593]] was
 under way: "The notes-on-the-pull-request thing might actually be a good UX
