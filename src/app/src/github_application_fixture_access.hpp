@@ -103,6 +103,9 @@ namespace bpr::app::detail {
 		/// and three pull request comments are the GitHub-parity HTML,
 		/// details and emoji fixtures.
 		markdown_html_v1,
+		/// [[BPR-1589]]. overview-labels-v1 read by tbutler, a reviewer, with
+		/// a mention and two failed checks, for judging the Status drawer.
+		status_attention_v1,
 		/// [[BPR-1562]]. The conventional-comments pull request whose
 		/// description and comments hold fenced code in many languages and
 		/// diff blocks, and whose threads suggest changes to its lines.

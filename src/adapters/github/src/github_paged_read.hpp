@@ -164,6 +164,33 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief [[BPR-1560]]. Whether the pull request GitHub describes now is
 	/// the one a snapshot was read from.
+	/// \brief [[BPR-1589]]. Whether the viewer is in one team, as GitHub
+	/// answered: absent when the organization is not visible to this account.
+	struct github_team_membership_read
+	{
+		std::optional<bool>                  Member;
+		application::github_rate_limit_state RateLimits;
+	};
+
+	using github_team_membership_read_result = std::expected<github_team_membership_read, github_paged_read_failure>;
+
+	/// \brief [[BPR-1589]]. Asks GitHub whether `aLogin` is in the team
+	/// `aOrganization/aSlug`, in one bounded GraphQL page, under the pull
+	/// request's own correlation. Signed out it sends nothing.
+	[[nodiscard]] auto perform_github_team_membership_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		core::repository_id                                      aRepository,
+		std::string_view                                         aOrganization,
+		std::string_view                                         aSlug,
+		std::string_view                                         aLogin,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
+		-> github_team_membership_read_result;
+
 	struct github_pull_request_confirmation
 	{
 		bool                                 Unchanged = false;

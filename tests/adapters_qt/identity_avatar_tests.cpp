@@ -7,6 +7,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
@@ -206,6 +207,8 @@ namespace {
 				page.resize(1000, 640);
 				page.show();
 				page.present(overview());
+				// [[BPR-1589]]. The roster is People's details.
+				page.status_section_header(qt::overview_status_section::people)->setChecked(true);
 				settle();
 				expect(overview_fill(page, QStringLiteral("tbutler")) == mine.Fill, label + "Overview draws tbutler in the same fill as Threads");
 				expect(overview_fill(page, QString::fromStdString(other)) == theirs.Fill, label + "and the other person in the same fill as Threads");

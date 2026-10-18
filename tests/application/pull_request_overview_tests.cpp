@@ -644,11 +644,88 @@ namespace {
 		expect(projected.MergeState == "Blocked" && projected.RequirementDetails.find("merging is blocked") != std::string::npos && projected.CheckRows.front().Requirement == "Requirement unknown" && projected.RequirementDetails.find("access denied") != std::string::npos, "unavailable policy cannot erase known merge block or classify an unobserved gate");
 	}
 
+	/// [[BPR-1589]]. The Status drawer's role and attention, from the snapshot.
+	void test_status_leads_with_my_role_and_what_needs_attention()
+	{
+		using kind  = core::review_role_kind;
+		auto review = snapshot();
+		auto plain  = application::project_pull_request_overview(review, { });
+		expect(plain.Status.Roles.ViewerKnown && plain.Status.Roles.Roles.size() == 1U && plain.Status.Roles.Roles.front().Kind == kind::reviewed
+				   && plain.Status.Roles.Roles.front().Review == core::my_review_state::changes_requested,
+			   "my latest submitted review is my role when nothing else applies");
+		expect(plain.Status.Attention.size() == 1U && plain.Status.Attention.front().Kind == core::status_attention_kind::replies_to_me && plain.Status.Attention.front().Count == 2U,
+			   "the replies to my thread need me; nothing else applies");
+
+		review.PullRequest.Body = "Fixes three crashes. cc @Mike";
+		auto direct             = application::github_review_request_record{ };
+		direct.Login            = "mike";
+		direct.Kind             = application::github_requested_actor_kind::user;
+		direct.AsCodeOwner      = true;
+		auto team               = application::github_review_request_record{ };
+		team.Organization       = "EpicGames";
+		team.Login              = "render";
+		team.Kind               = application::github_requested_actor_kind::team;
+		team.AsCodeOwner        = true;
+		review.ReviewRequests   = { direct, team };
+		review.Reviews.push_back({ .Author = actor("mike", 1U), .State = application::github_review_state::pending });
+		review.Merge.Availability = application::github_observation_availability::available;
+		review.Merge.Assessment   = application::github_merge_assessment::conflicts;
+		review.Checks.push_back({ .Check = application::github_check_id{ "a" }, .Name = "build-linux", .Status = application::github_check_status::completed, .Conclusion = application::github_check_conclusion::failure });
+		review.Checks.push_back({ .Check = application::github_check_id{ "b" }, .Name = "lint-strict", .Status = application::github_check_status::completed, .Conclusion = application::github_check_conclusion::failure });
+		const auto busy  = application::project_pull_request_overview(review, { });
+		auto       roles = std::vector<core::review_role_kind>{ };
+		for (const auto& role : busy.Status.Roles.Roles) {
+			roles.push_back(role.Kind);
+		}
+		expect(roles == std::vector{ kind::requested, kind::team_requested, kind::reviewed, kind::mentioned } && busy.Status.Roles.Roles[0].CodeOwner
+				   && busy.Status.Roles.Roles[1].Teams == std::vector<std::string>{ "EpicGames/render" } && busy.Status.Roles.Roles[1].Membership == core::team_membership::unknown
+				   && busy.Status.Roles.Roles[2].Review == core::my_review_state::changes_requested && busy.Status.Roles.Roles[3].Mention == core::mention_place::description,
+			   "several roles at once, strongest first; a pending review is not my latest; team membership is not observed");
+		const auto& attention = busy.Status.Attention;
+		expect(attention.size() == 4U && attention[0].Kind == core::status_attention_kind::conflicts && attention[1].Kind == core::status_attention_kind::failed_checks
+				   && attention[1].Names == std::vector<std::string>{ "build-linux", "lint-strict" } && attention[2].Kind == core::status_attention_kind::waiting_on
+				   && attention[2].Names == std::vector<std::string>{ "EpicGames/render" } && attention[3].Kind == core::status_attention_kind::replies_to_me,
+			   "conflicts, each failed check once, the team waited on without me, replies to me");
+		expect(std::ranges::none_of(busy.Status.OpenConditions, [](const std::string& aCondition) { return aCondition.find(" failed") != std::string::npos; })
+				   && std::ranges::count_if(busy.MergeConditions, [](const std::string& aCondition) { return aCondition.find(" failed") != std::string::npos; }) == 2,
+			   "Merge's other conditions leave the failures to the attention list");
+
+		review.Viewer     = actor("jiayin", 2U);
+		const auto author = application::project_pull_request_overview(review, { });
+		expect(!author.Status.Roles.Roles.empty() && author.Status.Roles.Roles.front().Kind == core::review_role_kind::author, "the author leads with authorship");
+
+		// [[BPR-1589]] v002. GitHub's membership answer decides the team role.
+		review.Viewer                = actor("mike", 1U);
+		review.ViewerTeamMemberships = { { .Team = "EpicGames/render", .Membership = application::github_team_membership::member } };
+		const auto member            = application::project_pull_request_overview(review, { });
+		expect(member.Status.Roles.Roles.size() > 1U && member.Status.Roles.Roles[1].Kind == core::review_role_kind::team_requested && member.Status.Roles.Roles[1].Membership == core::team_membership::member,
+			   "a team GitHub says I am in is my team's request");
+		review.ViewerTeamMemberships = { { .Team = "epicgames/RENDER", .Membership = application::github_team_membership::not_member } };
+		const auto outsider          = application::project_pull_request_overview(review, { });
+		expect(std::ranges::none_of(outsider.Status.Roles.Roles, [](const core::review_role& aRole) { return aRole.Kind == core::review_role_kind::team_requested; }),
+			   "a team GitHub says I am not in, matched without regard to case, is no role");
+		review.ViewerTeamMemberships = { { .Team = "EpicGames/render", .Membership = application::github_team_membership::needs_read_org } };
+		const auto scoped            = application::project_pull_request_overview(review, { });
+		expect(scoped.Status.Roles.Roles.size() > 1U && scoped.Status.Roles.Roles[1].Membership == core::team_membership::unknown && scoped.Status.Roles.Roles[1].Reason == core::team_membership_reason::needs_read_org,
+			   "a sign-in without read:org leaves the team named, with the reason");
+		review.ViewerTeamMemberships.clear();
+		review.Viewer        = actor("observer", 9U);
+		const auto bystander = application::project_pull_request_overview(review, { });
+		expect(bystander.Status.Roles.ViewerKnown && bystander.Status.Roles.Roles.size() == 1U && bystander.Status.Roles.Roles.front().Kind == kind::team_requested,
+			   "an unobserved team membership is the only role a bystander may have");
+		review.ReviewRequests.pop_back();
+		expect(application::project_pull_request_overview(review, { }).Status.Roles.Roles.empty(), "no role at all");
+
+		review.Viewer = { };
+		expect(!application::project_pull_request_overview(review, { }).Status.Roles.ViewerKnown, "an unknown viewer is told nothing");
+	}
+
 } // namespace
 
 auto main() -> int
 {
 	test_merge_evidence_boundaries();
+	test_status_leads_with_my_role_and_what_needs_attention();
 	test_history_header_matches_complete_projection();
 	test_receipt_readoption_keeps_exact_current_paths();
 	test_receipt_updates_match_a_complete_projection();

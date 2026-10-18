@@ -240,6 +240,11 @@ namespace {
 			semantic.PullRequestNumber = context.Number.value();
 			semantic.Nodes             = { "PR_kwDOA" };
 			break;
+		case read_operation::get_team_membership:
+			semantic.Organization = "octo-org";
+			semantic.Team         = "reviewers";
+			semantic.Login        = "octo-reviewer";
+			break;
 		}
 		return semantic;
 	}
@@ -334,8 +339,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 12U && refused == 9U
-				   && all_read_operations.size() == 21U
+		expect(admitted == 12U && refused == 10U
+				   && all_read_operations.size() == 22U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

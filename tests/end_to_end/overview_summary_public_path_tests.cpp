@@ -3,6 +3,7 @@
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
@@ -181,8 +182,18 @@ int main(int aArgc, char** aArgv)
 	auto* checkOpen        = page->findChild<QPushButton*>(QStringLiteral("overviewOpenCheck"));
 	expect(page->projection()->Checks.Passed == 16 && page->projection()->Checks.Failed == 1 && page->projection()->Checks.Skipped == 7 && page->projection()->ChecksComplete && checkList->topLevelItemCount() == 25,
 		   "24 current results and matching complete totals reach the ordinary composed Overview");
-	expect(checkDisclosure->isChecked() && checkList->currentItem()->text(0).contains(QStringLiteral("Branch Freshness")) && checkExplanation->toPlainText().contains(QStringLiteral("Update the branch before merging")),
-		   "failure automatically expands with its name, actual outcome and supplied explanation");
+	// [[BPR-1589]]. The failure is named once, in Needs attention; Checks
+	// opens to its result, outcome and explanation.
+	const auto attentionNames = [&](const QString& aWords) { return std::ranges::count_if(page->attention_rows(), [&](const QString& aRow) { return aRow.contains(aWords); }); };
+	expect(!checkDisclosure->isChecked() && attentionNames(QStringLiteral("Branch Freshness")) == 1, "the failure is named once, in Needs attention");
+	checkDisclosure->click();
+	settle();
+	expect(checkDisclosure->isChecked() && checkList->currentItem()->text(0).contains(QStringLiteral("Branch Freshness")) && checkExplanation->toPlainText().contains(QStringLiteral("Update the branch before merging"))
+			   && attentionNames(QStringLiteral("Branch Freshness")) == 0,
+		   "Checks opens with the failure's name, actual outcome and supplied explanation, and Needs attention then only counts it");
+	page->status_section_header(qt::overview_status_section::attention)->setChecked(true);
+	page->status_section_header(qt::overview_status_section::people)->setChecked(true);
+	settle();
 	auto*      mergeState            = page->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
 	auto*      mergeText             = page->findChild<QLabel*>(QStringLiteral("overviewMergeConditions"));
 	auto*      requirementDisclosure = page->findChild<QToolButton*>(QStringLiteral("overviewRequirementDisclosure"));
@@ -194,7 +205,7 @@ int main(int aArgc, char** aArgv)
 		}
 		return names;
 	};
-	expect(mergeState->text() == QStringLiteral("Blocked") && mergeText->text().contains(QStringLiteral("Review required, minimum 2 approvals")) && mergeText->text().contains(QStringLiteral("Branch Freshness failed")) && mergeText->text().contains(QStringLiteral("Missing CI has not reported")) && mergeText->text().count(QLatin1Char{ '\n' }) == 2, "simultaneous review, known check failure and missing required result are each one short line beside summary");
+	expect(mergeState->text() == QStringLiteral("Blocked") && mergeText->text().contains(QStringLiteral("Review required, minimum 2 approvals")) && !mergeText->text().contains(QStringLiteral("Branch Freshness")) && mergeText->text().contains(QStringLiteral("Missing CI has not reported")) && mergeText->text().count(QLatin1Char{ '\n' }) == 1, "review and missing required result are each one short line in Merge's details; the failure is Needs attention's");
 	for (int index = 0; index < 3; ++index) {
 		expect(roster().value(index).startsWith(QStringLiteral("bpr-fixtures/owners-%1, team").arg(index)) && roster().value(index).endsWith(QStringLiteral("code-owner review requested")), "all three provider-marked code-owner teams are named directly, first");
 	}
@@ -205,7 +216,7 @@ int main(int aArgc, char** aArgv)
 	QApplication::sendEvent(requirementDisclosure, &showRequirements);
 	QKeyEvent releaseRequirements{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(requirementDisclosure, &releaseRequirements);
-	expect(requirementDisclosure->isChecked() && requirementText->isVisible() && requirementText->text().contains(QStringLiteral("Organization: bpr-fixtures (ruleset 42)")) && requirementText->text().contains(QStringLiteral("Auto-merge is not enabled")) && requirementText->text().contains(QStringLiteral("Remaining approvals are not established")) && mergeText->accessibleName().contains(QStringLiteral("Branch Freshness failed")), "keyboard details expose exact origin and evidence limits, with accessible conditions");
+	expect(requirementDisclosure->isChecked() && requirementText->isVisible() && requirementText->text().contains(QStringLiteral("Organization: bpr-fixtures (ruleset 42)")) && requirementText->text().contains(QStringLiteral("Auto-merge is not enabled")) && requirementText->text().contains(QStringLiteral("Remaining approvals are not established")) && mergeText->accessibleName().contains(QStringLiteral("Missing CI has not reported")), "keyboard details expose exact origin and evidence limits, with accessible conditions");
 	render(*application, QStringLiteral("requirement-details"));
 	requirementDisclosure->click();
 	render(*application, QStringLiteral("review-blockers-initial"));
@@ -256,7 +267,7 @@ int main(int aArgc, char** aArgv)
 	QApplication::sendEvent(checkDisclosure, &showChecks);
 	QKeyEvent releaseChecks{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(checkDisclosure, &releaseChecks);
-	expect(checkDisclosure->isChecked() && checkDisclosure->accessibleName().contains(QStringLiteral("Check details")) && checkList->accessibleName() == QStringLiteral("Check results"), "native keyboard disclosure and result accessible names work");
+	expect(checkDisclosure->isChecked() && checkDisclosure->accessibleName().startsWith(QStringLiteral("Checks")) && checkList->accessibleName() == QStringLiteral("Check results"), "native keyboard disclosure and result accessible names work");
 	auto* side = page->findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
 	side->ensureWidgetVisible(checkExplanation);
 	render(*application, QStringLiteral("check-details"));

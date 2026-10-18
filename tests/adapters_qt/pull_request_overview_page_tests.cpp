@@ -1,6 +1,8 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -43,6 +45,7 @@
 #include <QTextDocument>
 #include <QToolButton>
 #include <QTreeView>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -210,21 +213,25 @@ namespace {
 				   && participants[1]->login() == QStringLiteral("mike")
 				   && participants[1]->standing_text() == QStringLiteral("changes requested")
 				   && participants[2]->standing_text() == QStringLiteral("approved")
-				   && participants[1]->isVisible(),
-			   "participants are rows with their login and standing");
+				   && !participants[1]->isVisible(),
+			   "participants are rows with their login and standing, in People's details");
+		page.status_section_header(qt::overview_status_section::people)->click();
+		QApplication::processEvents();
+		expect(participants[1]->isVisible(), "[[BPR-1589]] People opens in place to the roster");
+		const auto rowShown = [&page](const qt::overview_value aValue) { return !page.value_label(aValue)->parentWidget()->isHidden(); };
 
 		expect(page.since_heading()->text().startsWith(QStringLiteral("Since my last review on "))
 				   && page.value_label(qt::overview_value::uploads)->text() == QStringLiteral("2")
 				   && page.value_label(qt::overview_value::files_changed)->text() == QStringLiteral("2")
-				   && page.value_label(qt::overview_value::new_comments)->text() == QStringLiteral("not available")
+				   && !rowShown(qt::overview_value::new_comments)
 				   && page.value_label(qt::overview_value::replies_to_me)->text() == QStringLiteral("1")
 				   && page.value_label(qt::overview_value::my_unresolved_threads)->text() == QStringLiteral("2")
 				   && page.value_label(qt::overview_value::checks)->text() == QStringLiteral("3 passed, 1 skipped")
 				   && page.value_label(qt::overview_value::files_read)->text() == QStringLiteral("1 of 3")
 				   && page.value_label(qt::overview_value::private_notes)->text() == QStringLiteral("1")
-				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1 unpublished"),
-			   "the side column states what happened since my last review and my progress, "
-			   "saying not available where the host cannot answer");
+				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1"),
+			   "[[BPR-1589]] the Status drawer states what happened since my last review and my progress, "
+			   "and draws no row where the host cannot answer");
 		expect(page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
 			   "the first entry into Review lands at the first unseen change's file");
 		page.files_view()->activated(lighting);
@@ -244,13 +251,13 @@ namespace {
 		page.present(unknown);
 		QApplication::processEvents();
 		expect(page.files_heading()->text().contains(QStringLiteral("not yet resolved"))
-				   && page.value_label(qt::overview_value::uploads)->text() == QStringLiteral("not retained")
-				   && page.value_label(qt::overview_value::files_changed)->text() == QStringLiteral("not yet resolved")
-				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("not available")
+				   && !rowShown(qt::overview_value::uploads)
+				   && page.value_label(qt::overview_value::files_changed)->text() == QStringLiteral("not yet resolved") && rowShown(qt::overview_value::files_changed)
+				   && !rowShown(qt::overview_value::drafted_comments)
 				   && page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")).siblingAtColumn(qt::overview_file_model::changed_column).data().toString()
 					   == QStringLiteral("?")
 				   && page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "what the host cannot answer reads as not known, never as none");
+			   "what is still resolving says so; what the host cannot answer is not drawn, never as none");
 
 		auto partial                = projection();
 		partial.CommitCount         = 9'311U;
@@ -884,6 +891,8 @@ namespace {
 											   .Signoff = application::overview_signoff::changes_requested });
 		}
 		page.present(projected);
+		// [[BPR-1589]]. The roster is People's details.
+		page.status_section_header(qt::overview_status_section::people)->setChecked(true);
 		page.show();
 		settle();
 		auto* scroll = page.findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
@@ -3104,6 +3113,269 @@ namespace {
 			expect(page.grab().save(QStringLiteral("%1/files-band-%2.png").arg(aRoot, name), "PNG"), "the band look is saved");
 		}
 	}
+	/// \brief [[BPR-1589]]. A busy pull request: several roles of mine,
+	/// conflicts, two failed checks, a code owner waited on and replies to me.
+	[[nodiscard]] auto status_projection() -> application::pull_request_overview_projection
+	{
+		auto projected            = projection();
+		projected.MergeState      = "Conflicts";
+		projected.MergeTone       = application::overview_merge_tone::blocked;
+		projected.MergeConditions = { "Review required", "build-linux failed", "lint failed" };
+		projected.ReviewRequests  = { { .Name = "EpicGames/render", .DisplayName = "Render", .Team = true, .CodeOwner = true }, { .Name = "tbutler" } };
+		projected.Checks          = { .Passed = 33U, .Failed = 2U, .Skipped = 2U };
+		for (const auto& [name, failed] : { std::pair{ "build-linux", true }, std::pair{ "lint", true }, std::pair{ "test-mac", false } }) {
+			projected.CheckRows.push_back({ .Identity = std::string{ "check:" } + name, .Name = name, .Kind = "Check run", .Outcome = failed ? "Failed" : "Passed", .Failed = failed });
+		}
+		auto& status          = projected.Status;
+		status.Viewer         = "mike";
+		status.Roles          = { .ViewerKnown = true,
+								  .Roles       = { { .Kind = core::review_role_kind::team_requested, .CodeOwner = true, .Teams = { "EpicGames/render" }, .Reason = core::team_membership_reason::needs_read_org },
+												   { .Kind = core::review_role_kind::reviewed, .Review = core::my_review_state::changes_requested },
+												   { .Kind = core::review_role_kind::mentioned, .Mention = core::mention_place::comment } } };
+		status.Attention      = { { .Kind = core::status_attention_kind::conflicts, .Count = 1U },
+								  { .Kind = core::status_attention_kind::failed_checks, .Count = 2U, .Names = { "build-linux", "lint" } },
+								  { .Kind = core::status_attention_kind::waiting_on, .Count = 2U, .Names = { "EpicGames/render", "tbutler" } },
+								  { .Kind = core::status_attention_kind::replies_to_me, .Count = 1U } };
+		status.OpenConditions = { "Review required" };
+		return projected;
+	}
+
+	[[nodiscard]] auto mentions(const QStringList& aRows, const QString& aWords) -> qsizetype
+	{
+		return std::ranges::count_if(aRows, [&aWords](const QString& aRow) { return aRow.contains(aWords); });
+	}
+
+	void test_status_leads_with_my_role_and_what_needs_attention()
+	{
+		using section = qt::overview_status_section;
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 900);
+		auto opened = std::vector<std::string>{ };
+		page.set_new_threads_dispatch([&opened] { opened.emplace_back("threads"); });
+		page.set_new_conversation_dispatch([&opened] { opened.emplace_back("discuss"); });
+		page.present(status_projection());
+		page.show();
+		settle();
+		auto* const drawer = page.status_drawer();
+
+		auto* const role = page.role_line();
+		expect(role->isVisible() && role->primary() == QStringLiteral("Team review requested")
+				   && role->chips() == QStringList{ QStringLiteral("@EpicGames/render"), QStringLiteral("Code owner"), QStringLiteral("Reviewer · changes requested"), QStringLiteral("Mentioned") }
+				   && role->toolTip().contains(QStringLiteral("lacks the read:org scope")) && !role->toolTip().contains(QStringLiteral("may be a member")),
+			   "[[BPR-1589]] v002: one short label, the other roles as chips, and why GitHub would not say in the tooltip, with no hedge on the line");
+		const auto rows = page.attention_rows();
+		expect(rows.size() == 4 && rows[0].startsWith(QStringLiteral("Conflicts with release")) && rows[1] == QStringLiteral("2 checks failed\nbuild-linux, lint")
+				   && rows[2] == QStringLiteral("Waiting on EpicGames/render and tbutler\nCode-owner review requested") && rows[3] == QStringLiteral("1 reply to you"),
+			   "Needs attention: conflicts, each failed check named, who is waited on, replies to me");
+		auto* const attention = page.status_section_header(section::attention);
+		expect(attention->text() == QStringLiteral("Needs attention") && attention->count() == QStringLiteral("4"), "the section counts what needs me");
+
+		// Each failed check is named in one place at a time.
+		auto* const conditions = page.findChild<QLabel*>(QStringLiteral("overviewMergeConditions"));
+		attention->click();
+		settle();
+		expect(conditions->isVisible() && conditions->text() == QStringLiteral("Review required"), "Needs attention opens to Merge's other conditions, not the failures again");
+		page.status_section_header(section::checks)->click();
+		settle();
+		expect(page.findChild<QWidget*>(QStringLiteral("overviewCheckList"))->isVisible() && mentions(page.attention_rows(), QStringLiteral("build-linux")) == 0
+				   && page.attention_rows()[1] == QStringLiteral("2 checks failed"),
+			   "with Checks open, the list names the failures and Needs attention only counts them");
+
+		// My review: the threads with new posts, and Go to them.
+		expect(page.findChild<QWidget*>(QStringLiteral("overviewNewThreads"))->isHidden(), "no threads with new posts, no row");
+		page.set_new_threads(3U);
+		settle();
+		auto* const go = page.new_threads_button();
+		expect(go->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNewThreadsText"))->text() == QStringLiteral("3 threads with new posts"), "the threads with new posts are counted");
+		go->click();
+		expect(opened == std::vector<std::string>{ "threads" }, "Go to them opens Threads");
+		expect(page.new_conversation_button()->parentWidget()->isHidden(), "the conversation's line waits for its read state");
+		page.set_new_conversation_comments(2U);
+		settle();
+		expect(page.new_conversation_button()->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNewConversationText"))->text() == QStringLiteral("2 new comments in the conversation"),
+			   "once it has a count, the conversation's line shows it");
+		page.new_conversation_button()->click();
+		expect(opened.back() == "discuss", "its Go to them opens Discuss");
+		page.set_new_conversation_comments(std::nullopt);
+
+		// People: faces and one line.
+		expect(page.people_faces()->faces().size() == 5U && page.people_summary()->text() == QStringLiteral("1 approved, 1 requested changes, 2 requested"),
+			   "People is faces with one summary line");
+
+		// No empty rows, open or closed.
+		for (const auto open : { true, false }) {
+			for (std::size_t index = 0U; index < qt::overview_status_section_count; ++index) {
+				page.status_section_header(static_cast<section>(index))->setChecked(open);
+			}
+			settle();
+			const auto violations = qt::drawer_principle_violations(*drawer);
+			expect(violations.isEmpty(), std::string{ "the Status drawer keeps RFC-BPR-0085's principles: " } + violations.join(QStringLiteral("; ")).toStdString());
+		}
+		auto quiet               = status_projection();
+		quiet.SinceLastReview    = { .Known = true, .Uploads = 0U, .FilesChanged = 0U };
+		quiet.Progress           = { .FilesRead = 0U, .FilesTotal = 3U, .DraftedComments = 0U };
+		quiet.Status.Attention   = { };
+		quiet.Status.Roles.Roles = { };
+		quiet.MergeState         = "Mergeable";
+		page.present(quiet);
+		page.status_section_header(section::my_review)->setChecked(true);
+		settle();
+		expect(page.status_section_header(section::attention)->text() == QStringLiteral("Merge") && page.status_section_header(section::attention)->count() == QStringLiteral("Mergeable")
+				   && role->primary() == QStringLiteral("No role") && role->chips().isEmpty(),
+			   "nothing needs me: the section is Merge with its state, and no role says so");
+		expect(qt::drawer_principle_violations(*drawer).isEmpty(), "a quiet pull request draws no zero rows");
+		{
+			auto* const zero = new QLabel{ QStringLiteral("0"), page.status_section(section::my_review) };
+			zero->show();
+			expect(!qt::drawer_principle_violations(*drawer).isEmpty(), "negative control: a zero row is caught");
+			delete zero;
+		}
+
+		// A disclosure remembers its state for the pull request in the window.
+		auto other   = status_projection();
+		other.Number = core::pull_request_number{ 7U };
+		page.present(other);
+		settle();
+		expect(!page.status_section_header(section::my_review)->isChecked(), "another pull request opens with its own disclosures");
+		page.present(quiet);
+		settle();
+		expect(page.status_section_header(section::my_review)->isChecked(), "coming back finds My review open as it was left");
+
+		auto unknown                     = status_projection();
+		unknown.Status.Roles.ViewerKnown = false;
+		page.present(unknown);
+		settle();
+		expect(!role->isVisible(), "an unknown viewer is told nothing about a role");
+	}
+
+	/// \brief [[BPR-1589]] v002. The five roles the owner judges, each as the
+	/// drawer draws it.
+	[[nodiscard]] auto role_variants() -> std::vector<std::pair<QString, core::review_roles>>
+	{
+		using kind = core::review_role_kind;
+		return {
+			{ QStringLiteral("author"), { .ViewerKnown = true, .Roles = { { .Kind = kind::author } } } },
+			{ QStringLiteral("requested"), { .ViewerKnown = true, .Roles = { { .Kind = kind::requested, .CodeOwner = true }, { .Kind = kind::reviewed, .Review = core::my_review_state::commented } } } },
+			{ QStringLiteral("team-member"), { .ViewerKnown = true, .Roles = { { .Kind = kind::team_requested, .Teams = { "EpicGames/render" }, .Membership = core::team_membership::member } } } },
+			{ QStringLiteral("team-unknown"), { .ViewerKnown = true, .Roles = { { .Kind = kind::team_requested, .Teams = { "EpicGames/render" }, .Reason = core::team_membership_reason::needs_read_org } } } },
+			{ QStringLiteral("mentioned"), { .ViewerKnown = true, .Roles = { { .Kind = kind::mentioned, .Mention = core::mention_place::description } } } },
+		};
+	}
+
+	void test_role_line_is_one_short_label()
+	{
+		const auto expected = std::map<QString, std::pair<QString, QStringList>>{
+			{ QStringLiteral("author"), { QStringLiteral("Author"), { } } },
+			{ QStringLiteral("requested"), { QStringLiteral("Review requested"), { QStringLiteral("Code owner"), QStringLiteral("Reviewer · commented") } } },
+			{ QStringLiteral("team-member"), { QStringLiteral("Review requested"), { QStringLiteral("Your team: @EpicGames/render") } } },
+			{ QStringLiteral("team-unknown"), { QStringLiteral("Team review requested"), { QStringLiteral("@EpicGames/render") } } },
+			{ QStringLiteral("mentioned"), { QStringLiteral("Mentioned"), { } } },
+		};
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 700);
+		page.show();
+		for (const auto& [name, roles] : role_variants()) {
+			auto projected         = projection();
+			projected.Status.Roles = roles;
+			page.present(projected);
+			settle();
+			auto* const line = page.role_line();
+			const auto& want = expected.at(name);
+			expect(line->primary() == want.first && line->chips() == want.second, "the " + name.toStdString() + " role is one short label: " + line->primary().toStdString());
+			expect(line->height() >= line->heightForWidth(line->width()) && line->heightForWidth(line->width()) < (3 * line->fontMetrics().height()) + 24 && line->toolTip().size() > 0,
+				   "the " + name.toStdString() + " role is whole at the drawer's width in at most two lines, its reason in the tooltip");
+		}
+		// Negative control: the v001 sentence would not fit one line.
+		auto projected         = projection();
+		projected.Status.Roles = role_variants()[3].second;
+		page.present(projected);
+		settle();
+		expect(page.role_line()->toolTip().contains(QStringLiteral("read:org")) && !page.role_line()->primary().contains(QStringLiteral("may be")), "the reason is in the tooltip, never the line");
+	}
+
+	/// \brief [[BPR-1589]] v002. The role section before (v001's wording and
+	/// layout, rebuilt here: a face, a sentence and an "Also:" line) and after,
+	/// for the five roles, Light and Dark.
+	void render_role_look(const QString& aRoot)
+	{
+		const auto before = std::map<QString, std::pair<QString, QString>>{
+			{ QStringLiteral("author"), { QStringLiteral("You are the author"), { } } },
+			{ QStringLiteral("requested"), { QStringLiteral("Review requested from you as a code owner"), QStringLiteral("Also: you reviewed with comments") } },
+			{ QStringLiteral("team-member"), { QStringLiteral("Review requested from EpicGames/render; you may be a member"), { } } },
+			{ QStringLiteral("team-unknown"), { QStringLiteral("Review requested from EpicGames/render; you may be a member"), { } } },
+			{ QStringLiteral("mentioned"), { QStringLiteral("You are mentioned in the description"), { } } },
+		};
+		for (const auto& [mode, theme] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			for (const auto& [name, roles] : role_variants()) {
+				qt::pull_request_overview_page page;
+				profile.apply_to(page);
+				page.adopt_appearance(profile);
+				page.resize(1'240, 700);
+				auto projected         = projection();
+				projected.Status.Roles = roles;
+				page.present(projected);
+				page.show();
+				settle();
+				auto* const line = page.role_line();
+				expect(line->grab().save(QStringLiteral("%1/role-after-%2-%3.png").arg(aRoot, name, theme), "PNG"), "the role after is saved");
+				// Before: v001's anatomy at the same width.
+				QWidget old;
+				profile.apply_to(old);
+				old.setAutoFillBackground(true);
+				old.setBackgroundRole(QPalette::AlternateBase);
+				auto* const row = new QHBoxLayout{ &old };
+				row->setContentsMargins(4, 4, 4, 6);
+				row->setSpacing(10);
+				auto* const face = new qt::identity_avatar_view{ 24, &old };
+				face->set_identity(QStringLiteral("mike"));
+				row->addWidget(face, 0, Qt::AlignTop);
+				auto* const words = new QVBoxLayout;
+				auto* const lead  = new QLabel{ before.at(name).first, &old };
+				lead->setWordWrap(true);
+				auto bold = lead->font();
+				bold.setWeight(QFont::DemiBold);
+				lead->setFont(bold);
+				words->addWidget(lead);
+				if (!before.at(name).second.isEmpty()) {
+					auto* const also = new QLabel{ before.at(name).second, &old };
+					also->setWordWrap(true);
+					also->setForegroundRole(QPalette::PlaceholderText);
+					words->addWidget(also);
+				}
+				row->addLayout(words, 1);
+				old.resize(line->width(), old.heightForWidth(line->width()) > 0 ? old.heightForWidth(line->width()) : old.sizeHint().height());
+				old.show();
+				settle();
+				expect(old.grab().save(QStringLiteral("%1/role-before-%2-%3.png").arg(aRoot, name, theme), "PNG"), "the role before is saved");
+			}
+		}
+	}
+
+	/// \brief [[BPR-1589]]. The Status drawer for the owner's look, Light and
+	/// Dark, closed and with every section open.
+	void render_status_look(const QString& aRoot)
+	{
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			for (const auto open : { false, true }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				qt::pull_request_overview_page page;
+				profile.apply_to(page);
+				page.adopt_appearance(profile);
+				page.resize(1'240, open ? 1'500 : 900);
+				page.present(status_projection());
+				page.set_new_threads(3U);
+				page.show();
+				for (std::size_t index = 0U; index < qt::overview_status_section_count; ++index) {
+					page.status_section_header(static_cast<qt::overview_status_section>(index))->setChecked(open);
+				}
+				settle();
+				expect(page.status_drawer()->grab().save(QStringLiteral("%1/status-%2-%3.png").arg(aRoot, name, open ? QStringLiteral("open") : QStringLiteral("closed")), "PNG"), "the Status look is saved");
+			}
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -3146,6 +3418,18 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-band-look:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1589]] v002. The role section before and after.
+	if (argc > 2 && std::string_view{ argv[1] } == "--role-look") {
+		render_role_look(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-role-look:pass\n";
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1589]]. The Status drawer's look, for the owner's review.
+	if (argc > 2 && std::string_view{ argv[1] } == "--status-look") {
+		render_status_look(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-status-look:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1331]] v003. The read column's marks alone.
 	if (argc > 1 && std::string_view{ argv[1] } == "--read-marks") {
 		test_the_read_column_shows_the_mark();
@@ -3159,6 +3443,8 @@ auto main(int argc, char** argv) -> int
 	test_folder_disclosure_is_the_leftmost_mark();
 	test_folder_counts_share_one_column();
 	test_page_presents_the_projection_and_reports_its_gestures();
+	test_status_leads_with_my_role_and_what_needs_attention();
+	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
 	test_compact_descriptions();

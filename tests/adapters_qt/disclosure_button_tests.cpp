@@ -164,7 +164,6 @@ namespace {
 	[[nodiscard]] auto sites() -> std::vector<site>
 	{
 		auto all = std::vector<site>{ };
-		all.push_back({ "Overview Check details", [] { return std::make_unique<qt::pull_request_overview_page>(); }, named("overviewChecksDisclosure"), QStringLiteral("Check details: 3 failed") });
 		all.push_back({ "Overview Requirement details", [] { return std::make_unique<qt::pull_request_overview_page>(); }, named("overviewRequirementDisclosure"), QString{ } });
 		all.push_back({ "Compose review Pull request and account", [] { return std::make_unique<qt::review_submission_editor>([](const auto&) { }); }, named("wholeReviewDetails"), QString{ } });
 		all.push_back({ "Source search skipped sides", [] { return std::make_unique<qt::source_search_panel>(nullptr); }, named("sourceSearchSkippedToggle"), QStringLiteral("2 sides not searched") });

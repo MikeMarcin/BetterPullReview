@@ -10,6 +10,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -27,6 +28,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -12148,6 +12150,19 @@ namespace {
 			{ .Thread = "first-b", .UnreadPosts = { "first-b-post" } },
 			{ .Thread = "second-a", .UnreadPosts = { "second-a-post" } },
 		});
+		// [[BPR-1589]]. The Status drawer counts what Threads' Only new lists,
+		// and its Go to them opens Threads with Only new on.
+		expect(window.overview_page()->new_threads() == 3U, "the Status drawer counts the three threads with new posts");
+		window.overview_page()->new_threads_button()->click();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::threads && window.finder()->filters().OnlyNew, "Go to them opens Threads with Only new on");
+		{
+			auto filters    = window.finder()->filters();
+			filters.OnlyNew = false;
+			window.finder()->set_filters(filters);
+		}
+		window.choose_modality(qt::review_modality::review);
+		process_events();
 		auto* const toggle      = qobject_cast<QToolButton*>(window.primary_toolbar()->widgetForAction(window.conversations_drawer_toggle_action()));
 		const auto  badge       = [&] { return toggle->property(qt::strip_style::badge_property).toString(); };
 		const auto  expectCount = [&](const QString& aCount, const std::string_view aReason) {

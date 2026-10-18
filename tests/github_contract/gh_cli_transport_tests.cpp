@@ -371,6 +371,11 @@ namespace {
 			request.PullRequestNumber = 17U;
 			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
 			break;
+		case read_operation::get_team_membership:
+			request.Organization = "octo-org";
+			request.Team         = "reviewers";
+			request.Login        = "octo-reviewer";
+			break;
 		}
 		if (aOperation == read_operation::list_checks || aOperation == read_operation::get_merge_base) {
 			request.HeadOid = "0123456789abcdef0123456789abcdef01234567";

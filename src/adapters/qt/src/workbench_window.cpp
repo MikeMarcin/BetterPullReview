@@ -2078,6 +2078,15 @@ namespace bpr::qt {
 			}
 		});
 		OverviewPage->set_file_dispatch([this](const QString& aPath) { enter_review_at(aPath); });
+		// [[BPR-1589]]. My review's Go to them: Threads, with Only new on.
+		OverviewPage->set_new_threads_dispatch([this] { show_new_threads(); });
+		// Its conversation line opens Discuss on the pull request.
+		OverviewPage->set_new_conversation_dispatch([this] {
+			if (Modality != nullptr && HasGithubPullRequest) {
+				choose_home(false);
+				choose_modality(review_modality::discuss);
+			}
+		});
 		CentreStack->addWidget(ComparisonPage);
 		CentreStack->addWidget(OverviewPage);
 		CentreStack->setCurrentWidget(ComparisonPage);
@@ -7439,6 +7448,7 @@ namespace bpr::qt {
 		const auto unchanged = PresentedOverview.has_value() && *PresentedOverview == aProjection;
 		if (!unchanged) {
 			OverviewPage->present(aProjection);
+			present_new_threads();
 			PresentedOverview = aProjection;
 			PresentedOverviewRows.clear();
 			PresentedOverviewRows.reserve(aProjection.Files.size());
@@ -7832,6 +7842,7 @@ namespace bpr::qt {
 		}
 		static_cast<void>(ConversationPanel->cards()->set_thread_read_state(aThread, std::move(aUnreadPosts)));
 		apply_thread_marks();
+		present_new_threads();
 	}
 
 	void workbench_window::present_read_state(std::vector<thread_read_state> aState)
@@ -7844,6 +7855,30 @@ namespace bpr::qt {
 		}
 		ConversationPanel->cards()->set_read_state(std::move(aState));
 		apply_thread_marks();
+		present_new_threads();
+	}
+
+	void workbench_window::present_new_threads()
+	{
+		// [[BPR-1589]]. The Status drawer counts what Threads' Only new lists:
+		// the threads with a post I have not read.
+		if (OverviewPage != nullptr && ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			OverviewPage->set_new_threads(ConversationPanel->cards()->unread_threads_in_file_order().size());
+		}
+	}
+
+	void workbench_window::show_new_threads()
+	{
+		if (Modality == nullptr || !HasGithubPullRequest) {
+			return;
+		}
+		choose_home(false);
+		choose_modality(review_modality::threads);
+		if (Finder != nullptr) {
+			auto filters    = Finder->filters();
+			filters.OnlyNew = true;
+			Finder->set_filters(std::move(filters));
+		}
 	}
 
 	auto workbench_window::next_new_comment_action() const noexcept -> QAction*

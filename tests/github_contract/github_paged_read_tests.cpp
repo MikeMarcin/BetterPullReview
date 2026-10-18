@@ -1510,6 +1510,7 @@ namespace {
 				case read_operation::list_requested_reviewers:
 				case read_operation::get_merge_base:
 				case read_operation::resolve_body_images:
+				case read_operation::get_team_membership:
 					break;
 				}
 				return success_response(fixture_json(fixture_object{ }));
@@ -3598,6 +3599,86 @@ namespace {
 			   "a signed-out GHES read sends nothing");
 	}
 
+	/// [[BPR-1589]] v002. A GraphQL answer, as GitHub's GraphQL rate resource.
+	[[nodiscard]] auto graphql_answer(std::string aBody, const int aStatus = 200) -> wire_response
+	{
+		auto response   = success_response(std::move(aBody));
+		response.Status = aStatus;
+		for (auto& header : response.Headers) {
+			if (header.Name == "X-RateLimit-Resource") {
+				header.Value = "graphql";
+			}
+		}
+		return response;
+	}
+
+	[[nodiscard]] auto teams_body(const std::vector<std::string>& aSlugs) -> std::string
+	{
+		auto nodes = std::string{ };
+		for (const auto& slug : aSlugs) {
+			nodes += (nodes.empty() ? "" : ",") + std::string{ R"({"slug":")" } + slug + R"("})";
+		}
+		return R"({"data":{"organization":{"id":"O_1","teams":{"nodes":[)" + nodes + R"(]}}}})";
+	}
+
+	auto test_team_membership_read() -> void
+	{
+		const auto read = [](merge_base_fixture_transport& aTransport, const validated_github_host_profile& aProfile, const application::github_pull_request_provider_request& aRequest,
+							 const github_provider_read_authority aAuthority = github_provider_read_authority::authenticated) {
+			return perform_github_team_membership_read(aTransport, aProfile, aRequest, core::repository_id{ 101U }, "octo-org", "render-owners", "Octo-Reviewer", { }, { }, aAuthority);
+		};
+		const auto answered = [&](std::string aBody) {
+			auto transport = merge_base_fixture_transport{ };
+			transport.Responses.push_back(graphql_answer(std::move(aBody)));
+			auto result = read(transport, profile(), provider_request());
+			expect(transport.Requests.size() == 1U, "one request per team");
+			return std::pair{ std::move(result), std::move(transport.Requests) };
+		};
+
+		// A member: the organization's teams I am in include the slug.
+		auto [member, asked] = answered(teams_body({ "render-owners-emeritus", "Render-Owners" }));
+		expect(member && member->Member == true, "the exact slug, in any case, among my teams is a member");
+		const auto& wire = asked[0].Wire;
+		expect(wire.Operation == read_operation::get_team_membership && wire.Method == http_method::post && wire.Path == "/graphql"
+				   && wire.Body.find(R"("variables":{"login":"Octo-Reviewer","org":"octo-org","slug":"render-owners"})") != std::string::npos
+				   && wire.Body.find("teams(first:25,query:$slug,userLogins:[$login])") != std::string::npos,
+			   "one GraphQL query names the organization, the team slug and the login, and nothing else");
+
+		// Not a member; and the negative control: a team whose slug only starts like it.
+		expect(answered(teams_body({ })).first->Member == false, "no team of mine with the slug is not a member");
+		expect(answered(teams_body({ "render-owners-emeritus", "render" })).first->Member == false, "negative control: a team whose name the search also matched is another team");
+
+		// An organization GitHub does not show this account.
+		expect(!answered(R"({"data":{"organization":null}})").first->Member.has_value(), "an organization GitHub does not show is not known");
+
+		// A sign-in without read:org: GitHub's typed error is a permission.
+		const auto scoped = answered(R"({"data":{"organization":null},"errors":[{"type":"INSUFFICIENT_SCOPES","message":"Your token has not been granted the required scopes to execute this query. The 'members' field requires one of the following scopes: ['read:org']"}]})").first;
+		expect(!scoped && std::holds_alternative<application::github_provider_error>(scoped.error())
+				   && std::get<application::github_provider_error>(scoped.error()).Failure == application::github_provider_failure::permission,
+			   "an INSUFFICIENT_SCOPES answer is a permission failure, not a malformed one");
+		const auto forbidden = [&](const int aStatus) {
+			auto transport = merge_base_fixture_transport{ };
+			transport.Responses.push_back(graphql_answer(R"({"message":"Forbidden"})", aStatus));
+			const auto result = read(transport, profile(), provider_request());
+			return !result && std::holds_alternative<application::github_provider_error>(result.error())
+				&& std::get<application::github_provider_error>(result.error()).Failure == application::github_provider_failure::permission;
+		};
+		expect(forbidden(403) && forbidden(404), "a 403 or 404 is a permission failure");
+		expect(!answered(R"({"data":{"organization":{"id":"O_1","teams":{"nodes":[{"name":"x"}]}}}})").first, "a team without a slug is refused");
+
+		// GHES serves the same query under its API root.
+		auto enterprise = merge_base_fixture_transport{ };
+		enterprise.Responses.push_back(graphql_answer(teams_body({ "render-owners" })));
+		const auto ghes = read(enterprise, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28));
+		expect(ghes && ghes->Member == true && enterprise.Requests.size() == 1U && enterprise.Requests[0].Wire.Path == "/api/graphql",
+			   "GHES 3.18 asks the same query at its GraphQL root");
+
+		// Signed out there is no viewer to ask about: nothing is sent.
+		auto signedOut = merge_base_fixture_transport{ };
+		expect(!read(signedOut, profile(), anonymous_provider_request(), github_provider_read_authority::anonymous_public) && signedOut.Requests.empty(),
+			   "a signed-out read sends nothing");
+	}
+
 	// [[BPR-0988]]. Personal discovery over a scripted wire.
 	[[nodiscard]] auto discovery_request(const application::personal_discovery_reason aReason,
 										 const application::github_server_contract    aServer = application::github_server_contract::github_com_2022_11_28)
@@ -4450,6 +4531,7 @@ auto main() -> int
 	test_timeline_read();
 	test_timeline_atomic_failures();
 	test_merge_base_read();
+	test_team_membership_read();
 	test_metadata_and_viewer();
 	test_glaze_viewer_numbers_and_syntax();
 	test_glaze_paged_identity_and_lifetime();

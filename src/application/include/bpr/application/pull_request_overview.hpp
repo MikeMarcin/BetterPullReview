@@ -7,6 +7,7 @@
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
+#include "bpr/core/review_role.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -198,6 +199,23 @@ namespace bpr::application {
 		auto operator<=>(const overview_review_progress&) const = default;
 	};
 
+	/// \brief [[BPR-1589]]. What the Status drawer leads with (RFC-BPR-0085 D7).
+	///
+	/// \details My roles, strongest first, and what needs attention, as the
+	/// core decided them from the accepted snapshot. Each failed check is named
+	/// once, in `Attention`; `OpenConditions` are Merge's other conditions, so
+	/// the drawer's details never name a failure a second time.
+	struct overview_status
+	{
+		/// My login, empty when the viewer is not known.
+		std::string                         Viewer;
+		core::review_roles                  Roles;
+		std::vector<core::status_attention> Attention;
+		std::vector<std::string>            OpenConditions;
+
+		auto operator<=>(const overview_status&) const = default;
+	};
+
 	/// \brief Which one action the overview offers.
 	enum class overview_entry_kind : std::uint8_t {
 		/// First visit: nothing read, no last review.
@@ -248,6 +266,8 @@ namespace bpr::application {
 		overview_entry_kind      Entry = overview_entry_kind::start_review;
 		/// Where the one action lands: the first unseen change's file.
 		std::optional<std::string> EntryPath;
+		/// [[BPR-1589]]. My role and what needs attention.
+		overview_status Status;
 
 		auto operator<=>(const pull_request_overview_projection&) const = default;
 	};

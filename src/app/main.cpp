@@ -9194,6 +9194,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationIdentities = { "issue-comment:IC_mh_1", "issue-comment:IC_mh_2", "issue-comment:IC_mh_3" },
 					.ExpectedThreadId               = std::nullopt,
 				};
+			} else if (*fixture == "status-attention-v1") {
+				// [[BPR-1589]]. overview-labels-v1 read by a reviewer with failed
+				// checks; see `scripts/build_status_attention_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::status_attention_v1;
+				fixtureName            = "status-attention-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "nested-folders",
+					.Number                   = 21,
+					.ExpectedTitle            = "Move renderer, shaders and widgets into nested folders",
+					.ExpectedAccountText      = "tbutler (@tbutler)",
+					.ExpectedConversationRows = 39,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "inline-drawer-v1") {
 				// [[BPR-1290]]. conventional-comments-v1's threads plus a long
 				// file with eight; see `scripts/build_inline_drawer_fixture.py`.

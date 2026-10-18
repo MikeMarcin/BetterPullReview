@@ -1,0 +1,1298 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_nested-folders",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/reference.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/api/v2/endpoints.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "docs/guide.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/renderer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/basic.vert",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/bloom.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/main.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/button.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/ui/widgets/slider.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/engine/renderer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tools/build/scripts/package.py",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/nested-folders:21:files",
+						"hasNextPage": false
+					},
+					"totalCount": 17
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_21",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): draw_scene() runs before the clear finishes on the second view.",
+										"id": "PRRC_cc_ol_1_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Good find. The second view shares the command list.",
+										"id": "PRRC_cc_ol_1_2",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_ol_1_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMV8y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_1",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "issue: The viewport is set after the first draw.",
+										"id": "PRRC_cc_ol_2_1",
+										"line": 8,
+										"originalLine": 8,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMl8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_2",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 8,
+							"originalLine": 8,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion: Clamp the width to at least one pixel.",
+										"id": "PRRC_cc_ol_3_1",
+										"line": 10,
+										"originalLine": 10,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Done in the second commit.",
+										"id": "PRRC_cc_ol_3_2",
+										"line": 10,
+										"originalLine": 10,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": {
+											"id": "PRRC_cc_ol_3_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfM18y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_3",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 10,
+							"originalLine": 10,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "question: Does the second view share the depth buffer?",
+										"id": "PRRC_cc_ol_4_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfNF8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_4",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 12,
+							"originalLine": 12,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (non-blocking): std::max reads better than the ternary here.",
+										"id": "PRRC_cc_ol_5_1",
+										"line": 13,
+										"originalLine": 13,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfNV8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_5",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 13,
+							"originalLine": 13,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "praise: The early return makes this much easier to follow.",
+										"id": "PRRC_cc_ol_6_1",
+										"line": 4,
+										"originalLine": 4,
+										"outdated": false,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfNl8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_6",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 4,
+							"originalLine": 4,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "todo: Add the clamp before the next push.",
+										"id": "PRRC_cc_ol_7_1",
+										"line": 11,
+										"originalLine": 11,
+										"outdated": true,
+										"path": "src/engine/renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfN18x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_7",
+							"isOutdated": true,
+							"isResolved": false,
+							"line": 11,
+							"originalLine": 11,
+							"path": "src/engine/renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "question: Should Renderer be non-copyable?",
+										"id": "PRRC_cc_ol_8_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/renderer.h",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfOF8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_8",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/engine/renderer.h",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "nitpick (style): Keep the members in declaration order.",
+										"id": "PRRC_cc_ol_9_1",
+										"line": 9,
+										"originalLine": 9,
+										"outdated": false,
+										"path": "src/engine/renderer.h",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfOV8x",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_9",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 9,
+							"originalLine": 9,
+							"path": "src/engine/renderer.h",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue: The destructor is not virtual.",
+										"id": "PRRC_cc_ol_10_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.h",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_fixture-author",
+											"login": "fixture-author"
+										},
+										"bodyText": "Fixed; it is final now.",
+										"id": "PRRC_cc_ol_10_2",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/engine/renderer.h",
+										"replyTo": {
+											"id": "PRRC_cc_ol_10_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTBfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_10",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 12,
+							"originalLine": 12,
+							"path": "src/engine/renderer.h",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion (if-minor): mediump precision is enough here.",
+										"id": "PRRC_cc_ol_11_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "src/engine/shaders/basic.frag",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTFfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_11",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "src/engine/shaders/basic.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "typo: postion should be position.",
+										"id": "PRRC_cc_ol_12_1",
+										"line": 2,
+										"originalLine": 2,
+										"outdated": false,
+										"path": "src/engine/shaders/basic.vert",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTJfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_12",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 2,
+							"originalLine": 2,
+							"path": "src/engine/shaders/basic.vert",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "quibble: 1.2 reads as a magic number.",
+										"id": "PRRC_cc_ol_13_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTNfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_13",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/engine/shaders/post/bloom.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "security: The shader trusts uScene.",
+										"id": "PRRC_cc_ol_14_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "src/engine/shaders/post/bloom.frag",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTRfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_14",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "src/engine/shaders/post/bloom.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "thought: ACES might suit the HDR path better.",
+										"id": "PRRC_cc_ol_15_1",
+										"line": 4,
+										"originalLine": 4,
+										"outdated": false,
+										"path": "src/engine/shaders/post/tonemap.frag",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTVfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_15",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 4,
+							"originalLine": 4,
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue (blocking): The exposure uniform is never set.",
+										"id": "PRRC_cc_ol_16_1",
+										"line": 2,
+										"originalLine": 2,
+										"outdated": false,
+										"path": "src/engine/shaders/post/tonemap.frag",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTZfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_16",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 2,
+							"originalLine": 2,
+							"path": "src/engine/shaders/post/tonemap.frag",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "nitpick (if-minor): 1280 by 720 could be a named constant.",
+										"id": "PRRC_cc_ol_17_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTdfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_17",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "Why is the window not resizable?",
+										"id": "PRRC_cc_ol_18_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMThfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_18",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "chore: Move the argument parsing into its own function.",
+										"id": "PRRC_cc_ol_19_1",
+										"line": 8,
+										"originalLine": 8,
+										"outdated": false,
+										"path": "src/main.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMTlfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_19",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 8,
+							"originalLine": 8,
+							"path": "src/main.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "chore: Rename Handler to OnClick while you are here.",
+										"id": "PRRC_cc_ol_20_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjBfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_20",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/ui/widgets/button.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "https://github.com/bpr-fixtures/nested-folders/pull/21 issue: The same clamp is missing here.",
+										"id": "PRRC_cc_ol_21_1",
+										"line": null,
+										"originalLine": null,
+										"outdated": false,
+										"path": "src/ui/widgets/button.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjFfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_21",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": null,
+							"originalLine": null,
+							"path": "src/ui/widgets/button.cpp",
+							"subjectType": "FILE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "note: The old name is still used by the plugin API.",
+										"id": "PRRC_cc_ol_22_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "src/ui/widgets/button.h",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjJfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_22",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "src/ui/widgets/button.h",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "issue: The value is not clamped to the range.",
+										"id": "PRRC_cc_ol_23_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "src/ui/widgets/slider.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjNfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_23",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "src/ui/widgets/slider.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "suggestion (non-blocking): Emit valueChanged only when the value changes.",
+										"id": "PRRC_cc_ol_24_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "src/ui/widgets/slider.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjRfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_24",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "src/ui/widgets/slider.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "praise: A small, clear widget.",
+										"id": "PRRC_cc_ol_25_1",
+										"line": 2,
+										"originalLine": 2,
+										"outdated": false,
+										"path": "src/ui/widgets/slider.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjVfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_25",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 2,
+							"originalLine": 2,
+							"path": "src/ui/widgets/slider.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "typo: tests/ should be tests/engine/.",
+										"id": "PRRC_cc_ol_26_1",
+										"line": 6,
+										"originalLine": 6,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjZfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_26",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 6,
+							"originalLine": 6,
+							"path": "README.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "polish: Add a sentence about the release flag.",
+										"id": "PRRC_cc_ol_27_1",
+										"line": 4,
+										"originalLine": 4,
+										"outdated": false,
+										"path": "README.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjdfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_27",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 4,
+							"originalLine": 4,
+							"path": "README.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "polish: The second step needs a screenshot.",
+										"id": "PRRC_cc_ol_28_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "docs/guide.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjhfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_28",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "docs/guide.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "note: v1 stays documented until the next release.",
+										"id": "PRRC_cc_ol_29_1",
+										"line": 2,
+										"originalLine": 2,
+										"outdated": false,
+										"path": "docs/api/reference.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMjlfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_29",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 2,
+							"originalLine": 2,
+							"path": "docs/api/reference.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "question: Is /v2/render paged?",
+										"id": "PRRC_cc_ol_30_1",
+										"line": 1,
+										"originalLine": 1,
+										"outdated": false,
+										"path": "docs/api/v2/endpoints.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMzBfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_30",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 1,
+							"originalLine": 1,
+							"path": "docs/api/v2/endpoints.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "todo: Cover the two-view case.",
+										"id": "PRRC_cc_ol_31_1",
+										"line": 5,
+										"originalLine": 5,
+										"outdated": false,
+										"path": "tests/engine/renderer_tests.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMzFfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_31",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 5,
+							"originalLine": 5,
+							"path": "tests/engine/renderer_tests.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_reviewer-four",
+											"login": "reviewer-four"
+										},
+										"bodyText": "praise: These tests read like a specification.",
+										"id": "PRRC_cc_ol_32_1",
+										"line": 4,
+										"originalLine": 4,
+										"outdated": false,
+										"path": "tests/ui/widgets/button_tests.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMzJfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_32",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 4,
+							"originalLine": 4,
+							"path": "tests/ui/widgets/button_tests.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_tbutler",
+											"login": "tbutler"
+										},
+										"bodyText": "issue: The archive name ignores the platform.",
+										"id": "PRRC_cc_ol_33_1",
+										"line": 3,
+										"originalLine": 3,
+										"outdated": false,
+										"path": "tools/build/scripts/package.py",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMzNfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_33",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 3,
+							"originalLine": 3,
+							"path": "tools/build/scripts/package.py",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_fixture_jiayin",
+											"login": "jiayin"
+										},
+										"bodyText": "issue: This file is gone; the fix belongs in renderer.cpp.",
+										"id": "PRRC_cc_ol_34_1",
+										"line": 10,
+										"originalLine": 10,
+										"outdated": false,
+										"path": "src/legacy/old_renderer.cpp",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfY2Nfb2xfMzRfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_cc_ol_34",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 10,
+							"originalLine": 10,
+							"path": "src/legacy/old_renderer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfY2Nfb2xfMzQ=",
+						"hasNextPage": false
+					},
+					"totalCount": 34
+				}
+			}
+		}
+	}
+}
