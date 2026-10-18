@@ -355,7 +355,10 @@ namespace bpr::adapters::github::detail {
 				if (!candidate) {
 					return state::outcome_unknown;
 				}
-				if (next.Comments.size() < next.Plan.Stops.size()) {
+				if (next.Plan.ConversationReply) {
+					next.Comments.push_back(*candidate);
+					next.Published = true;
+				} else if (next.Comments.size() < next.Plan.Stops.size()) {
 					next.Comments.push_back(*candidate);
 				} else {
 					next.Index = *candidate;
@@ -497,6 +500,9 @@ namespace bpr::adapters::github::detail {
 					return { state::conflict, current };
 				}
 			}
+			if (current.Drafting && !aWrite) {
+				return { state::ready, current };
+			}
 			github_mutation_operation_scope operation{ Transport, aStop };
 			if (!operation.valid()) {
 				return { .State   = current.PossiblyTransmitted ? state::outcome_unknown : (*loaded ? status(current) : state::unavailable),
@@ -508,14 +514,19 @@ namespace bpr::adapters::github::detail {
 			// its LEFT coordinates are numbered in the merge base it was
 			// staged against, which can move with base.sha and head unchanged.
 			const auto leftLine = !aPlan.Compatibility && std::ranges::any_of(aPlan.Stops, [](const auto& aTourStop) { return aTourStop.Source.Side == core::diff_side::left; });
-			if (!*loaded) {
+			if (!*loaded || current.Drafting) {
 				if (!aWrite) {
-					return { state::outcome_unknown, { } };
+					return current.Drafting ? application::staged_publication_result{ state::ready, current } : application::staged_publication_result{ state::outcome_unknown, { } };
 				}
 				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop, false, leftLine)) {
 					return { state::conflict, { } };
 				}
-				current.Plan    = aPlan;
+				const auto drafting = current.Drafting ? std::optional{ current } : std::nullopt;
+				current.Plan        = aPlan;
+				current.Drafting    = false;
+				if (drafting) {
+					++current.Revision;
+				}
 				current.Pending = application::staged_initial_request(aPlan);
 				if (!current.Pending || !compile_staged_review_request(*current.Pending)) {
 					return { };
@@ -534,7 +545,7 @@ namespace bpr::adapters::github::detail {
 					current.BaselineIds.push_back(review.Id.value());
 				}
 				std::ranges::sort(current.BaselineIds);
-				const auto admitted = Recovery->advance_staged(std::nullopt, current);
+				const auto admitted = Recovery->advance_staged(drafting, current);
 				if (!admitted || *admitted != current) {
 					return { };
 				}
@@ -616,6 +627,48 @@ namespace bpr::adapters::github::detail {
 			return { state::outcome_unknown, { } };
 		}
 	}
+	auto review_submission_session::save_conversation_reply(const application::staged_review_plan& aPlan) -> application::staged_publication_result
+	{
+		std::scoped_lock lock{ Mutex };
+		if (!aPlan.ConversationReply || !application::valid(aPlan) || !Recovery || !Lease || !Lease->active()
+			|| !application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
+			return { };
+		}
+		const auto loaded = Recovery->load_staged(aPlan.Submission.IdempotencyKey);
+		if (!loaded) {
+			return { };
+		}
+		if (*loaded && (!(**loaded).Drafting || (**loaded).Plan.Generation + 1 != aPlan.Generation)) {
+			return { state::conflict, *loaded };
+		}
+		record next;
+		next.Plan        = aPlan;
+		next.Drafting    = true;
+		next.Revision    = *loaded ? (**loaded).Revision + 1 : 1;
+		const auto saved = Recovery->advance_staged(*loaded, next);
+		return saved ? application::staged_publication_result{ state::ready, *saved } : application::staged_publication_result{ };
+	}
+	auto review_submission_session::conversation_replies() -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>
+	{
+		std::scoped_lock lock{ Mutex };
+		if (!Recovery || !Lease || !Lease->active()) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		const auto records = Recovery->pending_staged();
+		if (!records) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+		std::vector<application::staged_review_plan> result;
+		for (const auto& row : *records) {
+			if (!application::valid(row) || !application::same_review_submission_identity(*row.Plan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (row.Plan.ConversationReply) {
+				result.push_back(row.Plan);
+			}
+		}
+		return result;
+	}
 	auto review_submission_session::publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, application::staged_child_authorizer aAuthorize) -> application::staged_publication_result { return execute_tour(aPlan, aStop, true, std::move(aAuthorize)); }
 	auto review_submission_session::reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop) -> application::staged_publication_result { return execute_tour(aPlan, aStop, false); }
 	auto review_submission_session::pending_tours(std::stop_token aStop) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>
@@ -634,7 +687,9 @@ namespace bpr::adapters::github::detail {
 				if (!application::valid(value) || !application::same_review_submission_identity(*value.Plan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
 					return std::unexpected(application::review_mutation_failure::unavailable);
 				}
-				plans.push_back(value.Plan);
+				if (!value.Plan.ConversationReply) {
+					plans.push_back(value.Plan);
+				}
 			}
 			return plans;
 		} catch (...) {

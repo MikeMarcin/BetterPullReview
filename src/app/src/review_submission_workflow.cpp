@@ -1,4 +1,5 @@
 #include "review_submission_workflow.hpp"
+#include <QUuid>
 
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
@@ -980,4 +981,264 @@ namespace bpr::app {
 	{
 		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
 	}
+	conversation_reply_workflow::conversation_reply_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::workbench_window& aWindow, grant_factory aGrant, review_submission_workflow::publication_admission aAdmit, std::function<void()> aPublished)
+		: Effects{ aEffects }
+		, Decisions{ aDecisions }
+		, Window{ aWindow }
+		, IssueGrant{ std::move(aGrant) }
+		, Admit{ std::move(aAdmit) }
+		, Published{ std::move(aPublished) }
+	{ }
+	void conversation_reply_workflow::invalidate()
+	{
+		if (Host) {
+			Host->shutdown();
+			Retired.push_back(std::move(Host));
+		}
+		std::erase_if(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
+		Binding.reset();
+		Context.reset();
+		Plans.clear();
+		Records.clear();
+		Desired.reset();
+		PendingEdits.clear();
+		ComposerOpen = false;
+		Saving.reset();
+		SendText.reset();
+		Ready   = false;
+		Sending = false;
+		Failed  = false;
+		Window.present_conversation_reply(std::nullopt);
+	}
+	void conversation_reply_workflow::shutdown()
+	{
+		Closing = true;
+		SendText.reset();
+		ComposerOpen = false;
+		if (Sending && Host) {
+			Host->shutdown();
+		}
+		pump();
+		if (!Context) {
+			invalidate();
+		}
+	}
+	auto conversation_reply_workflow::is_quiescent() const -> bool
+	{
+		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
+	}
+	void conversation_reply_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, core::bpr_profile_id aProfile, application::review_submission_provider_factory aFactory)
+	{
+		aAuthority.Snapshot              = { };
+		aAuthority.PullRequestGeneration = { };
+		if (Closing || (Binding == aBinding && Authority == aAuthority && Host)) {
+			return;
+		}
+		invalidate();
+		Binding    = std::move(aBinding);
+		Authority  = aAuthority;
+		Profile    = aProfile;
+		Generation = core::request_generation{ Generation.value() + 1 };
+		Host       = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+		Context    = Host->discover_conversation_replies();
+		Status     = QStringLiteral("Loading saved replies.");
+	}
+	void conversation_reply_workflow::dispatch(const core::conversation_reply_action aAction, core::conversation_reply_draft aDraft)
+	{
+		if (Closing || !Host || !Binding || !core::valid(aDraft)) {
+			return;
+		}
+		if (aAction == core::conversation_reply_action::close) {
+			ComposerOpen = false;
+			SendText.reset();
+			pump();
+			Window.present_conversation_reply(std::nullopt);
+			return;
+		}
+		if (Sending) {
+			return;
+		}
+		if (!Ready && aAction != core::conversation_reply_action::open) {
+			return;
+		}
+		if (aAction == core::conversation_reply_action::open) {
+			ComposerOpen = true;
+			SendText.reset();
+			if (const auto saved = Plans.find(aDraft.Conversation); saved != Plans.end()) {
+				aDraft = saved->second.ReplyDraft;
+			}
+			if (const auto pending = PendingEdits.find(aDraft.Conversation); pending != PendingEdits.end()) {
+				aDraft = pending->second;
+			}
+			Desired = std::move(aDraft);
+			if (Ready && !Context && Plans.contains(Desired->Conversation) && !Records.contains(Desired->Conversation)) {
+				Context = Host->reconcile_tour(Plans.at(Desired->Conversation));
+			}
+			Failed = false;
+			Status = QStringLiteral("Saved locally. Send posts a quoted comment to the pull request.");
+		} else if (Desired && Desired->Conversation == aDraft.Conversation) {
+			if (aAction == core::conversation_reply_action::edit) {
+				Desired->Text = std::move(aDraft.Text);
+				SendText.reset();
+				Failed = false;
+			}
+			if (aAction == core::conversation_reply_action::send && core::conversation_reply_can_send(*Desired)) {
+				SendText = Desired->Text;
+				Failed   = false;
+			}
+		}
+		if (Desired && Ready) {
+			PendingEdits[Desired->Conversation] = *Desired;
+		}
+		pump();
+		present();
+	}
+	void conversation_reply_workflow::pump()
+	{
+		if (!Ready || !Host || Context || Failed) {
+			return;
+		}
+		for (const auto& [identity, draft] : PendingEdits) {
+			const auto at     = Plans.find(identity);
+			const auto frozen = Records.find(identity);
+			if (frozen != Records.end() && !frozen->second.Drafting) {
+				continue;
+			}
+			if (at != Plans.end() && at->second.ReplyDraft == draft) {
+				continue;
+			}
+			application::staged_review_plan plan;
+			if (at != Plans.end()) {
+				plan = at->second;
+				++plan.Generation;
+			} else {
+				plan.ConversationReply                 = true;
+				plan.Compatibility                     = true;
+				plan.Generation                        = 1;
+				plan.Owner                             = { Profile, Authority.Host, Authority.HostAuthority, Authority.Account, Authority.Repository, Authority.PullRequest };
+				plan.Submission.Proposal.Draft         = core::review_submission_draft_id{ 1 };
+				plan.Submission.Proposal.Target        = Binding->Target.Semantic;
+				plan.Submission.Proposal.ActingAccount = Binding->ActingIdentity.Account;
+				plan.Submission.Proposal.Disposition   = core::review_disposition::comment;
+				plan.Submission.LiveBinding            = *Binding;
+				plan.Submission.IdempotencyKey         = "conversation-" + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+			}
+			plan.ReplyDraft                  = draft;
+			plan.Submission.Proposal.Body    = *core::render_conversation_reply(draft);
+			plan.Submission.Proposal.Attempt = core::review_submission_attempt_id{ plan.Generation };
+			Saving                           = plan;
+			Context                          = Host->save_conversation_reply(plan);
+			Status                           = QStringLiteral("Saving reply locally…");
+			if (!Context) {
+				Failed = true;
+				Status = QStringLiteral("Reply could not be saved. Your text is kept; press Send to retry.");
+			}
+			return;
+		}
+		if (!Desired) {
+			return;
+		}
+		const auto at = Plans.find(Desired->Conversation);
+		if (!SendText || *SendText != Desired->Text || at == Plans.end()) {
+			return;
+		}
+		const auto& plan = at->second;
+		if (plan.ReplyDraft != *Desired || plan.Submission.LiveBinding != Binding) {
+			Status = QStringLiteral("The pull request changed. Your reply is kept; refresh before sending.");
+			Failed = true;
+			return;
+		}
+		if (Admit) {
+			const auto admitted = Admit(*Binding);
+			if (!admitted) {
+				Status = QStringLiteral("Reply not sent: %1. Your draft is kept.").arg(QString::fromUtf8(application::name(admitted.error())));
+				Failed = true;
+				return;
+			}
+		}
+		auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, plan) : application::review_submission_execution_grant{ };
+		Context    = Host->publish_tour(plan, std::move(grant));
+		Sending    = Context.has_value();
+		SendText.reset();
+		Status = Sending ? QStringLiteral("Sending reply…") : QStringLiteral("Reply not sent. Check the connection and press Send to retry.");
+	}
+	void conversation_reply_workflow::present()
+	{
+		if (!Desired || !ComposerOpen) {
+			return;
+		}
+		Window.present_conversation_reply(qt::thread_reply_presentation{ .Thread = Desired->Conversation, .Body = QString::fromStdString(Desired->Text), .Publishable = Ready && !Sending && core::conversation_reply_can_send(*Desired), .Editable = Ready && !Sending && (!Plans.contains(Desired->Conversation) || (Records.contains(Desired->Conversation) && Records.at(Desired->Conversation).Drafting)), .Notice = Status });
+	}
+	void conversation_reply_workflow::publish(const application::review_submission_host_terminal& aTerminal)
+	{
+		if (!Context || *Context != aTerminal.Context) {
+			return;
+		}
+		Context.reset();
+		if (const auto* discovery = std::get_if<application::staged_review_discovery>(&aTerminal.Outcome)) {
+			Ready = discovery->has_value();
+			if (*discovery) {
+				for (const auto& plan : **discovery) {
+					if (Plans.contains(plan.ReplyDraft.Conversation)) {
+						Ready  = false;
+						Status = QStringLiteral("More than one saved reply answers this comment. Open private recovery before sending.");
+						break;
+					}
+					Plans.emplace(plan.ReplyDraft.Conversation, plan);
+				}
+			}
+			if (!Ready) {
+				Status = QStringLiteral("Saved replies are unavailable. Nothing will be sent.");
+			} else if (Desired) {
+				if (const auto saved = Plans.find(Desired->Conversation); saved != Plans.end()) {
+					Desired = saved->second.ReplyDraft;
+					Context = Host->reconcile_tour(saved->second);
+					Status  = QStringLiteral("Checking the saved reply. Nothing will be sent.");
+				} else {
+					PendingEdits[Desired->Conversation] = *Desired;
+				}
+			}
+		} else if (const auto* result = std::get_if<application::staged_publication_result>(&aTerminal.Outcome)) {
+			if (result->Record) {
+				const auto& row                           = *result->Record;
+				Plans[row.Plan.ReplyDraft.Conversation]   = row.Plan;
+				Records[row.Plan.ReplyDraft.Conversation] = row;
+				if (const auto pending = PendingEdits.find(row.Plan.ReplyDraft.Conversation); pending != PendingEdits.end() && pending->second == row.Plan.ReplyDraft) {
+					PendingEdits.erase(pending);
+				}
+			}
+			if (Saving) {
+				if (!result->Record || result->Record->Plan != *Saving || !result->Record->Drafting) {
+					Failed = true;
+					Status = QStringLiteral("Reply could not be saved. Your text is kept; press Send to retry.");
+				} else {
+					Status = QStringLiteral("Saved locally. Send posts a quoted comment to the pull request.");
+				}
+				Saving.reset();
+			} else if (Sending) {
+				Sending = false;
+				if (result->State == application::staged_publication_state::published && result->Record) {
+					const auto id = result->Record->Plan.ReplyDraft.Conversation;
+					Plans.erase(id);
+					Records.erase(id);
+					Desired.reset();
+					Window.present_conversation_reply(std::nullopt);
+					Window.conversation_panel()->cards()->close_thread();
+					if (Published) {
+						Published();
+					}
+					return;
+				}
+				Failed = true;
+				Status = result->State == application::staged_publication_state::outcome_unknown ? QStringLiteral("Send outcome is unknown. Your reply is kept; Send checks the existing attempt before retrying.") : QStringLiteral("Reply was not sent: %1. Your draft is kept; press Send to retry.").arg(result->Failure ? QString::fromUtf8(application::name(*result->Failure)) : QStringLiteral("publication refused"));
+			}
+		}
+		pump();
+		if (Closing && !Context) {
+			invalidate();
+			return;
+		}
+		present();
+	}
+
 }

@@ -1280,9 +1280,9 @@ namespace bpr::adapters::sqlite {
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
 			// [[BPR-1368]]. Version 4 adds the pending request's comment node ID.
-			std::uint64_t version = 4;
+			std::uint64_t version = 5;
 			aCodec.number(version);
-			if (version < 1 || version > 4) {
+			if (version < 1 || version > 5) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1310,6 +1310,14 @@ namespace bpr::adapters::sqlite {
 				aCodec.text(aStop.SourceLink, 4096);
 			});
 			aCodec.number(aRecord.Plan.Compatibility);
+			if (version >= 5) {
+				aCodec.number(aRecord.Plan.ConversationReply);
+				aCodec.number(aRecord.Drafting);
+				aCodec.text(aRecord.Plan.ReplyDraft.Conversation, 256);
+				aCodec.text(aRecord.Plan.ReplyDraft.Author, 256);
+				aCodec.text(aRecord.Plan.ReplyDraft.Quote, 16384);
+				aCodec.text(aRecord.Plan.ReplyDraft.Text, 32768);
+			}
 			aCodec.optional(aRecord.Plan.Description, [&](auto& aEdit) {aCodec.text(aEdit.Baseline);aCodec.text(aEdit.Desired);if(version>=2){aCodec.number(aEdit.AppendIndexLink);
 } });
 			aCodec.number(aRecord.Revision);

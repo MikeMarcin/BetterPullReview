@@ -23,6 +23,8 @@ namespace bpr::adapters::github::detail {
 		/// journal only.
 		[[nodiscard]] auto last_unknown(const std::string& aKey, std::stop_token aStop = { }) -> std::optional<core::review_submission_unknown_diagnosis>;
 
+		[[nodiscard]] auto save_conversation_reply(const application::staged_review_plan& aPlan) -> application::staged_publication_result;
+		[[nodiscard]] auto conversation_replies() -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>;
 		[[nodiscard]] auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>;
 		[[nodiscard]] auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 		[[nodiscard]] auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }) -> application::staged_publication_result;

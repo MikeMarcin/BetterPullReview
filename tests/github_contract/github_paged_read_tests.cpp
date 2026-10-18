@@ -2066,6 +2066,9 @@ namespace {
 						   .Comments.at(100U)
 						   .OriginalLine.has_value(),
 			   "a paged LINE reply may omit both coordinates and inherit the root anchor");
+		expect(result->Reviews.front().Observation.CreatedAt == "2026-07-30T13:00:00Z"
+				   && result->IssueComments.front().Observation.CreatedAt == "2026-07-30T13:30:00Z",
+			   "PR comments and review summaries retain server chronology without another read");
 		expect(result->Commits.size() == 1U
 				   && result->Commits.front().Headline == "Paged read"
 				   && result->Reviews.size() == 1U

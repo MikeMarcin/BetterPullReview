@@ -37,6 +37,13 @@ namespace bpr::application {
 		review_submission_port(review_submission_port&&)                         = delete;
 		auto operator=(review_submission_port&&) -> review_submission_port&      = delete;
 
+		/// Local draft operations share the staged journal; they never perform a request.
+		[[nodiscard]] virtual auto save_conversation_reply(const staged_review_plan& aPlan) -> staged_publication_result
+		{
+			static_cast<void>(aPlan);
+			return { };
+		}
+		[[nodiscard]] virtual auto conversation_replies() -> std::expected<std::vector<staged_review_plan>, review_mutation_failure> { return std::unexpected(review_mutation_failure::unavailable); }
 		[[nodiscard]] virtual auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<staged_review_plan>, review_mutation_failure>
 		{
 			static_cast<void>(aStop);

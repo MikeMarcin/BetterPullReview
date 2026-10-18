@@ -7,6 +7,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
 namespace bpr::app {
 	/// Composes the PR-scoped core draft, asynchronous host and normal editor.
@@ -164,6 +165,45 @@ namespace bpr::app {
 		std::string                                                                   Description, Status = "Saved locally. Prepare a publication preview.";
 		receipt_sink                                                                  ReceiptSink;
 		bool                                                                          Qualified = false, Closing = false, Previewed = false, Ready = false;
+	};
+	/// PR-level replies share the existing witnessed publication host and journal.
+	class conversation_reply_workflow final : public application::review_submission_projection_port
+	{
+	public:
+		using grant_factory = review_tour_publication_workflow::grant_factory;
+		conversation_reply_workflow(application::effect_executor&, application::decision_executor&, qt::workbench_window&, grant_factory, review_submission_workflow::publication_admission, std::function<void()>);
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, core::bpr_profile_id, application::review_submission_provider_factory);
+		void               dispatch(core::conversation_reply_action, core::conversation_reply_draft);
+		void               invalidate();
+		void               shutdown();
+		[[nodiscard]] auto is_quiescent() const -> bool;
+		void               publish(const application::review_submission_host_terminal&) override;
+
+	private:
+		void                                                                          pump();
+		void                                                                          present();
+		application::effect_executor&                                                 Effects;
+		application::decision_executor&                                               Decisions;
+		qt::workbench_window&                                                         Window;
+		grant_factory                                                                 IssueGrant;
+		review_submission_workflow::publication_admission                             Admit;
+		std::function<void()>                                                         Published;
+		std::unique_ptr<application::review_submission_application_host>              Host;
+		std::vector<std::unique_ptr<application::review_submission_application_host>> Retired;
+		std::optional<application::review_submission_live_binding>                    Binding;
+		application::workbench_pull_request_authority                                 Authority;
+		core::bpr_profile_id                                                          Profile;
+		core::request_generation                                                      Generation;
+		std::optional<application::review_submission_host_context>                    Context;
+		std::map<std::string, application::staged_review_plan>                        Plans;
+		std::map<std::string, application::staged_publication_record>                 Records;
+		std::optional<core::conversation_reply_draft>                                 Desired;
+		std::map<std::string, core::conversation_reply_draft>                         PendingEdits;
+		bool                                                                          ComposerOpen = false;
+		std::optional<application::staged_review_plan>                                Saving;
+		std::optional<std::string>                                                    SendText;
+		QString                                                                       Status;
+		bool                                                                          Ready = false, Closing = false, Sending = false, Failed = false;
 	};
 }
 #endif

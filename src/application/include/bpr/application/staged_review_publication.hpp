@@ -2,6 +2,7 @@
 #define BPR_APPLICATION_STAGED_REVIEW_PUBLICATION_HPP
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/application/staged_review_contract.hpp"
+#include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <functional>
 namespace bpr::application {
@@ -29,7 +30,10 @@ namespace bpr::application {
 		std::optional<staged_description_edit> Description;
 		/// Exact observed root/owned baselines and desired route for a non-atomic maintenance plan.
 		std::optional<core::review_tour> Update;
-		auto                             operator==(const staged_review_plan&) const -> bool = default;
+		/// One quoted PR-level reply, using the same witnessed issue-comment lane.
+		bool                           ConversationReply = false;
+		core::conversation_reply_draft ReplyDraft;
+		auto                           operator==(const staged_review_plan&) const -> bool = default;
 	};
 	/// One durable current step plus confirmed ordered identities. Cleared steps stay
 	/// confirmed in the body/identity prefix. A witness cannot be reset or replayed.
@@ -45,6 +49,7 @@ namespace bpr::application {
 		bool                                 Published       = false;
 		bool                                 DescriptionDone = false;
 		std::optional<staged_review_request> Pending;
+		bool                                 Drafting                                                   = false;
 		bool                                 PossiblyTransmitted                                        = false;
 		std::size_t                          Updated                                                    = 0;
 		bool                                 DestinationsPublished                                      = false;

@@ -1124,6 +1124,19 @@ namespace bpr::qt {
 		row->setContentsMargins(8, 0, 4, 0);
 		row->setSpacing(2);
 		const auto& palette = this->palette();
+		if (aCard.Path.isEmpty()) {
+			auto* const scope = new QLabel{ QStringLiteral("Pull request"), header };
+			scope->setTextFormat(Qt::PlainText);
+			scope->setObjectName(QStringLiteral("conversationPullRequestHeader"));
+			row->addWidget(scope);
+		}
+		if (!aCard.Verdict.isEmpty()) {
+			auto* const verdict = new QLabel{ aCard.Verdict, header };
+			verdict->setObjectName(QStringLiteral("conversationReviewVerdict"));
+			verdict->setTextFormat(Qt::PlainText);
+			verdict->setFont(semibold(font()));
+			row->addWidget(verdict);
+		}
 		if (aCard.Line.has_value()) {
 			auto* const where = new QToolButton{ header };
 			where->setObjectName(QStringLiteral("threadShowLine"));
@@ -1186,6 +1199,12 @@ namespace bpr::qt {
 			row->addWidget(new state_label{ QStringLiteral("Outdated"), std::nullopt, Style.Colours.Faint, header });
 		}
 		row->addStretch(1);
+		if (aCard.Path.isEmpty()) {
+			auto* const show = tool(header, QStringLiteral("conversationShowInDiscuss"), QStringLiteral("Show in Discuss"), conversation_glyph::maximize, palette);
+			connect(show, &QToolButton::clicked, this, [this] { const auto dispatch=ShowInDiscussRequested;const auto id=Id;if(dispatch){dispatch(id);} });
+			row->addWidget(show);
+		}
+
 		if (!aCard.Draft) {
 			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread")) {
 				auto* const resolve = tool(header, QStringLiteral("threadResolve"), aCard.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
@@ -1451,7 +1470,18 @@ namespace bpr::qt {
 			actions->addStretch(1);
 			actions->addWidget(remove);
 			footRow->addLayout(actions);
-		} else if (aCard.Kind == QStringLiteral("Inline thread")) {
+		} else if (aCard.Kind == QStringLiteral("Inline thread") || aCard.Path.isEmpty()) {
+			if (aCard.Path.isEmpty()) {
+				for (const auto& [id, caption] : aCard.ReviewComments) {
+					auto* const source = new QToolButton{ Foot };
+					source->setObjectName(QStringLiteral("conversationReviewFileComment"));
+					source->setText(caption);
+					source->setAutoRaise(true);
+					source->setFocusPolicy(Qt::StrongFocus);
+					connect(source, &QToolButton::clicked, this, [this, id] {const auto dispatch=OpenInReviewRequested;if(dispatch){dispatch(id);} });
+					footRow->addWidget(source);
+				}
+			}
 			footRow->setContentsMargins(gut_left, 8, text_right, 10);
 			if (notice != nullptr) {
 				notice->setContentsMargins(text_left - gut_left, 0, 0, 0);
@@ -1497,7 +1527,7 @@ namespace bpr::qt {
 			cancel->setFocusPolicy(Qt::StrongFocus);
 			connect(cancel, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::cancel_reply); } });
 			controls->addWidget(cancel);
-			Publish = new note_button{ note_button::kind::primary, QStringLiteral("Publish"), Editor };
+			Publish = new note_button{ note_button::kind::primary, aCard.Path.isEmpty() ? QStringLiteral("Send") : QStringLiteral("Publish"), Editor };
 			Publish->setObjectName(QStringLiteral("threadReplyPublish"));
 			Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
 			Publish->setToolTip(QStringLiteral("Publish reply  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
@@ -1903,6 +1933,8 @@ namespace bpr::qt {
 		}
 		const auto ours = aReply.has_value() && aReply->Thread == Id;
 		Publishable     = ours && aReply->Publishable;
+		ReplyBox->setReadOnly(ours && !aReply->Editable);
+
 		if (ours && ReplyBox->toPlainText() != aReply->Body) {
 			// The draft editor's text arrives; a caret at the end keeps typing
 			// where it was.
@@ -1912,6 +1944,16 @@ namespace bpr::qt {
 			cursor.movePosition(QTextCursor::End);
 			ReplyBox->setTextCursor(cursor);
 			Applying = false;
+		}
+		if (ReplyStatus) {
+			const auto notice  = ours ? aReply->Notice : QString{ };
+			const auto changed = ReplyStatus->text() != notice || ReplyStatus->isHidden() == !notice.isEmpty();
+			ReplyStatus->setText(notice);
+			ReplyStatus->setAccessibleName(notice);
+			ReplyStatus->setVisible(!notice.isEmpty());
+			if (changed && HeightChanged) {
+				HeightChanged();
+			}
 		}
 		refresh_reply_controls();
 	}

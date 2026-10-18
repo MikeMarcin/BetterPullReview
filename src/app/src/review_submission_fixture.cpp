@@ -590,6 +590,8 @@ namespace bpr::app::detail {
 			auto pending(std::stop_token) -> application::review_submission_discovery override { return std::vector<application::review_submission_request>{ }; }
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override { return { .Request = aRequest }; }
 			auto reconcile(const application::review_submission_request& aRequest, std::stop_token) -> application::review_submission_result override { return { .Request = aRequest }; }
+			auto save_conversation_reply(const application::staged_review_plan& aPlan) -> application::staged_publication_result override { return Session.save_conversation_reply(aPlan); }
+			auto conversation_replies() -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure> override { return Session.conversation_replies(); }
 			auto pending_tours(std::stop_token aStop) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure> override { return Session.pending_tours(aStop); }
 			auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, application::staged_child_authorizer aUthorize) -> application::staged_publication_result override { return Session.publish_tour(aPlan, aStop, std::move(aUthorize)); }
 			auto reconcile_tour(const application::staged_review_plan& aPlan, std::stop_token aStop) -> application::staged_publication_result override { return Session.reconcile_tour(aPlan, aStop); }

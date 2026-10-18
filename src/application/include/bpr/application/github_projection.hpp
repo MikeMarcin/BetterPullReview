@@ -246,6 +246,10 @@ namespace bpr::application {
 		std::optional<core::source_line_ref> SemanticAnchor;
 		/// Body remains authoritative server content. Only a validated root has a prose projection.
 		std::optional<std::string> ReviewerProse;
+		/// Server-observed creation/submission time; empty for legacy observations.
+		std::string CreatedAt;
+		/// Review owning a file comment, in the same identity space as review summaries.
+		std::string ReviewId;
 
 		auto operator<=>(const github_conversation_projection&) const = default;
 	};

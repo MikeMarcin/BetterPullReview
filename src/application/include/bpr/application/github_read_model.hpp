@@ -247,6 +247,7 @@ namespace bpr::application {
 		std::uint64_t                DatabaseId = 0;
 		std::string                  WebUrl;
 		std::string                  UpdatedAt;
+		std::string                  CreatedAt;
 		std::optional<std::string>   RawBody;
 		std::string                  ReviewNode;
 		std::string                  Commit;
@@ -1507,7 +1508,7 @@ namespace bpr::application {
 
 		[[nodiscard]] inline auto validate_comment_observation(const github_comment_observation& aValue, github_text_budget& aBudget, const github_read_limits& aLimits) noexcept -> github_read_validation_error
 		{
-			for (const auto* text : { &aValue.WebUrl, &aValue.UpdatedAt, &aValue.ReviewNode, &aValue.Commit, &aValue.OriginalCommit }) {
+			for (const auto* text : { &aValue.WebUrl, &aValue.UpdatedAt, &aValue.CreatedAt, &aValue.ReviewNode, &aValue.Commit, &aValue.OriginalCommit }) {
 				if (const auto error = aBudget.consume(*text, aLimits.MaximumPathBytes); error != github_read_validation_error::none) {
 					return error;
 				}

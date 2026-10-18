@@ -267,6 +267,18 @@ reads as read once seen ([[BPR-1601]]), and offers Show in Discuss. Discuss
 keeps every comment as today. A short design note with a Light and Dark
 mockup precedes the build ([[BPR-1603]]).
 
+The owner selected direction A (2026-10-18, session `537cac7b…`) and
+confirmed replying from this drawer later that day. A reply first saves a
+private draft, retaining the exact post quoted. Explicit Send creates one
+pull-request (issue) comment quoting that post: GitHub's conversation is
+flat. It reuses the staged-publication transport witness and recovery
+journal, rereads the exact PR immediately before POST, and refuses changed
+base/head/actor/PR authority (BPR-1560/BPR-1572). Drafts survive restart;
+failures keep the text and offer retry. An uncertain send is reconciled
+without a second POST. This is the owner's explicit extension of the
+original presentation-only scope, not an inferred reply permission.
+
+
 ### Tours (D4)
 
 The Tour tab is the route: the brief (Problem, Solution) as one compact card

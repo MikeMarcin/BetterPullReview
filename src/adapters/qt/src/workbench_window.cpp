@@ -2267,7 +2267,9 @@ namespace bpr::qt {
 			return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent);
 		});
 		ConversationPanel->cards()->set_reply_text_dispatch([this](const std::string& aThread, const QString& aText) {
-			write_inline_reply(aThread, aText);
+			if (!dispatch_conversation_reply(core::conversation_reply_action::edit, aThread, aText)) {
+				write_inline_reply(aThread, aText);
+			}
 		});
 		ConversationPanel->cards()->set_draft_text_dispatch([this](const QString& aText) { write_inline_draft(aText); });
 		// [[BPR-0661]]. A file marks itself read once fully seen only when the
@@ -2385,6 +2387,9 @@ namespace bpr::qt {
 					break;
 				}
 				case card_action::reply:
+					if (dispatch_conversation_reply(core::conversation_reply_action::open, aIdentity)) {
+						break;
+					}
 					// [[BPR-1133]]. Beside the code as in Discuss: every card
 					// answers its own thread, through the one Reply path;
 					// [[BPR-1290]] written in place, in the open thread.
@@ -2394,6 +2399,9 @@ namespace bpr::qt {
 					reveal_thread_line(aIdentity);
 					break;
 				case card_action::publish_reply:
+					if (dispatch_conversation_reply(core::conversation_reply_action::send, aIdentity)) {
+						break;
+					}
 					// [[BPR-1290]]. The reply in place is the draft editor's
 					// draft; nothing publishes but its own Publish.
 					if (ReviewEditor != nullptr && ReviewEditor->publish_action()->isEnabled()) {
@@ -2401,6 +2409,10 @@ namespace bpr::qt {
 					}
 					break;
 				case card_action::cancel_reply:
+					if (dispatch_conversation_reply(core::conversation_reply_action::close, aIdentity)) {
+						ConversationPanel->cards()->close_thread();
+						break;
+					}
 					// Cancel gives up what was typed, through the editor's own Discard.
 					if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value()
 						&& ReviewEditor->shown_draft()->ReplyToThread.has_value()
@@ -8162,6 +8174,10 @@ namespace bpr::qt {
 
 	void workbench_window::present_inline_reply()
 	{
+		if (ConversationReply) {
+			ConversationPanel->cards()->present_reply(ConversationReply);
+			return;
+		}
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
 			return;
 		}
@@ -8178,6 +8194,34 @@ namespace bpr::qt {
 		});
 	}
 
+	void workbench_window::set_conversation_reply_dispatch(std::function<void(core::conversation_reply_action, core::conversation_reply_draft)> aDispatch) { ConversationReplyDispatch = std::move(aDispatch); }
+	void workbench_window::present_conversation_reply(std::optional<thread_reply_presentation> aReply)
+	{
+		ConversationReply = std::move(aReply);
+		if (ConversationPanel) {
+			ConversationPanel->cards()->present_reply(ConversationReply);
+		}
+	}
+	auto workbench_window::dispatch_conversation_reply(const core::conversation_reply_action aAction, const std::string& aIdentity, const QString& aText) -> bool
+	{
+		if (!ConversationPanel) {
+			return false;
+		}
+		const auto& nodes = ConversationPanel->cards()->retained();
+		const auto  found = std::ranges::find(nodes, aIdentity, &application::github_conversation_projection::Id);
+		if (found == nodes.end() || !found->Path.empty() || (found->Kind != application::github_conversation_kind::issue_comment && found->Kind != application::github_conversation_kind::review)) {
+			return false;
+		}
+		if (ConversationReplyDispatch) {
+			ConversationReplyDispatch(aAction, { found->Id, found->AuthorLogin, found->Body, aText.toStdString() });
+			if (aAction == core::conversation_reply_action::open) {
+				ConversationPanel->cards()->begin_reply(aIdentity);
+			}
+		} else {
+			ConversationPanel->present_notice(tr("Replies are unavailable for this connection."));
+		}
+		return true;
+	}
 	void workbench_window::set_conversation_read_dispatch(conversation_read_dispatch aDispatch)
 	{
 		ConversationReadDispatch = std::move(aDispatch);
@@ -8216,6 +8260,8 @@ namespace bpr::qt {
 
 	void workbench_window::present_new_conversation_comments(const std::uint32_t aCount)
 	{
+		NewConversationComments = aCount;
+		apply_thread_marks();
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_new_conversation_comments(aCount);
 		}
@@ -8657,11 +8703,11 @@ namespace bpr::qt {
 		// [[BPR-1511]]. The file-context badges count this file; navigation
 		// continues to walk unread threads across the pull request.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
-			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(fileUnread);
+			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(fileUnread + NewConversationComments);
 			TrayTabs->setAccessibleTabName(
 				tray_comments_tab,
-				fileUnread == 0U ? tr("Comments")
-								 : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
+				NewConversationComments > 0U ? tr("Comments, %1 new file threads and %2 new comments on the pull request").arg(fileUnread).arg(NewConversationComments) : fileUnread == 0U ? tr("Comments")
+																																														   : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
 		}
 		const auto threadCount  = ConversationPanel->cards()->unread_threads_in_file_order().size();
 		const auto commentCount = unread.size() - threadCount;
@@ -8894,11 +8940,22 @@ namespace bpr::qt {
 			next                 = following != unread.end() ? *following : unread.front();
 		}
 		if (const auto location = Finder->locate(next); location.has_value() && location->Path.isEmpty()) {
-			static_cast<void>(move_thread(next, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+			if (Modality && Modality->current() == review_modality::review) {
+				if (TrayTabs) {
+					TrayTabs->setCurrentIndex(tray_comments_tab);
+				}
+				if (Dispatch) {
+					Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+				}
+				ConversationPanel->cards()->open_thread(next);
+			} else {
+				static_cast<void>(move_thread(next, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+			}
 			return;
 		}
 		// The conversation view's current index is what reveals the line, as a
 		// press on a card does; the cards follow it.
+		ConversationPanel->cards()->show_pull_request_comments(false);
 		const auto index = ConversationPanel->model()->index_for_id(next);
 		if (index.isValid()) {
 			ConversationPanel->view()->setCurrentIndex(index);

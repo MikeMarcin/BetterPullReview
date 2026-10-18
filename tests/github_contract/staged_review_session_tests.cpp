@@ -533,6 +533,66 @@ namespace {
 		return std::move(*opened);
 	}
 	auto session(server& aServer, const std::filesystem::path& aPath, live_review_mutation_configuration aConfiguration = configuration()) -> std::unique_ptr<review_submission_session> { return std::make_unique<review_submission_session>(aServer, std::move(aConfiguration), std::make_shared<lease>(), storage(aPath)); }
+	void test_conversation_reply_sessions()
+	{
+		for (const auto lost : { false, true }) {
+			scratch root;
+			server  remote;
+			auto    provider        = session(remote, root.Path);
+			auto    input           = plan();
+			input.ConversationReply = true;
+			input.Compatibility     = true;
+			input.Stops.clear();
+			input.Description.reset();
+			input.Submission.IdempotencyKey = "conversation-reply-one";
+			input.ReplyDraft                = { "issue-comment:one", "reviewer", "Original\nquoted post", "A reply" };
+			input.Submission.Proposal.Body  = *core::render_conversation_reply(input.ReplyDraft);
+			expect(application::valid(input), "reply plan has exact PR and actor authority without a code anchor");
+			const auto saved = provider->save_conversation_reply(input);
+			expect(saved.Record && saved.Record->Drafting && remote.Writes == 0U, "editing stores a local draft without a request");
+			provider.reset();
+			provider             = session(remote, root.Path);
+			const auto recovered = provider->conversation_replies();
+			expect(recovered && recovered->size() == 1U && recovered->front().ReplyDraft == input.ReplyDraft, "reply text and quote survive reopening");
+			expect(provider->pending_tours()->empty(), "reply drafts never appear as unfinished tours");
+			auto edited = input;
+			++edited.Generation;
+			edited.ReplyDraft.Text          = "Changed reply";
+			edited.Submission.Proposal.Body = *core::render_conversation_reply(edited.ReplyDraft);
+			expect(provider->save_conversation_reply(edited).Record.has_value(), "same draft advances by revision");
+			expect(provider->save_conversation_reply(edited).State == publication_state::conflict, "stale editor cannot overwrite a newer reply");
+			input = edited;
+			if (lost) {
+				remote.LoseAt = 0U;
+			}
+			const auto sent = provider->publish_tour(input, { }, [](const auto&) { return true; });
+			if (lost) {
+				expect(sent.State == publication_state::outcome_unknown, "lost reply response stays indeterminate");
+				remote.LoseAt.reset();
+				remote.ReadFailure = false;
+				provider.reset();
+				provider = session(remote, root.Path);
+			}
+			const auto result = provider->publish_tour(input, { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::published && remote.Writes == 1U && remote.IssueBodies == std::vector<std::string>{ input.Submission.Proposal.Body }, "explicit send and restart reconciliation create exactly one quoted issue comment");
+			expect(provider->conversation_replies()->empty(), "published reply leaves no unfinished draft");
+		}
+		{
+			scratch root;
+			server  remote;
+			remote.WrongHead        = true;
+			auto provider           = session(remote, root.Path);
+			auto input              = plan();
+			input.ConversationReply = true;
+			input.Compatibility     = true;
+			input.Stops.clear();
+			input.Description.reset();
+			input.ReplyDraft               = { "issue-comment:one", "reviewer", "Quoted", "reply" };
+			input.Submission.Proposal.Body = *core::render_conversation_reply(input.ReplyDraft);
+			expect(provider->save_conversation_reply(input).Record.has_value(), "draft save does not require a remote request");
+			expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::conflict && remote.Writes == 0U, "changed head refuses before issue-comment POST");
+		}
+	}
 	void test_staged_sessions()
 	{
 		{
@@ -1137,26 +1197,68 @@ namespace {
 		explicit live_gh(const live_state& aState, const std::filesystem::path& aFolder)
 		{
 			const auto profile = adapters::github::validate_github_host_profile({
-				.Profile        = credential_context().Authority.Profile,
-				.Host           = target().Semantic.Host,
-				.Revision       = credential_context().Authority.ProfileRevision,
-				.Server         = application::github_server_contract::github_com_2022_11_28,
-				.Authentication = application::github_authentication_transport::github_cli,
-				.Proxy          = application::github_proxy_mode::system,
-				.Trust          = application::github_trust_mode::system,
-				.Provenance     = adapters::github::github_profile_provenance::builtin,
-				.Hostname       = "github.com",
-				.RestRoot       = "https://api.github.com",
-				.GraphqlRoot    = "https://api.github.com/graphql",
+				.Profile         = credential_context().Authority.Profile,
+				.Host            = target().Semantic.Host,
+				.Revision        = credential_context().Authority.ProfileRevision,
+				.Server          = application::github_server_contract::github_com_2022_11_28,
+				.Authentication  = application::github_authentication_transport::github_cli,
+				.Proxy           = application::github_proxy_mode::system,
+				.Trust           = application::github_trust_mode::system,
+				.Provenance      = adapters::github::github_profile_provenance::builtin,
+				.Hostname        = "github.com",
+				.RestRoot        = "https://api.github.com",
+				.GraphqlRoot     = "https://api.github.com/graphql",
+				.CliAccountLogin = aState.text("login"),
+				.CliAccount      = identity().Account,
 			});
 			expect(profile.has_value(), "the live gh profile validates");
 			std::filesystem::create_directories(aFolder / "neutral");
 			const auto configuration = validate_gh_cli_configuration({ .Executable = aState.text("gh"), .NeutralWorkingDirectory = aFolder / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = aState.text("home") }, .Https = { } });
 			expect(configuration.has_value(), "the live gh configuration validates");
-			Process = make_github_cli_process_runner();
-			Transport.emplace(*profile, *configuration, *Process);
+			Process           = make_github_cli_process_runner();
+			const auto pinned = pin_gh_cli_configuration(*configuration, "github.com", aState.text("login"));
+			expect(pinned.has_value(), "live gh pins the selected account without switching it");
+			Transport.emplace(*profile, *pinned, *Process);
 		}
 	};
+	// BPR-1603: explicitly invoked only on MikeMarcin/BPR-Test, never CTest.
+	void live_conversation_reply(const std::filesystem::path& aFolder)
+	{
+		const live_state state{ aFolder };
+		live_gh          gh{ state, aFolder };
+		live_relay       relay{ *gh.Transport, aFolder };
+		relay.Floor        = 1500;
+		const auto binding = live_binding(state);
+		const auto actor   = live_actor(state);
+		expect(binding.Repository.Owner == "MikeMarcin" && binding.Repository.Name == "BPR-Test", "live reply is fixed to the owner's test repository");
+		live_review_mutation_configuration live{ .CredentialContext = credential_context(), .Target = binding, .ActingIdentity = actor };
+		auto                               input = plan();
+		input.ConversationReply                  = true;
+		input.Compatibility                      = true;
+		input.Stops.clear();
+		input.Description.reset();
+		input.Submission.IdempotencyKey         = "bpr-1603-live-quoted-reply";
+		input.ReplyDraft                        = { "issue-comment:" + state.text("source_node"), actor.Login, "BPR-1603 synthetic source comment for the quoted-reply course.", "BPR-1603 live reply: this explicit Send should create exactly one quoted comment." };
+		input.Submission.LiveBinding            = application::review_submission_live_binding{ binding, actor };
+		input.Submission.Proposal.Target        = binding.Semantic;
+		input.Submission.Proposal.ActingAccount = actor.Account;
+		input.Submission.Proposal.Body          = *core::render_conversation_reply(input.ReplyDraft);
+		auto store                              = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aFolder, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = static_cast<std::int64_t>(binding.Number.value()) });
+		expect(store.has_value(), "live reply journal opens");
+		review_submission_session provider{ relay, live, std::make_shared<lease>(), std::move(*store) };
+		expect(provider.save_conversation_reply(input).Record.has_value() && relay.Writes == 0U, "live draft persistence sends nothing");
+		const auto    result = provider.publish_tour(input, { }, [](const auto&) { return true; });
+		std::ofstream out{ aFolder / "reply-result.env" };
+		out << "state=" << static_cast<int>(result.State) << "\nwrites=" << relay.Writes << "\nlowest=" << relay.Lowest << '\n';
+		if (result.Record && !result.Record->Comments.empty()) {
+			out << "comment=" << result.Record->Comments.front().Id << '\n';
+		}
+		out.flush();
+		expect(result.State == publication_state::published && relay.Writes == 1U && result.Record && result.Record->Comments.size() == 1U, "live explicit Send creates one issue comment through the production witnessed session");
+		const auto checked = provider.reconcile_tour(input);
+		expect(checked.State == publication_state::published && relay.Writes == 1U, "readback never duplicates the live reply");
+		std::cout << "live-conversation-reply:pass remaining=" << relay.Lowest << '\n';
+	}
 	// [[BPR-0144]]. Comment, Request changes and an empty Approve on a pull
 	// request another account authored, each through the production session
 	// the desktop's whole-review provider forwards to, over the production
@@ -1402,6 +1504,14 @@ try {
 		expect(false, "the live tour course runs on macOS");
 #endif
 	}
+	if (argc == 3 && std::string_view{ argv[1] } == "--live-conversation-reply") {
+#if defined(__APPLE__)
+		live_conversation_reply(argv[2]);
+		return EXIT_SUCCESS;
+#else
+		expect(false, "live reply course runs on macOS");
+#endif
+	}
 	if (argc == 3 && std::string_view{ argv[1] } == "--live-tour") {
 #if defined(__APPLE__)
 		live_tour(argv[2]);
@@ -1448,6 +1558,7 @@ try {
 		}
 		std::cout << phase << ":pass\n";
 	} else {
+		test_conversation_reply_sessions();
 		test_staged_sessions();
 		test_compatibility_sessions();
 		test_maintenance_sessions();

@@ -1,3 +1,16 @@
+# BPR-1603 reseal 2026-10-18 over d163c9109 (origin/main 937f96880).
+# Self-reviewed the full src/app delta: the reply workflow persists bounded
+# quoted drafts through the existing serialized submission host and journal,
+# discovers before enabling edits, coalesces edits by generation, and requires
+# the existing admission and one-use child grant for an explicit Send. It
+# preserves possibly-transmitted records for reconciliation and drains saves
+# on shutdown. github_application composes the workflow with the existing
+# factory/authority and invalidates it with the selected PR/session. No new
+# transport or credential path. The adapter uses the existing exact-PR reread
+# and witnessed create_issue_comment; changed-head and lost-response controls
+# pass. Tests-on main/fixtures seed synthetic PR comments, associate file
+# posts to a review, and open a local draft without sending. The production
+# mutation-branch pin remains exact; full and manifest pins bind this tree.
 # BPR-1594 landing reseal 2026-10-18 over origin/main 3b68c4394.
 # Reviewed merged main.cpp delta: tests-on attended Agent fixture course,
 # profile selection and drawer gesture only. No provider, credential, grant,
@@ -1592,7 +1605,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"69e85734279cb7c2202f1d7508b5dd16c1e7d46f353afe646f21cb4f92840204"
+		"8f91fcb256b3ed253e54535326de4ff2a7e735ecc53118a2e7ff5fc4b7819265"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1812,7 +1825,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c0c12f6a5b50e031f2a59dd0b62aa85c843308991585c0b5e6251051fbc0cd2d"
+        "729bd235edce8e857b2c48edca04a5bbead9abf9cd98b3ebdafd71a3a94c6da1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

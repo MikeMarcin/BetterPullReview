@@ -73,6 +73,8 @@ namespace bpr::application {
 		[[nodiscard]] auto discover() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto submit(const review_submission_request& aRequest, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto reconcile(const review_submission_request& aRequest) -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto discover_conversation_replies() -> std::optional<review_submission_host_context>;
+		[[nodiscard]] auto save_conversation_reply(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto discover_tours() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;

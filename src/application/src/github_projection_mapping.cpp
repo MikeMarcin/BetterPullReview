@@ -317,6 +317,7 @@ namespace bpr::application {
 				.Path        = { },
 				.Line        = std::nullopt,
 				.ReviewState = project(review.State),
+				.CreatedAt   = review.Observation.CreatedAt,
 			});
 		}
 
@@ -368,6 +369,8 @@ namespace bpr::application {
 					.Outdated           = comment.Outdated || thread.Outdated,
 					.Deleted            = comment.Deleted,
 					.RemoteSubject      = thread.Subject == github_review_thread_subject::file ? github_conversation_remote_subject::file : github_conversation_remote_subject::line,
+					.CreatedAt          = comment.Observation.CreatedAt,
+					.ReviewId           = comment.Observation.ReviewNode.empty() ? std::string{ } : "review:" + comment.Observation.ReviewNode,
 				});
 			}
 		}
@@ -406,6 +409,7 @@ namespace bpr::application {
 				.Line        = std::nullopt,
 				.ReviewState = github_review_state_projection::none,
 				.Deleted     = comment.Deleted,
+				.CreatedAt   = comment.Observation.CreatedAt,
 			});
 		}
 

@@ -4,6 +4,7 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -78,6 +79,54 @@ namespace bpr::qt {
 		constexpr int              chip_height     = 22;
 		constexpr std::size_t      chips_each_way  = 3U;
 		constexpr std::string_view draft_card_id   = "draft:unpublished";
+
+		[[nodiscard]] auto semibold(QFont aFont) -> QFont;
+		[[nodiscard]] auto scaled(QFont aFont, qreal aFactor) -> QFont;
+
+		/// Same pill geometry as Notes' top-edge count, with a public PR face.
+		class pull_request_chip final : public QAbstractButton
+		{
+		public:
+			explicit pull_request_chip(QWidget* aParent)
+				: QAbstractButton{ aParent }
+			{
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				setFont(semibold(scaled(font(), 0.86)));
+			}
+			note_colours Colours;
+			std::size_t  New  = 0U;
+			bool         Face = true;
+			auto         sizeHint() const -> QSize override
+			{
+				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0), chip_height };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent*) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(QPen{ hasFocus() ? Colours.Signal : Colours.Rule2, hasFocus() ? 2.0 : 1.0 });
+				painter.setBrush(Colours.Panel);
+				painter.drawRoundedRect(box, height() / 2.0, height() / 2.0);
+				if (Face) {
+					drawer_icon(drawer_glyph::pull_request, palette()).paint(&painter, QRect{ 5, 4, 14, 14 });
+				}
+				const auto left = Face ? 24 : 9;
+				painter.setPen(Colours.Ink2);
+				painter.drawText(QRect{ left, 0, width() - left - (New > 0U ? 24 : 0), height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				if (New > 0U) {
+					const auto badge = QRectF{ static_cast<qreal>(width() - 22), 3.0, 18.0, 16.0 };
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(Colours.New);
+					painter.drawRoundedRect(badge, 8, 8);
+					painter.setPen(Colours.OnNew);
+					painter.drawText(badge, Qt::AlignCenter, QString::number(New));
+				}
+			}
+		};
 
 		/// [[BPR-1471]]. The green resolved check, and the slot every closed
 		/// note keeps for it so what follows stands in one column.
@@ -436,6 +485,17 @@ namespace bpr::qt {
 		viewport()->setAutoFillBackground(true);
 		viewport()->setBackgroundRole(QPalette::Window);
 		viewport()->setMouseTracking(true);
+		PullRequestChip = new pull_request_chip{ viewport() };
+		PullRequestChip->setObjectName(QStringLiteral("pullRequestCommentsChip"));
+		BackToLines = new pull_request_chip{ viewport() };
+		BackToLines->setObjectName(QStringLiteral("backToThreadLines"));
+		static_cast<pull_request_chip*>(BackToLines)->Face = false;
+		BackToLines->setText(tr("Back to threads at their lines"));
+		BackToLines->setAccessibleName(BackToLines->text());
+		connect(PullRequestChip, &QAbstractButton::clicked, this, [this] { show_pull_request_comments(true); });
+		connect(BackToLines, &QAbstractButton::clicked, this, [this] { show_pull_request_comments(false); });
+		PullRequestChip->hide();
+		BackToLines->hide();
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
 			place_open_card();
 			sync_edges();
@@ -619,6 +679,8 @@ namespace bpr::qt {
 
 	void conversation_cards_view::clear()
 	{
+		PullRequestComments = false;
+		NewConversationBoundary.clear();
 		clear_measurements();
 		Retained.clear();
 		AnnotatedBodies.clear();
@@ -648,6 +710,17 @@ namespace bpr::qt {
 		UnreadConversations.reset();
 		RetainedFiles = detail::conversation_file_identities(Retained);
 		RetainedById.clear();
+		PullRequestRoots.clear();
+		ReviewFileComments.clear();
+		for (std::size_t index = 0; index < Retained.size(); ++index) {
+			const auto& node = Retained[index];
+			if (!node.ParentId && node.Path.empty() && !node.Deleted && (node.Kind == application::github_conversation_kind::issue_comment || node.Kind == application::github_conversation_kind::review)) {
+				PullRequestRoots.push_back(index);
+			}
+			if (!node.ReviewId.empty() && !node.Path.empty() && !node.Deleted) {
+				ReviewFileComments[node.ReviewId].emplace_back(node.Id, text(node.Path) + (node.Line ? QStringLiteral(":%1").arg(*node.Line) : QString{ }));
+			}
+		}
 		RetainedRoot.clear();
 		RetainedDepth.clear();
 		RetainedByFile.clear();
@@ -835,6 +908,10 @@ namespace bpr::qt {
 			return;
 		}
 		Feed = aFeed;
+		if (Feed) {
+			PullRequestComments = false;
+			NewConversationBoundary.clear();
+		}
 		setVerticalScrollBarPolicy(Feed ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		verticalScrollBar()->setValue(0);
 		setAccessibleName(Feed ? QStringLiteral("Threads") : QStringLiteral("Threads in this file"));
@@ -1408,9 +1485,74 @@ namespace bpr::qt {
 		return std::nullopt;
 	}
 
+	void conversation_cards_view::show_pull_request_comments(const bool aShown)
+	{
+		if (Feed || PullRequestComments == aShown) {
+			return;
+		}
+		PullRequestComments = aShown;
+		setVerticalScrollBarPolicy(aShown ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+		Open.clear();
+		Current.clear();
+		Picked.clear();
+		NewConversationBoundary.clear();
+		if (aShown) {
+			auto roots = std::vector<const application::github_conversation_projection*>{ };
+			for (const auto index : PullRequestRoots) {
+				const auto& node = Retained[index];
+				if (!node.ParentId && node.Path.empty() && !node.Deleted && (node.Kind == application::github_conversation_kind::issue_comment || node.Kind == application::github_conversation_kind::review)) {
+					roots.push_back(&node);
+				}
+			}
+			std::ranges::stable_sort(roots, { }, [](const auto* aNode) { return aNode->CreatedAt; });
+			for (const auto* node : roots) {
+				if (const auto found = ReadStateByThread.find(node->Id); found != ReadStateByThread.end() && !ReadState[found->second].UnreadPosts.empty()) {
+					NewConversationBoundary = node->Id;
+					break;
+				}
+			}
+		}
+		verticalScrollBar()->setValue(0);
+		relayout();
+		setFocus(Qt::OtherFocusReason);
+	}
+	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
+	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
+	void conversation_cards_view::sync_pull_request_edge()
+	{
+		auto count  = std::size_t{ 0 };
+		auto unread = std::size_t{ 0 };
+		for (const auto index : PullRequestRoots) {
+			const auto& node = Retained[index];
+			if (node.ParentId || !node.Path.empty() || node.Deleted || (node.Kind != application::github_conversation_kind::issue_comment && node.Kind != application::github_conversation_kind::review)) {
+				continue;
+			}
+			++count;
+			if (const auto found = ReadStateByThread.find(node.Id); found != ReadStateByThread.end() && !ReadState[found->second].UnreadPosts.empty()) {
+				++unread;
+			}
+		}
+		auto* const chip = static_cast<pull_request_chip*>(PullRequestChip);
+		chip->Colours    = note_colours_of(palette(), Accent, Marker);
+		chip->New        = unread;
+		chip->setText(viewport()->width() < 320 ? QString::number(count) : tr("%1 on the pull request").arg(count));
+		chip->setAccessibleName(tr("%1 comments on the pull request, %2 new").arg(count).arg(unread));
+		chip->setToolTip(chip->accessibleName());
+		chip->setGeometry(note_margin, 5, chip->sizeHint().width(), chip_height);
+		chip->setVisible(!Feed && !PullRequestComments && count > 0U);
+		chip->raise();
+		chip->update();
+		auto* const back = static_cast<pull_request_chip*>(BackToLines);
+		back->Colours    = chip->Colours;
+		back->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, back->sizeHint().width()), chip_height);
+		back->setVisible(!Feed && PullRequestComments);
+		back->raise();
+		back->update();
+	}
+
 	auto conversation_cards_view::aligned() const noexcept -> bool
 	{
-		return !Feed && Scope == cards_scope::this_file;
+		return !Feed && !PullRequestComments && Scope == cards_scope::this_file;
 	}
 
 	// ----------------------------------------------------------- measurement
@@ -1483,7 +1625,7 @@ namespace bpr::qt {
 		}
 		const auto text = name_height(font()) + 1 + measure.NoticeLines * notice_line_height(font()) + count * body_line_height(font());
 		const auto gut  = marked ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
-		measure.Height  = note_top + std::max(text, gut) + note_bottom;
+		measure.Height  = note_top + std::max(text, gut) + note_bottom + (aCard.Verdict.isEmpty() ? 0 : name_height(font()));
 		aCard.Rect.setHeight(measure.Height);
 		Measurements.Notes.insert_or_assign(aCard.Id, std::move(measure));
 	}
@@ -1497,8 +1639,10 @@ namespace bpr::qt {
 		// [[BPR-0972]]. Scoped to one file, only that file's conversations are
 		// visited: the per-forest index names them, in retained order.
 		auto       candidates = std::vector<std::size_t>{ };
-		const auto scoped     = Scope == cards_scope::this_file && AnchorFile.has_value();
-		if (scoped) {
+		const auto scoped     = !PullRequestComments && Scope == cards_scope::this_file && AnchorFile.has_value();
+		if (PullRequestComments) {
+			candidates = PullRequestRoots;
+		} else if (scoped) {
 			for (const auto& [file, index] : std::ranges::equal_range(RetainedByFile, *AnchorFile, { }, &std::pair<core::file_identity, std::size_t>::first)) {
 				candidates.push_back(index);
 			}
@@ -1516,14 +1660,24 @@ namespace bpr::qt {
 			// the pull request's comments and review summaries, each its own
 			// first post.
 			const auto isThread = node.Kind == application::github_conversation_kind::review_thread;
-			if (node.ParentId.has_value() || (!isThread && (!Feed || node.Deleted))) {
+			if (node.ParentId.has_value() || (!isThread && ((!Feed && !PullRequestComments) || node.Deleted))
+				|| (PullRequestComments && (isThread || !node.Path.empty()))) {
 				continue;
 			}
 			if (scoped && RetainedFiles[index] != *AnchorFile) {
 				continue;
 			}
-			auto card = thread_card{ };
-			card.Id   = node.Id;
+			auto card      = thread_card{ };
+			card.Id        = node.Id;
+			card.CreatedAt = node.CreatedAt;
+			if (node.Kind == application::github_conversation_kind::review) {
+				using state  = application::github_review_state_projection;
+				card.Verdict = node.ReviewState == state::approved ? tr("Approved") : node.ReviewState == state::changes_requested ? tr("Changes requested")
+																																   : tr("Commented");
+				if (const auto links = ReviewFileComments.find(node.Id); links != ReviewFileComments.end()) {
+					card.ReviewComments = links->second;
+				}
+			}
 			if (const auto badge = DefectBadges.find(card.Id); badge != DefectBadges.end()) {
 				card.DefectBadge       = badge->second.first;
 				card.DefectDescription = badge->second.second;
@@ -1627,7 +1781,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1290]]. Only new, Hide resolved. The open thread and my draft
 		// are never filtered out.
-		if (Filters.UnreadOnly || Filters.UnresolvedOnly) {
+		if (!PullRequestComments && (Filters.UnreadOnly || Filters.UnresolvedOnly)) {
 			std::erase_if(Cards, [this](const thread_card& aCard) {
 				return !aCard.Draft && aCard.Id != Open && !aCard.UnsentReply.has_value()
 					&& ((Filters.UnreadOnly && aCard.UnreadCount == 0U)
@@ -1636,7 +1790,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1089]]. A drill-down lists exactly the counted conversations:
 		// no open thread or draft is kept beside them.
-		if (Filters.Listed) {
+		if (!PullRequestComments && Filters.Listed) {
 			std::erase_if(Cards, [this](const thread_card& aCard) { return !Filters.Listed->contains(aCard.Id); });
 		}
 		if (Feed && ExcerptLocator) {
@@ -1650,7 +1804,7 @@ namespace bpr::qt {
 		// stands: one whose thread is shown marks that thread's note; one
 		// whose thread is gone or not known is kept as a note of its own at
 		// its line, with what became of the thread.
-		for (const auto& reply : UnsentReplies) {
+		for (const auto& reply : PullRequestComments ? std::vector<core::reply_draft_decision>{ } : UnsentReplies) {
 			const auto kept = reply.Standing == core::reply_draft_standing::thread_deleted || reply.Standing == core::reply_draft_standing::thread_unknown;
 			if (!kept) {
 				const auto thread = std::ranges::find(Cards, "review-thread:" + reply.Thread, &thread_card::Id);
@@ -1691,7 +1845,7 @@ namespace bpr::qt {
 		// inside its thread instead. [[BPR-1212]]: the editor's draft shows
 		// while it is written in the drawer, empty or not.
 		const auto noted = [this](const core::review_comment_draft& aDraft, const bool aWriting) {
-			return Scope == cards_scope::this_file && CurrentComparison.has_value() && aDraft.Anchor.Comparison == *CurrentComparison
+			return !PullRequestComments && Scope == cards_scope::this_file && CurrentComparison.has_value() && aDraft.Anchor.Comparison == *CurrentComparison
 				&& !aDraft.shared() && !aDraft.ReplyToThread.has_value() && (!aDraft.Body.empty() || aWriting);
 		};
 		auto drafts = std::vector<std::pair<std::string, const core::review_comment_draft*>>{ };
@@ -1802,8 +1956,11 @@ namespace bpr::qt {
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed)) + QString::number(card.UnreadCount)
-			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
+			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
+		for (const auto& [id, caption] : card.ReviewComments) {
+			key += QString::fromStdString(id) + caption;
+		}
 		for (const auto& post : card.Posts) {
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QString::number(static_cast<int>(post.Unread));
 		}
@@ -2066,6 +2223,9 @@ namespace bpr::qt {
 		// Placed threads in line order, then the rest in file order; Discuss
 		// lists everything in file order.
 		std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {
+			if (PullRequestComments) {
+				return std::pair{ aLeft.CreatedAt, aLeft.ProjectionOrder } < std::pair{ aRight.CreatedAt, aRight.ProjectionOrder };
+			}
 			if (!aligned()) {
 				return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }
 				< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };
@@ -2131,10 +2291,13 @@ namespace bpr::qt {
 			verticalScrollBar()->setPageStep(viewport()->height());
 			verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
 		} else {
-			auto bottom   = 4;
+			auto bottom   = PullRequestComments ? edge_band : 4;
 			auto lastPath = QString{ };
 			auto first    = true;
 			for (auto& card : Cards) {
+				if (PullRequestComments && card.Id == NewConversationBoundary) {
+					bottom += path_row_height;
+				}
 				if (card.Path != lastPath || first) {
 					bottom += path_row_height;
 					lastPath = card.Path;
@@ -2230,6 +2393,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::sync_edges()
 	{
+		sync_pull_request_edge();
 		auto above = std::vector<std::size_t>{ };
 		auto below = std::vector<std::size_t>{ };
 		if (aligned()) {
@@ -2251,7 +2415,7 @@ namespace bpr::qt {
 			if (aList.empty()) {
 				return;
 			}
-			auto       x     = note_margin + 20;
+			auto       x     = note_margin + 20 + (!aDown && PullRequestChip->isVisible() ? PullRequestChip->width() + 6 : 0);
 			const auto right = viewport()->width() - note_margin;
 			for (std::size_t shown = 0U; shown <= std::min(chips_each_way, aList.size()); ++shown) {
 				const auto more = shown == chips_each_way || shown == aList.size();
@@ -2482,6 +2646,13 @@ namespace bpr::qt {
 		// [[BPR-1374]]. What became of the thread a reply answers, whole,
 		// under the name and above the words.
 		auto bodyTop = top + nameH + 1;
+		if (!aCard.Verdict.isEmpty()) {
+			aPainter.setFont(small);
+			aPainter.setPen(aCard.Verdict == tr("Approved") ? colours.Ok : aCard.Verdict == tr("Changes requested") ? MarkTheme.Tints[static_cast<std::size_t>(core::feedback_label::issue)]
+																													: colours.Faint);
+			aPainter.drawText(QRect{ left, bodyTop, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter, aCard.Verdict);
+			bodyTop += nameH;
+		}
 		if (measure != nullptr && measure->NoticeLines > 0) {
 			const auto noticeHeight = measure->NoticeLines * notice_line_height(font());
 			aPainter.save();
@@ -2531,8 +2702,14 @@ namespace bpr::qt {
 				lastPath = card.Path;
 				painter.setFont(semibold(small));
 				painter.setPen(colours.Faint);
-				painter.drawText(QRect{ note_margin + 4, rect.top() - path_row_height - (first ? 0 : note_gap) + 2, width() - 2 * note_margin, path_row_height },
-								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? QStringLiteral("Pull request") : card.Path, Qt::ElideMiddle, width() - 2 * note_margin));
+				painter.drawText(QRect{ note_margin + 4, rect.top() - path_row_height - (first ? 0 : note_gap) - (PullRequestComments && card.Id == NewConversationBoundary ? path_row_height : 0) + 2, width() - 2 * note_margin, path_row_height },
+								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ painter.font() }.elidedText(card.Path.isEmpty() ? (PullRequestComments ? tr("On the pull request") : QStringLiteral("Pull request")) : card.Path, Qt::ElideMiddle, width() - 2 * note_margin));
+			}
+			if (PullRequestComments && card.Id == NewConversationBoundary) {
+				painter.setPen(colours.New);
+				painter.setFont(semibold(small));
+				painter.drawText(QRect{ note_margin, rect.top() - path_row_height, viewport()->width() - 2 * note_margin, path_row_height }, Qt::AlignRight | Qt::AlignVCenter, tr("New"));
+				painter.drawLine(note_margin, rect.top() - path_row_height / 2, viewport()->width() - 50, rect.top() - path_row_height / 2);
 			}
 			first = false;
 			if (rect.bottom() < 0 || rect.top() > viewport()->height()) {
@@ -2727,6 +2904,9 @@ namespace bpr::qt {
 			}
 		}
 		viewport()->update();
+		if (PullRequestComments && aOpen && ActionDispatch) {
+			ActionDispatch(card_action::mark_read, chosen);
+		}
 		if (ThreadDispatch) {
 			// [[BPR-1029]]. The dispatch may make another thread current, so it
 			// is handed its own copy of the identity rather than a reference
@@ -2737,6 +2917,9 @@ namespace bpr::qt {
 
 	void conversation_cards_view::open_thread(const std::string& aId)
 	{
+		if (!Feed && !PullRequestComments && std::ranges::any_of(Retained, [&aId](const auto& aNode) { return aNode.Id == aId && aNode.Path.empty() && !aNode.ParentId && !aNode.Deleted && (aNode.Kind == application::github_conversation_kind::issue_comment || aNode.Kind == application::github_conversation_kind::review); })) {
+			show_pull_request_comments(true);
+		}
 		if (const auto index = card_index(aId); index.has_value()) {
 			choose(*index, true);
 		}
@@ -3124,6 +3307,10 @@ namespace bpr::qt {
 				Current = open;
 				setFocus(Qt::OtherFocusReason);
 				viewport()->update();
+				return true;
+			}
+			if (PullRequestComments) {
+				show_pull_request_comments(false);
 				return true;
 			}
 			return false;

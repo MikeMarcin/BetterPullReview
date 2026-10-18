@@ -250,6 +250,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
+		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
@@ -5505,6 +5506,7 @@ namespace {
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
+	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
 	#endif
@@ -5594,6 +5596,8 @@ namespace {
 						schedule_attended_finish_review_look(aApplication);
 					} else if (look == "notes") {
 						schedule_attended_notes_look(aApplication);
+					} else if (look == "conversation") {
+						schedule_attended_conversation_look(aApplication);
 					} else if (look == "tour") {
 						schedule_attended_tour_look(aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
@@ -5895,6 +5899,92 @@ namespace {
 				QCoreApplication::processEvents();
 			}
 			QTextStream{ stdout } << "ATTENDED_NOTES_SHOWN\n";
+			QTextStream{ stdout }.flush();
+		});
+		timer->start();
+	}
+
+	// BPR-1603: only local fixture gestures. The person sees the same draft
+	// they can write; no Send gesture is made by this attended course.
+	void schedule_attended_conversation_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(60);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const cards  = window.conversation_panel()->cards();
+			if (++*ticks > 3000) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << "ATTENDED_CONVERSATION_FAILED:step=" << *step << '\n';
+				return;
+			}
+			const auto              render = [](bpr::qt::workbench_window& aWindow, const QString& aName) {const auto root=qEnvironmentVariable("BPR_ATTENDED_CONVERSATION_RENDER");if(!root.isEmpty()){QCoreApplication::processEvents();static_cast<void>(aWindow.grab().save(root+QLatin1Char{'/'}+aName,"PNG"));} };
+			static const std::array ids    = { std::string{ "review:pr-chip-review-one" }, std::string{ "issue-comment:pr-chip-author" }, std::string{ "issue-comment:pr-chip-perf" } };
+			if (*step == 0) {
+				window.choose_modality(bpr::qt::review_modality::review);
+				window.tray_tabs()->setCurrentIndex(0);
+				if (!window.conversations_drawer_toggle_action()->isChecked()) {
+					window.conversations_drawer_toggle_action()->trigger();
+				}
+				if (!cards->pull_request_comments_chip()->isVisible()) {
+					return;
+				}
+				static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, qEnvironmentVariable("BPR_ATTENDED_CONVERSATION_THEME") == QStringLiteral("dark") ? bpr::core::appearance_mode::dark : bpr::core::appearance_mode::light, 4U));
+				cards->show_pull_request_comments(true);
+				cards->open_thread(ids[0]);
+				++*step;
+				return;
+			}
+			if (*step <= 3) {
+				const auto& unread = cards->unread_conversations_in_navigation_order();
+				if (std::ranges::find(unread, ids[static_cast<std::size_t>(*step - 1)]) != unread.end()) {
+					return;
+				}
+				if (*step < 3) {
+					cards->open_thread(ids[static_cast<std::size_t>(*step)]);
+					++*step;
+					return;
+				}
+				cards->show_pull_request_comments(false);
+				render(window, QStringLiteral("app-comments-edge.png"));
+				cards->show_pull_request_comments(true);
+				cards->open_thread("issue-comment:pr-chip-reply");
+				++*step;
+				return;
+			}
+			if (*step == 4) {
+				auto* const card  = cards->open_card();
+				auto* const reply = card ? card->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+				if (!reply) {
+					return;
+				}
+				reply->click();
+				++*step;
+				return;
+			}
+			if (*step == 5) {
+				auto* const editor = cards->reply_editor();
+				if (!editor || editor->isReadOnly()) {
+					return;
+				}
+				editor->setPlainText(QStringLiteral("I'll add the skipped-frame counter and include it in the soak-run output."));
+				++*step;
+				return;
+			}
+			auto* const status = cards->open_card()->findChild<QLabel*>(QStringLiteral("threadReplyStatus"));
+			if (!status || !status->text().startsWith(QStringLiteral("Saved locally"))) {
+				return;
+			}
+			render(window, QStringLiteral("app-comments-list.png"));
+			timer->stop();
+			timer->deleteLater();
+			QTextStream{ stdout } << "ATTENDED_CONVERSATION_SHOWN\n";
 			QTextStream{ stdout }.flush();
 		});
 		timer->start();
@@ -10140,7 +10230,15 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1592]]. Private notes written at their lines.
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
-		const auto attendedTourLook       = launch.has("--attended-tour-look");
+		const auto attendedTourLook         = launch.has("--attended-tour-look");
+		const auto attendedConversationLook = launch.has("--attended-conversation-look");
+		if (attendedConversationLook) {
+			fixtureOptions.ReviewSubmissionServer                        = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.RepeatReadSessions                            = true;
+			fixtureOptions.ReviewSubmissionServer->AttendedCommentReview = "pr-chip-review-one";
+			fixtureOptions.ReviewSubmissionServer->ReviewHistory         = R"json([{"id":4001,"node_id":"pr-chip-review-one","state":"CHANGES_REQUESTED","submitted_at":"2026-10-16T01:00:00Z","body":"The clamp reads well. Two things before this lands: the retry budget needs a test that exhausts it, and begin_frame now returns early without recording timing.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}},{"id":4002,"node_id":"pr-chip-review-two","state":"APPROVED","submitted_at":"2026-10-18T02:00:00Z","body":"Looks good once the skipped-frame counter is in.","commit_id":"2222222222222222222222222222222222222222","user":{"node_id":"U_author_two","login":"author-two","type":"User"}}])json";
+			fixtureOptions.ReviewSubmissionServer->ConversationComments  = R"json([{"id":5001,"node_id":"pr-chip-author","created_at":"2026-10-17T01:00:00Z","body":"Added a test that runs the budget out. On the early return: I would rather not record a frame that never submitted. OK to leave Stats_ untouched there?","user":{"node_id":"U_jiayin","login":"jiayin","type":"User"}},{"id":5002,"node_id":"pr-chip-perf","created_at":"2026-10-17T02:00:00Z","body":"Perf run on the 5K panel: frame time unchanged within noise. Fine by me.","user":{"node_id":"U_tbutler","login":"tbutler","type":"User"}},{"id":5003,"node_id":"pr-chip-reply","created_at":"2026-10-18T01:00:00Z","body":"Agreed on not recording it. Please count the skipped frames instead, so the soak run shows how often the budget runs out.","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}}])json";
+		}
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook || attendedFinishReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
 		const auto attendedReadState = launch.has("--attended-read-state");
@@ -10254,6 +10352,7 @@ auto main(int argc, char** argv) -> int
 			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedFinishReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook))
 			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
+			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedNotesLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
 			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
@@ -10718,6 +10817,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedNotesLook) {
 						look = std::string{ "notes" };
+					}
+					if (attendedConversationLook) {
+						look = std::string{ "conversation" };
 					}
 					if (attendedTourLook) {
 						look = std::string{ "tour" };

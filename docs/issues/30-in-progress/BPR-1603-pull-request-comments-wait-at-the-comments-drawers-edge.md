@@ -27,5 +27,21 @@ Notes. The chip lists them; each opens in place, carries its unread mark from
 ## Boundaries
 
 Qt presentation over the accepted conversation projection and BPR-1601's read
-state; no new GitHub read, and Discuss keeps every comment as it does today.
+state; no new GitHub conversation read, and Discuss keeps every comment as it does today.
 Uses BPR-1592's edge-chip and list pattern, and the shared drawer parts.
+
+## Owner scope extension — 2026-10-18
+
+Direction A selected without a note in session `537cac7b…`, sequence 4,
+handback 5 consumed. The owner then explicitly confirmed drawer replies:
+private durable draft first, explicit Send of a new issue comment quoting
+the accepted post, existing staged publication and transport witness,
+exact-PR reread before POST, changed-target refusal, visible failure/retry,
+and restart recovery. Verify with stubs and one live create/delete course
+on MikeMarcin/BPR-Test, observing X-RateLimit-Remaining. No live test mutation
+is authorized for any other repository by this card.
+
+The frontend-design skill was loaded for implementation; the accepted A
+mockup supplies the layout. Native palette/type and Notes' pill dimensions
+supply the tokens, with the blue unread badge and one in-place list. No new
+style sheet or independent design direction is introduced.

@@ -1754,7 +1754,11 @@ namespace bpr::adapters::github::detail {
 				aOut = text(value);
 				return true;
 			};
-			if (!scalar(aGraphql ? "url" : "html_url", result.WebUrl) || !scalar(aGraphql ? "updatedAt" : "updated_at", result.UpdatedAt)) {
+			if (!scalar(aGraphql ? "url" : "html_url", result.WebUrl) || !scalar(aGraphql ? "updatedAt" : "updated_at", result.UpdatedAt)
+				|| !scalar(aGraphql ? "createdAt" : "created_at", result.CreatedAt)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			if (result.CreatedAt.empty() && !aGraphql && !scalar("submitted_at", result.CreatedAt)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			const auto id = json_member(object, aGraphql ? "fullDatabaseId" : "id");

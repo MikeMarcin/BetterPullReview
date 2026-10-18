@@ -8,6 +8,7 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QDir>
@@ -16,6 +17,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QPlainTextEdit>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -177,6 +179,51 @@ int main(int aArgc, char** aArgv)
 	readAction->trigger();
 	finalWindow.finder()->row_menu()->close();
 	wait_for([&] { return unread(summary) == 0U && count() == QStringLiteral("0 new comments in the conversation"); }, "Threads' read gesture clears the same durable state and Status count");
+
+	// BPR-1603: the same singleton now opens at Review's top edge. The draft
+	// is durable before Send and its send uses the ordinary composed journal.
+	finalWindow.choose_modality(qt::review_modality::review);
+	if (!finalWindow.conversations_drawer_toggle_action()->isChecked()) {
+		finalWindow.conversations_drawer_toggle_action()->trigger();
+	}
+	auto* replyCards = finalWindow.conversation_panel()->cards();
+	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "PR-level chip is reachable in the production Review drawer");
+	replyCards->pull_request_comments_chip()->click();
+	replyCards->open_thread(comment);
+	auto* reply = replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+	expect(reply != nullptr, "PR comment offers Reply in place");
+	reply->click();
+	wait_for([&] { return replyCards->reply_editor() != nullptr; }, "reply composer opens");
+	replyCards->reply_editor()->setPlainText(QStringLiteral("BPR-1603 composed reply"));
+	wait_for([&] { return replyCards->reply_editor() && !replyCards->reply_editor()->isReadOnly() && replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyPublish"))->isEnabled(); }, "written reply can be explicitly sent");
+	render(QStringLiteral("drawer-quoted-reply"));
+	// Drain a local save by waiting for its saved status, then reopen a new app.
+	wait_for([&] {auto* status=replyCards->open_card()->findChild<QLabel*>(QStringLiteral("threadReplyStatus"));return status && status->text().startsWith(QStringLiteral("Saved locally")); }, "reply is saved before restart");
+	{
+		std::scoped_lock lock{ server->Mutex };
+		expect(server->StagedWrites == 0U, "typing never posts a reply");
+	}
+	stop();
+	start();
+	auto& replyWindow = application->window();
+	replyWindow.choose_modality(qt::review_modality::review);
+	if (!replyWindow.conversations_drawer_toggle_action()->isChecked()) {
+		replyWindow.conversations_drawer_toggle_action()->trigger();
+	}
+	replyCards = replyWindow.conversation_panel()->cards();
+	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "restarted drawer chip appears");
+	replyCards->pull_request_comments_chip()->click();
+	replyCards->open_thread(comment);
+	replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"))->click();
+	wait_for([&] { return replyCards->reply_editor() && replyCards->reply_editor()->toPlainText() == QStringLiteral("BPR-1603 composed reply"); }, "reply text survives a fresh application");
+	auto* send = replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyPublish"));
+	wait_for([&] { return send->isEnabled(); }, "restored draft offers explicit Send");
+	send->click();
+	wait_for([&] {std::scoped_lock lock{server->Mutex};return server->StagedWrites==1U; }, "Send reaches the existing issue-comment publication path exactly once");
+	{
+		std::scoped_lock lock{ server->Mutex };
+		expect(server->StagedComments.empty(), "a PR reply creates no file review comments");
+	}
 	stop();
 	std::cout << "CONVERSATION_READ_PUBLIC_PATH_OK\n";
 	return EXIT_SUCCESS;

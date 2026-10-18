@@ -1932,6 +1932,79 @@ namespace {
 		view.adopt(forest("third", 2U));
 		expect(view.thread_count() == 2U, "a forest adopted after clearing is retained");
 	}
+	void test_pull_request_comments_live_at_the_edge()
+	{
+		using namespace bpr;
+		qt::conversation_cards_view view;
+		view.resize(360, 800);
+		auto summary        = application::github_conversation_projection{ };
+		summary.Id          = "review:one";
+		summary.Kind        = application::github_conversation_kind::review;
+		summary.AuthorLogin = "reviewer";
+		summary.Body        = "Please check both files.";
+		summary.ReviewState = application::github_review_state_projection::changes_requested;
+		summary.CreatedAt   = "2026-10-18T01:00:00Z";
+		auto old            = application::github_conversation_projection{ };
+		old.Id              = "issue-comment:old";
+		old.AuthorLogin     = "author";
+		old.Body            = "First comment";
+		old.CreatedAt       = "2026-10-17T00:00:00Z";
+		auto fresh          = old;
+		fresh.Id            = "issue-comment:new";
+		fresh.Body          = "New comment";
+		fresh.CreatedAt     = "2026-10-18T02:00:00Z";
+		auto deleted        = fresh;
+		deleted.Id          = "gone";
+		deleted.Deleted     = true;
+		auto file           = thread("thread", "src/a.cpp", 9U);
+		auto post           = reply("file-post", "thread", "reviewer", "A file comment");
+		post.ReviewId       = summary.Id;
+		post.Path           = file.Path;
+		post.Line           = file.Line;
+		view.adopt({ summary, file, post, fresh, old, deleted }, core::file_identity_of("src/a.cpp"));
+		view.set_line_locator([](core::diff_side, std::uint32_t) { return std::optional{ 100 }; });
+		view.set_read_state({ { fresh.Id, { fresh.Id } } });
+		std::vector<std::pair<qt::card_action, std::string>> actions;
+		view.set_action_dispatch([&](qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		view.show();
+		QApplication::processEvents();
+		expect(view.pull_request_comments_chip()->isVisible() && view.pull_request_comments_chip()->accessibleName() == QStringLiteral("3 comments on the pull request, 1 new"), "one top chip counts every live singleton, independent of the file");
+		expect(view.cards().size() == 1U, "file view still shows only its thread");
+		view.pull_request_comments_chip()->click();
+		QApplication::processEvents();
+		expect(view.pull_request_comments_shown() && view.cards().size() == 3U && view.cards()[0].Id == old.Id && view.cards()[1].Id == summary.Id && view.cards()[2].Id == fresh.Id, "chip opens only PR comments in creation order across reviews and comments");
+		view.open_thread(fresh.Id);
+		QApplication::processEvents();
+		expect(!actions.empty() && actions.back() == std::pair{ qt::card_action::mark_read, fresh.Id }, "opening a PR comment asks the existing durable read owner");
+		view.open_thread(summary.Id);
+		QApplication::processEvents();
+		expect(view.open_card()->findChild<QLabel*>(QStringLiteral("conversationReviewVerdict"))->text() == QStringLiteral("Changes requested"), "review summary retains its verdict");
+		auto* link = view.open_card()->findChild<QToolButton*>(QStringLiteral("conversationReviewFileComment"));
+		expect(link && link->text() == QStringLiteral("src/a.cpp:9"), "review summary links to its exact file comment");
+		link->click();
+		expect(actions.back() == std::pair{ qt::card_action::open_in_code, post.Id }, "file link dispatch names its post");
+		view.open_card()->findChild<QToolButton*>(QStringLiteral("conversationShowInDiscuss"))->click();
+		expect(actions.back() == std::pair{ qt::card_action::show_in_discuss, summary.Id }, "Show in Discuss preserves the singleton identity");
+		view.begin_reply(summary.Id);
+		view.present_reply(qt::thread_reply_presentation{ .Thread = summary.Id, .Body = QStringLiteral("A private reply"), .Publishable = true, .Notice = QStringLiteral("Saved locally") });
+		QApplication::processEvents();
+		expect(view.reply_editor() && view.reply_editor()->toPlainText() == QStringLiteral("A private reply"), "PR reply is composed in place");
+		auto* send = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyPublish"));
+		expect(send && send->text() == QStringLiteral("Send"), "PR reply has an explicit Send");
+		send->click();
+		expect(actions.back() == std::pair{ qt::card_action::publish_reply, summary.Id }, "only the Send press requests publication");
+		view.show_pull_request_comments(false);
+		expect(view.cards().size() == 1U && view.cards()[0].Id == file.Id, "Back restores the file thread view");
+		view.resize(280, 800);
+		QApplication::processEvents();
+		expect(view.pull_request_comments_chip()->text() == QStringLiteral("3"), "narrow chip retains total and accessible full words");
+		view.set_feed(true);
+		QApplication::processEvents();
+		expect(!view.pull_request_comments_chip()->isVisible(), "Discuss remains its existing full conversation feed");
+		view.clear();
+		expect(!view.pull_request_comments_shown(), "authority clear retires the PR list");
+	}
+
 }
 
 auto main(int argc, char** argv) -> int
@@ -1947,6 +2020,7 @@ auto main(int argc, char** argv) -> int
 		std::cout << "publication-status-geometry:pass\n";
 		return EXIT_SUCCESS;
 	}
+	test_pull_request_comments_live_at_the_edge();
 	test_wrapped_publication_status_is_fully_visible();
 	test_replacing_a_forest_never_reads_the_last_one();
 	test_discuss_wheel_moves_readable_lines_without_changing_selection();

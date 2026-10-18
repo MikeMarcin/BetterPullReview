@@ -50,3 +50,74 @@
 ## Processes
 
 - Attended-review host PID 62087 (handed off; stop by PID when done).
+
+## Codex implementation continuation — 2026-10-18
+
+Owner expanded the queue with 7e. BPR-1594 is Done/pushed f9ad0ffc4;
+BPR-1603 branch merged origin/main and claimed at 7ae49f74b. Direct strategy,
+no delegation. The frontend-design skill was found/read at
+`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
+Design choice A at sequence 4, handback 5 consumed; its protection released.
+Owner's later reply authorization is recorded on the card and RFC D8.
+
+Uncommitted implementation: PR top-edge chip, in-place chronological list,
+New divider, Back, verdict/file links, read dispatch, tab count and next-new;
+creation/submission time and review ownership projected from existing server
+responses. Core conversation_reply.hpp renders bounded quotes and decides
+nonempty Send. Existing staged plan has a typed ConversationReply mode;
+Drafting records use the existing staged journal (codec v5, older versions
+remain readable), revision-CAS before Send, one issue-comment POST, existing
+witness/reconciliation/exact-PR reread. Reply workflow uses the existing
+serialized submission host, grants and lifecycle; fixture provider delegates.
+No live GitHub call yet. No candidate frozen/reviewed yet.
+
+A working-directory mistake wrote six task edits to main; they were copied
+and verified into this branch and restored from main, preserving the unrelated
+untracked insights assets. Main now has only the pre-existing untracked assets.
+Final suites were interrupted when the owner expanded the queue: pre-1594
+partial /tmp/bpr-pre1594-partial-20261018.log; pre-1603 partial
+/tmp/bpr-pre1603-partial.log. The latter reproduced only
+contained_temporary_usage_contract (profile_recovery_course.py:92 direct
+mkdtemp); no completed post-Agent full suite is claimed. Final suite waits
+until this card's review/landing decision.
+
+Build dev uses -g0, six jobs, shared CPM cache at main/build/.cpm-cache.
+App + cards target built before the latest test additions. Focused first run
+is /tmp/bpr1603-focused-first.log. Next: inspect failures, add composed
+restart/edit/send course and live safe course; lifecycle/self-review and
+format/tidy/docs/composition pins; offscreen Light/Dark renders vs A;
+freeze via helper and fresh ONE Accept/Reject session. Wait for owner.
+Land only on Accept, then final integrated suite and lint, report remaining
+failures by cause and remove task build trees. On Reject stop for Claude.
+
+
+### Verification continuation
+
+The 11 focused rows passed (16.70 s): core review submission, application
+submission contract/host, SQLite recovery, Qt conversation panel/cards,
+live-provider stub/restart, paged read, staged session, and composed
+conversation public path. After header/identity refinements, the four touched
+rows passed again (13.18 s), including retained server chronology assertions.
+Logs: /tmp/bpr1603-focused-final.log, /tmp/bpr1603-focused-after-review.log.
+The stub reply course exercises local-only drafts, reopen, CAS/stale edit,
+changed-head refusal, and lost-response restart with exactly one POST.
+
+Live course passed through the production witnessed staged session on
+MikeMarcin/BPR-Test PR 108: exactly one quoted issue comment (6254520168),
+read-only reconciliation did not duplicate it; lowest observed remaining
+header 4970. Initial helper refused before any network because it lacked
+BPR-1373's selected CLI-account pin; fixed the helper to pin MikeMarcin per
+operation without switching global auth. Deleted the reply and synthetic
+source comment, closed PR 108 and deleted only its disposable branch.
+Runtime secret-free evidence /private/tmp/bpr1603-live-iokjo42c, cleanup-complete.
+
+Offscreen Light/Dark fixture renders completed using the application's own
+window grab (no desktop capture). First scripts omitted attended-launch and
+used the wrong renderer path; corrected to --attended-open-file
+src/engine/renderer.cpp. Correct render processes were stopped by own PIDs
+51955 and 52231. Renders currently /private/tmp/bpr1603-render-{light,dark};
+need regenerate after adding the PR header and moving Show in Discuss there.
+Docs gate passed. Architecture/composition focused checks and touched tidy
+are running; one optional dereference tidy finding was fixed and is being
+rechecked. Composition reseal records explicit self-review of this delta.
+No built candidate or owner approval yet; do not land.

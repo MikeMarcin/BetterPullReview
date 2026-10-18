@@ -7872,7 +7872,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return application::detail::review_submission_user_authority_issuer::issue(aSession, aGeneration, aPlan);
 			};
 #endif
-			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this](const application::staged_publication_record& aRecord) {
+			ConversationReply = std::make_unique<conversation_reply_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window, issueTourGrant, [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this] { reread_after_publication(); });
+			Window->set_conversation_reply_dispatch([this](const core::conversation_reply_action aAction, core::conversation_reply_draft aDraft) {if(!Closing && ConversationReply){ConversationReply->dispatch(aAction,std::move(aDraft));} });
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), issueTourGrant, [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this](const application::staged_publication_record& aRecord) {
                 // [[BPR-1475]]. A published tour is a review on GitHub: read it.
                 reread_after_publication();
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
@@ -10362,6 +10364,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<review_cycle_desktop>             CycleDesktop;
 		std::uint64_t                                     WritingHookSubscription = 0;
 		std::unique_ptr<review_tour_publication_workflow> TourPublication;
+		std::unique_ptr<conversation_reply_workflow>      ConversationReply;
 		struct retained_tour_host
 		{
 			core::tour_owner                               Owner;
@@ -11275,6 +11278,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
 				if (TourPublication) {
 					TourPublication->invalidate();
+					if (ConversationReply) {
+						ConversationReply->invalidate();
+					}
 				}
 				return;
 			}
@@ -11283,6 +11289,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only. Open a fixture to try review composition, or use a configured publishing build for your pull request."));
 				if (TourPublication) {
 					TourPublication->invalidate();
+					if (ConversationReply) {
+						ConversationReply->invalidate();
+					}
 				}
 				return;
 			}
@@ -11295,6 +11304,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 												 : QStringLiteral("The current account or pull request revision is not ready for review submission. Refresh this pull request and wait for it to finish loading."));
 				if (TourPublication) {
 					TourPublication->invalidate();
+					if (ConversationReply) {
+						ConversationReply->invalidate();
+					}
 				}
 				return;
 			}
@@ -11316,6 +11328,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->invalidate(QStringLiteral("This window is read-only because no publishing connection is available. Connect an account with access, then reopen the pull request."));
 				if (TourPublication) {
 					TourPublication->invalidate();
+					if (ConversationReply) {
+						ConversationReply->invalidate();
+					}
 				}
 				return;
 			}
@@ -11341,10 +11356,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 					return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description);
 				};
-				TourPublication->adopt(binding, workbench_authority(aHandoff), std::move(tourFactory), WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory);
+				}
+				TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
 #else
 				// [[BPR-1222]]. Live publication is on (owner amendment 2026-10-09);
 				// Publish still asks the write confirmation and spends a one-use grant.
+				if (ConversationReply) {
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, factory);
+				}
 				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true);
 #endif
 			}
@@ -14627,6 +14648,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->invalidate(aInvalidation);
 				if (TourPublication) {
 					TourPublication->invalidate();
+					if (ConversationReply) {
+						ConversationReply->invalidate();
+					}
 				}
 			}
 			if (TourOwner && TourOwner->Host == aInvalidation.Host && TourOwner->Account == aInvalidation.Account && TourOwner->Repository == aInvalidation.Repository && TourOwner->PullRequest == aInvalidation.PullRequest) {
@@ -18495,6 +18519,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSubmission->shutdown();
 				if (TourPublication) {
 					TourPublication->shutdown();
+					if (ConversationReply) {
+						ConversationReply->shutdown();
+					}
 				}
 			}
 			// Every composed host must be told, or the shutdown poll waits on a
@@ -18579,6 +18606,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (MarkdownCode && !MarkdownCode->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (TourPublication && !TourPublication->is_quiescent())
+				|| (ConversationReply && !ConversationReply->is_quiescent())
 				|| (TourHost && !TourHost->is_quiescent())
 				|| (CycleDesktop && !CycleDesktop->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -18675,6 +18703,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			ReviewSubmission.reset();
 			TourPublication.reset();
+			ConversationReply.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
 #if defined(BPR_AGENT_INTEGRATIONS)

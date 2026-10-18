@@ -27,11 +27,17 @@ namespace bpr::application {
 	}
 	auto valid(const staged_review_plan& aPlan) -> bool
 	{
-		if (!valid(aPlan.Submission) || !aPlan.Submission.LiveBinding || !core::valid(aPlan.Owner) || !aPlan.Generation || (aPlan.Stops.empty() && !aPlan.Update) || aPlan.Stops.size() > maximum_staged_review_comments || aPlan.Submission.Proposal.Disposition != core::review_disposition::comment) {
+		if (!valid(aPlan.Submission) || !aPlan.Submission.LiveBinding || !core::valid(aPlan.Owner) || !aPlan.Generation || (aPlan.Stops.empty() && !aPlan.Update && !aPlan.ConversationReply) || aPlan.Stops.size() > maximum_staged_review_comments || aPlan.Submission.Proposal.Disposition != core::review_disposition::comment) {
+			return false;
+		}
+		if (aPlan.ConversationReply && core::render_conversation_reply(aPlan.ReplyDraft) != std::optional{ aPlan.Submission.Proposal.Body }) {
 			return false;
 		}
 		const auto& target = aPlan.Submission.LiveBinding->Target;
 		if (aPlan.Owner.Host != target.Semantic.Host || aPlan.Owner.Repository != target.Semantic.Repository || aPlan.Owner.PullRequest != target.Semantic.PullRequest || aPlan.Owner.Account != aPlan.Submission.LiveBinding->ActingIdentity.Account) {
+			return false;
+		}
+		if (aPlan.ConversationReply && (!aPlan.Compatibility || !aPlan.Stops.empty() || aPlan.Update || aPlan.Description || aPlan.Submission.Proposal.Body.size() > core::maximum_tour_field_bytes)) {
 			return false;
 		}
 		if (aPlan.Update) {
@@ -78,6 +84,12 @@ namespace bpr::application {
 	{
 		if (!valid(aPlan)) {
 			return std::nullopt;
+		}
+		if (aPlan.ConversationReply && !core::conversation_reply_can_send(aPlan.ReplyDraft)) {
+			return std::nullopt;
+		}
+		if (aPlan.ConversationReply) {
+			return staged_review_request{ .Binding = *aPlan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = aPlan.Submission.Proposal.Body };
 		}
 		if (aPlan.Update && aPlan.Stops.empty()) {
 			staged_publication_record record{ .Plan = aPlan };
@@ -157,6 +169,9 @@ namespace bpr::application {
 	}
 	auto staged_next_request(const staged_publication_record& aRecord) -> std::optional<staged_review_request>
 	{
+		if (aRecord.Plan.ConversationReply) {
+			return aRecord.Drafting || !aRecord.Comments.empty() ? std::nullopt : staged_initial_request(aRecord.Plan);
+		}
 		if (aRecord.Plan.Compatibility && aRecord.Comments.size() < aRecord.Plan.Stops.size()) {
 			return staged_review_request{ .Binding = *aRecord.Plan.Submission.LiveBinding, .Operation = staged_review_operation::create_issue_comment, .Body = *initial_stop_body(aRecord.Plan, aRecord.Comments.size()) };
 		}
@@ -196,7 +211,30 @@ namespace bpr::application {
 	auto valid(const staged_publication_record& aRecord) -> bool
 	{
 		if (!valid(aRecord.Plan) || !aRecord.Revision || aRecord.BaselineIds.size() > maximum_staged_review_pages * 100U || !std::ranges::is_sorted(aRecord.BaselineIds) || std::ranges::adjacent_find(aRecord.BaselineIds) != aRecord.BaselineIds.end() || std::ranges::find(aRecord.BaselineIds, 0U) != aRecord.BaselineIds.end()
-			|| aRecord.Comments.size() > aRecord.Plan.Stops.size() || aRecord.Patched > aRecord.Comments.size() || (aRecord.PossiblyTransmitted && !aRecord.Pending) || (aRecord.DescriptionDone && (!aRecord.Published || !aRecord.Plan.Description))) {
+			|| aRecord.Comments.size() > (aRecord.Plan.ConversationReply ? 1U : aRecord.Plan.Stops.size()) || aRecord.Patched > aRecord.Comments.size() || (aRecord.PossiblyTransmitted && !aRecord.Pending) || (aRecord.DescriptionDone && (!aRecord.Published || !aRecord.Plan.Description))) {
+			return false;
+		}
+		if (aRecord.Plan.ConversationReply) {
+			if (aRecord.Review || aRecord.Index || aRecord.Patched || aRecord.DescriptionDone || aRecord.Updated || aRecord.DestinationsPublished || aRecord.Published != !aRecord.Comments.empty()) {
+				return false;
+			}
+			if (aRecord.Drafting) {
+				return aRecord.Comments.empty() && aRecord.BaselineIds.empty() && !aRecord.Pending && !aRecord.PossiblyTransmitted;
+			}
+			if (aRecord.Pending && aRecord.Pending != staged_next_request(aRecord)) {
+				return false;
+			}
+			if (!aRecord.Comments.empty()) {
+				const auto& comment = aRecord.Comments.front();
+				const auto& binding = *aRecord.Plan.Submission.LiveBinding;
+				return comment.Id && !comment.NodeId.empty() && comment.Actor == staged_review_actor{ binding.ActingIdentity.DatabaseId, binding.ActingIdentity.NodeId, binding.ActingIdentity.Login }
+				&& !comment.Source && !comment.Review.value() && !comment.Reply && comment.Body == aRecord.Plan.Submission.Proposal.Body
+					&& !std::ranges::binary_search(aRecord.BaselineIds, comment.Id)
+					&& comment.WebUrl == initial_navigation(aRecord.Plan).front().Destination + "#issuecomment-" + std::to_string(comment.Id);
+			}
+			return true;
+		}
+		if (aRecord.Drafting) {
 			return false;
 		}
 		if (aRecord.Plan.Update) {
@@ -270,6 +308,18 @@ namespace bpr::application {
 		if (!valid(aAfter)) {
 			return false;
 		}
+		if (aAfter.Plan.ConversationReply && aAfter.Drafting && !aBefore) {
+			return aAfter.Revision == 1;
+		}
+		if (aBefore && aBefore->Plan.ConversationReply && aBefore->Drafting) {
+			if (!valid(*aBefore) || aAfter.Revision != aBefore->Revision + 1 || aAfter.Plan.Submission.IdempotencyKey != aBefore->Plan.Submission.IdempotencyKey || aAfter.Plan.Submission.LiveBinding != aBefore->Plan.Submission.LiveBinding || aAfter.Plan.Owner != aBefore->Plan.Owner || aAfter.Plan.ReplyDraft.Conversation != aBefore->Plan.ReplyDraft.Conversation || aAfter.Plan.ReplyDraft.Author != aBefore->Plan.ReplyDraft.Author || aAfter.Plan.ReplyDraft.Quote != aBefore->Plan.ReplyDraft.Quote) {
+				return false;
+			}
+			if (aAfter.Drafting) {
+				return aAfter.Plan.Generation == aBefore->Plan.Generation + 1;
+			}
+			return aAfter.Plan == aBefore->Plan && aAfter.Pending == staged_initial_request(aAfter.Plan) && !aAfter.PossiblyTransmitted && aAfter.Comments.empty();
+		}
 		if (!aBefore) {
 			return aAfter.Revision == 1 && !aAfter.Review && !aAfter.Index && aAfter.Comments.empty() && !aAfter.PossiblyTransmitted && !aAfter.Updated && !aAfter.DestinationsPublished && aAfter.Pending == staged_initial_request(aAfter.Plan);
 		}
@@ -312,7 +362,13 @@ namespace bpr::application {
 				if (!expected.Plan.Compatibility) {
 					return false;
 				}
-				if (expected.Comments.size() < expected.Plan.Stops.size()) {
+				if (expected.Plan.ConversationReply) {
+					if (aAfter.Comments.size() != 1U) {
+						return false;
+					}
+					expected.Comments  = aAfter.Comments;
+					expected.Published = true;
+				} else if (expected.Comments.size() < expected.Plan.Stops.size()) {
 					if (aAfter.Comments.size() != expected.Comments.size() + 1) {
 						return false;
 					}

@@ -1,5 +1,6 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
+#include "bpr/core/conversation_reply.hpp"
 
 #include "bpr/application/profile_management_projection.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
@@ -677,6 +678,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_repository_onboarding() const noexcept -> QWidget*;
 		[[nodiscard]] auto home_repository_onboarding_button() const noexcept -> QPushButton*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
+		void set_conversation_reply_dispatch(std::function<void(core::conversation_reply_action, core::conversation_reply_draft)> aDispatch);
+		void present_conversation_reply(std::optional<thread_reply_presentation> aReply);
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
 		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
@@ -2437,22 +2440,26 @@ namespace bpr::qt {
 		std::array<navigation_entry, 4> Navigation{ };
 		/// [[BPR-1532]]. First and Last change; menu and keys only, no
 		/// review-bar button.
-		std::array<navigation_entry, 2> ChangeEnds{ };
-		QAction*                        NextNewCommentAction = nullptr;
-		conversation_read_dispatch      ConversationReadDispatch;
-		conversation_read_dispatch      ConversationUnreadDispatch;
-		std::array<QAction*, 4>         ReceiptActions{ };
-		std::array<drawer_entry, 3>     Drawers{ };
-		files_tree_view*                FilesTree                = nullptr;
-		QComboBox*                      FilesOrderSelector       = nullptr;
-		QLineEdit*                      FilesFilter              = nullptr;
-		filter_empty_notice*            FilesFilterNotice        = nullptr;
-		repositories_tree_view*         RepositoriesTree         = nullptr;
-		QLineEdit*                      RepositoriesFilter       = nullptr;
-		filter_empty_notice*            RepositoriesFilterNotice = nullptr;
-		std::vector<server_card*>       ServerCards;
-		QVBoxLayout*                    ServerCardColumn = nullptr;
-		QWidget*                        RulesEditor      = nullptr;
+		std::array<navigation_entry, 2>                                                      ChangeEnds{ };
+		QAction*                                                                             NextNewCommentAction = nullptr;
+		conversation_read_dispatch                                                           ConversationReadDispatch;
+		std::function<void(core::conversation_reply_action, core::conversation_reply_draft)> ConversationReplyDispatch;
+		std::optional<thread_reply_presentation>                                             ConversationReply;
+		std::uint32_t                                                                        NewConversationComments = 0;
+		bool                                                                                 dispatch_conversation_reply(core::conversation_reply_action aAction, const std::string& aIdentity, const QString& aText = { });
+		conversation_read_dispatch                                                           ConversationUnreadDispatch;
+		std::array<QAction*, 4>                                                              ReceiptActions{ };
+		std::array<drawer_entry, 3>                                                          Drawers{ };
+		files_tree_view*                                                                     FilesTree                = nullptr;
+		QComboBox*                                                                           FilesOrderSelector       = nullptr;
+		QLineEdit*                                                                           FilesFilter              = nullptr;
+		filter_empty_notice*                                                                 FilesFilterNotice        = nullptr;
+		repositories_tree_view*                                                              RepositoriesTree         = nullptr;
+		QLineEdit*                                                                           RepositoriesFilter       = nullptr;
+		filter_empty_notice*                                                                 RepositoriesFilterNotice = nullptr;
+		std::vector<server_card*>                                                            ServerCards;
+		QVBoxLayout*                                                                         ServerCardColumn = nullptr;
+		QWidget*                                                                             RulesEditor      = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
 		bool OpenOnOverview = false;

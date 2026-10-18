@@ -788,7 +788,14 @@ namespace bpr::qt {
 		// changed; a new anchor alone is a new anchor file.
 		if (PlacedStale) {
 			PlacedRetained = with_endpoint_placement(!Discuss && AnchorFile && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision ? EarlierRetained : Retained, LeftHasCurrentDiffRevision, RightHasCurrentDiffRevision);
-			PlacedStale    = false;
+			if (!Discuss && AnchorFile && !LeftHasCurrentDiffRevision && !RightHasCurrentDiffRevision) {
+				for (const auto& node : Retained) {
+					if (!node.ParentId && node.Path.empty() && (node.Kind == application::github_conversation_kind::issue_comment || node.Kind == application::github_conversation_kind::review)) {
+						PlacedRetained.push_back(node);
+					}
+				}
+			}
+			PlacedStale = false;
 			Cards->adopt(PlacedRetained, Discuss ? DiscussFile : AnchorFile);
 		} else {
 			Cards->set_anchor_file(Discuss ? DiscussFile : AnchorFile);

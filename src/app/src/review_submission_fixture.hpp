@@ -32,6 +32,7 @@ namespace bpr::app::detail {
 		/// Synthetic read-only check collections for composed Overview courses.
 		std::optional<std::string>                          CheckRuns, CommitStatuses;
 		std::optional<std::string>                          MergeAssessment, ReviewRequests, BranchRules, BranchProtection, ReviewHistory, ConversationComments;
+		std::optional<std::string>                          AttendedCommentReview;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
 		bool                                                StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
 		std::vector<application::review_submission_request> Reviews;

@@ -1,3 +1,4 @@
+#include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/review_submission.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 
@@ -348,6 +349,15 @@ namespace {
 
 int main()
 {
+	const auto reply = conversation_reply_draft{ "issue-comment:one", "reviewer", "first\nsecond", "An explicit reply." };
+	expect(render_conversation_reply(reply) == std::optional<std::string>{ "In reply to reviewer:\n\n> first\n> second\n\nAn explicit reply." }, "reply quotes every source line without changing the typed reply");
+	expect(conversation_reply_can_send(reply), "written reply can send");
+	auto empty = reply;
+	empty.Text = " \t\n";
+	expect(!conversation_reply_can_send(empty), "empty or whitespace reply cannot send");
+	auto oversized  = reply;
+	oversized.Quote = std::string(16385U, 'x');
+	expect(!render_conversation_reply(oversized), "oversized quote is refused rather than silently truncated");
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_decided_controls();

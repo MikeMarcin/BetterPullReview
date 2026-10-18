@@ -113,7 +113,9 @@ namespace bpr::application {
 
 	struct review_submission_application_host::implementation final : std::enable_shared_from_this<implementation>
 	{
-		enum class operation { discover,
+		enum class operation { discover_conversation_replies,
+							   save_conversation_reply,
+							   discover,
 							   submit,
 							   reconcile,
 							   discover_tours,
@@ -156,7 +158,7 @@ namespace bpr::application {
 
 		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect) -> review_submission_host_terminal
 		{
-			if (aRecord.Operation == operation::discover_tours) {
+			if (aRecord.Operation == operation::discover_tours || aRecord.Operation == operation::discover_conversation_replies) {
 				return { aRecord.Context, staged_review_discovery{ std::unexpected(aFailure) } };
 			}
 			if (aRecord.Plan) {
@@ -207,17 +209,16 @@ namespace bpr::application {
 			if (aRecord->Stop.stop_requested() || (aRecord->Grant && !aRecord->Grant->active())) {
 				return refused(*aRecord, review_mutation_failure::cancelled, true);
 			}
-			if (aRecord->Operation == operation::discover_tours) {
-				auto pending = provider->pending_tours(aRecord->Stop.get_token());
+			if (aRecord->Operation == operation::discover_tours || aRecord->Operation == operation::discover_conversation_replies) {
+				auto pending = aRecord->Operation == operation::discover_tours ? provider->pending_tours(aRecord->Stop.get_token()) : provider->conversation_replies();
 				if (pending && (pending->size() > maximum_review_mutation_recovery_records || std::ranges::any_of(*pending, [&](const auto& aP) { return !valid(aP) || !same_review_submission_identity(*aP.Submission.LiveBinding, Binding); }))) {
 					return refused(*aRecord, review_mutation_failure::undesignated_target, true);
 				}
 				return { aRecord->Context, std::move(pending) };
 			}
 			if (aRecord->Plan) {
-				auto result = aRecord->Operation == operation::publish_tour
-					? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& aChild) { return grant && grant->consume_child(aChild); })
-					: provider->reconcile_tour(*aRecord->Plan, aRecord->Stop.get_token());
+				auto result = aRecord->Operation == operation::save_conversation_reply ? provider->save_conversation_reply(*aRecord->Plan) : aRecord->Operation == operation::publish_tour ? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& aChild) { return grant && grant->consume_child(aChild); })
+																																														   : provider->reconcile_tour(*aRecord->Plan, aRecord->Stop.get_token());
 				if (result.Record && (!valid(*result.Record) || result.Record->Plan != *aRecord->Plan)) {
 					return refused(*aRecord, review_mutation_failure::unavailable, false);
 				}
@@ -348,6 +349,8 @@ namespace bpr::application {
 	auto review_submission_application_host::discover() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover, nullptr, { }); }
 	auto review_submission_application_host::submit(const review_submission_request& aRequest, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::submit, &aRequest, std::move(aGrant)); }
 	auto review_submission_application_host::reconcile(const review_submission_request& aRequest) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::reconcile, &aRequest, { }); }
+	auto review_submission_application_host::discover_conversation_replies() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover_conversation_replies, nullptr, { }); }
+	auto review_submission_application_host::save_conversation_reply(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::save_conversation_reply, nullptr, { }, &aPlan); }
 	auto review_submission_application_host::discover_tours() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover_tours, nullptr, { }); }
 	auto review_submission_application_host::publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::publish_tour, nullptr, std::move(aGrant), &aPlan); }
 	auto review_submission_application_host::reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::reconcile_tour, nullptr, { }, &aPlan); }

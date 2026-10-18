@@ -186,12 +186,15 @@ namespace bpr::qt {
 	struct thread_card
 	{
 		/// The thread root's identity; empty for the draft note.
-		std::string                    Id;
-		QString                        Kind;
-		QString                        DefectBadge;
-		QString                        DefectDescription;
-		QString                        Path;
-		std::optional<core::diff_side> Side;
+		std::string                                  Id;
+		QString                                      Kind;
+		QString                                      Verdict;
+		std::string                                  CreatedAt;
+		std::vector<std::pair<std::string, QString>> ReviewComments;
+		QString                                      DefectBadge;
+		QString                                      DefectDescription;
+		QString                                      Path;
+		std::optional<core::diff_side>               Side;
 		/// The one-based line the thread sits on, when it has one.
 		std::optional<std::uint32_t> Line;
 		/// [[BPR-1564]]. A published thread on several lines: GitHub's
@@ -313,7 +316,9 @@ namespace bpr::qt {
 		std::string Thread;
 		QString     Body;
 		/// The draft editor's Publish is enabled.
-		bool Publishable = false;
+		bool    Publishable = false;
+		bool    Editable    = true;
+		QString Notice;
 
 		auto operator==(const thread_reply_presentation&) const -> bool = default;
 	};
@@ -381,12 +386,17 @@ namespace bpr::qt {
 		conversation_cards_view(conversation_cards_view&&)                         = delete;
 		auto operator=(conversation_cards_view&&) -> conversation_cards_view&      = delete;
 
-		void adopt(const std::vector<application::github_conversation_projection>& aConversations);
+		void               adopt(const std::vector<application::github_conversation_projection>& aConversations);
+		[[nodiscard]] auto retained() const noexcept -> const std::vector<application::github_conversation_projection>& { return Retained; }
 		/// \brief Adopts the forest and file anchor in one layout.
-		void               adopt(const std::vector<application::github_conversation_projection>& aConversations,
-								 std::optional<core::file_identity>                              aFile);
-		void               clear();
-		void               set_scope(cards_scope aScope);
+		void adopt(const std::vector<application::github_conversation_projection>& aConversations,
+				   std::optional<core::file_identity>                              aFile);
+		void clear();
+		void set_scope(cards_scope aScope);
+		/// BPR-1603: PR-level comments in place, preserving the file view.
+		void               show_pull_request_comments(bool aShown);
+		[[nodiscard]] auto pull_request_comments_shown() const noexcept -> bool;
+		[[nodiscard]] auto pull_request_comments_chip() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto scope() const noexcept -> cards_scope;
 		void               set_anchor_file(std::optional<core::file_identity> aFile);
 		void               set_line_locator(card_line_locator aLocator);
@@ -656,6 +666,7 @@ namespace bpr::qt {
 		void               place_cards(bool aForce);
 		void               place_open_card();
 		void               sync_edges();
+		void               sync_pull_request_edge();
 		void               rebuild_open_card();
 		void               measure_cards();
 		bool               GeometryPending = false;
@@ -683,10 +694,12 @@ namespace bpr::qt {
 		/// layout scoped to one file visits that file's conversations only.
 		/// [[BPR-1362]]. Keyed by value: a view into `Retained` dangled once
 		/// `Retained` was replaced, and MSVC's clear() re-hashes its keys.
-		std::unordered_map<std::string, std::size_t>             RetainedById;
-		std::vector<std::size_t>                                 RetainedRoot;
-		std::vector<std::size_t>                                 RetainedDepth;
-		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByFile;
+		std::unordered_map<std::string, std::size_t>                        RetainedById;
+		std::vector<std::size_t>                                            RetainedRoot;
+		std::vector<std::size_t>                                            PullRequestRoots;
+		std::map<std::string, std::vector<std::pair<std::string, QString>>> ReviewFileComments;
+		std::vector<std::size_t>                                            RetainedDepth;
+		std::vector<std::pair<core::file_identity, std::size_t>>            RetainedByFile;
 		/// [[BPR-1083]]. Each retained node's mark, header length and
 		/// ([[BPR-1086]]) lead, read once per adopted forest from the accepted
 		/// body.
@@ -731,6 +744,10 @@ namespace bpr::qt {
 		std::function<void(const QString&)>        DraftTextDispatch;
 		QString                                    Viewer;
 		std::string                                Current;
+		bool                                       PullRequestComments = false;
+		std::string                                NewConversationBoundary;
+		QAbstractButton*                           PullRequestChip = nullptr;
+		QAbstractButton*                           BackToLines     = nullptr;
 		std::string                                Open;
 		/// [[BPR-1293]]. The open thread's picked post, and the one a pick
 		/// is about to open with.
