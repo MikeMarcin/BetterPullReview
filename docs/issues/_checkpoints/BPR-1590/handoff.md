@@ -1,4 +1,4 @@
-# BPR-1590 handoff: v003 under owner review
+# BPR-1590 handoff: accepted and landed
 
 - Branch `bpr-1590-compose-sheet`; product head `f8d68d949`. Not on `main`.
 - v001 (`frozen-2f2dab458-v001`) was rejected, decision `41b07e24` (dead
@@ -51,6 +51,15 @@
 - Known, not changed here: the heading's blocking chip counts blocking
   feedback already on GitHub (0 in the fixture), as the accepted preflight
   design does; a pending blocking comment is not added to it.
-- Next: read `status --after 3`. On Accept, merge `main`, run the focused set
-  plus the composition contracts, reseal, docs gate, finish BPR-1590, push,
-  stop PID 42536 and remove the frozen root; then BPR-1591.
+- Owner accepted v003, decision `89f1f2df-f2bd-4cfb-b2ff-3e69cd4a4d5a`
+  (session cursor 8): "This open in review is a bit too much, i think it's
+  fine without that. Otherwise I think it's great." The hover words were
+  removed (commit "pending rows show no Open in Review words",
+  with a test that a selected row draws nothing before its chevron); no new
+  review, as the coordinator directed.
+- Landed after merging `origin/main` (`857f03ebb`; the finder's merge keeps
+  main's not-on-file Open in Review rule on the shared row menu) and
+  resealing the round-trip pins (`59d2234e6`). The focused set and every
+  application composition contract passed (32 rows), and the documentation
+  gate passed. Host PID 42536 stopped; v003 frozen root removed.
+- Next: BPR-1591.
