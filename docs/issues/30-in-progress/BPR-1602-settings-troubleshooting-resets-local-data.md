@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1602"
 title: "Settings › Storage & privacy › Troubleshooting resets this profile's local data"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
