@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1578"
 title: "Accept joins private progress as one review-bar group and reads as a button"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"Accept is a button next to other similar text labels in Changes and Files which are not buttons, it's kind of confusing. It also doesn't have the under bar that connects it to the dropdown control like Changes and Files do to their controls.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052","RFC-BPR-0007"],"related_cards":["BPR-1507","BPR-1515","BPR-1519","BPR-1531","BPR-1331"],"reservation":"docs/issues/_reservations/BPR-1578--BPR-1578--5ed4b95b967f.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Merged-tree title-row and window checks pass at 100%,125%,200%; existing rail/gap negative controls retained."}},{"criterion":"AC2","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Owner selected C2 progress track supersedes v001 affordance; qt_review_state_icon verifies states and reached-step behavior."}},{"criterion":"AC3","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Option-key, focus-order, selected-diff and ledger composition checks pass. Both mandatory application composition contracts pass; exact merged pins retained."}},{"criterion":"AC4","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Human Accept c1ec85f1-fff7-445f-b867-ef609d2d69e8 of candidate BPR-1578-progress-track-v002 confirmed in released session 3760f12fb3aa7cf76b495c277c7d32d5."}}]
 ---
 
 # BPR-1578: Accept joins private progress as one review-bar group and reads as a button
