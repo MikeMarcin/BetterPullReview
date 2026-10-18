@@ -161,7 +161,28 @@ namespace bpr::application {
 			const auto& viewer = aSnapshot.Viewer.Login;
 			auto        facts  = core::review_role_facts{ .Viewer = viewer, .Author = aProjection.AuthorLogin };
 			for (const auto& request : aProjection.ReviewRequests) {
-				facts.Requests.push_back({ .Name = request.Name, .Team = request.Team, .CodeOwner = request.CodeOwner });
+				auto fact = core::review_role_request{ .Name = request.Name, .Team = request.Team, .CodeOwner = request.CodeOwner };
+				// [[BPR-1589]] v002. GitHub's answer about my membership of the team.
+				const auto answer = std::ranges::find_if(aSnapshot.ViewerTeamMemberships, [&](const github_team_membership_record& aRecord) { return core::same_login(aRecord.Team, request.Name); });
+				if (request.Team && answer != aSnapshot.ViewerTeamMemberships.end()) {
+					switch (answer->Membership) {
+					case github_team_membership::member:
+						fact.Membership = core::team_membership::member;
+						break;
+					case github_team_membership::not_member:
+						fact.Membership = core::team_membership::not_member;
+						break;
+					case github_team_membership::needs_read_org:
+						fact.Reason = core::team_membership_reason::needs_read_org;
+						break;
+					case github_team_membership::not_visible:
+						fact.Reason = core::team_membership_reason::not_visible;
+						break;
+					case github_team_membership::unavailable:
+						break;
+					}
+				}
+				facts.Requests.push_back(std::move(fact));
 			}
 			if (!viewer.empty()) {
 				facts.LatestReview = my_latest_review(aSnapshot, viewer);

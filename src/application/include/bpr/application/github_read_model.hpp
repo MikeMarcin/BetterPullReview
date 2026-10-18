@@ -382,6 +382,26 @@ namespace bpr::application {
 		std::optional<bool>         AsCodeOwner;
 		auto                        operator<=>(const github_review_request_record&) const = default;
 	};
+	/// \brief [[BPR-1589]]. Whether the viewer is in a team a review was
+	/// requested from, as GitHub answered.
+	enum class github_team_membership : std::uint8_t {
+		member,
+		not_member,
+		/// GitHub does not show this team's organization to this account.
+		not_visible,
+		/// The sign-in lacks `read:org`, so GitHub will not say.
+		needs_read_org,
+		/// Not asked, or GitHub did not answer (limits, a failure).
+		unavailable,
+	};
+	/// \brief [[BPR-1589]]. One requested team and the viewer's membership.
+	struct github_team_membership_record
+	{
+		/// `organization/slug`, as the review request names it.
+		std::string            Team;
+		github_team_membership Membership                                              = github_team_membership::unavailable;
+		auto                   operator<=>(const github_team_membership_record&) const = default;
+	};
 	enum class github_merge_assessment : std::uint8_t { unknown,
 														behind,
 														blocked,
@@ -787,7 +807,10 @@ namespace bpr::application {
 
 		github_observation_availability           ReviewRequestsAvailability = github_observation_availability::unobserved;
 		std::vector<github_review_request_record> ReviewRequests;
-		bool                                      ReviewRequestsStale = false;
+		/// [[BPR-1589]]. The viewer's membership of each requested team, read
+		/// after the snapshot; empty when no team was asked about.
+		std::vector<github_team_membership_record> ViewerTeamMemberships;
+		bool                                       ReviewRequestsStale = false;
 		// A complete REST fallback observes actors, including an empty roster,
 		// independently of the richer connection's code-owner availability.
 		bool                             ReviewRequestActorsObserved = false;

@@ -2678,28 +2678,10 @@ namespace bpr::qt {
 			return label;
 		};
 
-		// My role: my face and one line, the strongest role; the others, if
-		// any, in a faint line beneath.
-		RoleRow = new QWidget{ side };
+		// [[BPR-1589]] v002. My role: my face, one short label, and any other
+		// roles as chips; the reasons are in the tooltip.
+		RoleRow = new overview_role_line{ side };
 		RoleRow->setObjectName(QStringLiteral("overviewStatusRole"));
-		auto* const roleLayout = new QHBoxLayout{ RoleRow };
-		roleLayout->setContentsMargins(4, 4, 4, 6);
-		roleLayout->setSpacing(10);
-		RoleFace = new identity_avatar_view{ 24, RoleRow };
-		RoleFace->setObjectName(QStringLiteral("overviewRoleFace"));
-		roleLayout->addWidget(RoleFace, 0, Qt::AlignTop);
-		auto* const roleWords = new QVBoxLayout;
-		roleWords->setContentsMargins(0, 0, 0, 0);
-		roleWords->setSpacing(1);
-		RoleText      = makeText(RoleRow, QStringLiteral("overviewRoleText"));
-		auto roleFont = RoleText->font();
-		roleFont.setWeight(QFont::DemiBold);
-		RoleText->setFont(roleFont);
-		RoleAlso = makeText(RoleRow, QStringLiteral("overviewRoleAlso"));
-		RoleAlso->setForegroundRole(QPalette::PlaceholderText);
-		roleWords->addWidget(RoleText);
-		roleWords->addWidget(RoleAlso);
-		roleLayout->addLayout(roleWords, 1);
 		sideColumn->addWidget(RoleRow);
 
 		struct section_layouts
@@ -4552,41 +4534,209 @@ namespace bpr::qt {
 		{
 			switch (aState) {
 			case core::my_review_state::approved:
-				return QStringLiteral("You approved");
+				return QStringLiteral("Reviewer · approved");
 			case core::my_review_state::changes_requested:
-				return QStringLiteral("You requested changes");
+				return QStringLiteral("Reviewer · changes requested");
 			case core::my_review_state::dismissed:
-				return QStringLiteral("Your review was dismissed");
+				return QStringLiteral("Reviewer · dismissed");
 			case core::my_review_state::commented:
 				break;
 			}
-			return QStringLiteral("You reviewed with comments");
+			return QStringLiteral("Reviewer · commented");
 		}
 
-		/// \brief One role as a sentence. It never says my review is required:
-		/// a code owner's request is named as GitHub marks it (RFC-BPR-0069).
-		[[nodiscard]] auto role_sentence(const core::review_role& aRole) -> QString
+		[[nodiscard]] auto team_names(const std::vector<std::string>& aTeams) -> QString
+		{
+			auto names = QStringList{ };
+			for (const auto& team : aTeams) {
+				names.push_back(QLatin1Char{ '@' } + text(team));
+			}
+			return names.join(QStringLiteral(", "));
+		}
+
+		/// \brief [[BPR-1589]] v002. One role as a short label. It never says
+		/// my review is required beyond GitHub's code-owner marking
+		/// (RFC-BPR-0069), and it names "your team" only when GitHub said so.
+		[[nodiscard]] auto role_label(const core::review_role& aRole) -> QString
 		{
 			switch (aRole.Kind) {
 			case core::review_role_kind::author:
-				return QStringLiteral("You are the author");
+				return QStringLiteral("Author");
 			case core::review_role_kind::requested:
-				return aRole.CodeOwner ? QStringLiteral("Review requested from you as a code owner") : QStringLiteral("Review requested from you");
-			case core::review_role_kind::team_requested: {
-				auto sentence = QStringLiteral("Review requested from %1").arg(name_list(aRole.Teams));
-				if (aRole.CodeOwner) {
-					sentence += QStringLiteral(" as code owners");
-				}
-				return aRole.MembershipObserved ? sentence : sentence + QStringLiteral("; you may be a member");
-			}
+				return QStringLiteral("Review requested");
+			case core::review_role_kind::team_requested:
+				return aRole.Membership == core::team_membership::member ? QStringLiteral("Review requested") : QStringLiteral("Team review requested");
 			case core::review_role_kind::reviewed:
-				return aRole.Review ? review_words(*aRole.Review) : QStringLiteral("You reviewed");
+				return aRole.Review ? review_words(*aRole.Review) : QStringLiteral("Reviewer");
 			case core::review_role_kind::mentioned:
 				break;
 			}
-			return aRole.Mention == core::mention_place::description ? QStringLiteral("You are mentioned in the description") : QStringLiteral("You are mentioned in a comment");
+			return QStringLiteral("Mentioned");
+		}
+
+		/// \brief [[BPR-1589]] v002. The team a team role names, as a chip that
+		/// moves whole to the next line rather than breaking a team's name.
+		[[nodiscard]] auto role_team_chip(const core::review_role& aRole) -> QString
+		{
+			if (aRole.Kind != core::review_role_kind::team_requested) {
+				return { };
+			}
+			return aRole.Membership == core::team_membership::member ? QStringLiteral("Your team: %1").arg(team_names(aRole.Teams)) : team_names(aRole.Teams);
+		}
+
+		/// \brief The tooltip's line for one role: what the label means and,
+		/// for a team GitHub would not say I am in, why.
+		[[nodiscard]] auto role_explanation(const core::review_role& aRole) -> QString
+		{
+			switch (aRole.Kind) {
+			case core::review_role_kind::author:
+				return QStringLiteral("You opened this pull request.");
+			case core::review_role_kind::requested:
+				return aRole.CodeOwner ? QStringLiteral("GitHub requested your review as a code owner.") : QStringLiteral("GitHub requested your review.");
+			case core::review_role_kind::team_requested: {
+				if (aRole.Membership == core::team_membership::member) {
+					return QStringLiteral("GitHub requested a review from %1, a team you are in.").arg(team_names(aRole.Teams));
+				}
+				auto why = QStringLiteral("GitHub did not answer whether you are in it.");
+				if (aRole.Reason == core::team_membership_reason::needs_read_org) {
+					why = QStringLiteral("Your GitHub sign-in lacks the read:org scope, so GitHub will not say whether you are in it.");
+				} else if (aRole.Reason == core::team_membership_reason::not_visible) {
+					why = QStringLiteral("GitHub does not show you this organization's teams.");
+				}
+				return QStringLiteral("GitHub requested a review from %1. %2").arg(team_names(aRole.Teams), why);
+			}
+			case core::review_role_kind::reviewed:
+				return QStringLiteral("Your latest review: %1.").arg(aRole.Review ? review_words(*aRole.Review).section(QStringLiteral(" · "), 1) : QStringLiteral("submitted"));
+			case core::review_role_kind::mentioned:
+				break;
+			}
+			return aRole.Mention == core::mention_place::description ? QStringLiteral("Someone mentioned you in the description.") : QStringLiteral("Someone mentioned you in a comment.");
 		}
 	} // namespace
+
+	// ---- overview_role_line --------------------------------------------------
+
+	namespace {
+		constexpr int role_face   = 22;
+		constexpr int role_indent = 34;
+		constexpr int role_gap    = 6;
+		constexpr int role_pad    = 7;
+
+		[[nodiscard]] auto role_font(const QFont& aBase, const bool aPrimary) -> QFont
+		{
+			auto font = aBase;
+			font.setWeight(aPrimary ? QFont::DemiBold : QFont::Normal);
+			return font;
+		}
+	} // namespace
+
+	overview_role_line::overview_role_line(QWidget* const aParent)
+		: QWidget{ aParent }
+	{
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+		setAttribute(Qt::WA_Hover, true);
+	}
+
+	void overview_role_line::present(const QString& aViewer, const QString& aPrimary, const QStringList& aChips, const QString& aExplanation)
+	{
+		Viewer  = aViewer;
+		Primary = aPrimary;
+		Chips   = aChips;
+		setToolTip(aExplanation);
+		setAccessibleName(Chips.isEmpty() ? QStringLiteral("My role: %1").arg(Primary) : QStringLiteral("My role: %1; also %2").arg(Primary, Chips.join(QStringLiteral(", "))));
+		setAccessibleDescription(aExplanation);
+		updateGeometry();
+		update();
+	}
+
+	auto overview_role_line::primary() const -> const QString&
+	{
+		return Primary;
+	}
+
+	auto overview_role_line::chips() const -> const QStringList&
+	{
+		return Chips;
+	}
+
+	auto overview_role_line::layout_boxes(const int aWidth) const -> std::vector<QRect>
+	{
+		auto       boxes  = std::vector<QRect>{ };
+		const auto room   = std::max(role_face, aWidth - role_indent - 4);
+		const auto strong = QFontMetrics{ role_font(font(), true) };
+		const auto plain  = QFontMetrics{ role_font(font(), false) };
+		const auto line   = std::max(role_face, plain.height() + 6);
+		// The label wraps rather than hiding a team's name; chips follow it on
+		// its line when there is room, or start the next.
+		const auto label  = strong.boundingRect(QRect{ 0, 0, room, 1'000 }, Qt::TextWordWrap, Primary);
+		const auto height = std::max(line, label.height() + 4);
+		boxes.emplace_back(role_indent, 2, std::min(room, label.width() + 2), height);
+		const auto wrapped = label.height() > strong.height() + 2;
+		auto       x       = wrapped ? role_indent + room + 1 : role_indent + boxes.back().width() + role_gap + 2;
+		auto       y       = 2 + height - line;
+		for (const auto& chip : Chips) {
+			const auto width = std::min(room, plain.horizontalAdvance(chip) + (2 * role_pad) + 2);
+			if (x + width > role_indent + room) {
+				x = role_indent;
+				y += line + 2;
+			}
+			boxes.emplace_back(x, y + 2, width, line - 4);
+			x += width + role_gap;
+		}
+		return boxes;
+	}
+
+	auto overview_role_line::hasHeightForWidth() const -> bool
+	{
+		return true;
+	}
+
+	auto overview_role_line::heightForWidth(const int aWidth) const -> int
+	{
+		const auto boxes  = layout_boxes(aWidth);
+		auto       bottom = 0;
+		for (const auto& box : boxes) {
+			bottom = std::max(bottom, box.bottom() + 1);
+		}
+		return std::max(bottom, role_face + 2) + 6;
+	}
+
+	auto overview_role_line::sizeHint() const -> QSize
+	{
+		return { 300, heightForWidth(300) };
+	}
+
+	auto overview_role_line::minimumSizeHint() const -> QSize
+	{
+		return { role_indent + role_face, heightForWidth(std::max(width(), role_indent + role_face)) };
+	}
+
+	void overview_role_line::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto& colours = palette();
+		const auto  boxes   = layout_boxes(width());
+		const auto  middle  = std::min(boxes.front().center().y(), 2 + (role_face / 2) + 2);
+		paint_identity_avatar(painter, QRectF{ 4.0, middle - (role_face / 2.0), static_cast<qreal>(role_face), static_cast<qreal>(role_face) },
+							  { .Identity = Viewer, .Ring = colours.color(QPalette::Active, QPalette::PlaceholderText) }, identity_avatar_grounds_of(colours), font());
+		painter.setFont(role_font(font(), true));
+		painter.setPen(colours.color(QPalette::Active, QPalette::WindowText));
+		painter.drawText(boxes.front(), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, Primary);
+		painter.setFont(role_font(font(), false));
+		// A chip is the ink at a low alpha, so it reads on Light and Dark alike.
+		auto fill = colours.color(QPalette::Active, QPalette::WindowText);
+		fill.setAlpha(26);
+		for (std::size_t index = 0U; index < static_cast<std::size_t>(Chips.size()); ++index) {
+			const auto& box = boxes[index + 1U];
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(fill);
+			painter.drawRoundedRect(QRectF{ box }, box.height() / 2.0, box.height() / 2.0);
+			painter.setPen(colours.color(QPalette::Active, QPalette::WindowText));
+			painter.drawText(box.adjusted(role_pad, 0, -role_pad, 0), Qt::AlignCenter, painter.fontMetrics().elidedText(Chips[static_cast<qsizetype>(index)], Qt::ElideRight, box.width() - (2 * role_pad)));
+		}
+	}
 
 	overview_faces::overview_faces(QWidget* const aParent)
 		: QWidget{ aParent }
@@ -4659,14 +4809,9 @@ namespace bpr::qt {
 		return Sections[static_cast<std::size_t>(aSection)].Frame;
 	}
 
-	auto pull_request_overview_page::role_label() const noexcept -> QLabel*
+	auto pull_request_overview_page::role_line() const noexcept -> overview_role_line*
 	{
-		return RoleText;
-	}
-
-	auto pull_request_overview_page::other_roles_label() const noexcept -> QLabel*
-	{
-		return RoleAlso;
+		return RoleRow;
 	}
 
 	auto pull_request_overview_page::people_faces() const noexcept -> overview_faces*
@@ -4781,22 +4926,25 @@ namespace bpr::qt {
 		// My role: the strongest leads, the others follow faintly.
 		RoleRow->setVisible(status.Roles.ViewerKnown);
 		if (status.Roles.ViewerKnown) {
-			const auto viewer = std::ranges::find_if(shown.Participants, &application::overview_participant::Viewer);
-			RoleFace->set_identity(viewer != shown.Participants.end() ? text(viewer->Login) : text(status.Viewer));
-			const auto& roles = status.Roles.Roles;
-			RoleText->setText(roles.empty() ? QStringLiteral("No role in this review") : role_sentence(roles.front()));
-			auto others = QStringList{ };
-			for (std::size_t index = 1U; index < roles.size(); ++index) {
-				// "You approved" leads; after "Also:" it reads "you approved".
-				auto sentence = role_sentence(roles[index]);
-				if (sentence.startsWith(QStringLiteral("You")) || sentence.startsWith(QStringLiteral("Review"))) {
-					sentence[0] = sentence[0].toLower();
+			const auto  viewer = std::ranges::find_if(shown.Participants, &application::overview_participant::Viewer);
+			const auto& roles  = status.Roles.Roles;
+			auto        chips  = QStringList{ };
+			auto        why    = QStringList{ };
+			for (std::size_t index = 0U; index < roles.size(); ++index) {
+				if (index != 0U) {
+					chips.push_back(role_label(roles[index]));
 				}
-				others.push_back(sentence);
+				if (const auto team = role_team_chip(roles[index]); !team.isEmpty()) {
+					chips.push_back(team);
+				}
+				if (roles[index].CodeOwner && roles[index].Kind != core::review_role_kind::author) {
+					chips.push_back(QStringLiteral("Code owner"));
+				}
+				why.push_back(role_explanation(roles[index]));
 			}
-			RoleAlso->setText(others.isEmpty() ? QString{ } : QStringLiteral("Also: %1").arg(others.join(QStringLiteral("; "))));
-			RoleAlso->setVisible(!others.isEmpty());
-			RoleRow->setAccessibleName(QStringLiteral("My role: %1").arg(others.isEmpty() ? RoleText->text() : RoleText->text() + QStringLiteral(". ") + RoleAlso->text()));
+			chips.removeDuplicates();
+			RoleRow->present(viewer != shown.Participants.end() ? text(viewer->Login) : text(status.Viewer), roles.empty() ? QStringLiteral("No role") : role_label(roles.front()), chips,
+							 roles.empty() ? QStringLiteral("You are not the author, no review was requested from you or a team you are in, and no one mentioned you.") : why.join(QLatin1Char{ '\n' }));
 		}
 		for (auto section : { overview_status_section::attention, overview_status_section::my_review, overview_status_section::people }) {
 			Sections[static_cast<std::size_t>(section)].Frame->show();

@@ -43,6 +43,23 @@ namespace bpr::core {
 		mentioned,
 	};
 
+	/// \brief Whether I am in a requested team, as GitHub answered.
+	enum class team_membership : std::uint8_t {
+		member,
+		not_member,
+		unknown,
+	};
+
+	/// \brief Why a team's membership is unknown.
+	enum class team_membership_reason : std::uint8_t {
+		/// Not asked, or GitHub did not answer.
+		unavailable,
+		/// The sign-in lacks the `read:org` scope.
+		needs_read_org,
+		/// GitHub does not show the team's organization to this account.
+		not_visible,
+	};
+
 	/// \brief One outstanding review request as GitHub reports it.
 	struct review_role_request
 	{
@@ -51,6 +68,9 @@ namespace bpr::core {
 		bool        Team = false;
 		/// GitHub marked the request as a code owner's.
 		bool CodeOwner = false;
+		/// For a team: whether I am in it, and if unknown, why.
+		team_membership        Membership = team_membership::unknown;
+		team_membership_reason Reason     = team_membership_reason::unavailable;
 
 		auto operator<=>(const review_role_request&) const = default;
 	};
@@ -62,9 +82,6 @@ namespace bpr::core {
 		std::string                      Viewer;
 		std::string                      Author;
 		std::vector<review_role_request> Requests;
-		/// The teams I am observed to be in, as `organization/slug`; absent
-		/// when membership was not observed, which is every snapshot today.
-		std::optional<std::vector<std::string>> ViewerTeams;
 		/// My latest submitted review, if any.
 		std::optional<my_review_state> LatestReview;
 		/// Where someone else mentioned me first: the description before a
@@ -79,11 +96,13 @@ namespace bpr::core {
 		/// `requested` and `team_requested`: GitHub marked a request a code
 		/// owner's.
 		bool CodeOwner = false;
-		/// `team_requested`: the requested teams, in GitHub's order.
+		/// `team_requested`: my teams among the requested ones when GitHub
+		/// says I am in any (`Membership` member); otherwise the teams whose
+		/// membership is unknown, in GitHub's order (`Membership` unknown,
+		/// `Reason` the first one's). A team I am not in is not a role.
 		std::vector<std::string> Teams;
-		/// `team_requested`: whether my membership was observed. When it was
-		/// not, the team is named and I "may be a member".
-		bool MembershipObserved = false;
+		team_membership          Membership = team_membership::unknown;
+		team_membership_reason   Reason     = team_membership_reason::unavailable;
 		/// `reviewed`: what my latest review said.
 		std::optional<my_review_state> Review;
 		/// `mentioned`: where.
@@ -104,7 +123,8 @@ namespace bpr::core {
 	};
 
 	/// \brief Decides my roles: author, then a direct request, then a team
-	/// request, then my latest review, then a mention.
+	/// request (mine, or one whose membership GitHub would not say), then my
+	/// latest review, then a mention.
 	[[nodiscard]] auto decide_review_roles(const review_role_facts& aFacts) -> review_roles;
 
 	/// \brief Whether two GitHub logins or team names are the same; GitHub

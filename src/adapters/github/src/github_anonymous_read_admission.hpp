@@ -81,6 +81,8 @@ namespace bpr::adapters::github::detail {
 		case read_operation::resolve_body_images:
 		case read_operation::list_branch_rules:
 		case read_operation::get_branch_protection:
+		// [[BPR-1589]]. Membership is the viewer's own question.
+		case read_operation::get_team_membership:
 			return false;
 		}
 		return false;

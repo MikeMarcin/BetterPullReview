@@ -48,6 +48,10 @@ namespace bpr::adapters::github::detail {
 		/// head and its base branch (REST compare, `merge_base_commit`): the
 		/// commit GitHub's Files changed compares from.
 		get_merge_base,
+		/// [[BPR-1589]]. Whether the viewer is in a team a review was requested
+		/// from (GraphQL `organization.team.members(query:)`): the role says
+		/// "your team" only when GitHub says so.
+		get_team_membership,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -83,7 +87,7 @@ namespace bpr::adapters::github::detail {
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
 	/// to the snapshot's own head.
-	inline constexpr std::array<read_operation, 21> all_read_operations{
+	inline constexpr std::array<read_operation, 22> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -105,6 +109,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::get_branch_protection,
 		read_operation::resolve_body_images,
 		read_operation::get_merge_base,
+		read_operation::get_team_membership,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -130,7 +135,7 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] constexpr auto graphql_read(const read_operation aOperation) noexcept -> bool
 	{
 		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment
-			|| aOperation == read_operation::resolve_body_images;
+			|| aOperation == read_operation::resolve_body_images || aOperation == read_operation::get_team_membership;
 	}
 
 	enum class http_method : std::uint8_t {
@@ -196,6 +201,9 @@ namespace bpr::adapters::github::detail {
 		std::optional<github_graphql_page_request> GraphqlPage;
 		/// RFC-BPR-0084. The body nodes `resolve_body_images` asks for; empty otherwise.
 		std::vector<std::string> Nodes;
+		/// [[BPR-1589]]. The team (`Organization`, `Team` slug) and the login
+		/// `get_team_membership` asks about; empty for every other operation.
+		std::string Organization, Team, Login;
 
 		auto operator==(const semantic_read_request&) const -> bool = default;
 	};

@@ -2589,6 +2589,10 @@ namespace bpr::app::detail {
 					append_rate_limit_headers(response, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
+				// [[BPR-1589]]. No recorded team answers membership.
+				if (aRequest.Wire.Operation == read_operation::get_team_membership) {
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
+				}
 				if (aRequest.Wire.Operation == read_operation::list_requested_reviewers && !State->PersonalDiscovery) {
 					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
 				}

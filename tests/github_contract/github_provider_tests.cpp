@@ -1806,6 +1806,71 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1589]] v002. The provider asks whether the viewer is in each
+	/// requested team once a session, and keeps GitHub's answer: a second read
+	/// of the pull request asks nothing. A sign-in without read:org is kept as
+	/// such, never as "not a member".
+	void test_team_membership_is_read_once_a_session()
+	{
+		for (const auto scoped : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::native_https };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			auto             memberships   = 0U;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::get_team_membership) {
+					++memberships;
+					expect(validate_outbound_read_request(aWire.Wire).has_value() && aWire.Wire.Semantic.Organization == "octo-org" && aWire.Wire.Semantic.Team == "render-owners"
+							   && aWire.Wire.Semantic.Login == "octo-reviewer",
+						   "the membership request is canonical and names the team and the viewer");
+					auto response                 = viewer_response();
+					response.Headers.back().Value = "graphql";
+					response.Body                 = scoped ? R"({"data":{"organization":null},"errors":[{"type":"INSUFFICIENT_SCOPES","message":"read:org"}]})"
+														   : R"({"data":{"organization":{"id":"O_1","teams":{"nodes":[{"slug":"render-owners"}]}}}})";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				if (aWire.Wire.Operation == read_operation::list_requested_reviewers) {
+					auto response = viewer_response();
+					response.Body = R"({"users":[],"teams":[{"node_id":"T_1","slug":"render-owners","name":"Render owners"}]})";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				const auto filename = [&]() -> std::optional<std::string_view> {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        return std::nullopt;
+					}
+				}();
+				if (!filename) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
+				auto response = viewer_response();
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ *filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			const auto read = [&] {
+				auto completions = std::vector<application::github_pull_request_completion>{ };
+				fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+				fixture.Effects.run_next();
+				return require_one<application::github_pull_request_success>(completions, "the read completes with the team's membership").Snapshot;
+			};
+			const auto expected = scoped ? application::github_team_membership::needs_read_org : application::github_team_membership::member;
+			const auto first    = read();
+			expect(first.ViewerTeamMemberships == std::vector<application::github_team_membership_record>{ { .Team = "octo-org/render-owners", .Membership = expected } } && memberships == 1U,
+				   scoped ? "a sign-in without read:org is kept as needing it" : "GitHub's answer that I am in the team is kept");
+			const auto second = read();
+			expect(second.ViewerTeamMemberships == first.ViewerTeamMemberships && memberships == 1U, "a second read of the session asks nothing and keeps the answer");
+		}
+	}
+
 	/// [[BPR-1560]]. The provider says why a snapshot has no merge base: a
 	/// read that failed (a window may keep the merge base it had) differs from
 	/// answers proving there is no single one (the base branch and the
@@ -2703,6 +2768,7 @@ int main(int aArgc, char** aArgv)
 	test_actor_conflict_diagnostic_propagation();
 	test_pull_request_attempt_diagnostic_propagation();
 	test_merge_base_failure_and_refusal_are_distinct();
+	test_team_membership_is_read_once_a_session();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_live_profile_catalog();

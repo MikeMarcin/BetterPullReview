@@ -67,6 +67,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_requested_reviewers:
+			case read_operation::get_team_membership:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
 			}
@@ -258,8 +259,14 @@ namespace bpr::adapters::github::detail {
 			/// asks nothing; only answers are kept, never failures. An open pull
 			/// request's base branch moves, so its merge base is asked every read.
 			std::map<std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::string, std::string>, std::string> MergeBases;
-			std::atomic<std::uint64_t>                                                                               NextSnapshot{ 1U };
-			bool                                                                                                     Closing = false;
+			/// [[BPR-1589]]. The viewer's membership of requested teams, by
+			/// host, profile, lower-case `organization/slug` and lower-case
+			/// login, under `Mutex`, for the session: a team asked once is not
+			/// asked again on every poll. Only GitHub's answers are kept (member,
+			/// not a member, not visible, needs `read:org`), never a failure.
+			std::map<std::tuple<std::uint64_t, std::uint64_t, std::string, std::string>, application::github_team_membership> TeamMemberships;
+			std::atomic<std::uint64_t>                                                                                        NextSnapshot{ 1U };
+			bool                                                                                                              Closing = false;
 			/// RFC-BPR-0084. Serial image lanes, each with its own media
 			/// transport per profile, touched only on that lane.
 			struct media_lane
@@ -2553,6 +2560,75 @@ namespace bpr::adapters::github::detail {
 							} else {
 								result->MergeBaseAvailability = step == merge_base_step::refused ? application::github_merge_base_availability::refused
 																								 : application::github_merge_base_availability::failed;
+							}
+						}
+						// [[BPR-1589]]. Whether the viewer is in each team a review
+						// was requested from, so the role names "your team" only
+						// when GitHub says so. Bounded to eight teams a read and
+						// remembered for the session; a read that is rate limited
+						// stops asking, and lost authentication fails the read as
+						// every optional read does.
+						if (state->ReadAuthority == github_provider_read_authority::authenticated && !result->Viewer.Login.empty()) {
+							constexpr auto most_teams = std::size_t{ 8U };
+							const auto     lower      = [](std::string aText) {
+								std::ranges::transform(aText, aText.begin(), [](const char aChar) { return aChar >= 'A' && aChar <= 'Z' ? static_cast<char>(aChar - 'A' + 'a') : aChar; });
+								return aText;
+							};
+							auto limited = false;
+							for (const auto& request : result->ReviewRequests) {
+								if (request.Kind != application::github_requested_actor_kind::team || request.Organization.empty() || request.Login.empty()) {
+									continue;
+								}
+								auto record = application::github_team_membership_record{ .Team = request.Organization + "/" + request.Login };
+								if (std::ranges::contains(result->ViewerTeamMemberships, record.Team, &application::github_team_membership_record::Team)) {
+									continue;
+								}
+								if (result->ViewerTeamMemberships.size() == most_teams) {
+									break;
+								}
+								const auto key = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), lower(record.Team), lower(result->Viewer.Login) };
+								{
+									std::scoped_lock lock{ state->Mutex };
+									if (const auto found = state->TeamMemberships.find(key); found != state->TeamMemberships.end()) {
+										record.Membership = found->second;
+									}
+								}
+								if (record.Membership == application::github_team_membership::unavailable && !limited) {
+									const auto read = perform_github_team_membership_read(*readTransport, *profile, aRequest, result->Repository.Repository, request.Organization, request.Login,
+																						  result->Viewer.Login, job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+									if (read) {
+										if (read->RateLimits.Graphql) {
+											result->RateLimits.Graphql = read->RateLimits.Graphql;
+										}
+										record.Membership = !read->Member.has_value() ? application::github_team_membership::not_visible
+											: *read->Member                           ? application::github_team_membership::member
+																					  : application::github_team_membership::not_member;
+									} else if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+										cancelled();
+										return;
+									} else {
+										const auto& error = std::get<application::github_provider_error>(read.error());
+										if (error.Failure == application::github_provider_failure::authentication) {
+											failed(error);
+											return;
+										}
+										if (error.RateLimits.Graphql) {
+											result->RateLimits.Graphql = error.RateLimits.Graphql;
+										}
+										limited           = error.Failure == application::github_provider_failure::rate_limit;
+										record.Membership = error.Failure == application::github_provider_failure::permission ? application::github_team_membership::needs_read_org
+																															  : application::github_team_membership::unavailable;
+									}
+									if (record.Membership != application::github_team_membership::unavailable) {
+										constexpr auto   maximumRemembered = std::size_t{ 256U };
+										std::scoped_lock lock{ state->Mutex };
+										if (state->TeamMemberships.size() >= maximumRemembered) {
+											state->TeamMemberships.clear();
+										}
+										state->TeamMemberships.insert_or_assign(key, record.Membership);
+									}
+								}
+								result->ViewerTeamMemberships.push_back(std::move(record));
 							}
 						}
 						if (finish_job(state, job)) {

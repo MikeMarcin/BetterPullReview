@@ -678,7 +678,7 @@ namespace {
 			roles.push_back(role.Kind);
 		}
 		expect(roles == std::vector{ kind::requested, kind::team_requested, kind::reviewed, kind::mentioned } && busy.Status.Roles.Roles[0].CodeOwner
-				   && busy.Status.Roles.Roles[1].Teams == std::vector<std::string>{ "EpicGames/render" } && !busy.Status.Roles.Roles[1].MembershipObserved
+				   && busy.Status.Roles.Roles[1].Teams == std::vector<std::string>{ "EpicGames/render" } && busy.Status.Roles.Roles[1].Membership == core::team_membership::unknown
 				   && busy.Status.Roles.Roles[2].Review == core::my_review_state::changes_requested && busy.Status.Roles.Roles[3].Mention == core::mention_place::description,
 			   "several roles at once, strongest first; a pending review is not my latest; team membership is not observed");
 		const auto& attention = busy.Status.Attention;
@@ -694,6 +694,21 @@ namespace {
 		const auto author = application::project_pull_request_overview(review, { });
 		expect(!author.Status.Roles.Roles.empty() && author.Status.Roles.Roles.front().Kind == core::review_role_kind::author, "the author leads with authorship");
 
+		// [[BPR-1589]] v002. GitHub's membership answer decides the team role.
+		review.Viewer                = actor("mike", 1U);
+		review.ViewerTeamMemberships = { { .Team = "EpicGames/render", .Membership = application::github_team_membership::member } };
+		const auto member            = application::project_pull_request_overview(review, { });
+		expect(member.Status.Roles.Roles.size() > 1U && member.Status.Roles.Roles[1].Kind == core::review_role_kind::team_requested && member.Status.Roles.Roles[1].Membership == core::team_membership::member,
+			   "a team GitHub says I am in is my team's request");
+		review.ViewerTeamMemberships = { { .Team = "epicgames/RENDER", .Membership = application::github_team_membership::not_member } };
+		const auto outsider          = application::project_pull_request_overview(review, { });
+		expect(std::ranges::none_of(outsider.Status.Roles.Roles, [](const core::review_role& aRole) { return aRole.Kind == core::review_role_kind::team_requested; }),
+			   "a team GitHub says I am not in, matched without regard to case, is no role");
+		review.ViewerTeamMemberships = { { .Team = "EpicGames/render", .Membership = application::github_team_membership::needs_read_org } };
+		const auto scoped            = application::project_pull_request_overview(review, { });
+		expect(scoped.Status.Roles.Roles.size() > 1U && scoped.Status.Roles.Roles[1].Membership == core::team_membership::unknown && scoped.Status.Roles.Roles[1].Reason == core::team_membership_reason::needs_read_org,
+			   "a sign-in without read:org leaves the team named, with the reason");
+		review.ViewerTeamMemberships.clear();
 		review.Viewer        = actor("observer", 9U);
 		const auto bystander = application::project_pull_request_overview(review, { });
 		expect(bystander.Status.Roles.ViewerKnown && bystander.Status.Roles.Roles.size() == 1U && bystander.Status.Roles.Roles.front().Kind == kind::team_requested,

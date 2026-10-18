@@ -106,8 +106,9 @@ namespace bpr::core {
 		if (same_login(aFacts.Viewer, aFacts.Author)) {
 			roles.push_back({ .Kind = review_role_kind::author });
 		}
-		auto direct = std::optional<review_role>{ };
-		auto teams  = std::optional<review_role>{ };
+		auto direct  = std::optional<review_role>{ };
+		auto mine    = std::optional<review_role>{ };
+		auto unknown = std::optional<review_role>{ };
 		for (const auto& request : aFacts.Requests) {
 			if (!request.Team) {
 				if (same_login(request.Name, aFacts.Viewer)) {
@@ -116,20 +117,24 @@ namespace bpr::core {
 				}
 				continue;
 			}
-			const auto member = aFacts.ViewerTeams.has_value() && std::ranges::any_of(*aFacts.ViewerTeams, [&](const std::string& aTeam) { return same_login(aTeam, request.Name); });
-			if (aFacts.ViewerTeams.has_value() && !member) {
-				// Membership observed, and I am not in this team.
+			if (request.Membership == team_membership::not_member) {
 				continue;
 			}
-			teams = teams.value_or(review_role{ .Kind = review_role_kind::team_requested, .MembershipObserved = aFacts.ViewerTeams.has_value() });
-			teams->Teams.push_back(request.Name);
-			teams->CodeOwner = teams->CodeOwner || request.CodeOwner;
+			auto& role = request.Membership == team_membership::member ? mine : unknown;
+			role       = role.value_or(review_role{ .Kind = review_role_kind::team_requested, .Membership = request.Membership, .Reason = request.Reason });
+			role->Teams.push_back(request.Name);
+			role->CodeOwner = role->CodeOwner || request.CodeOwner;
 		}
 		if (direct) {
 			roles.push_back(std::move(*direct));
 		}
-		if (teams) {
-			roles.push_back(std::move(*teams));
+		// A team I am in is my request; only without one is a team whose
+		// membership GitHub would not say named instead.
+		if (mine) {
+			mine->Reason = team_membership_reason::unavailable;
+			roles.push_back(std::move(*mine));
+		} else if (unknown) {
+			roles.push_back(std::move(*unknown));
 		}
 		if (aFacts.LatestReview) {
 			roles.push_back({ .Kind = review_role_kind::reviewed, .Review = aFacts.LatestReview });

@@ -855,8 +855,8 @@ namespace {
 		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
 		auto* const page = window.overview_page();
 		wait_for([&] { return page->isVisible() && page->presented() && page->new_threads() != 0U; }, "the pull request opens on Overview with its threads' read state");
-		expect(page->role_label()->text() == QStringLiteral("You requested changes") && page->other_roles_label()->text() == QStringLiteral("Also: you are mentioned in the description"),
-			   "my role is decided from the snapshot: my latest review leads, the description's mention follows");
+		expect(page->role_line()->primary() == QStringLiteral("Reviewer · changes requested") && page->role_line()->chips() == QStringList{ QStringLiteral("Mentioned") },
+			   "my role is decided from the snapshot: my latest review leads, the description's mention follows as a chip");
 		const auto rows = page->attention_rows();
 		expect(rows.size() == 2 && rows[0] == QStringLiteral("2 checks failed\nbuild-linux, lint") && rows[1] == QStringLiteral("2 replies to you"),
 			   "Needs attention names the two failed checks once and the author's two replies to my threads: " + rows.join(QStringLiteral(" | ")).toStdString());

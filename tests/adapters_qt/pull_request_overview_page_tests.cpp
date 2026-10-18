@@ -2,6 +2,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -19,6 +20,7 @@
 #include <QClipboard>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
 #include <QKeyEvent>
@@ -39,6 +41,7 @@
 #include <QTextDocument>
 #include <QToolButton>
 #include <QTreeView>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -2870,7 +2873,7 @@ namespace {
 		auto& status          = projected.Status;
 		status.Viewer         = "mike";
 		status.Roles          = { .ViewerKnown = true,
-								  .Roles       = { { .Kind = core::review_role_kind::team_requested, .CodeOwner = true, .Teams = { "EpicGames/render" } },
+								  .Roles       = { { .Kind = core::review_role_kind::team_requested, .CodeOwner = true, .Teams = { "EpicGames/render" }, .Reason = core::team_membership_reason::needs_read_org },
 												   { .Kind = core::review_role_kind::reviewed, .Review = core::my_review_state::changes_requested },
 												   { .Kind = core::review_role_kind::mentioned, .Mention = core::mention_place::comment } } };
 		status.Attention      = { { .Kind = core::status_attention_kind::conflicts, .Count = 1U },
@@ -2899,9 +2902,11 @@ namespace {
 		settle();
 		auto* const drawer = page.status_drawer();
 
-		expect(page.role_label()->isVisible() && page.role_label()->text() == QStringLiteral("Review requested from EpicGames/render as code owners; you may be a member")
-				   && page.other_roles_label()->text() == QStringLiteral("Also: you requested changes; you are mentioned in a comment"),
-			   "my strongest role leads, named with its team and unobserved membership; the others follow");
+		auto* const role = page.role_line();
+		expect(role->isVisible() && role->primary() == QStringLiteral("Team review requested")
+				   && role->chips() == QStringList{ QStringLiteral("@EpicGames/render"), QStringLiteral("Code owner"), QStringLiteral("Reviewer · changes requested"), QStringLiteral("Mentioned") }
+				   && role->toolTip().contains(QStringLiteral("lacks the read:org scope")) && !role->toolTip().contains(QStringLiteral("may be a member")),
+			   "[[BPR-1589]] v002: one short label, the other roles as chips, and why GitHub would not say in the tooltip, with no hedge on the line");
 		const auto rows = page.attention_rows();
 		expect(rows.size() == 4 && rows[0].startsWith(QStringLiteral("Conflicts with release")) && rows[1] == QStringLiteral("2 checks failed\nbuild-linux, lint")
 				   && rows[2] == QStringLiteral("Waiting on EpicGames/render and tbutler\nCode-owner review requested") && rows[3] == QStringLiteral("1 reply to you"),
@@ -2960,7 +2965,7 @@ namespace {
 		page.status_section_header(section::my_review)->setChecked(true);
 		settle();
 		expect(page.status_section_header(section::attention)->text() == QStringLiteral("Merge") && page.status_section_header(section::attention)->count() == QStringLiteral("Mergeable")
-				   && page.role_label()->text() == QStringLiteral("No role in this review") && !page.other_roles_label()->isVisible(),
+				   && role->primary() == QStringLiteral("No role") && role->chips().isEmpty(),
 			   "nothing needs me: the section is Merge with its state, and no role says so");
 		expect(qt::drawer_principle_violations(*drawer).isEmpty(), "a quiet pull request draws no zero rows");
 		{
@@ -2984,7 +2989,112 @@ namespace {
 		unknown.Status.Roles.ViewerKnown = false;
 		page.present(unknown);
 		settle();
-		expect(!page.role_label()->isVisible(), "an unknown viewer is told nothing about a role");
+		expect(!role->isVisible(), "an unknown viewer is told nothing about a role");
+	}
+
+	/// \brief [[BPR-1589]] v002. The five roles the owner judges, each as the
+	/// drawer draws it.
+	[[nodiscard]] auto role_variants() -> std::vector<std::pair<QString, core::review_roles>>
+	{
+		using kind = core::review_role_kind;
+		return {
+			{ QStringLiteral("author"), { .ViewerKnown = true, .Roles = { { .Kind = kind::author } } } },
+			{ QStringLiteral("requested"), { .ViewerKnown = true, .Roles = { { .Kind = kind::requested, .CodeOwner = true }, { .Kind = kind::reviewed, .Review = core::my_review_state::commented } } } },
+			{ QStringLiteral("team-member"), { .ViewerKnown = true, .Roles = { { .Kind = kind::team_requested, .Teams = { "EpicGames/render" }, .Membership = core::team_membership::member } } } },
+			{ QStringLiteral("team-unknown"), { .ViewerKnown = true, .Roles = { { .Kind = kind::team_requested, .Teams = { "EpicGames/render" }, .Reason = core::team_membership_reason::needs_read_org } } } },
+			{ QStringLiteral("mentioned"), { .ViewerKnown = true, .Roles = { { .Kind = kind::mentioned, .Mention = core::mention_place::description } } } },
+		};
+	}
+
+	void test_role_line_is_one_short_label()
+	{
+		const auto expected = std::map<QString, std::pair<QString, QStringList>>{
+			{ QStringLiteral("author"), { QStringLiteral("Author"), { } } },
+			{ QStringLiteral("requested"), { QStringLiteral("Review requested"), { QStringLiteral("Code owner"), QStringLiteral("Reviewer · commented") } } },
+			{ QStringLiteral("team-member"), { QStringLiteral("Review requested"), { QStringLiteral("Your team: @EpicGames/render") } } },
+			{ QStringLiteral("team-unknown"), { QStringLiteral("Team review requested"), { QStringLiteral("@EpicGames/render") } } },
+			{ QStringLiteral("mentioned"), { QStringLiteral("Mentioned"), { } } },
+		};
+		qt::pull_request_overview_page page;
+		page.resize(1'100, 700);
+		page.show();
+		for (const auto& [name, roles] : role_variants()) {
+			auto projected         = projection();
+			projected.Status.Roles = roles;
+			page.present(projected);
+			settle();
+			auto* const line = page.role_line();
+			const auto& want = expected.at(name);
+			expect(line->primary() == want.first && line->chips() == want.second, "the " + name.toStdString() + " role is one short label: " + line->primary().toStdString());
+			expect(line->height() >= line->heightForWidth(line->width()) && line->heightForWidth(line->width()) < (3 * line->fontMetrics().height()) + 24 && line->toolTip().size() > 0,
+				   "the " + name.toStdString() + " role is whole at the drawer's width in at most two lines, its reason in the tooltip");
+		}
+		// Negative control: the v001 sentence would not fit one line.
+		auto projected         = projection();
+		projected.Status.Roles = role_variants()[3].second;
+		page.present(projected);
+		settle();
+		expect(page.role_line()->toolTip().contains(QStringLiteral("read:org")) && !page.role_line()->primary().contains(QStringLiteral("may be")), "the reason is in the tooltip, never the line");
+	}
+
+	/// \brief [[BPR-1589]] v002. The role section before (v001's wording and
+	/// layout, rebuilt here: a face, a sentence and an "Also:" line) and after,
+	/// for the five roles, Light and Dark.
+	void render_role_look(const QString& aRoot)
+	{
+		const auto before = std::map<QString, std::pair<QString, QString>>{
+			{ QStringLiteral("author"), { QStringLiteral("You are the author"), { } } },
+			{ QStringLiteral("requested"), { QStringLiteral("Review requested from you as a code owner"), QStringLiteral("Also: you reviewed with comments") } },
+			{ QStringLiteral("team-member"), { QStringLiteral("Review requested from EpicGames/render; you may be a member"), { } } },
+			{ QStringLiteral("team-unknown"), { QStringLiteral("Review requested from EpicGames/render; you may be a member"), { } } },
+			{ QStringLiteral("mentioned"), { QStringLiteral("You are mentioned in the description"), { } } },
+		};
+		for (const auto& [mode, theme] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			for (const auto& [name, roles] : role_variants()) {
+				qt::pull_request_overview_page page;
+				profile.apply_to(page);
+				page.adopt_appearance(profile);
+				page.resize(1'240, 700);
+				auto projected         = projection();
+				projected.Status.Roles = roles;
+				page.present(projected);
+				page.show();
+				settle();
+				auto* const line = page.role_line();
+				expect(line->grab().save(QStringLiteral("%1/role-after-%2-%3.png").arg(aRoot, name, theme), "PNG"), "the role after is saved");
+				// Before: v001's anatomy at the same width.
+				QWidget old;
+				profile.apply_to(old);
+				old.setAutoFillBackground(true);
+				old.setBackgroundRole(QPalette::AlternateBase);
+				auto* const row = new QHBoxLayout{ &old };
+				row->setContentsMargins(4, 4, 4, 6);
+				row->setSpacing(10);
+				auto* const face = new qt::identity_avatar_view{ 24, &old };
+				face->set_identity(QStringLiteral("mike"));
+				row->addWidget(face, 0, Qt::AlignTop);
+				auto* const words = new QVBoxLayout;
+				auto* const lead  = new QLabel{ before.at(name).first, &old };
+				lead->setWordWrap(true);
+				auto bold = lead->font();
+				bold.setWeight(QFont::DemiBold);
+				lead->setFont(bold);
+				words->addWidget(lead);
+				if (!before.at(name).second.isEmpty()) {
+					auto* const also = new QLabel{ before.at(name).second, &old };
+					also->setWordWrap(true);
+					also->setForegroundRole(QPalette::PlaceholderText);
+					words->addWidget(also);
+				}
+				row->addLayout(words, 1);
+				old.resize(line->width(), old.heightForWidth(line->width()) > 0 ? old.heightForWidth(line->width()) : old.sizeHint().height());
+				old.show();
+				settle();
+				expect(old.grab().save(QStringLiteral("%1/role-before-%2-%3.png").arg(aRoot, name, theme), "PNG"), "the role before is saved");
+			}
+		}
 	}
 
 	/// \brief [[BPR-1589]]. The Status drawer for the owner's look, Light and
@@ -3040,6 +3150,12 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-band-look:pass\n";
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1589]] v002. The role section before and after.
+	if (argc > 2 && std::string_view{ argv[1] } == "--role-look") {
+		render_role_look(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-role-look:pass\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1589]]. The Status drawer's look, for the owner's review.
 	if (argc > 2 && std::string_view{ argv[1] } == "--status-look") {
 		render_status_look(QString::fromLocal8Bit(argv[2]));
@@ -3060,6 +3176,7 @@ auto main(int argc, char** argv) -> int
 	test_folder_counts_share_one_column();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_status_leads_with_my_role_and_what_needs_attention();
+	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
 	test_compact_descriptions();

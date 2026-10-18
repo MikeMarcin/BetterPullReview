@@ -51,8 +51,9 @@ namespace {
 
 		const auto team = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { { .Name = "acme/render", .Team = true, .CodeOwner = true }, { .Name = "acme/docs", .Team = true } } });
 		expect(kinds(team) == std::vector{ kind::team_requested } && team.Roles.front().Teams == std::vector<std::string>{ "acme/render", "acme/docs" }
-				   && !team.Roles.front().MembershipObserved && team.Roles.front().CodeOwner,
-			   "unobserved membership names every requested team, once, as one I may be in");
+				   && team.Roles.front().Membership == core::team_membership::unknown && team.Roles.front().Reason == core::team_membership_reason::unavailable
+				   && team.Roles.front().CodeOwner,
+			   "teams whose membership was not asked are named, once each, with no claim either way");
 
 		const auto reviewed = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .LatestReview = core::my_review_state::changes_requested });
 		expect(kinds(reviewed) == std::vector{ kind::reviewed } && reviewed.Roles.front().Review == core::my_review_state::changes_requested, "my latest review's state");
@@ -76,12 +77,26 @@ namespace {
 		const auto rerequested = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { { .Name = "mona" } }, .LatestReview = core::my_review_state::approved });
 		expect(kinds(rerequested) == std::vector{ kind::requested, kind::reviewed }, "a re-requested reviewer is asked again and has reviewed");
 
-		const auto observed = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { { .Name = "acme/render", .Team = true }, { .Name = "acme/docs", .Team = true } }, .ViewerTeams = std::vector<std::string>{ "ACME/docs" } });
-		expect(kinds(observed) == std::vector{ kind::team_requested } && observed.Roles.front().Teams == std::vector<std::string>{ "acme/docs" } && observed.Roles.front().MembershipObserved,
-			   "observed membership keeps only my teams");
-
-		const auto outside = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { { .Name = "acme/render", .Team = true } }, .ViewerTeams = std::vector<std::string>{ } });
-		expect(outside.Roles.empty(), "observed non-membership is no role");
+		// [[BPR-1589]] v002. GitHub's answer decides: my team is my request;
+		// a team I am not in is no role; a team GitHub would not tell about is
+		// named, with the reason, only when no team of mine was requested.
+		using member    = core::team_membership;
+		using reason    = core::team_membership_reason;
+		const auto team = [](const char* aName, const member aMembership, const reason aReason = reason::unavailable) {
+			return core::review_role_request{ .Name = aName, .Team = true, .Membership = aMembership, .Reason = aReason };
+		};
+		const auto observed = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { team("acme/render", member::not_member), team("acme/docs", member::member) } });
+		expect(kinds(observed) == std::vector{ kind::team_requested } && observed.Roles.front().Teams == std::vector<std::string>{ "acme/docs" } && observed.Roles.front().Membership == member::member,
+			   "a team GitHub says I am in is my request; the one I am not in is not mentioned");
+		const auto outside = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { team("acme/render", member::not_member) } });
+		expect(outside.Roles.empty(), "a team GitHub says I am not in is no role");
+		const auto scoped = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { team("acme/render", member::unknown, reason::needs_read_org), team("acme/docs", member::not_member) } });
+		expect(kinds(scoped) == std::vector{ kind::team_requested } && scoped.Roles.front().Membership == member::unknown && scoped.Roles.front().Reason == reason::needs_read_org
+				   && scoped.Roles.front().Teams == std::vector<std::string>{ "acme/render" },
+			   "a team GitHub would not tell about is named with the reason");
+		const auto both = core::decide_review_roles({ .Viewer = "mona", .Author = "octo", .Requests = { team("acme/render", member::unknown, reason::not_visible), team("acme/docs", member::member) } });
+		expect(both.Roles.size() == 1U && both.Roles.front().Membership == member::member && both.Roles.front().Teams == std::vector<std::string>{ "acme/docs" },
+			   "my team leads; an unknown one is not added beside it");
 	}
 
 	void mentions()

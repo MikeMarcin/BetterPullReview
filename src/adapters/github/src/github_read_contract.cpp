@@ -343,6 +343,67 @@ namespace bpr::adapters::github::detail {
 			return true;
 		}
 
+		/// [[BPR-1589]]. Whether `login` is in one team, as GitHub answers it to
+		/// this account: the organization's teams that `login` is in, searched
+		/// for the slug (`query:` matches names and slugs, so the reader looks
+		/// for the exact slug among them). Asking a team for its members by
+		/// login instead times out on a large team (HTTP 502 and 504, live,
+		/// 2026-10-18). Without `read:org` GitHub answers with an
+		/// `INSUFFICIENT_SCOPES` error; an organization the account cannot see
+		/// is `null`.
+		constexpr std::string_view team_membership_document = "query GetTeamMembership($login:String!,$org:String!,$slug:String!)"
+															  "{organization(login:$org){id teams(first:25,query:$slug,userLogins:[$login]){nodes{slug}}}}";
+
+		struct team_membership_variables_json
+		{
+			std::string_view Login;
+			std::string_view Org;
+			std::string_view Slug;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"login", &team_membership_variables_json::Login,
+					"org", &team_membership_variables_json::Org,
+					"slug", &team_membership_variables_json::Slug);
+			};
+		};
+
+		struct team_membership_query_json
+		{
+			std::string_view               Query;
+			team_membership_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &team_membership_query_json::Query, "variables", &team_membership_query_json::Variables);
+			};
+		};
+
+		[[nodiscard]] auto team_membership_query_body(const semantic_read_request& aRequest) -> std::expected<std::string, contract_failure>
+		{
+			auto document            = team_membership_query_json{ };
+			document.Query           = team_membership_document;
+			document.Variables.Login = aRequest.Login;
+			document.Variables.Org   = aRequest.Organization;
+			document.Variables.Slug  = aRequest.Team;
+			auto bytes               = glz::write<read_request_json_options{ }>(document);
+			if (!bytes) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			return std::move(*bytes);
+		}
+
+		/// [[BPR-1589]]. A GitHub login or organization: 1 to 39 letters,
+		/// digits and hyphens; a team slug: 1 to 100 letters, digits, `-`,
+		/// `_` and `.`.
+		[[nodiscard]] auto github_name(const std::string_view aName, const std::size_t aMaximum, const bool aSlug) noexcept -> bool
+		{
+			return !aName.empty() && aName.size() <= aMaximum
+				&& std::ranges::all_of(aName, [aSlug](const char aChar) {
+					   return (aChar >= 'a' && aChar <= 'z') || (aChar >= 'A' && aChar <= 'Z') || (aChar >= '0' && aChar <= '9') || aChar == '-'
+						   || (aSlug && (aChar == '_' || aChar == '.'));
+				   });
+		}
+
 		[[nodiscard]] auto bounded_graphql_token(
 			const std::string_view aValue,
 			const std::size_t      aMaximum) noexcept -> bool
@@ -532,6 +593,10 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
 				return true;
+			// [[BPR-1589]]. Bound to the pull request's repository for its
+			// correlation; the query names only the team and the login.
+			case read_operation::get_team_membership:
+				return false;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_commit_statuses:
@@ -571,6 +636,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::resolve_body_images:
 			case read_operation::get_branch_protection:
 			case read_operation::get_merge_base:
+			case read_operation::get_team_membership:
 				return 1U;
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
@@ -612,7 +678,8 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto validate_graphql_body(
 			const std::string_view aBody,
 			const bool             aPaged,
-			const bool             aNodes = false) -> std::expected<void, contract_failure>
+			const bool             aNodes = false,
+			const bool             aTeam  = false) -> std::expected<void, contract_failure>
 		{
 			if (aBody.size() > maximum_fixture_body_bytes) {
 				return failure(contract_failure_code::response_limit);
@@ -642,6 +709,14 @@ namespace bpr::adapters::github::detail {
 			}
 
 			const auto& variables = document.Variables;
+			// [[BPR-1589]]. The team-membership read names a team and a login,
+			// and nothing else.
+			if (aTeam) {
+				if (aPaged || variables.size() != 3U || !variables.contains("login") || !variables.contains("org") || !variables.contains("slug")) {
+					return failure(contract_failure_code::unexpected_body);
+				}
+				return { };
+			}
 			if (!variables.contains("owner") || !variables.contains("name")
 				|| !variables.contains("number") || (aNodes != variables.contains("ids"))
 				|| (!aPaged && variables.size() != (aNodes ? 4U : 3U))) {
@@ -1623,6 +1698,8 @@ namespace bpr::adapters::github::detail {
 				return false; // Timeline normalization belongs to the bounded production pager.
 			case read_operation::get_merge_base:
 				return false; // [[BPR-1560]]. Read and bound by its own production reader.
+			case read_operation::get_team_membership:
+				return false; // [[BPR-1589]]. Read and bound by its own production reader.
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
 			case read_operation::get_repository:
@@ -1699,6 +1776,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_branch_rules:     return "ListBranchRules";
 		case read_operation::get_branch_protection: return "GetBranchProtection";
 		case read_operation::get_merge_base:        return "GetMergeBase";
+		case read_operation::get_team_membership:   return "GetTeamMembership";
 		case read_operation::resolve_body_images:   return "ResolveBodyImages";
 		}
 		return { };
@@ -1811,6 +1889,11 @@ namespace bpr::adapters::github::detail {
 		if ((images && !valid_body_nodes(aRequest.Nodes)) || (!images && !aRequest.Nodes.empty())) {
 			return failure(contract_failure_code::unexpected_body);
 		}
+		const auto team = aRequest.Operation == read_operation::get_team_membership;
+		if ((team && (!github_name(aRequest.Organization, 39U, false) || !github_name(aRequest.Team, 100U, true) || !github_name(aRequest.Login, 39U, false)))
+			|| (!team && (!aRequest.Organization.empty() || !aRequest.Team.empty() || !aRequest.Login.empty()))) {
+			return failure(contract_failure_code::unexpected_body);
+		}
 		const auto prefix = path_prefix(aRequest.Server, graphql);
 		if (!prefix.has_value()) {
 			return std::unexpected{ prefix.error() };
@@ -1887,6 +1970,15 @@ namespace bpr::adapters::github::detail {
 			page.Kind        = github_graphql_page_kind::threads;
 			page.AfterCursor = aRequest.ReviewCursor;
 			auto body        = read_query_body(aRequest, query, aRequest.ReviewCursor.empty() ? nullptr : &page);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Path = std::string{ *prefix } + "/graphql";
+			result.Body = std::move(*body);
+			break;
+		}
+		case read_operation::get_team_membership: {
+			auto body = team_membership_query_body(aRequest);
 			if (!body) {
 				return std::unexpected{ body.error() };
 			}
@@ -1998,7 +2090,8 @@ namespace bpr::adapters::github::detail {
 			if (const auto validation = validate_graphql_body(
 					aRequest.Body,
 					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty(),
-					aRequest.Operation == read_operation::resolve_body_images);
+					aRequest.Operation == read_operation::resolve_body_images,
+					aRequest.Operation == read_operation::get_team_membership);
 				!validation.has_value()) {
 				return validation;
 			}

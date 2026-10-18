@@ -981,6 +981,16 @@ namespace bpr::adapters::github::detail {
 						if (json_is_array(errors) && std::ranges::any_of(json_array(errors), [](const auto& aError) { return text(json_member(json_object(aError), "type")) == "undefinedField"; })) {
 							return metadataFailed(application::github_provider_failure::unsupported_capability);
 						}
+						// [[BPR-1589]]. A token without `read:org` cannot ask who is
+						// in a team: GitHub says so with a typed error, which is a
+						// permission, not a malformed answer.
+						if (aSemantic.Operation == read_operation::get_team_membership && json_is_array(errors)
+							&& std::ranges::any_of(json_array(errors), [](const auto& aError) {
+								   const auto type = text(json_member(json_object(aError), "type"));
+								   return type == "INSUFFICIENT_SCOPES" || type == "FORBIDDEN";
+							   })) {
+							return metadataFailed(application::github_provider_failure::permission);
+						}
 						return metadataFailed(application::github_provider_failure::malformed_response);
 					}
 					if (metadata->RetryAfterSeconds.has_value()) {
@@ -1106,6 +1116,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
 			case read_operation::get_merge_base:
+			case read_operation::get_team_membership:
 				break;
 			}
 			return result;
@@ -1226,6 +1237,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::resolve_body_images:
 			case read_operation::list_requested_reviewers:
 			case read_operation::get_merge_base:
+			case read_operation::get_team_membership:
 				return std::nullopt;
 			}
 			const auto namedRepository = std::string{ "/repos/" }
@@ -4127,6 +4139,84 @@ namespace bpr::adapters::github::detail {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
 			return github_merge_base_read{ .MergeBaseOid = text(mergeSha), .BaseCommitOid = text(baseSha), .RateLimits = rates };
+		} catch (...) {
+			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
+		}
+	}
+
+	auto perform_github_team_membership_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const core::repository_id                                aRepository,
+		const std::string_view                                   aOrganization,
+		const std::string_view                                   aSlug,
+		const std::string_view                                   aLogin,
+		const std::stop_token                                    aStop,
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority,
+		github_paged_response_observer*                          aObserver) noexcept -> github_team_membership_read_result
+	{
+		auto rates = application::github_rate_limit_state{ };
+		try {
+			// Membership is the viewer's own question; a signed-out read has no viewer.
+			if (aReadAuthority == github_provider_read_authority::anonymous_public) {
+				return failed(application::github_provider_failure::unsupported_capability);
+			}
+			if (!provider_request_valid(aProfile, aRequest, core::provider_snapshot_id{ 1U }, aLimits, aReadAuthority)
+				|| aRepository.value() == 0U
+				|| (aRequest.Context.ExpectedRepository && *aRequest.Context.ExpectedRepository != aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto limits              = aLimits;
+			limits.MaximumTotalPages = 1U;
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, aObserver };
+			if (!execution.bind_repository(aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto semantic         = semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::get_team_membership);
+			semantic.Organization = std::string{ aOrganization };
+			semantic.Team         = std::string{ aSlug };
+			semantic.Login        = std::string{ aLogin };
+			auto page             = execution.fetch(semantic);
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			if (!json_is_object(page->Document)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			const auto data = json_member(json_object(page->Document), "data");
+			if (!json_is_object(data)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			const auto organization = json_member(json_object(data), "organization");
+			if (json_is_null(organization)) {
+				return github_team_membership_read{ .Member = std::nullopt, .RateLimits = rates };
+			}
+			if (!json_is_object(organization)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			const auto teams = json_member(json_object(organization), "teams");
+			const auto nodes = json_is_object(teams) ? json_member(json_object(teams), "nodes") : page_json_value{ };
+			if (!json_is_array(nodes)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			// The search matches names and slugs, so only the exact slug, in
+			// GitHub's case-insensitive sense, is the requested team.
+			const auto same = [](const std::string_view aLeft, const std::string_view aRight) {
+				return std::ranges::equal(aLeft, aRight, [](const char aOne, const char aOther) {
+					const auto lower = [](const char aChar) { return aChar >= 'A' && aChar <= 'Z' ? static_cast<char>(aChar - 'A' + 'a') : aChar; };
+					return lower(aOne) == lower(aOther);
+				});
+			};
+			auto member = false;
+			for (const auto& node : json_array(nodes)) {
+				if (!json_is_object(node) || !json_is_string(json_member(json_object(node), "slug"))) {
+					return execution.terminal_failure(application::github_provider_failure::malformed_response);
+				}
+				member = member || same(text(json_member(json_object(node), "slug")), aSlug);
+			}
+			return github_team_membership_read{ .Member = member, .RateLimits = rates };
 		} catch (...) {
 			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
 		}

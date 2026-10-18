@@ -399,6 +399,36 @@ namespace bpr::qt {
 		std::vector<overview_face> Faces;
 	};
 
+	/// \brief [[BPR-1589]] v002. My role at a glance: my face, the strongest
+	/// role as a short label, and any other roles as small chips after it,
+	/// wrapping when the drawer is narrow. Why a role is what it is (a team
+	/// GitHub would not say I am in, say) is in the tooltip, not the line.
+	class overview_role_line final : public QWidget
+	{
+	public:
+		explicit overview_role_line(QWidget* aParent = nullptr);
+
+		/// \brief The face's identity, the strongest role and the others.
+		void               present(const QString& aViewer, const QString& aPrimary, const QStringList& aChips, const QString& aExplanation);
+		[[nodiscard]] auto primary() const -> const QString&;
+		[[nodiscard]] auto chips() const -> const QStringList&;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
+		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		/// The primary label's box and each chip's, laid out in `aWidth`.
+		[[nodiscard]] auto layout_boxes(int aWidth) const -> std::vector<QRect>;
+
+		QString     Viewer;
+		QString     Primary;
+		QStringList Chips;
+	};
+
 	/// \brief [[BPR-1589]]. The Status drawer's sections, in their order.
 	enum class overview_status_section : std::uint8_t {
 		attention,
@@ -517,9 +547,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto status_section_header(overview_status_section aSection) const noexcept -> drawer_section_header*;
 		/// \brief [[BPR-1589]]. A Status section, header, body and details.
 		[[nodiscard]] auto status_section(overview_status_section aSection) const noexcept -> QWidget*;
-		/// \brief [[BPR-1589]]. My role's line and the faint line of my others.
-		[[nodiscard]] auto role_label() const noexcept -> QLabel*;
-		[[nodiscard]] auto other_roles_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1589]]. My role's line.
+		[[nodiscard]] auto role_line() const noexcept -> overview_role_line*;
 		/// \brief [[BPR-1589]]. Each Needs attention row's title and its second
 		/// line, if shown, joined by a newline.
 		[[nodiscard]] auto attention_rows() const -> QStringList;
@@ -706,10 +735,7 @@ namespace bpr::qt {
 		};
 		status_section_parts       Sections[overview_status_section_count]{ };
 		QLabel*                    StatusNote     = nullptr;
-		QWidget*                   RoleRow        = nullptr;
-		identity_avatar_view*      RoleFace       = nullptr;
-		QLabel*                    RoleText       = nullptr;
-		QLabel*                    RoleAlso       = nullptr;
+		overview_role_line*        RoleRow        = nullptr;
 		QVBoxLayout*               AttentionList  = nullptr;
 		drawer_meter*              ReadMeter      = nullptr;
 		drawer_meter*              ChecksMeter    = nullptr;
