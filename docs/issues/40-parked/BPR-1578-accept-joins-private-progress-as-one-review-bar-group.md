@@ -200,3 +200,47 @@ Gates: clang-format 22.1.8 clean on the six C++ files; clang-tidy
 `--warnings-as-errors` passes on the four translation units (three test-only
 findings fixed at `d82023470`); `DOCUMENTATION_OK`. The full dev `ctest`
 runs on the merged tree at integration after acceptance.
+
+## Closeout, 2026-10-17
+
+**Owner decision: Accept**, no note, 2026-10-17T19:59:55Z (decision
+`c1ec85f1-fff7-445f-b867-ef609d2d69e8`, event 5 of session
+`3760f12fb3aa7cf76b495c277c7d32d5`), on candidate
+`BPR-1578-progress-track-v002` at `d82023470`, fingerprint `b1c5e24a…`.
+Event cursor consumed: 6. The server was stopped, the candidate's protection
+released and the frozen root removed; every earlier session of this card was
+already stopped and released.
+
+Integration. Main merged into the branch at `8d727fab6`. One full dev
+`ctest` there (774 tests, 7739 s at load averages near 70): 765 passed and 9
+failed, each reconciled:
+
+- `application_uiforetw_selected_diff_contract`: real. The app reported
+  private progress's rectangle in the track's coordinates; fixed at
+  `820958163` by mapping it into the bar, then passed.
+- `application_review_round_trip_composition_contract`: real. Its pinned
+  `github_application.cpp` and source-manifest digests follow this change;
+  resealed over main at `5a580a955` and again at `a30b1fa4a`, then passed.
+- `rfc0016_production_identity_security`: this worktree's own untracked
+  `.agents` link, which resolves outside the checkout; without it all 122
+  tests pass.
+- `live_mutation_isolation`: a 300 s timeout under load; run directly it
+  prints `LIVE_MUTATION_ISOLATION_OK` (420 binaries) in 262 s.
+- `application_composition_contract`: a 1560 s timeout under load; alone it
+  passed in 466.7 s.
+- `release_update_native_https`: the known intermittent updater proxy
+  fixture; passed alone.
+- `application_anonymous_public_preview_unavailable`: load; passed alone.
+- `application_large_review_responsiveness` and
+  `application_large_review_launch`: timing budgets ("Mac fixture
+  responsiveness budget exceeded", `ProcessToHomeMarkerMs` 1678.7 then
+  4432.8 against 1000) at load averages near 72, both runs; startup to Home
+  and large-review navigation do not involve the track. Not shown passing on
+  a quiet machine; BPR-1598 owns load-robust large-review timing rows.
+
+Main merged again at `00287bcea` (BPR-1575 and BPR-1576 refresh feedback;
+the window header conflict resolved by keeping both members). On that final
+tree: 47 rows covering the window, the review bar, keys, the composed
+selected-diff, ledger, navigation, Overview, header, zoom, refresh feedback
+and close-review paths, plus the resealed round-trip contract.: all 47 pass
+(508 s), and the round-trip contract passes. Docs gate on main after landing.
