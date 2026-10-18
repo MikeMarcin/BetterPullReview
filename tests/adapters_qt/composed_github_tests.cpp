@@ -7817,6 +7817,80 @@ namespace {
 		expect(intents.empty(), "nothing in the course dispatched a GitHub intent");
 	}
 
+	/// \brief [[BPR-1599]]. A modality the reviewer chooses while a pull
+	/// request loads is kept when it arrives.
+	///
+	/// \details The bar's open lands on the opening modality, Overview. A
+	/// reviewer who presses Review while the loading Overview shows meant
+	/// Review for the pull request that is coming; its arrival used to enter
+	/// Overview over the choice, so the press was lost and Review had to be
+	/// chosen again (application_private_review_native stalled on exactly
+	/// that). Without a choice during the load, the arrival still lands on
+	/// Overview: that is the control the rule must leave alone.
+	auto test_a_modality_chosen_while_loading_survives_the_arrival() -> void
+	{
+		const auto openAndLoad = [](qt::workbench_window& aWindow, const std::optional<qt::review_modality> aChoice, const bool aCached) {
+			aWindow.resize(1'280, 820);
+			aWindow.show();
+			QApplication::processEvents();
+			aWindow.publish(application::workbench_projection{ .Commands = core::project_workbench_commands({ }) });
+			publish_session_ready(aWindow);
+			// The bar's open, as the application answers it.
+			aWindow.present_setup_destination(application::setup_destination_projection{ .Pending = std::nullopt, .Notice = { }, .Opened = true });
+			publish_first_read(aWindow);
+			aWindow.publish(application::github_presentation_update{
+				.LoadingOverview = application::github_loading_overview_projection{
+					.Title = "A readable pull request", .Body = "", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U },
+			});
+			QApplication::processEvents();
+			expect(!aWindow.showing_home() && aWindow.current_modality() == qt::review_modality::overview,
+				   "the loading pull request shows its Overview");
+			if (aChoice) {
+				aWindow.modality()->action(*aChoice)->trigger();
+				QApplication::processEvents();
+				expect(aWindow.current_modality() == *aChoice, "the strip takes the reviewer's choice while the pull request loads");
+			}
+			if (aCached) {
+				auto cached           = application::github_cached_overview_projection{ };
+				cached.Overview.Title = "The cached pull request";
+				cached.BaseOid        = std::string(40, '1');
+				cached.HeadOid        = std::string(40, '2');
+				aWindow.publish(application::github_presentation_update{ .CachedOverview = std::move(cached) });
+				QApplication::processEvents();
+				expect(aWindow.current_modality() == aChoice.value_or(qt::review_modality::overview),
+					   "a cached overview respects the choice made during the load");
+			}
+			publish_pull_request(aWindow);
+			QApplication::processEvents();
+		};
+		const auto makeWindow = [] {
+			return std::make_unique<qt::workbench_window>(
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				profiles(),
+				[](application::github_intent) { });
+		};
+
+		auto chosen = makeWindow();
+		openAndLoad(*chosen, qt::review_modality::review, false);
+		expect(chosen->current_modality() == qt::review_modality::review,
+			   "Review chosen while the pull request loaded is still Review when it arrives");
+		openAndLoad(*chosen, std::nullopt, false);
+		expect(chosen->current_modality() == qt::review_modality::overview,
+			   "the preceding load's Review choice does not carry into a new load");
+		openAndLoad(*chosen, qt::review_modality::discuss, true);
+		expect(chosen->current_modality() == qt::review_modality::discuss,
+			   "Discuss chosen while loading survives the cache and the final arrival");
+		chosen->hide();
+
+		auto control = makeWindow();
+		openAndLoad(*control, std::nullopt, true);
+		expect(control->current_modality() == qt::review_modality::overview,
+			   "with no choice while it loaded, the pull request still arrives on Overview");
+		control->hide();
+	}
+
 	/// \brief [[BPR-0771]]. The picker's job, now a card's. Connect on a card
 	/// that is not the chosen one chooses its host, rebinds the device sign-in
 	/// and dispatches exactly one activation for it through the existing intent.
@@ -9614,6 +9688,7 @@ auto main(int argc, char** argv) -> int
 	test_a_session_failure_is_said_in_its_card();
 	test_a_load_refusal_is_said_under_the_home_bar();
 	test_a_refused_first_read_stays_on_home_and_says_why();
+	test_a_modality_chosen_while_loading_survives_the_arrival();
 	test_a_card_connect_chooses_and_connects_its_host();
 	test_one_card_per_server_holds_its_ways_in();
 	test_accounts_page_says_each_fact_once();

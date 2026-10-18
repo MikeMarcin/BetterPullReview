@@ -1692,6 +1692,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto strip_identity_minimum() const -> int;
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
+		/// \brief [[BPR-1599]]. Enters the modality an opening pull request
+		/// lands on, unless the reviewer chose one while it was loading.
+		void enter_opening_modality(review_modality aModality);
 		void refresh_open_count_mark();
 		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
 		void refresh_cards();
@@ -2348,8 +2351,16 @@ namespace bpr::qt {
 		QWidget*                        RulesEditor      = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
-		bool                       OpenOnOverview    = false;
-		github_conversation_panel* ConversationPanel = nullptr;
+		bool OpenOnOverview = false;
+		/// [[BPR-1599]]. The modality the reviewer chose while the pull request
+		/// was loading. The loading Overview, a cached overview and the arrival
+		/// enter the opening modality only when there is none: the reviewer's
+		/// later choice wins over the window's earlier default.
+		std::optional<review_modality> LoadingChoice;
+		/// [[BPR-1599]]. Set while the window itself enters the opening
+		/// modality, so that entry is not taken for the reviewer's choice.
+		bool                       EnteringOpeningModality = false;
+		github_conversation_panel* ConversationPanel       = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
 		bool                                   ApplyingConversationAnchor       = false;
 		bool                                   LeftConversationEndpointCurrent  = false;
