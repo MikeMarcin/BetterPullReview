@@ -286,8 +286,7 @@ namespace bpr::qt {
 					aPainter->setFont(aOption.font);
 					aPainter->setPen(mixed(ink, window, 0.3));
 					const auto bounds = QRect{ left, y, rect.right() - 10 - left, rect.bottom() - y - 4 };
-					auto       doc    = excerpt;
-					aPainter->drawText(bounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, QFontMetrics{ aOption.font }.elidedText(doc, Qt::ElideRight, bounds.width() * 2 - 20));
+					aPainter->drawText(bounds, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, QFontMetrics{ aOption.font }.elidedText(excerpt, Qt::ElideRight, bounds.width() * 2 - 20));
 				}
 				if (aOption.state.testFlag(QStyle::State_HasFocus) && aOption.widget != nullptr && aOption.widget->hasFocus()) {
 					aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Highlight), 2.0 });
