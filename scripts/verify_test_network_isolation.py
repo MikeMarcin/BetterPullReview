@@ -175,6 +175,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # scratch root, as its github_recorded_fixture_contract sibling does.
     "markdown_images_fixture_contract": "unmeasured (registered on macOS)",
     "sqlite_markdown_image_disk_cache": "unmeasured (registered on macOS)",
+    # [[BPR-1573]]. Close review's composed course, registered uncontained like
+    # application_review_navigation_entry, whose fixture setup it shares.
+    "application_close_review": "unmeasured (registered on macOS)",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private
