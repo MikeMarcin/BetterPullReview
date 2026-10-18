@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1617"
 title: "Use deterministic platform SHA-256 in core"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P1"
