@@ -16,6 +16,8 @@ add_library(
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
         src/disclosure_button.cpp
+        src/drawer_parts.cpp
+        src/overview_status_drawer.cpp
         src/keyboard_shortcuts.cpp
         src/keyboard_shortcuts_window.cpp
         src/writing_hooks_panel.cpp
@@ -37,6 +39,8 @@ add_library(
         src/home_panel.cpp
         src/home_list.cpp
         src/home_status_line.cpp
+        src/pending_veil.cpp
+        src/refresh_note.cpp
         src/home_refusal.cpp
         src/defect_card_view.cpp
         src/private_notes_panel.cpp

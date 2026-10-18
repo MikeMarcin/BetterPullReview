@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1581"
 title: "Show a thread selected in Review in Discuss, and back"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"owner request 2026-10-17","owner_note":"Why can't I go from a selected comment in Review to see it in Discuss easily?","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052"],"related_cards":["BPR-1212","BPR-1290","BPR-1293","BPR-1356","BPR-1383","BPR-1384","BPR-1542","BPR-1567","BPR-1582"],"reservation":"docs/issues/_reservations/BPR-1581--BPR-1581--c1269e5136e4.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1581:core","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"core_workbench_interaction passes: test_a_thread_moves_between_review_and_discuss (Discuss clears exactly the hiding filters; outdated to Review among unplaced threads; PR comment unavailable; draft to the composer) and test_the_thread_a_key_shows."}},{"criterion":"BPR-1581:window","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_thread_moves_scale_{100,125,200}: the open card's menu, a closed note's menu, a reply's own menu, the code's line menu and Option-Command-3 land in Discuss at that post, washed, selected, in view, focused and arrival-marked; Option-Command-2 and Open in Review come back; outdated both ways; a PR comment stays in Discuss; qt_workbench_conversation_reveal drives my draft to the composer. Frames of the jump in Light and Dark rendered."}},{"criterion":"BPR-1581:catalogue","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_keyboard_shortcuts_scale_100: both keys in the catalogue with live bindings, no other binding; qt_profile_management_window: the resident View menu mirrors them."}},{"criterion":"BPR-1581:negative","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"Negative controls in qt_thread_moves: an unknown thread moves nothing; the keys step aside while a reply is typed; Open in Review on a PR comment is disabled with its reason."}},{"criterion":"BPR-1581:gates","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"clang-format 22 clean on touched files; clang-tidy 22 (llvm@22) reports nothing in the touched sources; scripts/verify_documentation.py DOCUMENTATION_OK; Full scripts/run_test_suite.py --preset dev on the merged tree 30f016602 (main 1afb7a6f9 merged): 767 of 777 passed, 1 skipped (application_large_review_cache_bytes, exit 77), 10 failed with the machine at load average 33-39 (13 agents building). Rerun alone: composed_application_hosts, application_private_review_native and application_private_review_retry pass; seven still miss time budgets or condition timeouts under that load, none in a path these cards change: application_large_review_{responsiveness,launch,active_work,pathological,history} (measured platform budgets, e.g. MainToFirstSourceRender 21 s), application_epoch_portable_occurrence_two_catalogues (composed read budget) and application_private_review_file (publish condition_timeout); BPR-1598 owns load-robust large-review rows. The earlier full run on 45cc87c97 passed 766 of 775 with only environment and load failures, each passing alone or after its test update. Final merge 74de8b4dd (main 1e72d4d60): the focused landing set passes."}},{"criterion":"BPR-1581:owner-look","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"observation","detail":"Owner verdict in session c1a9372af55350e3cb63fe7d8377eafa: Accept, note: \"We should also be able to go from rview to show in threads because why not\" (BPR-1586); candidate BPR-1581-show-in-discuss-v001, fingerprint 7b34d072ec7a..., decision f5b72418-3a72-46c5-adeb-2cfc17d983ea, frozen build frozen-c6644bad7-v001; handed back at event 13, cursor consumed 13, candidates released at event 14."}}]
 ---
 
 # BPR-1581: Show a thread selected in Review in Discuss, and back
@@ -144,3 +144,31 @@ question per card; frozen root
 `python3 /Users/jaeger/bpr1581-thread-moves-v001.x7yze1z4/launch.py`.
 
 This card's candidate: `BPR-1581-show-in-discuss-v001 (fingerprint `7b34d072ec7a…`)`, criterion `BPR-1581:owner-look`, Pending.
+
+## Closeout, 2026-10-17
+
+**Owner decision: Accept** (Accept, note: "We should also be able to go from rview to show in threads because why not", which became [[BPR-1586]]), decision `f5b72418-3a72-46c5-adeb-2cfc17d983ea` at event 10 of
+session `c1a9372af55350e3cb63fe7d8377eafa`, on candidate `BPR-1581-show-in-discuss-v001`
+(fingerprint `7b34d072ec7a…`, revision `frozen-c6644bad7-v001`). Handed back at
+event 13; cursor consumed 13. The review host was stopped, every candidate
+released (event 14), and the frozen root removed.
+
+Landed on main as `9e27c40c5` (branch `bpr-1581-thread-navigation` at
+`74de8b4dd`, main `1e72d4d60` merged), together with [[BPR-1586]]'s Show in
+Threads. The round-trip composition contract is resealed over main
+`1e72d4d60` for [[BPR-1582]]'s Mark as Unread wiring (the only
+production-app change; mutation digest unchanged).
+
+Verification: the full `dev` suite on the merged tree `30f016602` passed 767
+of 777 (1 skipped). Of its 10 failures, three pass when rerun alone, and
+seven (five large-review budget rows, the two-catalogue epoch read budget and
+the private-review file course's publish timeout) still miss time budgets at
+load average 33–39 with 13 agents building. None of the seven is in a path
+these cards change; [[BPR-1598]] owns load-robust large-review rows. An
+earlier full run on `45cc87c97` passed 766 of 775, with its failures
+environmental or fixed by updating two tests that asserted the old behaviour
+(`qt_github_conversation_panel`, `qt_profile_management_window`). On the
+final merge `74de8b4dd` the 18 focused rows pass, including the thread-moves,
+finder, cards, panel, resident menu, shortcuts, window, multi-window
+composed and composition-contract rows. clang-format 22 clean, clang-tidy 22
+reports nothing in the touched sources, `DOCUMENTATION_OK`.

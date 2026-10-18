@@ -10,6 +10,8 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/steady_columns.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
@@ -659,24 +661,6 @@ namespace bpr::qt {
 				break;
 			}
 			return QStringLiteral("overviewDraftedCommentsValue");
-		}
-
-		constexpr int side_width = 300;
-
-		void fit_side_width(QScrollArea& aSide)
-		{
-			if (aSide.widget() == nullptr) {
-				return;
-			}
-			// A native scrollbar consumes part of the fixed sidebar. Keep its
-			// controls' minimum width when a larger system font needs more room;
-			// overlay scrollbars contribute only their non-overlapping extent.
-			const auto scrollbar = std::max(0, aSide.verticalScrollBar()->sizeHint().width() - aSide.style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, &aSide));
-			const auto requested = std::max(side_width,
-											aSide.widget()->minimumSizeHint().width() + scrollbar + 2 * aSide.frameWidth());
-			if (aSide.minimumWidth() != requested || aSide.maximumWidth() != requested) {
-				aSide.setFixedWidth(requested);
-			}
 		}
 
 		constexpr int chip_width = 58;
@@ -2802,9 +2786,10 @@ namespace bpr::qt {
 		sideScroll->setObjectName(QStringLiteral("overviewSideScroll"));
 		sideScroll->setAccessibleName(QStringLiteral("Participants and review summary"));
 		sideScroll->setWidgetResizable(true);
-		sideScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// [[BPR-1588]]. The Status drawer sets the width; beneath the column's
+		// own minimum it scrolls sideways rather than clipping.
+		sideScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		sideScroll->setFrameShape(QFrame::NoFrame);
-		sideScroll->setFixedWidth(side_width);
 		auto* const side = new QWidget{ sideScroll };
 		Side             = sideScroll;
 		side->setObjectName(QStringLiteral("overviewSideColumn"));
@@ -2902,24 +2887,11 @@ namespace bpr::qt {
 		addValue(overview_value::private_notes);
 		addValue(overview_value::drafted_comments);
 
-		Entry = new QPushButton{ QStringLiteral("Start review"), side };
-		Entry->setObjectName(QStringLiteral("overviewEntryButton"));
-		Entry->setAccessibleName(QStringLiteral("Start review"));
-		Entry->setAccessibleDescription(QStringLiteral(
-			"Enters Read at the first unseen change"));
-		Entry->setDefault(true);
-		Entry->setFocusPolicy(Qt::StrongFocus);
-		connect(Entry, &QPushButton::clicked, this, [this] {
-			if (Projection.has_value() && Projection->EntryPath.has_value() && EntryDispatch) {
-				EntryDispatch(Projection->Entry, text(*Projection->EntryPath));
-			}
-		});
-		sideColumn->addSpacing(12);
-		auto* const entryRow = new QHBoxLayout;
-		entryRow->setContentsMargins(0, 0, 0, 0);
-		entryRow->addWidget(Entry);
-		entryRow->addStretch(1);
-		sideColumn->addLayout(entryRow);
+		// [[BPR-1588]]. No Start review: the owner, 2026-10-17, "Start review is
+		// probably unnecessary now that the Review tab is so convenient, and
+		// double-clicking a file or clicking Next file also works." Its one
+		// job, Review at the first unseen change, is the first entry into
+		// Review from here (`entry_path`).
 		ChecksDisclosure = new disclosure_button{ side };
 		ChecksDisclosure->setObjectName(QStringLiteral("overviewChecksDisclosure"));
 		ChecksDisclosure->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
@@ -2979,23 +2951,46 @@ namespace bpr::qt {
 		});
 		sideColumn->addStretch(1);
 		sideScroll->setWidget(side);
-		side->installEventFilter(this);
 
+		// [[BPR-1588]]. The column is the Status drawer, beside the main column
+		// on a splitter, so it resizes, collapses and is remembered as the
+		// workbench drawers are (RFC-BPR-0085 principle 7).
+		StatusSplit  = new overview_status_splitter{ this };
+		StatusDrawer = new overview_status_drawer{ sideScroll, StatusSplit };
+		StatusSplit->addWidget(main);
+		StatusSplit->addWidget(StatusDrawer);
+		StatusSplit->setStretchFactor(0, 1);
+		StatusSplit->setStretchFactor(1, 0);
+		// A width leaves only from a handle drag, as the workbench's does.
+		connect(StatusSplit, &QSplitter::splitterMoved, this, [this](int, int) { StatusDrawer->observe_drag(StatusDrawer->width()); });
 		auto* const columns = new QHBoxLayout{ this };
 		columns->setContentsMargins(0, 0, 0, 0);
 		columns->setSpacing(0);
-		columns->addWidget(main, 1);
-		columns->addWidget(sideScroll);
+		columns->addWidget(StatusSplit, 1);
 
 		Colours.Marks  = default_feedback_mark_theme(palette());
 		Colours.States = default_feedback_state_colours(palette());
 		refresh_feedback_icons();
+		// [[BPR-1576]]. Each section says its own wait, over its own place, so
+		// a section that is ready shows while the others still load.
+		Veils.Header      = new pending_veil{ *this, pending_shape::text, QStringLiteral("Pull request"), Header };
+		Veils.Description = new pending_veil{ *this, pending_shape::text, QStringLiteral("Description"), SummaryPane };
+		// Over the rows only: the column names stay readable above them.
+		Veils.Files = new pending_veil{ *this, pending_shape::rows, QStringLiteral("Files"), Files->viewport() };
+		Veils.Side  = new pending_veil{ *this, pending_shape::pairs, QStringLiteral("Review summary"), sideScroll };
+		Veils.Side->set_placeholder_count(overview_value_count + 3);
+		// One voice for the page: the files say when the Overview is ready.
+		Veils.Header->set_announces(false);
+		Veils.Description->set_announces(false);
+		Veils.Side->set_announces(false);
 		clear();
 	}
 
 	void pull_request_overview_page::present(const application::pull_request_overview_projection& aProjection)
 	{
-		Cached = false;
+		Cached   = false;
+		Loading  = false;
+		Observed = false;
 		CachedBase.clear();
 		CachedHead.clear();
 		CachedSource->clear();
@@ -3111,7 +3106,7 @@ namespace bpr::qt {
 					  : QStringLiteral("not available"),
 				  false);
 
-		present_entry(aProjection);
+		apply_pending();
 	}
 
 	void pull_request_overview_page::set_check_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)
@@ -3224,22 +3219,6 @@ namespace bpr::qt {
 		present_heading(*FilesHeading, heading);
 	}
 
-	void pull_request_overview_page::present_entry(const application::pull_request_overview_projection& aProjection)
-	{
-		const auto start = aProjection.Entry == application::overview_entry_kind::start_review;
-		Entry->setText(start ? QStringLiteral("Start review") : QStringLiteral("Continue review"));
-		Entry->setAccessibleName(Entry->text());
-		auto entryDescription = QStringLiteral("Nothing to read yet");
-		if (aProjection.EntryPath.has_value()) {
-			entryDescription = start
-				? QStringLiteral("Starts Review at %1").arg(text(*aProjection.EntryPath))
-				: QStringLiteral("Continues at %1").arg(text(*aProjection.EntryPath));
-		}
-		Entry->setToolTip(entryDescription);
-		Entry->setAccessibleDescription(Entry->toolTip());
-		Entry->setEnabled(aProjection.EntryPath.has_value());
-	}
-
 	void pull_request_overview_page::apply_history(const application::overview_history_update& aUpdate)
 	{
 		if (!Projection) {
@@ -3278,7 +3257,6 @@ namespace bpr::qt {
 		set_value(overview_value::files_read,
 				  QStringLiteral("%1 of %2").arg(count_text(Projection->Progress.FilesRead), count_text(Projection->Progress.FilesTotal)),
 				  false);
-		present_entry(*Projection);
 	}
 
 	void pull_request_overview_page::clear()
@@ -3340,8 +3318,14 @@ namespace bpr::qt {
 				value->setForegroundRole(QPalette::PlaceholderText);
 			}
 		}
-		Entry->setText(QStringLiteral("Start review"));
-		Entry->setEnabled(false);
+		// An observation clears the page and goes on loading: its waits keep
+		// their clocks rather than starting again.
+		if (!Observing) {
+			Loading       = false;
+			Observed      = false;
+			ReportedFiles = 0U;
+			apply_pending();
+		}
 	}
 
 	void pull_request_overview_page::present_loading()
@@ -3352,11 +3336,87 @@ namespace bpr::qt {
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
+		// [[BPR-1576]]. The description's place is held while it is unknown,
+		// so the placeholders stand where it will.
+		SummaryPane->setVisible(true);
+		SummarySplit->queue_layout();
+		Loading  = true;
+		Observed = false;
+		apply_pending();
+	}
+
+	auto pull_request_overview_page::pending_veils() const noexcept -> overview_pending_veils
+	{
+		return Veils;
+	}
+
+	void pull_request_overview_page::set_read_waiting(const QString& aWaiting)
+	{
+		if (ReadWaiting == aWaiting) {
+			return;
+		}
+		ReadWaiting = aWaiting;
+		apply_pending();
+	}
+
+	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
+	{
+		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side }) {
+			if (veil != nullptr) {
+				veil->set_full_motion(aFullMotion);
+				veil->set_high_contrast(aHighContrast);
+				veil->set_failure_ink(aFailureInk);
+			}
+		}
+	}
+
+	void pull_request_overview_page::apply_pending()
+	{
+		if (Veils.Header == nullptr) {
+			return;
+		}
+		const auto waiting = ReadWaiting.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(ReadWaiting);
+		const auto section = [&waiting](pending_veil& aVeil, const bool aPending, QString aLoading, QString aDone = { }) {
+			if (!aPending) {
+				aVeil.present_ready();
+				return;
+			}
+			aVeil.present(core::pending_activity::loading, false, false, { .Loading = std::move(aLoading), .Waiting = waiting, .Done = std::move(aDone) });
+		};
+		// The read's provisional answer brings the title and the description
+		// first; the catalogue and the side column come with the accepted review.
+		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
+		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
+		section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+		// As many placeholder rows as GitHub reported files, once it has.
+		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
+		if (Loading) {
+			section(*Veils.Files, true,
+					Observed ? QStringLiteral("Loading the file list: %1 reported…").arg(ReportedFiles == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count_text(ReportedFiles)))
+							 : QStringLiteral("Loading the file list…"),
+					QStringLiteral("Overview ready: files, reviewers and checks are shown."));
+			return;
+		}
+		// The counts by file are the files' last part to arrive: said, not
+		// dimmed, while the rows themselves are already there to read.
+		const auto& feedback = Model->feedback();
+		const auto  counting = Projection.has_value() && !Cached && FeedbackDispatch && AskedFeedback.has_value()
+			&& (!feedback.has_value() || feedback->Request != *AskedFeedback);
+		if (counting) {
+			Veils.Files->present(core::pending_activity::loading, true, true, { .Coming = QStringLiteral("Counting comments by file…") });
+		} else {
+			Veils.Files->present_ready();
+		}
 	}
 
 	void pull_request_overview_page::present_observation(const application::github_loading_overview_projection& aObservation)
 	{
+		Observing = true;
 		clear();
+		Observing     = false;
+		Loading       = true;
+		Observed      = true;
+		ReportedFiles = aObservation.ReportedFiles;
 		Title->setText(text(aObservation.Title));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
@@ -3381,14 +3441,14 @@ namespace bpr::qt {
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
-		Entry->setText(QStringLiteral("Review data loading…"));
-		Entry->setAccessibleName(Entry->text());
-		Entry->setEnabled(false);
+		apply_pending();
 	}
 
 	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)
 	{
 		present_observation(aOverview.Overview);
+		// A cached overview is all there is: nothing more is on its way.
+		Loading    = false;
 		Cached     = true;
 		CachedBase = aOverview.BaseOid;
 		CachedHead = aOverview.HeadOid;
@@ -3421,8 +3481,7 @@ namespace bpr::qt {
 			none->setWordWrap(true);
 			none->setText(QStringLiteral("Participants unavailable offline"));
 		}
-		Entry->setText(QStringLiteral("Review data unavailable offline"));
-		Entry->setAccessibleName(Entry->text());
+		apply_pending();
 	}
 
 	void pull_request_overview_page::show_cached_source(bool aShow)
@@ -3469,7 +3528,7 @@ namespace bpr::qt {
 		SummarySplit->set_expanded(aExpanded);
 		FilesPane->setVisible(!aExpanded);
 		Header->setVisible(!aExpanded);
-		Side->setVisible(!aExpanded);
+		StatusDrawer->setVisible(!aExpanded);
 		Files->setVisible(!aExpanded);
 		FilesHeading->setVisible(!aExpanded);
 		update_folder_controls();
@@ -3642,6 +3701,7 @@ namespace bpr::qt {
 		}
 		AskedFeedback = request;
 		FeedbackDispatch(request);
+		apply_pending();
 	}
 
 	void pull_request_overview_page::present_feedback(const application::overview_feedback_projection& aFeedback)
@@ -3656,6 +3716,7 @@ namespace bpr::qt {
 			apply_rows();
 		}
 		present_feedback_controls();
+		apply_pending();
 	}
 
 	auto pull_request_overview_page::ordered_rows() const -> std::vector<application::overview_file_row>
@@ -3948,10 +4009,6 @@ namespace bpr::qt {
 
 	bool pull_request_overview_page::eventFilter(QObject* const aObject, QEvent* const aEvent)
 	{
-		if (auto* const scroll = qobject_cast<QScrollArea*>(Side);
-			scroll != nullptr && aObject == scroll->widget() && aEvent->type() == QEvent::LayoutRequest) {
-			fit_side_width(*scroll);
-		}
 		if (aObject == Files->viewport()) {
 			const auto type = aEvent->type();
 			if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick) {
@@ -4299,18 +4356,32 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::set_prepare_tour_action(QAction* aAction)
 	{
-		auto* button = new QPushButton{ tr("Prepare review tour"), Entry->parentWidget() };
-		button->setObjectName(QStringLiteral("overviewPrepareTour"));
-		button->setAccessibleDescription(tr("Write a private problem statement, solution and source tour."));
-		Entry->parentWidget()->layout()->addWidget(button);
-		button->setEnabled(aAction->isEnabled());
-		connect(button, &QPushButton::clicked, aAction, &QAction::trigger);
-		connect(aAction, &QAction::changed, button, [button, aAction] { button->setEnabled(aAction->isEnabled()); });
+		// [[BPR-1588]]. An icon on the Status drawer's tab row, no longer a
+		// full-width button at the column's foot (RFC-BPR-0085 principle 5).
+		StatusDrawer->set_tools(aAction, nullptr);
 	}
 
-	void pull_request_overview_page::set_entry_dispatch(overview_entry_dispatch aDispatch)
+	void pull_request_overview_page::set_open_on_github_action(QAction* aAction)
 	{
-		EntryDispatch = std::move(aDispatch);
+		StatusDrawer->set_tools(nullptr, aAction);
+	}
+
+	auto pull_request_overview_page::status_drawer() const noexcept -> overview_status_drawer*
+	{
+		return StatusDrawer;
+	}
+
+	auto pull_request_overview_page::status_splitter() const noexcept -> QSplitter*
+	{
+		return StatusSplit;
+	}
+
+	auto pull_request_overview_page::entry_path() const -> std::optional<QString>
+	{
+		if (!Projection || !Projection->EntryPath) {
+			return std::nullopt;
+		}
+		return text(*Projection->EntryPath);
 	}
 
 	void pull_request_overview_page::set_file_dispatch(overview_path_dispatch aDispatch)
@@ -4441,11 +4512,6 @@ namespace bpr::qt {
 		// not. The comparison decides the centre's minimum; this page takes
 		// what it is given and scrolls its table.
 		return { 0, 0 };
-	}
-
-	auto pull_request_overview_page::entry_button() const noexcept -> QPushButton*
-	{
-		return Entry;
 	}
 
 	void pull_request_overview_page::set_value(const overview_value aValue, const QString& aText, const bool aHighlight)

@@ -91,11 +91,16 @@ namespace bpr::qt {
 		review_details,
 		line_numbers,
 		hide_drawers,
+		/// [[BPR-1588]]. The Overview's Status drawer.
+		status_drawer,
 		overview,
 		review,
 		discuss,
 		threads,
 		find_thread,
+		show_in_discuss,
+		show_in_review,
+		show_in_threads,
 
 		whole_pr,
 		previous_upload,
