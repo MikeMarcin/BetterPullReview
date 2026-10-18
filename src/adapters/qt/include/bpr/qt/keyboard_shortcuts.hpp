@@ -132,6 +132,8 @@ namespace bpr::qt {
 		home_open_review,
 		home_open_window,
 		home_resume,
+		/// [[BPR-1600]]. Home's refresh, on the Refresh key while Home shows.
+		home_refresh,
 
 		cycle_note,
 		cycle_suggest,

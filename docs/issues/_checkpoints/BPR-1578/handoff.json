@@ -56,10 +56,8 @@
     "decision": "reject: 'I think we can do better, feel free to try some redesigns of this element.' (b607aea4-cbe4-4969-8b09-f1b7a6544f95)",
     "released": "v001 server stopped, protection released at event 8, frozen root removed"
   },
-  "pending": [
-    "AC4 (human): owner Accept or Reject of BPR-1578-progress-track-v002"
-  ],
-  "next_action": "After hand-back past cursor 3 in session 3760f12f\u2026: on Accept, merge main into bpr-1578-review-bar-accept, check disk, build dev fully, run one full dev ctest on the merged tree, merge to main, finish the card, push; then stop the server, release protection, remove the frozen root. On Reject, the note becomes v003.",
+  "pending": [],
+  "next_action": "Land on main, finish the card, push.",
   "directions": {
     "harness_commit": "bb4f84cfb",
     "mode": "better_pull_review_qt_workbench_window_tests --review-bar-directions (offscreen, QT_SCALE_FACTOR=2, BPR_QT_RENDER_PATH)",
@@ -131,10 +129,23 @@
       "session": "3760f12fb3aa7cf76b495c277c7d32d5",
       "candidate": "BPR-1578-progress-track-v002",
       "fingerprint": "b1c5e24a30f4975d2d800debb7a38eb0ed9c257dcd0ecf91ce838285684f06eb",
-      "event_cursor": 3,
-      "server_port": 61566,
-      "protected": true,
-      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+      "event_cursor": 6,
+      "server_port": null,
+      "protected": false,
+      "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+      "decision": "accept, no note (c1ec85f1-fff7-445f-b867-ef609d2d69e8)",
+      "released": "server stopped, protection released, frozen root removed"
     }
+  },
+  "integration": {
+    "full_ctest": {
+      "tree": "8d727fab6",
+      "result": "765/774 passed; 9 failures reconciled on the card (2 real, fixed and resealed; 5 load or environment, passing alone or run directly; 2 large-review timing budgets under load ~72, not shown on a quiet machine, BPR-1598)"
+    },
+    "fixes": [
+      "820958163 private progress rect mapped into the bar",
+      "84d236d78 and b795b94c1 round-trip contract reseals"
+    ],
+    "final_tree": "00287bcea merge with main a30b1fa4a; 47 regression rows pass (508 s)"
   }
 }

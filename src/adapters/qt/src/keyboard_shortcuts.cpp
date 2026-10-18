@@ -148,6 +148,11 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::home_open_review, .Group = home, .Binding = read, .Title = "Open the review", .Place = "On a Home row", .Keys = "Return", .Objects = "homeOpenReviewAction" },
 			shortcut_entry{ .Command = command::home_open_window, .Group = home, .Binding = read, .Title = "Open the review in a new window", .Place = "On a Home row", .Keys = "Ctrl+Return", .Objects = "homeOpenReviewInNewWindowAction" },
 			shortcut_entry{ .Command = command::home_resume, .Group = home, .Binding = read, .Title = "Resume where you were", .Place = "In Recently viewed", .Keys = "Shift+Return", .Objects = "homeRecentResumeAction" },
+			// [[BPR-1600]]. The window's Refresh key does whichever refresh is
+			// showing: the key is on this action while Home shows and on the pull
+			// request's otherwise, never on both. Like the pull request's, it
+			// acts while the keyboard is in Home's Open bar.
+			shortcut_entry{ .Command = command::home_refresh, .Group = home, .Binding = bound, .Title = "Refresh my pull requests", .Place = "On Home", .Standard = QKeySequence::Refresh, .Conditional = true, .Objects = "refreshQueueAction" },
 
 		// Review Cycles: a local project's own keys ([[BPR-1157]], [[BPR-1280]]).
 		// The code view reads Return as macOS names it and Enter as Windows
@@ -186,7 +191,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::quit, .Group = application, .Binding = bound, .Title = "Quit", .Standard = QKeySequence::Quit, .Objects = "quitProfilesAction;desktopQuitProfilesAction" },
 			shortcut_entry{ .Command = command::connect, .Group = application, .Binding = bound, .Title = "Sign in to GitHub", .Keys = "Ctrl+Shift+C", .Objects = "connectGithubAction" },
 			shortcut_entry{ .Command = command::open_pull_request, .Group = application, .Binding = bound, .Title = "Open a pull request", .Standard = QKeySequence::Open, .Objects = "openPullRequestAction" },
-			shortcut_entry{ .Command = command::refresh, .Group = application, .Binding = bound, .Title = "Refresh the pull request", .Standard = QKeySequence::Refresh, .Objects = "refreshPullRequestAction" },
+			shortcut_entry{ .Command = command::refresh, .Group = application, .Binding = bound, .Title = "Refresh the pull request", .Place = "With a pull request showing", .Standard = QKeySequence::Refresh, .Conditional = true, .Objects = "refreshPullRequestAction" },
 		};
 
 		[[nodiscard]] consteval auto in_command_order() -> bool

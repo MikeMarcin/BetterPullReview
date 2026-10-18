@@ -1778,15 +1778,45 @@ namespace bpr::qt {
 			ReviewBar, ChangePositionLabel, QStringLiteral("workbenchStripChangePositionAction"));
 		ReviewBar->addAction(Navigation[2].Action);
 		ReviewBar->addAction(Navigation[3].Action);
-		ReviewBar->set_navigation_rails(FilePositionAction, Navigation[1].Action, ChangePositionAction, Navigation[3].Action);
 		// [[BPR-1507]]. The normal file control exposes the existing exact
 		// acceptance action directly; its state menu keeps every alternative.
+		// [[BPR-1578]]. The owner, 2026-10-17: "Accept is a button next to
+		// other similar text labels in Changes and Files which are not
+		// buttons, it's kind of confusing. It also doesn't have the under bar
+		// that connects it to the dropdown control". After two rounds of
+		// directions the owner chose the progress track (v002): Seen, Read and
+		// Accept as steps of one control, the menu's chevron its last cell,
+		// on one rail as File and Changes are with their arrows. The rails of
+		// neighbouring groups must not run together: File and Changes are
+		// parted by the Changes label's slot, Changes and this group by a bare
+		// gap.
+		auto* const progressGap = new QWidget{ ReviewBar };
+		progressGap->setObjectName(QStringLiteral("reviewBarProgressGap"));
+		progressGap->setFocusPolicy(Qt::NoFocus);
+		progressGap->setFixedWidth(8);
+		rowWidget(ReviewBar, progressGap, QStringLiteral("reviewBarProgressGapAction"));
+		const auto makeStep = [this](const QString& aName, const QString& aAccessible, const std::size_t aIndex) {
+			auto* const step = new QToolButton{ ReviewBar };
+			step->setObjectName(aName);
+			step->setText(aAccessible);
+			step->setAccessibleName(aAccessible);
+			step->setEnabled(false);
+			connect(step, &QToolButton::clicked, this, [this, aIndex] { take_progress_step(aIndex); });
+			return step;
+		};
+		SeenStepButton   = makeStep(QStringLiteral("workbenchProgressSeenStep"), QStringLiteral("Seen"), progress_track::seen_step);
+		ReadStepButton   = makeStep(QStringLiteral("workbenchProgressReadStep"), QStringLiteral("Read"), progress_track::read_step);
 		AcceptFileButton = new QToolButton{ ReviewBar };
 		AcceptFileButton->setObjectName(QStringLiteral("workbenchAcceptFileButton"));
 		AcceptFileButton->setDefaultAction(ReceiptActions[2]);
-		AcceptFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
-		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
+		ProgressTrack = new progress_track{ *SeenStepButton, *ReadStepButton, *AcceptFileButton, *ReviewControlsButton, ReviewBar };
+		ProgressTrack->setAccessibleName(QStringLiteral("Private progress"));
+		auto* const trackAction = rowWidget(ReviewBar, ProgressTrack, QStringLiteral("workbenchProgressTrackAction"));
+		ReviewBar->set_group_rails({
+			{ .First = FilePositionAction, .Last = Navigation[1].Action },
+			{ .First = ChangePositionAction, .Last = Navigation[3].Action },
+			{ .First = trackAction, .Last = trackAction },
+		});
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
 		// keys work from anywhere in it without a visible presenter; the bar and
@@ -3376,8 +3406,9 @@ namespace bpr::qt {
 		addAction(GithubRefreshAction);
 		// [[BPR-0990]]. Home's refresh glyph is the profile's discovery, not
 		// the pull request's refresh: the same place in the strip, its own
-		// action, shown only on Home with an account. It has no shortcut of
-		// its own; the window's Refresh shortcut stays the pull request's.
+		// action, shown only on Home with an account. [[BPR-1600]]: the
+		// window's Refresh key moves to it while Home shows
+		// (`apply_refresh_key`).
 		QueueRefreshAction = new QAction{ QStringLiteral("Refresh my pull requests"), this };
 		QueueRefreshAction->setObjectName(QStringLiteral("refreshQueueAction"));
 		QueueRefreshAction->setIconText(QStringLiteral("Refresh"));
@@ -3519,11 +3550,14 @@ namespace bpr::qt {
 		build_enterprise_server_draft(accounts, *accountsColumn);
 		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
 		build_repositories_page();
-		// [[BPR-0652]]. Reviews & queue: the observer rules, and a plain
-		// statement of what the page will hold once its authorities exist.
+		// [[BPR-0652]]. Home & queue (Reviews & queue until [[BPR-1597]]):
+		// the queue defaults, the observer rules and the way to Repositories.
+		// [[BPR-1597]]. The review and comment rows have pages of their own,
+		// Review and Comments (owner's pick A, 2026-10-17: "Reviews & queue is
+		// too much of a big grab bag of settings").
 		auto* const reviews = new QWidget;
 		reviews->setObjectName(QStringLiteral("workbenchReviewsPage"));
-		reviews->setAccessibleName(QStringLiteral("Reviews and queue"));
+		reviews->setAccessibleName(QStringLiteral("Home and queue"));
 		auto* const reviewsColumn = new QVBoxLayout{ reviews };
 		reviewsColumn->setContentsMargins(0, 0, 0, 0);
 		auto* const reviewsSubtitle = new QLabel{
@@ -3533,7 +3567,23 @@ namespace bpr::qt {
 		reviewsSubtitle->setObjectName(QStringLiteral("reviewsSubtitle"));
 		reviewsSubtitle->setWordWrap(true);
 		reviewsColumn->addWidget(reviewsSubtitle);
-		build_behaviour_editor(reviews, reviewsColumn);
+		const auto settingsPage = [](const QString& aName, const QString& aAccessible, const QString& aSubtitle) {
+			auto* const page = new QWidget;
+			page->setObjectName(aName);
+			page->setAccessibleName(aAccessible);
+			auto* const pageColumn = new QVBoxLayout{ page };
+			pageColumn->setContentsMargins(0, 0, 0, 0);
+			auto* const subtitle = new QLabel{ aSubtitle, page };
+			subtitle->setObjectName(aName + QStringLiteral("Subtitle"));
+			subtitle->setWordWrap(true);
+			pageColumn->addWidget(subtitle);
+			return std::pair{ page, pageColumn };
+		};
+		const auto [reviewPage, reviewColumn]     = settingsPage(QStringLiteral("workbenchReviewPage"), QStringLiteral("Review"), QStringLiteral("How a pull request opens and reads. Local behaviour only."));
+		const auto [commentsPage, commentsColumn] = settingsPage(QStringLiteral("workbenchCommentsPage"), QStringLiteral("Comments"), QStringLiteral("Labels, the comment workshop, and how comments read. Local behaviour only."));
+		build_behaviour_editor(reviewPage, reviewColumn, commentsPage, commentsColumn);
+		reviewColumn->addStretch(1);
+		commentsColumn->addStretch(1);
 		build_queue_settings(reviews, reviewsColumn);
 		auto* const rulesHeading = new QLabel{ QStringLiteral("Observer rules"), reviews };
 		rulesHeading->setObjectName(QStringLiteral("reviewsRulesHeading"));
@@ -3568,7 +3618,9 @@ namespace bpr::qt {
 		savedPointerRow->addWidget(openRepositories, 0, Qt::AlignRight);
 		connect(openRepositories, &QPushButton::clicked, this, [this] { open_settings(settings_page::repositories); });
 		reviewsColumn->addWidget(savedPointer);
-		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
+		SettingsWindow->adopt_panel(settings_page::home_and_queue, reviews);
+		SettingsWindow->adopt_panel(settings_page::review, reviewPage);
+		SettingsWindow->adopt_panel(settings_page::comments, commentsPage);
 		build_capability_settings();
 
 		static_cast<void>(Drawers[0].Panel->layout());
@@ -3946,7 +3998,7 @@ namespace bpr::qt {
 		// order, over the same decided queue, and Recently viewed last. A
 		// click or Return on a row opens its pull request on Overview, as a
 		// row of the repositories tree does; an empty queue's sentence links
-		// to Reviews & queue.
+		// to Home & queue.
 		HomeList = new qt::home_list{ *QueueFilterModel, surface };
 		// The built-in state colours until the composition hands over the
 		// profile it resolved.
@@ -4030,7 +4082,7 @@ namespace bpr::qt {
 			popup_home_row_menu(aGlobal);
 		});
 		// The empty lane's link names the saved repositories, so it opens their
-		// page; observer rules stay reachable from Filter's Open Reviews & queue.
+		// page; observer rules stay reachable from Filter's Open Home & queue.
 		HomeList->set_settings_dispatch([this] { open_settings(settings_page::repositories); });
 		// [[BPR-1580]]. The filtered sentence's Clear filters.
 		HomeList->set_clear_filters_dispatch([this] { restore_home_view_defaults(false); });
@@ -4223,7 +4275,7 @@ namespace bpr::qt {
 				this,
 				[this] { update_queue_rule_actions(); });
 		// [[BPR-0652]]. The rule editor is a settings surface: it lives on
-		// Reviews & queue, adopted there once the Settings window exists.
+		// Home & queue, adopted there once the Settings window exists.
 		// Home keeps the queue and its filters.
 		RulesEditor = new QWidget;
 		RulesEditor->setObjectName(QStringLiteral("observerRulesEditor"));
@@ -4299,6 +4351,7 @@ namespace bpr::qt {
 		column->addWidget(ClaudeWrapper);
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addWidget(WritingHooks);
+		WritingHooks->present_label_helper(Behaviour.LabelHelper);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 
 		auto* const storage       = new QWidget;
@@ -4637,7 +4690,7 @@ namespace bpr::qt {
 			QStringLiteral("Show pull requests by my part in them on GitHub.")));
 		static_cast<void>(add_home_view_submenu(
 			home_view_choice::added_by, QStringLiteral("homeAddedByMenu"),
-			QStringLiteral("Show pull requests by the observer rule that added them. Observer rules are mine, kept in Settings › Reviews & queue, and never change GitHub.")));
+			QStringLiteral("Show pull requests by the observer rule that added them. Observer rules are mine, kept in Settings › Home & queue, and never change GitHub.")));
 		static_cast<void>(add_home_view_submenu(
 			home_view_choice::quiet, QStringLiteral("homeQuietMenu"),
 			QStringLiteral("A quiet pull request has nothing new for me and nothing waiting on anyone.")));
@@ -4661,13 +4714,13 @@ namespace bpr::qt {
 		// well as by pointer.
 		// The name carries an ampersand, which a menu would otherwise eat as a
 		// mnemonic (`menu_literal`).
-		HomeFilterSettings = HomeViewMenu->addAction(menu_literal(QStringLiteral("Open Reviews & queue")));
+		HomeFilterSettings = HomeViewMenu->addAction(menu_literal(QStringLiteral("Open Home & queue")));
 		HomeFilterSettings->setObjectName(QStringLiteral("homeFilterSettingsAction"));
 		HomeFilterSettings->setToolTip(QStringLiteral(
-			"Opens Settings, Reviews & queue, where observer rules and queue defaults are kept."));
+			"Opens Settings, Home & queue, where observer rules and queue defaults are kept."));
 		HomeFilterSettings->setStatusTip(HomeFilterSettings->toolTip());
 		connect(HomeFilterSettings, &QAction::triggered, this, [this] {
-			open_settings(settings_page::reviews_and_queue);
+			open_settings(settings_page::home_and_queue);
 		});
 
 		HomeViewButton = new menu_tool_button{ this };
@@ -4773,7 +4826,7 @@ namespace bpr::qt {
 
 		auto& addedBy = *HomeViewSubmenus[static_cast<std::size_t>(home_view_choice::added_by)];
 		// What an observer rule is, and where it is kept, as the first line.
-		auto* const rules = addedBy.addAction(menu_literal(QStringLiteral("Observer rules are mine, kept in Settings › Reviews & queue")));
+		auto* const rules = addedBy.addAction(menu_literal(QStringLiteral("Observer rules are mine, kept in Settings › Home & queue")));
 		rules->setObjectName(QStringLiteral("homeAddedByMeaning"));
 		rules->setEnabled(false);
 		for (const auto& [value, words] : std::array{
@@ -9426,6 +9479,7 @@ namespace bpr::qt {
 	auto workbench_window::label_columns_editor() const noexcept -> feedback_label_columns_editor* { return LabelColumnsEditor; }
 	auto workbench_window::label_columns_recovery() const noexcept -> QLabel* { return LabelColumnsRecovery; }
 	auto workbench_window::mark_colours_link() const noexcept -> QToolButton* { return MarkColoursLink; }
+	auto workbench_window::workshop_guidance_link() const noexcept -> QToolButton* { return WorkshopGuidanceLink; }
 	auto workbench_window::conventional_comments_caption() const noexcept -> QLabel* { return ConventionalCommentsCaption; }
 	auto workbench_window::conventional_comments_link() const noexcept -> QToolButton* { return ConventionalCommentsLink; }
 	auto workbench_window::conventional_comments_status() const noexcept -> QLabel* { return ConventionalCommentsStatus; }
@@ -9437,14 +9491,21 @@ namespace bpr::qt {
 	// own. A row dispatches the whole record; the host validates, persists and
 	// publishes it, and the page follows what is published, so a refused
 	// record reverts.
-	void workbench_window::build_behaviour_editor(QWidget* const aPage, QVBoxLayout* const aColumn)
+	void workbench_window::build_behaviour_editor(QWidget* const aReviewPage, QVBoxLayout* const aReviewColumn, QWidget* const aCommentsPage, QVBoxLayout* const aCommentsColumn)
 	{
-		BehaviourEditor = new QWidget{ aPage };
+		BehaviourEditor = new QWidget{ aReviewPage };
 		BehaviourEditor->setObjectName(QStringLiteral("reviewBehaviourEditor"));
 		BehaviourEditor->setAccessibleName(QStringLiteral("Review behaviour"));
 		auto* const column = new QVBoxLayout{ BehaviourEditor };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(6);
+		// [[BPR-1597]]. Settings › Comments: the comment rows, on their own page.
+		CommentsEditor = new QWidget{ aCommentsPage };
+		CommentsEditor->setObjectName(QStringLiteral("commentsBehaviourEditor"));
+		CommentsEditor->setAccessibleName(QStringLiteral("Comments"));
+		auto* const commentsColumn = new QVBoxLayout{ CommentsEditor };
+		commentsColumn->setContentsMargins(0, 0, 0, 0);
+		commentsColumn->setSpacing(6);
 
 		struct option
 		{
@@ -9471,10 +9532,11 @@ namespace bpr::qt {
 			/// name column: `Control` takes the whole width.
 			bool Wide = false;
 		};
-		const auto addGroup = [this, column](const QString&          aHeading,
-											 const QString&          aResetName,
-											 const std::vector<row>& aRows,
-											 auto                    aReset) {
+		const auto addGroup = [this](QVBoxLayout* const      aColumn,
+									 const QString&          aHeading,
+									 const QString&          aResetName,
+									 const std::vector<row>& aRows,
+									 auto                    aReset) {
 			auto* const headingRow = new QHBoxLayout{ };
 			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
 			heading->setObjectName(aResetName + QStringLiteral("Heading"));
@@ -9496,10 +9558,10 @@ namespace bpr::qt {
 				BehaviourDispatch(next);
 			});
 			headingRow->addWidget(reset);
-			column->addLayout(headingRow);
+			aColumn->addLayout(headingRow);
 			for (const auto& one : aRows) {
 				if (one.Wide && one.Control != nullptr) {
-					column->addWidget(one.Control);
+					aColumn->addWidget(one.Control);
 					continue;
 				}
 				auto* const line  = new QHBoxLayout{ };
@@ -9508,6 +9570,13 @@ namespace bpr::qt {
 				label->setMinimumWidth(180);
 				line->addWidget(label, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 				if (one.Control != nullptr) {
+					// [[BPR-1597]]. A control made before its group's heading
+					// follows it in the page's child order, which is the
+					// order Settings search reads headings and rows in.
+					one.Control->raise();
+					if (one.Trailing != nullptr) {
+						one.Trailing->raise();
+					}
 					label->setBuddy(one.Control);
 					line->addWidget(one.Control, 0, one.Top ? Qt::AlignTop : Qt::Alignment{ });
 					if (one.Trailing != nullptr) {
@@ -9515,7 +9584,7 @@ namespace bpr::qt {
 						line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 					}
 					line->addStretch(1);
-					column->addLayout(line);
+					aColumn->addLayout(line);
 					continue;
 				}
 				auto& buttons = BehaviourOptions[one.Index];
@@ -9544,13 +9613,17 @@ namespace bpr::qt {
 					line->addWidget(one.Trailing, 0, Qt::AlignVCenter);
 				}
 				line->addStretch(1);
-				column->addLayout(line);
+				aColumn->addLayout(line);
 			}
 			return reset;
 		};
+		// [[BPR-1597]]. Settings › Review, by task (owner's pick A,
+		// 2026-10-17): how a pull request opens, how it reads, and its layout.
+		// Each group's Reset covers its own rows.
 		addGroup(
-			QStringLiteral("Modality rules"),
-			QStringLiteral("resetModalityRules"),
+			column,
+			QStringLiteral("Opening"),
+			QStringLiteral("resetOpening"),
 			{
 				row{ 0U,
 					 QStringLiteral("A pull request opens in"),
@@ -9560,11 +9633,24 @@ namespace bpr::qt {
 					   { QStringLiteral("Last used"), QStringLiteral("openModalityLastUsed") } } },
 				// [[BPR-1295]]. Row 1, "Continue review enters", went with
 				// Read: Start and Continue review both enter Review.
+				row{ 3U,
+					 QStringLiteral("On return, compare"),
+					 QStringLiteral("returnComparison"),
+					 { { QStringLiteral("Whole PR"), QStringLiteral("returnComparisonWholePr") },
+					   { QStringLiteral("Since my last review"), QStringLiteral("returnComparisonSinceLastReview") },
+					   { QStringLiteral("Since last upload"), QStringLiteral("returnComparisonSinceLastUpload") } } },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.OpenModality = application::review_behaviour_settings{ }.OpenModality;
+				aNext.OpenModality     = application::review_behaviour_settings{ }.OpenModality;
+				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
 			});
+		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
+		// a setting." Threads and Discuss only; never the code comparison.
+		// [[BPR-1597]]: a row of Review › Reading.
+		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
+		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
 		addGroup(
+			column,
 			QStringLiteral("Reading"),
 			QStringLiteral("resetReadingBehaviour"),
 			{
@@ -9573,40 +9659,31 @@ namespace bpr::qt {
 					 QStringLiteral("markRead"),
 					 { { QStringLiteral("By hand"), QStringLiteral("markReadByHand") },
 					   { QStringLiteral("When fully seen"), QStringLiteral("markReadWhenFullySeen") } } },
-				row{ 3U,
-					 QStringLiteral("On return, compare"),
-					 QStringLiteral("returnComparison"),
-					 { { QStringLiteral("Whole PR"), QStringLiteral("returnComparisonWholePr") },
-					   { QStringLiteral("Since my last review"), QStringLiteral("returnComparisonSinceLastReview") },
-					   { QStringLiteral("Since last upload"), QStringLiteral("returnComparisonSinceLastUpload") } } },
 				row{ 4U,
 					 QStringLiteral("Comments drawer opens on"),
 					 QStringLiteral("commentsFilter"),
 					 { { QStringLiteral("All"), QStringLiteral("commentsFilterAll") },
 					   { QStringLiteral("Unread"), QStringLiteral("commentsFilterUnread") },
 					   { QStringLiteral("Unresolved"), QStringLiteral("commentsFilterUnresolved") } } },
+				row{ 10U,
+					 QStringLiteral("Reading width"),
+					 QStringLiteral("readingWidth"),
+					 { { QStringLiteral("Narrow"), QStringLiteral("readingWidthNarrow") },
+					   { QStringLiteral("Medium"), QStringLiteral("readingWidthMedium") },
+					   { QStringLiteral("Wide"), QStringLiteral("readingWidthWide") },
+					   { QStringLiteral("Full width"), QStringLiteral("readingWidthFull") } },
+					 readingInfo,
+					 nullptr,
+					 4 },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.MarkRead         = application::review_behaviour_settings{ }.MarkRead;
-				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
-				aNext.CommentsFilter   = application::review_behaviour_settings{ }.CommentsFilter;
+				aNext.MarkRead       = application::review_behaviour_settings{ }.MarkRead;
+				aNext.CommentsFilter = application::review_behaviour_settings{ }.CommentsFilter;
+				aNext.ReadingWidth   = core::default_reading_width;
 			});
 		// [[BPR-0721]]. The owner found the collapsed rails and the Hide
 		// buttons took room the strip's toggles already cover, and asked for
 		// a setting rather than their removal. Off is the default.
-		addGroup(
-			QStringLiteral("Drawers"),
-			QStringLiteral("resetDrawers"),
-			{
-				row{ 5U,
-					 QStringLiteral("Drawer controls"),
-					 QStringLiteral("drawerControls"),
-					 { { QStringLiteral("Hidden"), QStringLiteral("drawerControlsHidden") },
-					   { QStringLiteral("Shown"), QStringLiteral("drawerControlsShown") } } },
-			},
-			[](application::review_behaviour_settings& aNext) {
-				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
-			});
 		CenterRibbonWidth = new QSpinBox{ BehaviourEditor };
 		CenterRibbonWidth->setObjectName(QStringLiteral("centerRibbonWidth"));
 		CenterRibbonWidth->setAccessibleName(QStringLiteral("Center ribbon width"));
@@ -9621,10 +9698,18 @@ namespace bpr::qt {
 		});
 		// [[BPR-1334]]. The owner, 2026-10-08: "an optional on by default view
 		// page below the side by side". The same choice as View > Line Details.
+		// [[BPR-0721]] drawer controls and the comparison's line details and
+		// ribbon are one Layout group since [[BPR-1597]].
 		addGroup(
-			QStringLiteral("Comparison"),
-			QStringLiteral("resetComparisonBehaviour"),
+			column,
+			QStringLiteral("Layout"),
+			QStringLiteral("resetLayout"),
 			{
+				row{ 5U,
+					 QStringLiteral("Drawer controls"),
+					 QStringLiteral("drawerControls"),
+					 { { QStringLiteral("Hidden"), QStringLiteral("drawerControlsHidden") },
+					   { QStringLiteral("Shown"), QStringLiteral("drawerControlsShown") } } },
 				row{ 8U,
 					 QStringLiteral("Line details"),
 					 QStringLiteral("lineDetails"),
@@ -9633,6 +9718,7 @@ namespace bpr::qt {
 				row{ 0U, QStringLiteral("Center ribbon width"), QStringLiteral("centerRibbonWidth"), { }, nullptr, CenterRibbonWidth },
 			},
 			[](application::review_behaviour_settings& aNext) {
+				aNext.DrawerControls    = application::review_behaviour_settings{ }.DrawerControls;
 				aNext.LineDetails       = application::review_behaviour_settings{ }.LineDetails;
 				aNext.CenterRibbonWidth = application::default_center_ribbon_width;
 			});
@@ -9640,44 +9726,6 @@ namespace bpr::qt {
 		// descriptions and comments" preference, on by default.
 		auto* const imagesInfo = new info_glyph{ QStringLiteral("Images in pull request descriptions and comments load as they do on GitHub. Don't load: each stays a link with its description, and nothing is fetched."), BehaviourEditor };
 		imagesInfo->setObjectName(QStringLiteral("markdownImagesInfo"));
-		addGroup(
-			QStringLiteral("Descriptions and comments"),
-			QStringLiteral("resetDescriptionsAndComments"),
-			{
-				row{ 9U,
-					 QStringLiteral("Images"),
-					 QStringLiteral("markdownImages"),
-					 { { QStringLiteral("Load"), QStringLiteral("markdownImagesLoad") },
-					   { QStringLiteral("Don't load"), QStringLiteral("markdownImagesOff") } },
-					 imagesInfo,
-					 nullptr,
-					 4 },
-			},
-			[](application::review_behaviour_settings& aNext) {
-				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
-			});
-		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
-		// a setting." Threads and Discuss only; never the code comparison.
-		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
-		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
-		addGroup(
-			QStringLiteral("Reading"),
-			QStringLiteral("resetReading"),
-			{
-				row{ 10U,
-					 QStringLiteral("Reading width"),
-					 QStringLiteral("readingWidth"),
-					 { { QStringLiteral("Narrow"), QStringLiteral("readingWidthNarrow") },
-					   { QStringLiteral("Medium"), QStringLiteral("readingWidthMedium") },
-					   { QStringLiteral("Wide"), QStringLiteral("readingWidthWide") },
-					   { QStringLiteral("Full width"), QStringLiteral("readingWidthFull") } },
-					 readingInfo,
-					 nullptr,
-					 4 },
-			},
-			[](application::review_behaviour_settings& aNext) {
-				aNext.ReadingWidth = core::default_reading_width;
-			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -9686,17 +9734,21 @@ namespace bpr::qt {
 		// in the published style sit beside the choices.
 		FeedbackMarksPreview = new feedback_mark_preview{ BehaviourEditor };
 		// [[BPR-1088]]. The rest of the section the owner accepted (BPR-1079
-		// Settings v1, adjusted to Overview chips in v2): the label helper,
-		// off by default, which since [[BPR-1565]] (owner, 2026-10-16: the
-		// `:xx:` codes removed) only decides whether a comment workshop
-		// request carries the Review feedback guidance ([[BPR-1091]]); where
-		// the Overview's counts start, Open by default;
-		// a link to the label tints; and the Overview chips, ticked and put in
-		// order. Each row dispatches the whole record and shows what the host
-		// publishes, so a refused or failed save reverts here.
-		LabelHelperSwitch = new QCheckBox{ BehaviourEditor };
+		// Settings v1, adjusted to Overview chips in v2): where the Overview's
+		// counts start, Open by default; a link to the label tints; and the
+		// Overview chips, ticked and put in order. Each row dispatches the
+		// whole record and shows what the host publishes, so a refused or
+		// failed save reverts here.
+		//
+		// [[BPR-1568]]. The label helper, which since [[BPR-1565]] only
+		// decides whether a comment workshop request carries the Review
+		// feedback guidance ([[BPR-1091]]), is the Comment workshop group's
+		// own row below (owner, 2026-10-16: "Just give it it's own section
+		// for comments or something."), with its own Reset and a link to
+		// where the guidance text is edited. Same stored preference.
+		LabelHelperSwitch = new QCheckBox{ QStringLiteral("Send with comment workshop requests"), BehaviourEditor };
 		LabelHelperSwitch->setObjectName(QStringLiteral("labelHelperSwitch"));
-		LabelHelperSwitch->setAccessibleName(QStringLiteral("Label helper"));
+		LabelHelperSwitch->setAccessibleName(QStringLiteral("Feedback guidance: send with comment workshop requests"));
 		LabelHelperSwitch->setFocusPolicy(Qt::StrongFocus);
 		connect(LabelHelperSwitch, &QCheckBox::toggled, this, [this] {
 			if (!ApplyingBehaviour) {
@@ -9708,9 +9760,36 @@ namespace bpr::qt {
 		helperLayout->setContentsMargins(0, 0, 0, 0);
 		helperLayout->setSpacing(4);
 		helperLayout->addWidget(LabelHelperSwitch);
-		auto* const helperInfo = new info_glyph{ QStringLiteral("Sends the Review feedback guidance with each comment workshop request. Off: requests go without it. Labels count either way."), helperRow };
+		auto* const helperInfo = new info_glyph{ QStringLiteral("The Review feedback guidance tells the agent how comment labels and decorations work. On: each comment workshop request carries it. Off, the default: requests go without it. Labels count either way."), helperRow };
 		helperInfo->setObjectName(QStringLiteral("labelHelperInfo"));
 		helperLayout->addWidget(helperInfo);
+		LabelHelperSwitch->setAccessibleDescription(helperInfo->consequence());
+		// Where the guidance text lives, as Mark colours points at the tints.
+		WorkshopGuidanceLink = new QToolButton{ BehaviourEditor };
+		WorkshopGuidanceLink->setObjectName(QStringLiteral("workshopGuidanceLink"));
+		// "&&" draws one ampersand: a single "&" would be a mnemonic.
+		WorkshopGuidanceLink->setText(QStringLiteral("Agents && context › Review feedback ›"));
+		WorkshopGuidanceLink->setAutoRaise(true);
+		WorkshopGuidanceLink->setCursor(Qt::PointingHandCursor);
+		WorkshopGuidanceLink->setFocusPolicy(Qt::StrongFocus);
+		WorkshopGuidanceLink->setToolTip(QStringLiteral("Opens the Review feedback writing instructions, where the guidance text is edited"));
+		WorkshopGuidanceLink->setAccessibleName(QStringLiteral("Guidance text: Agents & context, Review feedback"));
+		WorkshopGuidanceLink->setAccessibleDescription(WorkshopGuidanceLink->toolTip());
+		anchor_tooltips(*WorkshopGuidanceLink);
+		{
+			auto linkPalette = WorkshopGuidanceLink->palette();
+			linkPalette.setColor(QPalette::ButtonText, readable_link_colour(linkPalette));
+			WorkshopGuidanceLink->setPalette(linkPalette);
+		}
+		connect(WorkshopGuidanceLink, &QToolButton::clicked, this, [this] {
+			if (SettingsWindow == nullptr) {
+				return;
+			}
+			SettingsWindow->present(settings_page::agents_and_context);
+			if (WritingHooks != nullptr) {
+				WritingHooks->select_hook(core::writing_hook::feedback);
+			}
+		});
 		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
 		countsInfo->setObjectName(QStringLiteral("overviewCountsInfo"));
 		MarkColoursLink = new QToolButton{ BehaviourEditor };
@@ -9811,11 +9890,11 @@ namespace bpr::qt {
 		conventionalRow->addWidget(ConventionalCommentsStatus);
 		ConventionalCommentsRow->setVisible(static_cast<bool>(ReferenceDispatch));
 		auto* const commentLabelsReset = addGroup(
-			QStringLiteral("Comment labels"),
+			commentsColumn,
+			QStringLiteral("Labels"),
 			QStringLiteral("resetCommentLabels"),
 			{
 				row{ .Index = 0U, .Label = { }, .Name = QStringLiteral("conventionalComments"), .Options = { }, .Control = ConventionalCommentsRow, .Wide = true },
-				row{ .Index = 0U, .Label = QStringLiteral("Label helper"), .Name = QStringLiteral("labelHelper"), .Options = { }, .Control = helperRow },
 				row{ .Index    = 6U,
 					 .Label    = QStringLiteral("Label marks"),
 					 .Name     = QStringLiteral("feedbackMarks"),
@@ -9835,13 +9914,44 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				const auto defaults  = application::review_behaviour_settings{ };
 				aNext.FeedbackMarks  = defaults.FeedbackMarks;
-				aNext.LabelHelper    = defaults.LabelHelper;
 				aNext.OverviewCounts = defaults.OverviewCounts;
 				aNext.LabelColumns   = defaults.LabelColumns;
 			});
 		commentLabelsReset->setToolTip(QStringLiteral("Reset comment labels"));
-		commentLabelsReset->setAccessibleDescription(QStringLiteral("Returns the label helper, label marks, Overview counts and Overview chips to their defaults; nothing else changes"));
-		aColumn->addWidget(BehaviourEditor);
+		commentLabelsReset->setAccessibleName(QStringLiteral("Reset comment labels"));
+		commentLabelsReset->setAccessibleDescription(QStringLiteral("Returns label marks, Overview counts and Overview chips to their defaults; nothing else changes"));
+		auto* const commentWorkshopReset = addGroup(
+			commentsColumn,
+			QStringLiteral("Comment workshop"),
+			QStringLiteral("resetCommentWorkshop"),
+			{
+				row{ .Index = 0U, .Label = QStringLiteral("Feedback guidance"), .Name = QStringLiteral("labelHelper"), .Options = { }, .Control = helperRow },
+				row{ .Index = 0U, .Label = QStringLiteral("Guidance text"), .Name = QStringLiteral("workshopGuidance"), .Options = { }, .Control = WorkshopGuidanceLink },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.LabelHelper = application::review_behaviour_settings{ }.LabelHelper;
+			});
+		commentWorkshopReset->setToolTip(QStringLiteral("Reset comment workshop"));
+		commentWorkshopReset->setAccessibleDescription(QStringLiteral("Turns the feedback guidance off, its default; nothing else changes"));
+		addGroup(
+			commentsColumn,
+			QStringLiteral("Descriptions and comments"),
+			QStringLiteral("resetDescriptionsAndComments"),
+			{
+				row{ 9U,
+					 QStringLiteral("Images"),
+					 QStringLiteral("markdownImages"),
+					 { { QStringLiteral("Load"), QStringLiteral("markdownImagesLoad") },
+					   { QStringLiteral("Don't load"), QStringLiteral("markdownImagesOff") } },
+					 imagesInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
+			});
+		aReviewColumn->addWidget(BehaviourEditor);
+		aCommentsColumn->addWidget(CommentsEditor);
 		apply_behaviour_controls();
 		refresh_open_count_mark();
 	}
@@ -9996,6 +10106,11 @@ namespace bpr::qt {
 		}
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
+		}
+		// [[BPR-1568]]. The Review feedback hook's line says what this
+		// window's published record says.
+		if (WritingHooks != nullptr) {
+			WritingHooks->present_label_helper(Behaviour.LabelHelper);
 		}
 		if (LabelColumnsEditor != nullptr) {
 			LabelColumnsEditor->set_columns(Behaviour.LabelColumns);
@@ -10289,6 +10404,7 @@ namespace bpr::qt {
 			if (QueueRefreshAction != nullptr) {
 				QueueRefreshAction->setVisible(home && HomeAccount);
 			}
+			apply_refresh_key(home);
 			apply_strip_width();
 			// [[BPR-1295]]. Home has no review, so Hide Drawers is disabled.
 			apply_drawers_toggle();
@@ -10529,6 +10645,20 @@ namespace bpr::qt {
 	auto workbench_window::home_cycles_list() const noexcept -> QListWidget*
 	{
 		return HomeCyclesList;
+	}
+
+	void workbench_window::apply_refresh_key(const bool aHome)
+	{
+		// [[BPR-1600]]. One window shows Home or a pull request, and the Refresh
+		// key does the refresh that is showing. The key is on one action at a
+		// time, taken off before it is put on, so no press is ever ambiguous.
+		if (GithubRefreshAction == nullptr || QueueRefreshAction == nullptr) {
+			return;
+		}
+		auto* const from = aHome ? GithubRefreshAction : QueueRefreshAction;
+		auto* const to   = aHome ? QueueRefreshAction : GithubRefreshAction;
+		from->setShortcuts({ });
+		to->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_refresh : shortcut_command::refresh));
 	}
 
 	auto workbench_window::showing_home() const -> bool
@@ -14956,6 +15086,8 @@ namespace bpr::qt {
 			append(barPresenter(Navigation[1].Action));
 			append(barPresenter(Navigation[2].Action));
 			append(barPresenter(Navigation[3].Action));
+			append(SeenStepButton);
+			append(ReadStepButton);
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			append(barPresenter(ComposeReviewAction));
@@ -15390,6 +15522,11 @@ namespace bpr::qt {
 		ReviewBarCompact        = true;
 		ReviewBarPositionsShown = false;
 		update_strip_positions();
+		// [[BPR-1578]]. The progress track's own yield is the last: Seen and
+		// Read keep their marks and lose their words.
+		if (ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(true);
+		}
 		remeasure();
 		const auto inset = ReviewBar->isVisible() ? std::max(0, width() - ReviewBar->width()) : 0;
 		const auto floor = std::max(platform_floor_width, ReviewBar->sizeHint().width() + inset);
@@ -15401,6 +15538,9 @@ namespace bpr::qt {
 		ReviewBarCompact        = false;
 		ReviewBarPositionsShown = true;
 		update_strip_positions();
+		if (ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(false);
+		}
 		remeasure();
 		if (ReviewBar->sizeHint().width() > available) {
 			EpochSelectors->set_comparing_dates_shown(false);
@@ -15414,6 +15554,10 @@ namespace bpr::qt {
 		if (ReviewBar->sizeHint().width() > available) {
 			ReviewBarPositionsShown = false;
 			update_strip_positions();
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available && ProgressTrack != nullptr) {
+			ProgressTrack->set_compact(true);
 			remeasure();
 		}
 	}
@@ -15445,7 +15589,7 @@ namespace bpr::qt {
 			}
 			// [[BPR-1566]]. A link's colour is set, not inherited: take the new
 			// palette's, readable on its ground. Mark colours, beside it, too.
-			for (auto* const link : { ConventionalCommentsLink, MarkColoursLink }) {
+			for (auto* const link : { ConventionalCommentsLink, MarkColoursLink, WorkshopGuidanceLink }) {
 				if (link != nullptr && link->parentWidget() != nullptr) {
 					auto linkPalette = link->palette();
 					linkPalette.setColor(QPalette::ButtonText, readable_link_colour(link->parentWidget()->palette()));
@@ -16768,8 +16912,6 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
-		ReviewBar->adopt_button(AcceptFileButton);
-		ReviewBar->adopt_button(ReviewControlsButton);
 		update_compose_mark();
 		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(GithubRefreshAction));
@@ -16894,6 +17036,8 @@ namespace bpr::qt {
 		if (ReviewControlsButton != nullptr) {
 			ReviewControlsButton->setIcon(progress_mark_icon(shown_progress_mark(Receipt, LedgerUnavailable), colours, disabled));
 		}
+		// [[BPR-1578]]. The track's marks and fills follow the theme's colours.
+		update_progress_track();
 		if (ReviewControlsMenu == nullptr) {
 			return;
 		}
@@ -17190,6 +17334,68 @@ namespace bpr::qt {
 			ReviewControlsButton->setStatusTip(state);
 			ReviewControlsButton->setAccessibleDescription(QStringLiteral("%1 %2").arg(state, click));
 		}
+		update_progress_track();
+	}
+
+	auto workbench_window::progress_step_offered(const std::size_t aIndex) const -> bool
+	{
+		// [[BPR-1578]]. A step only moves the file forward: Seen marks an
+		// unread file seen and Read marks a file read. A step already reached
+		// does nothing, so the track never un-reads a file; Mark unread stays
+		// in the private-progress menu. The command is the one the core
+		// projected for that action, never one the track makes up.
+		if (LedgerUnavailable || !Receipt.has_value() || Receipt->Receipt.Excluded || aIndex >= Receipt->Actions.size()) {
+			return false;
+		}
+		const auto& action = Receipt->Actions[aIndex];
+		const auto  wanted = aIndex == progress_track::seen_step ? core::file_receipt_command_kind::mark_seen : core::file_receipt_command_kind::mark_read;
+		const auto  passed = aIndex == progress_track::seen_step ? Receipt->Receipt.Read != core::file_read_state::unread
+																 : Receipt->Receipt.Read == core::file_read_state::read;
+		return action.Enabled && action.Command.Kind == wanted && !passed;
+	}
+
+	void workbench_window::take_progress_step(const std::size_t aIndex)
+	{
+		if (aIndex == progress_track::seen_step || aIndex == progress_track::read_step) {
+			if (progress_step_offered(aIndex)) {
+				dispatch_receipt(aIndex);
+			}
+		}
+	}
+
+	void workbench_window::update_progress_track()
+	{
+		if (ProgressTrack == nullptr) {
+			return;
+		}
+		auto shown = progress_track::state{ };
+		if (Receipt.has_value() && !LedgerUnavailable) {
+			const auto& receipt = Receipt->Receipt;
+			shown.Excluded      = receipt.Excluded;
+			shown.Live          = !receipt.Excluded;
+			shown.Seen          = receipt.Read != core::file_read_state::unread;
+			shown.Read          = receipt.Read == core::file_read_state::read;
+			shown.Accepted      = receipt.Accepted;
+		}
+		ProgressTrack->set_state(shown, shown_progress_mark_colours());
+		const auto unavailable = LedgerUnavailable ? QStringLiteral("Private review progress is unavailable.")
+			: !Receipt.has_value()                 ? QStringLiteral("Select an available text comparison first.")
+												   : QStringLiteral("Include this file from Private progress first.");
+		const auto describe    = [&](QToolButton* const aStep, const std::size_t aIndex, const QString& aDone, const QString& aOffer) {
+			if (aStep == nullptr) {
+				return;
+			}
+			const auto offered = progress_step_offered(aIndex);
+			const auto reached = aIndex == progress_track::seen_step ? shown.Seen : shown.Read;
+			aStep->setEnabled(offered);
+			const auto tip = !shown.Live ? unavailable : reached ? aDone
+																 : aOffer;
+			aStep->setToolTip(tip);
+			aStep->setStatusTip(tip);
+			aStep->setAccessibleDescription(tip);
+		};
+		describe(SeenStepButton, progress_track::seen_step, QStringLiteral("This file is seen."), QStringLiteral("Mark this file seen."));
+		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Mark unread is in Private progress."), QStringLiteral("Mark this file read."));
 	}
 
 	void workbench_window::update_drawer_action(

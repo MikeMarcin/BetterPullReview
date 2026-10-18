@@ -279,6 +279,17 @@ namespace bpr::adapters::github::detail {
 		= github_provider_read_authority::authenticated,
 		std::shared_ptr<application::diagnostic_log_port> aLog = { }) noexcept
 		-> github_provider_factory_result;
+
+	class github_mutation_wire_transport;
+	/// \brief [[BPR-1572]]. For tests: the production GitHub CLI account
+	/// wrapper over `aInner`, bound to the account `aContext` names under
+	/// `aLogin`, as an account lease installs it, so a session's publication
+	/// can be driven through it. `aInner` answers the account reads and, as a
+	/// mutation transport, everything else.
+	[[nodiscard]] auto make_cli_observed_account_transport_for_testing(
+		std::shared_ptr<github_wire_transport_port>             aInner,
+		const application::github_credential_operation_context& aContext,
+		std::string                                             aLogin) -> std::shared_ptr<github_mutation_wire_transport>;
 }
 
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PROVIDER_HPP

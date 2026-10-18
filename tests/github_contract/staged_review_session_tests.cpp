@@ -1,6 +1,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "cli_account_wrapper_support.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
 #if defined(__APPLE__)
@@ -173,7 +174,21 @@ namespace {
 		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		/// [[BPR-1560]]. The base branch took commits the head shares: GitHub's
 		/// merge base, which numbers LEFT lines, is no longer the target's.
-		bool        MovedMergeBase = false;
+		bool MovedMergeBase = false;
+		/// [[BPR-1572]]. The base branch names another merge base: 1, it only
+		/// moved forward from the recorded base; 2, it was rewritten; 3, it only
+		/// moved forward, but GitHub replaces the recorded base with its tip
+		/// right after the ancestry answer, so the pull request read again
+		/// names the tip. The pull request reports two commits throughout.
+		int  StackedBase   = 0;
+		bool RecordedReset = false;
+		/// [[BPR-1572]]. GitHub replaces the recorded base while the tour
+		/// reads its review list or its review: the reads between one
+		/// observation of the pull request and the write.
+		bool ResetOnReviewRead = false;
+		/// [[BPR-1572]]. GitHub replaces the recorded base from the read of
+		/// the pull request after this many (zero: never).
+		std::size_t ResetAfterPullReads = 0U, PullReads = 0U;
 		std::size_t MergeBaseReads = 0U;
 		bool        DenyWitness    = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
@@ -301,11 +316,24 @@ namespace {
 					return viewer_response();
 				}
 				if (wire.Path == Pull) {
+					if (ResetAfterPullReads != 0U && ++PullReads > ResetAfterPullReads) {
+						RecordedReset = true;
+					}
 					auto  response = target_response(target().RepositoryDatabaseId, WrongHead ? commit(0x22) : target().Semantic.ExpectedHead);
 					auto& body     = std::get<github_mutation_wire_success>(response).Response.Body;
+					if (StackedBase != 0) {
+						body.insert(body.find(R"("head")"), R"("commits":2,)");
+					}
+					if (RecordedReset) {
+						const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+						body.replace(body.find(recorded), recorded.size(), std::string(40U, 'b'));
+					}
 					body.pop_back();
 					body += ",\"body\":" + json_quote(Description) + "}";
 					return response;
+				}
+				if (ResetOnReviewRead && (wire.Path == std::string{ Pull } + "/reviews?per_page=100&page=1" || wire.Path == std::string{ Pull } + "/reviews/501")) {
+					RecordedReset = true;
 				}
 				if (wire.Path == std::string{ Pull } + "/reviews?per_page=100&page=1") {
 					return ok(Created ? "[" + review_json() + (Duplicate ? "," + review_json(502) : "") + "]" : "[]");
@@ -351,9 +379,29 @@ namespace {
 				const auto head = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
 				if (wire.Path == "/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "?page=2&per_page=1") {
 					++MergeBaseReads;
-					const auto mergeBase = MovedMergeBase ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
+					const auto mergeBase = MovedMergeBase || StackedBase != 0 ? std::string(40U, 'c') : std::string{ core::canonical_hex(application::comparison_base(target())).view() };
 					return ok("{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" + target().BaseRef + "..." + head + "\",\"base_commit\":{\"sha\":\"" + std::string(40U, 'b')
 							  + "\"},\"merge_base_commit\":{\"sha\":\"" + mergeBase + "\"}}");
+				}
+				// [[BPR-1572]]. The recorded base against the head, and against
+				// the base branch's tip the first answer resolved.
+				const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+				for (const auto& pairHead : { head, std::string(40U, 'b') }) {
+					auto pair = std::string{ recorded };
+					pair.append("...").append(pairHead);
+					if (wire.Path == std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(pair).append("?page=2&per_page=1")) {
+						++MergeBaseReads;
+						const auto mergeBase = pairHead == head  ? std::string{ core::canonical_hex(application::comparison_base(target())).view() }
+							: StackedBase == 2 || MovedMergeBase ? std::string(40U, 'e')
+																 : recorded;
+						if (pairHead != head && StackedBase == 3) {
+							RecordedReset = true;
+						}
+						auto body = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
+						body.append(pair).append(pairHead == head ? "\",\"ahead_by\":2," : "\",").append("\"base_commit\":{\"sha\":\"").append(recorded);
+						body.append("\"},\"merge_base_commit\":{\"sha\":\"").append(mergeBase).append("\"}}");
+						return ok(body);
+					}
 				}
 				expect(false, "fixture answers only independently named read endpoints");
 			}
@@ -510,10 +558,72 @@ namespace {
 			remote.MovedMergeBase = true;
 			auto       provider   = session(remote, root.Path);
 			const auto result     = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
-			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 1U,
+			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
 				   "a moved merge base refuses a tour with a LEFT stop before any write");
 		}
-		for (const std::size_t stopped : { std::size_t{ 0U }, std::size_t{ 2U } }) {
+		{
+			// [[BPR-1572]]. A first publication whose recorded base GitHub
+			// replaces while the tour reads its baseline review list, after the
+			// admission's observation: the pull request read last refuses the
+			// first write.
+			scratch root;
+			server  remote;
+			remote.ResetOnReviewRead = true;
+			auto       provider      = session(remote, root.Path);
+			const auto result        = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.RecordedReset,
+				   "a recorded base replaced during the baseline read refuses the first write");
+		}
+		{
+			// [[BPR-1572]]. Through the production GitHub CLI account wrapper:
+			// after the session's last read of the pull request before the first
+			// write (its fourth: admission and verification, each read again
+			// after the merge base), the wrapper checks the account and reads the
+			// pull request once more, which now names another recorded base. The
+			// write is refused unsent and the tour is a conflict that says why,
+			// not a ready tour to resume.
+			scratch root;
+			server  remote;
+			remote.ResetAfterPullReads = 4U;
+			auto cli                   = bpr::tests::github_contract::make_cli_account_wrapper(remote, configuration().CredentialContext, "fixture-reviewer");
+			expect(cli.Transport != nullptr, "the production wrapper is built for the fixture account");
+			review_submission_session provider{ *cli.Transport, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = provider.publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && result.Failure == application::review_mutation_failure::target_moved && remote.Writes == 0
+					   && remote.PullReads == 5U && cli.Inner->AccountReads > 0U,
+				   "through the CLI account wrapper a recorded base replaced before the write refuses it unsent as a conflict that says why");
+		}
+		for (const int stacked : { 1, 2, 3 }) {
+			// [[BPR-1572]]. The base branch names another merge base. Moved only
+			// forward from the recorded base, GitHub still numbers LEFT in the
+			// recorded base's merge base and the tour is published; rewritten,
+			// or with GitHub replacing the recorded base while the answers were
+			// asked, nothing is written.
+			scratch root;
+			server  remote;
+			remote.StackedBase  = stacked;
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			if (stacked == 1) {
+				expect(result.State == publication_state::published && remote.Writes > 0 && remote.MergeBaseReads >= 3U,
+					   "a base branch that only moved forward keeps a tour's LEFT stop and the tour is published");
+			} else {
+				expect(result.State == publication_state::conflict && remote.Writes == 0 && remote.MergeBaseReads == 3U,
+					   "a rewritten base branch, or a recorded base replaced under the reads, refuses a tour with a LEFT stop before any write");
+			}
+		}
+		enum class resumed : std::uint8_t { merge_base_moved,
+											reset_under_merge_base_reads,
+											reset_under_review_reads };
+		for (const auto& [stopped, how] : std::array{ std::pair{ std::size_t{ 0U }, resumed::merge_base_moved }, std::pair{ std::size_t{ 2U }, resumed::merge_base_moved },
+													  std::pair{ std::size_t{ 0U }, resumed::reset_under_merge_base_reads }, std::pair{ std::size_t{ 2U }, resumed::reset_under_merge_base_reads },
+													  std::pair{ std::size_t{ 0U }, resumed::reset_under_review_reads }, std::pair{ std::size_t{ 2U }, resumed::reset_under_review_reads } }) {
+			// [[BPR-1572]]. On resume the base branch names another merge base
+			// and GitHub replaces the recorded base with its tip while the
+			// merge-base answers are asked; or GitHub replaces it while the tour
+			// reads its review list or its review, after an earlier observation
+			// of the pull request. The pull request is the last read before
+			// every write, so neither writes.
 			// [[BPR-1560]]. A resumed tour asks again: the journal was admitted
 			// (and, the second time, part of it written) on the merge base it was
 			// staged against, then the merge base moved with base.sha and head
@@ -534,15 +644,21 @@ namespace {
 				remote.Stop = nullptr;
 				expect(remote.Writes == stopped + 1, "Stop leaves part of the tour written");
 			}
-			const auto written    = remote.Writes;
-			remote.MovedMergeBase = true;
+			const auto written       = remote.Writes;
+			remote.MovedMergeBase    = how == resumed::merge_base_moved;
+			remote.StackedBase       = how == resumed::reset_under_merge_base_reads ? 3 : 0;
+			remote.ResetOnReviewRead = how == resumed::reset_under_review_reads;
 			provider.reset();
 			provider          = session(remote, root.Path);
 			const auto reads  = remote.MergeBaseReads;
 			const auto resume = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
-			expect(resume.State == publication_state::conflict && remote.Writes == written && remote.MergeBaseReads > reads,
-				   "Resume asks GitHub's merge base again and writes no LEFT coordinate from a moved one");
-			remote.MovedMergeBase = false;
+			expect(resume.State == publication_state::conflict && remote.Writes == written
+					   && (how == resumed::reset_under_review_reads ? remote.RecordedReset : remote.MergeBaseReads > reads),
+				   "Resume observes the pull request last and writes no LEFT coordinate from a moved merge base or a replaced recorded base");
+			remote.MovedMergeBase    = false;
+			remote.StackedBase       = 0;
+			remote.RecordedReset     = false;
+			remote.ResetOnReviewRead = false;
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5,

@@ -1358,9 +1358,11 @@ namespace {
 					.InventoryToken          = inventory->OpaqueToken,
 					.DurableRecordToken      = token(0xd0U),
 				},
-				.Base      = course == 3U ? *core::parse_git_commit_oid(blobText) : head,
-				.Head      = head,
-				.PriorHead = course == 4U ? std::nullopt : std::optional{ parent },
+				.Base = course == 3U ? *core::parse_git_commit_oid(blobText) : head,
+				.Head = head,
+				// [[BPR-1572]]. Course 0's prior head is the head itself: only the
+				// base moved, so there is no lineage to claim.
+				.PriorHead = course == 4U ? std::nullopt : std::optional{ course == 0U ? head : parent },
 			};
 			std::optional<application::git_prepared_revision> witnessed;
 			const auto                                        witness = [&](const application::git_prepared_revision& aPrepared) {
@@ -1436,7 +1438,7 @@ namespace {
 			} else {
 				require(witnessed && application::valid(*witnessed)
 							&& witnessed->Residency == residency::sparse_commit_trees
-							&& witnessed->HeadLineage == (course == 4U ? core::head_lineage::not_applicable : core::head_lineage::unknown)
+							&& witnessed->HeadLineage == (course == 4U || course == 0U ? core::head_lineage::not_applicable : core::head_lineage::unknown)
 							&& witnessed->Head == head && witnessed->BaseTree == tree && witnessed->HeadTree == tree,
 						"sparse witness binds exact operation objects without ancestry claim");
 				require((course == 1U && !prepared && prepared.error() == application::git_cache_failure::authorization_mismatch)

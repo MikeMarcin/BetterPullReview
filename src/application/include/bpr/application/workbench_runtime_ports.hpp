@@ -647,7 +647,7 @@ namespace bpr::application {
 
 	/// \brief The reviewer's durable review-behaviour preferences.
 	///
-	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
+	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows (Settings › Review and Comments since [[BPR-1597]]). Stored
 	/// beside the layout in the workbench settings record, validated by the
 	/// host, honoured by the window: the modality on open, whether a file
 	/// marks itself read once fully seen, the

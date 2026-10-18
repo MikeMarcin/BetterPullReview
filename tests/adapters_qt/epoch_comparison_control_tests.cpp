@@ -713,7 +713,13 @@ namespace {
 				   && control.comparison_text().contains(QStringLiteral("pruned"))
 				   && control.comparison_text().contains(QStringLiteral("unavailable")),
 			   "an unavailable alias retains its exact selected candidate and reason");
-		for (const auto& [reason, expected] : std::array<std::pair<core::epoch_reason_code, QString>, 4U>{ {
+		for (const auto& [reason, expected] : std::array<std::pair<core::epoch_reason_code, QString>, 6U>{ {
+				 // [[BPR-1560]], [[BPR-1572]]. GitHub naming no merge base, and
+				 // GitHub's answers disagreeing, are told apart.
+				 { core::epoch_reason_code::merge_base_unavailable,
+				   QStringLiteral("GitHub did not say where this pull request branched") },
+				 { core::epoch_reason_code::merge_base_disputed,
+				   QStringLiteral("GitHub's answers about where this pull request branched disagree") },
 				 { core::epoch_reason_code::git_tool_unsupported,
 				   QStringLiteral("Configure Git 2.49 or later with exact revision cloning, then retry.") },
 				 { core::epoch_reason_code::git_tool_probe_failed,
