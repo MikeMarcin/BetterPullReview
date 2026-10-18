@@ -785,6 +785,62 @@ namespace bpr::core {
 		return reaching_floor(aSyntax, aFill, minimum_contrast_hundredths(contrast_kind::text, aVariant));
 	}
 
+	namespace {
+		[[nodiscard]] auto reads_on(const appearance_color aInk, const std::span<const contrast_ground> aGrounds) noexcept -> bool
+		{
+			return std::ranges::all_of(aGrounds, [aInk](const contrast_ground& aGround) { return contrast_ratio_hundredths(aInk, aGround.Colour) >= aGround.MinimumHundredths; });
+		}
+
+		/// The least move of `aFrom` toward `aTarget` that reads on every
+		/// ground, if any does.
+		[[nodiscard]] auto least_toward(const appearance_color aTarget, const appearance_color aFrom, const std::span<const contrast_ground> aGrounds) noexcept
+			-> std::optional<appearance_color>
+		{
+			for (auto alpha = std::uint16_t{ 0U }; alpha <= 255U; ++alpha) {
+				const auto candidate = composited(aTarget, aFrom, static_cast<std::uint8_t>(alpha));
+				if (reads_on(candidate, aGrounds)) {
+					return candidate;
+				}
+			}
+			return std::nullopt;
+		}
+	}
+
+	auto readable_muted_ink(const appearance_color aText, const appearance_color aBase, const std::span<const contrast_ground> aGrounds) noexcept -> appearance_color
+	{
+		const auto mean     = [](const std::uint8_t aOne, const std::uint8_t aOther) { return static_cast<std::uint8_t>((static_cast<std::uint32_t>(aOne) + aOther) / 2U); };
+		const auto midpoint = appearance_color{ mean(aText.Red, aBase.Red), mean(aText.Green, aBase.Green), mean(aText.Blue, aBase.Blue), aText.Alpha };
+		return least_toward(aText, midpoint, aGrounds).value_or(aText);
+	}
+
+	auto readable_signal_ink(const appearance_color aSignal, const std::span<const contrast_ground> aGrounds) noexcept -> appearance_color
+	{
+		if (aGrounds.empty() || reads_on(aSignal, aGrounds)) {
+			return aSignal;
+		}
+		const auto target    = emphasis_foreground(aGrounds.front().Colour);
+		const auto darkening = target.Red == 0U;
+		const auto strongest = std::max({ aSignal.Red, aSignal.Green, aSignal.Blue });
+		// First stage: darken the weaker channels, or raise the strongest.
+		const auto staged = [&](const std::uint32_t aStep) {
+			const auto channel = [&](const std::uint8_t aValue) -> std::uint8_t {
+				const auto value = static_cast<std::uint32_t>(aValue);
+				if (darkening) {
+					return aValue == strongest ? aValue : static_cast<std::uint8_t>(((value * (255U - aStep)) + 127U) / 255U);
+				}
+				return aValue != strongest ? aValue : static_cast<std::uint8_t>(value + ((((255U - value) * aStep) + 127U) / 255U));
+			};
+			return appearance_color{ channel(aSignal.Red), channel(aSignal.Green), channel(aSignal.Blue), aSignal.Alpha };
+		};
+		for (auto step = std::uint32_t{ 1U }; step <= 255U; ++step) {
+			if (const auto candidate = staged(step); reads_on(candidate, aGrounds)) {
+				return candidate;
+			}
+		}
+		// Second stage: toward the extreme.
+		return least_toward(target, staged(255U), aGrounds).value_or(target);
+	}
+
 	auto visible_focus_indicator(const appearance_color aAccent, const appearance_color aSurface) noexcept -> appearance_color
 	{
 		return reaching_floor(aAccent, aSurface, indicator_contrast_minimum_hundredths);

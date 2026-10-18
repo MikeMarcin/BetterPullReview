@@ -957,6 +957,68 @@ namespace {
 		expect(contrast_ratio_hundredths(grey, srgb(0x767676)) >= indicator_contrast_minimum_hundredths || grey == srgb(0x000000) || grey == srgb(0xFFFFFF), "where nothing between reaches it, the extreme");
 	}
 
+	/// [[BPR-1604]]. The quiet grey keeps the old midpoint where it reads and
+	/// otherwise moves toward the text by the least amount that holds the floor
+	/// on the ground through the band, on the current line and on the surface.
+	auto test_muted_ink_reaches_the_text_floor_on_every_ground() -> void
+	{
+		struct theme
+		{
+			appearance_color Text, Base, Alternate, Surface;
+		};
+		for (const auto& [text, base, alternate, surface] : { theme{ srgb(0x1F2328), srgb(0xFFFFFF), srgb(0xF2F6FC), srgb(0xF6F7F9) }, theme{ srgb(0xDCDCDC), srgb(0x0D1117), srgb(0x161C24), srgb(0x1C2026) },
+															  theme{ srgb(0x000000), srgb(0xFFFFFF), srgb(0xF2F2F2), srgb(0xFFFFFF) }, theme{ srgb(0xFFFFFF), srgb(0x000000), srgb(0x1A1A1A), srgb(0x000000) } }) {
+			const auto grounds = std::array{ contrast_ground{ .Colour = base, .MinimumHundredths = banded_floor_hundredths(text_contrast_minimum_hundredths) },
+											 contrast_ground{ .Colour = alternate }, contrast_ground{ .Colour = surface } };
+			const auto ink     = readable_muted_ink(text, base, grounds);
+			for (const auto& ground : grounds) {
+				expect(contrast_ratio_hundredths(ink, ground.Colour) >= ground.MinimumHundredths, "the quiet ink reads on every ground");
+			}
+			expect(contrast_ratio_hundredths(ink, base) < contrast_ratio_hundredths(text, base), "and stays quieter than the text");
+			expect(ink.Red == ink.Green || ink.Red + 12U >= ink.Green, "and stays a grey");
+		}
+		// The midpoint of Light's text and white is 3.16:1, short; moved the
+		// least that reads, one step less does not.
+		const auto text    = srgb(0x1F2328);
+		const auto grounds = std::array{ contrast_ground{ .Colour = srgb(0xFFFFFF), .MinimumHundredths = banded_floor_hundredths(text_contrast_minimum_hundredths) } };
+		const auto ink     = readable_muted_ink(text, srgb(0xFFFFFF), grounds);
+		const auto mid     = srgb(0x8F9194);
+		expect(contrast_ratio_hundredths(mid, srgb(0xFFFFFF)) < 450U, "the old midpoint is short of the floor");
+		auto step = std::uint16_t{ 0U };
+		while (step < 255U && composited(text, mid, static_cast<std::uint8_t>(step)) != ink) {
+			++step;
+		}
+		expect(step > 0U && step < 255U && contrast_ratio_hundredths(composited(text, mid, static_cast<std::uint8_t>(step - 1U)), srgb(0xFFFFFF)) < grounds[0].MinimumHundredths,
+			   "moved toward the text by the least amount that reads");
+		const auto black = std::array{ contrast_ground{ .Colour = srgb(0x000000) } };
+		expect(readable_muted_ink(srgb(0xFFFFFF), srgb(0x000000), black) == srgb(0x7F7F7F), "a midpoint that already reads is the midpoint, unchanged");
+		expect(banded_floor_hundredths(450U) == 487U, "the band raises the text floor to 4.87:1 on the ground");
+	}
+
+	/// [[BPR-1604]]. The attention amber keeps its colour where it reads, and on
+	/// white darkens toward a burnt orange, not toward the olive brown a mix
+	/// with black gives.
+	auto test_signal_ink_turns_amber_burnt_orange_not_brown() -> void
+	{
+		const auto white  = std::array{ contrast_ground{ .Colour = srgb(0xFFFFFF), .MinimumHundredths = banded_floor_hundredths(text_contrast_minimum_hundredths) } };
+		const auto amber  = srgb(0xAD7A00);
+		const auto ink    = readable_signal_ink(amber, white);
+		const auto mixed  = readable_selection_ink(amber, srgb(0xFFFFFF), appearance_variant::light);
+		const auto hue    = [](const appearance_color aColour) { return 60.0 * static_cast<double>(aColour.Green) / static_cast<double>(aColour.Red); };
+		const auto toward = std::array{ contrast_ground{ .Colour = srgb(0xFFFFFF), .MinimumHundredths = 450U } };
+		expect(contrast_ratio_hundredths(ink, srgb(0xFFFFFF)) >= white[0].MinimumHundredths, "the amber reaches the banded text floor");
+		expect(ink.Red == amber.Red && ink.Blue == 0U && ink.Green < amber.Green, "holding its red and darkening its green");
+		expect(hue(ink) >= 28.0 && hue(ink) <= 36.0, "a burnt orange");
+		expect(hue(mixed) > 40.0 && readable_signal_ink(amber, toward) != mixed, "where a mix toward black keeps amber's hue and goes brown");
+		expect(readable_signal_ink(srgb(0xD29922), std::array{ contrast_ground{ .Colour = srgb(0x0D1117) } }) == srgb(0xD29922), "an amber that reads on its ground is kept exactly");
+		const auto grey = readable_signal_ink(srgb(0xBBBBBB), white);
+		expect(grey.Red == grey.Green && grey.Green == grey.Blue && contrast_ratio_hundredths(grey, srgb(0xFFFFFF)) >= white[0].MinimumHundredths, "a grey goes straight toward black");
+		const auto dark = readable_signal_ink(srgb(0x8A5300), std::array{ contrast_ground{ .Colour = srgb(0x000000) } });
+		expect(dark.Red > 0x8AU && dark.Green == 0x53U && contrast_ratio_hundredths(dark, srgb(0x000000)) >= 450U, "on a dark ground it raises its strongest channel first");
+		expect(readable_signal_ink(srgb(0x777777), std::array{ contrast_ground{ .Colour = srgb(0x767676), .MinimumHundredths = 2100U } }) == srgb(0x000000),
+			   "where nothing reaches the floor, the extreme");
+	}
+
 } // namespace
 
 int main()
@@ -985,5 +1047,7 @@ int main()
 	test_emphasis_preserves_readable_ink_and_adjusts_only_contrast();
 	test_selection_ink_keeps_readable_roles_and_lifts_faint_ones();
 	test_focus_ring_reaches_the_indicator_floor();
+	test_muted_ink_reaches_the_text_floor_on_every_ground();
+	test_signal_ink_turns_amber_burnt_orange_not_brown();
 	return EXIT_SUCCESS;
 }

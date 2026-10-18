@@ -21,6 +21,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <string_view>
 
 namespace {
 	using namespace bpr;
@@ -66,6 +67,63 @@ auto main(int argc, char** argv) -> int
 			canvas.fill(lookEditor.palette().color(QPalette::Window));
 			lookEditor.render(&canvas);
 			expect(canvas.save(look + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")), "comparison render saved");
+		}
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1605]] comparison render: Finish your review carrying one pending
+	// blocking comment of mine, with none on GitHub ("pending"), and with
+	// one on GitHub as well ("mixed"), in Light and Dark. "as-read" is the
+	// preflight the composition handed over before BPR-1605, which did not
+	// read the review's own comments.
+	if (const auto look = qEnvironmentVariable("BPR_BLOCKING_CHIP_RENDER"); !look.isEmpty()) {
+		qt::review_submission_editor lookEditor{ [](auto) { } };
+		auto                         carrying = draft;
+		carrying.Body                         = { };
+		auto blocking                         = core::review_submission_comment{ };
+		blocking.Draft                        = core::review_draft_id{ 7U };
+		blocking.Path                         = "src/engine/renderer.cpp";
+		blocking.Line                         = 430U;
+		blocking.DraftRevision                = 1U;
+		blocking.Body                         = "issue (blocking): The cache is never invalidated.";
+		auto nit                              = blocking;
+		nit.Draft                             = core::review_draft_id{ 8U };
+		nit.Line                              = 433U;
+		nit.Body                              = "nit: scale could be constexpr.";
+		carrying.Comments                     = { blocking, nit };
+		carrying.Disposition                  = core::review_disposition::approve;
+		lookEditor.resize(380, 560);
+		lookEditor.show();
+		for (const auto* state : { "as-read", "pending", "mixed" }) {
+			auto preflight  = core::review_preflight{ };
+			preflight.Exact = true;
+			if (std::string_view{ state } != "as-read") {
+				preflight.Pending = { { .Draft = "review-comment-draft:7", .Label = core::feedback_label::issue } };
+			}
+			if (std::string_view{ state } == "mixed") {
+				preflight.Blockers = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved } };
+			}
+			auto lookProjection       = qt::review_submission_editor_projection{ .Draft = carrying, .Controls = core::controls(carrying), .TargetDescription = projection.TargetDescription };
+			lookProjection.Prepared   = core::prepare_review_decision(carrying, { });
+			lookProjection.Preflight  = std::move(preflight);
+			lookProjection.References = { { "review-thread:T1", { QStringLiteral("src/cache.cpp:12"), QStringLiteral("Evict on resize.") } },
+										  { "review-comment-draft:7", { QStringLiteral("renderer.cpp, line 431"), QStringLiteral("The cache is never invalidated.") } } };
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				lookEditor.setPalette(profile.derive(QApplication::palette()));
+				lookEditor.set_attention_colour(profile.color(core::appearance_role::state_attention));
+				lookEditor.present(lookProjection);
+				for (auto turn = 0; turn < 4; ++turn) {
+					QApplication::processEvents();
+				}
+				auto canvas = QPixmap{ lookEditor.size() * lookEditor.devicePixelRatioF() };
+				canvas.setDevicePixelRatio(lookEditor.devicePixelRatioF());
+				canvas.fill(lookEditor.palette().color(QPalette::Window));
+				lookEditor.render(&canvas);
+				expect(canvas.save(look + QStringLiteral("-%1-%2.png").arg(QString::fromLatin1(state), QString::fromLatin1(name))), "blocking chip render saved");
+				std::cout << state << ' ' << name << ": " << lookEditor.preflight_button()->toolTip().replace(QLatin1Char{ '\n' }, QStringLiteral(" | ")).toStdString() << " || "
+						  << lookEditor.disposition_button(core::review_disposition::approve)->toolTip().toStdString() << '\n';
+			}
 		}
 		return EXIT_SUCCESS;
 	}

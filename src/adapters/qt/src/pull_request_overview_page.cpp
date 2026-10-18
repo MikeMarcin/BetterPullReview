@@ -3710,7 +3710,16 @@ namespace bpr::qt {
 		Colours.Caution  = aProfile.color(core::appearance_role::state_attention);
 		Colours.Progress = progress_mark_colours_for(aProfile);
 		// [[BPR-1089]]. The state marks: open amber and resolved green.
-		Colours.States.Open       = aProfile.color(core::appearance_role::state_attention);
+		// [[BPR-1604]]. The table's amber draws digits, the R badge with its
+		// letter cut from the ground, and the unresolved bubble, on the ground
+		// and on the band: the theme's amber where it holds the text floor
+		// there, otherwise darkened toward a burnt orange until it does.
+		// `Marker` had kept its default, the Dark theme's amber, in every theme.
+		const auto table          = aProfile.color(core::appearance_role::code_background);
+		const auto grounds        = std::array{ core::contrast_ground{ .Colour = to_appearance_color(table), .MinimumHundredths = core::banded_floor_hundredths(core::text_contrast_minimum_hundredths) } };
+		const auto amber          = to_presentation_color(core::readable_signal_ink(to_appearance_color(aProfile.color(core::appearance_role::state_attention)), grounds));
+		Colours.Marker            = amber;
+		Colours.States.Open       = amber;
 		Colours.States.Resolved   = Colours.Accepted;
 		Colours.States.OnResolved = feedback_mark_blocking_ink(Colours.Accepted);
 		refresh_folder_icons();

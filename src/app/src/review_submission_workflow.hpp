@@ -9,6 +9,8 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <tuple>
+
 namespace bpr::app {
 	/// Composes the PR-scoped core draft, asynchronous host and normal editor.
 	/// All methods run on the decision lane; retain this object until quiescent.
@@ -62,7 +64,10 @@ namespace bpr::app {
 		void set_publication_observer(publication_observer);
 
 	private:
-		using preflight_key = std::pair<std::uint64_t, application::review_submission_live_binding>;
+		/// The inputs a projected preflight was read from: the selection and
+		/// observation generation, the binding, and the review's carried
+		/// comments ([[BPR-1605]]).
+		using preflight_key = std::tuple<std::uint64_t, application::review_submission_live_binding, std::vector<core::review_submission_comment>>;
 		struct selection
 		{
 			application::review_submission_live_binding     Binding;

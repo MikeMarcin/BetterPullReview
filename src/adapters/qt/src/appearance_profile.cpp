@@ -11,6 +11,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1180,7 +1181,19 @@ namespace bpr::qt {
 		assign(QPalette::Shadow, surface.darker(300));
 		assign(QPalette::ToolTipBase, surface);
 		assign(QPalette::ToolTipText, surfaceText);
-		assign(QPalette::PlaceholderText, blend_midpoint(baseText, base));
+		// [[BPR-1604]]. The quiet ink notes, folder paths, hints and unknown
+		// marks are drawn in: the midpoint of text and base where it reads,
+		// otherwise the least move toward the text that holds the text floor
+		// on the base through the Files table's band, on the current line and
+		// on the window surface. The midpoint alone measured 3.16:1 in Light.
+		{
+			const auto grounds = std::array{
+				core::contrast_ground{ .Colour = to_appearance_color(base), .MinimumHundredths = core::banded_floor_hundredths(core::text_contrast_minimum_hundredths) },
+				core::contrast_ground{ .Colour = to_appearance_color(alternateBase) },
+				core::contrast_ground{ .Colour = to_appearance_color(surface) },
+			};
+			assign(QPalette::PlaceholderText, to_presentation_color(core::readable_muted_ink(to_appearance_color(baseText), to_appearance_color(base), grounds)));
+		}
 		derived.setColor(
 			QPalette::Disabled, QPalette::Button, surface);
 		derived.setColor(

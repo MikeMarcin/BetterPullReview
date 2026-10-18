@@ -1,6 +1,7 @@
 #include "review_submission_workflow.hpp"
 #include <QUuid>
 
+#include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
 #include "tour_publication_plan.hpp"
@@ -10,6 +11,8 @@
 #include <QUuid>
 #include <algorithm>
 #include <limits>
+#include <string>
+#include <string_view>
 
 namespace bpr::app {
 	using command_kind = core::review_submission_command_kind;
@@ -348,10 +351,11 @@ namespace bpr::app {
 			PreflightProjected.reset();
 			return;
 		}
-		if (PreflightProjected && PreflightProjected->first == PreflightInputs && PreflightProjected->second == *DraftBinding) {
+		const auto& carried = Draft ? Draft->Comments : std::vector<core::review_submission_comment>{ };
+		if (PreflightProjected && *PreflightProjected == preflight_key{ PreflightInputs, *DraftBinding, carried }) {
 			return;
 		}
-		PreflightProjected = std::pair{ PreflightInputs, *DraftBinding };
+		PreflightProjected = preflight_key{ PreflightInputs, *DraftBinding, carried };
 		Preflight.reset();
 		PreflightReferences.clear();
 		// [[BPR-1085]]. Only a read of this draft's account and revision is
@@ -360,7 +364,25 @@ namespace bpr::app {
 			|| Observation->Head != core::canonical_hex(DraftBinding->Target.Semantic.ExpectedHead).view()) {
 			return;
 		}
-		Preflight = application::project_review_preflight(*Observation, Selection);
+		// [[BPR-1605]]. The comments this review carries are mine and not sent,
+		// as the composer's draft is: each is read once, by its draft.
+		auto drafts     = Selection;
+		auto references = SelectionReferences;
+		for (const auto& comment : carried) {
+			auto id = "draft:" + std::to_string(comment.Draft.value());
+			if (std::ranges::any_of(drafts, [&id](const core::review_preflight_draft& aDraft) { return aDraft.Id == id; })) {
+				continue;
+			}
+			const auto annotation = core::recognize_feedback_prefix(comment.Body);
+			auto       subject    = annotation.Subject ? core::feedback_text(comment.Body, *annotation.Subject) : std::string_view{ comment.Body };
+			subject               = subject.substr(0U, subject.find('\n'));
+			const auto slash      = comment.Path.find_last_of('/');
+			const auto file       = slash == std::string::npos ? std::string_view{ comment.Path } : std::string_view{ comment.Path }.substr(slash + 1U);
+			references.emplace(id, qt::review_submission_preflight_reference{ .Where   = QStringLiteral("%1, line %2").arg(QString::fromUtf8(file.data(), static_cast<qsizetype>(file.size()))).arg(comment.Line + 1U),
+																			  .Subject = QString::fromUtf8(subject.data(), static_cast<qsizetype>(subject.size())).trimmed() });
+			drafts.push_back({ .Id = std::move(id), .Body = comment.Body, .Selected = true });
+		}
+		Preflight = application::project_review_preflight(*Observation, drafts);
 		if (!Preflight) {
 			return;
 		}
@@ -371,7 +393,7 @@ namespace bpr::app {
 			}
 		}
 		for (const auto& pending : Preflight->Pending) {
-			if (const auto found = SelectionReferences.find(pending.Draft); found != SelectionReferences.end()) {
+			if (const auto found = references.find(pending.Draft); found != references.end()) {
 				PreflightReferences.emplace(pending.Draft, found->second);
 			}
 		}
