@@ -449,6 +449,9 @@ namespace {
 		for (std::size_t index = 0U; index < files.size(); ++index) {
 			if (index == 0U) {
 				if (!wait_for(settled, "the first file's comparison (opens it next)", std::chrono::seconds{ 15 })) {
+					// [[BPR-1572]]. Says what the review shows while it waits.
+					say("parity:waiting comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+						+ " status=" + text(aWindow.epoch_selectors()->status_text()) + " surface=" + text(surface->status_text()));
 					if (auto* const open = surface->idle_open_first_button(); open != nullptr && open->isVisible()) {
 						open->click();
 					}

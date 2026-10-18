@@ -146,7 +146,7 @@ also typed codes, `:qu:` for question; the owner removed the codes on
   are the twelve glyphs below. Letters put the label's two letters (`pr`,
   `ni`, `su`, `is`, `td`, `qu`, `th`, `ch`, `no`, `ty`, `po`, `qb`) in the
   same mark, with the same tints, blocking fill, size and accessible names.
-  The choice is the Label marks row of Reviews & queue › Comment labels, kept
+  The choice is the Label marks row of Comments › Labels ([[BPR-1597]]), kept
   with the profile's review behaviour (workbench settings store, schema 12),
   with six marks beside it (praise, suggestion non-blocking with if-minor,
   issue blocking, question, nitpick non-blocking, todo if-minor) drawn in the
@@ -312,6 +312,12 @@ Consumers: the inline composition page and reply drafts
   touches the editor: it only decides whether a comment workshop request
   carries the Review feedback guidance ([[BPR-1091]]). The chip, menu and ⌘L
   work with it on or off, and a label typed out in full counts either way.
+  Since [[BPR-1597]] it is Settings › Comments › Comment workshop ›
+  **Feedback guidance**, "Send with comment workshop requests", with an info
+  glyph, a link to the guidance text and its own Reset (owner, 2026-10-17;
+  [[BPR-1568]]'s v001 in the writing hooks panel and v002 on Reviews & queue
+  were rejected, the second with "Reviews & queue is too much of a big grab bag
+  of settings").
   The last `(blocking)` used is never carried to the next comment
   (RFC-BPR-0048).
 - **Shown while writing** (owner, v4). The label appears as the highlighted
@@ -484,6 +490,11 @@ in `pull_request_overview_page`. The figures come from
   - In All, a state bar under each number shows open, resolved, unknown and
     not resolvable, using the four round state marks.
   - The active mode belongs to the view state, not to Settings (RFC-BPR-0049).
+  - The page draws the switch itself, so it looks the same in every style
+    (BPR-1577, owner). The chosen half is a quiet chip: a soft fill and a
+    thin border that reads at 3:1. The other half is its word alone. Both
+    are in the text colour at the row's height. Open keeps the round open
+    mark.
 - **Not on a file** (owner). A last row holds unanchored threads, pull request
   comments and review summaries (`Unattributed`).
 - **Unknown states** (owner, with the core's facts):
@@ -695,10 +706,11 @@ derived and may be revised with a recorded reason.
 
 ### Settings (BPR-1088; RFC-BPR-0049)
 
-Consumer: `settings_window`, page Reviews & queue, section Comment labels
+Consumer: `settings_window`, page Comments, section Labels (page Reviews & queue,
+section Comment labels, until [[BPR-1597]])
 (owner, Settings v1, adjusted to Overview B in v2). The section holds:
 
-- the label helper, off by default (since [[BPR-1565]] it only sends the
+- until [[BPR-1597]], the label helper, off by default (since [[BPR-1565]] it only sends the
   Review feedback guidance with a comment workshop request);
 - Label marks, Icons or Letters (owner, 2026-10-05; BPR-1083 adds this row and
   the Comment labels group, beside Drawers, on the review-behaviour record);

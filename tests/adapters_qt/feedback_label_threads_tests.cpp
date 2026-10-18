@@ -488,8 +488,8 @@ namespace {
 		auto* const icons   = window.findChild<QToolButton*>(QStringLiteral("feedbackMarksIcons"));
 		auto* const letters = window.findChild<QToolButton*>(QStringLiteral("feedbackMarksLetters"));
 		auto* const reset   = window.findChild<QToolButton*>(QStringLiteral("resetCommentLabels"));
-		expect(icons != nullptr && letters != nullptr && reset != nullptr && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(letters),
-			   "Reviews & queue offers Label marks, Icons or Letters, in a Comment labels group");
+		expect(icons != nullptr && letters != nullptr && reset != nullptr && window.settings()->page_widget(qt::settings_page::comments)->isAncestorOf(letters),
+			   "Comments offers Label marks, Icons or Letters, in a Labels group");
 		expect(icons->isChecked() && window.label_marks().Style == qt::feedback_mark_style::icons
 				   && window.review_editor()->label_controls()->theme().Style == qt::feedback_mark_style::icons
 				   && window.conversation_panel()->cards()->label_marks().Style == qt::feedback_mark_style::icons,
@@ -520,14 +520,14 @@ namespace {
 		qt::workbench_window window;
 		auto                 records = std::vector<application::review_behaviour_settings>{ };
 		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) { records.push_back(aSettings); });
-		auto* const page    = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page    = window.settings()->page_widget(qt::settings_page::comments);
 		auto* const letters = window.findChild<QToolButton*>(QStringLiteral("feedbackMarksLetters"));
 		auto* const preview = window.feedback_marks_preview();
 		expect(preview != nullptr && letters != nullptr && page->isAncestorOf(preview)
 				   && preview->objectName() == QStringLiteral("feedbackMarksPreview"),
-			   "Reviews & queue shows the marks preview");
+			   "Comments shows the marks preview");
 		window.settings()->resize(1'100, 760);
-		window.settings()->present(qt::settings_page::reviews_and_queue);
+		window.settings()->present(qt::settings_page::comments);
 		settle();
 		const auto lettersBox = QRect{ letters->mapTo(page, QPoint{ 0, 0 }), letters->size() };
 		const auto previewBox = QRect{ preview->mapTo(page, QPoint{ 0, 0 }), preview->size() };

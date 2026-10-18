@@ -1593,18 +1593,21 @@ namespace bpr::core {
 			// [[BPR-1560]]. Without a merge base GitHub named, the accepted
 			// revision's base is only the recorded base: no comparison compares
 			// from it, the newest update shown alone included.
-			if (aState.AcceptedBasis == comparison_base_basis::recorded_base && aState.AcceptedRevision && resolution.Pair
+			const auto retainedReason = aState.AcceptedBasis == comparison_base_basis::disputed_base ? epoch_reason_code::merge_base_disputed
+																									 : epoch_reason_code::merge_base_unavailable;
+			if (retained_recorded_base(aState.AcceptedBasis) && aState.AcceptedRevision && resolution.Pair
 				&& (resolution.Reason == epoch_reason_code::none || resolution.Reason == epoch_reason_code::unavailable)) {
 				for (auto* const anchor : { &resolution.Pair->Left, &resolution.Pair->Right }) {
 					if (anchor->Identity.Kind == comparison_anchor_kind::epoch_base && anchor->Commit == aState.AcceptedRevision->Base) {
 						anchor->Availability = anchor_availability::unavailable;
-						resolution.Reason    = epoch_reason_code::merge_base_unavailable;
+						resolution.Reason    = retainedReason;
 					}
 				}
 			}
 			if (resolution.Reason != epoch_reason_code::none
 				&& resolution.Reason != epoch_reason_code::unavailable
-				&& resolution.Reason != epoch_reason_code::merge_base_unavailable) {
+				&& resolution.Reason != epoch_reason_code::merge_base_unavailable
+				&& resolution.Reason != epoch_reason_code::merge_base_disputed) {
 				auto output = epoch_transition_output{ };
 				aState.PendingComparison.reset();
 				diagnose(output, resolution.Reason);
@@ -1645,7 +1648,7 @@ namespace bpr::core {
 				.PullRequestBase  = pull_request_base(*aState.Authority, aEvent.Candidates),
 			};
 			output.Changed = epoch_changed_domain::comparison;
-			if (resolution.Reason == epoch_reason_code::merge_base_unavailable) {
+			if (resolution.Reason == epoch_reason_code::merge_base_unavailable || resolution.Reason == epoch_reason_code::merge_base_disputed) {
 				// Says why Whole PR shows nothing rather than leaving the
 				// generic unavailable state ([[BPR-1560]]).
 				diagnose(output, resolution.Reason);
@@ -2936,7 +2939,7 @@ namespace bpr::core {
 		const comparison_base_basis   aBasis) noexcept -> resolved_comparison
 	{
 		if (!valid(aAuthority) || !valid(aCandidates.Catalog)
-			|| (aBasis != comparison_base_basis::merge_base && aBasis != comparison_base_basis::recorded_base)) {
+			|| (aBasis != comparison_base_basis::merge_base && !retained_recorded_base(aBasis))) {
 			return { .Reason = epoch_reason_code::invalid_observation };
 		}
 		auto resolution = select_pair(aAuthority, aSelection, aCandidates);
@@ -2944,12 +2947,13 @@ namespace bpr::core {
 			return resolution;
 		}
 		const auto* const named = std::get_if<named_comparison_selection>(&aSelection);
-		if (aBasis == comparison_base_basis::recorded_base && named != nullptr
+		if (retained_recorded_base(aBasis) && named != nullptr
 			&& named->Alias == named_comparison::whole_pr) {
 			// [[BPR-1560]]. The recorded base is retained, never compared from:
 			// a two-dot diff from it is not GitHub's Files changed.
 			resolution.Pair->Left.Availability = anchor_availability::unavailable;
-			return { .Pair = resolution.Pair, .Reason = epoch_reason_code::merge_base_unavailable };
+			return { .Pair   = resolution.Pair,
+					 .Reason = aBasis == comparison_base_basis::disputed_base ? epoch_reason_code::merge_base_disputed : epoch_reason_code::merge_base_unavailable };
 		}
 		if (resolution.Pair->Left.Identity.Authority != aAuthority.Scope
 			|| resolution.Pair->Right.Identity.Authority != aAuthority.Scope

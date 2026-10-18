@@ -853,6 +853,9 @@ namespace bpr::adapters::github::detail {
 			std::string      State;
 			target_head_json Head;
 			target_base_json Base;
+			/// [[BPR-1572]]. The commit count GitHub reports, read for a LEFT
+			/// line's stacked-base rule.
+			std::optional<std::uint64_t> Commits;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -861,7 +864,8 @@ namespace bpr::adapters::github::detail {
 					"number", &target_response_json::Number,
 					"state", &target_response_json::State,
 					"head", &target_response_json::Head,
-					"base", &target_response_json::Base);
+					"base", &target_response_json::Base,
+					"commits", &target_response_json::Commits);
 			};
 		};
 
@@ -881,12 +885,15 @@ namespace bpr::adapters::github::detail {
 			std::string     Url;
 			commit_sha_json BaseCommit;
 			commit_sha_json MergeBaseCommit;
+			/// [[BPR-1572]]. Unsigned: a negative count is malformed.
+			std::optional<std::uint64_t> AheadBy;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
 					"url", &merge_base_response_json::Url,
 					"base_commit", &merge_base_response_json::BaseCommit,
-					"merge_base_commit", &merge_base_response_json::MergeBaseCommit);
+					"merge_base_commit", &merge_base_response_json::MergeBaseCommit,
+					"ahead_by", &merge_base_response_json::AheadBy);
 			};
 		};
 
@@ -2202,6 +2209,8 @@ namespace bpr::adapters::github::detail {
 		case operation::observe_review_comments:
 		case operation::observe_reviews:
 		case operation::observe_merge_base:
+		case operation::observe_recorded_merge_base:
+		case operation::observe_base_ancestry:
 			return review_mutation_exchange{ };
 		case operation::create_review_comment:
 			return review_mutation_exchange{
@@ -2255,22 +2264,41 @@ namespace bpr::adapters::github::detail {
 		return request;
 	}
 
+	auto merge_base_ancestry_binding(
+		const application::review_mutation_target_binding& aTarget,
+		const core::git_commit_oid&                        aTip) -> application::review_mutation_target_binding
+	{
+		auto binding                  = aTarget;
+		binding.Semantic.ExpectedHead = aTip;
+		return binding;
+	}
+
 	auto compile_merge_base_observation_request(
 		const application::review_mutation_target_binding& aTarget,
-		const application::github_server_contract          aServer)
+		const application::github_server_contract          aServer,
+		const merge_base_observation_basis                 aBasis)
 		-> review_mutation_request_result
 	{
 		if (!application::valid(aTarget) || !valid_server(aServer) || aTarget.BaseRef.empty() || aTarget.BaseRef.size() > 256U
-			|| std::ranges::any_of(aTarget.BaseRef, [](const unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; })) {
+			|| std::ranges::any_of(aTarget.BaseRef, [](const unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; })
+			|| (aBasis != merge_base_observation_basis::base_branch && aBasis != merge_base_observation_basis::recorded_base
+				&& aBasis != merge_base_observation_basis::base_ancestry)) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
+		// The ancestry binding's expected head is the base branch tip, so the
+		// recorded base and the ancestry pairs compile alike: exact commits.
+		const auto head = std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() };
+		const auto from = aBasis == merge_base_observation_basis::base_branch ? percent_encode(aTarget.BaseRef)
+																			  : std::string{ core::canonical_hex(aTarget.BaseOid).view() };
 		return review_mutation_wire_request{
 			.Semantic  = aTarget,
 			.Server    = aServer,
-			.Operation = review_mutation_operation::observe_merge_base,
+			.Operation = aBasis == merge_base_observation_basis::base_branch ? review_mutation_operation::observe_merge_base
+				: aBasis == merge_base_observation_basis::recorded_base      ? review_mutation_operation::observe_recorded_merge_base
+																			 : review_mutation_operation::observe_base_ancestry,
 			.Method    = http_method::get,
 			.Path      = std::string{ rest_prefix(aServer) } + "/repos/" + percent_encode(aTarget.Repository.Owner) + "/" + percent_encode(aTarget.Repository.Name)
-				+ "/compare/" + percent_encode(aTarget.BaseRef) + "..." + std::string{ core::canonical_hex(aTarget.Semantic.ExpectedHead).view() } + "?page=2&per_page=1",
+				+ "/compare/" + from + "..." + head + "?page=2&per_page=1",
 			.Headers = common_headers(),
 			.Body    = { },
 		};
@@ -2278,8 +2306,9 @@ namespace bpr::adapters::github::detail {
 
 	auto parse_merge_base_observation(
 		const review_mutation_wire_response&               aResponse,
-		const application::review_mutation_target_binding& aExpected)
-		-> review_mutation_parse_result<core::git_commit_oid>
+		const application::review_mutation_target_binding& aExpected,
+		const merge_base_observation_basis                 aBasis)
+		-> review_mutation_parse_result<merge_base_observation>
 	{
 		if (!application::valid(aExpected)) {
 			return failed(review_mutation_contract_failure::invalid_request);
@@ -2294,10 +2323,27 @@ namespace bpr::adapters::github::detail {
 		const auto head      = std::string{ core::canonical_hex(aExpected.Semantic.ExpectedHead).view() };
 		const auto base      = core::parse_git_commit_oid(response->BaseCommit.Sha);
 		const auto mergeBase = core::parse_git_commit_oid(response->MergeBaseCommit.Sha);
-		if (!response->Url.ends_with("..." + head) || !base || !mergeBase || mergeBase->algorithm() != aExpected.Semantic.ExpectedHead.algorithm()) {
+		const auto format    = aExpected.Semantic.ExpectedHead.algorithm();
+		if (!response->Url.ends_with("..." + head) || !base || !mergeBase || mergeBase->algorithm() != format || base->algorithm() != format
+			|| (aBasis != merge_base_observation_basis::base_branch && *base != aExpected.BaseOid)) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
-		return *mergeBase;
+		return merge_base_observation{ .MergeBase = *mergeBase, .BaseCommit = *base, .AheadBy = response->AheadBy };
+	}
+
+	auto left_lines_numbered_in_comparison_base(
+		const application::review_mutation_target_binding& aTarget,
+		const merge_base_observation&                      aBranch,
+		const std::optional<merge_base_observation>&       aRecorded,
+		const std::optional<merge_base_observation>&       aAncestry,
+		const std::optional<std::uint64_t>&                aReportedCommits) noexcept -> bool
+	{
+		const auto comparisonBase = application::comparison_base(aTarget);
+		if (aBranch.MergeBase == comparisonBase) {
+			return true;
+		}
+		return aRecorded && aAncestry && aReportedCommits && aRecorded->MergeBase == comparisonBase && aRecorded->AheadBy == aReportedCommits
+			&& aAncestry->MergeBase == aTarget.BaseOid && aAncestry->BaseCommit == aTarget.BaseOid;
 	}
 
 	auto compile_viewer_observation_request(
@@ -2562,6 +2608,10 @@ namespace bpr::adapters::github::detail {
 							? compile_review_comment_collection_request(aSemantic, aRequest.Server, collection_page(aRequest.Path))
 							: aRequest.Operation == review_mutation_operation::observe_merge_base
 							? compile_merge_base_observation_request(aSemantic, aRequest.Server)
+							: aRequest.Operation == review_mutation_operation::observe_recorded_merge_base
+							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::recorded_base)
+							: aRequest.Operation == review_mutation_operation::observe_base_ancestry
+							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::base_ancestry)
 							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
@@ -2655,7 +2705,47 @@ namespace bpr::adapters::github::detail {
 		}
 		auto observed                  = aExpected;
 		observed.Semantic.ExpectedHead = *head;
-		return review_mutation_target_observation{ .Target = std::move(observed) };
+		return review_mutation_target_observation{ .Target = std::move(observed), .Commits = response->Commits };
+	}
+
+	auto written_target(const review_mutation_wire_request& aRequest)
+		-> std::optional<application::review_mutation_target_binding>
+	{
+		const auto exchange = review_mutation_exchange_for(aRequest.Operation);
+		if (!exchange || !exchange->Witnessed) {
+			return std::nullopt;
+		}
+		return std::visit(
+			[](const auto& aSemantic) -> std::optional<application::review_mutation_target_binding> {
+				using semantic_type = std::remove_cvref_t<decltype(aSemantic)>;
+				if constexpr (std::same_as<semantic_type, review_submission_request>) {
+					return aSemantic.Target;
+				} else if constexpr (std::same_as<semantic_type, application::staged_review_request>) {
+					return aSemantic.Binding.Target;
+				} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
+					return aSemantic.LiveBinding ? std::optional{ aSemantic.LiveBinding->Target } : std::nullopt;
+				} else {
+					return std::nullopt;
+				}
+			},
+			aRequest.Semantic);
+	}
+
+	auto target_recorded_base_moved(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected) -> bool
+	{
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return false;
+		}
+		const auto response = document<target_response_json>(aResponse);
+		const auto base     = response ? core::parse_git_commit_oid(response->Base.Sha) : std::nullopt;
+		if (!base || *base == aExpected.BaseOid) {
+			return false;
+		}
+		auto moved    = aExpected;
+		moved.BaseOid = *base;
+		return parse_target_observation(aResponse, moved).has_value();
 	}
 
 	auto parse_viewer_observation(
@@ -3286,9 +3376,14 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(map_contract_failure(viewer.error()));
 		}
 
-		// Target/head is deliberately the last observation before POST. Viewer
-		// identity is checked first so no other network operation widens the
-		// target-revalidation window.
+		// Viewer identity is checked first so no other network operation widens
+		// the target-revalidation window. Target/head is the last observation
+		// before the POST. A LEFT line's merge-base reads follow it
+		// ([[BPR-1572]]): one compare when the base branch names the comparison
+		// base, or, when it names another, two more; on both paths the target
+		// is then read again, last. A transport that checks the account with
+		// reads of its own before the POST (the GitHub CLI account wrapper)
+		// reads the target once more after them.
 		const auto targetRequest = compile_target_observation_request(
 			Configuration.Target,
 			Configuration.CredentialContext.Authority.ServerContract);
@@ -3310,24 +3405,67 @@ namespace bpr::adapters::github::detail {
 		if (!aLeftLine) {
 			return { };
 		}
-		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
-		// which moves when the base branch takes commits the head shares, even
-		// with the recorded base and the head unchanged.
-		const auto mergeBaseRequest = compile_merge_base_observation_request(
-			Configuration.Target,
-			Configuration.CredentialContext.Authority.ServerContract);
-		if (!mergeBaseRequest.has_value()) {
-			return std::unexpected(map_contract_failure(mergeBaseRequest.error()));
+		// [[BPR-1560]], [[BPR-1572]]. A LEFT line is numbered in the merge
+		// base GitHub compares the pull request from. The base branch's merge
+		// base naming it settles it. Otherwise GitHub still numbers in it only
+		// while it is the recorded base's merge base, GitHub's commit count is
+		// that pair's, and the base branch only moved forward from the recorded
+		// base (to the tip its answer resolved); the pull request is then read
+		// again and must be unchanged, so a recorded base GitHub replaced while
+		// these were asked is not taken for the one they describe.
+		const auto observe = [&](const application::review_mutation_target_binding& aBinding, const merge_base_observation_basis aBasis)
+			-> std::expected<merge_base_observation, application::review_mutation_failure> {
+			const auto request = compile_merge_base_observation_request(aBinding, Configuration.CredentialContext.Authority.ServerContract, aBasis);
+			if (!request.has_value()) {
+				return std::unexpected(map_contract_failure(request.error()));
+			}
+			auto response = perform(*request, aStop);
+			if (!response.has_value()) {
+				return std::unexpected(response.error());
+			}
+			const auto observed = parse_merge_base_observation(*response, aBinding, aBasis);
+			if (!observed.has_value()) {
+				return std::unexpected(map_contract_failure(observed.error()));
+			}
+			return *observed;
+		};
+		const auto branch = observe(Configuration.Target, merge_base_observation_basis::base_branch);
+		if (!branch.has_value()) {
+			return std::unexpected(branch.error());
 		}
-		auto mergeBaseResponse = perform(*mergeBaseRequest, aStop);
-		if (!mergeBaseResponse.has_value()) {
-			return std::unexpected(mergeBaseResponse.error());
+		const auto agrees   = branch->MergeBase == application::comparison_base(Configuration.Target);
+		auto       recorded = std::optional<merge_base_observation>{ };
+		auto       ancestry = std::optional<merge_base_observation>{ };
+		if (!agrees) {
+			auto recordedAnswer = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
+			if (!recordedAnswer.has_value()) {
+				return std::unexpected(recordedAnswer.error());
+			}
+			recorded            = *recordedAnswer;
+			auto ancestryAnswer = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
+			if (!ancestryAnswer.has_value()) {
+				return std::unexpected(ancestryAnswer.error());
+			}
+			ancestry = *ancestryAnswer;
 		}
-		const auto mergeBase = parse_merge_base_observation(*mergeBaseResponse, Configuration.Target);
-		if (!mergeBase.has_value()) {
-			return std::unexpected(map_contract_failure(mergeBase.error()));
+		// The pull request read again, the last read before the write, on
+		// either path, and classified as the first read is; a recorded base
+		// GitHub replaced under the merge-base reads is the target moving.
+		auto again = perform(*targetRequest, aStop);
+		if (!again.has_value()) {
+			return std::unexpected(again.error());
 		}
-		if (*mergeBase != application::comparison_base(Configuration.Target)) {
+		const auto confirmed = parse_target_observation(*again, Configuration.Target);
+		if (!confirmed.has_value()) {
+			if (target_recorded_base_moved(*again, Configuration.Target)) {
+				return std::unexpected(application::review_mutation_failure::target_moved);
+			}
+			return std::unexpected(map_contract_failure(confirmed.error()));
+		}
+		if (confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead) {
+			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!agrees && (confirmed->Commits != target->Commits || !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, recorded, ancestry, target->Commits))) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };
@@ -3635,6 +3773,12 @@ namespace bpr::adapters::github::detail {
 		const bool  file    = file_child_state(current.State);
 		const auto& child   = file ? current.Fallback : current.Native;
 		if (!child || child->Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+			// [[BPR-1572]]. Never sent: the transport's refusal (the GitHub CLI
+			// account wrapper finding the pull request moved) is the answer.
+			result.MutationAttempted = witnessed->load();
+			if (!response) {
+				result.Result = std::unexpected(response.error());
+			}
 			return result;
 		}
 		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
@@ -4138,6 +4282,9 @@ namespace bpr::adapters::github::detail {
 			if (!transmission.has_value() || !transmission->has_value()
 				|| (**transmission).Transmission
 					!= application::review_mutation_recovery_transmission::possibly_transmitted) {
+				// [[BPR-1572]]. Never witnessed, never sent: a transport's
+				// refusal (the pull request moved) is not an attempt.
+				submission.MutationAttempted = witnessed->load();
 				return submission;
 			}
 

@@ -182,25 +182,71 @@ namespace bpr::adapters::github::detail {
 		if (!aLeftLine) {
 			return { };
 		}
-		// [[BPR-1560]]. A LEFT line is numbered in GitHub's current merge base,
-		// which moves when the base branch takes commits the head shares, even
-		// with the recorded base and the head unchanged.
-		auto mergeBase = compile_merge_base_observation_request(Configuration.Target, Configuration.Target.ServerContract);
-		if (!mergeBase) {
+		// [[BPR-1560]], [[BPR-1572]]. A LEFT line is numbered in the merge
+		// base GitHub compares the pull request from: the base branch's merge
+		// base, or, when that names another commit, the recorded base's while
+		// GitHub's commit count is that pair's and the base branch only moved
+		// forward from the recorded base to the tip its answer resolved. The
+		// pull request is then read again and must be unchanged.
+		const auto observe = [&](const application::review_mutation_target_binding& aBinding, const merge_base_observation_basis aBasis)
+			-> std::expected<merge_base_observation, application::review_mutation_failure> {
+			auto request = compile_merge_base_observation_request(aBinding, Configuration.Target.ServerContract, aBasis);
+			if (!request) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			auto  observed = perform(*request, aStop);
+			auto* success  = std::get_if<github_mutation_wire_success>(&observed);
+			if (!success || success->Response.Status != 200) {
+				note_completion(observed);
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			const auto current = parse_merge_base_observation(success->Response, aBinding, aBasis);
+			if (!current) {
+				note(reason::pull_request_mismatch);
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			return *current;
+		};
+		const auto branch = observe(Configuration.Target, merge_base_observation_basis::base_branch);
+		if (!branch) {
+			return std::unexpected(branch.error());
+		}
+		const auto agrees   = branch->MergeBase == application::comparison_base(Configuration.Target);
+		auto       recorded = std::optional<merge_base_observation>{ };
+		auto       ancestry = std::optional<merge_base_observation>{ };
+		if (!agrees) {
+			auto recordedAnswer = observe(Configuration.Target, merge_base_observation_basis::recorded_base);
+			if (!recordedAnswer) {
+				return std::unexpected(recordedAnswer.error());
+			}
+			recorded            = *recordedAnswer;
+			auto ancestryAnswer = observe(merge_base_ancestry_binding(Configuration.Target, branch->BaseCommit), merge_base_observation_basis::base_ancestry);
+			if (!ancestryAnswer) {
+				return std::unexpected(ancestryAnswer.error());
+			}
+			ancestry = *ancestryAnswer;
+		}
+		// The pull request read again, the last read before the write, on
+		// either path, and classified as the first read is; a recorded base
+		// GitHub replaced under the merge-base reads is the target moving.
+		auto  again        = perform(*target, aStop);
+		auto* againSuccess = std::get_if<github_mutation_wire_success>(&again);
+		if (!againSuccess || againSuccess->Response.Status != 200) {
+			note_completion(again);
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
-		auto  observedMergeBase = perform(*mergeBase, aStop);
-		auto* mergeBaseSuccess  = std::get_if<github_mutation_wire_success>(&observedMergeBase);
-		if (!mergeBaseSuccess || mergeBaseSuccess->Response.Status != 200) {
-			note_completion(observedMergeBase);
-			return std::unexpected(application::review_mutation_failure::unavailable);
-		}
-		const auto current = parse_merge_base_observation(mergeBaseSuccess->Response, Configuration.Target);
-		if (!current) {
+		const auto confirmed = parse_target_observation(againSuccess->Response, Configuration.Target);
+		if (!confirmed) {
+			if (target_recorded_base_moved(againSuccess->Response, Configuration.Target)) {
+				return std::unexpected(application::review_mutation_failure::target_moved);
+			}
 			note(reason::pull_request_mismatch);
 			return std::unexpected(application::review_mutation_failure::undesignated_target);
 		}
-		if (*current != application::comparison_base(Configuration.Target)) {
+		if (confirmed->Target.Semantic.ExpectedHead != Configuration.Target.Semantic.ExpectedHead) {
+			return std::unexpected(application::review_mutation_failure::stale_head);
+		}
+		if (!agrees && (confirmed->Commits != parsed->Commits || !left_lines_numbered_in_comparison_base(Configuration.Target, *branch, recorded, ancestry, parsed->Commits))) {
 			return std::unexpected(application::review_mutation_failure::target_moved);
 		}
 		return { };
@@ -570,7 +616,14 @@ namespace bpr::adapters::github::detail {
 			},
 													 completion);
 			if (!witnessed->load() && definitelyUnsent) {
-				return withdrawn(result(aRequest, publication::definitely_not_published));
+				// [[BPR-1572]]. A transport that refused the write before sending
+				// it (the GitHub CLI account wrapper finding the pull request
+				// moved) says why; the reason reaches the caller.
+				const auto* refused = std::get_if<github_mutation_wire_error>(&completion);
+				const auto  why     = refused != nullptr && (refused->Failure == application::review_mutation_failure::target_moved || refused->Failure == application::review_mutation_failure::stale_head)
+					? refused->Failure
+					: application::review_mutation_failure::unavailable;
+				return withdrawn(result(aRequest, publication::definitely_not_published, why));
 			}
 			const auto persisted = Recovery->load(aRequest.IdempotencyKey);
 			if (!persisted || !*persisted || !application::valid(**persisted) || (**persisted).Request != aRequest || (**persisted).BaselineReviewIds != expected.BaselineReviewIds || (**persisted).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted || !observed) {

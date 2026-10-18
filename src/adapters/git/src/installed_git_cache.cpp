@@ -4013,7 +4013,12 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
-				auto headLineage = aSparse && aRequest.PriorHead ? core::head_lineage::unknown : core::head_lineage::not_applicable;
+				// [[BPR-1572]]. An unchanged head has no lineage to claim, sparse
+				// or complete: a revision whose base alone moved (its base branch
+				// rebased, or GitHub replacing the recorded base) is otherwise
+				// refused by the core as an invalid observation.
+				auto headLineage = aSparse && aRequest.PriorHead && *aRequest.PriorHead != aRequest.Head ? core::head_lineage::unknown
+																										 : core::head_lineage::not_applicable;
 				if (
 					!aSparse && aRequest.PriorHead.has_value()
 					&& *aRequest.PriorHead != aRequest.Head) {

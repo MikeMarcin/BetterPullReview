@@ -548,7 +548,7 @@ namespace {
 
 		// A typical subset, chosen in Settings: issue and nitpick.
 		auto* const editor = window.label_columns_editor();
-		expect(editor != nullptr, "Reviews & queue offers the Overview chips");
+		expect(editor != nullptr, "Comments offers the Overview chips");
 		editor->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
 		wait_for([&] { return counted(1U, core::feedback_resolution_mode::unresolved); }, "a chip ticked in Settings reaches the Overview through the profile's setting");
 		editor->item_of(core::feedback_label::nitpick)->setCheckState(Qt::Checked);
@@ -1038,7 +1038,7 @@ namespace {
 				capture(window, QStringLiteral("overview-labels-discuss-%1.png").arg(QString::fromLatin1(theme)));
 				auto* const settings = window.settings();
 				expect(settings != nullptr && editor->window() == settings, "the Overview chips live in Settings");
-				settings->present(qt::settings_page::reviews_and_queue);
+				settings->present(qt::settings_page::comments);
 				settings->resize(900, 700);
 				QApplication::processEvents();
 				for (auto* area = editor->parentWidget(); area != nullptr; area = area->parentWidget()) {

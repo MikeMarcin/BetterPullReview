@@ -94,15 +94,15 @@ def main() -> int:
     shown = [json.loads(line) for line in (arguments.root / "parity.jsonl").read_text().splitlines() if line.strip()]
     pull = gh(f"repos/{REPOSITORY}/pulls/{arguments.pull}")
     base, head = pull["base"]["sha"], pull["head"]["sha"]
-    # GitHub's own basis: an open pull request's base branch against its head
-    # (the branch tip GitHub resolves), a closed one's recorded base. The
-    # expected blobs come from that merge base; the expected lines from
-    # GitHub's patches, which are independent of it.
-    basis = pull["base"]["ref"] if pull["state"] == "open" else base
-    compared = gh(f"repos/{REPOSITORY}/compare/{basis.replace('/', '%2F')}...{head}?per_page=1&page=2")
-    merge_base = compared["merge_base_commit"]["sha"]
-    against_recorded = gh(f"repos/{REPOSITORY}/compare/{base}...{head}?per_page=1&page=2")["merge_base_commit"]["sha"]
-    print(f"github: tip={compared['base_commit']['sha']} merge_base(tip)={merge_base} merge_base(base.sha)={against_recorded}")
+    # GitHub's own basis ([[BPR-1572]], measured on stacked pull requests):
+    # the merge base of the recorded base (`base.sha`) and the head, open or
+    # closed, also when the base branch has since moved forward and names
+    # another merge base. The expected blobs come from that merge base; the
+    # expected lines from GitHub's patches, which are independent of it.
+    tip_answer = gh(f"repos/{REPOSITORY}/compare/{pull['base']['ref'].replace('/', '%2F')}...{head}?per_page=1&page=2") if pull["state"] == "open" else None
+    merge_base = gh(f"repos/{REPOSITORY}/compare/{base}...{head}?per_page=1&page=2")["merge_base_commit"]["sha"]
+    if tip_answer:
+        print(f"github: tip={tip_answer['base_commit']['sha']} merge_base(tip)={tip_answer['merge_base_commit']['sha']} merge_base(base.sha)={merge_base}")
     files = gh(f"repos/{REPOSITORY}/pulls/{arguments.pull}/files?per_page=100", paginate=True)
     left_tree, right_tree = tree_blobs(merge_base), tree_blobs(head)
     print(f"github: base.sha={base} merge_base={merge_base} head={head} files={len(files)}")

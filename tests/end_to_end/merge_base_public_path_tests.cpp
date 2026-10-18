@@ -86,7 +86,10 @@ namespace {
 		std::unique_ptr<app::github_application> Application;
 	};
 
-	auto start(course& aCourse, const bool aMergeBaseUnavailable, const bool aMergeBaseRace = false, const bool aUnauthorized = false) -> qt::workbench_window&
+	auto start(course& aCourse, const bool aMergeBaseUnavailable, const bool aMergeBaseRace = false, const bool aUnauthorized = false,
+			   const app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::merge_base_v1, const bool aStackedRewritten = false,
+			   const bool aStackedReset = false)
+		-> qt::workbench_window&
 	{
 		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
 		expect(dataRoot.has_value(), "private course root");
@@ -95,8 +98,10 @@ namespace {
 		options.MergeBaseUnavailable  = aMergeBaseUnavailable;
 		options.MergeBaseRace         = aMergeBaseRace;
 		options.MergeBaseUnauthorized = aUnauthorized;
+		options.StackedBaseRewritten  = aStackedRewritten;
+		options.StackedBaseReset      = aStackedReset;
 		auto terminal                 = false;
-		auto startup                  = access::start(app::detail::github_public_path_fixture::merge_base_v1, options, [&](auto aResult) {
+		auto startup                  = access::start(aFixture, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				aCourse.Application = std::move(*aResult);
@@ -109,7 +114,8 @@ namespace {
 		window.resize(1280, 860);
 		window.github_connect_action()->trigger();
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
-		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/merge-base#1560"));
+		window.home_open_bar()->setText(aFixture == app::detail::github_public_path_fixture::merge_base_v1 ? QStringLiteral("bpr-fixtures/merge-base#1560")
+																										   : QStringLiteral("bpr-fixtures/stacked-merge-base#1572"));
 		window.home_open_action()->trigger();
 		if (aUnauthorized) {
 			return window;
@@ -144,18 +150,25 @@ namespace {
 		}
 	}
 
-	/// GitHub's Files changed for M...H, line for line.
-	void whole_pr_is_githubs_files_changed()
+	/// GitHub's Files changed for M...H, line for line. [[BPR-1572]]: on the
+	/// stacked course, for the recorded base A1...B2, though the base branch's
+	/// tip B1 names itself as merge base and would hide x.txt's change.
+	void whole_pr_is_githubs_files_changed(const bool aStacked = false)
 	{
-		auto                                                 run    = course{ };
-		auto&                                                window = start(run, false);
-		const std::map<std::string, std::pair<lines, lines>> github{
-			{ "a.txt", { { { 2U, "a line 2" }, { 12U, "a line 12" } }, { { 2U, "a line 2 PR-1" }, { 12U, "a line 12 PR-3" } } } },
-			{ "b.txt", { { { 3U, "b line 3" } }, { { 3U, "b line 3 PR-2" } } } },
-			{ "new.txt", { { }, { { 1U, "added by the pull request" } } } },
-			{ "shared.txt", { { { 5U, "shared line 5" } }, { { 5U, "shared line 5 PR-1" } } } },
-		};
-		expect(window.overview_page()->projection()->Files.size() == github.size(), "the review lists exactly GitHub's four files");
+		auto       run    = course{ };
+		auto&      window = start(run, false, false, false,
+								  aStacked ? app::detail::github_public_path_fixture::stacked_merge_base_v1 : app::detail::github_public_path_fixture::merge_base_v1);
+		const auto github = aStacked ? std::map<std::string, std::pair<lines, lines>>{
+			{ "x.txt", { { { 3U, "x line 3" } }, { { 3U, "x line 3 B-1" } } } },
+			{ "y.txt", { { { 3U, "y line 3" } }, { { 3U, "y line 3 B-2" } } } },
+		}
+									 : std::map<std::string, std::pair<lines, lines>>{
+										   { "a.txt", { { { 2U, "a line 2" }, { 12U, "a line 12" } }, { { 2U, "a line 2 PR-1" }, { 12U, "a line 12 PR-3" } } } },
+										   { "b.txt", { { { 3U, "b line 3" } }, { { 3U, "b line 3 PR-2" } } } },
+										   { "new.txt", { { }, { { 1U, "added by the pull request" } } } },
+										   { "shared.txt", { { { 5U, "shared line 5" } }, { { 5U, "shared line 5 PR-1" } } } },
+									   };
+		expect(window.overview_page()->projection()->Files.size() == github.size(), "the review lists exactly GitHub's files");
 		for (const auto& [path, expected] : github) {
 			select(window, path);
 			auto waited = QElapsedTimer{ };
@@ -180,7 +193,38 @@ namespace {
 			expect(!context.Key.LeftBlob || context.Key.LeftBlob != context.Key.RightBlob, "no file shows the pull request's text on both sides");
 		}
 		expect(window.epoch_selectors()->whole_pr_action()->isChecked(), "the review opened on Whole PR");
-		render(window, QStringLiteral("merge-base-whole-pr"));
+		render(window, aStacked ? QStringLiteral("stacked-merge-base-whole-pr") : QStringLiteral("merge-base-whole-pr"));
+		finish(run);
+	}
+
+	/// [[BPR-1572]]. The stacked course with the base branch rewritten (the
+	/// recorded base is not an ancestor of its tip): GitHub is replacing the
+	/// recorded base, so Whole PR says GitHub's answers disagree and compares
+	/// nothing from the recorded base.
+	/// [[BPR-1572]]. `aReset`: the base branch only moved forward, every compare
+	/// agrees with the recorded base, but GitHub replaces the recorded base
+	/// with the branch's tip before the confirming read (the window after the
+	/// branch is force-pushed onto a descendant): the merge base is refused, not
+	/// taken for the old recorded base.
+	void stacked_rewritten_base_says_answers_disagree(const bool aReset = false)
+	{
+		auto  run    = course{ };
+		auto& window = start(run, false, false, false, app::detail::github_public_path_fixture::stacked_merge_base_v1, !aReset, aReset);
+		wait_for([&] { return window.epoch_selectors()->status_text().contains(QStringLiteral("GitHub's answers about where this pull request branched disagree")); },
+				 "Whole PR says GitHub's answers disagree");
+		select(window, "x.txt");
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (elapsed.elapsed() < 3000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+			const auto& context = window.comparison_surface()->current_context();
+			expect(!context || context->Key.LeftAnchor.Kind != core::comparison_anchor_kind::epoch_base || !window.comparison_surface()->current_result(),
+				   "nothing is compared from the recorded base");
+		}
+		std::cout << (aReset ? "stacked reset" : "stacked rewritten") << " status=" << window.epoch_selectors()->status_text().toStdString() << '\n';
+		expect(access::evidence(*run.Application).MergeBaseReads >= 3U && access::evidence(*run.Application).MergeBaseConfirmations == (aReset ? 1U : 0U),
+			   "the recorded base, the base branch and the ancestry were asked; only the reset course reaches the confirming read");
 		finish(run);
 	}
 
@@ -192,8 +236,10 @@ namespace {
 	{
 		auto  run    = course{ };
 		auto& window = start(run, !aRace, aRace);
-		wait_for([&] { return window.epoch_selectors()->status_text().contains(QStringLiteral("GitHub did not say where this pull request branched")); },
-				 "Whole PR says GitHub named no merge base");
+		// [[BPR-1572]]. The race is GitHub's answers disagreeing, said as such.
+		const auto reason = aRace ? QStringLiteral("GitHub's answers about where this pull request branched disagree")
+								  : QStringLiteral("GitHub did not say where this pull request branched");
+		wait_for([&] { return window.epoch_selectors()->status_text().contains(reason); }, "Whole PR says why it has no merge base");
 		select(window, "b.txt");
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
@@ -235,6 +281,9 @@ int main(int aArgc, char** aArgv)
 {
 	QApplication qtApplication{ aArgc, aArgv };
 	whole_pr_is_githubs_files_changed();
+	whole_pr_is_githubs_files_changed(true);
+	stacked_rewritten_base_says_answers_disagree();
+	stacked_rewritten_base_says_answers_disagree(true);
 	whole_pr_without_a_merge_base_says_so(false);
 	whole_pr_without_a_merge_base_says_so(true);
 	lost_authentication_fails_the_read();

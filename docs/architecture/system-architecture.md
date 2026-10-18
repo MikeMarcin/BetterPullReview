@@ -145,7 +145,7 @@ public-preview session keeps the profile host's own presentation.
 
 Settings has one presentation per profile and mounts the invoking window's
 controls over shared accepted preferences. Window geometry remains independent.
-Its seven fixed categories aggregate the existing typed domain projections and
+Its ten task pages aggregate the existing typed domain projections and
 intents; there is no shared key/value settings authority. The appearance,
 workbench, queue, authentication, agent and history hosts keep their own
 validation, generations, persistence and effect lanes. Closing Settings cancels

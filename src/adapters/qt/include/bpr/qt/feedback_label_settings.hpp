@@ -17,7 +17,7 @@ class QKeyEvent;
 class QResizeEvent;
 
 /// \file
-/// \brief [[BPR-1088]]. The Overview chips row of Reviews & queue › Comment
+/// \brief [[BPR-1088]]. The Overview chips row of Comments › Comment
 /// labels (BPR-1079 selected design, Settings; RFC-BPR-0049 R20, R28).
 /// \details Presentation only. The list shows the label columns the host
 /// published, reports the selection a reviewer's gesture asks for, and holds

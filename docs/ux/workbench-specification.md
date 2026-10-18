@@ -271,7 +271,7 @@ setting"). Threads' rows had been held to 880 pixels, the prototype's measure
 for its drawer-sized frame, where its window-filling frame had none. Threads'
 rows and Discuss's notes now fill the page from its left edge up to the
 reading width, the people, counts and state at the row's right end and the
-words taking every pixel before them. Settings › Reviews & queue › Reading has
+words taking every pixel before them. Settings › Review › Reading has
 **Reading width**: Narrow (960 pixels), Medium (1600), **Wide** (2560, the
 default) and Full width, applied at once, with its own reset; its note reads
 "Threads and Discuss stop at this width on a wide screen. The code comparison
@@ -283,8 +283,20 @@ composer's list.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
-before the change arrows, **Accept** as a named one-click file action, and
-private progress as an icon whose tooltip names the file's state. Accept uses
+before the change arrows, and the **progress track** ([[BPR-1578]], the
+owner's choice of 2026-10-17 after two rounds of designs): Seen, Read and
+**Accept** as the steps of one control, with private progress's chevron as its
+last cell, on one accent rail parted from the Changes rail by a gap. The step
+the file has reached is solid in the accent, or in the acceptance green once
+accepted, when Accept reads **Accepted**; steps still to come are in full ink,
+and the step still to take shows the acceptance green's tick. A step only
+moves the file forward: Seen marks an unread file seen and Read marks it read;
+a step already reached does nothing, so the track never un-reads a file (Mark
+unread stays in the menu). An excluded file rests the track, its chevron cell
+carrying the excluded mark. The track's last width yield shows Seen and Read
+as marks alone; their names stay in their tooltips and accessible names.
+Accept is the named one-click file action, and the menu button's tooltip names
+the file's state. Accept uses
 the selected exact file material and becomes **Revoke acceptance** after the
 saved receipt arrives. It is disabled while no comparison is selected, private
 progress is unavailable, or the file is excluded. The adjacent state menu keeps
@@ -314,7 +326,8 @@ summary in Discuss. Finish review is also Command+Option+Return
 (`Ctrl+Alt+Return`), from anywhere in the window, while a review is in
 progress and not being submitted; the chip's tooltip names the key
 ([[BPR-1345]] v002). Each navigation
-label and its pair share a horizontal accent rail. File and Changes stay named
+label and its pair share a horizontal accent rail, as the progress track has
+its own. File and Changes stay named
 at every width and when their position is unavailable; narrow layouts shorten
 only the position wording.
 
@@ -520,8 +533,14 @@ pull request read the core names in its transition, and discovery's state.
   shows a note and is announced only when it brought news ("Updated
   automatically: 1 new comment.", "Updated from another window: …") or failed.
 - **Keys.** Refresh is the platform's Refresh key (⌘R on macOS, F5 or Ctrl+R
-  elsewhere), listed in Keyboard Shortcuts as "Refresh the pull request";
-  Home's refresh has no key of its own.
+  elsewhere), and it does whichever refresh the window shows ([[BPR-1600]],
+  the owner's 2026-10-17 amendment of [[BPR-0990]]): on Home, Home's refresh
+  with the same note, result, failure and Retry as its button; on a pull
+  request, the pull request's. The key is on one of the two actions at a time,
+  so a press is never ambiguous, and like the pull request's it acts while the
+  keyboard is in Home's Open bar. Keyboard Shortcuts lists "Refresh the pull
+  request" (with a pull request showing) and "Refresh my pull requests" (on
+  Home).
 
 Every result and failure is announced once, politely, from the button; the
 button's description carries the state and the age. The note is laid over
@@ -842,7 +861,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   when a signed-in window's ready queue is empty Needs me holds one sentence
   — "Nothing needs me. Pull requests from saved repositories and observer
   rules appear here." — whose link, on "saved repositories", opens Settings ›
-  Repositories; observer rules are reached from View's Open Reviews & queue.
+  Repositories; observer rules are reached from View's Open Home & queue.
   No empty
   box is drawn in any arrangement.
 - **Group by** offers None (the default), Organization, Repository and
@@ -872,12 +891,12 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   order inside each state), **State headers** (checkable), then **My role:
   Any** ▸, **Added by: Any** ▸ and **Quiet items: Show** ▸, then **Reset to
   defaults**, then the footer "Nothing here changes GitHub." and **Open
-  Reviews & queue**. Each submenu is one exclusive choice listing every value of its
+  Home & queue** (Reviews & queue until [[BPR-1597]]). Each submenu is one exclusive choice listing every value of its
   vocabulary, so an item cannot be unticked into nothing. A native macOS menu
   shows no tooltip, so each choice explains itself in its own words: My role
   reads Any role, I opened it, I reviewed it, My review is requested, I took
   part in it and None of these (a rule or a follow added it); Added by opens
-  with the line "Observer rules are mine, kept in Settings › Reviews & queue"
+  with the line "Observer rules are mine, kept in Settings › Home & queue"
   and reads Any way, A rule on a repository, A rule on an author and A rule
   on a path;
   Quiet items opens with the line "Quiet: nothing new for me and nothing
@@ -1831,7 +1850,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   cut at a character boundary and says how many bytes follow. The core decides
   the rows, the cut and the highlight spans from the comparison's existing
   mapping and intraline edits; Qt draws them. It is on by default. **View >
-  Line Details** and the Comparison row on Reviews and queue hide or show it
+  Line Details** and the Line details row on Settings › Review › Layout hide or show it
   for the profile. Its top edge is a resize seam with the shared cursor hold:
   drag it, or press Up/Down on it to move one text line; double-click it or use
   its context menu to reset the height. The height a reader chose is kept per

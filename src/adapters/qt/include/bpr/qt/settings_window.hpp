@@ -30,18 +30,25 @@ namespace bpr::qt {
 	/// looking for it is told, rather than shown an empty page. Repositories
 	/// follows Accounts & hosts because a saved repository belongs to one of
 	/// those accounts (RFC-BPR-0062, owner direction 2026-10-07).
+	/// [[BPR-1597]]. Reviews & queue was split by task (owner's pick A,
+	/// 2026-10-17, with the middle page named Review): Home & queue (what Home
+	/// lists), Review (how a pull request opens and reads) and Comments
+	/// (labels, the comment workshop, images in comments). The value is the
+	/// sidebar row, so the order here is the sidebar's; no value is stored.
 	enum class settings_page : std::uint8_t {
 		general,
 		accounts_and_hosts,
 		repositories,
-		reviews_and_queue,
+		home_and_queue,
+		review,
+		comments,
 		appearance,
 		notifications,
 		agents_and_context,
 		storage_and_privacy,
 	};
 
-	inline constexpr std::size_t settings_page_count = 8U;
+	inline constexpr std::size_t settings_page_count = 10U;
 
 	/// \brief [[BPR-1289]]. What a Settings search result holds besides the
 	/// name it shows (`Qt::DisplayRole`).

@@ -145,6 +145,12 @@ namespace bpr::qt {
 				// names; without it there is nothing that matches GitHub.
 				return QStringLiteral(
 					"GitHub did not say where this pull request branched, so Whole PR cannot match its Files changed. Compare two updates, or refresh.");
+			case core::epoch_reason_code::merge_base_disputed:
+				// [[BPR-1572]]. GitHub answered, but its answers disagree: the
+				// pull request moved while it was read, or its base branch is
+				// being rewritten.
+				return QStringLiteral(
+					"GitHub's answers about where this pull request branched disagree, so Whole PR cannot match its Files changed yet. Refresh in a moment, or compare two updates.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}

@@ -856,10 +856,22 @@ namespace bpr::core {
 	/// commit GitHub recorded for the pull request; it is retained so updates
 	/// can still be compared with each other, but Whole PR does not compare
 	/// from it, because that two-dot comparison is not GitHub's.
+	/// `disputed_base` ([[BPR-1572]]): as `recorded_base`, but GitHub did
+	/// answer, and its answers disagree about where the pull request branched
+	/// (it moved while it was read, or its base branch is being rewritten),
+	/// so Whole PR says that rather than that GitHub named nothing.
 	enum class comparison_base_basis : std::uint8_t {
 		merge_base,
 		recorded_base,
+		disputed_base,
 	};
+
+	/// \brief [[BPR-1572]]. Whether the accepted revision's `Base` is only
+	/// the recorded base, retained and never compared from.
+	[[nodiscard]] constexpr auto retained_recorded_base(const comparison_base_basis aBasis) noexcept -> bool
+	{
+		return aBasis == comparison_base_basis::recorded_base || aBasis == comparison_base_basis::disputed_base;
+	}
 
 	struct pull_request_revision_accepted_event
 	{
@@ -1411,6 +1423,9 @@ namespace bpr::core {
 		/// [[BPR-1560]]. GitHub named no merge base for the accepted revision,
 		/// so Whole PR has no base it may compare from.
 		merge_base_unavailable,
+		/// [[BPR-1572]]. GitHub's answers disagree about the accepted
+		/// revision's merge base, so Whole PR has no base it may compare from.
+		merge_base_disputed,
 	};
 
 	/// \brief Computes the reason for result.

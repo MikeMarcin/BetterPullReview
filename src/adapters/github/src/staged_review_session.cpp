@@ -248,9 +248,15 @@ namespace bpr::adapters::github::detail {
 	}
 	auto review_submission_session::verify_staged(const record& aRecord, std::stop_token aStop, const bool aLeftLine) -> bool
 	{
-		if (!observe_exact(aStop, false, aLeftLine)) {
-			return false;
-		}
+		// [[BPR-1572]]. The pull request (and, for a LEFT line, GitHub's merge
+		// base and the pull request again) is observed last, after every other
+		// read here, so it is the last network read before the write this
+		// verification admits: a recorded base or head that moves during the
+		// review, comment or description reads is still seen.
+		return verify_staged_reads(aRecord, aStop) && observe_exact(aStop, false, aLeftLine).has_value();
+	}
+	auto review_submission_session::verify_staged_reads(const record& aRecord, std::stop_token aStop) -> bool
+	{
 		if (aRecord.Plan.Update && !verify_tour_update(aRecord, aStop)) {
 			return false;
 		}
@@ -567,10 +573,11 @@ namespace bpr::adapters::github::detail {
 				if (!wire) {
 					return { state::conflict, current };
 				}
-				const auto before = current;
-				auto       used   = std::make_shared<std::atomic_bool>(false);
+				const auto before     = current;
+				auto       used       = std::make_shared<std::atomic_bool>(false);
+				auto       completion = github_mutation_wire_completion{ github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate } };
 				try {
-					static_cast<void>(perform(*wire, aStop, [&, used, before] {
+					completion = perform(*wire, aStop, [&, used, before] {
 						if (used->exchange(true) || aStop.stop_requested() || !Lease->active() || !aAuthorize(before)) {
 							return false;
 						}
@@ -579,7 +586,7 @@ namespace bpr::adapters::github::detail {
 						++next.Revision;
 						const auto saved = Recovery->advance_staged(before, next);
 						return saved && *saved == next;
-					}));
+					});
 				} catch (...) { /* Durable witness decides whether a write may have escaped. */
 				}
 				const auto after = Recovery->load_staged(aPlan.Submission.IdempotencyKey);
@@ -588,6 +595,15 @@ namespace bpr::adapters::github::detail {
 				}
 				current = **after;
 				if (!current.PossiblyTransmitted) {
+					// [[BPR-1572]]. A write the transport refused before sending it
+					// because the pull request moved (the GitHub CLI account
+					// wrapper's last read) is a conflict, as the session's own
+					// verification is, not a ready tour to resume.
+					const auto* refused = std::get_if<github_mutation_wire_error>(&completion);
+					if (refused != nullptr && refused->Transmission == github_mutation_transmission::definitely_not_sent
+						&& (refused->Failure == application::review_mutation_failure::target_moved || refused->Failure == application::review_mutation_failure::stale_head)) {
+						return { current.Published ? state::description_attention : state::conflict, current, refused->Failure };
+					}
 					return { status(current), current };
 				}
 				const auto reconciled = reconcile_staged(current, { });

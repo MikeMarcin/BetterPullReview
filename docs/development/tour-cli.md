@@ -430,8 +430,8 @@ answers `capability_unavailable` (exit 5), and `capabilities` says so under
 **Counts** read the draft's exact pull request once through the reader `preview
 --refresh` uses, then count it as the desktop window does: `feedback_counter_model`
 observes the accepted snapshot and `project_overview_feedback` answers the Overview's
-request. The chips and the mode default to the profile's Settings (Reviews & queue ›
-Comment labels: Overview chips and Overview counts); `--columns` and `--mode` choose
+request. The chips and the mode default to the profile's Settings (Comments ›
+Labels: Overview chips and Overview counts; Reviews & queue until [[BPR-1597]]); `--columns` and `--mode` choose
 them for one command only. Reading Settings the first time creates the profile's
 settings store with its defaults, as `hooks show` does. JSON `data.counts` gives
 `unit` (`conversation`), `columns`, `columns_source` and `mode_source` (`settings` or

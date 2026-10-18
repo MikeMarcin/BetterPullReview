@@ -1,3 +1,16 @@
+# BPR-1572 landing 2026-10-17: resealed over main ca55c0a71 on the merged
+# tree. Main's recorded composition reviews cover refresh feedback and the
+# accepted progress track. This branch adds only the reviewed stacked fixture
+# dispatch, fixture answers and course access in src/app. Production mutation
+# authority is unchanged; its digest remains exact. Fable/Astra round-four
+# decisions and completed conditions are recorded on BPR-1572 and the handoff.
+# BPR-1597 landing 2026-10-17 over main c38432adf: Settings pages move
+# under existing typed owners, with no src/app, persistence or grant change.
+# Main's three composition pins remain exact on the merged tree.
+# BPR-1578 landing 2026-10-17: main 376a4190b merged into the accepted
+# progress-track candidate. The app delta remains test-build bar order and
+# private-progress coordinates only; no publication or credential authority
+# changes. All three pins from 5f3a96baa remain exact on this merged tree.
 # BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
 # production-app change is 2a789264e in github_application.cpp, the Threads
 # row menu's Mark as Unread: the window's new unread dispatch and
@@ -1541,7 +1554,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3d280f98ea5486c972869682edae1efc7cf3e3b9755ef75becb1cfc97eededed"
+		"b22a1e43f62f0827a30f7bff47bd757c675c7e10540b322dfc3802f1a1d7550d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1757,7 +1770,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "92fc307df4d03b763ddf1d1eb3a437030f01ffc3275a075e3c89c2a282bbe57e"
+        "fccbbd283a4fff5b3c51fa32d6a7e7847ea968f096ac34e680ed7ccbc146fcbc"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2741,3 +2754,13 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # courses and frozen looks. No grant, target, provider, credential, transport,
 # GitHub write, mutation or publication path changes; the production
 # mutation-branch pin is unchanged.
+
+# [[BPR-1597]] lands over main at 95e900ba4 (after BPR-1581) with main's seal
+# unchanged: it changes no src/app file. Self-review on BPR-1597.
+
+# [[BPR-1572]] reseal over main at c77419079, recomputed on the tree that
+# merges this card onto it. github_application.cpp serves the new
+# stacked-merge-base-v1 fixture with the same github.com host profile as
+# merge-base-v1. No grant, target, provider, credential, transport, GitHub
+# write, mutation or publication path changes in the composition; the
+# production mutation-branch pin is unchanged.

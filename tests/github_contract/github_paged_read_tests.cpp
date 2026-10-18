@@ -3543,6 +3543,26 @@ namespace {
 		other.Responses.push_back(success_response(compare_body(tip, mergeBase)));
 		expect(!read(other, exact, profile(), provider_request()), "an answer about another base commit is refused");
 
+		// [[BPR-1572]]. `ahead_by` is the commit count GitHub gives the pair;
+		// absent, the answer says nothing about it, and malformed it is refused.
+		expect(named && !named->AheadBy, "an answer without ahead_by names no commit count");
+		auto counted = merge_base_fixture_transport{ };
+		auto body    = compare_body(recorded, mergeBase);
+		body.insert(body.find(R"("total_commits")"), R"("ahead_by":3,)");
+		counted.Responses.push_back(success_response(body));
+		const auto withCount = read(counted, exact, profile(), provider_request());
+		expect(withCount && withCount->AheadBy == std::optional<std::uint64_t>{ 3U }, "the answer's ahead_by is the pair's commit count");
+		auto badCount = merge_base_fixture_transport{ };
+		auto badBody  = compare_body(recorded, mergeBase);
+		badBody.insert(badBody.find(R"("total_commits")"), R"("ahead_by":"3",)");
+		badCount.Responses.push_back(success_response(badBody));
+		expect(!read(badCount, exact, profile(), provider_request()), "a malformed ahead_by is refused");
+		auto negativeCount = merge_base_fixture_transport{ };
+		auto negativeBody  = compare_body(recorded, mergeBase);
+		negativeBody.insert(negativeBody.find(R"("total_commits")"), R"("ahead_by":-1,)");
+		negativeCount.Responses.push_back(success_response(negativeBody));
+		expect(!read(negativeCount, exact, profile(), provider_request()), "a negative ahead_by is refused");
+
 		const auto refused = [&](std::string aBody, const int aStatus, const char* aMessage) {
 			auto scripted   = merge_base_fixture_transport{ };
 			auto response   = success_response(std::move(aBody));

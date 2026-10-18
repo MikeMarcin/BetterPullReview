@@ -722,7 +722,7 @@ namespace {
 			   "a failed read keeps the merge base named for the same head and recorded base");
 		host.dispatch(core::refresh_pull_request_intent{ });
 		answer(application::github_merge_base_availability::refused);
-		expect(epochs.AcceptCount == 3U && from(recorded, core::comparison_base_basis::recorded_base)
+		expect(epochs.AcceptCount == 3U && from(recorded, core::comparison_base_basis::disputed_base)
 				   && host.accepted_snapshot()->MergeBaseAvailability == application::github_merge_base_availability::refused
 				   && !host.accepted_snapshot()->MergeBaseOid,
 			   "an answer proving the merge base stale is never overridden by the one before it");
