@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1600"
 title: "The Refresh key refreshes Home too"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0026"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"owner decision 2026-10-17","owner_note":"⌘R (QKeySequence::Refresh / Ctrl+R) should refresh Home too, reversing BPR-0990's choice that Home's refresh has no key.","governing_rfc":"RFC-BPR-0026","related_cards":["BPR-0990","BPR-1567","BPR-1575","BPR-1580"],"reservation":"docs/issues/_reservations/BPR-1600--BPR-1600--5a60520b8335.json","review":"lands without an owner review once the tests prove it (a key binding for an existing action)"}
-acceptance: []
+acceptance: [{"criterion":"BPR-1600:home","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"Home key dispatches one existing discovery refresh and reuses reviewer feedback; in-flight press is refused."}},{"criterion":"BPR-1600:pull-request","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"PR refresh remains PR-specific; returning Home transfers the binding back without double dispatch."}},{"criterion":"BPR-1600:typing","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"Typing behavior matches PR refresh; Home Open bar text/focus stay intact."}},{"criterion":"BPR-1600:negative","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"Signed-out press refreshes nothing; removing key handoff fails the catalogue test, restoring exact bytes passes."}},{"criterion":"BPR-1600:catalogue","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"Catalogue drift passes at all three scales, exactly one Refresh binding in each window state."}},{"criterion":"BPR-1600:gates","outcome":"pass","revision":"db2cd82d138436ea3fd6f58fc8dcbabf36997ea5","evidence":{"kind":"observation","detail":"14 focused tests, restored control, format22, focused tidy22 with warnings-as-errors, documentation and diff checks pass."}}]
 ---
 
 # BPR-1600: The Refresh key refreshes Home too
