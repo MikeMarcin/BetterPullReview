@@ -1685,6 +1685,103 @@ namespace {
 			   "my draft asked for in Review opens there with no reason");
 	}
 
+	/// [[BPR-1581]]. The same route moves a thread from Review to Discuss and
+	/// back: Discuss clears exactly what would hide it; a thread with no
+	/// current line opens in Review among its file's unplaced threads; a
+	/// comment not on a file has no place in Review and nothing moves; my
+	/// draft opens in Discuss's composer from Review.
+	auto test_a_thread_moves_between_review_and_discuss() -> void
+	{
+		using enum workbench_thread_origin;
+		const auto toDiscuss = workbench_thread_destination::discuss;
+		const auto toReview  = workbench_thread_destination::review;
+		for (const auto hiding : { workbench_discuss_filters{ }, workbench_discuss_filters{ .OnlyNew = true }, workbench_discuss_filters{ .OtherFile = true, .HideResolved = true } }) {
+			for (const auto placed : { true, false }) {
+				const auto route = route_workbench_thread(open_workbench_thread_intent{ .Destination = toDiscuss, .Origin = review, .Placed = placed, .Hiding = hiding });
+				expect(route == workbench_thread_route{ .Modality = workbench_modality::discuss, .Clear = hiding },
+					   "Show in Discuss opens Discuss clearing exactly the hiding filters, placed or outdated");
+			}
+		}
+		const auto back = route_workbench_thread(open_workbench_thread_intent{ .Destination = toReview, .Origin = discuss, .Hiding = { .OnlyNew = true } });
+		expect(back == workbench_thread_route{ .Modality = workbench_modality::review, .OpenComments = true }, "Open in Review opens Review with Comments, clearing nothing");
+		for (const auto origin : { threads, discuss }) {
+			const auto outdated = route_workbench_thread(open_workbench_thread_intent{ .Destination = toReview, .Origin = origin, .Placed = false });
+			expect(outdated.Available && outdated.Modality == workbench_modality::review && outdated.OpenComments
+					   && outdated.Reason == workbench_thread_route_reason::opens_without_a_line,
+				   "an outdated thread opens in Review among its file's threads with no line, and says so");
+		}
+		const auto prComment = route_workbench_thread(open_workbench_thread_intent{ .Destination = toReview, .Origin = discuss, .OnFile = false, .Placed = false });
+		expect(!prComment.Available && prComment.Modality == workbench_modality::discuss && !prComment.OpenComments
+				   && prComment.Reason == workbench_thread_route_reason::not_on_a_file,
+			   "a pull request comment has no place in Review: unavailable, and Discuss stays");
+		const auto prInDiscuss = route_workbench_thread(open_workbench_thread_intent{ .Destination = toDiscuss, .Origin = discuss, .OnFile = false, .Placed = false });
+		expect(prInDiscuss.Available && prInDiscuss.Modality == workbench_modality::discuss, "the same comment is shown in Discuss");
+		const auto draft = route_workbench_thread(open_workbench_thread_intent{ .Destination = toDiscuss, .Origin = review, .Draft = true, .Hiding = { .OtherFile = true } });
+		expect(draft == workbench_thread_route{ .Modality = workbench_modality::discuss, .Reason = workbench_thread_route_reason::draft_opens_in_composer, .Composer = true },
+			   "my draft shown in Discuss opens in its composer and clears no filter");
+		const auto draftFromThreads = route_workbench_thread(open_workbench_thread_intent{ .Destination = toDiscuss, .Origin = threads, .Draft = true });
+		expect(draftFromThreads.Modality == workbench_modality::review && !draftFromThreads.Composer
+				   && draftFromThreads.Reason == workbench_thread_route_reason::draft_opens_in_review,
+			   "from Threads my draft still opens in Review, as BPR-1356 decided");
+	}
+
+	/// [[BPR-1584]]. The reading column fills the page up to the setting's
+	/// width; Full width never stops it.
+	auto test_the_reading_width() -> void
+	{
+		expect(default_reading_width == reading_width::wide, "Wide is the default");
+		for (const auto page : { 1'280U, 1'900U, 2'560U }) {
+			expect(reading_column_width(reading_width::wide, page) == page, "Wide fills an ordinary window up to 2560 pixels");
+		}
+		expect(reading_column_width(reading_width::wide, 3'440U) == 2'560U, "and stops at 2560 on an ultra-wide one");
+		expect(reading_column_width(reading_width::narrow, 1'900U) == 960U && reading_column_width(reading_width::narrow, 800U) == 800U, "Narrow stops at 960, a narrower page is the page");
+		expect(reading_column_width(reading_width::medium, 3'440U) == 1'600U && reading_column_width(reading_width::medium, 1'280U) == 1'280U, "Medium stops at 1600");
+		expect(reading_column_width(reading_width::full, 3'440U) == 3'440U && !reading_width_limit(reading_width::full).has_value(), "Full width never stops");
+		expect(valid(reading_width::full) && !valid(static_cast<reading_width>(4)), "the vocabulary is closed");
+	}
+
+	/// [[BPR-1586]]. Show in Threads from Review: the thread's row, my
+	/// draft's included; a comment not on a file has none.
+	auto test_a_thread_shows_in_threads() -> void
+	{
+		const auto toThreads = workbench_thread_destination::threads;
+		for (const auto placed : { true, false }) {
+			const auto route = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .Placed = placed, .Hiding = { .OnlyNew = true } });
+			expect(route == workbench_thread_route{ .Modality = workbench_modality::threads }, "a thread on a file shows in Threads, placed or outdated, clearing no Discuss filter");
+		}
+		const auto draft = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .Draft = true });
+		expect(draft.Available && draft.Modality == workbench_modality::threads && !draft.Composer, "my draft has its row in Threads");
+		const auto general = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .OnFile = false });
+		expect(!general.Available && general.Modality == workbench_modality::review && general.Reason == workbench_thread_route_reason::not_on_a_file,
+			   "a comment not on a file has no row: nothing moves");
+	}
+
+	/// [[BPR-1581]]. The thread a key shows elsewhere.
+	auto test_the_thread_a_key_shows() -> void
+	{
+		expect(!choose_workbench_thread_target(workbench_thread_selection{ }).has_value(), "nothing selected: no thread");
+		const auto all = workbench_thread_selection{
+			.OpenThread    = "open",
+			.PickedPost    = "open-2",
+			.CurrentThread = "current",
+			.CurrentPost   = "current-3",
+			.LineThread    = "line",
+		};
+		expect(choose_workbench_thread_target(all) == workbench_thread_target{ .Thread = "open", .Post = "open-2" }, "the open thread at its picked post first");
+		auto noOpen = all;
+		noOpen.OpenThread.clear();
+		noOpen.PickedPost.clear();
+		expect(choose_workbench_thread_target(noOpen) == workbench_thread_target{ .Thread = "current", .Post = "current-3" }, "then the current thread at its selected post");
+		auto lineOnly = workbench_thread_selection{ .LineThread = "line" };
+		expect(choose_workbench_thread_target(lineOnly) == workbench_thread_target{ .Thread = "line" }, "then the selected line's thread, at its first post");
+		auto inCode        = all;
+		inCode.CodeFocused = true;
+		expect(choose_workbench_thread_target(inCode) == workbench_thread_target{ .Thread = "line" }, "with the keyboard in the code, the line's thread wins");
+		auto inCodeNoLine = inCode;
+		inCodeNoLine.LineThread.clear();
+		expect(choose_workbench_thread_target(inCodeNoLine) == workbench_thread_target{ .Thread = "open", .Post = "open-2" }, "a line with no thread falls back to the open one");
+	}
+
 	void test_header_source_command_legality()
 	{
 		auto       state   = workbench_interaction_state{ };
@@ -1730,5 +1827,9 @@ int main()
 	test_drawers_hide_and_show_exactly();
 	test_conversations_changes_no_drawer();
 	test_a_thread_routes_to_review_or_discuss();
+	test_a_thread_moves_between_review_and_discuss();
+	test_the_thread_a_key_shows();
+	test_a_thread_shows_in_threads();
+	test_the_reading_width();
 	return EXIT_SUCCESS;
 }

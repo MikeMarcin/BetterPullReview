@@ -35,10 +35,12 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
@@ -128,6 +130,11 @@
 #include <utility>
 
 namespace bpr::qt {
+	namespace {
+		/// [[BPR-1575]]. What a refresh compares of one accepted read; defined below.
+		[[nodiscard]] auto refresh_observation_of(const application::github_pull_request_projection& aPullRequest) -> core::pull_request_refresh_observation;
+	} // namespace
+
 	namespace {
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
@@ -626,10 +633,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1328]]. How long a press at a navigation bound says why
 		/// it did nothing.
 		constexpr int bounded_navigation_message_ms = 3000;
-#if defined(__APPLE__)
-		/// \brief Width the macOS window buttons occupy at the strip's left.
-		constexpr int traffic_light_inset = 78;
-#endif
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -1683,16 +1686,13 @@ namespace bpr::qt {
 		// bar's, so the name has the room they took.
 		// The platform inset comes first: on macOS the width the three window
 		// buttons occupy plus the gap Fork and Visual Studio Code leave before
-		// their first control; nothing elsewhere. A widget item rather than a
+		// their first control; nothing elsewhere ([[BPR-1596]]: one named value
+		// per platform, title_row_leading_inset). A widget item rather than a
 		// margin, because the toolbar layout lays its items from its own edge.
 		StripInset = new QWidget{ PrimaryToolbar };
 		StripInset->setObjectName(QStringLiteral("workbenchStripInset"));
 		StripInset->setFocusPolicy(Qt::NoFocus);
-#if defined(__APPLE__)
-		StripInset->setFixedWidth(traffic_light_inset);
-#else
-		StripInset->setFixedWidth(0);
-#endif
+		StripInset->setFixedWidth(title_row_leading_inset(current_title_row_platform()));
 		rowWidget(PrimaryToolbar, StripInset, QStringLiteral("workbenchStripInsetAction"));
 #if defined(_WIN32)
 		// [[BPR-0653]]. The Windows form of the title row, after Visual Studio
@@ -2456,7 +2456,17 @@ namespace bpr::qt {
 				case card_action::open_in_code:
 					// [[BPR-1383]]. The same exact pick as Threads: open
 					// Comments and retain the thread until its file loads.
-					static_cast<void>(reveal_conversation_in_review(aIdentity));
+					// [[BPR-1581]]: through the one route, so an outdated
+					// thread opens among its file's unplaced ones.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::discuss, core::workbench_thread_destination::review));
+					break;
+				case card_action::show_in_discuss:
+					// [[BPR-1581]]. The thread, or the post its menu was on.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+					break;
+				case card_action::show_in_threads:
+					// [[BPR-1586]]. Its row in Threads, at that post.
+					static_cast<void>(move_thread(aIdentity, core::workbench_thread_origin::review, core::workbench_thread_destination::threads));
 					break;
 				}
 			});
@@ -2724,6 +2734,9 @@ namespace bpr::qt {
 		composerColumn->setSpacing(0);
 		DiscussComposer->hide();
 		discussLayout->addWidget(DiscussComposer, 1);
+		// [[BPR-1584]]. Discuss's notes keep the page's left edge: past the
+		// reading width the rest of the page is this stretch's.
+		discussLayout->addStretch(0);
 		CentreStack->addWidget(DiscussPage);
 		// [[BPR-1293]]. Threads: the finder fills the centre, as
 		// Discuss's page does, and the drawers are hidden while it shows.
@@ -2742,6 +2755,14 @@ namespace bpr::qt {
 			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
+		// [[BPR-1582]]. The row menu's Mark as read is the card's Mark read.
+		Finder->set_read_dispatch([this](const std::string& aThread, const bool aRead) {
+			if (aRead && ConversationReadDispatch) {
+				ConversationReadDispatch(aThread);
+			} else if (!aRead && ConversationUnreadDispatch) {
+				ConversationUnreadDispatch(aThread);
+			}
+		});
 		// [[BPR-1356]]. The notice that says which filters a pick cleared
 		// goes once the reviewer changes one.
 		ConversationPanel->set_discuss_filters_changed([this] {
@@ -3496,6 +3517,8 @@ namespace bpr::qt {
 		QueueRefreshAction->setEnabled(false);
 		addAction(QueueRefreshAction);
 		connect(QueueRefreshAction, &QAction::triggered, this, [this] {
+			// [[BPR-1575]]. The refresh this starts is the reviewer's own.
+			HomeRefreshAsked = true;
 			if (QueueDiscoveryDispatch) {
 				QueueDiscoveryDispatch(application::queue_discovery_intent::refresh);
 			}
@@ -3919,6 +3942,60 @@ namespace bpr::qt {
 			.DisabledReason = core::github_reason_code::no_active_pull_request,
 		});
 		PullRequestPanel->refresh_native_appearance();
+		build_pending_veils();
+		// [[BPR-1575]]. A refresh's note under its button, its freshness in
+		// the status bar, and the clocks that turn and age them.
+		RefreshNote = new refresh_note{ *this };
+		RefreshNote->set_retry([this] {
+			auto* const action = showing_home() ? QueueRefreshAction : GithubRefreshAction;
+			if (action != nullptr && action->isEnabled()) {
+				action->trigger();
+			}
+		});
+		RefreshFreshness = new QLabel{ this };
+		RefreshFreshness->setObjectName(QStringLiteral("refreshFreshness"));
+		RefreshFreshness->setAccessibleName(QStringLiteral("Last refresh"));
+		RefreshFreshness->setTextFormat(Qt::RichText);
+		RefreshFreshness->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		RefreshFreshness->setForegroundRole(QPalette::PlaceholderText);
+		// Its words whole: the status line beside it is the one that yields.
+		RefreshFreshness->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+		RefreshFreshness->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+		RefreshFreshness->hide();
+		connect(RefreshFreshness, &QLabel::linkActivated, this, [this](const QString&) {
+			auto* const action = showing_home() ? QueueRefreshAction : GithubRefreshAction;
+			if (action != nullptr && action->isEnabled()) {
+				action->trigger();
+			}
+		});
+		statusBar()->addPermanentWidget(RefreshFreshness);
+		RefreshFrames = new QTimer{ this };
+		RefreshFrames->setInterval(80);
+		connect(RefreshFrames, &QTimer::timeout, this, [this] {
+			RefreshFrame = (RefreshFrame + 1) % 12;
+			present_refresh();
+		});
+		const auto cue = [this](bool& aCue) {
+			auto* const timer = new QTimer{ this };
+			timer->setSingleShot(true);
+			timer->setInterval(1'500);
+			connect(timer, &QTimer::timeout, this, [this, &aCue] {
+				aCue = false;
+				present_refresh();
+			});
+			return timer;
+		};
+		PullCueTimer    = cue(PullSettledCue);
+		HomeCueTimer    = cue(HomeSettledCue);
+		RefreshAgeTimer = new QTimer{ this };
+		RefreshAgeTimer->setSingleShot(true);
+		connect(RefreshAgeTimer, &QTimer::timeout, this, [this] { present_refresh(); });
+		for (auto** const slow : { &RefreshSlowTimer, &HomeSlowTimer }) {
+			*slow = new QTimer{ this };
+			(*slow)->setSingleShot(true);
+			(*slow)->setInterval(static_cast<int>(core::pending_slow_milliseconds));
+			connect(*slow, &QTimer::timeout, this, [this] { present_refresh(); });
+		}
 		update_github_presentation_state();
 		apply_focus_order();
 	}
@@ -5306,6 +5383,7 @@ namespace bpr::qt {
 		}
 		const auto rulesChanged   = QueueRules != aProjection.Rules;
 		const auto serversChanged = QueueProjection.SavedServers != aProjection.SavedServers;
+		const auto discovered     = QueueProjection.Discovery;
 
 		QueueReady                = aProjection.Status == application::queue_landing_status::ready;
 		const auto filtersEnabled = QueueReady
@@ -5392,6 +5470,8 @@ namespace bpr::qt {
 		update_enterprise_server_actions();
 		update_discovery_controls();
 		update_pull_request_queue_actions();
+		update_pending_panes();
+		observe_home_refresh(discovered, aProjection);
 		apply_focus_order();
 	}
 
@@ -6455,6 +6535,7 @@ namespace bpr::qt {
 			}
 			apply_line_details();
 			apply_markdown_images();
+			apply_reading_width();
 			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
@@ -7245,6 +7326,7 @@ namespace bpr::qt {
 		DifResolution      = aResolution;
 		DifResolutionReady = true;
 		update_dif_presentation();
+		apply_pending_appearance();
 	}
 
 	void workbench_window::observe_dif_context(
@@ -7426,6 +7508,7 @@ namespace bpr::qt {
 			ApplyingFileSelection  = false;
 		}
 		apply_modality_surface();
+		update_pending_panes();
 	}
 
 	void workbench_window::publish(const application::overview_feedback_projection& aFeedback)
@@ -7766,6 +7849,11 @@ namespace bpr::qt {
 	void workbench_window::set_conversation_read_dispatch(conversation_read_dispatch aDispatch)
 	{
 		ConversationReadDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_conversation_unread_dispatch(conversation_read_dispatch aDispatch)
+	{
+		ConversationUnreadDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::update_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
@@ -8377,7 +8465,14 @@ namespace bpr::qt {
 			DiscussComposer->setVisible(CompositionPage != nullptr);
 			if (ConversationPanel != nullptr) {
 				const auto listed = CompositionPage != nullptr && ConversationPanel->parentWidget() == DiscussPage;
-				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : QWIDGETSIZE_MAX);
+				// [[BPR-1584]]. Discuss's notes stop at the reading width,
+				// at the page's left, as Threads' rows do; beside the code
+				// the drawer keeps its own bounds.
+				const auto limit = core::reading_width_limit(Behaviour.ReadingWidth);
+				const auto read  = ConversationPanel->parentWidget() == DiscussPage && limit.has_value()
+					? static_cast<int>(std::min<std::uint32_t>(*limit, QWIDGETSIZE_MAX))
+					: QWIDGETSIZE_MAX;
+				ConversationPanel->setMaximumWidth(listed ? discuss_composer_list_width : read);
 				if (ConversationPanel->parentWidget() == DiscussPage) {
 					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
 				}
@@ -8406,6 +8501,7 @@ namespace bpr::qt {
 		if (ShowThreadsAction != nullptr) {
 			ShowThreadsAction->setEnabled(HasGithubPullRequest);
 		}
+		update_show_thread_actions();
 	}
 
 	void workbench_window::open_review_composition(const bool aInline)
@@ -8775,6 +8871,34 @@ namespace bpr::qt {
 				open->setObjectName(QStringLiteral("codeContextMenuOpenThread"));
 				open->setToolTip(tr("Open this line's thread in the drawer"));
 				connect(open, &QAction::triggered, this, [this, side, line] { go_to_thread_at(side, line); });
+				// [[BPR-1581]]. The same thread with the rest of the conversation.
+				auto* const discuss = menu->addAction(tr("Show in Discuss"));
+				discuss->setObjectName(QStringLiteral("codeContextMenuShowInDiscuss"));
+				discuss->setToolTip(tr("Show this line's thread in Discuss"));
+				if (ShowInDiscussAction != nullptr) {
+					discuss->setShortcut(ShowInDiscussAction->shortcut());
+					discuss->setShortcutContext(Qt::WidgetShortcut);
+					discuss->setShortcutVisibleInContextMenu(true);
+				}
+				connect(discuss, &QAction::triggered, this, [this, side, line] {
+					if (const auto identity = thread_card_on_line(side, line); identity.has_value()) {
+						static_cast<void>(move_thread(*identity, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+					}
+				});
+				// [[BPR-1586]]. And its row in Threads.
+				auto* const threads = menu->addAction(tr("Show in Threads"));
+				threads->setObjectName(QStringLiteral("codeContextMenuShowInThreads"));
+				threads->setToolTip(tr("Show this line's thread in Threads"));
+				if (ShowInThreadsAction != nullptr) {
+					threads->setShortcut(ShowInThreadsAction->shortcut());
+					threads->setShortcutContext(Qt::WidgetShortcut);
+					threads->setShortcutVisibleInContextMenu(true);
+				}
+				connect(threads, &QAction::triggered, this, [this, side, line] {
+					if (const auto identity = thread_card_on_line(side, line); identity.has_value()) {
+						static_cast<void>(move_thread(*identity, core::workbench_thread_origin::review, core::workbench_thread_destination::threads));
+					}
+				});
 			}
 		}
 		// Add comment and Suggest change start a new comment, never a reply.
@@ -9632,6 +9756,28 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.MarkdownImages = application::review_behaviour_settings{ }.MarkdownImages;
 			});
+		// [[BPR-1584]]. The owner, 2026-10-17: "We can make that capped width
+		// a setting." Threads and Discuss only; never the code comparison.
+		auto* const readingInfo = new info_glyph{ QStringLiteral("Threads and Discuss stop at this width on a wide screen. The code comparison always uses the whole window."), BehaviourEditor };
+		readingInfo->setObjectName(QStringLiteral("readingWidthInfo"));
+		addGroup(
+			QStringLiteral("Reading"),
+			QStringLiteral("resetReading"),
+			{
+				row{ 10U,
+					 QStringLiteral("Reading width"),
+					 QStringLiteral("readingWidth"),
+					 { { QStringLiteral("Narrow"), QStringLiteral("readingWidthNarrow") },
+					   { QStringLiteral("Medium"), QStringLiteral("readingWidthMedium") },
+					   { QStringLiteral("Wide"), QStringLiteral("readingWidthWide") },
+					   { QStringLiteral("Full width"), QStringLiteral("readingWidthFull") } },
+					 readingInfo,
+					 nullptr,
+					 4 },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.ReadingWidth = core::default_reading_width;
+			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -9902,6 +10048,16 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::apply_reading_width()
+	{
+		// [[BPR-1584]]. Threads' rows and Discuss's notes stop at the reading
+		// width, left-aligned; the code comparison is never touched.
+		if (Finder != nullptr) {
+			Finder->set_reading_width(Behaviour.ReadingWidth);
+		}
+		apply_modality_surface();
+	}
+
 	void workbench_window::apply_markdown_images()
 	{
 		const auto shown = Behaviour.MarkdownImages == application::review_markdown_images::load;
@@ -9934,6 +10090,7 @@ namespace bpr::qt {
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
 		check(9U, static_cast<std::size_t>(Behaviour.MarkdownImages));
+		check(10U, static_cast<std::size_t>(Behaviour.ReadingWidth));
 		if (CenterRibbonWidth != nullptr) {
 			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
 		}
@@ -9975,6 +10132,7 @@ namespace bpr::qt {
 			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
+			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
 		};
 	}
 
@@ -10226,6 +10384,8 @@ namespace bpr::qt {
 			if (GithubRefreshAction != nullptr) {
 				GithubRefreshAction->setVisible(!stripHome);
 			}
+			// [[BPR-1575]]. The freshness follows the surface shown.
+			present_refresh();
 			if (QueueRefreshAction != nullptr) {
 				QueueRefreshAction->setVisible(home && HomeAccount);
 			}
@@ -11334,6 +11494,8 @@ namespace bpr::qt {
 			apply_github_host_diagnostic(diagnostic);
 		}
 		update_review_readiness();
+		update_pending_panes();
+		settle_pull_request_refresh(aUpdate);
 		announce_github_presentation_update();
 	}
 
@@ -11366,6 +11528,12 @@ namespace bpr::qt {
 		// [[BPR-1357]]. An opening the application follows is announced in the
 		// opening's own words, once, by `refresh_home_open`.
 		if (source == HomePage && HomeOpen.has_value()) {
+			return;
+		}
+		// [[BPR-1575]]. A refresh is announced by its own lifecycle, which
+		// knows who asked and what it brought; the status says nothing more.
+		if (RefreshReadSeen) {
+			RefreshReadSeen = false;
 			return;
 		}
 		// [[BPR-1200]]. A refusal with its own card is announced in the card's
@@ -11417,6 +11585,10 @@ namespace bpr::qt {
 		// [[BPR-1200]]. Kept until the next read, which replaces or clears it.
 		if (aTransition.Refusal.has_value()) {
 			PullRequestRefusal = aTransition.Refusal;
+		}
+		// [[BPR-1575]]. A refresh's own lifecycle, as the core named its read.
+		if (aTransition.Read.has_value()) {
+			observe_refresh_read(*aTransition.Read);
 		}
 		if (aTransition.Status.has_value()) {
 			ReadProgress.reset();
@@ -11494,6 +11666,20 @@ namespace bpr::qt {
 		if (arriving && LocalCycleShown) {
 			LocalCycleShown = false;
 			LocalCycleTitle.clear();
+		}
+		// [[BPR-1575]]. What a refresh compares. Another pull request starts
+		// its own freshness from this read; the same one handed over by a
+		// sibling window is a refresh made elsewhere.
+		{
+			const auto observation = refresh_observation_of(aPullRequest);
+			if (arriving) {
+				PullRefresh = core::refresh_state{ .UpdatedAt = refresh_clock() };
+				RefreshEnded.reset();
+			} else if (aPreserveWindowNavigation && PullRefresh.Phase != core::refresh_phase::refreshing && RefreshSnapshot != std::optional{ aPullRequest.Snapshot }) {
+				ElsewhereChanges = core::compare_refresh(RefreshLatest, observation);
+			}
+			RefreshLatest   = observation;
+			RefreshSnapshot = aPullRequest.Snapshot;
 		}
 		IdentityOwner      = QString::fromStdString(aPullRequest.Owner);
 		IdentityRepository = QString::fromStdString(aPullRequest.RepositoryName);
@@ -12980,6 +13166,7 @@ namespace bpr::qt {
 		}
 		update_home_surface();
 		update_recent_resume_action();
+		update_pending_panes();
 		// [[BPR-1357]]. A row that appeared or went may carry the opening.
 		if (HomeOpen.has_value()) {
 			refresh_home_open();
@@ -13258,7 +13445,7 @@ namespace bpr::qt {
 		return location.has_value() && open_conversation_in_review(location->Thread, location->Post);
 	}
 
-	auto workbench_window::open_conversation_in_review(const std::string& aThread, const std::string& aPost) -> bool
+	auto workbench_window::open_conversation_in_review(const std::string& aThread, const std::string& aPost, const bool aFocus) -> bool
 	{
 		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return false;
@@ -13281,6 +13468,7 @@ namespace bpr::qt {
 			.Before = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
 				: std::nullopt,
+			.Focus  = aFocus,
 		};
 		choose_home(false);
 		// Review first, then the file: a file gesture that follows the
@@ -13306,40 +13494,243 @@ namespace bpr::qt {
 
 	auto workbench_window::open_thread_from_threads(const std::string& aThread, const std::string& aPost, const core::workbench_thread_destination aDestination) -> bool
 	{
-		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+		if (Finder == nullptr) {
 			return false;
 		}
 		const auto& conversations = Finder->conversations();
-		const auto  found         = std::ranges::find(conversations, aThread, &finder_conversation::Id);
-		if (found == conversations.end()) {
+		if (std::ranges::find(conversations, aThread, &finder_conversation::Id) == conversations.end()) {
+			return false;
+		}
+		return move_thread(aPost.empty() ? aThread : aPost, core::workbench_thread_origin::threads, aDestination);
+	}
+
+	auto workbench_window::move_thread(const std::string& aIdentity, const core::workbench_thread_origin aOrigin, const core::workbench_thread_destination aDestination) -> bool
+	{
+		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || aIdentity.empty()) {
 			return false;
 		}
 		if (ThreadsRevealNotice) {
 			ThreadsRevealNotice = false;
 			ConversationPanel->present_notice(QString{ });
 		}
-		// [[BPR-1356]]. The window observes; the core decides. Each fact is
-		// one of Discuss's own filters against this thread, as the notes
-		// apply them.
+		const auto say = [this](const QString& aText) {
+			statusBar()->showMessage(aText);
+			QAccessibleAnnouncementEvent event{ this, aText };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		};
+		// [[BPR-1581]]. My draft, written or pending, by its note.
+		const auto draft = aIdentity.starts_with("draft:unpublished");
+		// The window observes; the core decides. A thread on a file is the
+		// finder's; one that is not is the conversation model's alone.
+		auto thread   = aIdentity;
+		auto post     = std::string{ };
+		auto onFile   = draft;
+		auto resolved = false;
+		auto unread   = false;
+		auto path     = QString{ };
+		if (!draft) {
+			if (const auto location = Finder->locate(aIdentity); location.has_value()) {
+				thread                    = location->Thread;
+				post                      = location->Post;
+				onFile                    = true;
+				path                      = location->Path;
+				const auto& conversations = Finder->conversations();
+				if (const auto found = std::ranges::find(conversations, thread, &finder_conversation::Id); found != conversations.end()) {
+					resolved = found->Resolved;
+					unread   = found->Unread > 0U;
+				}
+			} else {
+				auto* const model = ConversationPanel->model();
+				auto        index = model->index_for_id(aIdentity);
+				if (!index.isValid()) {
+					return false;
+				}
+				while (index.parent().isValid()) {
+					index = index.parent();
+				}
+				thread   = model->id_for_index(index);
+				post     = aIdentity;
+				resolved = index.data(github_conversation_model::resolved_role).toBool();
+			}
+		}
+		auto placed = true;
+		if (const auto root = ConversationPanel->model()->index_for_id(thread); root.isValid() && !draft) {
+			using availability = application::github_conversation_anchor_availability;
+			const auto anchor  = static_cast<availability>(root.data(github_conversation_model::anchor_availability_role).toInt());
+			placed             = !root.data(github_conversation_model::outdated_role).toBool() && (anchor == availability::current || anchor == availability::file_level);
+		}
 		const auto view  = ConversationPanel->discuss_view();
 		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
 			.Destination = aDestination,
-			.Draft       = found->Draft,
+			.Origin      = aOrigin,
+			.Draft       = draft || thread == "draft:unpublished",
+			.OnFile      = onFile,
+			.Placed      = placed,
 			.Hiding      = core::workbench_discuss_filters{
-				.OtherFile    = view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(found->Path.toStdString()),
-				.OnlyNew      = view.OnlyNew && found->Unread == 0U,
-				.HideResolved = view.HideResolved && found->Resolved,
-				.Listing      = view.Listing.has_value() && !view.Listing->contains(aThread),
+				.OtherFile    = onFile && view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(path.toStdString()),
+				.OnlyNew      = view.OnlyNew && !unread,
+				.HideResolved = view.HideResolved && resolved,
+				.Listing      = view.Listing.has_value() && !view.Listing->contains(thread),
 			},
 		});
-		if (route.Modality == core::workbench_modality::discuss) {
-			return open_conversation_in_discuss(aThread, aPost, route.Clear);
+		if (!route.Available) {
+			say(aDestination == core::workbench_thread_destination::threads ? tr("This comment is not on a file, so Threads has no row for it. Discuss shows it.")
+																			: tr("This comment is not on a file, so Review has no place for it. Discuss shows it."));
+			return false;
 		}
-		const auto opened = open_conversation_in_review(aThread, aPost);
+		if (route.Modality == core::workbench_modality::threads) {
+			return show_thread_in_threads(draft ? std::string{ "draft:unpublished" } : thread, draft ? std::string{ } : post);
+		}
+		if (route.Composer) {
+			const auto shown = show_draft_in_discuss(aIdentity);
+			if (shown) {
+				say(tr("Discuss lists no drafts, so your draft opens in its composer."));
+			}
+			return shown;
+		}
+		if (route.Modality == core::workbench_modality::discuss) {
+			return open_conversation_in_discuss(thread, post, route.Clear);
+		}
+		const auto opened = open_conversation_in_review(thread, post, aOrigin != core::workbench_thread_origin::threads);
 		if (opened && route.Reason == core::workbench_thread_route_reason::draft_opens_in_review) {
-			statusBar()->showMessage(tr("Your draft is written beside its line, so it opens in Review."));
+			say(tr("Your draft is written beside its line, so it opens in Review."));
+		} else if (opened && route.Reason == core::workbench_thread_route_reason::opens_without_a_line) {
+			say(tr("This thread has no current line, so it opens among %1's threads without one.").arg(path.section(QLatin1Char{ '/' }, -1)));
 		}
 		return opened;
+	}
+
+	auto workbench_window::show_draft_in_discuss(const std::string& aCard) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr) {
+			return false;
+		}
+		auto* const cards = ConversationPanel->cards();
+		if (cards->writing_draft()) {
+			maximize_drawer_draft();
+			return true;
+		}
+		// Another line's draft is brought to its line first, as opening its
+		// note does, so the composer holds it.
+		if (aCard != "draft:unpublished") {
+			const auto& all  = cards->cards();
+			const auto  card = std::ranges::find(all, aCard, &thread_card::Id);
+			if (card == all.end() || !card->Side.has_value() || card->Line.value_or(0U) == 0U || ComparisonSurface == nullptr) {
+				return false;
+			}
+			static_cast<void>(ComparisonSurface->select_conversation_line(*card->Side, *card->Line - 1U));
+		}
+		if (!ReviewEditor->shown_draft().has_value()) {
+			return false;
+		}
+		if (begin_new_comment(false) && cards->writing_draft()) {
+			maximize_drawer_draft();
+		}
+		return CompositionPage == ComposeInlinePage;
+	}
+
+	auto workbench_window::thread_card_on_line(const core::diff_side aSide, const std::uint32_t aLine) const -> std::optional<std::string>
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return std::nullopt;
+		}
+		const auto& cards = ConversationPanel->cards()->cards();
+		const auto  card  = std::ranges::find_if(cards, [aSide, aLine](const thread_card& aCard) {
+			return aCard.Side == aSide && aCard.Line == aLine + 1U && !aCard.Outdated;
+		});
+		return card == cards.end() ? std::nullopt : std::optional{ card->Id };
+	}
+
+	auto workbench_window::show_selected_thread(const core::workbench_thread_destination aDestination) -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || Modality == nullptr) {
+			return false;
+		}
+		// [[BPR-1586]]. Threads, like Discuss, is shown from Review.
+		const auto toDiscuss = aDestination != core::workbench_thread_destination::review;
+		const auto here      = Modality->current();
+		if ((toDiscuss && here != review_modality::review) || (!toDiscuss && here != review_modality::discuss) || CompositionPage != nullptr) {
+			return false;
+		}
+		auto* const cards     = ConversationPanel->cards();
+		auto        selection = core::workbench_thread_selection{
+			.OpenThread = cards->open_thread_id(),
+			.PickedPost = cards->picked_post(),
+		};
+		if (const auto current = ConversationPanel->model()->id_for_index(ConversationPanel->view()->currentIndex()); !current.empty()) {
+			auto index = ConversationPanel->model()->index_for_id(current);
+			while (index.parent().isValid()) {
+				index = index.parent();
+			}
+			selection.CurrentThread = ConversationPanel->model()->id_for_index(index);
+			selection.CurrentPost   = current == selection.CurrentThread ? std::string{ } : current;
+		}
+		if (toDiscuss && ComparisonSurface != nullptr && ComparisonSurface->selection().has_value()) {
+			const auto& line = ComparisonSurface->selection()->PreferredLine;
+			if (const auto onLine = thread_card_on_line(line.Side, line.Line); onLine.has_value()) {
+				selection.LineThread = *onLine;
+			}
+			const auto* const focus = QApplication::focusWidget();
+			selection.CodeFocused   = focus != nullptr && (focus == ComparisonSurface->left_pane() || focus == ComparisonSurface->right_pane());
+		}
+		const auto target = core::choose_workbench_thread_target(selection);
+		if (!target.has_value()) {
+			statusBar()->showMessage(tr("Select a thread first."));
+			return false;
+		}
+		const auto origin = toDiscuss ? core::workbench_thread_origin::review : core::workbench_thread_origin::discuss;
+		return move_thread(target->Post.empty() ? target->Thread : target->Post, origin, aDestination);
+	}
+
+	auto workbench_window::show_thread_in_discuss_action() const noexcept -> QAction*
+	{
+		return ShowInDiscussAction;
+	}
+
+	auto workbench_window::show_thread_in_review_action() const noexcept -> QAction*
+	{
+		return ShowInReviewAction;
+	}
+
+	auto workbench_window::show_thread_in_threads_action() const noexcept -> QAction*
+	{
+		return ShowInThreadsAction;
+	}
+
+	auto workbench_window::show_thread_in_threads(const std::string& aThread, const std::string& aPost) -> bool
+	{
+		if (Finder == nullptr || Modality == nullptr) {
+			return false;
+		}
+		choose_home(false);
+		choose_modality(review_modality::threads);
+		auto cleared = false;
+		if (!Finder->reveal(aThread, aPost, &cleared)) {
+			statusBar()->showMessage(tr("Threads has no row for this thread."));
+			return false;
+		}
+		if (cleared) {
+			statusBar()->showMessage(tr("To show this thread, Threads cleared its search and filters."));
+		}
+		return true;
+	}
+
+	void workbench_window::update_show_thread_actions()
+	{
+		const auto here = Modality != nullptr ? std::optional{ Modality->current() } : std::nullopt;
+		// Ctrl+Alt is AltGr on Windows, where AltGr with 2 or 3 types a
+		// character: the keys step aside while the keyboard is typing.
+		const auto reading = HasGithubPullRequest && CompositionPage == nullptr && !showing_home() && !TypingFocus;
+		if (ShowInDiscussAction != nullptr) {
+			ShowInDiscussAction->setEnabled(reading && here == review_modality::review);
+		}
+		if (ShowInReviewAction != nullptr) {
+			ShowInReviewAction->setEnabled(reading && here == review_modality::discuss);
+		}
+		if (ShowInThreadsAction != nullptr) {
+			ShowInThreadsAction->setEnabled(reading && here == review_modality::review);
+		}
 	}
 
 	auto workbench_window::open_conversation_in_discuss(const std::string& aThread, const std::string& aPost, const core::workbench_discuss_filters& aClear) -> bool
@@ -13353,10 +13744,19 @@ namespace bpr::qt {
 		}
 		// As a Review pick: the thread opens in place with its post washed
 		// amber and brought into view, and the selection names the post.
-		cards->open_thread_at(aThread, aPost);
-		if (const auto post = ConversationPanel->model()->index_for_id(aPost.empty() ? aThread : aPost); post.isValid()) {
-			ConversationPanel->choose(post);
+		// [[BPR-1581]]. A thread named by its root opens at its first post,
+		// and the post's arrival is marked.
+		auto post = aPost;
+		if (post.empty()) {
+			const auto& all  = cards->cards();
+			const auto  card = std::ranges::find(all, aThread, &thread_card::Id);
+			post             = card != all.end() && !card->Posts.empty() ? card->Posts.front().Id : aThread;
 		}
+		cards->open_thread_at(aThread, post);
+		if (const auto index = ConversationPanel->model()->index_for_id(post); index.isValid()) {
+			ConversationPanel->choose(index);
+		}
+		cards->mark_arrival();
 		cards->setFocus(Qt::OtherFocusReason);
 		if (aClear.any()) {
 			auto cleared = QStringList{ };
@@ -13406,6 +13806,12 @@ namespace bpr::qt {
 			// revealed comment always has; its thread stays the one open.
 			if (const auto post = ConversationPanel->model()->index_for_id(pick.Post); post.isValid()) {
 				ConversationPanel->choose(post);
+			}
+			// [[BPR-1581]]. The post's arrival is marked, as in Discuss, and a
+			// move from Discuss leaves the keyboard on the notes.
+			cards->mark_arrival();
+			if (pick.Focus) {
+				cards->setFocus(Qt::OtherFocusReason);
 			}
 			return;
 		}
@@ -13714,6 +14120,606 @@ namespace bpr::qt {
 	{
 		if (HomeStatus != nullptr) {
 			HomeStatus->set_failure_ink(aInk);
+		}
+		PendingFailureInk = aInk;
+		apply_pending_appearance();
+	}
+
+	void workbench_window::set_pending_high_contrast(const bool aHigh)
+	{
+		PendingHighContrast = aHigh;
+		apply_pending_appearance();
+	}
+
+	auto workbench_window::pending_veils() const noexcept -> const pending_panes&
+	{
+		return PendingPanes;
+	}
+
+	auto workbench_window::pending_full_motion() const noexcept -> bool
+	{
+		// The system's Reduce Motion is honoured; the Dif motion choice is the
+		// mascot's own and does not still the application's waits. A platform
+		// with no such setting turns; one not yet observed, or whose
+		// observation failed, stays still.
+		return DifResolutionReady
+			&& (DifResolution.Observation == core::motion_observation::full || DifResolution.Observation == core::motion_observation::unsupported);
+	}
+
+	void workbench_window::apply_pending_appearance()
+	{
+		// Every waiting pane in the window, its own and its surfaces', draws
+		// alike: found rather than listed, so a surface added later follows.
+		const auto full = pending_full_motion();
+		for (auto* const widget : findChildren<QWidget*>()) {
+			auto* const veil = dynamic_cast<pending_veil*>(widget);
+			if (veil == nullptr) {
+				continue;
+			}
+			veil->set_full_motion(full);
+			veil->set_high_contrast(PendingHighContrast);
+			if (PendingFailureInk.isValid()) {
+				veil->set_failure_ink(PendingFailureInk);
+			}
+		}
+		if (EpochSelectors != nullptr && EpochSelectors->readiness_mark() != nullptr) {
+			EpochSelectors->readiness_mark()->set_full_motion(full);
+		}
+	}
+
+	void workbench_window::build_pending_veils()
+	{
+		// [[BPR-1576]]. The review's content, while a refresh replaces it: one
+		// veil and one rule across the drawers and the centre, under the bar.
+		PendingPanes.Content = new pending_veil{ *ReviewSurface, pending_shape::block, QStringLiteral("Review"), CentralSplitter };
+		PendingPanes.Content->setObjectName(QStringLiteral("reviewPendingVeil"));
+		PendingPanes.Content->set_announces(false);
+		const auto pane = [](QWidget* const aTarget, const QString& aName, const QString& aObject) -> pending_veil* {
+			if (aTarget == nullptr) {
+				return nullptr;
+			}
+			auto* const veil = new pending_veil{ *aTarget, pending_shape::rows, aName };
+			veil->setObjectName(aObject);
+			// How many rows are coming is not known yet: a short list says
+			// "a list" without promising a long one.
+			veil->set_placeholder_count(8);
+			// The Overview says when the pull request is ready; the drawers
+			// beside it do not say it again.
+			veil->set_announces(false);
+			return veil;
+		};
+		PendingPanes.Files         = pane(FilesTree, QStringLiteral("Files"), QStringLiteral("filesPendingVeil"));
+		PendingPanes.Conversations = pane(ConversationPanel, QStringLiteral("Comments"), QStringLiteral("commentsPendingVeil"));
+		PendingPanes.Threads       = pane(Finder, QStringLiteral("Threads"), QStringLiteral("threadsPendingVeil"));
+		PendingPanes.Repositories  = pane(RepositoriesTree, QStringLiteral("Repositories"), QStringLiteral("repositoriesPendingVeil"));
+		PendingPanes.HomeList      = pane(HomeList, QStringLiteral("My pull requests"), QStringLiteral("homeListPendingVeil"));
+		if (PendingPanes.HomeList != nullptr) {
+			// Home's list is the page: its own wait and failure are said.
+			PendingPanes.HomeList->set_announces(true);
+			PendingPanes.HomeList->set_retry([this] {
+				if (QueueDiscoveryDispatch) {
+					QueueDiscoveryDispatch(application::queue_discovery_intent::refresh);
+				}
+			});
+		}
+		apply_pending_appearance();
+	}
+
+	auto workbench_window::read_stage_words() const -> QString
+	{
+		if (SessionPanel == nullptr || SessionPanel->status() != core::github_status::loading_pull_request) {
+			return { };
+		}
+		auto stage = QStringLiteral("the pull request's details");
+		if (ReadProgress.has_value()) {
+			switch (ReadProgress->Phase) {
+			case application::github_read_phase::metadata:              break;
+			case application::github_read_phase::files:                 stage = QStringLiteral("the changed files"); break;
+			case application::github_read_phase::commits:               stage = QStringLiteral("the commits"); break;
+			case application::github_read_phase::reviews:               stage = QStringLiteral("the reviews"); break;
+			case application::github_read_phase::review_threads:        stage = QStringLiteral("the review threads"); break;
+			case application::github_read_phase::comments:              stage = QStringLiteral("the comments"); break;
+			case application::github_read_phase::checks:                stage = QStringLiteral("the checks"); break;
+			case application::github_read_phase::related_pull_requests: stage = QStringLiteral("related pull requests"); break;
+			case application::github_read_phase::update_history:        stage = QStringLiteral("the update history"); break;
+			}
+			if (ReadProgress->PagesReceived > 1U) {
+				stage += QStringLiteral(", %1 pages so far").arg(ReadProgress->PagesReceived);
+			}
+		}
+		return stage;
+	}
+
+	void workbench_window::update_pending_panes()
+	{
+		if (SessionPanel == nullptr) {
+			return;
+		}
+		const auto reading    = SessionPanel->status() == core::github_status::loading_pull_request;
+		const auto first      = reading && !HasGithubPullRequest && !HasCachedOverview;
+		const auto refreshing = reading && HasGithubPullRequest;
+		const auto stage      = read_stage_words();
+		const auto waiting    = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
+		const auto apply      = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
+			if (aVeil == nullptr) {
+				return;
+			}
+			if (!aPending) {
+				aVeil->present_ready();
+				return;
+			}
+			aVeil->present(core::pending_activity::loading, aContent, false, aWords);
+		};
+		// The review's own words are its Refresh control's; the veil only
+		// speaks once the read is slow.
+		apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
+		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
+		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
+		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
+		// Only a composed queue restores: without one nothing is on its way.
+		const auto queued = static_cast<bool>(QueueDiscoveryDispatch);
+		apply(PendingPanes.Repositories, queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring, false,
+			  { .Loading = QStringLiteral("Loading saved repositories…") });
+		if (PendingPanes.HomeList == nullptr) {
+			return;
+		}
+		// Home's list: restoring, then personal discovery. Rows already listed
+		// (the queue's or Recently viewed) stay readable while it runs.
+		const auto& discovery    = QueueProjection.Discovery;
+		const auto  rows         = (QueueLanding != nullptr && QueueLanding->rowCount() > 0) || !RecentReviews.Entries.empty();
+		const auto  hasSaved     = std::ranges::any_of(QueueProjection.SavedRepositories, [this](const auto& aSaved) {
+			return aSaved.Host == QueueProjection.Session.Host && aSaved.Account == QueueProjection.Session.Account;
+		});
+		const auto  restoring    = queued && HomeAccount && QueueProjection.Status == application::queue_landing_status::restoring;
+		const auto  finding      = HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::refreshing;
+		const auto  repositories = discovery.Repositories == 1U ? QStringLiteral("1 saved repository") : QStringLiteral("%1 saved repositories").arg(discovery.Repositories);
+		if (restoring) {
+			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
+		} else if (finding) {
+			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false,
+										   { .Loading = QStringLiteral("Finding my pull requests in %1…").arg(repositories),
+											 .Waiting = QStringLiteral("Still waiting for GitHub to search %1.").arg(repositories),
+											 .Done    = QStringLiteral("My pull requests found.") });
+		} else if (HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::stale && !rows) {
+			PendingPanes.HomeList->present(core::pending_activity::failed, false, false,
+										   { .Failure = QStringLiteral("Couldn't find my pull requests. %1").arg(home_discovery_sentence(discovery)) });
+		} else {
+			PendingPanes.HomeList->present_ready();
+		}
+	}
+
+	namespace {
+		/// [[BPR-1575]]. What a refresh compares of one accepted read.
+		[[nodiscard]] auto refresh_observation_of(const application::github_pull_request_projection& aPullRequest) -> core::pull_request_refresh_observation
+		{
+			auto observation = core::pull_request_refresh_observation{ .Head = aPullRequest.HeadOid, .Commits = aPullRequest.CommitCount };
+			for (const auto& conversation : aPullRequest.Conversations) {
+				if (conversation.Deleted) {
+					continue;
+				}
+				switch (conversation.Kind) {
+				case application::github_conversation_kind::review_comment:
+				case application::github_conversation_kind::issue_comment:
+					observation.Comments.push_back(conversation.Id);
+					break;
+				case application::github_conversation_kind::review:
+					observation.Reviews.push_back(conversation.Id);
+					break;
+				case application::github_conversation_kind::review_thread:
+					break;
+				}
+			}
+			switch (aPullRequest.State) {
+			case application::github_pull_request_state_projection::merged: observation.Status = core::refresh_status::merged; break;
+			case application::github_pull_request_state_projection::closed: observation.Status = core::refresh_status::closed; break;
+			case application::github_pull_request_state_projection::open:
+				observation.Status = aPullRequest.Draft ? core::refresh_status::draft : core::refresh_status::open;
+				break;
+			}
+			return observation;
+		}
+
+		[[nodiscard]] auto counted(const std::uint32_t aCount, const QString& aOne, const QString& aMany) -> QString
+		{
+			return aCount == 1U ? aOne : aMany.arg(aCount);
+		}
+
+		/// [[BPR-1575]]. "2 new comments and 1 new push", or empty for nothing.
+		[[nodiscard]] auto refresh_change_words(const core::refresh_changes& aChanges) -> QString
+		{
+			auto parts = QStringList{ };
+			if (aChanges.NewPullRequests != 0U) {
+				parts.push_back(counted(aChanges.NewPullRequests, QStringLiteral("1 new pull request"), QStringLiteral("%1 new pull requests")));
+			}
+			if (aChanges.NewComments != 0U) {
+				parts.push_back(counted(aChanges.NewComments, QStringLiteral("1 new comment"), QStringLiteral("%1 new comments")));
+			}
+			if (aChanges.NewReviews != 0U) {
+				parts.push_back(counted(aChanges.NewReviews, QStringLiteral("1 new review"), QStringLiteral("%1 new reviews")));
+			}
+			if (aChanges.NewPush) {
+				parts.push_back(aChanges.NewCommits == 0U ? QStringLiteral("1 new push")
+														  : QStringLiteral("1 new push (%1)").arg(counted(aChanges.NewCommits, QStringLiteral("1 commit"), QStringLiteral("%1 commits"))));
+			}
+			if (aChanges.Status.has_value()) {
+				switch (*aChanges.Status) {
+				case core::refresh_status::merged: parts.push_back(QStringLiteral("now merged")); break;
+				case core::refresh_status::closed: parts.push_back(QStringLiteral("now closed")); break;
+				case core::refresh_status::draft:  parts.push_back(QStringLiteral("now a draft")); break;
+				case core::refresh_status::open:   parts.push_back(QStringLiteral("now open for review")); break;
+				}
+			}
+			if (parts.size() < 2) {
+				return parts.join(QString{ });
+			}
+			const auto last = parts.takeLast();
+			return parts.join(QStringLiteral(", ")) + QStringLiteral(" and ") + last;
+		}
+
+		/// [[BPR-1575]]. "just now", "2 min ago", "3 hr ago", "2 days ago".
+		[[nodiscard]] auto refresh_age_words(const core::refresh_age aAge) -> QString
+		{
+			switch (aAge.Unit) {
+			case core::refresh_age_unit::just_now: return QStringLiteral("just now");
+			case core::refresh_age_unit::minutes:  return QStringLiteral("%1 min ago").arg(aAge.Count);
+			case core::refresh_age_unit::hours:    return QStringLiteral("%1 hr ago").arg(aAge.Count);
+			case core::refresh_age_unit::days:     return aAge.Count == 1U ? QStringLiteral("1 day ago") : QStringLiteral("%1 days ago").arg(aAge.Count);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto refresh_failure_words(const core::refresh_failure aFailure) -> QString
+		{
+			switch (aFailure) {
+			case core::refresh_failure::offline:      return QStringLiteral("GitHub could not be reached");
+			case core::refresh_failure::rate_limited: return QStringLiteral("GitHub's rate limit was reached");
+			case core::refresh_failure::signed_out:   return QStringLiteral("the account needs to sign in again");
+			case core::refresh_failure::other:        return QStringLiteral("GitHub's answer could not be used");
+			}
+			return { };
+		}
+	} // namespace
+
+	void workbench_window::run_automatic_refresh(const std::function<void()>& aDispatch)
+	{
+		AutomaticRefreshNoted = true;
+		if (aDispatch) {
+			aDispatch();
+		}
+		AutomaticRefreshNoted = false;
+	}
+
+	auto workbench_window::pull_request_refresh() const noexcept -> const core::refresh_state&
+	{
+		return PullRefresh;
+	}
+
+	auto workbench_window::home_refresh() const noexcept -> const core::refresh_state&
+	{
+		return HomeRefresh;
+	}
+
+	auto workbench_window::refresh_note_widget() const noexcept -> refresh_note*
+	{
+		return RefreshNote;
+	}
+
+	auto workbench_window::refresh_freshness_label() const noexcept -> QLabel*
+	{
+		return RefreshFreshness;
+	}
+
+	auto workbench_window::refresh_clock() const -> std::int64_t
+	{
+		return HomeClock ? HomeClock().value_or(0) : 0;
+	}
+
+	auto workbench_window::refresh_freshness_text() const -> QString
+	{
+		const auto home = showing_home();
+		if (!home && !HasGithubPullRequest) {
+			return { };
+		}
+		if (home && !HomeAccount) {
+			return { };
+		}
+		const auto& state = home ? HomeRefresh : PullRefresh;
+		const auto  age   = state.UpdatedAt.has_value() ? refresh_age_words(core::refresh_age_at(*state.UpdatedAt, refresh_clock())) : QString{ };
+		switch (state.Phase) {
+		case core::refresh_phase::refreshing:
+			return state.Trigger == core::refresh_trigger::reviewer ? QStringLiteral("Refreshing…") : QStringLiteral("Updating…");
+		case core::refresh_phase::failed:
+			return age.isEmpty() ? QStringLiteral("Not refreshed") : QStringLiteral("Not refreshed · updated %1").arg(age);
+		case core::refresh_phase::updated:
+		case core::refresh_phase::never:
+			return age.isEmpty() ? QString{ } : QStringLiteral("Updated %1").arg(age);
+		}
+		return { };
+	}
+
+	auto workbench_window::refresh_result_text(const bool aHome, const core::refresh_state& aState) const -> QString
+	{
+		if (aState.Phase == core::refresh_phase::failed) {
+			auto said = QStringLiteral("Couldn't refresh: %1.").arg(refresh_failure_words(aState.Failure));
+			if (aState.Failure == core::refresh_failure::rate_limited && aState.RetryAfterSeconds.has_value()) {
+				const auto minutes = (*aState.RetryAfterSeconds + 59U) / 60U;
+				said += *aState.RetryAfterSeconds < 60U ? QStringLiteral(" Try again in %1 s.").arg(*aState.RetryAfterSeconds)
+														: QStringLiteral(" Try again in %1 min.").arg(minutes);
+			}
+			if (aState.UpdatedAt.has_value()) {
+				said += QStringLiteral(" Showing what was loaded %1.").arg(refresh_age_words(core::refresh_age_at(*aState.UpdatedAt, refresh_clock())));
+			}
+			return said;
+		}
+		const auto words = refresh_change_words(aState.Changes);
+		const auto lead  = aState.Trigger == core::refresh_trigger::automatic ? QStringLiteral("Updated automatically")
+			: aState.Trigger == core::refresh_trigger::elsewhere              ? QStringLiteral("Updated from another window")
+																			  : QStringLiteral("Updated");
+		if (words.isEmpty()) {
+			return aHome ? QStringLiteral("Up to date: no new pull requests.") : QStringLiteral("Up to date: nothing new.");
+		}
+		return QStringLiteral("%1: %2.").arg(lead, words);
+	}
+
+	void workbench_window::observe_refresh_read(const core::pull_request_read_delta& aRead)
+	{
+		if (!aRead.Refresh) {
+			return;
+		}
+		RefreshReadSeen = true;
+		if (aRead.Stage == core::pull_request_read_stage::pending) {
+			RefreshEnded.reset();
+			RefreshBaseline = RefreshLatest;
+			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshNoted ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
+			return;
+		}
+		RefreshEnded = aRead;
+	}
+
+	void workbench_window::settle_pull_request_refresh(const application::github_presentation_update& aUpdate)
+	{
+		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
+			if (diagnostic.RetryAfterSeconds.has_value()) {
+				RefreshRetryAfter = diagnostic.RetryAfterSeconds;
+			}
+		}
+		if (RefreshEnded.has_value()) {
+			const auto ended = *RefreshEnded;
+			RefreshEnded.reset();
+			switch (ended.Stage) {
+			case core::pull_request_read_stage::loaded:
+				apply_refresh_event(false, core::refresh_succeeded{ .Changes = core::compare_refresh(RefreshBaseline, RefreshLatest), .At = refresh_clock() });
+				break;
+			case core::pull_request_read_stage::failed:
+				apply_refresh_event(false, core::refresh_failed{ .Failure = core::refresh_failure_of(ended.Reason), .RetryAfterSeconds = ended.Reason == core::github_reason_code::rate_limited ? RefreshRetryAfter : std::nullopt, .At = refresh_clock() });
+				break;
+			case core::pull_request_read_stage::cancelled:
+			case core::pull_request_read_stage::pending:
+				apply_refresh_event(false, core::refresh_cancelled{ });
+				break;
+			}
+			RefreshRetryAfter.reset();
+		} else if (ElsewhereChanges.has_value()) {
+			// Another window of the profile read this pull request; its answer
+			// was handed to this one.
+			apply_refresh_event(false, core::refresh_started{ .Trigger = core::refresh_trigger::elsewhere });
+			apply_refresh_event(false, core::refresh_succeeded{ .Changes = *ElsewhereChanges, .At = refresh_clock() });
+		}
+		ElsewhereChanges.reset();
+		present_refresh();
+	}
+
+	void workbench_window::observe_home_refresh(const application::queue_discovery_status& aBefore, const application::queue_landing_projection& aAfter)
+	{
+		if (!aAfter.UpdatedItem) {
+			HomeRefs.clear();
+			HomeRefs.reserve(aAfter.Items.size());
+			for (const auto& item : aAfter.Items) {
+				HomeRefs.push_back(item.Ref);
+			}
+		}
+		const auto& after = aAfter.Discovery;
+		if (aBefore.Host != after.Host || aBefore.Account != after.Account) {
+			HomeRefresh = core::refresh_state{ };
+		}
+		if (after.LastSuccess.has_value()) {
+			HomeRefresh.UpdatedAt = after.LastSuccess;
+		}
+		using state           = application::queue_discovery_state;
+		const auto refreshing = [](const state aState) { return aState == state::refreshing; };
+		if (!refreshing(aBefore.State) && refreshing(after.State)) {
+			HomeBaseline = HomeRefs;
+			apply_refresh_event(true, core::refresh_started{ .Trigger = HomeRefreshAsked ? core::refresh_trigger::reviewer : core::refresh_trigger::automatic });
+			HomeRefreshAsked = false;
+		} else if (refreshing(aBefore.State) && !refreshing(after.State)) {
+			switch (after.State) {
+			case state::current:
+			case state::partial:
+				apply_refresh_event(true, core::refresh_succeeded{ .Changes = core::compare_refresh(HomeBaseline, HomeRefs), .At = after.LastSuccess.value_or(refresh_clock()) });
+				break;
+			case state::stale: {
+				using problem = application::queue_discovery_problem;
+				auto failure  = core::refresh_failure::other;
+				switch (after.Problem) {
+				case problem::rate_limited:
+				case problem::secondary_rate_limited: failure = core::refresh_failure::rate_limited; break;
+				case problem::offline:                failure = core::refresh_failure::offline; break;
+				case problem::authentication:         failure = core::refresh_failure::signed_out; break;
+				default:                              break;
+				}
+				apply_refresh_event(true, core::refresh_failed{ .Failure = failure, .RetryAfterSeconds = after.RetryAfterSeconds, .At = refresh_clock() });
+				break;
+			}
+			case state::idle:
+			case state::refreshing:
+			case state::unavailable:
+				apply_refresh_event(true, core::refresh_cancelled{ });
+				break;
+			}
+		}
+		present_refresh();
+	}
+
+	void workbench_window::apply_refresh_event(const bool aHome, const core::refresh_event& aEvent)
+	{
+		auto&      state   = aHome ? HomeRefresh : PullRefresh;
+		const auto before  = state;
+		state              = core::apply_refresh(before, aEvent);
+		auto* const action = aHome ? QueueRefreshAction : GithubRefreshAction;
+		auto* const button = PrimaryToolbar != nullptr && action != nullptr ? PrimaryToolbar->widgetForAction(action) : nullptr;
+		auto*       timer  = aHome ? HomeSlowTimer : RefreshSlowTimer;
+		if (state.Phase == core::refresh_phase::refreshing && before.Phase != core::refresh_phase::refreshing && timer != nullptr) {
+			timer->start();
+		}
+		// The tick is the end of one read only: a new read or a failure takes it away.
+		if (state.Phase != core::refresh_phase::updated) {
+			(aHome ? HomeSettledCue : PullSettledCue) = false;
+		}
+		if (state.Phase == core::refresh_phase::updated && before.Phase == core::refresh_phase::refreshing) {
+			(aHome ? HomeSettledCue : PullSettledCue) = true;
+			if (auto* const cue = aHome ? HomeCueTimer : PullCueTimer; cue != nullptr) {
+				cue->start();
+			}
+		}
+		// The note speaks for the surface on screen only.
+		const auto shown = aHome == showing_home();
+		if (RefreshNote != nullptr && shown) {
+			switch (state.Phase) {
+			case core::refresh_phase::refreshing:
+				if (state.Trigger == core::refresh_trigger::reviewer && (before.Phase != core::refresh_phase::refreshing || before.Trigger != core::refresh_trigger::reviewer)) {
+					RefreshNote->present(refresh_note_tone::busy, aHome ? QStringLiteral("Finding my pull requests…") : QStringLiteral("Refreshing the pull request…"), button);
+				}
+				break;
+			case core::refresh_phase::updated:
+				if (before.Phase == core::refresh_phase::refreshing || state.SettledAt != before.SettledAt) {
+					if (state.Trigger == core::refresh_trigger::reviewer || core::any(state.Changes)) {
+						RefreshNote->present(refresh_note_tone::settled, refresh_result_text(aHome, state), button, 5'000);
+					} else if (RefreshNote->tone() == refresh_note_tone::busy) {
+						RefreshNote->dismiss();
+					}
+				}
+				break;
+			case core::refresh_phase::failed:
+				if (state.SettledAt != before.SettledAt || before.Phase != core::refresh_phase::failed) {
+					RefreshNote->present(refresh_note_tone::failed, refresh_result_text(aHome, state), button, 12'000);
+				}
+				break;
+			case core::refresh_phase::never:
+				if (RefreshNote->isVisible() && RefreshNote->tone() == refresh_note_tone::busy) {
+					RefreshNote->dismiss();
+				}
+				break;
+			}
+		}
+		auto said = QString{ };
+		switch (core::refresh_announcement_between(before, state)) {
+		case core::refresh_announcement::none:    break;
+		case core::refresh_announcement::started: said = aHome ? QStringLiteral("Finding my pull requests.") : QStringLiteral("Refreshing the pull request."); break;
+		case core::refresh_announcement::updated: said = refresh_result_text(aHome, state); break;
+		case core::refresh_announcement::failed:  said = refresh_result_text(aHome, state) + QStringLiteral(" Retry is available."); break;
+		}
+		if (!said.isEmpty() && shown) {
+			QAccessibleAnnouncementEvent event{ button != nullptr ? static_cast<QObject*>(button) : static_cast<QObject*>(this), said };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+		present_refresh();
+	}
+
+	void workbench_window::present_refresh()
+	{
+		if (PrimaryToolbar == nullptr || RefreshFrames == nullptr) {
+			return;
+		}
+		const auto full    = pending_full_motion();
+		const auto failure = PendingFailureInk.isValid() ? PendingFailureInk : palette().color(QPalette::WindowText);
+		const auto present = [&](QAction* const aAction, const core::refresh_state& aState, const bool aCue, QTimer* const aSlow, const bool aHome) {
+			if (aAction == nullptr) {
+				return;
+			}
+			const auto busy = aState.Phase == core::refresh_phase::refreshing;
+			const auto look = busy ? (full ? strip_refresh_look::turning : strip_refresh_look::waiting)
+				: aCue             ? strip_refresh_look::settled
+								   : strip_refresh_look::idle;
+			aAction->setIcon(strip_refresh_icon(look, RefreshFrame, palette()));
+			auto* const button = PrimaryToolbar->widgetForAction(aAction);
+			if (button == nullptr) {
+				return;
+			}
+			const auto alert = aState.Phase == core::refresh_phase::failed ? failure : QColor{ };
+			if (button->property(strip_style::busy_property).toBool() != busy || button->property(strip_style::alert_property).value<QColor>() != alert) {
+				button->setProperty(strip_style::busy_property, busy);
+				button->setProperty(strip_style::alert_property, alert);
+				button->update();
+			}
+			auto describe = QString{ };
+			switch (aState.Phase) {
+			case core::refresh_phase::refreshing:
+				describe = aHome ? QStringLiteral("Finding my pull requests in saved repositories…") : QStringLiteral("Refreshing the pull request…");
+				break;
+			case core::refresh_phase::failed:
+				describe = refresh_result_text(aHome, aState) + QStringLiteral(" Press to try again.");
+				break;
+			case core::refresh_phase::updated:
+			case core::refresh_phase::never:   {
+				const auto base = aHome ? QStringLiteral("Find my pull requests in saved repositories again; this never changes GitHub.")
+										: QStringLiteral("Reload the open pull request from its host.");
+				describe        = aState.UpdatedAt.has_value()
+					? QStringLiteral("%1 Updated %2.").arg(base, refresh_age_words(core::refresh_age_at(*aState.UpdatedAt, refresh_clock())))
+					: base;
+				break;
+			}
+			}
+			button->setAccessibleDescription(describe);
+			// Past the slow mark the note says what the read still waits on.
+			if (busy && aSlow != nullptr && !aSlow->isActive() && RefreshNote != nullptr && RefreshNote->isVisible()
+				&& RefreshNote->tone() == refresh_note_tone::busy && RefreshNote->anchor() == button) {
+				const auto stage = aHome ? QString{ } : read_stage_words();
+				const auto said  = aHome ? QStringLiteral("Still waiting for GitHub to search %1.")
+											   .arg(QueueProjection.Discovery.Repositories == 1U ? QStringLiteral("1 saved repository")
+																								 : QStringLiteral("%1 saved repositories").arg(QueueProjection.Discovery.Repositories))
+					: stage.isEmpty()    ? QStringLiteral("Still waiting for GitHub…")
+										 : QStringLiteral("Still waiting for GitHub: %1…").arg(stage);
+				if (RefreshNote->text() != said) {
+					RefreshNote->present(refresh_note_tone::busy, said, button);
+				}
+			}
+		};
+		present(GithubRefreshAction, PullRefresh, PullSettledCue, RefreshSlowTimer, false);
+		present(QueueRefreshAction, HomeRefresh, HomeSettledCue, HomeSlowTimer, true);
+		const auto turning = full && (PullRefresh.Phase == core::refresh_phase::refreshing || HomeRefresh.Phase == core::refresh_phase::refreshing);
+		if (turning && !RefreshFrames->isActive()) {
+			RefreshFrames->start();
+		} else if (!turning) {
+			RefreshFrames->stop();
+		}
+		if (RefreshNote != nullptr) {
+			RefreshNote->set_full_motion(full);
+			RefreshNote->set_failure_ink(failure);
+		}
+		if (RefreshFreshness != nullptr) {
+			const auto  words  = refresh_freshness_text();
+			const auto& state  = showing_home() ? HomeRefresh : PullRefresh;
+			const auto  failed = state.Phase == core::refresh_phase::failed && !words.isEmpty();
+			const auto  text   = failed ? QStringLiteral("<span style=\"color:%1\">%2</span> · <a href=\"retry\">Retry</a>").arg(failure.name(), words.toHtmlEscaped())
+										: words.toHtmlEscaped();
+			if (RefreshFreshness->text() != text) {
+				RefreshFreshness->setText(text);
+			}
+			// One width for every phrase it says, the widest, so neither it
+			// nor the status line beside it moves as the words change.
+			const auto widest = QFontMetrics{ RefreshFreshness->font() }.horizontalAdvance(QStringLiteral("Not refreshed · updated 59 min ago · Retry")) + 8;
+			if (RefreshFreshness->width() != widest) {
+				RefreshFreshness->setFixedWidth(widest);
+			}
+			RefreshFreshness->setToolTip(failed ? refresh_result_text(showing_home(), state) : words);
+			RefreshFreshness->setAccessibleDescription(RefreshFreshness->toolTip());
+			RefreshFreshness->setVisible(!words.isEmpty());
+			// The words age on their own: woken exactly when they would change.
+			if (state.UpdatedAt.has_value() && state.Phase != core::refresh_phase::refreshing && RefreshAgeTimer != nullptr) {
+				const auto next = core::refresh_age_next_change_seconds(*state.UpdatedAt, refresh_clock());
+				RefreshAgeTimer->start(static_cast<int>(std::clamp<std::int64_t>(next, 1, 86'400) * 1'000));
+			}
 		}
 	}
 
@@ -14920,6 +15926,39 @@ namespace bpr::qt {
 		addAction(ShowThreadsAction);
 		ViewMenu->addAction(ShowThreadsAction);
 		connect(ShowThreadsAction, &QAction::triggered, this, [this] { toggle_threads(); });
+		// [[BPR-1581]]. The selected thread in the other view: Option-Command-3
+		// beside Command-3 for Discuss, Option-Command-2 beside Command-2 for
+		// Review. Ctrl+Alt is AltGr on Windows, which types a character with
+		// these digits, so both step aside while typing.
+		ShowInDiscussAction = new QAction{ QStringLiteral("Show Thread in Discuss"), this };
+		ShowInDiscussAction->setObjectName(QStringLiteral("showThreadInDiscussAction"));
+		ShowInDiscussAction->setShortcuts(shortcut_keys(shortcut_command::show_in_discuss));
+		ShowInDiscussAction->setShortcutContext(Qt::WindowShortcut);
+		ShowInReviewAction = new QAction{ QStringLiteral("Show Thread in Review"), this };
+		ShowInReviewAction->setObjectName(QStringLiteral("showThreadInReviewAction"));
+		ShowInReviewAction->setShortcuts(shortcut_keys(shortcut_command::show_in_review));
+		ShowInReviewAction->setShortcutContext(Qt::WindowShortcut);
+		for (auto* const action : { ShowInDiscussAction, ShowInReviewAction }) {
+			const auto tip = action == ShowInDiscussAction ? QStringLiteral("Show the selected thread in Discuss (%1)") : QStringLiteral("Show the selected thread in Review, beside its code (%1)");
+			action->setToolTip(tip.arg(action->shortcut().toString(QKeySequence::NativeText)));
+			action->setStatusTip(action->toolTip());
+			action->setEnabled(false);
+			addAction(action);
+			ViewMenu->addAction(action);
+		}
+		connect(ShowInDiscussAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::discuss)); });
+		connect(ShowInReviewAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::review)); });
+		// [[BPR-1586]]. Option-Command-4 beside Command-4 for Threads.
+		ShowInThreadsAction = new QAction{ QStringLiteral("Show Thread in Threads"), this };
+		ShowInThreadsAction->setObjectName(QStringLiteral("showThreadInThreadsAction"));
+		ShowInThreadsAction->setShortcuts(shortcut_keys(shortcut_command::show_in_threads));
+		ShowInThreadsAction->setShortcutContext(Qt::WindowShortcut);
+		ShowInThreadsAction->setToolTip(QStringLiteral("Show the selected thread's row in Threads (%1)").arg(ShowInThreadsAction->shortcut().toString(QKeySequence::NativeText)));
+		ShowInThreadsAction->setStatusTip(ShowInThreadsAction->toolTip());
+		ShowInThreadsAction->setEnabled(false);
+		addAction(ShowInThreadsAction);
+		ViewMenu->addAction(ShowInThreadsAction);
+		connect(ShowInThreadsAction, &QAction::triggered, this, [this] { static_cast<void>(show_selected_thread(core::workbench_thread_destination::threads)); });
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
@@ -15878,6 +16917,14 @@ namespace bpr::qt {
 		if (HomeAction != nullptr) {
 			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
 		}
+#if defined(_WIN32)
+		// [[BPR-1596]]. The menu control stands first in the Windows row; left
+		// in the previous theme's ink it vanishes into the new ground and reads
+		// as an empty space before Home.
+		if (StripMenuButton != nullptr) {
+			StripMenuButton->setIcon(windows_menu_icon(ink));
+		}
+#endif
 		// [[BPR-1290]]. Next new reply's icon on the Comments tab row.
 		if (NextNewCommentAction != nullptr) {
 			NextNewCommentAction->setIcon(conversation_icon(conversation_glyph::next_new, ink));
@@ -15915,6 +16962,8 @@ namespace bpr::qt {
 		if (QueueRefreshAction != nullptr) {
 			QueueRefreshAction->setIcon(strip_icon(strip_glyph::refresh, ink));
 		}
+		// [[BPR-1575]]. A refresh under way keeps its own look in the new ink.
+		present_refresh();
 		if (AccountAction != nullptr) {
 			AccountAction->setIcon(strip_icon(strip_glyph::account, ink));
 		}
@@ -16081,6 +17130,7 @@ namespace bpr::qt {
 		}
 		TypingFocus = typing;
 		update_accept_file_shortcut();
+		update_show_thread_actions();
 		if (!option_types_text || PrimaryMenuBar == nullptr) {
 			return;
 		}
@@ -16396,6 +17446,11 @@ namespace bpr::qt {
 			}
 		}
 		EpochSelectors->set_readiness(busy || !EpochSelectors->comparison_available() ? wording : QString{ }, updates_line_open());
+		// [[BPR-1576]]. A wait on the Updates line turns before its words.
+		EpochSelectors->set_readiness_busy(busy, pending_full_motion());
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_read_waiting(read_stage_words());
+		}
 	}
 
 	auto workbench_window::status_line() const -> QString

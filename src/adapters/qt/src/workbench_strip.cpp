@@ -282,6 +282,52 @@ namespace bpr::qt {
 								  aPalette.color(QPalette::Active, QPalette::ButtonText), disabled_ink(aPalette));
 	}
 
+	auto strip_refresh_icon(const strip_refresh_look aLook, const int aFrame, const QPalette& aPalette) -> QIcon
+	{
+		if (aLook == strip_refresh_look::idle) {
+			return strip_icon(strip_glyph::refresh, aPalette);
+		}
+		const auto ink   = aPalette.color(QPalette::Active, QPalette::ButtonText);
+		auto       paint = [aLook, aFrame](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+			aPainter.save();
+			const auto unit = aSide / 24.0;
+			aPainter.scale(unit, unit);
+			auto pen = QPen{ aInk };
+			pen.setWidthF(2.0);
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			switch (aLook) {
+			case strip_refresh_look::turning:
+				// Clockwise, a twelfth of a turn a frame, about the arrow's centre.
+				aPainter.translate(12.0, 12.0);
+				aPainter.rotate(30.0 * (((aFrame % 12) + 12) % 12));
+				aPainter.translate(-12.0, -12.0);
+				stroke_glyph(aPainter, strip_glyph::refresh);
+				break;
+			case strip_refresh_look::waiting:
+				stroke_glyph(aPainter, strip_glyph::refresh);
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				aPainter.drawEllipse(QPointF{ 12.0, 12.0 }, 2.2, 2.2);
+				break;
+			case strip_refresh_look::settled: {
+				auto tick = QPainterPath{ };
+				tick.moveTo(5.5, 12.5);
+				tick.lineTo(10.0, 17.0);
+				tick.lineTo(18.5, 7.0);
+				aPainter.drawPath(tick);
+				break;
+			}
+			case strip_refresh_look::idle:
+				break;
+			}
+			aPainter.restore();
+		};
+		return painted_glyph_icon(std::move(paint), ink, ink);
+	}
+
 	void set_strip_badge(QToolButton& aButton, const QString& aBadge)
 	{
 		if (aButton.property(strip_style::badge_property).toString() == aBadge) {
@@ -320,6 +366,8 @@ namespace bpr::qt {
 		const auto  down    = (option->state & State_Sunken) != 0;
 		const auto  filled  = aWidget != nullptr
 			&& aWidget->property(filled_property).toBool();
+		// [[BPR-1575]]. A button whose work is under way reads as engaged.
+		const auto busy = aWidget != nullptr && aWidget->property(busy_property).toBool();
 
 		// A presenter the toolbar stretched to its row keeps the design's
 		// height: the frame is centred in whatever rect the layout gave it.
@@ -346,7 +394,7 @@ namespace bpr::qt {
 			if (checked) {
 				ink = palette.color(QPalette::Active, QPalette::HighlightedText);
 			}
-		} else if (checked) {
+		} else if (checked || busy) {
 			fill   = soft_fill(accent);
 			border = accent;
 		}
@@ -357,7 +405,7 @@ namespace bpr::qt {
 				fill = palette.color(QPalette::Active, QPalette::Midlight);
 			}
 		}
-		if (!enabled) {
+		if (!enabled && !busy) {
 			ink = disabled_ink(palette);
 		}
 
@@ -419,6 +467,12 @@ namespace bpr::qt {
 				// [[BPR-1129]]. A kept draft: an amber dot on the icon's upper right.
 				aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Button), 1.0 });
 				aPainter->setBrush(mark_colour());
+				aPainter->drawEllipse(QPointF{ static_cast<qreal>(iconRect.right()) - 0.5, static_cast<qreal>(iconRect.top()) + 1.5 }, 3.5, 3.5);
+			}
+			if (const auto alert = aWidget != nullptr ? aWidget->property(alert_property).value<QColor>() : QColor{ }; alert.isValid()) {
+				// [[BPR-1575]]. The last attempt failed: a dot in the failure ink.
+				aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Button), 1.0 });
+				aPainter->setBrush(alert);
 				aPainter->drawEllipse(QPointF{ static_cast<qreal>(iconRect.right()) - 0.5, static_cast<qreal>(iconRect.top()) + 1.5 }, 3.5, 3.5);
 			}
 			x += iconWidth + gap;

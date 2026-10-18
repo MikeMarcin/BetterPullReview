@@ -848,13 +848,21 @@ namespace bpr::qt {
 	{
 		ContextControls = aContextControls;
 		refresh_controls();
-		Rendered->setContextMenuPolicy(aContextControls ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
-		Source->setContextMenuPolicy(aContextControls ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
+		Rendered->setContextMenuPolicy(aContextControls || ExtendedMenu ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
+		Source->setContextMenuPolicy(aContextControls || ExtendedMenu ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
 	}
 
 	void markdown_body_view::set_context_menu_builder(std::function<void(QMenu&)> aBuilder)
 	{
 		ContextMenuBuilder = std::move(aBuilder);
+	}
+
+	void markdown_body_view::set_extended_menu(const bool aExtended)
+	{
+		ExtendedMenu      = aExtended;
+		const auto policy = ContextControls || ExtendedMenu ? Qt::CustomContextMenu : Qt::DefaultContextMenu;
+		Rendered->setContextMenuPolicy(policy);
+		Source->setContextMenuPolicy(policy);
 	}
 
 	void markdown_body_view::refresh_controls()
@@ -889,7 +897,7 @@ namespace bpr::qt {
 
 	void markdown_body_view::show_context_menu(const bool aSource, const QPoint& aPosition)
 	{
-		if (!ContextControls) {
+		if (!ContextControls && !ExtendedMenu) {
 			return;
 		}
 		auto* menu = aSource ? Source->createStandardContextMenu() : Rendered->createStandardContextMenu();

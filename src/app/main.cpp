@@ -239,6 +239,10 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-page-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-discovery-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-refresh-script", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "label-authoring-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "line-draft-course" },
 		bpr::app::command_line_option{ .Name = "cancel-first-base-numbering" },
@@ -9744,11 +9748,51 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		if (readDelay.has_value() || readFailNumber.has_value()) {
-			readDelayFixture               = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
-			readDelayFixture->Milliseconds = attendedHomeLook ? 0U : readDelay.value_or(0U);
-			readDelayFixture->FailNumber   = readFailNumber.value_or(0U);
-			fixtureOptions.ReadDelay       = readDelayFixture;
+		// [[BPR-1575]], [[BPR-1576]]. A slow refresh, a slow rest of each read
+		// and a slow discovery, and what successive refreshes meet
+		// ("new-reply,serve,offline,rate-limited", round again).
+		const auto refreshDelayText   = launch.value("--fixture-refresh-delay-ms");
+		const auto pageDelayText      = launch.value("--fixture-page-delay-ms");
+		const auto discoveryDelayText = launch.value("--fixture-discovery-delay-ms");
+		const auto refreshScriptText  = launch.value("--fixture-refresh-script");
+		const auto refreshDelay       = parse_count(refreshDelayText);
+		const auto pageDelay          = parse_count(pageDelayText);
+		const auto discoveryDelay     = parse_count(discoveryDelayText);
+		auto       refreshScript      = std::vector<bpr::app::detail::github_read_delay_fixture::refresh_outcome>{ };
+		auto       refreshScriptValid = true;
+		if (refreshScriptText.has_value()) {
+			using outcome = bpr::app::detail::github_read_delay_fixture::refresh_outcome;
+			for (const auto& word : QString::fromUtf8(refreshScriptText->data(), static_cast<qsizetype>(refreshScriptText->size())).split(QLatin1Char{ ',' })) {
+				if (word == QStringLiteral("serve")) {
+					refreshScript.push_back(outcome::serve);
+				} else if (word == QStringLiteral("new-reply")) {
+					refreshScript.push_back(outcome::new_reply);
+				} else if (word == QStringLiteral("offline")) {
+					refreshScript.push_back(outcome::offline);
+				} else if (word == QStringLiteral("rate-limited")) {
+					refreshScript.push_back(outcome::rate_limited);
+				} else {
+					refreshScriptValid = false;
+				}
+			}
+		}
+		if ((refreshDelayText.has_value() && !refreshDelay.has_value()) || (pageDelayText.has_value() && !pageDelay.has_value())
+			|| (discoveryDelayText.has_value() && !discoveryDelay.has_value()) || !refreshScriptValid) {
+			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (readDelay.has_value() || readFailNumber.has_value() || refreshDelay.has_value() || pageDelay.has_value() || discoveryDelay.has_value()
+			|| !refreshScript.empty()) {
+			readDelayFixture                        = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
+			readDelayFixture->Milliseconds          = attendedHomeLook ? 0U : readDelay.value_or(0U);
+			readDelayFixture->FailNumber            = readFailNumber.value_or(0U);
+			readDelayFixture->RefreshMilliseconds   = refreshDelay.value_or(0U);
+			readDelayFixture->PageMilliseconds      = pageDelay.value_or(0U);
+			readDelayFixture->DiscoveryMilliseconds = discoveryDelay.value_or(0U);
+			readDelayFixture->RefreshScript         = std::move(refreshScript);
+			fixtureOptions.ReadDelay                = readDelayFixture;
+			// A look that refreshes replays the recorded read for each refresh.
+			fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || refreshDelay.has_value() || !readDelayFixture->RefreshScript.empty();
 		}
 		if (attendedHomeLook) {
 			// Home's rows: the fixture's own pull request asks for my review,
