@@ -14428,8 +14428,8 @@ namespace {
 		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
 		expect(intents.size() == before && drawers() == hidden, "Command-B does nothing in Threads");
 		const auto rows = finder->shown_keys();
-		expect(rows == std::vector<std::string>{ "file:src/file.cpp", "row:review-thread:late/review-comment:late-1", "file:src/other.cpp", "row:review-thread:off/review-comment:off-1" },
-			   "every conversation on a file, grouped by file; the pull request comment is Discuss's");
+		expect(rows == std::vector<std::string>{ "file:src/file.cpp", "row:review-thread:late/review-comment:late-1", "file:src/other.cpp", "row:review-thread:off/review-comment:off-1", "file:", "row:issue-comment:c1/issue-comment:c1" },
+			   "threads are grouped by file, followed by the pull request comment under Not on a file");
 		save_render(window, QStringLiteral("conversations-page"));
 		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
 		expect(window.current_modality() == qt::review_modality::review && drawers() == hidden && hide->isChecked()
@@ -15069,7 +15069,7 @@ namespace {
 		process_events();
 		expect(landed(qt::review_modality::discuss, "review-thread:old", "review-comment:old-1"), "and ⌥⌘3 takes it back to Discuss");
 
-		// A pull request comment: Discuss only. Its menu says why, and ⌥⌘2
+		// A pull request comment cannot open in Review. Its menu says why, and ⌥⌘2
 		// with it selected leaves Discuss where it is.
 		menu = cards->thread_menu("issue-comment:pr-1");
 		expect(menu != nullptr, "the comment has a menu");
@@ -15185,12 +15185,12 @@ namespace {
 					   && inThreads(lateRow, "review-comment:late-1") && finder->search_field()->text().isEmpty()
 					   && window.statusBar()->currentMessage().contains(QStringLiteral("cleared")),
 				   "a search hiding the row is cleared, the row shown and the status bar says so");
-			// Negative controls: a comment not on a file has no row, and an
-			// unknown thread moves nothing.
+			// [[BPR-1601]]. A comment not on a file has a row in Threads.
 			backToReview();
-			expect(!window.move_thread("issue-comment:pr-1", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
-					   && window.current_modality() == qt::review_modality::review,
-				   "negative control: a pull request comment has no row in Threads, and nothing moves");
+			expect(window.move_thread("issue-comment:pr-1", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
+					   && inThreads("row:issue-comment:pr-1/issue-comment:pr-1", "issue-comment:pr-1"),
+				   "a pull request comment moves to its Not on a file row in Threads, selected and focused");
+			backToReview();
 			expect(!window.move_thread("review-thread:missing", core::workbench_thread_origin::review, core::workbench_thread_destination::threads)
 					   && window.current_modality() == qt::review_modality::review,
 				   "negative control: an unknown thread moves nothing");

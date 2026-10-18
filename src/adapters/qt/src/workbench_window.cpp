@@ -8196,9 +8196,18 @@ namespace bpr::qt {
 				fileUnread == 0U ? tr("Comments")
 								 : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
 		}
+		const auto threadCount  = ConversationPanel->cards()->unread_threads_in_file_order().size();
+		const auto commentCount = unread.size() - threadCount;
+		auto       counts       = QStringList{ };
+		if (threadCount != 0U) {
+			counts.push_back(threadCount == 1U ? QStringLiteral("1 thread") : QStringLiteral("%1 threads").arg(threadCount));
+		}
+		if (commentCount != 0U) {
+			counts.push_back(commentCount == 1U ? QStringLiteral("1 comment not on a file") : QStringLiteral("%1 comments not on a file").arg(commentCount));
+		}
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
-						   : QStringLiteral("Next new comment (%1 conversations)").arg(unread.size()));
+						   : QStringLiteral("Next new comment (%1)").arg(counts.join(QStringLiteral(", "))));
 		// [[BPR-1129]]. The comments toggle carries the count of threads with a
 		// post newer than what I have read, and says it to accessibility.
 		if (auto* const toggle = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(Drawers[1].Toggle));

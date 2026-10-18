@@ -105,3 +105,24 @@ a test fixture without threads. The first complete public course exposed the
 singleton/native-thread cache-index crash described above; it passes with the
 bound in place. No native Windows or Linux run is claimed. No full suite ran
 per card; item 9 supplies the single integrated run after this landing.
+
+## Integrated follow-up — 2026-10-18
+
+The final handoff suite exposed old file-only expectations in the broader
+workbench courses and a terminology regression in the next-new tooltip. The
+tooltip now names unread threads and comments not on a file separately; the
+current-file badges retain their existing count. The move and reveal courses
+include the pathless row, while unknown identities and opening a pathless
+comment in Review remain negative controls. The terminology scan permits only
+the Status line's explicit PR-conversation phrase on its two named controls.
+The public course also verifies the mixed count and its return to threads only
+after reading the standalone comments.
+
+All nine affected failed rows pass in separate CTest invocations: thread moves
+at 100/125/200%, conversation reveal, workbench window at 100/125/200%, the
+current-file badge and the public terminology course. The strengthened
+conversation-read public path passes separately. The new public test's
+`WINDOWS_UNCONTAINED_TESTS` entry records that Windows is unmeasured; its
+registration omission is absent from the isolated manifest rerun. Remaining
+out-of-queue inventory failures and the final full lint results are recorded
+in `docs/issues/_checkpoints/codex-handoff-2026-10-17.progress.md`.
