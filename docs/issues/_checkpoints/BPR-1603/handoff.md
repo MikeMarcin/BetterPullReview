@@ -137,3 +137,42 @@ Production composition and round-trip checks are still running.
 Freeze in progress from product commit, own root
 /Users/jaeger/bpr1603-conversation-chips-v001.xc5dd7wg, helper process tool
 session 60768. Remove only with scripts/freeze_attended_build.py remove.
+
+
+### Built owner review ready — do not alter candidate
+
+All six final focused checks passed (790.05 s): architecture boundaries,
+architecture negative-control contract, production composition, timing
+negative control, large-review responsiveness, and resealed round-trip
+composition. Final docs gate passed. Frozen build and its Light/Dark own
+launcher checks passed; binary SHA256
+fe83d9cffc4c6ddfbece5ca50501e616d30ec4ead61621a433e9dc064fd20508.
+
+ONE Accept/Reject built review is ready at sequence 3 in session
+`d28b9f71ffc1dfc153f9b731595c0dca`, candidate
+`BPR-1603-conversation-chips-v001`, product revision 9eab5046a,
+fingerprint 7811444792049c97c9c9a899673b746c38015bd031b0c61d962e93f8dcff9bf8.
+Source /Users/jaeger/.codex/worktrees/bpr1603-conversation-chips/BetterPullReview;
+state /Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1603-conversation-chips-built-v001;
+default registry /Users/jaeger/.mask/attended-review-resources.
+Own server PID 92865, tool session 94146, port 49907. Six embedded pictures
+compare the Light/Dark A mockups with the frozen edge and list/reply renders.
+Launcher python3 /Users/jaeger/bpr1603-conversation-chips-v001.xc5dd7wg/launch.py.
+
+Driver /root will keep a pending deterministic `attended_review.py
+--repo-root SOURCE --state STATE wait --after 3 --kind handed-back
+--timeout 43200`. The synthetic same-runtime probe 715427b7 tested intermediate
+decision remaining blocked and handback returning in 0.543 s through
+functions.exec/exec_command/write_stdin/functions.wait, Python 3.14.7;
+no idle model loop within the pending call. This is a short awake-host
+qualification, not an overnight reliability claim. Evidence
+/tmp/bpr1603-wait-qualification.json. Engineering changes are committed and
+no writer will change the protected candidate while waiting.
+
+On return: verify session and new handback, consume exact decision/cursor.
+Reject means record the note and stop implementation for Claude. Accept means
+release candidate, merge current origin/main, verify any intervening delta,
+finish card through board tool with owner verdict + mechanical evidence,
+update RFC status, merge to main, plain push origin main. Then item 9 on final
+main: one integrated full suite, rerun failures alone, report causes, format
+and tidy, stop own review host and remove own frozen/build trees.
