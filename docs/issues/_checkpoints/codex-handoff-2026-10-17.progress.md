@@ -68,7 +68,18 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    pass on `69a477a05` (96.21 s), as do focused tidy22, format22,
    documentation and diff checks. Composition pins match BPR-1598.
    The new regression also covers cached arrival and a later load.
-8. Task-owned housekeeping: pending.
-9. One final integrated configure/build/full ctest and format/tidy: pending.
+   Finished/pushed in `2e37e282e`; worktree, branch and 1.1 GB build removed.
+8. Task-owned housekeeping: complete. All handed-off branches/worktrees and
+   frozen roots are absent. The audited BPR-1568, BPR-1577, BPR-1578 and
+   BPR-1597 candidates are unprotected; all recorded host PIDs are absent.
+   Historical decisions and session files are retained. The older BPR-1568
+   mockup session was already unprotected and has no host or frozen build.
+   `git worktree prune` completes; unrelated and paused work is retained.
+9. One final integrated configure/build/full ctest and format/tidy: starting
+   after cleanup on main (product source `2e37e282e`). No other build/test/
+   analyzer process was active at the start; 155 GiB is free. Debug uses `-g0`
+   to limit disk use, with assertions and test behavior unchanged. Build and
+   CTest concurrency will be bounded, respecting the registered serial rows.
+   Every full-suite failure will be rerun alone and its cause recorded.
 
 Do not touch paused RFC-BPR-0085 work BPR-1589–1595 or its worktree.
