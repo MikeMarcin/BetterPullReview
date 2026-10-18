@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1616"
 title: "Repair integrated suite test and tidy drift"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1594", "BPR-1603"]
 metadata: {"criteria": ["AC1", "AC2"], "reservation": "docs/issues/_reservations/BPR-1616--BPR-1616--890f7349c660.json"}
