@@ -1247,7 +1247,11 @@ auto main(int argc, char** argv) -> int
 		contract.require("no-github-mutation", noGithubMutation);
 		// Leaving and returning exposes current content at rest, never a
 		// queued success. Whole-review composition has no inline workshop.
+		// [[BPR-1590]]: Compose review is a sheet now; its Expand is the
+		// whole-review page this course leaves for.
 		window.open_review_composition(false);
+		QApplication::processEvents();
+		window.expand_review_sheet();
 		QApplication::processEvents();
 		contract.require("whole-review-hides-workshop", !window.dif_workshop_slot()->isVisible());
 		window.open_review_composition(true);

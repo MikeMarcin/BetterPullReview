@@ -92,6 +92,8 @@ namespace bpr::qt {
 		open_agent,
 		/// [[BPR-1594]]. Ask the agent about the selected lines.
 		ask_agent,
+		/// [[BPR-1592]]. A private note on the selected line, in Notes.
+		new_note,
 		review_details,
 		line_numbers,
 		hide_drawers,
