@@ -1,0 +1,132 @@
+# Codex handoff — 2026-10-17
+
+The coordinator (Claude) stopped its implementers to save usage. This file
+hands Codex the mechanical work that remains. Every decision listed here is
+already made by the owner; do not re-ask, re-design or re-review it.
+
+Read first: `AGENTS.md`, `CONTRIBUTING.md`, the card and checkpoint named
+for each item.
+
+## Rules for this handoff (owner, 2026-10-17)
+
+- **Land one card at a time, in the order below.** Each item starts only
+  after the previous one's `Finish BPR-…` commit is on `origin/main`.
+- **Focused tests only to land.** No full `ctest --preset dev` per card. One
+  integrated full suite runs at the end (item 9).
+- Per landing: re-check `main` HEAD → merge `main` into the branch → build
+  only the affected targets → run the card's focused rows → if `src/app`
+  changed, run `application_composition_contract` and
+  `application_review_round_trip_composition_contract` and reseal the
+  round-trip pins on the merged tree with a dated note → `clang-format` 22
+  check on touched files → `python3 scripts/verify_documentation.py --root .`
+  (Python ≥ 3.10, no pipe) → fast-forward `main` → finish the card with the
+  board tool → plain `git push origin main` (merge `origin/main` first if it
+  moved; never force).
+- Commit trailer on every commit:
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` is the
+  coordinator's convention; use your own attribution if your harness requires
+  it, but keep commits intentional and per card.
+- AGENTS.md rules that bit us this week: never `git stash`; stop only
+  processes you started, by PID (never `pkill -f`); never drive or capture the
+  owner's desktop; keep builds lean (disk has repeatedly hit 0 free — check
+  `df -h /` before any full build and delete your own build trees when done);
+  live GitHub only on `MikeMarcin/BPR-Test`, watch `X-RateLimit-Remaining`.
+- After landing each card: stop its attended-review server if one is still
+  running (PID in its checkpoint), release protection
+  (`attended_review.py … resume-development`), remove its frozen build with
+  `scripts/freeze_attended_build.py remove`, remove its worktree and build.
+
+## Landing queue
+
+### 1. BPR-1577 — Overview Open/All switch v002 (accepted)
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1577-counts-switch/BetterPullReview`,
+  branch `bpr-1577-quiet-counts-switch`, head `ec589f2a0` (main already merged;
+  was mid focused tests when stopped).
+- Card `docs/issues/40-parked/BPR-1577-the-overview-open-and-all-switch-is-quiet-like-its-row.md`.
+- Focused: the Overview page test rows (incl. `--switch` render test).
+- Session `cf892a3b…` (owner-review-20261017-bpr1577-counts-switch-v002), host PID 39316;
+  frozen `/Users/jaeger/bpr1577-counts-switch-v002.4iietnlb`.
+
+### 2. BPR-1578 — review bar progress track v002 (accepted)
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1578-review-bar-accept/BetterPullReview`,
+  branch `bpr-1578-review-bar-accept`, head `5f3a96baa` (main merged, round-trip resealed over `ee9830062`).
+- Card `docs/issues/40-parked/BPR-1578-…`; checkpoint `docs/issues/_checkpoints/BPR-1578/handoff.json`.
+- Focused: `qt_review_state_icon`, `qt_option_keys_typing`, `qt_workbench_window_scale_{100,125,200}`, title-row/focus-order rows, composition contracts.
+- Session `3760f12f…` (`/Users/jaeger/.codex/attended-review/bpr1578-v002-final-hB6QZ7`), host PID 2303;
+  frozen `/Users/jaeger/.codex/attended-builds/bpr1578-progress-track-v002.bebcwn1p`. Also stop/release the
+  earlier round sessions if still up (PIDs 51437, 33432, 53547).
+
+### 3. BPR-1597 — Settings by task (accepted); closes BPR-1568
+- Worktree `/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1566-cc-link`,
+  branch `claude/bpr-1597-settings-by-task`, head `501e5923f`.
+- Pages: Home & queue · Review · Comments (owner renamed "Reviewing" → "Review").
+  Repositories stays after Accounts & hosts.
+- Card `docs/issues/40-parked/BPR-1597-settings-by-task-home-and-queue-review-comments.md`;
+  move `BPR-1568-…` to Done as closed into BPR-1597.
+- Focused: Settings tests (search finds moved rows), composed workshop courses, Home lists, composition contracts (reseal).
+- Watch: settings schema number clash — BPR-1584 and BPR-1588 already on main; renumber this card's step if it adds one.
+- Session `a090236d…` (`~/.mask/attended-review-sessions/bpr-1597-v001-20261017`), host PID 4027;
+  frozen `/Users/jaeger/bpr-1597-v001.mu3ytfkc`.
+
+### 4. BPR-1600 — ⌘R refreshes Home (owner decision, no review needed)
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1600-home-refresh-key/BetterPullReview`,
+  branch `bpr-1600-home-refresh-key`. **Uncommitted WIP** in keyboard_shortcuts,
+  workbench_window, the RFC-BPR-0026 amendment, the UX spec and two test files — review and finish it.
+- Only the reservation exists (`docs/issues/_reservations/BPR-1600--…`); write the card.
+- Requirement: ⌘R on Home runs Home's existing refresh with BPR-1575 feedback; on a PR it still refreshes the PR;
+  steps aside while typing if the PR binding does; listed in the shortcuts catalogue (drift test must pass);
+  record the owner's reversal of BPR-0990. Tests incl. a negative control.
+
+### 5. BPR-1572 — stacked PRs compare from the recorded base's merge base (approved by Fable + Astra round 4)
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1572/BetterPullReview`, branch `bpr-1572-stacked-merge-base`,
+  head `cb211c828`. Checkpoint `docs/issues/_checkpoints/BPR-1572/continuation.md`.
+- Last report: Astra's round-4 condition is done (refusals `target_moved`/`stale_head` propagated through
+  review submission, tours and source-backed comments; tests fail with it reverted). Confirm Fable's three
+  non-blocking items are done: wrapper-path tests for a 500 and a cancellation on the wrapper's PR read;
+  soften the comment at `github_provider.cpp` ~1093-1100; doc wording "every witnessed write bound to a pull request".
+- Then land (focused tests + composition contracts, reseal, docs gate, card → 60-done), push, remove the 15 GB build.
+- Skip the large-review timing reruns; item 9 covers them.
+
+### 6. BPR-1598 — lint findings + load-robust timing tests
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1598-tidy-timing/BetterPullReview`,
+  branch `bpr-1598-tidy-and-load-robust-timing`, head `aa7e17559` (evidence and tidy inventory recorded).
+- Was writing the final card content when stopped. Fix `home_panel.cpp:324` and `server_card.cpp:738/739`
+  tidy findings; make `coding-tidy` + `coding-format-check` green; make the `application_large_review_*`
+  timing tests robust to machine load without simply raising budgets (CPU time / RUN_SERIAL / calibrated
+  baseline), with a negative control (injected delay still fails). Write the card, land.
+
+### 7. BPR-1599 — `application_private_review_native` stalls before Review (fix on main)
+- Worktree `/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/bpr-1599`,
+  branch `bpr-1599-private-review-native`. **Uncommitted changes** in `workbench_window.{hpp,cpp}` and
+  `tests/adapters_qt/composed_github_tests.cpp`.
+- CAUTION: when stopped, the implementer said it was about to *temporarily revert the two src files* to run a
+  negative control. Inspect the diff carefully: decide whether the working tree holds the fix or the reverted
+  state before committing.
+- Goal: find the regressing commit (suspects: BPR-1588 ⌘2 first-unseen rule / Start review removal,
+  BPR-1573 Close review, BPR-1581 navigation, BPR-1575/1576 pending veils), decide product bug vs. test
+  update, fix with a negative control; also check `application_private_review_file` and
+  `application_epoch_portable_occurrence_two_catalogues`. Only the reservation exists; write the card.
+- May land any time between other items (it fixes main), after merging main.
+
+### 8. Housekeeping
+- Stop any leftover attended-review servers from landed cards and remove their frozen roots.
+- `git worktree prune`; delete merged branches.
+
+### 9. One integrated full suite
+- On final `main`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure`
+  on a quiet machine (nothing else building). Rerun failures alone; report every remaining failure with its
+  cause. Then `cmake --build --preset dev --target coding-format-check coding-tidy`.
+
+## Not for Codex (taste/design — stays with Claude)
+
+- **RFC-BPR-0085 drawer redesign is PAUSED.** Milestone 1 (BPR-1587, BPR-1588) is landed. BPR-1589
+  (Status content) is claimed, WIP on branch `bpr-1589-status-content` (`dcd4b2c08`, does not compile yet),
+  pause note committed locally on `bpr-1574-drawer-redesign` (`20113b42b`, unpushed). Do not touch
+  BPR-1589–BPR-1595 or the worktree `/Users/jaeger/.codex/worktrees/bpr1574-drawer-redesign`.
+- Any new owner look-and-judge question.
+
+## Known open follow-ups (not in the queue)
+- `release_update_native_https` intermittently fails (`inbound-header-truncated`, ~1 in 3 alone).
+- Colours below contrast floor that predate BPR-1585 (Note text/"?", amber R badge/bubble, amber open digits in Light).
+- Windows station: visually confirm BPR-1596's title-row start in Light and Dark.
+- Export dialog doesn't take the app theme (BPR-1579 note).
