@@ -4,10 +4,13 @@ Open Insights from BetterPullReview › Insights… on macOS, or Help › Insigh
 on Windows and Linux. The shortcut is Command–Option–Shift–I on macOS and
 Ctrl–Alt–Shift–I elsewhere. Each profile has one window. Escape closes it.
 
-The content is fixed at 900 × 640 logical pixels and clamped to the opening
+The content is fixed at 900 × 542 logical pixels and clamped to the opening
 screen’s available geometry with an 18 px margin. All six tabs keep that size.
 Only Storage’s bounded ledger scrolls. The window follows the profile’s font
-and appearance; its header keeps its own height.
+and appearance. Centered tabs and two icon actions share the compact top
+strip; the title/status header beneath keeps its own height. Summary uses
+compact cards with space below them, rather than stretching them to fill
+the page. Storage uses thin rows with budget meters.
 
 The first RFC-BPR-0086 milestone supplies the shell, Summary’s Local data and
 Background work tiles, and Storage. Reviews, GitHub, Work and Energy show
