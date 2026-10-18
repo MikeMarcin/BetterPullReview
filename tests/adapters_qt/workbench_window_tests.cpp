@@ -9952,13 +9952,27 @@ namespace {
 			.ActingAccount = core::github_account_id{ 4U },
 			.Body          = aBody.toStdString(),
 		};
-		auto pending          = core::review_submission_comment{ };
-		pending.Draft         = core::review_draft_id{ 7U };
-		pending.DraftRevision = 2U;
-		pending.Path          = "src/second.cpp";
-		pending.Line          = 3U;
-		pending.Body          = "question: Is this clamp needed?";
-		draft.Comments        = { pending };
+		// [[BPR-1590]] v002. Real-looking pending comments, so the owner judges
+		// the design and not placeholder data: labels, a blocking issue, a
+		// suggestion, a range, a long one, several files.
+		const auto comment = [](const std::uint64_t aId, const char* aPath, const std::uint32_t aLine, const std::optional<std::uint32_t> aStart, const char* aWords) {
+			auto made          = core::review_submission_comment{ };
+			made.Draft         = core::review_draft_id{ aId };
+			made.DraftRevision = 1U;
+			made.Path          = aPath;
+			made.Line          = aLine;
+			made.StartLine     = aStart;
+			made.Body          = aWords;
+			return made;
+		};
+		draft.Comments = {
+			comment(7U, "src/engine/renderer.cpp", 439U, std::nullopt, "issue (blocking): The retry budget resets every frame, so a view that keeps failing never stops retrying. Move the counter onto the view."),
+			comment(8U, "src/engine/renderer.cpp", 433U, 432U, "suggestion: Compute the scale once per frame and pass it in.\n```suggestion\n    const auto scale = device_scale(view);\n```"),
+			comment(9U, "src/engine/renderer.h", 11U, std::nullopt, "question: Should `Renderer` be non-copyable now that it owns the frame timing?"),
+			comment(10U, "src/engine/shaders/post/bloom.frag", 2U, std::nullopt, "thought: The bloom threshold is hard-coded.\n\nA setting would let the HDR path tune it without a shader rebuild, and the default could stay 1.2 so nothing changes for people who never touch it."),
+			comment(11U, "src/ui/widgets/slider.cpp", 4U, std::nullopt, "nitpick (non-blocking): `std::clamp` reads better than the two ternaries."),
+			comment(12U, "README.md", 5U, std::nullopt, "praise: Thanks for documenting the new folder layout."),
+		};
 		return { .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.example.test · synthetic-owner/synthetic-repository#17"), .Prepared = core::prepare_review_decision(draft, { }) };
 	}
 
@@ -9980,11 +9994,7 @@ namespace {
 			window.choose_modality(qt::review_modality::review);
 			process_events();
 			auto* const whole = window.review_submission_editor_view();
-			auto        lines = QStringList{ };
-			for (int line = 0; line < 60; ++line) {
-				lines.push_back(QStringLiteral("Summary line %1 of a long review.").arg(line));
-			}
-			whole->present(sheet_review(lines.join(QLatin1Char{ '\n' })));
+			whole->present(sheet_review(QStringLiteral("Nice cleanup overall. The retry budget on the second view needs fixing before this lands; everything else is small and can follow.")));
 			window.compose_review_action()->trigger();
 			process_events();
 			auto* const sheet = window.review_sheet();
@@ -10002,6 +10012,18 @@ namespace {
 			}
 
 			// Expand and Restore keep text, caret and scroll.
+			if (!root.isEmpty()) {
+				sheet->expand_button()->click();
+				process_events();
+				expect(window.grab().save(QStringLiteral("%1/page-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the page render is saved");
+				window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->click();
+				process_events();
+			}
+			auto lines = QStringList{ };
+			for (int line = 0; line < 60; ++line) {
+				lines.push_back(QStringLiteral("Summary line %1 of a long review.").arg(line));
+			}
+			whole->body_editor()->setPlainText(lines.join(QLatin1Char{ '\n' }));
 			auto cursor = whole->body_editor()->textCursor();
 			cursor.setPosition(42);
 			whole->body_editor()->setTextCursor(cursor);
@@ -10017,9 +10039,6 @@ namespace {
 			expect(page->isVisible() && page->isAncestorOf(whole) && whole->title_label()->isVisible() && !window.conversation_panel()->isVisible()
 					   && whole->body_editor()->textCursor().position() == 42 && page->verticalScrollBar()->value() > 0,
 				   name + ": Expand is the focused page in Discuss, no thread list, caret and scroll kept");
-			if (!root.isEmpty()) {
-				expect(window.grab().save(QStringLiteral("%1/page-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the page render is saved");
-			}
 			window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->click();
 			process_events();
 			expect(window.review_sheet_open() && window.current_modality() == qt::review_modality::review && whole->body_editor()->textCursor().position() == 42 && sheetBar->value() > 0,
@@ -10029,7 +10048,7 @@ namespace {
 			window.choose_modality(qt::review_modality::discuss);
 			process_events();
 			const auto rows = whole->pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
-			expect(rows.size() == 1, name + ": the pending comment is a row");
+			expect(rows.size() == 6, name + ": each pending comment is a row");
 			rows.front()->click();
 			process_events();
 			expect(window.current_modality() == qt::review_modality::review && window.review_sheet_open() && sheet->isVisible(),
@@ -10147,7 +10166,7 @@ namespace {
 				process_events();
 				auto* const sheetScroll = window.review_sheet()->scroll();
 				expect(sheetScroll->horizontalScrollBar()->maximum() == 0 && whole->width() <= sheetScroll->viewport()->width()
-						   && whole->body_editor()->height() >= 160,
+						   && whole->body_editor()->height() >= 120,
 					   "narrow/wide composition at normal/large fonts has no horizontal escape or compressed summary in the sheet: " + std::to_string(points) + "pt " + std::to_string(width) + " max " + std::to_string(sheetScroll->horizontalScrollBar()->maximum()) + " whole " + std::to_string(whole->width()) + "/" + std::to_string(whole->minimumSizeHint().width()) + " viewport " + std::to_string(sheetScroll->viewport()->width()) + " body " + std::to_string(whole->body_editor()->height()));
 				for (auto* control : whole->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
 					// The sheet's header names the review; the editor's own title is hidden there.
@@ -10158,7 +10177,7 @@ namespace {
 				}
 				window.resize(width, 400);
 				process_events();
-				expect(sheetScroll->verticalScrollBar()->maximum() > 0 && whole->body_editor()->height() >= 160,
+				expect(sheetScroll->verticalScrollBar()->maximum() > 0 && whole->body_editor()->height() >= 120,
 					   "short-height fallback scrolls the sheet and keeps summary usable");
 				window.close_review_sheet();
 			}

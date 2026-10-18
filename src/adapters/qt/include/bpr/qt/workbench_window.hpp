@@ -2318,8 +2318,12 @@ namespace bpr::qt {
 		QPointer<QWidget> SheetReturnFocus;
 		/// [[BPR-1590]]. Moves the review composer into the sheet or into the
 		/// expanded page, keeping its scroll position.
-		void              move_review_composer(bool aToSheet);
-		void              place_review_sheet();
+		void move_review_composer(bool aToSheet);
+		void place_review_sheet();
+		/// [[BPR-1590]] v002. Centres the expanded review's column, and says
+		/// which pull request it is for and how its rows reveal their lines.
+		void              centre_review_page();
+		void              present_review_context(bool aInSheet);
 		QScrollArea*      ComposeInlinePage = nullptr;
 		QWidget*          CompositionPage   = nullptr;
 		QPointer<QWidget> CompositionReturnFocus;

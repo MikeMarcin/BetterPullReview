@@ -95,8 +95,23 @@ auto main(int argc, char** argv) -> int
 	editor.show();
 	QApplication::processEvents();
 	expect(intents.empty(), "projection emits no gesture");
-	expect(editor.body_editor()->height() >= 160 && editor.body_editor()->maximumHeight() == QWIDGETSIZE_MAX,
-		   "summary keeps a usable viewport and can grow with its dedicated page");
+	// [[BPR-1590]] v002. The summary is as tall as what is written, from 120
+	// pixels to 320, then it scrolls: no empty wall under a short summary.
+	expect(editor.body_editor()->height() >= 120 && editor.body_editor()->height() <= 320,
+		   "summary keeps a usable viewport sized to its words");
+	{
+		auto lines = QStringList{ };
+		for (int line = 0; line < 40; ++line) {
+			lines.push_back(QStringLiteral("A long summary line %1.").arg(line));
+		}
+		editor.body_editor()->setPlainText(lines.join(QLatin1Char{ '\n' }));
+		QApplication::processEvents();
+		expect(editor.body_editor()->height() == 320, "a long summary grows the field to 320 pixels, then scrolls");
+		editor.body_editor()->setPlainText(QString{ });
+		QApplication::processEvents();
+		expect(editor.body_editor()->height() == 120, "an empty summary is 120 pixels");
+		intents.clear();
+	}
 	expect(editor.target_editor()->isReadOnly() && !editor.target_editor()->acceptRichText()
 			   && editor.target_editor()->wordWrapMode() == QTextOption::WrapAtWordBoundaryOrAnywhere
 			   && editor.target_editor()->toPlainText() == projection.TargetDescription,

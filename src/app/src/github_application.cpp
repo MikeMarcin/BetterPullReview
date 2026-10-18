@@ -30895,6 +30895,90 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 		};
+		// [[BPR-1590]] v002. The owner's look: real-looking pending comments,
+		// each written on a free line through the drawer's own Start a review
+		// and Add review comment, then a summary in Finish review.
+		if (aCourse == course::showcase) {
+			const auto showcase = std::array{
+				QStringLiteral("issue (blocking): The retry budget resets every frame, so a view that keeps failing never stops retrying. Move the counter onto the view."),
+				QStringLiteral("suggestion: Compute the scale once per frame and pass it in.\n```suggestion\n    const auto scale = device_scale(view);\n```"),
+				QStringLiteral("question: Does the second view share the depth buffer with the first, or does each view own one?"),
+				QStringLiteral("thought: The clear and the draw race on the second view.\n\nA fence between them would make the order explicit, and it costs one wait per frame on the views that need it."),
+				QStringLiteral("nitpick (non-blocking): `std::max` reads better than the ternary here."),
+			};
+			const auto index = probe.Lines.size();
+			switch (probe.Phase) {
+			case state_type::phase::awaiting_file: {
+				const auto revealed = reveal_fixture_file(aApplication, path);
+				if (revealed == detail::fixture_file_reveal_result::failed) {
+					return fail("file-not-revealed");
+				}
+				if (revealed == detail::fixture_file_reveal_result::shown) {
+					probe.Phase = state_type::phase::awaiting_first_line;
+				}
+				return result::pending;
+			}
+			case state_type::phase::awaiting_first_line: {
+				if (index == showcase.size()) {
+					probe.Phase = state_type::phase::awaiting_finish_page;
+					return result::pending;
+				}
+				// The line is chosen once; selecting it again every tick would
+				// keep its draft's selection pending.
+				if (!probe.Third) {
+					probe.Third = pick();
+					return probe.Third || ++probe.Waited < 600U ? result::pending : fail("showcase-no-line");
+				}
+				note("line=" + std::to_string(*probe.Third) + " ready=" + std::to_string(ready() ? 1 : 0) + " comment=" + std::to_string(window->comment_action()->isEnabled() ? 1 : 0));
+				if (!ready() || !write(showcase[index])) {
+					return ++probe.Waited < 600U ? result::pending : fail("showcase-line");
+				}
+				const auto line = probe.Third;
+				probe.Third.reset();
+				probe.Lines.push_back(*line);
+				probe.Phase = state_type::phase::awaiting_first_text;
+				return result::pending;
+			}
+			case state_type::phase::awaiting_first_text:
+				if (!written(showcase[index - 1U])) {
+					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-text");
+				}
+				probe.Phase = state_type::phase::awaiting_first_offer;
+				return result::pending;
+			case state_type::phase::awaiting_first_offer: {
+				auto* const review = composerButton("threadReviewDraft");
+				if (review == nullptr || !review->isEnabled()) {
+					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-offer");
+				}
+				review->click();
+				QCoreApplication::processEvents();
+				probe.Phase = state_type::phase::awaiting_first_pending;
+				return result::pending;
+			}
+			case state_type::phase::awaiting_first_pending:
+				if (pending().size() != index || cards->writing_draft() || !ready()) {
+					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-pending");
+				}
+				probe.Waited = 0U;
+				probe.Phase  = state_type::phase::awaiting_first_line;
+				return result::pending;
+			case state_type::phase::awaiting_finish_page:
+				if (!window->review_sheet_open()) {
+					window->finish_review_action()->trigger();
+					QCoreApplication::processEvents();
+					return result::pending;
+				}
+				if (summary->pending_rows().size() != static_cast<qsizetype>(showcase.size()) || summary->body_editor()->isReadOnly()) {
+					return ++probe.Waited < 2'000U ? result::pending : fail("showcase-finish");
+				}
+				summary->body_editor()->setPlainText(QStringLiteral("Nice cleanup overall. The retry budget on the second view needs fixing before this lands; everything else is small and can follow."));
+				QCoreApplication::processEvents();
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			default:
+				return fail("showcase-phase");
+			}
+		}
 		switch (probe.Phase) {
 		case state_type::phase::awaiting_file: {
 			const auto revealed = reveal_fixture_file(aApplication, path);

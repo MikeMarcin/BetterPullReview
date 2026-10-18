@@ -2767,6 +2767,7 @@ namespace bpr::qt {
 			restore->setAccessibleDescription(tr("Return to the review sheet without submitting"));
 		}
 		CentralSplitter->installEventFilter(this);
+		ComposeReviewPage->viewport()->installEventFilter(this);
 		// Keep the decision and its illustration visible while the before/after
 		// scrolls. Mascot preferences must never hide these semantic controls.
 		WorkshopHeader = new QWidget{ CentreSurface };
@@ -8499,16 +8500,15 @@ namespace bpr::qt {
 				}
 			}
 			DiscussComposer->setVisible(CompositionPage != nullptr);
-			// [[BPR-1590]]. The expanded review is one column of reading width
-			// at the page's left, as Discuss's notes are ([[BPR-1584]]), with no
-			// thread list (RFC-BPR-0085 D6); a maximized draft keeps its list
-			// beside it ([[BPR-1212]]).
+			// [[BPR-1590]]. The expanded review is one centred column, as the
+			// chosen layout A draws it (RFC-BPR-0085 D6), with no thread list; a
+			// maximized draft keeps its list beside it ([[BPR-1212]]).
 			const auto focused = CompositionPage != nullptr && CompositionPage == ComposeReviewPage;
 			const auto column  = core::reading_width_limit(Behaviour.ReadingWidth);
-			// The column is the composer's comfortable line and its margins, never
-			// wider than the reading width, so Restore sits at its top right.
-			const auto line = ReviewSubmissionEditor != nullptr ? static_cast<std::uint32_t>(ReviewSubmissionEditor->maximumWidth() + 48) : 808U;
-			DiscussComposer->setMaximumWidth(focused ? static_cast<int>(std::min({ column.value_or(line), line, static_cast<std::uint32_t>(QWIDGETSIZE_MAX) })) : QWIDGETSIZE_MAX);
+			static_cast<void>(column);
+			if (focused) {
+				centre_review_page();
+			}
 			if (ConversationPanel != nullptr && ConversationPanel->parentWidget() == DiscussPage) {
 				ConversationPanel->setVisible(!focused);
 			}
@@ -8693,6 +8693,33 @@ namespace bpr::qt {
 		return ReviewSheetOpen;
 	}
 
+	void workbench_window::centre_review_page()
+	{
+		if (ComposeReviewPage == nullptr || ComposeReviewPage->widget() == nullptr || ComposeReviewPage->widget()->layout() == nullptr) {
+			return;
+		}
+		// The chosen layout A: a 680-pixel column, centred, at least 24 pixels in.
+		constexpr auto column = 680;
+		const auto     side   = std::max(24, (ComposeReviewPage->viewport()->width() - column) / 2);
+		ComposeReviewPage->widget()->layout()->setContentsMargins(side, 12, side, 24);
+	}
+
+	void workbench_window::present_review_context(const bool aInSheet)
+	{
+		if (ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		// The pull request in one quiet line under the page's title; the
+		// sheet's header says enough, as layout C draws it.
+		auto context = QString{ };
+		if (!aInSheet && OverviewPage != nullptr && OverviewPage->projection().has_value()) {
+			const auto& shown = *OverviewPage->projection();
+			context           = tr("%1/%2 #%3 · %4").arg(QString::fromStdString(shown.Owner), QString::fromStdString(shown.RepositoryName), QString::number(shown.Number.value()), QString::fromStdString(shown.Title));
+		}
+		ReviewSubmissionEditor->set_context(context);
+		ReviewSubmissionEditor->set_reveal_hint(aInSheet);
+	}
+
 	void workbench_window::place_review_sheet()
 	{
 		if (ReviewSheet == nullptr || CentralSplitter == nullptr) {
@@ -8724,6 +8751,7 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->show();
 		// The sheet's header names the review; the page shows the editor's own title.
 		ReviewSubmissionEditor->title_label()->setVisible(!aToSheet);
+		present_review_context(aToSheet);
 		ReviewSheet->title()->setText(ReviewSubmissionEditor->title_label()->text());
 		to->widget()->adjustSize();
 		to->verticalScrollBar()->setValue(scroll);
@@ -13560,6 +13588,10 @@ namespace bpr::qt {
 		if (aEvent != nullptr && aEvent->type() == QEvent::Paint && aWatched == statusBar() && home_status_echoes_bar()) {
 			return true;
 		}
+		// [[BPR-1590]] v002. The expanded review stays centred as the page resizes.
+		if (ComposeReviewPage != nullptr && aWatched == ComposeReviewPage->viewport() && aEvent != nullptr && aEvent->type() == QEvent::Resize) {
+			centre_review_page();
+		}
 		// [[BPR-1590]]. The sheet keeps to the review area's right edge.
 		if (aWatched == CentralSplitter && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
 			place_review_sheet();
@@ -17222,6 +17254,16 @@ namespace bpr::qt {
 		refresh_progress_icons();
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
 			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
+			// The composition pages' Back and Restore follow the theme too.
+			for (auto* const page : { ComposeReviewPage, ComposeInlinePage }) {
+				if (page != nullptr) {
+					for (auto* const back : page->findChildren<QPushButton*>(QString{ }, Qt::FindChildrenRecursively)) {
+						if (back->objectName().endsWith(QStringLiteral("PageBack"))) {
+							back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
+						}
+					}
+				}
+			}
 			if (ReviewSheet != nullptr) {
 				ReviewSheet->expand_button()->setIcon(conversation_icon(conversation_glyph::maximize, palette()));
 				ReviewSheet->close_button()->setIcon(drawer_icon(drawer_glyph::close, palette()));

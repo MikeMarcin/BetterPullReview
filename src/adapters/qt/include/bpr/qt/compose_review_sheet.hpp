@@ -55,6 +55,7 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
+		QWidget*              Header  = nullptr;
 		QLabel*               Title   = nullptr;
 		QToolButton*          Expand  = nullptr;
 		QToolButton*          Close   = nullptr;

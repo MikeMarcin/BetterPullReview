@@ -29,18 +29,25 @@ namespace bpr::qt {
 		column->setContentsMargins(shadow_width, 0, 0, 0);
 		column->setSpacing(0);
 		auto* const header = new QWidget{ this };
+		Header             = header;
 		header->setObjectName(QStringLiteral("composeReviewSheetHeader"));
 		auto* const row = new QHBoxLayout{ header };
-		row->setContentsMargins(20, 12, 10, 6);
+		row->setContentsMargins(16, 12, 10, 10);
 		row->setSpacing(4);
 		Title = new QLabel{ QStringLiteral("Finish your review"), header };
 		Title->setObjectName(QStringLiteral("composeReviewSheetTitle"));
 		Title->setTextFormat(Qt::PlainText);
 		auto font = Title->font();
-		font.setPointSizeF(font.pointSizeF() * 1.15);
+		font.setPointSizeF(font.pointSizeF() * 1.25);
 		font.setWeight(QFont::DemiBold);
 		Title->setFont(font);
 		row->addWidget(Title, 1);
+		// Esc closes it, said where the eye looks for the way out (layout C).
+		auto* const key = new QLabel{ QStringLiteral("Esc"), header };
+		key->setObjectName(QStringLiteral("composeReviewSheetKey"));
+		key->setForegroundRole(QPalette::PlaceholderText);
+		key->setAccessibleName(QStringLiteral("Esc closes this sheet"));
+		row->addWidget(key);
 		Expand = make_drawer_tool(header, QIcon{ }, QStringLiteral("Expand"), QStringLiteral("composeReviewSheetExpand"));
 		Close  = make_drawer_tool(header, QIcon{ }, QStringLiteral("Close"), QStringLiteral("composeReviewSheetClose"));
 		row->addWidget(Expand);
@@ -54,7 +61,7 @@ namespace bpr::qt {
 		auto* const body = new QWidget{ Scroll };
 		body->setObjectName(QStringLiteral("composeReviewSheetBody"));
 		Content = new QVBoxLayout{ body };
-		Content->setContentsMargins(20, 4, 20, 20);
+		Content->setContentsMargins(16, 12, 16, 20);
 		Content->setSpacing(10);
 		Scroll->setWidget(body);
 		column->addWidget(Scroll, 1);
@@ -140,5 +147,10 @@ namespace bpr::qt {
 		painter.fillRect(QRect{ shadow_width, 0, width() - shadow_width, height() }, colours.color(QPalette::Active, QPalette::Base));
 		painter.setPen(colours.color(QPalette::Active, QPalette::Mid));
 		painter.drawLine(shadow_width, 0, shadow_width, height());
+		// The header's rule.
+		if (Header != nullptr) {
+			const auto y = Header->geometry().bottom() + 1;
+			painter.drawLine(shadow_width, y, width(), y);
+		}
 	}
 } // namespace bpr::qt

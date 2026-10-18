@@ -1024,6 +1024,10 @@ namespace bpr::app::detail {
 		/// unknown review shows why; `restored` reopens that root.
 		kept,
 		restored,
+		/// [[BPR-1590]] v002. For the owner's look: several real-looking
+		/// pending comments in a review and a written summary, then Finish
+		/// review opens and the window is left to the person.
+		showcase,
 	};
 
 	enum class start_review_probe_result {

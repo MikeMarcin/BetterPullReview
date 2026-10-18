@@ -123,6 +123,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
 		/// the review carries line comments, else "Compose review".
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1590]] v002. The pull request the review is for, as one
+		/// quiet line under the title ("owner/repository #17 · its title");
+		/// empty hides it.
+		void set_context(const QString& aContext);
+		/// \brief [[BPR-1590]] v002. In the sheet beside the code, one faint
+		/// line under the box says a row shows its line behind the sheet.
+		void               set_reveal_hint(bool aShown);
+		[[nodiscard]] auto context_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]]. One row per carried comment, hidden with none.
 		/// \details v002: a row is a button that goes to its comment, beside
 		/// a Delete button.
@@ -230,17 +238,24 @@ namespace bpr::qt {
 		QWidget*                                                    Pending         = nullptr;
 		QVBoxLayout*                                                PendingRows     = nullptr;
 		QLabel*                                                     Carries         = nullptr;
-		QToolButton*                                                Details         = nullptr;
-		QWidget*                                                    Recovery        = nullptr;
-		danger_tool_button*                                         DiscardButton   = nullptr;
-		QToolButton*                                                ReconcileButton = nullptr;
-		QPointer<destructive_question>                              DiscardQuestion;
-		QPointer<destructive_question>                              DeleteQuestion;
-		std::vector<core::review_submission_comment>                Listed;
-		QStringList                                                 ListedRows;
-		QAction*                                                    Submit    = nullptr;
-		QAction*                                                    Discard   = nullptr;
-		QAction*                                                    Reconcile = nullptr;
+		/// [[BPR-1590]] v002. The pull request line, the box's heading and its rules.
+		QLabel*                                      Context         = nullptr;
+		QWidget*                                     Heading         = nullptr;
+		QWidget*                                     HeadingRule     = nullptr;
+		QWidget*                                     SummaryRule     = nullptr;
+		QLabel*                                      RevealHint      = nullptr;
+		bool                                         HintWanted      = false;
+		QToolButton*                                 Details         = nullptr;
+		QWidget*                                     Recovery        = nullptr;
+		danger_tool_button*                          DiscardButton   = nullptr;
+		QToolButton*                                 ReconcileButton = nullptr;
+		QPointer<destructive_question>               DiscardQuestion;
+		QPointer<destructive_question>               DeleteQuestion;
+		std::vector<core::review_submission_comment> Listed;
+		QStringList                                  ListedRows;
+		QAction*                                     Submit    = nullptr;
+		QAction*                                     Discard   = nullptr;
+		QAction*                                     Reconcile = nullptr;
 	};
 }
 #endif
