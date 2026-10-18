@@ -156,6 +156,7 @@ including history, timing control and replay, pass. Both composition contracts,
 the native and file-backed private-review courses and the portable two-catalogue
 epoch course pass. The previously flaky `release_update_native_https` passes
 this run (9.33 s); this does not establish that its intermittency is fixed.
+The owner's later HTTPS follow-up below repairs the timeout observation race.
 
 The full lint command exits 1 for two findings introduced by separately landed
 BPR-1589 commit `39afb7162`: local `most_teams` violates the naming rule in
@@ -217,6 +218,25 @@ Validation on this tree:
 All three original inventory failures are resolved. Raw follow-up output is
 outside Git at
 `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-inventory-followup-20261018-mvxiidz7`.
+
+## Native HTTPS follow-up — 2026-10-18
+
+The owner requested a direct fix for `release_update_native_https`, affected
+checks and a push to main. Main was fast-forwarded to `560dd3799` first. The
+fixture required a full origin request even when the native client's 500 ms
+total deadline correctly expired during CONNECT or TLS setup. Controlled
+setup delays reproduce that mismatch. The repair accepts timeout-related
+disconnects at those boundaries, verifies observations after the proxy
+drains, and retains exact checks for complete requests. Product code and
+timeout budgets are unchanged.
+
+The affected four-row CTest set passes, including the new six-test fixture
+contract and network-isolation manifest. The expanded 26-scenario native
+HTTPS course then passes eight consecutive runs (80.79 s). The disconnect
+controls fail against the original fixture; both new native timeout cases
+also reject an injected successful response. Focused format22/tidy22,
+documentation and diff checks pass. The full diagnosis, commands and evidence
+are in [the RFC-BPR-0035 ledger](../../verification/RFC-BPR-0035.md#https-fixture-timeout-follow-up--2026-10-18).
 
 
 Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.

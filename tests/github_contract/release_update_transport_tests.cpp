@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QFile>
 
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 
@@ -49,6 +50,7 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	expect(aArgc == 4, "wire fixture arguments");
 	const std::string scenario{ aArgv[1] };
+	const bool        timeout = scenario == "timeout" || scenario == "timeout-connect" || scenario == "timeout-handshake";
 	QFile             ca{ QString::fromUtf8(aArgv[3]) };
 	expect(ca.open(QIODevice::ReadOnly), "fixture authority readable");
 	native_https_test_configuration configuration;
@@ -56,11 +58,11 @@ auto main(int aArgc, char** aArgv) -> int
 	configuration.ProxyPort               = static_cast<std::uint16_t>(std::stoul(aArgv[2]));
 	configuration.TrustedCaCertificatePem = scenario == "untrusted" ? std::string{ } : ca.readAll().toStdString();
 	// Healthy TLS courses test wire classification, not a half-second scheduling
-	// race on a loaded build host. Keep the timeout course's short deadline;
+	// race on a loaded build host. Keep the timeout courses' short deadline;
 	// the redirect-cap course gets an allowance for each of its four connections.
-	configuration.TotalTimeout = scenario == "timeout" ? std::chrono::milliseconds{ 500 }
-		: scenario == "redirect-loop"                  ? std::chrono::milliseconds{ 8000 }
-													   : std::chrono::milliseconds{ 2000 };
+	configuration.TotalTimeout = timeout ? std::chrono::milliseconds{ 500 }
+		: scenario == "redirect-loop"    ? std::chrono::milliseconds{ 8000 }
+										 : std::chrono::milliseconds{ 2000 };
 	std::string canary;
 	std::getline(std::cin, canary);
 	expect(canary.size() == 40U, "bounded fixture canary");
@@ -70,6 +72,7 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	std::uint64_t received = 0;
 	const bool    metadata = scenario == "metadata" || scenario == "metadata-redirect";
+	const auto    started  = std::chrono::steady_clock::now();
 	const auto    result   = perform_release_update_https_for_test(std::as_bytes(std::span{ canary.data(), canary.size() }), metadata ? 0U : 20U, 100U, stop.get_token(), [&](std::span<const std::byte> aBytes) {
 		received += aBytes.size();
 		if (scenario == "cancel") {
@@ -89,7 +92,7 @@ auto main(int aArgc, char** aArgv) -> int
 		expected = reason::certificate;
 	} else if (scenario == "cancel" || scenario == "pre-cancel") {
 		expected = reason::cancelled;
-	} else if (scenario == "timeout") {
+	} else if (timeout) {
 		expected = reason::timed_out;
 	} else if (scenario == "size" || scenario == "stream-size" || scenario == "headers") {
 		expected = reason::size_limit;
@@ -109,6 +112,10 @@ auto main(int aArgc, char** aArgv) -> int
 	}
 	expect(result.Failure == expected, "wire terminal classification");
 	expect(received <= 100U && result.Bytes <= 100U, "streaming bound held");
+	if (timeout) {
+		expect(std::chrono::steady_clock::now() - started >= configuration.TotalTimeout, "the total deadline elapses before a timeout terminal");
+		expect(received == 0U && result.Bytes == 0U, "a stalled timeout delivers no response bytes");
+	}
 	if (scenario == "cancel") {
 		expect(received == 1U && result.Bytes == 1U, "cancellation occurs after the first response byte");
 	}

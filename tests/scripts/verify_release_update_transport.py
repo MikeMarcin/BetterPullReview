@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import secrets
 import socket
 import ssl
@@ -11,6 +12,9 @@ import threading
 from pathlib import Path
 
 import verify_native_https_transport as support
+
+
+TIMEOUT_SCENARIOS = frozenset(("timeout", "timeout-connect", "timeout-handshake"))
 
 
 class Proxy:
@@ -38,7 +42,6 @@ class Proxy:
         self.thread.join(5)
         self.socket.close()
         assert not self.thread.is_alive(), "fixture thread failed to drain"
-        assert not self.errors, self.errors
 
     def run(self):
         while not self.stop.is_set():
@@ -46,6 +49,7 @@ class Proxy:
                 connection, _ = self.socket.accept()
             except socket.timeout:
                 continue
+            phase = "connect"
             try:
                 with connection:
                     connection.settimeout(2)
@@ -53,18 +57,36 @@ class Proxy:
                     authority = header.split(b" ")[1]
                     assert authority in (b"api.github.com:443", b"release-assets.githubusercontent.com:443")
                     assert self.secret not in header and not rest
+                    if self.scenario == "timeout-connect":
+                        self.stop.wait(5)
+                        continue
                     connection.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                    if self.scenario == "timeout-handshake":
+                        self.stop.wait(5)
+                        continue
+                    phase = "tls"
                     with self.tls.wrap_socket(connection, server_side=True) as channel:
+                        phase = "origin"
                         origin, _ = support.receive_through(channel, b"\r\n\r\n", 32768)
                         self.requests.append((authority, origin))
                         self.respond(channel, authority)
             except (ssl.SSLError, BrokenPipeError, ConnectionResetError, socket.timeout):
                 pass
             except support.ProbeFailure as error:
-                if self.scenario != "untrusted" or error.code != "inbound-header-truncated":
-                    self.errors.append(error.code)
+                # The total deadline can close either header read before it
+                # completes. The child must independently prove timed_out.
+                if error.code != "inbound-header-truncated" or (
+                    self.scenario != "untrusted" and self.scenario not in TIMEOUT_SCENARIOS
+                ):
+                    self.errors.append(f"{phase}:{error.code}")
+            except OSError as error:
+                # A peer closing before wrap_socket completes can surface as
+                # EINVAL/ENOTCONN rather than an SSL EOF (observed on macOS).
+                if not (phase == "tls" and self.scenario in TIMEOUT_SCENARIOS
+                        and error.errno in (errno.EINVAL, errno.ENOTCONN)):
+                    self.errors.append(f"{phase}:socket-error:{error.errno}")
             except Exception as error:
-                self.errors.append(type(error).__name__)
+                self.errors.append(f"{phase}:{type(error).__name__}")
 
     def respond(self, channel, authority):
         scenario = self.scenario
@@ -112,6 +134,7 @@ class Proxy:
         channel.sendall(b"HTTP/1.1 " + status + b"\r\nConnection: close\r\n" + b"".join(k + b": " + v + b"\r\n" for k, v in headers) + b"\r\n" + body)
 
     def verify(self):
+        assert not self.errors, (self.scenario, self.errors)
         for authority, request in self.requests:
             first = request.split(b"\r\n", 1)[0]
             headers = support.parse_headers(request, first)
@@ -128,6 +151,12 @@ class Proxy:
             assert len(self.requests) == 2
         elif self.scenario == "redirect-loop":
             assert len(self.requests) == 4
+        elif self.scenario == "timeout":
+            # This is a total transaction deadline, including CONNECT and
+            # TLS; it need not reach the origin on a busy host.
+            assert len(self.requests) <= 1
+        elif self.scenario in ("timeout-connect", "timeout-handshake"):
+            assert not self.requests
         elif self.scenario not in ("pre-cancel", "untrusted"):
             assert len(self.requests) == 1
         else:
@@ -139,7 +168,7 @@ def main():
     parser.add_argument("--executable", type=Path, required=True)
     parser.add_argument("--openssl", type=Path, required=True)
     args = parser.parse_args()
-    scenarios = ("metadata", "asset", "asset-redirect", "metadata-redirect", "cross-redirect", "http-redirect", "userinfo-redirect", "api-redirect", "redirect-loop", "401", "403", "404", "429", "encoding", "headers", "type", "duplicate", "size", "stream-size", "sink-refuses", "cancel", "timeout", "pre-cancel", "untrusted")
+    scenarios = ("metadata", "asset", "asset-redirect", "metadata-redirect", "cross-redirect", "http-redirect", "userinfo-redirect", "api-redirect", "redirect-loop", "401", "403", "404", "429", "encoding", "headers", "type", "duplicate", "size", "stream-size", "sink-refuses", "cancel", "timeout", "timeout-connect", "timeout-handshake", "pre-cancel", "untrusted")
     support.HOST = "release-assets.githubusercontent.com"
     with support.contained_temporary_directory(prefix="bpr-release-wire-") as temporary:
         certificate = support.generate_certificate_material(args.openssl, Path(temporary))
@@ -150,7 +179,7 @@ def main():
                 result = subprocess.run([str(args.executable), scenario, str(proxy.port), str(certificate.authority_certificate)], input=secret + b"\n", capture_output=True, timeout=10)
                 assert secret not in result.stdout + result.stderr, "secret canary escaped diagnostics"
                 assert result.returncode == 0, (scenario, result.stdout, result.stderr)
-                proxy.verify()
+            proxy.verify()
             print(f"release-wire:{scenario}:pass")
     print("release-update-native-https:pass")
 

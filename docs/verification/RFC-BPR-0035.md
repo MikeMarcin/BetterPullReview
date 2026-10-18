@@ -727,3 +727,56 @@ acceptance from mutable evidence. The strategy, plan and M4 exit are unchanged.
 with Intel hardware and authorized live account/target evidence, then bind the
 final signed candidate and reconcile canonical dependency closure. No safe
 independent local engineering work remains for this assigned milestone.
+
+## HTTPS fixture timeout follow-up — 2026-10-18
+
+The owner requested a direct repair of the intermittent
+`release_update_native_https` failure and a push to main. The baseline is
+`560dd3799`. Six quiet baseline runs passed (53.98 s); controlled delays in
+proxy setup then reproduced the fixture's incorrect observation requirement:
+the native client correctly returned `timed_out` at its unchanged 500 ms
+total deadline, while the fixture required a complete origin request. That
+deadline includes CONNECT and TLS setup, so a deadline-triggered disconnect
+can leave either header incomplete. TLS setup also reported `EINVAL` after
+the peer closed on this Mac.
+
+The fixture now accepts an incomplete header for a confirmed timeout and
+allows zero or one complete origin request in that case. `EINVAL` and
+`ENOTCONN` are allowed only during TLS setup in timeout scenarios. Every
+complete request still has its exact path, API-version, encoding, credential
+and cookie checks; healthy and cancellation scenarios retain their request
+counts. Verification runs after the proxy thread drains, so the final errors
+and observations are checked together. No product transport policy or timeout
+budget changed.
+
+Two additional native scenarios withhold the CONNECT response and the TLS
+handshake. All three timeout scenarios require the `timed_out` terminal,
+at least the configured 500 ms to elapse, and zero response bytes. The course
+now has 26 scenarios. The new `release_update_https_fixture_contract` runs
+six controls covering truncated CONNECT/origin headers, TLS shutdown,
+unrelated socket failures, wrong authority, header limits, completed-request
+credentials and duplicate requests. The two disconnect controls fail in
+four subcases against the original fixture. Separate native negative
+controls replace each new stall with a successful response: both fail the
+required timeout classification as intended.
+
+Evidence on the baseline plus this follow-up:
+
+- `cmake --build --preset dev --target test_release_update_transport --parallel 4`
+  passes.
+- The focused CTest selector
+  `^(release_update_transport_contract|release_update_native_https|release_update_https_fixture_contract|test_network_isolation_manifest)$`
+  passes 4/4 in 11.73 s. The manifest covers 797 configured tests and 728
+  source registrations under `macos-sandbox-exec`.
+- `ctest --preset dev --parallel 1 --no-tests=error --output-on-failure -R '^release_update_native_https$' --repeat until-fail:8`
+  passes eight consecutive 26-scenario runs in 80.79 s.
+- The controlled setup probe passes with 0, 350 and 600 ms of proxy delay
+  after the fix, retaining the 500 ms client deadline. The latter two finish
+  with zero origin requests and no fixture errors.
+- Clang-format 22 and clang-tidy 22 pass the changed C++ test translation
+  unit. The documentation gate and `git diff --check` pass.
+
+Raw logs are outside Git at
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-release-https-fix-20261018-1yfz980j`.
+This is macOS loopback fixture evidence; existing installed-updater,
+private-service, signing and other-platform qualification limits remain.

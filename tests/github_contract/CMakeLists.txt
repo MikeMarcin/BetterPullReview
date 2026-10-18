@@ -10,6 +10,8 @@ bpr_add_network_isolated_test(NAME release_update_native_https LOOPBACK_PORT_COU
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_update_transport.py"
     --executable "$<TARGET_FILE:test_release_update_transport>" --openssl "${BPR_UPDATE_TEST_OPENSSL}")
 set_tests_properties(release_update_native_https PROPERTIES TIMEOUT 90)
+bpr_add_network_isolated_test(NAME release_update_https_fixture_contract
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/release_update_https_fixture_tests.py")
 
 bpr_add_executable(
     test_better_pull_review_native_https_transport_tests
