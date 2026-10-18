@@ -296,16 +296,16 @@ namespace {
 		expect(!std::get<application::review_submission_discovery>(f.Projection.Terminals.back().Outcome), "host rejects pending identity mismatch");
 		for (const auto mode : { 0, 1, 2, 3 }) {
 			fixture bad;
-			bad.State->Answer = [mode](auto& result) {
+			bad.State->Answer = [mode](auto& aResult) {
 				if (mode == 0) {
-					result.Request.Proposal.Attempt = core::review_submission_attempt_id{ 99U };
-					result.Request.Proposal.Body.assign(1024U * 1024U, '\xFF');
+					aResult.Request.Proposal.Attempt = core::review_submission_attempt_id{ 99U };
+					aResult.Request.Proposal.Body.assign(1024U * 1024U, '\xFF');
 				}
 				if (mode == 1) {
-					result.Receipt.reset();
+					aResult.Receipt.reset();
 				}
 				if (mode == 2) {
-					result.Receipt->ActingAccount = core::github_account_id{ 99U };
+					aResult.Receipt->ActingAccount = core::github_account_id{ 99U };
 				}
 				if (mode == 3) {
 					throw std::runtime_error{ "unknown outcome" };

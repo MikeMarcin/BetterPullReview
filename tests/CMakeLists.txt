@@ -589,6 +589,13 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
 )
 
+# BPR-1598: bounded parallel analysis preserves failures; shared-header fixes
+# must stay serial. The contract mocks the analyser and needs no native tool.
+bpr_add_network_isolated_test(
+    NAME coding_standard_tidy_contract
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/coding_standard_tidy_tests.py"
+)
+
 # [[BPR-0865]]. The repo-wide format gate as a test in the sweep. The row
 # above tests the gate script. This row runs the gate on the project, so an
 # unformatted file under src/ or tests/ fails the sweep.

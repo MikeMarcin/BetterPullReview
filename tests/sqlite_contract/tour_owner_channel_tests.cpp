@@ -37,7 +37,7 @@ namespace {
 	using application::tour_owner_request;
 	using application::tour_owner_response;
 	constexpr core::bpr_profile_id profile{ 1U };
-	const std::string              draft(64U, 'a');
+	constexpr auto                 draft = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 	/// \brief What a failed expectation throws, once its `FAILED:` line is out. [[BPR-1118]].
 	struct expectation_failed
@@ -191,16 +191,16 @@ namespace {
 			   "a cycle command round-trips exactly");
 		const auto refused = [](tour_owner_request aRequest, const char* aWhat) { expect(encode_tour_request(std::move(aRequest)).empty(), aWhat); };
 		auto       changed = request;
-		changed.Cycle.Options.push_back({ "--expected-revision", "3" });
+		changed.Cycle.Options.emplace_back("--expected-revision", "3");
 		refused(changed, "an option of another command is refused");
 		changed = request;
-		changed.Cycle.Options.push_back({ "--profile", "2" });
+		changed.Cycle.Options.emplace_back("--profile", "2");
 		refused(changed, "the caller's own profile choice never reaches the owner");
 		changed = request;
-		changed.Cycle.Options.push_back({ "--yes", "true" });
+		changed.Cycle.Options.emplace_back("--yes", "true");
 		refused(changed, "there is no bypass to carry");
 		changed = request;
-		changed.Cycle.Options.push_back({ "--file", "other" });
+		changed.Cycle.Options.emplace_back("--file", "other");
 		refused(changed, "a repeated option is refused");
 		changed               = cycle_request(core::cycle_command::capture);
 		changed.Cycle.Options = { { "--again", "yes" } };
@@ -235,7 +235,7 @@ namespace {
 		const auto readDecoded = decode_tour_request(encode_tour_request(reading));
 		expect(readDecoded && readDecoded->Cycle.Command == core::cycle_command::round_read && readDecoded->Cycle.Options == reading.Cycle.Options, "a round read round-trips");
 		changed = reading;
-		changed.Cycle.Options.push_back({ "--output", "/tmp/x" });
+		changed.Cycle.Options.emplace_back("--output", "/tmp/x");
 		refused(changed, "a round read carries no export destination");
 		auto granting          = cycle_request(core::cycle_command::round_grant);
 		granting.Cycle.Options = { { "--round", "F1" }, { "--read-only", "true" } };
@@ -247,7 +247,7 @@ namespace {
 		const auto rebindDecoded = decode_tour_request(encode_tour_request(rebinding));
 		expect(rebindDecoded && rebindDecoded->Cycle.Command == core::cycle_command::rebind && rebindDecoded->Cycle.Options == rebinding.Cycle.Options, "a rebind round-trips");
 		changed = rebinding;
-		changed.Cycle.Options.push_back({ "--force", "true" });
+		changed.Cycle.Options.emplace_back("--force", "true");
 		refused(changed, "a rebind carries nothing that stands in for its confirmation");
 		auto bytes = encode_tour_request(request);
 		bytes[17]  = static_cast<std::uint8_t>(static_cast<std::uint8_t>(core::last_cycle_command) + 1U); // after the operation and two empty texts
@@ -268,7 +268,7 @@ namespace {
 		const auto commit = core::parse_git_commit_oid("1111111111111111111111111111111111111111");
 		const auto blob   = core::parse_git_blob_oid("2222222222222222222222222222222222222222");
 		expect(commit.has_value() && blob.has_value(), "fixture object IDs parse");
-		const tour_owner_request request{ .Operation = tour_owner_operation::source, .Draft = draft, .Source = { .Commit = *commit, .Blob = *blob, .Path = "src/\xce\xb1.cpp", .Side = core::diff_side::left, .FirstLine = 2U, .LastLine = 4U } };
+		const tour_owner_request request{ .Operation = tour_owner_operation::source, .Draft = draft, .Source = { .Commit = *commit, .Blob = blob, .Path = "src/\xce\xb1.cpp", .Side = core::diff_side::left, .FirstLine = 2U, .LastLine = 4U } };
 		const auto               decoded = decode_tour_request(encode_tour_request(request));
 		expect(decoded && decoded->Operation == tour_owner_operation::source && decoded->Draft == draft && decoded->Source == request.Source && decoded->Edit.RequestId.empty(), "a source request round-trips");
 		const auto refused     = [](tour_owner_request aRequest, const char* aWhat) { expect(encode_tour_request(std::move(aRequest)).empty(), aWhat); };
@@ -500,7 +500,7 @@ namespace {
 		auto              lease  = acquire_profile_runtime_lease(root.Path);
 		auto              server = make_tour_owner_server(root.Path, profile, *lease);
 		expect(lease && server, "owner endpoint");
-		const auto read_hello = [&](int aSocket) {
+		const auto readHello = [&](int aSocket) {
 			std::array<std::uint8_t, 64> hello{ };
 			std::size_t                  have  = 0;
 			const auto                   until = std::chrono::steady_clock::now() + std::chrono::seconds{ 2 };
@@ -516,8 +516,8 @@ namespace {
 			expect(have == hello.size(), "the owner advertises its 64-byte binding");
 			return hello;
 		};
-		const auto send_all = [&](int aSocket, const std::vector<std::uint8_t>& aBytes) { expect(::send(aSocket, aBytes.data(), aBytes.size(), 0) == static_cast<ssize_t>(aBytes.size()), "hostile send"); };
-		const auto frame    = [&](const std::array<std::uint8_t, 64>& aHello, std::uint64_t aLength, std::size_t aBody) {
+		const auto sendAll = [&](int aSocket, const std::vector<std::uint8_t>& aBytes) { expect(::send(aSocket, aBytes.data(), aBytes.size(), 0) == static_cast<ssize_t>(aBytes.size()), "hostile send"); };
+		const auto frame   = [&](const std::array<std::uint8_t, 64>& aHello, std::uint64_t aLength, std::size_t aBody) {
 			std::vector<std::uint8_t> bytes{ aHello.begin(), aHello.end() };
 			for (unsigned i = 0; i < 8; ++i) {
 				bytes.push_back(static_cast<std::uint8_t>(aLength >> (i * 8)));
@@ -528,10 +528,10 @@ namespace {
 		// Wrong binding: a frame that does not echo the owner's advertisement is dropped.
 		{
 			const auto socket = raw_connect(root.endpoint());
-			auto       hello  = read_hello(socket);
+			auto       hello  = readHello(socket);
 			auto       forged = hello;
 			forged[20]        = forged[20] == 0 ? 1 : 0;
-			send_all(socket, frame(forged, 4, 4));
+			sendAll(socket, frame(forged, 4, 4));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -539,8 +539,8 @@ namespace {
 		// Oversized declared length.
 		{
 			const auto socket = raw_connect(root.endpoint());
-			const auto hello  = read_hello(socket);
-			send_all(socket, frame(hello, application::maximum_tour_channel_bytes + 1U, 0));
+			const auto hello  = readHello(socket);
+			sendAll(socket, frame(hello, application::maximum_tour_channel_bytes + 1U, 0));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -548,8 +548,8 @@ namespace {
 		// Zero length.
 		{
 			const auto socket = raw_connect(root.endpoint());
-			const auto hello  = read_hello(socket);
-			send_all(socket, frame(hello, 0, 0));
+			const auto hello  = readHello(socket);
+			sendAll(socket, frame(hello, 0, 0));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -557,8 +557,8 @@ namespace {
 		// Declared length shorter than the bytes sent.
 		{
 			const auto socket = raw_connect(root.endpoint());
-			const auto hello  = read_hello(socket);
-			send_all(socket, frame(hello, 8, 32));
+			const auto hello  = readHello(socket);
+			sendAll(socket, frame(hello, 8, 32));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -566,8 +566,8 @@ namespace {
 		// Well framed but not a tour request: command confusion (an activation-shaped body).
 		{
 			const auto socket = raw_connect(root.endpoint());
-			const auto hello  = read_hello(socket);
-			send_all(socket, frame(hello, 8, 8));
+			const auto hello  = readHello(socket);
+			sendAll(socket, frame(hello, 8, 8));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -575,8 +575,8 @@ namespace {
 		// Truncated at EOF: the declared body never completes.
 		{
 			const auto socket = raw_connect(root.endpoint());
-			const auto hello  = read_hello(socket);
-			send_all(socket, frame(hello, 64, 10));
+			const auto hello  = readHello(socket);
+			sendAll(socket, frame(hello, 64, 10));
 			::shutdown(socket, SHUT_WR);
 			pump_for(**server, std::chrono::milliseconds{ 50 });
 			::close(socket);
@@ -605,8 +605,9 @@ namespace {
 		auto              lease = acquire_profile_runtime_lease(root.Path);
 		expect(lease.has_value(), "lease");
 		// A listener that advertises another protocol version stands in for a newer or older owner.
-		const auto  path   = root.endpoint();
-		const int   listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+		const auto path   = root.endpoint();
+		const int  listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+		expect(listen >= 0, "create the stand-in owner socket");
 		sockaddr_un address{ };
 		address.sun_family = AF_UNIX;
 		const auto named   = path.string();
@@ -633,7 +634,8 @@ namespace {
 		const auto        path = root.endpoint();
 		{
 			// A crashed owner leaves its socket behind with nothing listening.
-			const int   listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+			const int listen = ::socket(AF_UNIX, SOCK_STREAM, 0);
+			expect(listen >= 0, "create the stand-in owner socket");
 			sockaddr_un address{ };
 			address.sun_family = AF_UNIX;
 			const auto named   = path.string();
@@ -843,28 +845,38 @@ namespace {
 int main()
 {
 	try {
-		std::cout << "test_codec" << std::endl;
+		std::cout << "test_codec" << '\n'
+				  << std::flush;
 		test_codec();
 		test_cycle_codec();
-		std::cout << "test_source_codec" << std::endl;
+		std::cout << "test_source_codec" << '\n'
+				  << std::flush;
 		test_source_codec();
 #if defined(_WIN32)
-		std::cout << "test_windows_pipe" << std::endl;
+		std::cout << "test_windows_pipe" << '\n'
+				  << std::flush;
 		test_windows_pipe();
 #else
-		std::cout << "test_authority" << std::endl;
+		std::cout << "test_authority" << '\n'
+				  << std::flush;
 		test_authority();
-		std::cout << "test_round_trip" << std::endl;
+		std::cout << "test_round_trip" << '\n'
+				  << std::flush;
 		test_round_trip();
-		std::cout << "test_binding" << std::endl;
+		std::cout << "test_binding" << '\n'
+				  << std::flush;
 		test_binding();
-		std::cout << "test_hostile_framing" << std::endl;
+		std::cout << "test_hostile_framing" << '\n'
+				  << std::flush;
 		test_hostile_framing();
-		std::cout << "test_version_mismatch" << std::endl;
+		std::cout << "test_version_mismatch" << '\n'
+				  << std::flush;
 		test_version_mismatch();
-		std::cout << "test_stale_and_hostile_endpoints" << std::endl;
+		std::cout << "test_stale_and_hostile_endpoints" << '\n'
+				  << std::flush;
 		test_stale_and_hostile_endpoints();
-		std::cout << "test_owner_death_and_cancellation" << std::endl;
+		std::cout << "test_owner_death_and_cancellation" << '\n'
+				  << std::flush;
 		test_owner_death_and_cancellation();
 #endif
 	} catch (const expectation_failed&) {

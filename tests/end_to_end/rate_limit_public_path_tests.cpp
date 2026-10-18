@@ -241,7 +241,7 @@ try {
 		expect(exactReading(), "successful same-head recovery preserves exact comparison, line selection and scroll");
 		expect(!window->status_text().contains(QStringLiteral("not ready")), "settled recovery status agrees with the available comparison");
 		const auto wireInterval = (limited->LastRequestNanoseconds.load() - firstResponseAt) / 1000;
-		expect(limited->Requests.load() == requestsBefore + 2U && wireInterval >= static_cast<std::int64_t>((scenario == 3U ? 3U : 2U) * 1000000U), "one explicit recovery request arrives after the effective minimum");
+		expect(limited->Requests.load() == requestsBefore + 2U && wireInterval >= static_cast<std::int64_t>(scenario == 3U ? 3U : 2U) * 1000000, "one explicit recovery request arrives after the effective minimum");
 		std::cout << "scenario=" << scenario << " mode=" << mode << " wire_recovery_interval_us=" << wireInterval << " recovery_since_refusal_us=" << (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - firstResponseAt) / 1000 << " blocked_gestures=20 auto_retries=0 selection_line=100 scroll=" << scroll << '\n';
 		const auto recoveredRenderRoot = qEnvironmentVariable("BPR_RATE_LIMIT_RENDER_DIR");
 		if (!recoveredRenderRoot.isEmpty()) {

@@ -2199,19 +2199,19 @@ namespace {
 		if (target == nullptr) {
 			return;
 		}
-		const auto send_mouse_event = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
+		const auto sendMouseEvent = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
 			const auto local = QPointF{ aWidget.mapTo(top, aAt) };
 			auto       event = QMouseEvent{ aType, local, local, QPointF{ aWidget.mapToGlobal(aAt) }, aButton, aButtons, Qt::NoModifier };
 			QCoreApplication::sendEvent(target, &event);
 		};
-		send_mouse_event(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
-		send_mouse_event(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
+		sendMouseEvent(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
+		sendMouseEvent(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
 		constexpr auto steps = 4;
 		for (auto step = 1; step <= steps; ++step) {
 			const auto at = aFrom + ((aTo - aFrom) * step) / steps;
-			send_mouse_event(QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
+			sendMouseEvent(QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
 		}
-		send_mouse_event(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
+		sendMouseEvent(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
 	}
 
 	[[nodiscard]] auto capture_diff_interaction_evidence(
@@ -9748,7 +9748,7 @@ auto main(int argc, char** argv) -> int
 		// a pull request whose reads fail after it; with `--attended-home-look`
 		// it is armed only once Home is ready for the person.
 		const auto attendedHomeLook = launch.has("--attended-home-look");
-		const auto parse_count      = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
+		const auto parseCount       = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
 			}
@@ -9758,8 +9758,8 @@ auto main(int argc, char** argv) -> int
 		};
 		const auto readDelayText    = launch.value("--fixture-read-delay-ms");
 		const auto readFailText     = launch.value("--fixture-read-fail-number");
-		const auto readDelay        = parse_count(readDelayText);
-		const auto readFailNumber   = parse_count(readFailText);
+		const auto readDelay        = parseCount(readDelayText);
+		const auto readFailNumber   = parseCount(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
 		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
 			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
@@ -9773,9 +9773,9 @@ auto main(int argc, char** argv) -> int
 		const auto pageDelayText      = launch.value("--fixture-page-delay-ms");
 		const auto discoveryDelayText = launch.value("--fixture-discovery-delay-ms");
 		const auto refreshScriptText  = launch.value("--fixture-refresh-script");
-		const auto refreshDelay       = parse_count(refreshDelayText);
-		const auto pageDelay          = parse_count(pageDelayText);
-		const auto discoveryDelay     = parse_count(discoveryDelayText);
+		const auto refreshDelay       = parseCount(refreshDelayText);
+		const auto pageDelay          = parseCount(pageDelayText);
+		const auto discoveryDelay     = parseCount(discoveryDelayText);
 		auto       refreshScript      = std::vector<bpr::app::detail::github_read_delay_fixture::refresh_outcome>{ };
 		auto       refreshScriptValid = true;
 		if (refreshScriptText.has_value()) {
@@ -10223,7 +10223,7 @@ auto main(int argc, char** argv) -> int
 								.StallProbe                      = automatedStallProbe,
 								.ThemeCustomizationPath          = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
 								.AppearanceGestureProbe          = appearanceGestureProbe,
-								.FixtureName                     = std::move(fixtureName),
+								.FixtureName                     = fixtureName,
 								.ExpectedActiveHostText          = std::move(expectedActiveHostText),
 								.Expectations                    = std::move(fixtureExpectations),
 								.EpochPhase                      = fixtureOptions.EpochPhase,
@@ -10249,7 +10249,7 @@ auto main(int argc, char** argv) -> int
 						look = std::string{ "unknown-review" };
 					}
 					if (attendedPreflightLook.has_value()) {
-						look = std::string{ *attendedPreflightLook };
+						look = attendedPreflightLook;
 						// [[BPR-1085]]. Two of the fixture's threads become the
 						// fixture account's own blocking feedback, in the
 						// fixture's responses only, before the first read.
@@ -10269,7 +10269,7 @@ auto main(int argc, char** argv) -> int
 							"issue (blocking): A zero-width view divides by zero in the aspect ratio below.\n\nThe clamp keeps the renderer safe until the caller checks the size itself.",
 							navigation, "https://github.com/bpr-fixtures/nested-folders/blob/b20cb443428212543f5911e091a0ffeb407d23cf/src/engine/renderer.cpp#L10-L14");
 						if (stop) {
-							bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_2", *stop, std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
+							bpr::app::detail::github_application_fixture_access::stage_server_root(*application, "PRRT_cc_2", stop, std::nullopt, std::pair{ std::string{ "U_fixture-author" }, std::string{ "fixture-author" } });
 						}
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}

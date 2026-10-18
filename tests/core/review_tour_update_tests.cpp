@@ -22,6 +22,7 @@ namespace {
 		const auto seed = draft.Stops.front();
 		draft.Stops.clear();
 		std::vector<tour_markdown_link> entries;
+		entries.reserve(5U);
 		for (std::size_t i = 0; i < 5; ++i) {
 			auto stop   = seed;
 			stop.Id     = tour_stop_id{ i + 1 };
@@ -82,13 +83,14 @@ namespace {
 		remote.Stops.push_back(added);
 		std::reverse(remote.Stops.begin(), remote.Stops.end());
 		std::vector<tour_markdown_link> entries;
+		entries.reserve(remote.Stops.size());
 		for (const auto& stop : remote.Stops) {
 			entries.push_back({ stop.Title, stop.Remote->WebUrl });
 		}
 		remote.IndexBaseline->Raw = *render_tour_index(entries);
 		const auto changes        = observed_tour_changes(base, remote);
 		for (const auto kind : { tour_change_kind::added, tour_change_kind::removed, tour_change_kind::reordered, tour_change_kind::text, tour_change_kind::source }) {
-			expect(std::ranges::any_of(changes, [&](const auto& c) { return c.Kind == kind; }), "locally retained raw observations distinguish every website delta");
+			expect(std::ranges::any_of(changes, [&](const auto& aC) { return aC.Kind == kind; }), "locally retained raw observations distinguish every website delta");
 		}
 		auto cold = base;
 		cold.IndexBaseline.reset();
@@ -199,12 +201,12 @@ int main()
 	plan = plan_tour_update(draft, { });
 	expect(plan && plan->Edits.size() == 5 && plan->Edits.back().Remote == *draft.Remote, "adjacent move affects only four neighbors/ordinals and final index");
 	expect(plan->Index.starts_with("Preserve this custom orientation.") && plan->Index.ends_with("Unrelated tail.\n"), "root patch preserves non-tour prose exactly");
-	expect(std::ranges::none_of(plan->Edits, [&](const auto& edit) { return edit.Remote == *draft.Stops.back().Remote; }), "distant unaffected stop receives no write");
+	expect(std::ranges::none_of(plan->Edits, [&](const auto& aEdit) { return aEdit.Remote == *draft.Stops.back().Remote; }), "distant unaffected stop receives no write");
 	draft = published();
 	draft.Retired.push_back(draft.Stops[2]);
 	draft.Stops.erase(draft.Stops.begin() + 2);
 	plan = plan_tour_update(draft, { });
-	expect(plan && std::ranges::any_of(plan->Edits, [&](const auto& edit) { return edit.Remote == *draft.Retired.front().Remote && edit.Desired.contains("Exact explanation 3") && edit.Desired.contains("Tour overview") && !edit.Desired.contains("[Next]"); }), "retirement preserves discussion and overview without route navigation");
+	expect(plan && std::ranges::any_of(plan->Edits, [&](const auto& aEdit) { return aEdit.Remote == *draft.Retired.front().Remote && aEdit.Desired.contains("Exact explanation 3") && aEdit.Desired.contains("Tour overview") && !aEdit.Desired.contains("[Next]"); }), "retirement preserves discussion and overview without route navigation");
 	draft            = published();
 	auto inserted    = draft.Stops.front();
 	inserted.Id      = tour_stop_id{ 6 };
@@ -223,7 +225,7 @@ int main()
 	auto replacement            = created;
 	replacement.Stop            = draft.Stops[0].Id;
 	plan                        = plan_tour_update(draft, std::vector{ replacement });
-	expect(plan && plan->StopBodies[0].contains("original discussion") && std::ranges::any_of(plan->Edits, [](const auto& edit) { return edit.Desired.contains("replacement stop"); }), "immutable remote subject gets visibly linked replacement and preserved original thread");
+	expect(plan && plan->StopBodies[0].contains("original discussion") && std::ranges::any_of(plan->Edits, [](const auto& aEdit) { return aEdit.Desired.contains("replacement stop"); }), "immutable remote subject gets visibly linked replacement and preserved original thread");
 	draft = published();
 	draft.Stops[0].Baseline->Raw += "\nUnmapped website addition.\n";
 	expect(!plan_tour_update(draft, { }), "ambiguous footer layout cannot be overwritten");

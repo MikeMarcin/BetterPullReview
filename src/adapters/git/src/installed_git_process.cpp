@@ -6812,7 +6812,7 @@ namespace bpr::adapters::git {
 				if (!root) {
 					return std::nullopt;
 				}
-				const auto small_text = [](const std::filesystem::path& aPath) -> std::optional<std::string> {
+				const auto smallText = [](const std::filesystem::path& aPath) -> std::optional<std::string> {
 					std::error_code error;
 					if (!std::filesystem::is_regular_file(aPath, error) || error || std::filesystem::file_size(aPath, error) > 4096U || error) {
 						return std::nullopt;
@@ -6831,7 +6831,7 @@ namespace bpr::adapters::git {
 				std::error_code error;
 				auto            gitDirectory = *root / ".git";
 				if (std::filesystem::is_regular_file(gitDirectory, error) && !error) {
-					const auto pointer = small_text(gitDirectory);
+					const auto pointer = smallText(gitDirectory);
 					if (!pointer || !pointer->starts_with("gitdir: ")) {
 						return std::nullopt;
 					}
@@ -6841,7 +6841,7 @@ namespace bpr::adapters::git {
 				if (!common) {
 					return std::nullopt;
 				}
-				if (const auto shared = small_text(*common / "commondir")) {
+				if (const auto shared = smallText(*common / "commondir")) {
 					common = resolve_canonical_existing(relative(*common, *shared));
 					if (!common) {
 						return std::nullopt;

@@ -460,18 +460,18 @@ namespace {
 
 		// Each listed note's code, read by the host at the revision the note
 		// names and cut by the core: short, with its lines; the whole file on request.
-		const auto note_of = [&](const std::string_view aBody) {
+		const auto noteOf = [&](const std::string_view aBody) {
 			return std::ranges::find_if(work.view().Notes, [&](const application::review_cycle_note_entry& aNote) { return aNote.Body == aBody; })->Item.Id;
 		};
-		const auto code_of = [&](const core::cycle_feedback_item_id aItem) -> const application::review_cycle_note_context* {
+		const auto codeOf = [&](const core::cycle_feedback_item_id aItem) -> const application::review_cycle_note_context* {
 			const auto& contexts = work.view().Share->Contexts;
 			const auto  found    = std::ranges::find(contexts, aItem, &application::review_cycle_note_context::Item);
 			return found == contexts.end() ? nullptr : &*found;
 		};
-		const auto asked    = note_of("Why check here?");
-		const auto renamed  = note_of("Name it for what it does.");
-		const auto whole    = note_of("Keep the parser free of I/O.");
-		const auto shape_of = [](const core::cycle_note_excerpt& aExcerpt) {
+		const auto asked   = noteOf("Why check here?");
+		const auto renamed = noteOf("Name it for what it does.");
+		const auto whole   = noteOf("Keep the parser free of I/O.");
+		const auto shapeOf = [](const core::cycle_note_excerpt& aExcerpt) {
 			auto text = std::string{ };
 			for (const auto& row : aExcerpt.Rows) {
 				text += std::string{ row.Kind == core::cycle_excerpt_row_kind::noted ? "n" : row.Kind == core::cycle_excerpt_row_kind::removed ? "-"
@@ -482,16 +482,16 @@ namespace {
 			return text;
 		};
 		expect(work.view().Share->Contexts.size() == 3U, "every listed note's code is read");
-		const auto* const question = code_of(asked);
+		const auto* const question = codeOf(asked);
 		expect(question != nullptr && question->Status == application::review_material_status::available && question->Path == "src/parser.cpp" && question->Revision == work.view().Source->Revision,
 			   "the note's file at the revision it names");
-		expect(question->Excerpt.Lines == core::cycle_line_span{ .First = 3, .Last = 3 } && question->Excerpt.FileLines == 4U && shape_of(question->Excerpt) == "c1 c2 n3 c4 " && question->Excerpt.Rows[2].Text == "\treturn check(aText);",
+		expect(question->Excerpt.Lines == core::cycle_line_span{ .First = 3, .Last = 3 } && question->Excerpt.FileLines == 4U && shapeOf(question->Excerpt) == "c1 c2 n3 c4 " && question->Excerpt.Rows[2].Text == "\treturn check(aText);",
 			   "its line with two either side, the exact text");
-		const auto* const rename = code_of(renamed);
-		expect(rename != nullptr && shape_of(rename->Excerpt) == "c1 c2 -3 +3 c4 " && rename->Excerpt.Rows[3].Text == "\treturn validate(aText);" && rename->Excerpt.Changes == 1U && rename->Elsewhere == 0U,
+		const auto* const rename = codeOf(renamed);
+		expect(rename != nullptr && shapeOf(rename->Excerpt) == "c1 c2 -3 +3 c4 " && rename->Excerpt.Rows[3].Text == "\treturn validate(aText);" && rename->Excerpt.Changes == 1U && rename->Elsewhere == 0U,
 			   "a suggestion's change in place");
-		const auto* const project_note = code_of(whole);
-		expect(project_note != nullptr && project_note->Path.empty() && project_note->Excerpt.Rows.empty(), "a note about the whole project has no file");
+		const auto* const projectNote = codeOf(whole);
+		expect(projectNote != nullptr && projectNote->Path.empty() && projectNote->Excerpt.Rows.empty(), "a note about the whole project has no file");
 		work.Host->show_note_code(asked);
 		work.Lanes.drain();
 		expect(work.view().Share->Larger && work.view().Share->Larger->Item == asked && work.view().Share->Larger->Excerpt.Rows.size() == 4U && !work.view().Share->Larger->Excerpt.Cut, "the larger view: the whole file");
@@ -618,7 +618,7 @@ namespace {
 		write_file(project / "src" / "parser.cpp", "int parse(const char* aText)\n{\n\treturn other(aText);\n}\n");
 		work.Host->compose();
 		work.Lanes.drain();
-		const auto* const kept = code_of(asked);
+		const auto* const kept = codeOf(asked);
 		expect(kept != nullptr && kept->Excerpt.Rows.size() == 4U && kept->Excerpt.Rows[2].Text == "\treturn check(aText);", "the note's code as captured, not as edited since");
 		work.Host->close_compose();
 		std::cout << "NATIVE: Compose and Share through the host: copy, save, conflict, bundle, amendment, refused channel, external route\n";
@@ -1063,8 +1063,7 @@ namespace {
 			shown                = settle();
 			expect(shown.Revisions.size() == step + 2U, "the capture recorded a new revision");
 			expect(shown.Source && shown.Source->Path == expected,
-				   "Next file pressed " + std::to_string(step) + " turns into the capture's reload reads " + expected + " after " + from + ", not "
-					   + (shown.Source ? shown.Source->Path : std::string{ "nothing" }));
+				   std::string{ "Next file pressed " }.append(std::to_string(step)).append(" turns into the capture's reload reads ").append(expected).append(" after ").append(from).append(", not ").append(shown.Source ? shown.Source->Path : std::string{ "nothing" }));
 			expect(shown.Source->Revision == reading && shown.NewerAvailable, "the tab stays on the revision it read and says newer material exists");
 			const auto active = std::ranges::find_if(shown.Tabs, [&](const core::cycle_tab& aTab) { return shown.ActiveTab == aTab.Id; });
 			expect(active != shown.Tabs.end() && active->View.Path == expected && active->View.Revision == reading, "the active tab names the file Next file read");

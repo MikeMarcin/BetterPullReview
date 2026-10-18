@@ -147,7 +147,8 @@ int main(int aArgc, char** aArgv)
 		return aCard.Path.endsWith(QStringLiteral("conversation_cards_view.cpp")) && aCard.Line && aCard.Side && !aCard.Outdated && !aCard.AnchorUnavailable;
 	});
 	expect(target != notes->cards().end() && target->Posts.size() > 1U, "Discuss offers a current inline thread with a reply");
-	const auto thread = *target;
+	// Opening the thread and pumping events may replace the cards below.
+	const auto thread = *target; // NOLINT(performance-unnecessary-copy-initialization)
 	notes->open_thread(thread.Id);
 	QApplication::processEvents();
 	auto* const lineButton = notes->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
@@ -218,14 +219,14 @@ int main(int aArgc, char** aArgv)
 	// [[BPR-1336]] follow-up. The indicator shows for 1.2 s after each step, and
 	// persisting and remeasuring the 1557-line comparison can outlast that in a
 	// Windows Debug build, so what it said is read while it shows.
-	auto       indicated       = false;
-	const auto watch_indicator = [&] {
+	auto       indicated      = false;
+	const auto watchIndicator = [&] {
 		indicated = indicated
 			|| (surface->code_zoom_indicator()->isVisible()
 				&& surface->code_zoom_indicator()->accessibleName().startsWith(QStringLiteral("Code zoom 125%")));
 	};
 	wait_for([&] {
-		watch_indicator();
+		watchIndicator();
 		return zoomedTo(1.25) && application->status().AppearanceDurableWrites > writes && !surface->geometry_pending();
 	},
 			 "two Zoom Ins show both panes at 125% of Code size, persisted and remeasured");

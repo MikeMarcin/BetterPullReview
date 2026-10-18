@@ -2,12 +2,21 @@
 
 #include "github_paged_read.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stop_token>
+#include <string_view>
 #include <utility>
+
+#if !defined(_WIN32)
+	#include <csignal>
+	#include <string>
+	#include <sys/resource.h>
+	#include <unistd.h>
+#endif
 
 namespace {
 	using namespace bpr;
@@ -228,8 +237,51 @@ namespace {
 	}
 }
 
-auto main() -> int
+#if !defined(_WIN32)
+extern "C" void large_review_replay_processor_limit_reached(int /*aSignal*/)
 {
+	static const char message[] = "LARGE_REVIEW_REPLAY_CPU_LIMIT: the contract used its processor-time budget\n";
+	// GCC keeps glibc's warn_unused_result through a void cast, so the result
+	// is tested; either way the process ends here.
+	if (write(STDERR_FILENO, message, sizeof message - 1U) < 0) {
+		_exit(EXIT_FAILURE);
+	}
+	_exit(EXIT_FAILURE);
+}
+
+namespace {
+	/// [[BPR-1598]]. The row's run budget, in processor time: on a loaded
+	/// machine this one thread of work takes several times as long in wall
+	/// time, while a change that makes it do more work still uses more
+	/// processor time. Past the limit the kernel raises SIGXCPU, and the
+	/// handler names the budget before the process ends.
+	void limit_processor_time(std::string_view aArgument)
+	{
+		constexpr auto prefix = std::string_view{ "--processor-seconds=" };
+		require(aArgument.starts_with(prefix), "usage: --processor-seconds=N");
+		const auto seconds = static_cast<rlim_t>(std::stoul(std::string{ aArgument.substr(prefix.size()) }));
+		require(seconds > 0U, "the processor-time budget is positive");
+		require(std::signal(SIGXCPU, large_review_replay_processor_limit_reached) != SIG_ERR, "the processor-time handler is installed");
+		auto limit = rlimit{ };
+		require(::getrlimit(RLIMIT_CPU, &limit) == 0, "the processor-time limit is readable");
+		limit.rlim_cur = limit.rlim_max == RLIM_INFINITY ? seconds : std::min(seconds, limit.rlim_max);
+		require(::setrlimit(RLIMIT_CPU, &limit) == 0, "the processor-time budget is set");
+	}
+}
+#endif
+
+auto main(int argc, char** argv) -> int
+{
+	if (argc == 2) {
+#if defined(_WIN32)
+		static_cast<void>(argv);
+		require(false, "Windows has no processor-time budget; the row's timeout is its budget");
+#else
+		limit_processor_time(argv[1]);
+#endif
+	} else {
+		require(argc == 1, "usage: [--processor-seconds=N]");
+	}
 	const auto exchanges = fixture::load(BPR_LARGE_REVIEW_FIXTURE_ROOT);
 	require(exchanges.size() == 31U, "exact recorded course size");
 	const auto& timeline = exchanges.back();

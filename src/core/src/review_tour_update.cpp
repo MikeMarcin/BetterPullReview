@@ -83,7 +83,7 @@ namespace bpr::core {
 			} else if (map.Lists.size() == 1 && !map.Lists.front().MappingNeeded) {
 				list = map.Lists.front().Source;
 			}
-			if (!list || std::ranges::none_of(map.Lists, [&](const auto& value) { return value.Source == *list && !value.MappingNeeded; })) {
+			if (!list || std::ranges::none_of(map.Lists, [&](const auto& aValue) { return aValue.Source == *list && !aValue.MappingNeeded; })) {
 				return { };
 			}
 			const auto rendered = render_tour_index(aEntries, newline(raw));
@@ -158,7 +158,7 @@ namespace bpr::core {
 	}
 	auto plan_tour_update(const review_tour& aTour, std::span<const tour_created_destination> aCreated) -> std::optional<tour_update_bodies>
 	{
-		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [](const auto& stop) { return stop.Suggestion && stop.Preparation != tour_preparation::ready; })) {
+		if (validate(aTour) != tour_refusal::none || aTour.RemoteStale || !aTour.Conflicts.empty() || aTour.ReadOnly || !aTour.Remote || !aTour.Remote->Own || !aTour.IndexBaseline || aTour.Stops.empty() || std::ranges::any_of(aTour.Stops, [](const auto& aStop) { return aStop.Suggestion && aStop.Preparation != tour_preparation::ready; })) {
 			return { };
 		}
 		std::vector<tour_markdown_link> entries;

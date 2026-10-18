@@ -165,7 +165,8 @@ namespace {
 			if (aResult) {
 				aComposed.Application = std::move(*aResult);
 			} else {
-				std::cerr << "BPR1520 fixture startup failure=" << static_cast<int>(aResult.error()) << " source=" << app::startup_failure_source() << std::endl;
+				std::cerr << "BPR1520 fixture startup failure=" << static_cast<int>(aResult.error()) << " source=" << app::startup_failure_source() << '\n'
+						  << std::flush;
 			}
 		});
 		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");

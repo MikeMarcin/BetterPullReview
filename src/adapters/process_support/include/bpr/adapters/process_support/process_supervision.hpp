@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_ADAPTERS_PROCESS_SUPPORT_PROCESS_SUPERVISION_HPP
+#define BPR_ADAPTERS_PROCESS_SUPPORT_PROCESS_SUPERVISION_HPP
 
 #include <QProcess>
 #include <QtGlobal>
@@ -308,3 +309,5 @@ namespace bpr::adapters::process_support {
 		std::thread                Worker;
 	};
 }
+
+#endif // BPR_ADAPTERS_PROCESS_SUPPORT_PROCESS_SUPERVISION_HPP

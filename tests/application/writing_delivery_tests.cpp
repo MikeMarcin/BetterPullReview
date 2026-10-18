@@ -8,10 +8,10 @@
 #include <iostream>
 namespace {
 	using namespace bpr;
-	void expect(bool ok, const char* message)
+	void expect(bool aOk, const char* aMessage)
 	{
-		if (!ok) {
-			std::cerr << message << '\n';
+		if (!aOk) {
+			std::cerr << aMessage << '\n';
 			std::exit(1);
 		}
 	}
@@ -21,7 +21,7 @@ int main()
 	using namespace bpr;
 	const std::vector<application::writing_source> sources = { { "pr-description", "Approved author explanation" } };
 	const std::string                              prefix  = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":)";
-	const auto                                     decode  = [&](std::string_view value, bool evidence = false) { return application::decode_writing_result(value, core::writing_hook::problem, sources, evidence); };
+	const auto                                     decode  = [&](std::string_view aValue, bool aEvidence = false) { return application::decode_writing_result(aValue, core::writing_hook::problem, sources, aEvidence); };
 	expect(decode(prefix + R"("safe\r\n😀","notes":[]})").has_value(), "bounded UTF8 rewrite decoded");
 	expect(!decode(prefix + R"("claim","notes":[]})", true), "empty field requires evidence");
 	expect(decode(prefix + R"("claim","notes":[{"kind":"recovered","text":"Existing statement","source_refs":["pr-description"]}]})", true).has_value(), "supplied provenance passes");
@@ -58,13 +58,13 @@ int main()
 	for (const auto& bad : { prefix + "\"" + std::string(16385, 'x') + R"(","notes":[]})", prefix + R"("\ud800","notes":[]})", prefix + R"("\u0000","notes":[]})", std::string(100, '[') + "0" + std::string(100, ']') }) {
 		expect(!decode(bad), "decoded field bounds, invalid scalar and nesting budget refuse");
 	}
-	const auto outline = [&](std::size_t count, std::size_t titleBytes) {
+	const auto outline = [&](std::size_t aCount, std::size_t aTitleBytes) {
 		std::string json = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[)";
-		for (std::size_t i = 0; i < count; ++i) {
+		for (std::size_t i = 0; i < aCount; ++i) {
 			if (i) {
 				json += ',';
 			}
-			json += R"({"title":")" + std::string(titleBytes, 't') + R"(","anchor_ref":"pr-description","reason":"why","author_question":"","related_refs":[]})";
+			json += R"({"title":")" + std::string(aTitleBytes, 't') + R"(","anchor_ref":"pr-description","reason":"why","author_question":"","related_refs":[]})";
 		}
 		return application::decode_writing_result(json + "]}", core::writing_hook::outline, sources, false);
 	};

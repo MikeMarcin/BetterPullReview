@@ -1562,7 +1562,7 @@ namespace {
 		}
 		// Rendered: the copied line's glyph is in the accepted role's colour and
 		// has none of the defect's; the failed line the other way round.
-		const auto line_pixels = [list](const int aRow, const QColor& aColour) {
+		const auto linePixels = [list](const int aRow, const QColor& aColour) {
 			list->scrollToItem(list->item(aRow));
 			settle();
 			const auto pixmap = list->viewport()->grab();
@@ -1571,8 +1571,8 @@ namespace {
 			return pixels_near(pixmap.toImage(), QRect{ QPoint{ static_cast<int>(box.left() * scale), static_cast<int>(box.top() * scale) }, QSize{ static_cast<int>(box.width() * scale), static_cast<int>(box.height() * scale) } }, aColour);
 		};
 		expect(!colour_near(colour(role::state_accepted), colour(role::state_defect)), "the two role colours can be told apart");
-		expect(line_pixels(0, colour(role::state_accepted)) > 0 && line_pixels(0, colour(role::state_defect)) == 0, "the copied line's glyph is painted in the accepted role's colour, none in the defect's");
-		expect(line_pixels(7, colour(role::state_defect)) > 0 && line_pixels(7, colour(role::state_accepted)) == 0, "the failed line's in the defect's, none in the accepted's");
+		expect(linePixels(0, colour(role::state_accepted)) > 0 && linePixels(0, colour(role::state_defect)) == 0, "the copied line's glyph is painted in the accepted role's colour, none in the defect's");
+		expect(linePixels(7, colour(role::state_defect)) > 0 && linePixels(7, colour(role::state_accepted)) == 0, "the failed line's in the defect's, none in the accepted's");
 		list->scrollToItem(list->item(0));
 		// The round's chip: shared, in the accepted role's colour, with words.
 		auto* const chip = aSheet.round_chip();

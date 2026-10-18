@@ -1155,13 +1155,20 @@ target_compile_definitions(bench_better_pull_review_large_review PRIVATE
     "BPR_BENCH_BUILD_CONFIGURATION=\"$<CONFIG>\"")
 bpr_enable_hardening(bench_better_pull_review_large_review)
 bpr_enable_warnings(bench_better_pull_review_large_review)
+# [[BPR-1598]]. The course rows below (all but the timing control) run through
+# large_review_course.py, which runs a course once more when it missed a timing
+# limit while a loaded machine kept its GUI thread waiting
+# (LARGE_REVIEW_TIMING_RETRYABLE), keeping the first attempt's report beside the
+# second's. Any other failure is final.
 # [[BPR-0874]]. The three composed courses below run uncontained on Windows:
 # contained, narrowing the private data root parent needs WRITE_DAC the
 # container lacks (dos-volume-name, as BPR-0833).
 bpr_add_network_isolated_test(
     NAME application_large_review_benchmark
     WINDOWS_UNCONTAINED
-    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+    COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+        "${CMAKE_CURRENT_BINARY_DIR}/large-review-measurement.json" --
+        $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/large-review-measurement.json"
         "${CMAKE_CURRENT_BINARY_DIR}/large-review-window.png")
@@ -1185,7 +1192,9 @@ set_tests_properties(application_large_review_timing_control PROPERTIES
 bpr_add_network_isolated_test(
     NAME application_unavailable_diff_public_path
     WINDOWS_UNCONTAINED
-    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+    COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+        "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-measurement.json" --
+        $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-measurement.json"
         "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-window.png"
@@ -1198,7 +1207,9 @@ set_tests_properties(application_unavailable_diff_public_path PROPERTIES
 bpr_add_network_isolated_test(
     NAME application_approximate_diff_public_path
     WINDOWS_UNCONTAINED
-    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+    COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+        "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-measurement.json" --
+        $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-measurement.json"
         "${CMAKE_CURRENT_BINARY_DIR}/approximate-diff-window.png"
@@ -1215,7 +1226,9 @@ set_tests_properties(application_approximate_diff_public_path PROPERTIES
 bpr_add_network_isolated_test(
     NAME application_first_tab_comparison
     WINDOWS_UNCONTAINED
-    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+    COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+        "${CMAKE_CURRENT_BINARY_DIR}/first-tab-comparison.json" --
+        $<TARGET_FILE:bench_better_pull_review_large_review>
         $<TARGET_FILE:Git::Git>
         "${CMAKE_CURRENT_BINARY_DIR}/first-tab-comparison.json"
         "${CMAKE_CURRENT_BINARY_DIR}/first-tab-comparison.png"
@@ -1233,7 +1246,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_responsiveness
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-responsiveness.png"
@@ -1258,7 +1273,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_active_work
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-active-work.png"
@@ -1271,7 +1288,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         bpr_add_network_isolated_test(
             NAME application_large_review_${course_name}
             WINDOWS_UNCONTAINED
-            COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.json" --
+                $<TARGET_FILE:bench_better_pull_review_large_review>
                 $<TARGET_FILE:Git::Git>
                 "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.json"
                 "${CMAKE_CURRENT_BINARY_DIR}/large-review-${course}.png"
@@ -1286,7 +1305,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_bytes
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.png"
@@ -1313,7 +1334,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_entries
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.png"
@@ -1329,7 +1352,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_prepared_open
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-prepared-open.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-prepared-open.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-prepared-open.png"
@@ -1340,7 +1365,9 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_loaded_close
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.png"
@@ -1351,18 +1378,24 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_history
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.png"
             --history)
+    # [[BPR-1598]]. Two of its 540 s course clocks and a reserve: room for the
+    # one retry large_review_course.py may give it. Its limits are unchanged.
     set_tests_properties(application_large_review_history PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 600
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 1200
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_HISTORY_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_resources
         WINDOWS_UNCONTAINED
-        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        COMMAND Python3::Interpreter -I -S "${CMAKE_CURRENT_SOURCE_DIR}/large_review_course.py"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.json" --
+            $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.png"
@@ -1413,16 +1446,31 @@ target_compile_definitions(test_better_pull_review_large_review_replay PRIVATE
     "BPR_LARGE_REVIEW_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests/large-review-v1\"")
 bpr_enable_hardening(test_better_pull_review_large_review_replay)
 bpr_enable_warnings(test_better_pull_review_large_review_replay)
-bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>)
-set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 30)
-if(WIN32)
-    # [[BPR-0967]]. bpr-main-win Debug at f61340e17: 33.23 s (30 s timed out
-    # at 682ea1392); 120 s is 3.6 times that.
-    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 120)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+# [[BPR-1598]]. The contract is one thread of processor-bound work: 16.6 s of
+# processor time on a Mac Debug tree, and 67 s of wall time at a load average
+# of 111, when its 30 s timeout cut it off. So on macOS and Linux its run
+# budget is processor time, which load does not inflate: the test limits
+# itself with RLIMIT_CPU to the seconds the row held as wall time, and fails
+# with LARGE_REVIEW_REPLAY_CPU_LIMIT when a change makes it work longer. The
+# CTest timeout stays only as the backstop for a hang that uses no processor,
+# at ten times that.
+set(bpr_large_review_replay_processor_seconds 30)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # [[BPR-0967]]. bpr-main-linux Debug at f61340e17: 16.32 s; 60 s is 3.7
     # times that (Release 1.68 s).
-    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 60)
+    set(bpr_large_review_replay_processor_seconds 60)
+endif()
+if(WIN32)
+    bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>)
+    # [[BPR-0967]]. bpr-main-win Debug at f61340e17: 33.23 s (30 s timed out
+    # at 682ea1392); 120 s is 3.6 times that. Windows has no RLIMIT_CPU, so
+    # the row's budget stays wall time.
+    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 120)
+else()
+    bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>
+        "--processor-seconds=${bpr_large_review_replay_processor_seconds}")
+    math(EXPR bpr_large_review_replay_backstop "${bpr_large_review_replay_processor_seconds} * 10")
+    set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT ${bpr_large_review_replay_backstop})
 endif()
 
 bpr_add_executable(

@@ -1193,13 +1193,14 @@ namespace {
 		for (int fault = 0; fault < 7; ++fault) {
 			auto bad = options;
 			switch (fault) {
-			case 0: bad.AdmittedRun->Session = core::agent_session_id{ 99 }; break;
-			case 1: bad.AdmittedRun->ProfileDisplayName = "different"; break;
-			case 2: bad.PrivateSources[0].Body += "edited"; break;
-			case 3: bad.PrivateSources.clear(); break;
-			case 4: bad.AdmittedRun->Metadata.ProtocolReported.push_back({ .Basis = "invented", .Settings = { "invented", { } } }); break;
-			case 5: bad.AdmittedRun->EntryPoint = core::agent_entry_point::run_ai_review; break;
-			case 6: bad.AdmittedRun.reset(); break;
+			case 0:  bad.AdmittedRun->Session = core::agent_session_id{ 99 }; break;
+			case 1:  bad.AdmittedRun->ProfileDisplayName = "different"; break;
+			case 2:  bad.PrivateSources[0].Body += "edited"; break;
+			case 3:  bad.PrivateSources.clear(); break;
+			case 4:  bad.AdmittedRun->Metadata.ProtocolReported.push_back({ .Basis = "invented", .Settings = { "invented", { } } }); break;
+			case 5:  bad.AdmittedRun->EntryPoint = core::agent_entry_point::run_ai_review; break;
+			case 6:  bad.AdmittedRun.reset(); break;
+			default: expect(false, "the fixture selects a known fault"); break;
 			}
 			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), bad), "snapshot/source/settings mismatch refuses before launch");
 		}

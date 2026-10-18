@@ -39,8 +39,23 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    files pass format22; documentation and diff checks pass. Affected targets
    build and all 20 focused rows pass (239.48 s + 343.22 s), including both
    composition contracts. Prior unchanged tidy/live/negative controls retained.
-   Ready to finish/push and clean up.
-6. BPR-1598: not started.
+   Finished/pushed in `57f335411`; worktree, build and branch removed.
+6. BPR-1598: main `57f335411` merged at `e569d67aa`. Inherited timing
+   implementation and negative controls are present; affected benchmark and
+   replay targets build. The native tidy helper now selects documented LLVM 22
+   and supports bounded read-only concurrency (`f579a02ca`); its CTest contract
+   and documentation gate pass. The 899-unit inventory is complete; 121 runs reported findings. Fixes
+   are in place, 74 changed test targets plus focused consumers build, full
+   format22 and documentation checks pass, and replay’s five-second CPU
+   negative control fails as intended. The initial complete native gate exposed follow-on findings; those are
+   fixed and six direct rechecks pass. Source slices are `9e73d212d` and
+   `b1b416c17`, with final residual fixes in `0bea4e26d`. All large-review rows
+   pass (15 executed, one documented Debug skip), with the bounded retry used
+   by responsiveness and history. All 84 focused rows pass (1,212.24 s). Nine final
+   checks pass on `0bea4e26d`, covering the follow-on edits and composition
+   reseal (201.40 s). The final full tidy gate passes all 899 translation
+   units, and format passes all 1,628 files. Ready for the ordered landing.
+   No full-suite run per card.
 7. BPR-1599: not started.
 8. Task-owned housekeeping: pending.
 9. One final integrated configure/build/full ctest and format/tidy: pending.

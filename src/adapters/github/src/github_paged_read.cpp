@@ -4491,7 +4491,7 @@ namespace bpr::adapters::github::detail {
 			if (!aExecution.bind_repository(snapshot.Repository.Repository)) {
 				return aExecution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
-			const auto note_limit = [aLimited](const github_paged_read_failure& aFailure) {
+			const auto noteLimit = [aLimited](const github_paged_read_failure& aFailure) {
 				const auto* error = std::get_if<application::github_provider_error>(&aFailure);
 				if (aLimited && error && error->Failure == application::github_provider_failure::response_limit) {
 					*aLimited = true;
@@ -4499,7 +4499,7 @@ namespace bpr::adapters::github::detail {
 			};
 			const auto requests = read_pending_requests(aExecution, aServer, aContext, snapshot, aLimits);
 			if (!requests) {
-				note_limit(requests.error());
+				noteLimit(requests.error());
 				if (fatal_optional_read_failure(requests.error())) {
 					return std::unexpected{ requests.error() };
 				}
@@ -4507,7 +4507,7 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto assessment = read_merge_assessment(aExecution, aServer, aContext, snapshot);
 			if (!assessment) {
-				note_limit(assessment.error());
+				noteLimit(assessment.error());
 			}
 			if (!assessment && fatal_optional_read_failure(assessment.error())) {
 				return std::unexpected{ assessment.error() };
@@ -4517,7 +4517,7 @@ namespace bpr::adapters::github::detail {
 			auto checks                 = read_checks(aExecution, aProfile, semantic, snapshot.PullRequest.HeadOid.value(), snapshot.Checks, aLimits);
 			snapshot.ChecksAvailability = checks ? application::github_collection_availability::available : application::github_collection_availability::unavailable;
 			if (!checks) {
-				note_limit(checks.error());
+				noteLimit(checks.error());
 			}
 			if (!checks && fatal_optional_read_failure(checks.error())) {
 				return std::unexpected{ checks.error() };
@@ -4528,7 +4528,7 @@ namespace bpr::adapters::github::detail {
 			auto statusRead               = read_rest_array_collection(aExecution, aProfile, semantic, statuses, aLimits.Records.MaximumChecks, aLimits.MaximumPageRecords, [&snapshot](const page_json_value& aValue) { return parse_commit_status(aValue, snapshot.PullRequest.HeadOid.value()); });
 			snapshot.StatusesAvailability = statusRead ? application::github_collection_availability::available : application::github_collection_availability::unavailable;
 			if (!statusRead) {
-				note_limit(statusRead.error());
+				noteLimit(statusRead.error());
 			}
 			if (!statusRead && fatal_optional_read_failure(statusRead.error())) {
 				return std::unexpected{ statusRead.error() };

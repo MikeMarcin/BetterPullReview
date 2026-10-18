@@ -128,6 +128,13 @@ First-party executable CMake targets use the standard `app_` and `test_`
 categories. The root `bpr_add_executable` helper removes that category for
 `OUTPUT_NAME`, preserving the established application and test binary names.
 
+The clang-tidy helper discovers LLVM 22 by checking `clang-tidy-22`, the pinned
+LLVM directories used by the formatter, and then `clang-tidy` on `PATH`. It
+refuses a different default major release. `--clang-tidy` selects an explicit
+tool for separate analysis. Set `CODING_STANDARD_TIDY_JOBS` for bounded parallel
+analysis through the CMake target, or use `tidy.py --jobs`; fixes require one
+process because translation units can share headers.
+
 The clang-tidy helper also neutralizes the compilation database's product
 `-Werror` flag. This keeps `--warnings-as-errors` scoped to clang-tidy findings
 while preserving hard compiler failures; it additionally suppresses Clang's

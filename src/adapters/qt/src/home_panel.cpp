@@ -321,7 +321,7 @@ namespace bpr::qt {
 		if (!geometry.Summary.isEmpty()) {
 			painter.setFont(summary_font(font()));
 			painter.drawText(geometry.Summary,
-							 (geometry.SummaryBelow ? Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap : Qt::AlignRight | Qt::AlignVCenter),
+							 static_cast<int>(geometry.SummaryBelow ? Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap : Qt::AlignRight | Qt::AlignVCenter),
 							 Panel.summary());
 		}
 		if (hasFocus()) {

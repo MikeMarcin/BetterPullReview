@@ -339,12 +339,12 @@ namespace {
 	/// read without colour.
 	void test_weights_and_the_if_minor_corner()
 	{
-		using W                 = qt::feedback_mark_weight;
-		using E                 = qt::feedback_mark_emphasis;
-		constexpr auto normal   = E{ };
-		constexpr auto heavy    = E{ .Weight = W::blocking };
-		constexpr auto light    = E{ .Weight = W::non_blocking };
-		const auto     cornered = [](E aEmphasis) {
+		using mark_weight       = qt::feedback_mark_weight;
+		using mark_emphasis     = qt::feedback_mark_emphasis;
+		constexpr auto normal   = mark_emphasis{ };
+		constexpr auto heavy    = mark_emphasis{ .Weight = mark_weight::blocking };
+		constexpr auto light    = mark_emphasis{ .Weight = mark_weight::non_blocking };
+		const auto     cornered = [](mark_emphasis aEmphasis) {
 			aEmphasis.IfMinor = true;
 			return aEmphasis;
 		};
@@ -430,7 +430,7 @@ namespace {
 		}
 		// Rails: 4 px solid when blocking, 2 px solid, 2 px dashed; if-minor
 		// leaves a rail as its weight draws it.
-		const auto paint_rail = [](const E aEmphasis) {
+		const auto paintRail = [](const mark_emphasis aEmphasis) {
 			auto image = QImage{ 8, 60, QImage::Format_ARGB32_Premultiplied };
 			image.fill(Qt::white);
 			auto painter = QPainter{ &image };
@@ -438,8 +438,8 @@ namespace {
 			painter.end();
 			return image;
 		};
-		const auto rail = [&paint_rail](const E aEmphasis) {
-			const auto image  = paint_rail(aEmphasis);
+		const auto rail = [&paintRail](const mark_emphasis aEmphasis) {
+			const auto image  = paintRail(aEmphasis);
 			auto       inked  = 0;
 			auto       gaps   = 0;
 			auto       wasInk = true;
@@ -460,26 +460,26 @@ namespace {
 		expect(blockingGaps == 0 && softGaps == 0 && softInk == 54, "blocking and normal rails are solid");
 		expect(dashGaps >= 5 && dashInk < softInk, "non-blocking's rail is dashed, lighter than solid");
 		for (const auto weight : { normal, heavy, light }) {
-			expect(paint_rail(cornered(weight)) == paint_rail(weight), "if-minor does not change a rail");
+			expect(paintRail(cornered(weight)) == paintRail(weight), "if-minor does not change a rail");
 		}
 	}
 
 	void test_names_follow_the_written_decorations()
 	{
-		using W             = qt::feedback_mark_weight;
+		using mark_weight   = qt::feedback_mark_weight;
 		const auto blocking = qt::feedback_body_mark_of("issue (blocking): LightScale ignores the view.");
-		expect(blocking.Label == core::feedback_label::issue && blocking.Emphasis == qt::feedback_mark_emphasis{ .Weight = W::blocking } && blocking.Name == QStringLiteral("issue (blocking)"),
+		expect(blocking.Label == core::feedback_label::issue && blocking.Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::blocking } && blocking.Name == QStringLiteral("issue (blocking)"),
 			   "an issue (blocking) body has a filled issue mark named issue (blocking)");
 		expect(qt::feedback_post_name(QStringLiteral("tbutler"), blocking) == QStringLiteral("tbutler, issue (blocking)"), "a post is named with its author first");
 		// [[BPR-1083]] v004: several decorations ride one label and custom
 		// ones are an organisation's own; every one is named as written.
 		const auto several = qt::feedback_body_mark_of("nitpick (if-minor, non-blocking, security): spacing");
-		expect(several.Name == QStringLiteral("nitpick (if-minor, non-blocking, security)") && several.Emphasis == qt::feedback_mark_emphasis{ .Weight = W::non_blocking, .IfMinor = true },
+		expect(several.Name == QStringLiteral("nitpick (if-minor, non-blocking, security)") && several.Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::non_blocking, .IfMinor = true },
 			   "every decoration is named in written order, and non-blocking with if-minor is the open mark with the corner");
 		const auto custom = qt::feedback_body_mark_of("note (Security, ux, SECURITY, Blocking): fine");
-		expect(custom.Name == QStringLiteral("note (Security, ux, blocking)") && custom.Emphasis == qt::feedback_mark_emphasis{ .Weight = W::blocking },
+		expect(custom.Name == QStringLiteral("note (Security, ux, blocking)") && custom.Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::blocking },
 			   "custom decorations keep their spelling, a repeat is named once, a standard one in its canonical spelling");
-		expect(qt::feedback_body_mark_of("nitpick (non-blocking): spacing").Emphasis == qt::feedback_mark_emphasis{ .Weight = W::non_blocking }
+		expect(qt::feedback_body_mark_of("nitpick (non-blocking): spacing").Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::non_blocking }
 				   && qt::feedback_body_mark_of("suggestion (if-minor): rename").Emphasis == qt::feedback_mark_emphasis{ .IfMinor = true }
 				   && qt::feedback_body_mark_of("issue (blocking, non-blocking): both").Emphasis == qt::feedback_mark_emphasis{ }
 				   && qt::feedback_body_mark_of("todo: add a test").Emphasis == qt::feedback_mark_emphasis{ }
@@ -493,7 +493,7 @@ namespace {
 			expect(!none.Label.has_value() && none.Name.isEmpty(), "plain, unknown, malformed and empty-subject bodies get no mark");
 		}
 		expect(qt::feedback_post_name(QStringLiteral("aleks"), { }) == QStringLiteral("aleks"), "a plain post is named by its author alone");
-		expect(qt::feedback_mark_emphasis_words({ .Weight = W::non_blocking, .IfMinor = true }) == QStringLiteral(" (non-blocking, if-minor)") && qt::feedback_mark_emphasis_words({ }).isEmpty(),
+		expect(qt::feedback_mark_emphasis_words({ .Weight = mark_weight::non_blocking, .IfMinor = true }) == QStringLiteral(" (non-blocking, if-minor)") && qt::feedback_mark_emphasis_words({ }).isEmpty(),
 			   "the preview's words for an emphasis");
 		const auto description = core::definition_of(core::feedback_label::issue).Description;
 		expect(qt::feedback_label_description(core::feedback_label::issue) == QString::fromUtf8(description.data(), static_cast<qsizetype>(description.size())),

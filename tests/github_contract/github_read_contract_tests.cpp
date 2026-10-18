@@ -45,9 +45,9 @@ namespace {
 
 	struct fixture_json_options : glz::opts
 	{
-		bool escape_control_characters    = true;
-		bool validate_skipped             = true;
-		bool validate_trailing_whitespace = true;
+		bool escape_control_characters    = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_skipped             = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_trailing_whitespace = true; // NOLINT(readability-identifier-naming): Glaze option names.
 		constexpr fixture_json_options()
 		{
 			null_terminated       = false;
@@ -629,7 +629,6 @@ namespace {
 		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
-			break;
 		case read_operation::list_branch_rules:
 		case read_operation::get_branch_protection:
 			break;
@@ -2013,8 +2012,8 @@ namespace {
 	auto test_glaze_anonymous_comment_normalization() -> void
 	{
 		auto recording = load_recording("github-com", server_contract::github_com);
-		std::erase_if(recording.Responses, [](const auto& response) {
-			return response.Operation == read_operation::get_viewer_identity || response.Operation == read_operation::list_review_threads;
+		std::erase_if(recording.Responses, [](const auto& aResponse) {
+			return aResponse.Operation == read_operation::get_viewer_identity || aResponse.Operation == read_operation::list_review_threads;
 		});
 		const auto inlineResponse = recording.Responses.size();
 		recording.Responses.push_back({ .Operation = read_operation::list_review_comments,

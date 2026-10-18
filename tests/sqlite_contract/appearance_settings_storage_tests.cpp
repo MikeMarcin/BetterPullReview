@@ -802,8 +802,9 @@ namespace {
 			"UPDATE appearance_settings SET palette_document = 'invalid'",
 			"UPDATE appearance_settings SET mode = 'chartreuse'",
 			"UPDATE appearance_settings SET ui_point_size = 1",
-			"PRAGMA ignore_check_constraints = ON;"
-			"UPDATE appearance_settings SET palette_stored = 2",
+			// This mutation needs both statements in one sqlite3_exec call.
+			("PRAGMA ignore_check_constraints = ON;"
+			 "UPDATE appearance_settings SET palette_stored = 2"),
 		};
 		for (std::size_t index = 0U; index < mutations.size(); ++index) {
 			const auto path = scratch.file("v6-bad-" + std::to_string(index) + ".sqlite3");

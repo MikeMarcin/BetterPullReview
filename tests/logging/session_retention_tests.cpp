@@ -150,7 +150,8 @@ namespace {
 	{
 		quill_log log{ aRoot, { .FileBytes = 1400U, .TotalBytes = 8400U, .Files = 8U } };
 		expect(log.status() == status::available, "concurrent process admitted");
-		std::cout << "ready" << std::endl;
+		std::cout << "ready" << '\n'
+				  << std::flush;
 		std::string command;
 		std::getline(std::cin, command);
 		for (std::uint64_t index = 1U; index <= 30U; ++index) {
@@ -167,7 +168,8 @@ namespace {
 		expect(log.status() == status::available, "native recovery logger admitted");
 		expect(log.record({ .Request = 1219U }) == status::available, "pre-failure record admitted");
 		expect(log.flush_for_export(false).has_value(), "pre-failure record flushed");
-		std::cout << "flushed" << std::endl;
+		std::cout << "flushed" << '\n'
+				  << std::flush;
 		std::string command;
 		std::getline(std::cin, command);
 		if (command == "failure") {
@@ -176,7 +178,8 @@ namespace {
 			}
 			log.close();
 			expect(log.status() == status::unavailable, "native exhausted volume reports unavailable");
-			std::cout << "unavailable" << std::endl;
+			std::cout << "unavailable" << '\n'
+					  << std::flush;
 		} else {
 			log.close();
 			expect(log.status() == status::available, "restarted native logger drains normally");

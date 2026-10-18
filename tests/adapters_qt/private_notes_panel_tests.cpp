@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 	QApplication                         app{ argc, argv };
 	qt::private_notes_panel              panel;
 	std::vector<qt::private_note_intent> intents;
-	panel.set_dispatch([&](auto intent) { intents.push_back(std::move(intent)); });
+	panel.set_dispatch([&](auto aIntent) { intents.push_back(std::move(aIntent)); });
 	panel.present({ .Scope = 7, .Available = true });
 	expect(!panel.new_file_action()->isEnabled(), "no selected file offers no file note");
 	panel.new_review_action()->trigger();

@@ -250,16 +250,20 @@ namespace {
 
 // The replaceable global allocation functions. The array and no-throw forms
 // call these; the aligned forms keep the library's own pairing.
+// SDK declarations use vendor parameter names; the replacements keep the project names.
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 auto operator new(const std::size_t aBytes) -> void*
 {
 	return allocate(aBytes);
 }
 
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* aMemory) noexcept
 {
 	std::free(aMemory);
 }
 
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* aMemory, std::size_t) noexcept
 {
 	std::free(aMemory);

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_NETWORK_ISOLATION_DESIGNATED_LIVE_IDENTITY_JSON_HPP
+#define BPR_TESTS_NETWORK_ISOLATION_DESIGNATED_LIVE_IDENTITY_JSON_HPP
 
 #include "designated_live_mutation_gate.hpp"
 
@@ -16,8 +17,8 @@ namespace bpr::tests::network_isolation::identity_json {
 	using object = std::map<std::string, glz::raw_json, std::less<>>;
 	struct options : glz::opts
 	{
-		bool validate_skipped             = true;
-		bool validate_trailing_whitespace = true;
+		bool validate_skipped             = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_trailing_whitespace = true; // NOLINT(readability-identifier-naming): Glaze option names.
 		constexpr options() { null_terminated = false; }
 	};
 	template <typename Value>
@@ -93,3 +94,5 @@ namespace bpr::tests::network_isolation {
 		};
 	}
 }
+
+#endif

@@ -1540,7 +1540,7 @@ namespace bpr::application {
 			}
 		}
 		const auto root  = bounded_json_parser{ aJson }.parse();
-		const auto exact = [](const json_value& v, std::initializer_list<std::string_view> keys) { return v.Kind == json_kind::object_value && v.Members.size() == keys.size() && std::ranges::all_of(keys, [&](auto key) { return member(v, key) != nullptr; }); };
+		const auto exact = [](const json_value& aV, std::initializer_list<std::string_view> aKeys) { return aV.Kind == json_kind::object_value && aV.Members.size() == aKeys.size() && std::ranges::all_of(aKeys, [&](auto aKey) { return member(aV, aKey) != nullptr; }); };
 		if (!root) {
 			return std::nullopt;
 		}
@@ -1555,12 +1555,12 @@ namespace bpr::application {
 			}
 			return *text;
 		};
-		const auto refs = [&](const json_value* v) -> std::optional<std::vector<std::string>> {
-			if (!v || v->Kind != json_kind::array_value || v->Elements.size() > 8) {
+		const auto refs = [&](const json_value* aV) -> std::optional<std::vector<std::string>> {
+			if (!aV || aV->Kind != json_kind::array_value || aV->Elements.size() > 8) {
 				return std::nullopt;
 			}
 			std::vector<std::string> result;
-			for (const auto& item : v->Elements) {
+			for (const auto& item : aV->Elements) {
 				if (item.Kind != json_kind::string_value || std::ranges::find(aSources, item.Text, &writing_source::Id) == aSources.end() || std::ranges::find(result, item.Text) != result.end()) {
 					return std::nullopt;
 				}
@@ -1828,33 +1828,33 @@ namespace bpr::application {
 			}
 		};
 		template <typename TSink>
-		void encode_supplement_into(TSink& result, const core::agent_context_supplement& aSupplement)
+		void encode_supplement_into(TSink& aResult, const core::agent_context_supplement& aSupplement)
 		{
-			append_number(result, "schema", aSupplement.SchemaVersion);
+			append_number(aResult, "schema", aSupplement.SchemaVersion);
 			append_number(
-				result,
+				aResult,
 				"application_session",
 				aSupplement.ApplicationSession.value());
-			append_number(result, "session", aSupplement.Session.Id.value());
-			append_number(result, "profile", aSupplement.Session.Profile.value());
+			append_number(aResult, "session", aSupplement.Session.Id.value());
+			append_number(aResult, "profile", aSupplement.Session.Profile.value());
 			append_number(
-				result, "host", aSupplement.Session.Binding.Host.value());
+				aResult, "host", aSupplement.Session.Binding.Host.value());
 			append_number(
-				result,
+				aResult,
 				"repository",
 				aSupplement.Session.Binding.Repository.value());
 			append_number(
-				result,
+				aResult,
 				"pull_request",
 				aSupplement.Session.Binding.PullRequest.value());
-			append_field(result, "pull_request_url", aSupplement.PullRequestUrl);
+			append_field(aResult, "pull_request_url", aSupplement.PullRequestUrl);
 			// The one position the reviewer's typed question occupies. Written
 			// unconditionally, and empty when the launch is not a chat turn, so a
 			// reader never has to decide whether a missing line means "no question"
 			// or "a question this build forgot". Written once, here, because this
 			// is the supplement's whole wire form: a question placed in the framing
 			// as well would reach the agent twice and it would have been asked once.
-			append_field(result, "chat_message", aSupplement.Message);
+			append_field(aResult, "chat_message", aSupplement.Message);
 			// BPR-0533: the one position the asked-for comment-workshop operation
 			// occupies. Written unconditionally and empty when the launch is not a
 			// workshop request, for the reason the message above is: a reader must
@@ -1863,7 +1863,7 @@ namespace bpr::application {
 			// than the enumerator's number, so a reordering of the closed set
 			// cannot silently rename what was asked for.
 			append_field(
-				result,
+				aResult,
 				"workshop_operation",
 				aSupplement.Operation
 					? std::string{ core::stable_name(*aSupplement.Operation) }
@@ -1876,198 +1876,198 @@ namespace bpr::application {
 			// The core admits guidance only beside an operation, so a reader
 			// that sees these lines has already seen a non-empty operation.
 			if (aSupplement.FeedbackGuidance) {
-				append_field(result, "feedback_guidance.source", core::stable_name(aSupplement.FeedbackGuidance->Source));
-				append_field(result, "feedback_guidance.version", aSupplement.FeedbackGuidance->Version);
-				append_field(result, "feedback_guidance.text", aSupplement.FeedbackGuidance->Text);
+				append_field(aResult, "feedback_guidance.source", core::stable_name(aSupplement.FeedbackGuidance->Source));
+				append_field(aResult, "feedback_guidance.version", aSupplement.FeedbackGuidance->Version);
+				append_field(aResult, "feedback_guidance.text", aSupplement.FeedbackGuidance->Text);
 			}
 			append_field(
-				result,
+				aResult,
 				"base",
 				core::canonical_hex(aSupplement.Session.Binding.BaseOid).view());
 			append_field(
-				result,
+				aResult,
 				"head",
 				core::canonical_hex(aSupplement.Session.Binding.HeadOid).view());
 			append_number(
-				result,
+				aResult,
 				"left_epoch",
 				aSupplement.Session.Binding.LeftEpoch.value());
 			append_number(
-				result,
+				aResult,
 				"right_epoch",
 				aSupplement.Session.Binding.RightEpoch.value());
 
 			append_number(
-				result,
+				aResult,
 				"previous_upload.present",
 				aSupplement.PreviousUpload.has_value() ? 1 : 0);
 			if (aSupplement.PreviousUpload) {
 				append_field(
-					result,
+					aResult,
 					"previous_upload.value",
 					core::canonical_hex(*aSupplement.PreviousUpload).view());
 			}
 			append_number(
-				result,
+				aResult,
 				"last_reviewed_head.present",
 				aSupplement.LastReviewedHead.has_value() ? 1 : 0);
 			if (aSupplement.LastReviewedHead) {
 				append_field(
-					result,
+					aResult,
 					"last_reviewed_head.value",
 					core::canonical_hex(*aSupplement.LastReviewedHead).view());
 			}
 
-			append_number(result, "file.count", aSupplement.Files.size());
+			append_number(aResult, "file.count", aSupplement.Files.size());
 			for (auto index = std::size_t{ 0U }; index < aSupplement.Files.size(); ++index) {
 				const auto  prefix = "file." + std::to_string(index);
 				const auto& file   = aSupplement.Files[index];
-				append_field(result, prefix + ".identity", hex_identity(file.File));
-				append_field(result, prefix + ".material", hex_identity(file.Material));
-				append_field(result, prefix + ".path", file.Path);
+				append_field(aResult, prefix + ".identity", hex_identity(file.File));
+				append_field(aResult, prefix + ".material", hex_identity(file.Material));
+				append_field(aResult, prefix + ".path", file.Path);
 				append_number(
-					result, prefix + ".read", static_cast<std::uint8_t>(file.Read));
+					aResult, prefix + ".read", static_cast<std::uint8_t>(file.Read));
 				append_number(
-					result,
+					aResult,
 					prefix + ".changed_since_review",
 					file.ChangedSinceReview ? 1 : 0);
-				append_number(result, prefix + ".accepted", file.Accepted ? 1 : 0);
-				append_number(result, prefix + ".excluded", file.Excluded ? 1 : 0);
+				append_number(aResult, prefix + ".accepted", file.Accepted ? 1 : 0);
+				append_number(aResult, prefix + ".excluded", file.Excluded ? 1 : 0);
 			}
 
-			append_number(result, "defect.count", aSupplement.Defects.size());
+			append_number(aResult, "defect.count", aSupplement.Defects.size());
 			for (auto index = std::size_t{ 0U }; index < aSupplement.Defects.size(); ++index) {
 				const auto  prefix = "defect." + std::to_string(index);
 				const auto& defect = aSupplement.Defects[index];
-				append_field(result, prefix + ".file", hex_identity(defect.File));
+				append_field(aResult, prefix + ".file", hex_identity(defect.File));
 				append_number(
-					result, prefix + ".conversation", defect.Conversation.value());
+					aResult, prefix + ".conversation", defect.Conversation.value());
 				append_number(
-					result, prefix + ".id", defect.History.Defect.Id.value());
+					aResult, prefix + ".id", defect.History.Defect.Id.value());
 				append_source_line(
-					result, prefix + ".anchor", defect.History.Defect.Anchor);
+					aResult, prefix + ".anchor", defect.History.Defect.Anchor);
 				append_source_line(
-					result, prefix + ".original_anchor", defect.History.OriginalAnchor);
+					aResult, prefix + ".original_anchor", defect.History.OriginalAnchor);
 				append_number(
-					result,
+					aResult,
 					prefix + ".severity",
 					static_cast<std::uint8_t>(defect.History.Defect.Severity));
 				append_number(
-					result,
+					aResult,
 					prefix + ".category",
 					static_cast<std::uint8_t>(defect.History.Defect.Category));
 				append_number(
-					result,
+					aResult,
 					prefix + ".lifecycle",
 					static_cast<std::uint8_t>(defect.History.Defect.State));
 				append_number(
-					result,
+					aResult,
 					prefix + ".availability",
 					static_cast<std::uint8_t>(defect.History.Availability));
 			}
 
 			append_number(
-				result, "selection.present", aSupplement.Selection.has_value() ? 1 : 0);
+				aResult, "selection.present", aSupplement.Selection.has_value() ? 1 : 0);
 			if (aSupplement.Selection) {
 				const auto& context = *aSupplement.Selection;
-				append_field(result, "selection.file", hex_identity(context.File));
+				append_field(aResult, "selection.file", hex_identity(context.File));
 				append_field(
-					result,
+					aResult,
 					"selection.comparison",
 					hex_identity(context.Selection.Comparison));
 				append_number(
-					result,
+					aResult,
 					"selection.kind",
 					static_cast<std::uint8_t>(context.Selection.Kind));
 				append_source_line(
-					result, "selection.preferred", context.Selection.PreferredLine);
+					aResult, "selection.preferred", context.Selection.PreferredLine);
 				append_optional_identity(
-					result, "selection.segment", context.Selection.Segment);
+					aResult, "selection.segment", context.Selection.Segment);
 				append_optional_identity(
-					result, "selection.group", context.Selection.Group);
+					aResult, "selection.group", context.Selection.Group);
 				append_number(
-					result,
+					aResult,
 					"selection.mapping_confidence",
 					static_cast<std::uint8_t>(context.Confidence));
 				append_number(
-					result,
+					aResult,
 					"selection.source_text.present",
 					context.SelectedSourceText.has_value() ? 1 : 0);
 				if (context.SelectedSourceText) {
 					append_field(
-						result,
+						aResult,
 						"selection.source_text.value",
 						*context.SelectedSourceText);
 				}
-				append_number(result, "selection.segment.count", context.Segments.size());
+				append_number(aResult, "selection.segment.count", context.Segments.size());
 				for (auto index = std::size_t{ 0U }; index < context.Segments.size(); ++index) {
 					const auto  prefix  = "selection.segment." + std::to_string(index);
 					const auto& segment = context.Segments[index];
-					append_field(result, prefix + ".id", hex_identity(segment.Id));
+					append_field(aResult, prefix + ".id", hex_identity(segment.Id));
 					append_number(
-						result, prefix + ".kind", static_cast<std::uint8_t>(segment.Kind));
-					append_number(result, prefix + ".left.begin", segment.Left.Begin);
-					append_number(result, prefix + ".left.end", segment.Left.End);
-					append_number(result, prefix + ".right.begin", segment.Right.Begin);
-					append_number(result, prefix + ".right.end", segment.Right.End);
-					append_optional_identity(result, prefix + ".group", segment.Group);
+						aResult, prefix + ".kind", static_cast<std::uint8_t>(segment.Kind));
+					append_number(aResult, prefix + ".left.begin", segment.Left.Begin);
+					append_number(aResult, prefix + ".left.end", segment.Left.End);
+					append_number(aResult, prefix + ".right.begin", segment.Right.Begin);
+					append_number(aResult, prefix + ".right.end", segment.Right.End);
+					append_optional_identity(aResult, prefix + ".group", segment.Group);
 				}
-				append_number(result, "selection.group.count", context.Groups.size());
+				append_number(aResult, "selection.group.count", context.Groups.size());
 				for (auto index = std::size_t{ 0U }; index < context.Groups.size(); ++index) {
 					const auto  prefix = "selection.group." + std::to_string(index);
 					const auto& group  = context.Groups[index];
-					append_field(result, prefix + ".id", hex_identity(group.Id));
-					append_number(result, prefix + ".members.begin", group.Members.Begin);
-					append_number(result, prefix + ".members.end", group.Members.End);
-					append_number(result, prefix + ".left.begin", group.Left.Begin);
-					append_number(result, prefix + ".left.end", group.Left.End);
-					append_number(result, prefix + ".right.begin", group.Right.Begin);
-					append_number(result, prefix + ".right.end", group.Right.End);
-					append_number(result, prefix + ".first.left", group.First.Left);
-					append_number(result, prefix + ".first.right", group.First.Right);
-					append_number(result, prefix + ".last.left", group.Last.Left);
-					append_number(result, prefix + ".last.right", group.Last.Right);
+					append_field(aResult, prefix + ".id", hex_identity(group.Id));
+					append_number(aResult, prefix + ".members.begin", group.Members.Begin);
+					append_number(aResult, prefix + ".members.end", group.Members.End);
+					append_number(aResult, prefix + ".left.begin", group.Left.Begin);
+					append_number(aResult, prefix + ".left.end", group.Left.End);
+					append_number(aResult, prefix + ".right.begin", group.Right.Begin);
+					append_number(aResult, prefix + ".right.end", group.Right.End);
+					append_number(aResult, prefix + ".first.left", group.First.Left);
+					append_number(aResult, prefix + ".first.right", group.First.Right);
+					append_number(aResult, prefix + ".last.left", group.Last.Left);
+					append_number(aResult, prefix + ".last.right", group.Last.Right);
 					append_number(
-						result, prefix + ".kind", static_cast<std::uint8_t>(group.Kind));
-					append_number(result, prefix + ".added", group.AddedLines);
-					append_number(result, prefix + ".deleted", group.DeletedLines);
+						aResult, prefix + ".kind", static_cast<std::uint8_t>(group.Kind));
+					append_number(aResult, prefix + ".added", group.AddedLines);
+					append_number(aResult, prefix + ".deleted", group.DeletedLines);
 					append_number(
-						result, prefix + ".replaced_left", group.ReplacedLeftLines);
+						aResult, prefix + ".replaced_left", group.ReplacedLeftLines);
 					append_number(
-						result, prefix + ".replaced_right", group.ReplacedRightLines);
+						aResult, prefix + ".replaced_right", group.ReplacedRightLines);
 				}
 			}
 
-			append_number(result, "note.count", aSupplement.Notes.size());
+			append_number(aResult, "note.count", aSupplement.Notes.size());
 			for (auto index = std::size_t{ 0U }; index < aSupplement.Notes.size(); ++index) {
 				const auto  prefix = "note." + std::to_string(index);
 				const auto& note   = aSupplement.Notes[index];
-				append_optional_identity(result, prefix + ".file", note.File);
+				append_optional_identity(aResult, prefix + ".file", note.File);
 				append_number(
-					result,
+					aResult,
 					prefix + ".comparison.present",
 					note.Comparison.has_value() ? 1 : 0);
 				if (note.Comparison) {
 					append_field(
-						result,
+						aResult,
 						prefix + ".comparison.value",
 						hex_identity(*note.Comparison));
 				}
-				append_field(result, prefix + ".text", note.Text);
+				append_field(aResult, prefix + ".text", note.Text);
 			}
 
-			append_number(result, "draft.count", aSupplement.Drafts.size());
+			append_number(aResult, "draft.count", aSupplement.Drafts.size());
 			for (auto index = std::size_t{ 0U }; index < aSupplement.Drafts.size(); ++index) {
 				const auto  prefix = "draft." + std::to_string(index);
 				const auto& draft  = aSupplement.Drafts[index];
 				append_number(
-					result,
+					aResult,
 					prefix + ".anchor.present",
 					draft.Anchor.has_value() ? 1 : 0);
 				if (draft.Anchor) {
-					append_source_line(result, prefix + ".anchor", *draft.Anchor);
+					append_source_line(aResult, prefix + ".anchor", *draft.Anchor);
 				}
-				append_field(result, prefix + ".text", draft.Text);
+				append_field(aResult, prefix + ".text", draft.Text);
 			}
 		}
 

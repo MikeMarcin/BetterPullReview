@@ -376,9 +376,9 @@ namespace {
 					  << " identity=" << window.identity_label()->isVisible() << '\n';
 		}
 
-		constexpr auto page   = "https://github.com/google/UIforETW/pull/74";
-		auto           opened = 0U;
-		const auto     check  = [&](const char* aGesture) {
+		auto       opened = 0U;
+		const auto check  = [&](const char* aGesture) {
+			constexpr auto page = "https://github.com/google/UIforETW/pull/74";
 			++opened;
 			const auto& launches = platform_launches();
 			if (aAttended) {

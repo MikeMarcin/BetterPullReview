@@ -15,20 +15,20 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
-	auto target(const qt::prose_capture& c) -> core::writing_target
+	auto target(const qt::prose_capture& aC) -> core::writing_target
 	{
 		const auto t = tests::review_tour_fixture();
-		return { .Owner = t.Owner, .Draft = t.Id, .Hook = core::writing_hook::problem, .Window = { core::bpr_profile_id{ 1 }, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 1 }, .HookRevision = 1, .TextGeneration = c.TextGeneration, .EditorGeneration = c.EditorGeneration };
+		return { .Owner = t.Owner, .Draft = t.Id, .Hook = core::writing_hook::problem, .Window = { core::bpr_profile_id{ 1 }, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, .Session = core::application_session_id{ 1 }, .Agent = core::agent_profile_id{ 1 }, .HookRevision = 1, .TextGeneration = aC.TextGeneration, .EditorGeneration = aC.EditorGeneration };
 	}
-	auto rewrite(qt::scoped_prose_editor& e, std::string text) -> bool
+	auto rewrite(qt::scoped_prose_editor& aE, std::string aText) -> bool
 	{
-		const auto c = e.capture();
+		const auto c = aE.capture();
 		expect(c.has_value(), "capture maps Qt UTF-16 to canonical bytes");
 		core::scoped_writing_state state;
 		const auto                 request = state.begin(target(*c), c->Raw, c->Selection);
 		expect(request.has_value(), "captured native request accepted");
-		auto result = state.complete(request->Id, request->Target, e.raw(), std::move(text));
-		return result && e.apply(*result);
+		auto result = state.complete(request->Id, request->Target, aE.raw(), std::move(aText));
+		return result && aE.apply(*result);
 	}
 	void drain() { QApplication::processEvents(); }
 	void native_history()
@@ -143,10 +143,10 @@ namespace {
 		e.show();
 		e.setFocus();
 		e.present("alpha beta gamma");
-		const auto place = [&](int anchor, int caret) {
+		const auto place = [&](int aNchor, int aCaret) {
 			auto cursor = e.textCursor();
-			cursor.setPosition(anchor);
-			cursor.setPosition(caret, QTextCursor::KeepAnchor);
+			cursor.setPosition(aNchor);
+			cursor.setPosition(aCaret, QTextCursor::KeepAnchor);
 			e.setTextCursor(cursor);
 		};
 		place(2, 2);
@@ -205,7 +205,7 @@ namespace {
 		unsigned                         calls         = 0;
 		unsigned                         cancellations = 0;
 		std::optional<qt::prose_capture> captured;
-		editor.set_writing_dispatch([&](core::writing_hook hook, qt::prose_capture c) {expect(hook==core::writing_hook::problem,"clicked field owns request");++calls;captured=std::move(c); }, [&] { ++cancellations; });
+		editor.set_writing_dispatch([&](core::writing_hook aHook, qt::prose_capture aC) {expect(aHook==core::writing_hook::problem,"clicked field owns request");++calls;captured=std::move(aC); }, [&] { ++cancellations; });
 		auto* prose  = editor.writing_editor(core::writing_hook::problem);
 		auto  cursor = prose->textCursor();
 		cursor.setPosition(2);
@@ -219,7 +219,7 @@ namespace {
 		editor.present(p);
 		expect(calls == 1, "navigation and projection never invoke assistance");
 		std::string persisted;
-		editor.set_dispatch([&](core::tour_command cmd) { persisted = cmd.Text; }, [](qt::tour_editor_action) { });
+		editor.set_dispatch([&](core::tour_command aCmd) { persisted = aCmd.Text; }, [](qt::tour_editor_action) { });
 		editor.show_problem();
 		prose->moveCursor(QTextCursor::End);
 		prose->insertPlainText("x");

@@ -1336,7 +1336,7 @@ namespace {
 			}
 			const auto operation = identity<core::epoch_operation_id>(static_cast<std::uint8_t>(0xc0U + course));
 			// Course 2 omits the root tree; course 3 supplies a blob as the commit.
-			const auto bytes = course == 2U ? makePack(headText + "\n") : course == 3U ? makePack(blobText + "\n" + treeText + "\n")
+			const auto bytes = course == 2U ? makePack(headText + "\n") : course == 3U ? makePack(std::string{ blobText }.append("\n").append(treeText).append("\n"))
 																					   : sparsePack;
 			auto       sink  = (*opened)->create_pack_sink(operation, bytes.size(), { });
 			require(sink.has_value(), "create sparse fixture spool");

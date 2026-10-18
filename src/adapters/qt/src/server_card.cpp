@@ -732,8 +732,8 @@ namespace bpr::qt {
 			row->hide();
 			row->deleteLater();
 		}
-		auto* const list   = static_cast<QVBoxLayout*>(CliAccountList->layout());
-		const auto  using_ = [this](const server_card_cli_account& aAccount) {
+		auto* const list     = static_cast<QVBoxLayout*>(CliAccountList->layout());
+		const auto  usedHere = [this](const server_card_cli_account& aAccount) {
 			return Presentation.State == server_card_state::connected && Presentation.Session.has_value() && aAccount.Profile.has_value()
 				&& Presentation.Session->Profile == *aAccount.Profile;
 		};
@@ -761,7 +761,7 @@ namespace bpr::qt {
 			layout->addWidget(name, 0, 1);
 			layout->addWidget(sentence, 1, 1);
 			layout->setColumnStretch(1, 1);
-			if (using_(account)) {
+			if (usedHere(account)) {
 				auto* const here = make_label(row, QStringLiteral("serverCardCliAccountUsedHere"), QStringLiteral("Used here"));
 				here->setAccessibleName(QStringLiteral("%1 is this profile's account").arg(login));
 				layout->addWidget(here, 0, 2, Qt::AlignRight | Qt::AlignTop);

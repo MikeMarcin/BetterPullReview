@@ -51,7 +51,7 @@ namespace {
 		expect(aCondition(), aMessage);
 	}
 
-	const auto freshnessNotice = QStringLiteral("Refresh failed. Showing previously loaded review data; freshness is unknown.");
+	constexpr auto freshnessNotice = QStringView{ u"Refresh failed. Showing previously loaded review data; freshness is unknown." };
 
 	auto visible_freshness_notice(qt::workbench_window& aWindow) -> bool
 	{
@@ -276,7 +276,7 @@ try {
 	app::github_application* owner    = nullptr;
 	bool                     terminal = false;
 	auto                     desktop  = access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options,
-															  [&](auto result) { terminal = true; if (result) { owner = *result; } });
+															  [&](auto aResult) { terminal = true; if (aResult) { owner = *aResult; } });
 	wait_for([&] { return terminal; }, "desktop startup terminal");
 	expect(owner != nullptr, "desktop admitted");
 	diagnosticOwner = owner;

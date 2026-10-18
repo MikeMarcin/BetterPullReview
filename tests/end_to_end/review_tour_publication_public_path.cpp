@@ -420,7 +420,7 @@ auto main(int argc, char** argv) -> int
 			}
 			auto&      activeWindow  = application->window();
 			auto&      activeEditor  = *activeWindow.tour_editor();
-			const auto activeButton  = [&](const char* name) { return activeEditor.findChild<QPushButton*>(QString::fromUtf8(name)); };
+			const auto activeButton  = [&](const char* aName) { return activeEditor.findChild<QPushButton*>(QString::fromUtf8(aName)); };
 			auto*      activeStatus  = activeEditor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 			auto*      activePreview = activeEditor.publication_preview();
 			activeEditor.findChild<QCheckBox*>(QStringLiteral("tourDescriptionEdit"))->setChecked(false);
@@ -491,7 +491,7 @@ auto main(int argc, char** argv) -> int
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedCreates == 2 && server->StagedSubmits == 2 && server->StagedWrites == 14, "insertion creates one later batch then minimum navigation and original root edits");
 				expect(server->PreviousReviews.size() == 1 && server->PreviousReviews.front().Body.contains("Later batch insertion") && server->StagedWritePaths.back().ends_with("/reviews/501"), "route spans reviews and original index remains authoritative");
-				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 699 && c.Body == "Website reviewer discussion must survive."; }), "interruption preserves existing reply");
+				expect(std::ranges::any_of(server->PreviousComments, [](const auto& aC) { return aC.Id == 699 && aC.Body == "Website reviewer discussion must survive."; }), "interruption preserves existing reply");
 			}
 			auto& restoredWindow = application->window();
 			restored.outline()->setCurrentRow(0);
@@ -508,7 +508,7 @@ auto main(int argc, char** argv) -> int
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedCreates == 3 && server->StagedSubmits == 3 && server->StagedWrites == 20, "retarget creates only one replacement and minimal old-route edits");
-				expect(std::ranges::any_of(server->PreviousComments, [replacedId](const auto& c) { return c.Id == replacedId && c.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
+				expect(std::ranges::any_of(server->PreviousComments, [replacedId](const auto& aC) { return aC.Id == replacedId && aC.Body.contains("replacement stop"); }) && server->StagedComments.front().Body.contains("original discussion"), "old and new immutable subjects visibly link without deleting discussion");
 			}
 			restored.outline()->setCurrentRow(2);
 			restored.findChild<QAction*>(QStringLiteral("tourRemove"))->trigger();
@@ -520,7 +520,7 @@ auto main(int argc, char** argv) -> int
 			{
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3, "retirement edits membership/navigation without remote deletion");
-				expect(std::ranges::any_of(server->PreviousComments, [](const auto& c) { return c.Id == 699 && c.Body == "Website reviewer discussion must survive."; }), "retiring root comment preserves its website reply");
+				expect(std::ranges::any_of(server->PreviousComments, [](const auto& aC) { return aC.Id == 699 && aC.Body == "Website reviewer discussion must survive."; }), "retiring root comment preserves its website reply");
 			}
 			if (mode == "manual") {
 				const auto completed = *restored.shown().Draft;

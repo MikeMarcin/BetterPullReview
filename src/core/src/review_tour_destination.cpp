@@ -5,24 +5,24 @@ namespace bpr::core {
 	auto assess_tour_publication(const review_tour& aTour, std::span<const tour_destination_plan> aDestinations, bool aCompatibility) noexcept -> tour_publication_readiness
 	{
 		using state      = tour_publication_readiness;
-		const auto blank = [](std::string_view value) { return value.find_first_not_of(" \r\n\t") == std::string_view::npos; };
-		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& s) { return !ready(s) || (s.Suggestion && s.Preparation != tour_preparation::ready) || s.Preparation == tour_preparation::needs_attention || (aTour.ObservedHead && s.ReaffirmedHead != aTour.ObservedHead); })) {
+		const auto blank = [](std::string_view aValue) { return aValue.find_first_not_of(" \r\n\t") == std::string_view::npos; };
+		if (validate(aTour) != tour_refusal::none || aTour.ReadOnly || aTour.Remote || !aTour.Head.valid() || !aTour.Base.valid() || aTour.Stops.empty() || aTour.Stops.size() > 100 || blank(aTour.Problem) || blank(aTour.Solution) || std::ranges::any_of(aTour.Stops, [&](const auto& aS) { return !ready(aS) || (aS.Suggestion && aS.Preparation != tour_preparation::ready) || aS.Preparation == tour_preparation::needs_attention || (aTour.ObservedHead && aS.ReaffirmedHead != aTour.ObservedHead); })) {
 			return state::incomplete;
 		}
-		if (aDestinations.size() != aTour.Stops.size() || std::ranges::any_of(aDestinations, [](const auto& d) { return d.NeedsQualification || d.IncompatibleBody || d.Representation == tour_representation::unresolved; })) {
+		if (aDestinations.size() != aTour.Stops.size() || std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.NeedsQualification || aD.IncompatibleBody || aD.Representation == tour_representation::unresolved; })) {
 			return state::unavailable;
 		}
-		const bool fallback = std::ranges::any_of(aDestinations, [](const auto& d) { return d.RequiresCompatibility || !d.JoinsPendingReview; });
+		const bool fallback = std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.RequiresCompatibility || !aD.JoinsPendingReview; });
 		if (fallback && !aCompatibility) {
 			return state::compatibility_choice;
 		}
 		if (aCompatibility) {
-			if (std::ranges::any_of(aDestinations, [](const auto& d) { return d.Representation != tour_representation::conversation_permalink || !d.RequiresCompatibility; })) {
+			if (std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.Representation != tour_representation::conversation_permalink || !aD.RequiresCompatibility; })) {
 				return state::unavailable;
 			}
 			return state::compatibility_comments;
 		}
-		if (std::ranges::any_of(aDestinations, [](const auto& d) { return d.Representation != tour_representation::native_line; })) {
+		if (std::ranges::any_of(aDestinations, [](const auto& aD) { return aD.Representation != tour_representation::native_line; })) {
 			return state::unavailable;
 		}
 		return state::single_review;

@@ -362,7 +362,7 @@ namespace bpr::qt {
 		if (!aLoad || !std::ranges::all_of(aClips, valid_clip) || aClips[0].Playback != dif_playback::still) {
 			return { };
 		}
-		auto cache   = std::shared_ptr<dif_cache>{ new dif_cache };
+		auto cache   = std::make_shared<dif_cache>();
 		cache->Clips = aClips;
 		for (auto& clip : cache->Clips) {
 			clip.Sha256 = QByteArray{ clip.Sha256.constData(), clip.Sha256.size() };

@@ -436,7 +436,9 @@ namespace bpr::qt {
 					const auto baseline = shown.Box.top() + QFontMetricsF{ font() }.ascent() + 2.0;
 					auto       wave     = QPainterPath{ };
 					wave.moveTo(shown.Box.left(), baseline);
-					for (auto at = shown.Box.left(); at < shown.Box.right(); at += wave_period) {
+					const auto waveCount = static_cast<int>(std::ceil(shown.Box.width() / wave_period));
+					for (auto index = 0; index < waveCount; ++index) {
+						const auto at = shown.Box.left() + index * wave_period;
 						wave.quadTo(QPointF{ at + wave_period / 4.0, baseline - wave_height }, QPointF{ at + wave_period / 2.0, baseline });
 						wave.quadTo(QPointF{ at + 3.0 * wave_period / 4.0, baseline + wave_height }, QPointF{ at + wave_period, baseline });
 					}

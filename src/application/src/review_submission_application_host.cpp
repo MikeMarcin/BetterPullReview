@@ -209,14 +209,14 @@ namespace bpr::application {
 			}
 			if (aRecord->Operation == operation::discover_tours) {
 				auto pending = provider->pending_tours(aRecord->Stop.get_token());
-				if (pending && (pending->size() > maximum_review_mutation_recovery_records || std::ranges::any_of(*pending, [&](const auto& p) { return !valid(p) || !same_review_submission_identity(*p.Submission.LiveBinding, Binding); }))) {
+				if (pending && (pending->size() > maximum_review_mutation_recovery_records || std::ranges::any_of(*pending, [&](const auto& aP) { return !valid(aP) || !same_review_submission_identity(*aP.Submission.LiveBinding, Binding); }))) {
 					return refused(*aRecord, review_mutation_failure::undesignated_target, true);
 				}
 				return { aRecord->Context, std::move(pending) };
 			}
 			if (aRecord->Plan) {
 				auto result = aRecord->Operation == operation::publish_tour
-					? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& record) { return grant && grant->consume_child(record); })
+					? provider->publish_tour(*aRecord->Plan, aRecord->Stop.get_token(), [grant = aRecord->Grant](const auto& aChild) { return grant && grant->consume_child(aChild); })
 					: provider->reconcile_tour(*aRecord->Plan, aRecord->Stop.get_token());
 				if (result.Record && (!valid(*result.Record) || result.Record->Plan != *aRecord->Plan)) {
 					return refused(*aRecord, review_mutation_failure::unavailable, false);

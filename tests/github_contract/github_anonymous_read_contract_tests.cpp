@@ -702,9 +702,9 @@ namespace {
 
 	struct fixture_json_options : glz::opts
 	{
-		bool validate_skipped             = true;
-		bool validate_trailing_whitespace = true;
-		bool escape_control_characters    = true;
+		bool validate_skipped             = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_trailing_whitespace = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool escape_control_characters    = true; // NOLINT(readability-identifier-naming): Glaze option names.
 		constexpr fixture_json_options()
 		{
 			null_terminated       = false;
