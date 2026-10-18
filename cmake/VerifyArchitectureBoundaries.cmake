@@ -3306,10 +3306,10 @@ endif()
 if(
     NOT process_support_compact
         MATCHES
-            "if \\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item, std::move\\(execution->Result\\)\\);"
+            "if \\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; if \\(!Quarantined\\) \\{ observe\\(\\*item, lane_observation::quarantined\\); \\} Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item, std::move\\(execution->Result\\)\\);"
     OR NOT process_support_compact
         MATCHES
-            "reaped = reap_in_background\\(\\*execution\\); if \\(reaped\\) \\{ execution->AwaitingReap\\.reset\\(\\); \\} else \\{ abandon_unreaped_process\\(execution->AwaitingReap\\); \\} \\} \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = !reaped; Busy = false; \\}"
+            "reaped = reap_in_background\\(\\*execution\\); if \\(reaped\\) \\{ execution->AwaitingReap\\.reset\\(\\); \\} else \\{ abandon_unreaped_process\\(execution->AwaitingReap\\); observe\\(\\*item, lane_observation::abandoned\\); \\} \\} \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = !reaped; Busy = false; \\}"
 )
     message(
         FATAL_ERROR
@@ -3332,7 +3332,7 @@ endif()
 if(
     NOT process_support_compact
         MATCHES
-            "if \\( !aItem->Completed\\.wait_until\\( resultLock, completionDeadline, \\[&\\] \\{ return aItem->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; if \\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return TTraits::failure\\(lane_failure::reap_failure\\); \\}"
+            "if \\( !aItem->Completed\\.wait_until\\( resultLock, completionDeadline, \\[&\\] \\{ return aItem->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; if \\(Busy\\) \\{ if \\(!Quarantined\\) \\{ observe\\(\\*aItem, lane_observation::quarantined\\); \\} Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return TTraits::failure\\(lane_failure::reap_failure\\); \\}"
 )
     message(
         FATAL_ERROR

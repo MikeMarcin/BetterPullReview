@@ -1143,6 +1143,8 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
+			std::shared_ptr<github_insights_channel> Insights;
+
 			[[nodiscard]] auto dispatch(github_cli_process_request aRequest, std::stop_token aStop,
 										std::shared_ptr<cli_sensitive_bytes> aCapture = { }, cli_transient_credential aCredential = { },
 										cli_credential_environment aEnvironment = cli_credential_environment::github) -> github_cli_process_result
@@ -1173,7 +1175,6 @@ namespace bpr::adapters::github::detail {
 			github_cli_process_file_limits                       FileLimits;
 			std::mutex                                           WorkerMutex;
 			std::unique_ptr<process_worker>                      Worker;
-			std::shared_ptr<github_insights_channel>             Insights;
 		};
 
 		[[nodiscard]] auto make_qprocess_github_cli_process_runner(

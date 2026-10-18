@@ -17,7 +17,9 @@ namespace bpr::adapters::github::detail {
 				Observer->record(std::move(event));
 			}
 			Pending.clear();
-			Observer->select(Scope);
+			if (Scope.Host != 0) {
+				Observer->select(Scope);
+			}
 		} catch (...) { }
 	}
 	void github_insights_channel::observe(core::insights_event aEvent) noexcept

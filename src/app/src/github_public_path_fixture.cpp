@@ -3035,10 +3035,26 @@ namespace bpr::app::detail {
 				};
 			}
 
-			[[nodiscard]] auto perform_capability_probe(
+			[[nodiscard]] auto perform_capability_probe(const github_capability_probe_wire_request& aRequest, const std::stop_token aStop) -> github_capability_probe_wire_completion override
+			{
+				auto result = perform_capability_probe_impl(aRequest, aStop);
+				if (insights_channel()) {
+					if (const auto* success = std::get_if<github_capability_probe_wire_success>(&result)) {
+						wire_response response;
+						response.Status = success->Response.Status;
+						for (std::size_t index = 0; index < success->Response.RateLimitHeaderCount; ++index) {
+							const auto& header = success->Response.RateLimitHeaders[index];
+							response.Headers.push_back({ header.Name, header.Value });
+						}
+						insights_channel()->request(core::insights_resource::graphql, core::insights_category::other, &response);
+					}
+				}
+				return result;
+			}
+			[[nodiscard]] auto perform_capability_probe_impl(
 				const github_capability_probe_wire_request& aRequest,
 				const std::stop_token                       aStop)
-				-> github_capability_probe_wire_completion override
+				-> github_capability_probe_wire_completion
 			{
 				if (aStop.stop_requested()) {
 					return github_capability_probe_wire_cancelled{

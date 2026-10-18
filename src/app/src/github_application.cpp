@@ -1901,6 +1901,12 @@ namespace bpr::app {
 			{
 			}
 
+			void set_insights_channel(std::shared_ptr<adapters::github::detail::github_insights_channel> aChannel) override
+			{
+				github_wire_transport_port::set_insights_channel(aChannel);
+				Inner->set_insights_channel(std::move(aChannel));
+			}
+
 			[[nodiscard]] auto perform(
 				const adapters::github::detail::github_wire_request& aRequest,
 				std::stop_token                                      aStop)
@@ -15105,6 +15111,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						} else {
 							auto configuration = live_gh_cli_configuration();
 							auto process       = adapters::github::detail::make_github_cli_process_runner();
+							if (process && Profile->InsightsRecorder) {
+								auto channel = std::make_shared<adapters::github::detail::github_insights_channel>(Profile->InsightsRecorder, 0);
+								channel->bind(0);
+								process->set_insights_channel(std::move(channel));
+							}
 							if (!configuration) {
 								const auto available = gh_cli_executable_available();
 								if (!available) {

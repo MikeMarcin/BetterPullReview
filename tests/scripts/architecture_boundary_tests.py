@@ -2143,6 +2143,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "\t\t\t\tif (execution->AwaitingReap != nullptr) {\n"
             "\t\t\t\t\t{\n"
             "\t\t\t\t\t\tstd::lock_guard lock{ Mutex };\n"
+            "\t\t\t\t\t\tif (!Quarantined) {\n"
+            "\t\t\t\t\t\t\tobserve(*item, lane_observation::quarantined);\n"
+            "\t\t\t\t\t\t}\n"
             "\t\t\t\t\t\tQuarantined = true;\n"
             "\t\t\t\t\t}\n"
             "\t\t\t\t\tSlotAvailable.notify_all();\n"
@@ -2173,6 +2176,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "completion watchdog must predicate-check",
             header,
             "\t\t\t\t\tif (Busy) {\n"
+            "\t\t\t\t\t\tif (!Quarantined) {\n"
+            "\t\t\t\t\t\t\tobserve(*aItem, lane_observation::quarantined);\n"
+            "\t\t\t\t\t\t}\n"
             "\t\t\t\t\t\tQuarantined = true;\n"
             "\t\t\t\t\t}\n",
             "",

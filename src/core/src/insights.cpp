@@ -84,7 +84,7 @@ namespace bpr::core {
 			if (event.Kind == insights_event_kind::problem) {
 				result.ProblemsByCategory[category] += event.Count;
 			}
-			if (event.Scope != aScope) {
+			if (event.Scope != aScope && event.Kind != insights_event_kind::process) {
 				continue;
 			}
 			const auto hour = event.UnixSeconds >= aNow - 3600;
