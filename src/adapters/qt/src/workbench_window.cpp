@@ -626,10 +626,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1328]]. How long a press at a navigation bound says why
 		/// it did nothing.
 		constexpr int bounded_navigation_message_ms = 3000;
-#if defined(__APPLE__)
-		/// \brief Width the macOS window buttons occupy at the strip's left.
-		constexpr int traffic_light_inset = 78;
-#endif
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -1683,16 +1679,13 @@ namespace bpr::qt {
 		// bar's, so the name has the room they took.
 		// The platform inset comes first: on macOS the width the three window
 		// buttons occupy plus the gap Fork and Visual Studio Code leave before
-		// their first control; nothing elsewhere. A widget item rather than a
+		// their first control; nothing elsewhere ([[BPR-1596]]: one named value
+		// per platform, title_row_leading_inset). A widget item rather than a
 		// margin, because the toolbar layout lays its items from its own edge.
 		StripInset = new QWidget{ PrimaryToolbar };
 		StripInset->setObjectName(QStringLiteral("workbenchStripInset"));
 		StripInset->setFocusPolicy(Qt::NoFocus);
-#if defined(__APPLE__)
-		StripInset->setFixedWidth(traffic_light_inset);
-#else
-		StripInset->setFixedWidth(0);
-#endif
+		StripInset->setFixedWidth(title_row_leading_inset(current_title_row_platform()));
 		rowWidget(PrimaryToolbar, StripInset, QStringLiteral("workbenchStripInsetAction"));
 #if defined(_WIN32)
 		// [[BPR-0653]]. The Windows form of the title row, after Visual Studio
@@ -16185,6 +16178,14 @@ namespace bpr::qt {
 		if (HomeAction != nullptr) {
 			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
 		}
+#if defined(_WIN32)
+		// [[BPR-1596]]. The menu control stands first in the Windows row; left
+		// in the previous theme's ink it vanishes into the new ground and reads
+		// as an empty space before Home.
+		if (StripMenuButton != nullptr) {
+			StripMenuButton->setIcon(windows_menu_icon(ink));
+		}
+#endif
 		// [[BPR-1290]]. Next new reply's icon on the Comments tab row.
 		if (NextNewCommentAction != nullptr) {
 			NextNewCommentAction->setIcon(conversation_icon(conversation_glyph::next_new, ink));
