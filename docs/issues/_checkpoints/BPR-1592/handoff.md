@@ -1,4 +1,4 @@
-# BPR-1592 handoff: v001 under owner review
+# BPR-1592 handoff: accepted and landed
 
 - Branch `bpr-1591-notes-margin`; product head `c2487b258`. Not on `main`.
   BPR-1591 (the line anchor: core `place_note`, ledger schema 10's
@@ -33,6 +33,9 @@
   state `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1592-notes-margin-v001`,
   candidate `BPR-1592-notes-margin-v001` (fingerprint `8a34ecb4…`), ready at
   sequence 3; host PID 87346.
-- Next: read `status --after 3`. On Accept, merge `main`, focused set plus the
-  composition contracts, reseal, docs gate, finish BPR-1592, push, stop PID
-  87346 and remove the frozen root; then BPR-1593.
+- Owner accepted v001 with no note, decision
+  `1d30aced-1d77-4ee1-a30f-3c4f29e90d2c` (session cursor 5). Landed with no
+  new commits on `main` since BPR-1591, so the focused set and contracts run
+  on `c2487b258` stand. Host PID 87346 stopped; frozen root removed.
+- Follow-up asked by the owner's coordinator: the mouse wheel over Notes
+  scrolls the code, as over Comments; done with BPR-1593.
