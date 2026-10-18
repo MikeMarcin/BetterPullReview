@@ -303,3 +303,16 @@ The Tours worktree remains as explicitly requested.
 Final integrated configure passes on f9ad0ffc4; full build is in progress.
 The prior quiet-machine/timing amendment remains recorded above. No new
 live GitHub course or owner design work was performed.
+
+
+## BPR-1603 accepted landing — 2026-10-18
+
+Direction A and the owner-authorized durable quoted replies implemented at
+9eab5046a. Built owner review d28b9f71… accepted without note at decision 6,
+handback 7 consumed, protection released at 8. Origin/main 937f96880 was
+already merged and did not move before landing. Focused functional, restart,
+safety and Qt checks, both composition contracts, reseal, format22, touched
+tidy and docs passed. Live BPR-Test PR 108 reply course passed and cleaned
+all its objects; minimum rate header 4970. RFC-BPR-0085 status updated;
+BPR-1595 stays open for Claude. Finishing through board tool and plain push.
+Final integrated suite has not yet run after this landing.
