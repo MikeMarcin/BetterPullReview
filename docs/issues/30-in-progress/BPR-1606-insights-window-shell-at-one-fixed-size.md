@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1606"
 title: "Insights window shell at one fixed size"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0086"]
 depends_on: []
 platforms: ["mac", "win", "linux"]
