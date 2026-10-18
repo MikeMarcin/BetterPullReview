@@ -241,3 +241,37 @@ are in [the RFC-BPR-0035 ledger](../../verification/RFC-BPR-0035.md#https-fixtur
 
 Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.
 BPR-1589 landed separately; the amended handoff assigns BPR-1601 here.
+
+## BPR-1593 amended queue — 2026-10-18
+
+The owner explicitly authorized item 7c as an exception to the stale
+BPR-1590–1595/worktree exclusion. BPR-1594 and BPR-1603 remain untouched.
+All earlier queue cards were skipped after checking their Finish commits on
+origin/main; prior BPR-1599 WIP inspection and negative-control evidence above
+remain authoritative.
+
+Main a7a45e1c9 merged into bpr-1593-tours; the app delta is only the tests-on
+attended tour course. All three printed composition pins match; a dated
+merged-tree reseal note records the reviewed scope. All 44 focused tests pass
+serially (373.20 s), including every tour row, all window scales, Notes,
+submission, start-review and composition contracts. Format22, documentation
+and diff checks pass. The inherited accepted design was landed without visual
+edits; frontend-design is unavailable in this harness. MASK preflight reports
+project.not_registered for the inherited worktree; existing direct execution
+and board helpers were retained without registry changes.
+
+Owner Accept at session sequence 4 and handback at 5 consumed. Protection
+released at 6. Finish commit 545fce48e was produced by the board tool and
+plain-pushed to origin/main. The recorded server PID was absent; the stop
+command reported connection refused. Frozen root removed with the freeze
+helper. The Tours worktree remains for Claude; only its 17 GB build/dev was
+removed. Worktree prune completed; unrelated branches/worktrees were retained.
+
+Final integrated configure and build pass on 545fce48e. One four-worker full
+CTest is in progress. The scheduler was paused after the first few checks
+because other sessions started builds/tests; that pause caused timeouts in
+diagnostic_context_age and live_mutation_isolation, to rerun individually.
+The owner then amended the mandate: ignore quiet-machine eligibility and
+accept narrow timing misses until later release preparation. The same full
+CTest process resumed; no second full suite was started. Final results and
+lint gate are pending.

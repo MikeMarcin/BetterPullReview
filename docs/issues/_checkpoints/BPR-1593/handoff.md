@@ -35,3 +35,17 @@
 - Next: read `status --after 3`. On Accept, merge `main`, focused set plus the
   composition contracts, reseal, docs gate, finish BPR-1593, push, stop PID
   21499, remove the frozen root; then BPR-1594 (Agent tab).
+
+## Landing continuation — 2026-10-18
+
+Owner authorized BPR-1593 as an explicit exception to the older exclusion.
+Session intake consumed through sequence 5: Accept at sequence 4, no note,
+then handed back. The session belongs to the primary checkout. Main
+`a7a45e1c9` merged without conflict; all three round-trip pins match.
+BPR-1594 and BPR-1603 remain outside this work. All 44 focused rows pass serially, including every tour row, all window
+scales, Notes, the submission path and composition contracts. Format22,
+documentation and diff checks pass. Protection released at sequence 6.
+The inherited accepted design is being landed without visual edits; the
+frontend-design skill is unavailable in this harness. No new design is made.
+MASK preflight reports project.not_registered for this worktree; the existing
+direct continuation and board helpers remain in use.

@@ -122,6 +122,31 @@ for each item.
   courses for Discuss, Threads' Not on a file row, the Status line and ⌥N; composition contracts if
   `src/app` changes. No owner review needed (no visual design beyond the existing markers).
 
+### 7c. BPR-1593 — Tours as a route expanding to its page (ACCEPTED by owner 2026-10-18, no note)
+- Worktree `/Users/jaeger/.codex/worktrees/bpr1574-drawer-redesign/BetterPullReview`, branch `bpr-1593-tours`,
+  product `eb4990c98`, checkpoint `202e6b3d3`; also carries `4f0d4b69d` (mouse wheel over Notes scrolls the code).
+- Checkpoint `docs/issues/_checkpoints/BPR-1593/handoff.md` (on the branch) has the landing steps.
+- Land: merge main, run every `tour` ctest row SERIALLY (the tour composition test is serial-GUI), the window test
+  binary + scale variants, notes panel, composition contracts (re-pin round-trip), format check, docs gate; finish
+  BPR-1593 with the owner's Accept (session `9a9c8a15…`, `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1593-tours-route-v001`,
+  decision recorded at cursor 3+); push; stop review server PID 21499; remove frozen root
+  `/Users/jaeger/bpr1593-tours-route-v001.fmh3hj33` with `scripts/freeze_attended_build.py remove`.
+- Leave the worktree in place afterwards (Claude resumes BPR-1594 in it); delete only its build tree if disk is tight.
+
+### 7d. BPR-1594 — Agent drawer tab (ACCEPTED by owner 2026-10-18, no note — land it)
+- Owner review: session `5547b2341ac4b1228c7f89e5ed5110c1`,
+  state `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1594-agent-tab-v001`, candidate
+  `BPR-1594-agent-tab-v001`. Read the session (`attended_review.py … status --after 3`). If there is no decision
+  yet, SKIP this item. If Rejected, do NOT implement v002 (design work stays with Claude); just record the verdict
+  on the card and leave it parked.
+- If Accepted: worktree `/Users/jaeger/.codex/worktrees/bpr1594-agent-tab/BetterPullReview`, branch
+  `bpr-1594-agent-tab` (pushed; head `3bda132f8`), built on `bpr-1593-tours` — land only AFTER item 7c (BPR-1593).
+  Follow `docs/issues/_checkpoints/BPR-1594/handoff.md` on that branch: merge main, focused tests (workbench window
+  ×3 scales, keyboard shortcuts, side chat, agent panels, finding queue, private notes, agent finding public path),
+  composition contracts + re-pin, docs gate, finish BPR-1594, update RFC-BPR-0085's status section, push, stop
+  review server PID 49516, remove frozen root `/Users/jaeger/bpr1594-agent-tab-v001.87u4icdl`.
+  Note: the `.agents` symlink in that worktree must be set aside when running board commands.
+
 ### 8. Housekeeping
 - Stop any leftover attended-review servers from landed cards and remove their frozen roots.
 - `git worktree prune`; delete merged branches.
@@ -132,6 +157,8 @@ for each item.
   cause. Then `cmake --build --preset dev --target coding-format-check coding-tidy`.
 
 ## Not for Codex (taste/design — stays with Claude)
+
+- As of 2026-10-18: RFC-BPR-0085 milestones through BPR-1592 are landed; BPR-1593 is item 7c above. Claude keeps **BPR-1603 (PR comments as drawer-edge chips; design note + review first)**, then the RFC closeout.
 
 - **RFC-BPR-0085 drawer redesign resumed with Claude.** Milestones 1 and 2 (BPR-1587, BPR-1588,
   BPR-1589) are landed. Do not touch BPR-1590–BPR-1595 or the worktree

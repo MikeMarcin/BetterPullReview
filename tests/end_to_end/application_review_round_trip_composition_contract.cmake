@@ -1,3 +1,8 @@
+# BPR-1593 landing reseal 2026-10-18 over main a7a45e1c9. Reviewed the
+# merged src/app delta: main.cpp adds only the tests-on attended tour fixture
+# gesture course and command-line selection. No grant, credential, provider,
+# publication or mutation authority changes. All three printed pins match
+# the accepted candidate on this merged tree and remain exact.
 # BPR-1602 reseal 2026-10-18 over main cd80d1ab3 (pins matched at
 # 4d6b63e86): 08d50fe93 adds Settings Troubleshooting resets. Reviewed in
 # github_application.cpp: the config's one-shot DataReset, the startup root
