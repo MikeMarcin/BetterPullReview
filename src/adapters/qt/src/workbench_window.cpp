@@ -2496,6 +2496,9 @@ namespace bpr::qt {
 			// [[BPR-1212]]. A comment on the selected lines waiting for its
 			// line's draft opens once it is here.
 			static_cast<void>(resume_line_comment());
+			// [[BPR-1590]] v003. So does a pending comment opened from
+			// Finish your review.
+			resume_pending_comment_open();
 		});
 		connect(ReviewEditor->body_editor(), &QPlainTextEdit::textChanged, this, [this] {
 			present_inline_reply();
@@ -2816,7 +2819,11 @@ namespace bpr::qt {
 		// once confirmed, goes to the composition; a confirmed Discard review
 		// closes the page.
 		ReviewSubmissionEditor->set_pending_reveal([this](const core::review_submission_comment& aComment) {
-			reveal_pending_comment(QString::fromStdString(aComment.Path), aComment.Side, aComment.Line);
+			open_pending_comment(aComment, core::workbench_thread_destination::review);
+		});
+		// [[BPR-1590]] v003. Threads' gestures on a pending row.
+		ReviewSubmissionEditor->set_pending_open([this](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) {
+			open_pending_comment(aComment, aDestination);
 		});
 		ReviewSubmissionEditor->set_pending_delete([this](const core::review_submission_comment& aComment) {
 			if (PendingCommentDeleteDispatch) {
@@ -8717,7 +8724,8 @@ namespace bpr::qt {
 			context           = tr("%1/%2 #%3 · %4").arg(QString::fromStdString(shown.Owner), QString::fromStdString(shown.RepositoryName), QString::number(shown.Number.value()), QString::fromStdString(shown.Title));
 		}
 		ReviewSubmissionEditor->set_context(context);
-		ReviewSubmissionEditor->set_reveal_hint(aInSheet);
+		// [[BPR-1590]] v003. How a row opens, on the sheet and the page alike.
+		ReviewSubmissionEditor->set_reveal_hint(true);
 	}
 
 	void workbench_window::place_review_sheet()
@@ -9452,18 +9460,22 @@ namespace bpr::qt {
 		box->open();
 	}
 
-	void workbench_window::reveal_pending_comment(const QString& aPath, const core::diff_side aSide, const std::uint32_t aLine)
+	void workbench_window::reveal_pending_comment(const QString& aPath, const core::diff_side aSide, const std::uint32_t aLine, const std::optional<core::review_draft_id> aDraft,
+												  const core::workbench_thread_destination aDestination)
 	{
 		if (CompositionPage != nullptr) {
 			close_review_composition();
 		}
+		PendingCommentOpen.reset();
 		PendingCommentPick = pending_comment_pick{
-			.File   = core::file_identity_of(aPath.toStdString()),
-			.Side   = aSide,
-			.Line   = aLine,
-			.Before = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+			.File        = core::file_identity_of(aPath.toStdString()),
+			.Side        = aSide,
+			.Line        = aLine,
+			.Before      = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
 				: std::nullopt,
+			.Draft       = aDraft,
+			.Destination = aDestination,
 		};
 		choose_home(false);
 		choose_modality(review_modality::review);
@@ -9474,6 +9486,92 @@ namespace bpr::qt {
 			}
 		}
 		resume_pending_comment_pick();
+	}
+
+	void workbench_window::open_pending_comment(const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination)
+	{
+		// [[BPR-1581]]. The one route: my draft on a file opens beside its
+		// line, in its composer for Discuss, in its row for Threads.
+		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
+			.Destination = aDestination,
+			.Origin      = core::workbench_thread_origin::review,
+			.Draft       = true,
+			.OnFile      = !aComment.Path.empty(),
+			.Placed      = true,
+		});
+		if (!route.Available) {
+			statusBar()->showMessage(tr("This comment is not on a file, so it has no line to open at."));
+			return;
+		}
+		// Finish your review gives way: the sheet closes, the expanded page is left.
+		if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
+			close_review_composition(false);
+		}
+		close_review_sheet();
+		reveal_pending_comment(QString::fromStdString(aComment.Path), aComment.Side, aComment.Line, aComment.Draft, aDestination);
+	}
+
+	void workbench_window::finish_pending_comment_pick(const pending_comment_pick& aPick)
+	{
+		if (!aPick.Draft.has_value() || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		auto* const cards = ConversationPanel->cards();
+		// The draft opens once the drawer holds it: choosing its line brings
+		// a saved draft there, so until then it waits.
+		const auto card = std::string{ "draft:unpublished" };
+		if (ReviewEditor == nullptr || !ReviewEditor->shown_draft().has_value() || ReviewEditor->shown_draft()->Id != *aPick.Draft) {
+			const auto saved = card + ":" + std::to_string(aPick.Draft->value());
+			if (std::ranges::any_of(cards->cards(), [&saved](const thread_card& aCard) { return aCard.Id == saved; })) {
+				PendingCommentOpen = aPick;
+			} else {
+				statusBar()->showMessage(tr("The comment's line is shown; its note opens once its draft is read."));
+			}
+			return;
+		}
+		PendingCommentOpen.reset();
+		switch (aPick.Destination) {
+		case core::workbench_thread_destination::discuss:
+			static_cast<void>(show_draft_in_discuss(card));
+			return;
+		case core::workbench_thread_destination::threads:
+			refresh_cards();
+			if (!show_thread_in_threads(card, std::string{ })) {
+				statusBar()->showMessage(tr("Threads lists your draft once it is open beside its line."));
+			}
+			return;
+		case core::workbench_thread_destination::review:
+			break;
+		}
+		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+		}
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab) {
+			TrayTabs->setCurrentIndex(tray_comments_tab);
+		}
+		cards->open_thread(card);
+		if (auto* const open = cards->open_card(); open != nullptr) {
+			open->setFocus(Qt::OtherFocusReason);
+		} else {
+			cards->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::resume_pending_comment_open()
+	{
+		if (!PendingCommentOpen.has_value() || ReviewEditor == nullptr || ComparisonSurface == nullptr) {
+			return;
+		}
+		// The reviewer went on to another file: the opening is dropped.
+		if (const auto context = ComparisonSurface->current_context(); !context.has_value() || context->Key.File != PendingCommentOpen->File) {
+			PendingCommentOpen.reset();
+			return;
+		}
+		if (const auto& shown = ReviewEditor->shown_draft(); shown.has_value() && shown->Id == PendingCommentOpen->Draft) {
+			const auto pick = *PendingCommentOpen;
+			PendingCommentOpen.reset();
+			finish_pending_comment_pick(pick);
+		}
 	}
 
 	void workbench_window::resume_pending_comment_pick()
@@ -9487,6 +9585,7 @@ namespace bpr::qt {
 			const auto pick = *PendingCommentPick;
 			PendingCommentPick.reset();
 			static_cast<void>(ComparisonSurface->select_conversation_line(pick.Side, pick.Line));
+			finish_pending_comment_pick(pick);
 			return;
 		}
 		// Another file's comparison arrived first: the reviewer went on.

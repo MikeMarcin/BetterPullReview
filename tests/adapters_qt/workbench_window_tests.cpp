@@ -125,6 +125,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <source_location>
 #include <span>
 #include <string>
@@ -9939,10 +9940,37 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief A left-button mouse event at a row's centre.
+	void row_mouse(QWidget* const aRow, const QEvent::Type aType, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+	{
+		const auto point = QPointF{ aRow->rect().center() };
+		auto       event = QMouseEvent{ aType, point, aRow->mapToGlobal(point), Qt::LeftButton, aType == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, aModifiers };
+		QApplication::sendEvent(aRow, &event);
+	}
+
+	/// \brief A double click as the platform delivers it.
+	void row_double_click(QWidget* const aRow, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+	{
+		row_mouse(aRow, QEvent::MouseButtonPress, aModifiers);
+		row_mouse(aRow, QEvent::MouseButtonRelease, aModifiers);
+		row_mouse(aRow, QEvent::MouseButtonDblClick, aModifiers);
+		row_mouse(aRow, QEvent::MouseButtonRelease, aModifiers);
+		process_events();
+	}
+
 	/// \brief [[BPR-1590]]. RFC-BPR-0085 AC04: Finish your review is a sheet
 	/// beside the code; a pending row reveals its line behind it with the
 	/// sheet still open; Expand and Restore keep text, caret and scroll; the
 	/// sheet keeps the drawer principles and leaves the code visible.
+	[[nodiscard]] auto very_long_words() -> std::string
+	{
+		auto words = std::string{ };
+		for (auto paragraph = 0; paragraph < 10; ++paragraph) {
+			words += "The pass reads the threshold every frame, and the tone mapper after it assumes the value never changes mid-frame, so a live setting needs a fence or a copy taken at the start of the frame.\n\n";
+		}
+		return words;
+	}
+
 	[[nodiscard]] auto sheet_review(const QString& aBody) -> qt::review_submission_editor_projection
 	{
 		const auto head  = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
@@ -9973,6 +10001,8 @@ namespace {
 			comment(11U, "src/ui/widgets/slider.cpp", 4U, std::nullopt, "nitpick (non-blocking): `std::clamp` reads better than the two ternaries."),
 			comment(12U, "README.md", 5U, std::nullopt, "praise: Thanks for documenting the new folder layout."),
 		};
+		// [[BPR-1590]] v003. A very long comment, whose row stays one line.
+		draft.Comments[3].Body += std::string{ "\n\n" } + very_long_words();
 		return { .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.example.test · synthetic-owner/synthetic-repository#17"), .Prepared = core::prepare_review_decision(draft, { }) };
 	}
 
@@ -10044,15 +10074,25 @@ namespace {
 			expect(window.review_sheet_open() && window.current_modality() == qt::review_modality::review && whole->body_editor()->textCursor().position() == 42 && sheetBar->value() > 0,
 				   name + ": Restore is the sheet over Review again, caret and scroll kept");
 
-			// A pending row reveals its line behind the sheet, which stays open.
+			// [[BPR-1590]] v003. Negative control: a single click selects a
+			// pending row and goes nowhere; the sheet stays over Discuss.
 			window.choose_modality(qt::review_modality::discuss);
 			process_events();
 			const auto rows = whole->pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
 			expect(rows.size() == 6, name + ": each pending comment is a row");
-			rows.front()->click();
+			row_mouse(rows.front(), QEvent::MouseButtonPress);
+			row_mouse(rows.front(), QEvent::MouseButtonRelease);
 			process_events();
-			expect(window.current_modality() == qt::review_modality::review && window.review_sheet_open() && sheet->isVisible(),
-				   name + ": choosing a pending row enters Review at its line with the sheet still open");
+			expect(window.current_modality() == qt::review_modality::discuss && window.review_sheet_open() && sheet->isVisible() && rows.front()->hasFocus(),
+				   name + ": a single click selects a pending row and opens nothing");
+			{
+				// One line each, whatever the comment's length.
+				auto heights = std::set<int>{ };
+				for (const auto* row : rows) {
+					heights.insert(row->height());
+				}
+				expect(heights.size() == 1U && *heights.begin() < 2 * rows.front()->fontMetrics().height() + 14, name + ": every pending row is one line, the very long comment's too");
+			}
 
 			// Narrow: the sheet gives way to keep the code visible.
 			window.resize(900, 700);
@@ -10060,8 +10100,134 @@ namespace {
 			expect(sheet->x() >= 300 && sheet->width() - qt::compose_review_sheet::shadow_width >= 360 && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
 				   name + ": at a narrow window the sheet narrows, the code stays visible, and nothing scrolls sideways");
 			window.close_review_sheet();
-			expect(!sheet->isVisible() && window.current_modality() == qt::review_modality::review, name + ": Close changes nothing else");
+			expect(!sheet->isVisible() && window.current_modality() == qt::review_modality::discuss, name + ": Close changes nothing else");
 		}
+	}
+
+	/// \brief [[BPR-1590]] v003. A pending row opens its real comment with
+	/// Threads' gestures (BPR-1582): a double click or Return opens it in
+	/// Review, the sheet closing and the expanded page left, at its line with
+	/// its note open in the drawer and focused; a single click opens nothing.
+	void test_pending_rows_open_their_comments_like_threads()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		auto text = std::string{ };
+		for (int line = 0; line < 20; ++line) {
+			text += "int value" + std::to_string(line) + " = " + std::to_string(line) + ";\n";
+		}
+		auto changed = text;
+		changed.replace(changed.find("value5 = 5"), 10, "value5 = 50");
+		const auto diff = computed_comparison(text, changed, 0U, core::file_identity_of("src/engine/renderer.cpp"));
+		static_cast<void>(publish_fixture(window, diff));
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		const auto saved = [&diff](const std::uint64_t aId, const std::uint32_t aLine, std::string aBody) {
+			auto value     = core::review_comment_draft{ };
+			value.Id       = core::review_draft_id{ aId };
+			value.Anchor   = { .Comparison = diff.Alignment.Digest, .Side = core::diff_side::right, .Line = aLine };
+			value.Body     = std::move(aBody);
+			value.InReview = core::review_pending_mark{ .Path = "src/engine/renderer.cpp", .Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 1U } } };
+			return value;
+		};
+		const auto shortWords = std::string{ "issue (blocking): The retry budget resets every frame." };
+		const auto longWords  = std::string{ "thought: The bloom threshold is hard-coded.\n\n" } + very_long_words();
+		window.present_saved_drafts({ saved(7U, 3U, shortWords), saved(8U, 12U, longWords) });
+		process_events();
+		auto* const whole   = window.review_submission_editor_view();
+		auto        review  = sheet_review(QStringLiteral("Two small things."));
+		const auto  comment = [](const std::uint64_t aId, const std::uint32_t aLine, const std::string& aWords) {
+			auto made          = core::review_submission_comment{ };
+			made.Draft         = core::review_draft_id{ aId };
+			made.DraftRevision = 1U;
+			made.Path          = "src/engine/renderer.cpp";
+			made.Line          = aLine;
+			made.Body          = aWords;
+			return made;
+		};
+		review.Draft->Comments = { comment(7U, 3U, shortWords), comment(8U, 12U, longWords) };
+		review.Controls        = core::controls(*review.Draft);
+		review.Prepared        = core::prepare_review_decision(*review.Draft, { });
+		whole->present(review);
+		auto* const cards = window.conversation_panel()->cards();
+		const auto  row   = [whole](const QString& aWords) -> QWidget* {
+			for (auto* const candidate : whole->pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"))) {
+				if (candidate->toolTip().contains(aWords)) {
+					return candidate;
+				}
+			}
+			return nullptr;
+		};
+		const auto openSheet = [&window] {
+			window.compose_review_action()->trigger();
+			process_events();
+			return window.review_sheet_open();
+		};
+		expect(openSheet() && row(QStringLiteral("retry budget")) != nullptr && row(QStringLiteral("bloom threshold")) != nullptr, "the sheet lists both pending comments");
+		expect(row(QStringLiteral("bloom threshold"))->toolTip().startsWith(QStringLiteral("Double-click to open in Review")), "the row's tooltip says how it opens");
+
+		// Negative control: a single click selects and opens nothing.
+		row_mouse(row(QStringLiteral("bloom threshold")), QEvent::MouseButtonPress);
+		row_mouse(row(QStringLiteral("bloom threshold")), QEvent::MouseButtonRelease);
+		process_events();
+		expect(window.review_sheet_open() && cards->open_thread_id().empty(), "a single click on a row leaves the sheet open and opens no comment");
+
+		// A double click: the sheet closes and Review chooses the line; once
+		// the workflow brings that line's draft into the drawer (as choosing a
+		// line does), its note opens there, focused.
+		auto* editor = window.review_editor();
+		editor->set_revisioned_dispatch([](auto) { });
+		const auto bring = [&editor, &saved, &shortWords, &longWords](const std::uint64_t aId) {
+			editor->present(core::revisioned_review_draft{ aId == 7U ? saved(7U, 3U, shortWords) : saved(8U, 12U, longWords), 1U, core::review_draft_scope_id{ 1U } });
+			process_events();
+		};
+		const auto inDrawer = [&window, cards] {
+			const auto* focus = QApplication::focusWidget();
+			return cards->open_thread_id() == "draft:unpublished" && window.conversation_panel()->isVisible() && focus != nullptr && window.conversation_panel()->isAncestorOf(focus);
+		};
+		row_double_click(row(QStringLiteral("bloom threshold")));
+		const auto chosen = window.comparison_surface()->selection();
+		expect(!window.review_sheet_open() && window.current_modality() == qt::review_modality::review && chosen.has_value() && chosen->PreferredLine.Line == 12U && cards->open_thread_id().empty(),
+			   "a double click closes the sheet and chooses the comment's line in Review");
+		bring(8U);
+		expect(inDrawer() && editor->shown_draft()->Id == core::review_draft_id{ 8U }, "once the drawer holds the draft, its note opens there, focused");
+
+		// Return opens the other in Review.
+		expect(openSheet(), "the sheet opens again");
+		auto keyPress = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(row(QStringLiteral("retry budget")), &keyPress);
+		process_events();
+		bring(7U);
+		expect(!window.review_sheet_open() && window.comparison_surface()->selection()->PreferredLine.Line == 3U && inDrawer() && editor->shown_draft()->Id == core::review_draft_id{ 7U },
+			   "Return opens the selected row's draft in Review, at its line, in the drawer");
+
+		// From the expanded page: the page is left too.
+		expect(openSheet(), "the sheet opens again");
+		window.review_sheet()->expand_button()->click();
+		process_events();
+		auto* const page = window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+		expect(page->isVisible(), "the expanded page is shown");
+		row_double_click(row(QStringLiteral("bloom threshold")));
+		bring(8U);
+		expect(!page->isVisible() && !window.review_sheet_open() && window.current_modality() == qt::review_modality::review && window.comparison_surface()->selection()->PreferredLine.Line == 12U
+				   && inDrawer() && editor->shown_draft()->Id == core::review_draft_id{ 8U },
+			   "a double click on the expanded page leaves it for Review, the draft open at its line in the drawer");
+
+		// Shift+Return: Discuss, the draft in its composer.
+		expect(openSheet(), "the sheet opens again");
+		auto shiftReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier };
+		QApplication::sendEvent(row(QStringLiteral("retry budget")), &shiftReturn);
+		process_events();
+		bring(7U);
+		auto* const composer = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		expect(!window.review_sheet_open() && window.current_modality() == qt::review_modality::discuss && composer != nullptr && composer->isVisible()
+				   && editor->shown_draft()->Id == core::review_draft_id{ 7U } && composer->isAncestorOf(QApplication::focusWidget()),
+			   "Shift+Return opens the draft in Discuss, in its composer, focused");
+		window.hide();
 	}
 
 	void test_composition_pages_retain_editors_and_never_submit_on_navigation()
@@ -18773,6 +18939,7 @@ auto main(int argc, char** argv) -> int
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_composition_keys_open_the_pages_and_esc_returns();
 	test_finish_review_is_a_sheet_beside_the_code();
+	test_pending_rows_open_their_comments_like_threads();
 	test_tour_retarget_key_reaches_only_the_outline();
 	test_compose_review_marks_a_kept_draft();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();

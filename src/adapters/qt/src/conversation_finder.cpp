@@ -1,4 +1,5 @@
 #include "bpr/qt/conversation_finder.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_conversation.hpp"
@@ -723,9 +724,7 @@ namespace bpr::qt {
 			if (geometry.Review.contains(point) || geometry.Discuss.contains(point) || geometry.Fold.contains(point)) {
 				return;
 			}
-			const auto destination = aEvent->modifiers().testFlag(Qt::ShiftModifier) ? core::workbench_thread_destination::discuss
-																					 : core::workbench_thread_destination::review;
-			Owner.pick(item, bead_at(item, geometry, point), destination);
+			Owner.pick(item, bead_at(item, geometry, point), thread_pick_destination(aEvent->modifiers()));
 		}
 
 		[[nodiscard]] auto bead_at(const std::size_t aItem, const conversation_finder::row_geometry& aGeometry, const QPoint aPoint) const -> std::optional<std::size_t>
@@ -2040,28 +2039,15 @@ namespace bpr::qt {
 		if (RowMenu != nullptr) {
 			RowMenu->close();
 		}
-		// [[BPR-1356]]. Made for this opening and gone when it closes, as the
-		// code's menu is: the finder reads Return and Shift+Return itself, so
-		// the items only show them, and no window ever holds those keys.
-		auto* const menu = new QMenu{ this };
-		menu->setObjectName(QStringLiteral("threadFinderRowMenu"));
-		menu->setAccessibleName(QStringLiteral("Thread row"));
-		menu->setToolTipsVisible(true);
-		QObject::connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
-		const auto makeItem = [menu](const QString& aText, const QString& aName, const shortcut_command aKey, const QString& aTip) {
-			auto* const action = menu->addAction(aText);
-			action->setObjectName(aName);
-			action->setShortcuts(shortcut_keys(aKey));
-			action->setShortcutContext(Qt::WidgetShortcut);
-			action->setShortcutVisibleInContextMenu(true);
-			action->setStatusTip(aTip);
-			return action;
-		};
-		OpenReview  = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), shortcut_command::thread_open_review,
-							   QStringLiteral("Read this thread beside its code"));
-		OpenDiscuss = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), shortcut_command::thread_open_discuss,
-							   QStringLiteral("Read this thread with the rest of the pull request's conversation"));
-		menu->setDefaultAction(OpenReview);
+		// [[BPR-1356]]. Made for this opening and gone when it closes; the
+		// items are the shared row menu's ([[BPR-1590]]).
+		const auto  rowMenu = make_thread_row_menu(this, QStringLiteral("threadFinderRowMenu"), QStringLiteral("Thread row"), QStringLiteral("Read this thread beside its code"),
+												   QStringLiteral("Read this thread with the rest of the pull request's conversation"), false);
+		auto* const menu    = rowMenu.Menu;
+		OpenReview          = rowMenu.OpenReview;
+		OpenDiscuss         = rowMenu.OpenDiscuss;
+		OpenReview->setObjectName(QStringLiteral("threadFinderOpenInReviewAction"));
+		OpenDiscuss->setObjectName(QStringLiteral("threadFinderOpenInDiscussAction"));
 		// My draft is written beside its line; Discuss does not list it.
 		if (Conversations[Items[aItem]->Conversation].Draft) {
 			OpenDiscuss->setEnabled(false);
@@ -2334,8 +2320,7 @@ namespace bpr::qt {
 				return true;
 			}
 			// [[BPR-1356]]. Shift+Return opens the thread in Discuss.
-			const auto destination = aEvent.modifiers().testFlag(Qt::ShiftModifier) ? core::workbench_thread_destination::discuss
-																					: core::workbench_thread_destination::review;
+			const auto destination = thread_open_key(aEvent).value_or(core::workbench_thread_destination::review);
 			pick(item, Bead >= 0 && !aInSearch ? std::optional<std::size_t>{ static_cast<std::size_t>(Bead) } : std::nullopt, destination);
 			return true;
 		}

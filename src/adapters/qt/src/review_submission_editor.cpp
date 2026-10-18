@@ -4,22 +4,27 @@
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QAction>
+#include <QContextMenuEvent>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QSignalBlocker>
@@ -32,6 +37,7 @@
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
 
 #include <utility>
@@ -464,6 +470,51 @@ namespace bpr::qt {
 			}
 		};
 
+		/// [[BPR-1590]] v003. The field the summary is written in: the text
+		/// ground with a clear edge, and the window's focus colour round it while
+		/// the cursor is in it, so it reads as a field and not as a row.
+		class summary_field final : public QWidget
+		{
+		public:
+			explicit summary_field(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("wholeReviewSummaryBox"));
+			}
+
+			void watch(QWidget* aEditor)
+			{
+				Editor = aEditor;
+				aEditor->installEventFilter(this);
+			}
+
+		protected:
+			auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
+			{
+				if (aWatched == Editor && (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut)) {
+					update();
+				}
+				return QWidget::eventFilter(aWatched, aEvent);
+			}
+
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground  = colours.color(QPalette::Active, QPalette::Base);
+				const auto focused = Editor != nullptr && Editor->hasFocus();
+				const auto edge    = focused ? colours.color(QPalette::Active, QPalette::Highlight) : blend(ground, colours.color(QPalette::Active, QPalette::Text), 0.34);
+				painter.setPen(QPen{ edge, focused ? 2.0 : 1.0 });
+				painter.setBrush(ground);
+				const auto inset = focused ? 1.0 : 0.5;
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(inset, inset, -inset, -inset), 6.0, 6.0);
+			}
+
+		private:
+			QPointer<QWidget> Editor;
+		};
+
 		/// [[BPR-1590]] v002. A hairline between the box's parts.
 		class box_rule final : public QWidget
 		{
@@ -484,13 +535,15 @@ namespace bpr::qt {
 			}
 		};
 
-		/// [[BPR-1590]] v002. One pending comment as the accepted note anatomy
-		/// draws a thread (RFC-BPR-0085 principle 2), the look the owner
-		/// preferred over v001's one-line columns ("the summary lines look
-		/// nicer"): a rail in the label's tint, dashed because it is yours
-		/// and not yet published (principle 3), the label's mark, where it is
-		/// in a quiet line, and its words in two lines, the label in bold. It
-		/// is a button that goes to the comment.
+		/// [[BPR-1590]] v003. One pending comment on one line, as the chosen
+		/// layouts draw it (the owner: "the comments in the mockup are
+		/// contained to one line"): the label's mark, the file and its lines in
+		/// amber, then the words, cut to the line however long they are; the
+		/// whole comment is in the tooltip. Show and its chevron at the end say
+		/// the row goes to the comment. It takes Threads' gestures ([[BPR-1582]],
+		/// shared in `thread_pick_gestures`): a click selects it, a double click
+		/// or Return opens it in Review, with Shift in Discuss, and its menu adds
+		/// Show in Threads.
 		class pending_row final : public QAbstractButton
 		{
 		public:
@@ -504,11 +557,10 @@ namespace bpr::qt {
 				setAttribute(Qt::WA_Hover, true);
 				setCursor(Qt::PointingHandCursor);
 				setFocusPolicy(Qt::StrongFocus);
-				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-				const auto body = aBody.toStdString();
-				Mark            = feedback_body_mark_of(body);
-				// The words without their fenced blocks: a suggestion says so
-				// in its quiet line instead of showing code in two lines.
+				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				Mark = feedback_body_mark_of(aBody.toStdString());
+				// One line of words: fenced blocks become "suggests a change",
+				// paragraphs run together.
 				auto words = QStringList{ };
 				auto fence = false;
 				for (const auto& line : aBody.split(QLatin1Char{ '\n' })) {
@@ -523,52 +575,106 @@ namespace bpr::qt {
 					}
 				}
 				Words = words.join(QLatin1Char{ ' ' });
-				if (Mark.Label && !Mark.Name.isEmpty()) {
-					// The header as written leads, in bold; the rest follows.
-					const auto colon = Words.indexOf(QLatin1Char{ ':' });
-					Prefix           = colon > 0 ? Words.left(colon + 1) : Mark.Name + QLatin1Char{ ':' };
-					Words            = colon > 0 ? Words.mid(colon + 1).trimmed() : Words;
-				}
-				if (Words.isEmpty() && Prefix.isEmpty()) {
-					Words = review_submission_editor::tr("(no text yet)");
+				if (Words.isEmpty()) {
+					Words = Suggests ? review_submission_editor::tr("suggests a change") : review_submission_editor::tr("(no text yet)");
 				}
 			}
 
-			/// \brief The same file as the row above: its name is drawn faint.
 			void set_repeat(const bool aRepeat)
 			{
 				Repeat = aRepeat;
 				update();
 			}
 
-			void set_code_font(const QFont& aCode)
+			void set_columns(const int aFile, const int aLines, const QFont& aCode)
 			{
-				Code = aCode;
+				FileColumn  = aFile;
+				LinesColumn = aLines;
+				Code        = aCode;
+				Code.setWeight(QFont::DemiBold);
 				update();
 			}
 
-			[[nodiscard]] auto hasHeightForWidth() const -> bool override
+			[[nodiscard]] auto file_width() const -> int
 			{
-				return true;
+				auto bold = font();
+				bold.setWeight(QFont::DemiBold);
+				return QFontMetrics{ bold }.horizontalAdvance(File) + 2;
 			}
 
-			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override
+			[[nodiscard]] static auto lines_width(const QString& aLines, QFont aCode) -> int
 			{
-				const auto metrics = QFontMetrics{ font() };
-				return top + metrics.height() + 4 + (text_lines(aWidth) * metrics.lineSpacing()) + bottom;
+				aCode.setWeight(QFont::DemiBold);
+				return QFontMetrics{ aCode }.horizontalAdvance(aLines) + 2;
 			}
 
+			/// \brief One line, whatever the comment's length.
 			[[nodiscard]] auto sizeHint() const -> QSize override
 			{
-				return { 360, heightForWidth(360) };
+				return { FileColumn + LinesColumn + 240, std::max(32, QFontMetrics{ font() }.height() + 14) };
 			}
 
 			[[nodiscard]] auto minimumSizeHint() const -> QSize override
 			{
-				return { 120, heightForWidth(std::max(width(), 120)) };
+				return { 120, sizeHint().height() };
 			}
 
+			/// Where an opening goes.
+			std::function<void(core::workbench_thread_destination)> Open;
+
 		protected:
+			// A click selects the row and opens nothing.
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton) {
+					setFocus(Qt::MouseFocusReason);
+					update();
+				}
+				aEvent->accept();
+			}
+
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				aEvent->accept();
+			}
+
+			void mouseDoubleClickEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton && Open) {
+					Open(thread_pick_destination(aEvent->modifiers()));
+				}
+				aEvent->accept();
+			}
+
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (const auto destination = thread_open_key(*aEvent); destination.has_value()) {
+					if (Open) {
+						Open(*destination);
+					}
+					return;
+				}
+				QAbstractButton::keyPressEvent(aEvent);
+			}
+
+			void contextMenuEvent(QContextMenuEvent* aEvent) override
+			{
+				setFocus(Qt::MouseFocusReason);
+				const auto row = make_thread_row_menu(this, QStringLiteral("wholeReviewPendingMenu"), QStringLiteral("Pending comment"), QStringLiteral("Open this comment beside its code"),
+													  QStringLiteral("Open this comment in Discuss, in its composer"), true);
+				const auto go  = [this](const core::workbench_thread_destination aDestination) {
+					if (Open) {
+						Open(aDestination);
+					}
+				};
+				QObject::connect(row.OpenReview, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::review); });
+				QObject::connect(row.OpenDiscuss, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::discuss); });
+				QObject::connect(row.ShowThreads, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::threads); });
+				LastMenu = row.Menu;
+				row.Menu->popup(aEvent->globalPos());
+				aEvent->accept();
+			}
+
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				auto        painter = QPainter{ this };
@@ -579,72 +685,79 @@ namespace bpr::qt {
 				const auto faint     = colours.color(QPalette::Active, QPalette::PlaceholderText);
 				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
 				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
-				if (underMouse() || isDown()) {
+				const auto hovered   = underMouse() || isDown() || hasFocus();
+				if (hovered) {
 					painter.setPen(Qt::NoPen);
-					painter.setBrush(blend(ground, highlight, isDown() ? 0.16 : 0.07));
+					painter.setBrush(blend(ground, highlight, isDown() ? 0.18 : 0.08));
 					painter.drawRoundedRect(box, 4.0, 4.0);
 				}
 				const auto metrics = QFontMetrics{ font() };
-				// The rail, dashed: yours and not yet published.
-				const auto tint = Mark.Label ? feedback_mark_colours_for(Theme, *Mark.Label, colours).Tint : faint;
-				paint_feedback_rail(painter, rail, top, height() - bottom, tint, Mark.Emphasis);
-				{
-					const auto back  = underMouse() || isDown() ? blend(ground, highlight, isDown() ? 0.16 : 0.07) : ground;
-					const auto width = feedback_rail_width(Mark.Emphasis);
-					for (auto y = static_cast<qreal>(top) + 4.0; y < height() - bottom; y += 7.0) {
-						painter.fillRect(QRectF{ rail - width - 1.0, y, width + 2.0, 3.0 }, back);
-					}
-				}
-				// The mark beside the words.
-				const auto words = top + metrics.height() + 4;
+				const auto middle  = height() / 2;
+				auto       x       = gutter;
+				// The label's mark, or the plain one.
 				if (Mark.Label) {
-					paint_feedback_mark(painter, QRectF{ static_cast<qreal>(mark_left), static_cast<qreal>(words), 16.0, 16.0 }, *Mark.Label, Mark.Emphasis,
-										feedback_mark_colours_for(Theme, *Mark.Label, colours));
+					paint_feedback_mark(painter, QRectF{ static_cast<qreal>(x), middle - 8.0, 16.0, 16.0 }, *Mark.Label, Mark.Emphasis, feedback_mark_colours_for(Theme, *Mark.Label, colours));
 				} else {
-					painter.drawPixmap(QPointF{ static_cast<qreal>(mark_left), static_cast<qreal>(words) }, feedback_plain_mark_pixmap(colours, devicePixelRatioF()));
+					painter.drawPixmap(QPointF{ static_cast<qreal>(x), middle - 8.0 }, feedback_plain_mark_pixmap(colours, devicePixelRatioF()));
 				}
-				// Where it is: the file, its lines in the code font, and a
-				// suggestion said in words.
-				auto x    = text_left;
+				x += 16 + spacing;
+				// The file, then its lines in amber in the code font.
 				auto bold = font();
 				bold.setWeight(QFont::DemiBold);
 				painter.setFont(bold);
 				painter.setPen(Repeat ? faint : ink);
-				const auto fileWidth = std::min(QFontMetrics{ bold }.horizontalAdvance(File) + 2, std::max(40, (width() - text_left) / 2));
-				painter.drawText(QRect{ x, top, fileWidth, metrics.height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ bold }.elidedText(File, Qt::ElideMiddle, fileWidth));
-				x += fileWidth + 8;
-				// The lines in the code font, bold, in the amber of where you read
-				// (RFC-BPR-0085 principle 4), as the chosen layouts draw them.
-				auto code = Code;
-				code.setWeight(QFont::DemiBold);
-				painter.setFont(code);
+				painter.drawText(QRect{ x, 0, FileColumn, height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ bold }.elidedText(File, Qt::ElideMiddle, FileColumn));
+				x += FileColumn + spacing;
+				painter.setFont(Code);
 				painter.setPen(accent_ink(colours, drawer_card_colours{ }.Reading));
-				const auto linesWidth = QFontMetrics{ code }.horizontalAdvance(Lines) + 2;
-				painter.drawText(QRect{ x, top, linesWidth, metrics.height() }, Qt::AlignLeft | Qt::AlignVCenter, Lines);
-				x += linesWidth + 10;
-				if (Suggests) {
-					painter.setFont(font());
-					painter.setPen(faint);
-					painter.drawText(QRect{ x, top, std::max(0, width() - x - 8), metrics.height() }, Qt::AlignLeft | Qt::AlignVCenter,
-									 metrics.elidedText(review_submission_editor::tr("suggests a change"), Qt::ElideRight, std::max(0, width() - x - 8)));
-				}
-				// The words, two lines at most, the label's header in bold.
+				painter.drawText(QRect{ x, 0, LinesColumn, height() }, Qt::AlignLeft | Qt::AlignVCenter, Lines);
+				x += LinesColumn + spacing;
+				// Show and its chevron, at the end, stronger while the row is
+				// under the pointer or the keyboard.
+				const auto show      = review_submission_editor::tr("Open in Review");
+				const auto showWidth = metrics.horizontalAdvance(show) + 14;
+				const auto showLeft  = width() - gutter - showWidth;
 				painter.setFont(font());
-				painter.setPen(ink);
-				auto layout = make_layout(width() - text_left - 8);
-				auto y      = static_cast<qreal>(words);
-				for (int index = 0; index < std::min(layout->lineCount(), 2); ++index) {
-					const auto line = layout->lineAt(index);
-					if (index == 1 && layout->lineCount() > 2) {
-						// The second line ends in an ellipsis when there is more.
-						const auto rest = layout->text().mid(line.textStart());
-						painter.drawText(QRectF{ static_cast<qreal>(text_left), y, static_cast<qreal>(width() - text_left - 8), static_cast<qreal>(metrics.lineSpacing()) },
-										 Qt::AlignLeft | Qt::AlignTop, metrics.elidedText(rest, Qt::ElideRight, width() - text_left - 8));
-						break;
-					}
-					line.draw(&painter, QPointF{ static_cast<qreal>(text_left), y - line.y() });
-					y += metrics.lineSpacing();
+				// The words only while the row is under the pointer or selected;
+				// the chevron always.
+				painter.setPen(accent_ink(colours));
+				if (hovered) {
+					painter.drawText(QRect{ showLeft, 0, showWidth - 10, height() }, Qt::AlignRight | Qt::AlignVCenter, show);
 				}
+				{
+					auto       chevron = QPainterPath{ };
+					const auto cx      = static_cast<qreal>(width() - gutter - 4);
+					chevron.moveTo(cx - 3.0, middle - 4.0);
+					chevron.lineTo(cx + 1.0, middle);
+					chevron.lineTo(cx - 3.0, middle + 4.0);
+					painter.setBrush(Qt::NoBrush);
+					painter.setPen(QPen{ hovered ? accent_ink(colours) : faint, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+					painter.drawPath(chevron);
+				}
+				// The words: the label's header in bold, then the rest, cut to
+				// the one line.
+				// They run to the chevron, and give way to "Open in Review"
+				// while it shows.
+				const auto room   = std::max(0, (hovered ? showLeft : width() - gutter - 16) - 8 - x);
+				auto       prefix = QString{ };
+				auto       rest   = Words;
+				if (Mark.Label) {
+					const auto colon = Words.indexOf(QLatin1Char{ ':' });
+					if (colon > 0) {
+						prefix = Words.left(colon + 1);
+						rest   = Words.mid(colon + 1);
+					}
+				}
+				rest = rest.trimmed();
+				painter.setFont(bold);
+				painter.setPen(ink);
+				// Whole while it fits: the label is never cut for the words.
+				const auto prefixWidth = prefix.isEmpty() ? 0 : std::min(room, QFontMetrics{ bold }.horizontalAdvance(prefix) + 2);
+				painter.drawText(QRect{ x, 0, prefixWidth, height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ bold }.elidedText(prefix, Qt::ElideRight, prefixWidth));
+				painter.setFont(font());
+				const auto gap      = prefix.isEmpty() ? 0 : metrics.horizontalAdvance(QLatin1Char{ ' ' });
+				const auto restRoom = std::max(0, room - prefixWidth - gap);
+				painter.drawText(QRect{ x + prefixWidth + gap, 0, restRoom, height() }, Qt::AlignLeft | Qt::AlignVCenter, metrics.elidedText(rest, Qt::ElideRight, restRoom));
 				if (hasFocus()) {
 					painter.setPen(QPen{ highlight, 2.0 });
 					painter.setBrush(Qt::NoBrush);
@@ -653,50 +766,22 @@ namespace bpr::qt {
 			}
 
 		private:
-			[[nodiscard]] auto make_layout(const int aWidth) const -> std::unique_ptr<QTextLayout>
-			{
-				const auto whole  = Prefix.isEmpty() ? Words : Prefix + QLatin1Char{ ' ' } + Words;
-				auto       layout = std::make_unique<QTextLayout>(whole, font());
-				if (!Prefix.isEmpty()) {
-					auto range   = QTextLayout::FormatRange{ };
-					range.start  = 0;
-					range.length = static_cast<int>(Prefix.size());
-					range.format.setFontWeight(QFont::DemiBold);
-					layout->setFormats({ range });
-				}
-				auto option = QTextOption{ };
-				option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-				layout->setTextOption(option);
-				layout->beginLayout();
-				auto y = 0.0;
-				for (auto line = layout->createLine(); line.isValid(); line = layout->createLine()) {
-					line.setLineWidth(std::max(10, aWidth));
-					line.setPosition(QPointF{ 0.0, y });
-					y += line.height();
-				}
-				layout->endLayout();
-				return layout;
-			}
-
-			[[nodiscard]] auto text_lines(const int aWidth) const -> int
-			{
-				return std::clamp(make_layout(aWidth - text_left - 8)->lineCount(), 1, 2);
-			}
-
-			static constexpr int rail      = 12;
-			static constexpr int mark_left = 20;
-			static constexpr int text_left = 44;
-			static constexpr int top       = 8;
-			static constexpr int bottom    = 9;
+			static constexpr int gutter  = 10;
+			static constexpr int spacing = 12;
 			QString              File;
 			QString              Lines;
 			QString              Words;
-			QString              Prefix;
 			feedback_body_mark   Mark;
 			feedback_mark_theme  Theme;
 			QFont                Code;
-			bool                 Suggests = false;
-			bool                 Repeat   = false;
+			int                  FileColumn  = 0;
+			int                  LinesColumn = 0;
+			bool                 Suggests    = false;
+			bool                 Repeat      = false;
+
+		public:
+			/// The last menu opened, while it is open (for courses).
+			QPointer<QMenu> LastMenu;
 		};
 
 	} // namespace
@@ -924,8 +1009,20 @@ namespace bpr::qt {
 		Pending->hide();
 		inside->addWidget(Pending);
 		SummaryRule = new box_rule{ whole };
+		SummaryRule->hide();
 		inside->addWidget(SummaryRule);
-		auto* const summaryBox = new QWidget{ whole };
+		layout->addWidget(whole);
+		// [[BPR-1590]] v003. The summary is its own section, never read as the
+		// last comment (the owner: "At first I thought I was reading or
+		// editing the last comment"): space, a heading, and a bordered field
+		// to write in, where the comments above are read-only rows.
+		layout->addSpacing(10);
+		SummaryHeading = new QLabel{ tr("Review summary"), this };
+		SummaryHeading->setObjectName(QStringLiteral("wholeReviewSummaryHeading"));
+		SummaryHeading->setTextFormat(Qt::PlainText);
+		SummaryHeading->setFont(headingFont);
+		layout->addWidget(SummaryHeading);
+		auto* const summaryBox = new summary_field{ this };
 		summaryBox->setObjectName(QStringLiteral("wholeReviewSummaryBox"));
 		auto* const summaryRows = new QVBoxLayout{ summaryBox };
 		summaryRows->setContentsMargins(8, 6, 8, 6);
@@ -951,9 +1048,9 @@ namespace bpr::qt {
 		connect(Body->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, this, fit);
 		Body->setFixedHeight(120);
 		summaryRows->addWidget(Body);
-		inside->addWidget(summaryBox);
-		layout->addWidget(whole);
-		RevealHint = new QLabel{ tr("Choosing a row shows its line in the code behind this sheet."), this };
+		static_cast<summary_field*>(summaryBox)->watch(Body);
+		layout->addWidget(summaryBox);
+		RevealHint = new QLabel{ tr("Double-click a comment to open it in Review; Shift+double-click opens it in Discuss."), this };
 		RevealHint->setObjectName(QStringLiteral("wholeReviewRevealHint"));
 		RevealHint->setTextFormat(Qt::PlainText);
 		RevealHint->setForegroundRole(QPalette::PlaceholderText);
@@ -1288,7 +1385,10 @@ namespace bpr::qt {
 				const auto lines = comment.StartLine ? QStringLiteral("%1–%2").arg(*comment.StartLine + 1U).arg(comment.Line + 1U) : QString::number(comment.Line + 1U);
 				shown.emplace_back(name, comment.Side == core::diff_side::left ? tr("base %1").arg(lines) : lines);
 			}
-			const auto theme = MarkTheme.value_or(default_feedback_mark_theme(palette()));
+			const auto theme       = MarkTheme.value_or(default_feedback_mark_theme(palette()));
+			auto       fileColumn  = 0;
+			auto       linesColumn = pending_row::lines_width(QStringLiteral("0000"), code);
+			auto       made        = std::vector<pending_row*>{ };
 			for (std::size_t index = 0U; index < comments.size(); ++index) {
 				const auto& comment       = comments[index];
 				const auto  path          = text_of(comment.Path);
@@ -1312,15 +1412,20 @@ namespace bpr::qt {
 				across->setSpacing(2);
 				auto* const open = new pending_row{ name, where, text_of(comment.Body), theme, row };
 				open->set_repeat(index > 0U && comments[index - 1U].Path == comment.Path);
-				open->set_code_font(code);
+				fileColumn  = std::max(fileColumn, std::min(open->file_width(), 200));
+				linesColumn = std::max(linesColumn, pending_row::lines_width(where, code));
+				made.push_back(open);
 				open->setAccessibleName(said);
-				open->setAccessibleDescription(tr("Go to this comment beside the code"));
-				open->setToolTip(QStringLiteral("%1\n%2").arg(path, text_of(comment.Body)));
-				connect(open, &QAbstractButton::clicked, this, [this, comment] {
-					if (PendingReveal) {
+				open->setAccessibleDescription(tr("Double-click or Return opens it in Review; with Shift, in Discuss"));
+				// The whole comment is the tooltip: the row is one line however long.
+				open->setToolTip(tr("Double-click to open in Review, Shift+double-click in Discuss.\n%1, %2\n\n%3").arg(path, where, text_of(comment.Body)));
+				open->Open = [this, comment](const core::workbench_thread_destination aDestination) {
+					if (PendingOpen) {
+						PendingOpen(comment, aDestination);
+					} else if (aDestination == core::workbench_thread_destination::review && PendingReveal) {
 						PendingReveal(comment);
 					}
-				});
+				};
 				across->addWidget(open, 1);
 				auto* const remove = new QToolButton{ row };
 				remove->setObjectName(QStringLiteral("wholeReviewPendingDelete"));
@@ -1331,9 +1436,12 @@ namespace bpr::qt {
 				remove->setToolTip(tr("Delete this comment from your review"));
 				remove->setAccessibleName(tr("Delete comment: %1").arg(said));
 				connect(remove, &QToolButton::clicked, this, [this, comment] { confirm_delete(comment); });
-				across->addWidget(remove, 0, Qt::AlignTop);
+				across->addWidget(remove, 0, Qt::AlignVCenter);
 				ListedRows.push_back(said);
 				PendingRows->addWidget(row);
+			}
+			for (auto* const open : made) {
+				open->set_columns(fileColumn, linesColumn, code);
 			}
 		}
 		Pending->setVisible(!comments.empty());
@@ -1342,7 +1450,8 @@ namespace bpr::qt {
 		Heading->setVisible(Draft.has_value());
 		RevealHint->setVisible(HintWanted && !comments.empty());
 		HeadingRule->setVisible(Draft.has_value() && !comments.empty());
-		SummaryRule->setVisible(Draft.has_value());
+		SummaryRule->setVisible(false);
+		SummaryHeading->setVisible(Draft.has_value());
 		Carries->setText(comments.size() == 1U ? tr("1 pending comment") : tr("%1 pending comments").arg(comments.size()));
 		Carries->setVisible(!comments.empty());
 		Body->setPlaceholderText(!comments.empty() ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
@@ -1519,6 +1628,10 @@ namespace bpr::qt {
 	void review_submission_editor::set_pending_reveal(std::function<void(const core::review_submission_comment&)> aReveal)
 	{
 		PendingReveal = std::move(aReveal);
+	}
+	void review_submission_editor::set_pending_open(std::function<void(const core::review_submission_comment&, core::workbench_thread_destination)> aOpen)
+	{
+		PendingOpen = std::move(aOpen);
 	}
 	void review_submission_editor::set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete)
 	{

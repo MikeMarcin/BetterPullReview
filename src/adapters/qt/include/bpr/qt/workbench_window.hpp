@@ -780,7 +780,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]] v002. Goes to a pending comment from Finish
 		/// your review: Review, its file, and its line selected once that
 		/// file's comparison shows. Navigation only.
-		void reveal_pending_comment(const QString& aPath, core::diff_side aSide, std::uint32_t aLine);
+		void reveal_pending_comment(const QString& aPath, core::diff_side aSide, std::uint32_t aLine, std::optional<core::review_draft_id> aDraft = std::nullopt,
+									core::workbench_thread_destination aDestination = core::workbench_thread_destination::review);
+		/// \brief [[BPR-1590]] v003. Opens a pending comment from Finish your
+		/// review where Threads' gestures send it: in Review, its note opened
+		/// in the drawer and focused; in Discuss, in its composer; in Threads,
+		/// its row. Finish your review closes first (the sheet, or the
+		/// expanded page). The route is [[BPR-1581]]'s shared decision.
+		void open_pending_comment(const core::review_submission_comment& aComment, core::workbench_thread_destination aDestination);
 		/// \brief [[BPR-1345]]. Where the shown draft stands with the review.
 		[[nodiscard]] auto draft_review() const -> draft_review_state;
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
@@ -2302,8 +2309,19 @@ namespace bpr::qt {
 			core::diff_side                             Side = core::diff_side::right;
 			std::uint32_t                               Line = 0U;
 			std::optional<core::file_comparison_digest> Before;
+			/// [[BPR-1590]] v003. The draft to open once the line shows, and where.
+			std::optional<core::review_draft_id> Draft;
+			core::workbench_thread_destination   Destination = core::workbench_thread_destination::review;
 		};
 		std::optional<pending_comment_pick> PendingCommentPick;
+		/// [[BPR-1590]] v003. Opens the picked draft where it was asked for.
+		void finish_pending_comment_pick(const pending_comment_pick& aPick);
+		/// [[BPR-1590]] v003. A picked draft whose line is chosen, waiting for
+		/// the workflow to bring it into the drawer.
+		std::optional<pending_comment_pick> PendingCommentOpen;
+		/// [[BPR-1590]] v003. Opens the waiting draft once the drawer holds it;
+		/// drops it once another file shows.
+		void resume_pending_comment_open();
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
 		bool         ThreadsRevealNotice = false;

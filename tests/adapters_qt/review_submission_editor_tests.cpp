@@ -7,9 +7,11 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -273,13 +275,20 @@ auto main(int argc, char** argv) -> int
 	range.Side          = core::diff_side::left;
 	range.Line          = 434U;
 	range.StartLine     = 433U;
-	range.Body          = "nit: scale could be constexpr.";
-	finishing.Comments  = { first, range };
-	auto finish         = projection;
-	finish.Draft        = finishing;
-	finish.Controls     = core::controls(finishing);
-	finish.Status       = { };
-	finish.Prepared     = core::prepare_review_decision(finishing, { });
+	// A very long comment: its row stays one line.
+	range.Body = "nit: scale could be constexpr.\n" + std::string(40U, ' ') + [] {
+		auto words = std::string{ };
+		for (auto paragraph = 0; paragraph < 12; ++paragraph) {
+			words += "It never changes after start-up, and every frame reads it, so the compiler could fold it into the multiply instead of loading it each time.\n\n";
+		}
+		return words;
+	}();
+	finishing.Comments = { first, range };
+	auto finish        = projection;
+	finish.Draft       = finishing;
+	finish.Controls    = core::controls(finishing);
+	finish.Status      = { };
+	finish.Prepared    = core::prepare_review_decision(finishing, { });
 	editor.present(finish);
 	QApplication::processEvents();
 	expect(editor.title_label()->text() == QStringLiteral("Finish your review") && editor.pending_list()->isVisible()
@@ -329,8 +338,57 @@ auto main(int argc, char** argv) -> int
 	editor.set_pending_reveal([&](const core::review_submission_comment& aComment) { goneTo.push_back(aComment); });
 	editor.set_pending_delete([&](const core::review_submission_comment& aComment) { deleted.push_back(aComment); });
 	const auto beforeRows = intents.size();
+	// [[BPR-1590]] v003. Threads' gestures (BPR-1582): a click selects and
+	// opens nothing; a double click or Return opens in Review; with Shift, in
+	// Discuss; the row menu adds Show in Threads.
+	auto opened = std::vector<std::pair<core::review_submission_comment, core::workbench_thread_destination>>{ };
+	editor.show();
+	QApplication::processEvents();
+	const auto mouse = [](QWidget* aRow, const QEvent::Type aType, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+		const auto point = QPointF{ aRow->rect().center() };
+		auto       event = QMouseEvent{ aType, point, aRow->mapToGlobal(point), Qt::LeftButton, aType == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, aModifiers };
+		QApplication::sendEvent(aRow, &event);
+	};
+	const auto doubleClick = [&mouse](QWidget* aRow, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+		mouse(aRow, QEvent::MouseButtonPress, aModifiers);
+		mouse(aRow, QEvent::MouseButtonRelease, aModifiers);
+		mouse(aRow, QEvent::MouseButtonDblClick, aModifiers);
+		mouse(aRow, QEvent::MouseButtonRelease, aModifiers);
+	};
+	const auto key = [](QWidget* aRow, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+		auto keyPress = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, aModifiers };
+		QApplication::sendEvent(aRow, &keyPress);
+	};
 	rowsShown.at(1)->click();
-	expect(goneTo.size() == 1U && goneTo.front() == range && intents.size() == beforeRows, "a row goes to its comment and submits nothing");
+	mouse(rowsShown.at(1), QEvent::MouseButtonPress);
+	mouse(rowsShown.at(1), QEvent::MouseButtonRelease);
+	expect(goneTo.empty() && rowsShown.at(1)->hasFocus(), "negative control: a single click selects the row and opens nothing");
+	doubleClick(rowsShown.at(1));
+	expect(goneTo.size() == 1U && goneTo.front() == range && intents.size() == beforeRows, "a double click opens the comment in Review and submits nothing");
+	editor.set_pending_open([&](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) { opened.emplace_back(aComment, aDestination); });
+	doubleClick(rowsShown.at(0), Qt::ShiftModifier);
+	key(rowsShown.at(1));
+	key(rowsShown.at(1), Qt::ShiftModifier);
+	expect(opened.size() == 3U && opened[0].first == first && opened[0].second == core::workbench_thread_destination::discuss && opened[1].first == range
+			   && opened[1].second == core::workbench_thread_destination::review && opened[2].second == core::workbench_thread_destination::discuss,
+		   "Shift+double click opens in Discuss; Return in Review; Shift+Return in Discuss");
+	{
+		// The row menu: Open in Review, Open in Discuss, Show in Threads.
+		auto menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, rowsShown.at(0)->rect().center(), rowsShown.at(0)->mapToGlobal(rowsShown.at(0)->rect().center()) };
+		QApplication::sendEvent(rowsShown.at(0), &menuEvent);
+		auto* const menu = rowsShown.at(0)->findChild<QMenu*>(QStringLiteral("wholeReviewPendingMenu"));
+		auto        said = QStringList{ };
+		for (const auto* action : menu != nullptr ? menu->actions() : QList<QAction*>{ }) {
+			said.push_back(action->text());
+		}
+		expect(said == QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads") } && menu->defaultAction() == menu->actions().front(),
+			   "the row menu offers Open in Review, Open in Discuss and Show in Threads, as a thread row's does");
+		menu->actions().back()->trigger();
+		menu->close();
+		expect(opened.size() == 4U && opened[3].first == first && opened[3].second == core::workbench_thread_destination::threads, "Show in Threads goes to Threads");
+	}
+	expect(rowsShown.at(0)->height() == rowsShown.at(1)->height() && rowsShown.at(0)->height() < 2 * rowsShown.at(0)->fontMetrics().height() + 14,
+		   "each row is one line, whatever its comment's length");
 	deletes.at(0)->click();
 	QApplication::processEvents();
 	auto* question = editor.delete_confirmation();

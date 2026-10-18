@@ -30903,7 +30903,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QStringLiteral("issue (blocking): The retry budget resets every frame, so a view that keeps failing never stops retrying. Move the counter onto the view."),
 				QStringLiteral("suggestion: Compute the scale once per frame and pass it in.\n```suggestion\n    const auto scale = device_scale(view);\n```"),
 				QStringLiteral("question: Does the second view share the depth buffer with the first, or does each view own one?"),
-				QStringLiteral("thought: The clear and the draw race on the second view.\n\nA fence between them would make the order explicit, and it costs one wait per frame on the views that need it."),
+				// [[BPR-1590]] v003. A very long comment, whose row stays one line.
+				QStringLiteral("thought: The clear and the draw race on the second view.\n\nA fence between them would make the order explicit, and it costs one wait per frame on the views that need it. "
+							   "The first view never sees the race because its clear is recorded on the same queue as its draw, but the second view's clear goes through the transfer queue when "
+							   "the depth buffer is shared, and nothing orders that queue against the graphics queue.\n\nI tried three orders locally. Recording the clear on the graphics queue "
+							   "fixes it but costs the overlap we wanted from the transfer queue in the first place; a timeline semaphore keeps the overlap and fixes it, at one wait per frame; "
+							   "a pipeline barrier alone does not help, because the barrier only orders work within one queue.\n\nSo my vote is the timeline semaphore, with a comment at the "
+							   "submit saying why the second view waits, since the next person to touch this will otherwise remove the wait as redundant. Happy to pair on it if that helps."),
 				QStringLiteral("nitpick (non-blocking): `std::max` reads better than the ternary here."),
 			};
 			const auto index = probe.Lines.size();
@@ -31569,7 +31575,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (rows.size() != 2U) {
 					return fail("rows-not-two");
 				}
-				rows.back()->click();
+				// [[BPR-1590]] v003. Threads' gesture: Return opens it in Review.
+				rows.back()->setFocus(Qt::OtherFocusReason);
+				auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+				QCoreApplication::sendEvent(rows.back(), &open);
 				QCoreApplication::processEvents();
 				probe.Waited = 0U;
 				probe.Phase  = state_type::phase::awaiting_row_revealed;
@@ -31598,10 +31607,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_row_revealed: {
 			const auto selected = window->comparison_surface()->selection();
 			note("page=" + std::to_string(finishPage() != nullptr ? 1 : 0) + " modality=" + std::to_string(static_cast<int>(window->current_modality()))
-				 + " line=" + (selected ? std::to_string(selected->PreferredLine.Line) : std::string{ "-" }));
-			// [[BPR-1590]]. The row's line shows behind the sheet, which stays open.
-			if (!window->review_sheet_open() || window->current_modality() != qt::review_modality::review || !selected
-				|| selected->PreferredLine.Side != core::diff_side::right || probe.Lines.size() != 2U || selected->PreferredLine.Line != probe.Lines.back() || !ready()) {
+				 + " line=" + (selected ? std::to_string(selected->PreferredLine.Line) : std::string{ "-" }) + " open=" + cards->open_thread_id()
+				 + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0));
+			// [[BPR-1590]] v003. Finish your review closes, the row's line
+			// shows, and its draft opens in the drawer.
+			if (window->review_sheet_open() || window->current_modality() != qt::review_modality::review || !selected
+				|| selected->PreferredLine.Side != core::diff_side::right || probe.Lines.size() != 2U || selected->PreferredLine.Line != probe.Lines.back() || !ready()
+				|| !editor->shown_draft().has_value() || editor->shown_draft()->Anchor.Line != probe.Lines.back() || cards->open_thread_id() != "draft:unpublished"
+				|| !cards->writing_draft()) {
 				return ++probe.Waited < 400U ? result::pending : fail("row-not-revealed");
 			}
 			probe.Evidence.RowRevealed = posts().empty() && pending().size() == 2U;
