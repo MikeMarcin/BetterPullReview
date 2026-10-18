@@ -4,12 +4,13 @@ Mandate `insights-window-v1-r1`. Immutable RFC_BASE_SHA:
 `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
 
 The authored plan’s first milestone is `window-and-storage` (BPR-1606 and
-BPR-1607). The joint candidate implements both; its owner look is pending.
+BPR-1607). Its corrected shell has explicit owner acceptance, and its storage
+and public-path obligations have passing evidence.
 No later milestone or full-RFC acceptance is claimed.
 
 | Criterion | Evidence and current result |
 |---|---|
-| AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. Owner acceptance remains pending. |
+| AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
 | AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
 | AC02–04, AC06–10, AC12 | Pending their authored milestones. |
@@ -88,7 +89,8 @@ The owner rejected source `5a02177b30250494811033052b673c20a9b5a7b0` in
 session `a25204cd201da1ca5dbff4439c52bda4`, events 6–7: “that looks almost
 nothing like the mockups /Users/jaeger/Downloads/bpr_insights_window_fixed_size_mockup.html”.
 That verdict remains rejected. Only its affected protection was released by
-`resume-development` (event 8). The later milestones remain ineligible.
+`resume-development` (event 8). The later milestones remained ineligible until
+the corrected shell and complete first milestone were accepted.
 
 The correction is source `ae0a40211`. The exact HTML was read and rendered in
 disposable headless Chrome with remote resources blocked. No owner browser
@@ -122,10 +124,10 @@ LLVM 22 tidy and the documentation gate pass. Public courses also pass at
 unaffected storage, reset, lifecycle, privacy,
 network manifest and architecture negative-control evidence is reused.
 
-The corrected shell needs a new owner Accept/Reject verdict. The continuation
-binds its frozen build, short session, fingerprint, commands and cursor. No
-owner acceptance, native Windows/Linux evidence or whole-pack closeout is
-claimed by these offscreen checks.
+At preparation, the corrected shell needed a new owner Accept/Reject verdict.
+The continuation binds its frozen build, short session, fingerprint, commands
+and cursor. The offscreen checks alone established no owner acceptance,
+native Windows/Linux evidence or whole-pack closeout.
 
 The required freeze completed for `ae0a40211`; its own launcher check passes.
 The exact frozen public executable also passes via the registered isolation
@@ -134,3 +136,42 @@ log inside the deliberately read-only tree; the equivalent wrapper invocation
 from writable evidence passed without changing that tree. Frozen captures,
 source/executable identities and the new short-session handoff are recorded
 in the continuation. The original rejection remains preserved.
+
+## Accepted first milestone, round 3
+
+The owner accepted `BPR-1606-insights-shell-v002`, revision `ae0a40211-v002`,
+fingerprint `649ab6f1674c77749d04c5695c2a1b2f3ce864869977ba766afd4619cf561d69`,
+in session `e51e8b870c12f3d41b3f243b2891758a`, event 8, decision
+`b1070c71-f804-48f1-8210-80d373c6fd8a`, with an empty note. Event 9 handed
+back; consumed review cursor is 9. The earlier rejection remains recorded.
+BPR-1606 is Done; its satisfied dependency allowed BPR-1607 to be promoted
+and claimed through the board helpers. No new visual work was needed in
+this acceptance round; the prior correction used `frontend-design` as recorded.
+
+The completed BPR-1616 writer left main clean at `f067cdb8c`. Its repair was
+merged into the Insights branch at `4a89314cc5d4191365196e600c2f59e6546da200`
+without conflicts, preserving its finished card, allocation receipt and source.
+The documentation gate caught the old adopted Ready copy of BPR-1616 alongside
+main's Done card; that stale copy was removed, preserving the authoritative Done
+card and its acceptance.
+The corrected tree passes the documentation gate (`DOCUMENTATION_OK`).
+The reviewed shell sources are unchanged. A focused build of
+`test_insights_public_path` and `app_better_pull_review` passes. Serial CTest
+passes **10/10 in 24.59 seconds**: architecture boundaries, core profile reset,
+Insights host, SQLite release maintenance and reset, SQLite and Git Insights
+accounting, composition contract, profile recovery, and the Insights public path.
+This is the milestone integration pass; unchanged format/tidy, scale, isolation
+manifest, production syntax and documentation-regression evidence is reused.
+
+Both whole-card obligations and all three authored milestone exits are satisfied
+for the available macOS candidate: fixed window/no refresh effects, byte totals
+within 1% plus actual Insights purge, and explicit owner shell acceptance.
+This closes only `window-and-storage`; RFC-BPR-0086 remains In Progress.
+Windows/Linux native UI and new-course containment, later charts/statistics,
+full export privacy and the macOS idle hour remain unmeasured or pending.
+
+The exact review host was stopped. After recording acceptance, scoped
+`resume-development` released this accepted candidate's protections at event 10;
+the verdict and frozen build remain intact. Consumed session cursor is now 10.
+Runtime evidence for this round is in the session's `evidence/acceptance-r3/`.
+The durable continuation records final local integration and next eligibility.
