@@ -54,9 +54,18 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    by responsiveness and history. All 84 focused rows pass (1,212.24 s). Nine final
    checks pass on `0bea4e26d`, covering the follow-on edits and composition
    reseal (201.40 s). The final full tidy gate passes all 899 translation
-   units, and format passes all 1,628 files. Ready for the ordered landing.
+   units, and format passes all 1,628 files. Finished/pushed in `4305b7210`;
+   worktree, branch and 12 GB build removed.
    No full-suite run per card.
-7. BPR-1599: not started.
+7. BPR-1599: inherited fix preserved at `5721c7061`, main through BPR-1598
+   merged at `68c701ea5`. The product loses a modality chosen during loading
+   when arrival reapplies the opening preference. Source history identifies the
+   older arrival reset and the loading view introduced by `9c670d886`;
+   BPR-1588 is absent from the original failing base. The current-main negative
+   control fails the deterministic Qt assertion at the lost Review choice;
+   the native course passes on that timing (7.09 s). Exact source restoration
+   is verified by SHA-256. Positive rebuild and focused checks are next.
+   The new regression also covers cached arrival and a later load.
 8. Task-owned housekeeping: pending.
 9. One final integrated configure/build/full ctest and format/tidy: pending.
 

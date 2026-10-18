@@ -7829,7 +7829,7 @@ namespace {
 	/// Overview: that is the control the rule must leave alone.
 	auto test_a_modality_chosen_while_loading_survives_the_arrival() -> void
 	{
-		const auto open_and_load = [](qt::workbench_window& aWindow, const std::optional<qt::review_modality> aChoice) {
+		const auto openAndLoad = [](qt::workbench_window& aWindow, const std::optional<qt::review_modality> aChoice, const bool aCached) {
 			aWindow.resize(1'280, 820);
 			aWindow.show();
 			QApplication::processEvents();
@@ -7850,10 +7850,20 @@ namespace {
 				QApplication::processEvents();
 				expect(aWindow.current_modality() == *aChoice, "the strip takes the reviewer's choice while the pull request loads");
 			}
+			if (aCached) {
+				auto cached           = application::github_cached_overview_projection{ };
+				cached.Overview.Title = "The cached pull request";
+				cached.BaseOid        = std::string(40, '1');
+				cached.HeadOid        = std::string(40, '2');
+				aWindow.publish(application::github_presentation_update{ .CachedOverview = std::move(cached) });
+				QApplication::processEvents();
+				expect(aWindow.current_modality() == aChoice.value_or(qt::review_modality::overview),
+					   "a cached overview respects the choice made during the load");
+			}
 			publish_pull_request(aWindow);
 			QApplication::processEvents();
 		};
-		const auto make_window = [] {
+		const auto makeWindow = [] {
 			return std::make_unique<qt::workbench_window>(
 				qt::workbench_intent_dispatch{ },
 				qt::workbench_change_dispatch{ },
@@ -7862,14 +7872,20 @@ namespace {
 				[](application::github_intent) { });
 		};
 
-		auto chosen = make_window();
-		open_and_load(*chosen, qt::review_modality::review);
+		auto chosen = makeWindow();
+		openAndLoad(*chosen, qt::review_modality::review, false);
 		expect(chosen->current_modality() == qt::review_modality::review,
 			   "Review chosen while the pull request loaded is still Review when it arrives");
+		openAndLoad(*chosen, std::nullopt, false);
+		expect(chosen->current_modality() == qt::review_modality::overview,
+			   "the preceding load's Review choice does not carry into a new load");
+		openAndLoad(*chosen, qt::review_modality::discuss, true);
+		expect(chosen->current_modality() == qt::review_modality::discuss,
+			   "Discuss chosen while loading survives the cache and the final arrival");
 		chosen->hide();
 
-		auto control = make_window();
-		open_and_load(*control, std::nullopt);
+		auto control = makeWindow();
+		openAndLoad(*control, std::nullopt, true);
 		expect(control->current_modality() == qt::review_modality::overview,
 			   "with no choice while it loaded, the pull request still arrives on Overview");
 		control->hide();
