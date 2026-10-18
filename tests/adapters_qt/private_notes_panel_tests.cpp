@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
+#include <QWheelEvent>
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -158,6 +159,19 @@ int main(int argc, char** argv)
 		expect(violations.isEmpty(), name + ": Notes keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
 		if (!root.isEmpty()) {
 			expect(panel.grab().save(QStringLiteral("%1/notes-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the margin render is saved");
+		}
+
+		// [[BPR-1593]]. The wheel over the notes scrolls the code.
+		{
+			auto forwarded = 0;
+			panel.set_scroll_forward([&forwarded](QWheelEvent&) {
+				++forwarded;
+				return true;
+			});
+			auto wheel = QWheelEvent{ QPointF{ 100.0, 400.0 }, panel.mapToGlobal(QPointF{ 100.0, 400.0 }), QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(&panel, &wheel);
+			expect(forwarded == 1 && wheel.isAccepted(), name + ": a wheel over the notes scrolls the code");
+			panel.set_scroll_forward({ });
 		}
 
 		// Scrolled: a note whose line is above the view waits in a chip.

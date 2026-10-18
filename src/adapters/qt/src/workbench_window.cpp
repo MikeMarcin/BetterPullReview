@@ -7987,6 +7987,7 @@ namespace bpr::qt {
 		});
 		PrivateNotes->set_elsewhere_dispatch([this](const private_note_item& aNote) { open_private_note_elsewhere(aNote); });
 		PrivateNotes->set_marks_observer([this] { apply_thread_marks(); });
+		PrivateNotes->set_scroll_forward([this](QWheelEvent& aEvent) { return ComparisonSurface != nullptr && ComparisonSurface->scroll_by_wheel(aEvent); });
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			PrivateNotes->set_colours(ConversationPanel->cards()->accent(), ConversationPanel->cards()->marker());
 		}

@@ -462,6 +462,7 @@ namespace bpr::qt {
 	void private_notes_panel::set_line_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch) { LineDispatch = std::move(aDispatch); }
 	void private_notes_panel::set_elsewhere_dispatch(std::function<void(const private_note_item&)> aDispatch) { ElsewhereDispatch = std::move(aDispatch); }
 	void private_notes_panel::set_marks_observer(std::function<void()> aObserver) { MarksObserver = std::move(aObserver); }
+	void private_notes_panel::set_scroll_forward(std::function<bool(QWheelEvent&)> aForward) { ScrollForward = std::move(aForward); }
 
 	void private_notes_panel::set_colours(const QColor& aNew, const QColor& aRoute)
 	{
@@ -1413,6 +1414,12 @@ namespace bpr::qt {
 	void private_notes_panel::wheelEvent(QWheelEvent* aEvent)
 	{
 		if (!Elsewhere) {
+			// The notes hang at the code's lines: the wheel moves the code,
+			// and they follow it.
+			if (ScrollForward && ScrollForward(*aEvent)) {
+				aEvent->accept();
+				return;
+			}
 			aEvent->ignore();
 			return;
 		}

@@ -19,6 +19,7 @@ class QAction;
 class QLabel;
 class QPlainTextEdit;
 class QToolButton;
+class QWheelEvent;
 
 namespace bpr::qt {
 	class drawer_card;
@@ -120,6 +121,9 @@ namespace bpr::qt {
 		void set_line_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
 		/// \brief Goes to another file's note: its file, then its line.
 		void set_elsewhere_dispatch(std::function<void(const private_note_item&)> aDispatch);
+		/// \brief [[BPR-1593]]. A wheel over the notes at their lines scrolls
+		/// the code, as a wheel over Comments does; true when it did.
+		void set_scroll_forward(std::function<bool(QWheelEvent&)> aForward);
 		/// \brief The gutter marks changed.
 		void set_marks_observer(std::function<void()> aObserver);
 		/// \brief The notes' colours: what is new, and where you read.
@@ -214,6 +218,7 @@ namespace bpr::qt {
 		std::function<void(core::diff_side, std::uint32_t)> LineDispatch;
 		std::function<void(const private_note_item&)>       ElsewhereDispatch;
 		std::function<void()>                               MarksObserver;
+		std::function<bool(QWheelEvent&)>                   ScrollForward;
 		private_notes_projection                            Shown;
 		std::optional<private_note_item>                    Editing;
 		std::optional<private_note_target>                  NewTarget;
