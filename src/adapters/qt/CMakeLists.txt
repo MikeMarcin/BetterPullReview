@@ -18,6 +18,7 @@ add_library(
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp
+        src/compose_review_sheet.cpp
         src/keyboard_shortcuts.cpp
         src/keyboard_shortcuts_window.cpp
         src/writing_hooks_panel.cpp

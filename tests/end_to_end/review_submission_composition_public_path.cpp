@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
@@ -70,11 +71,11 @@ namespace {
 		QApplication::processEvents();
 		window.open_review_composition();
 		QApplication::processEvents();
-		auto* const page = window.findChild<QScrollArea*>(
-			QStringLiteral("composeReviewPage"));
-		expect(page != nullptr && page->isVisible()
-				   && page->isAncestorOf(window.review_submission_editor_view()),
-			   "explicit Compose review opens the retained editor in the central page");
+		// [[BPR-1590]]. Finish your review is a sheet over Review.
+		auto* const sheet = window.review_sheet();
+		expect(sheet != nullptr && sheet->isVisible() && window.review_sheet_open()
+				   && sheet->isAncestorOf(window.review_submission_editor_view()),
+			   "explicit Compose review opens the retained editor in the sheet beside the code");
 	}
 	/// Confirmations already read, by editor; cleared with each application.
 	auto confirmations_seen() -> std::map<const qt::review_submission_editor*, std::size_t>&
@@ -456,12 +457,12 @@ auto main(int argc, char** argv) -> int
 			// review opens it again on the next review.
 			application->window().open_review_composition();
 			QApplication::processEvents();
-			auto* const page = application->window().findChild<QScrollArea*>(
-				QStringLiteral("composeReviewPage"));
+			// [[BPR-1590]]. The sheet, beside the code.
+			auto* const page = application->window().review_sheet()->scroll();
 			expect(page != nullptr && page->isVisible()
 					   && page->widget() != nullptr
 					   && page->widget()->isAncestorOf(&restored),
-				   "reopened review returns to the dedicated Compose review page");
+				   "reopened review returns to the Finish your review sheet");
 			page->ensureWidgetVisible(&restored, 0, 0);
 			QApplication::processEvents();
 			const auto visible = page->viewport()->contentsRect();
@@ -631,7 +632,7 @@ auto main(int argc, char** argv) -> int
 
 			// A selected unsent draft binds the decision; a stale view of it is refused.
 			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft."));
-			course.close_review_composition();
+			course.close_review_sheet();
 			course.choose_modality(qt::review_modality::review);
 			auto* const files = course.files_drawer()->contents_view();
 			wait([&] { return files->model()->rowCount() > 0; }, "a file to comment on");

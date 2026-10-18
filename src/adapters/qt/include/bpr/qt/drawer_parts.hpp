@@ -99,6 +99,8 @@ namespace bpr::qt {
 		hide_right,
 		/// A page with lines: an empty notes or status state.
 		page,
+		/// [[BPR-1590]]. A cross: close a sheet.
+		close,
 	};
 	[[nodiscard]] auto drawer_icon(drawer_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 

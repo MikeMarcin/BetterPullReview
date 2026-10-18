@@ -10,12 +10,14 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -9834,13 +9836,12 @@ namespace {
 		expect(QGuiApplication::focusWindow() == window.windowHandle() && start != nullptr,
 			   "the keys start in the active window, on the comparison");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
-		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage")))
-				   && window.current_modality() == qt::review_modality::discuss
-				   && window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->hasFocus(),
-			   "Option-R (Alt+R) opens the summary in Discuss (owner's Q3), its no-draft explanation with Back focused");
+		expect(window.review_sheet_open() && stack->currentWidget() == start && window.current_modality() == qt::review_modality::review
+				   && window.review_sheet()->close_button()->hasFocus(),
+			   "[[BPR-1590]] Option-R (Alt+R) opens Finish your review as a sheet over Review, its no-draft explanation with Close focused");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
-		expect(stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
-			   "Esc returns from the review page to the invoking surface and focus");
+		expect(!window.review_sheet_open() && stack->currentWidget() == start && window.modality()->button(qt::review_modality::review)->hasFocus(),
+			   "Esc closes the sheet and returns focus to the invoking surface");
 		window_key(window, Qt::Key_C, Qt::AltModifier);
 		expect(stack->currentWidget() == start && !window.comment_action()->isEnabled(),
 			   "Option-C (Alt+C) without an admitted target keeps the useful surface open");
@@ -9891,8 +9892,7 @@ namespace {
 		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start,
 			   "Option-Shift-U on the outline retargets the selected stop once and opens nothing else");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
-		expect(fired.size() == 1U && composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))),
-			   "Option-R on the outline composes the review and does not retarget");
+		expect(fired.size() == 1U && window.review_sheet_open(), "Option-R on the outline composes the review and does not retarget");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		window.modality()->button(qt::review_modality::review)->setFocus(Qt::OtherFocusReason);
 		process_events();
@@ -9937,6 +9937,112 @@ namespace {
 		expect(!marked() && !window.compose_review_action()->toolTip().contains(QStringLiteral("kept")),
 			   "a discarded draft withdraws the mark");
 		window.hide();
+	}
+
+	/// \brief [[BPR-1590]]. RFC-BPR-0085 AC04: Finish your review is a sheet
+	/// beside the code; a pending row reveals its line behind it with the
+	/// sheet still open; Expand and Restore keep text, caret and scroll; the
+	/// sheet keeps the drawer principles and leaves the code visible.
+	[[nodiscard]] auto sheet_review(const QString& aBody) -> qt::review_submission_editor_projection
+	{
+		const auto head  = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
+		auto       draft = core::review_submission_draft{
+			.Id            = core::review_submission_draft_id{ 1U },
+			.Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head },
+			.ActingAccount = core::github_account_id{ 4U },
+			.Body          = aBody.toStdString(),
+		};
+		auto pending          = core::review_submission_comment{ };
+		pending.Draft         = core::review_draft_id{ 7U };
+		pending.DraftRevision = 2U;
+		pending.Path          = "src/second.cpp";
+		pending.Line          = 3U;
+		pending.Body          = "question: Is this clamp needed?";
+		draft.Comments        = { pending };
+		return { .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("github.example.test · synthetic-owner/synthetic-repository#17"), .Prepared = core::prepare_review_decision(draft, { }) };
+	}
+
+	void test_finish_review_is_a_sheet_beside_the_code()
+	{
+		const auto root = qEnvironmentVariable("BPR_SHEET_RENDER_ROOT");
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto settings                = qt::default_appearance_settings();
+			settings.Mode                = mode;
+			auto                 profile = qt::appearance_profile{ settings };
+			qt::workbench_window window;
+			window.resize(1'440, 900);
+			profile.apply_to(window);
+			window.show();
+			auto opened    = both_files_enabled();
+			opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+			window.publish(opened);
+			static_cast<void>(publish_fixture(window, computed_comparison("int a = 1;\nint b = 2;\nint c = 3;\n", "int a = 1;\nint b = 20;\nint c = 3;\n", 0U)));
+			window.choose_modality(qt::review_modality::review);
+			process_events();
+			auto* const whole = window.review_submission_editor_view();
+			auto        lines = QStringList{ };
+			for (int line = 0; line < 60; ++line) {
+				lines.push_back(QStringLiteral("Summary line %1 of a long review.").arg(line));
+			}
+			whole->present(sheet_review(lines.join(QLatin1Char{ '\n' })));
+			window.compose_review_action()->trigger();
+			process_events();
+			auto* const sheet = window.review_sheet();
+			const auto  name  = std::string{ mode == core::appearance_mode::light ? "light" : "dark" };
+			expect(window.review_sheet_open() && sheet->isVisible() && window.current_modality() == qt::review_modality::review && sheet->title()->text() == QStringLiteral("Finish your review")
+					   && !whole->title_label()->isVisible(),
+				   name + ": Finish review opens the sheet over Review, named once in its header");
+			const auto area = sheet->parentWidget()->rect();
+			expect(sheet->width() - qt::compose_review_sheet::shadow_width >= 540 && sheet->x() >= 320 && sheet->geometry().right() == area.right(),
+				   name + ": 540 pixels at the right edge, with the code visible beside it");
+			const auto violations = qt::drawer_principle_violations(*sheet);
+			expect(violations.isEmpty(), name + ": the sheet keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
+			if (!root.isEmpty()) {
+				expect(window.grab().save(QStringLiteral("%1/sheet-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the sheet render is saved");
+			}
+
+			// Expand and Restore keep text, caret and scroll.
+			auto cursor = whole->body_editor()->textCursor();
+			cursor.setPosition(42);
+			whole->body_editor()->setTextCursor(cursor);
+			window.resize(1'440, 520);
+			process_events();
+			auto* const sheetBar = sheet->scroll()->verticalScrollBar();
+			sheetBar->setValue(sheetBar->maximum() / 2);
+			const auto scrolled = sheetBar->value();
+			expect(scrolled > 0, name + ": the long review scrolls in the sheet");
+			sheet->expand_button()->click();
+			process_events();
+			auto* const page = window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+			expect(page->isVisible() && page->isAncestorOf(whole) && whole->title_label()->isVisible() && !window.conversation_panel()->isVisible()
+					   && whole->body_editor()->textCursor().position() == 42 && page->verticalScrollBar()->value() > 0,
+				   name + ": Expand is the focused page in Discuss, no thread list, caret and scroll kept");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(QStringLiteral("%1/page-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the page render is saved");
+			}
+			window.findChild<QPushButton*>(QStringLiteral("composeReviewPageBack"))->click();
+			process_events();
+			expect(window.review_sheet_open() && window.current_modality() == qt::review_modality::review && whole->body_editor()->textCursor().position() == 42 && sheetBar->value() > 0,
+				   name + ": Restore is the sheet over Review again, caret and scroll kept");
+
+			// A pending row reveals its line behind the sheet, which stays open.
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			const auto rows = whole->pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
+			expect(rows.size() == 1, name + ": the pending comment is a row");
+			rows.front()->click();
+			process_events();
+			expect(window.current_modality() == qt::review_modality::review && window.review_sheet_open() && sheet->isVisible(),
+				   name + ": choosing a pending row enters Review at its line with the sheet still open");
+
+			// Narrow: the sheet gives way to keep the code visible.
+			window.resize(900, 700);
+			process_events();
+			expect(sheet->x() >= 300 && sheet->width() - qt::compose_review_sheet::shadow_width >= 360 && sheet->scroll()->horizontalScrollBar()->maximum() == 0,
+				   name + ": at a narrow window the sheet narrows, the code stays visible, and nothing scrolls sideways");
+			window.close_review_sheet();
+			expect(!sheet->isVisible() && window.current_modality() == qt::review_modality::review, name + ": Close changes nothing else");
+		}
 	}
 
 	void test_composition_pages_retain_editors_and_never_submit_on_navigation()
@@ -9993,16 +10099,29 @@ namespace {
 			invoking->setFocus();
 			compose->trigger();
 			process_events();
-			expect(composing(window, page) && whole->body_editor()->hasFocus(), "explicit entry opens and focuses retained whole-review editor in Discuss");
+			// [[BPR-1590]]. RFC-BPR-0085 D6: a sheet over the surface, which stays.
+			auto* const sheet = window.review_sheet();
+			expect(window.review_sheet_open() && sheet->isVisible() && window.current_modality() == mode && whole->body_editor()->hasFocus()
+					   && sheet->isAncestorOf(whole) && sheet->geometry().right() >= sheet->parentWidget()->width() - 1,
+				   "explicit entry opens the whole-review editor as a sheet at the right edge, over the surface it came from");
 			whole->present(projection);
 			window.publish(both_files_enabled());
 			process_events();
-			expect(composing(window, page) && whole == window.review_submission_editor_view()
-					   && whole->shown_draft() == draft && whole->body_editor()->textCursor().position() == cursor,
-				   "same-authority projection retains page, editor identity, draft and cursor");
+			expect(window.review_sheet_open() && whole == window.review_submission_editor_view() && whole->shown_draft() == draft && whole->body_editor()->textCursor().position() == cursor,
+				   "same-authority projection retains the sheet, editor identity, draft and cursor");
+			sheet->expand_button()->click();
+			process_events();
+			expect(composing(window, page) && !window.review_sheet_open() && page->isAncestorOf(whole) && window.current_modality() == qt::review_modality::discuss
+					   && !window.conversation_panel()->isVisible() && whole->body_editor()->textCursor().position() == cursor,
+				   "Expand opens the same review as the focused page in Discuss, with no thread list and the caret kept");
 			back->click();
 			process_events();
-			expect(window.current_modality() == mode && invoking->hasFocus(), "Back restores invoking mode and focus");
+			expect(window.review_sheet_open() && sheet->isAncestorOf(whole) && window.current_modality() == mode && whole->body_editor()->textCursor().position() == cursor
+					   && whole->body_editor()->toPlainText() == QStringLiteral("Retained review summary"),
+				   "Restore brings the sheet back over the surface it came from, text and caret kept");
+			sheet->close_button()->click();
+			process_events();
+			expect(!window.review_sheet_open() && !sheet->isVisible() && window.current_modality() == mode && invoking->hasFocus(), "Close leaves the invoking mode and focus as they were");
 			window.open_review_composition(true);
 			process_events();
 			expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage")))
@@ -10026,19 +10145,25 @@ namespace {
 				window.resize(width, 900);
 				compose->trigger();
 				process_events();
-				expect(page->horizontalScrollBar()->maximum() == 0 && whole->width() <= page->viewport()->width()
+				auto* const sheetScroll = window.review_sheet()->scroll();
+				expect(sheetScroll->horizontalScrollBar()->maximum() == 0 && whole->width() <= sheetScroll->viewport()->width()
 						   && whole->body_editor()->height() >= 160,
-					   "narrow/wide composition at normal/large fonts has no horizontal escape or compressed summary");
+					   "narrow/wide composition at normal/large fonts has no horizontal escape or compressed summary in the sheet: " + std::to_string(points) + "pt " + std::to_string(width) + " max " + std::to_string(sheetScroll->horizontalScrollBar()->maximum()) + " whole " + std::to_string(whole->width()) + "/" + std::to_string(whole->minimumSizeHint().width()) + " viewport " + std::to_string(sheetScroll->viewport()->width()) + " body " + std::to_string(whole->body_editor()->height()));
 				for (auto* control : whole->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
-					expect(whole->rect().contains(control->geometry()), "target, type, summary, actions and status stay inside the full-width editor");
+					// The sheet's header names the review; the editor's own title is hidden there.
+					if (control->isHidden()) {
+						continue;
+					}
+					expect(whole->rect().contains(control->geometry()), "target, type, summary, actions and status stay inside the editor: " + control->objectName().toStdString() + " " + std::to_string(control->geometry().right()) + " of " + std::to_string(whole->width()) + " at " + std::to_string(points) + "pt " + std::to_string(width));
 				}
 				window.resize(width, 400);
 				process_events();
-				expect(page->verticalScrollBar()->maximum() > 0 && whole->body_editor()->height() >= 160,
-					   "short-height fallback scrolls the outer page and keeps summary usable");
+				expect(sheetScroll->verticalScrollBar()->maximum() > 0 && whole->body_editor()->height() >= 160,
+					   "short-height fallback scrolls the sheet and keeps summary usable");
+				window.close_review_sheet();
 			}
 		}
-		expect(gestures.empty(), "opening, Back, mode changes and projections never submit or edit a review");
+		expect(gestures.empty(), "opening, Expand, Restore, Close, mode changes and projections never submit or edit a review");
 		expect(inlineGestures.empty(), "inline page navigation never publishes or edits");
 		auto foreignInline  = acceptedInline;
 		foreignInline.Scope = core::review_draft_scope_id{ 2U };
@@ -10756,8 +10881,8 @@ namespace {
 		}
 		chip->click();
 		process_events();
-		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))) && window.current_modality() == qt::review_modality::discuss,
-			   "Finish review opens the review summary in Discuss");
+		expect(window.review_sheet_open() && window.current_modality() == qt::review_modality::review,
+			   "[[BPR-1590]] Finish review opens the review as a sheet beside the code");
 		// [[BPR-1345]] v002. Finish review's key, ⌘⌥↩, bound once for the
 		// window and named in the chip's anchored tooltip.
 		const auto finishKey = QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return };
@@ -10779,12 +10904,13 @@ namespace {
 			}
 			expect(bound == 1, "⌘⌥↩ is bound once in the window");
 		}
-		window.choose_modality(qt::review_modality::review);
+		window.close_review_sheet();
+		window.choose_modality(qt::review_modality::discuss);
 		process_events();
-		expect(!composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))), "back in Review");
+		expect(!window.review_sheet_open(), "the sheet closed, in Discuss");
 		window_key(window, Qt::Key_Return, Qt::ControlModifier | Qt::AltModifier);
-		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))) && window.current_modality() == qt::review_modality::discuss,
-			   "⌘⌥↩ opens Finish your review from anywhere in the window");
+		expect(window.review_sheet_open() && window.current_modality() == qt::review_modality::discuss,
+			   "⌘⌥↩ opens Finish your review from anywhere in the window, over that surface");
 		window.present_saved_drafts({ draft(1U, 4U, true, "key-1"), draft(2U, 9U, true) });
 		process_events();
 		expect(chipAction->isVisible() && chip->submitting() && chip->summary() == QStringLiteral("Review \u00B7 submitting") && !finish->isEnabled(),
@@ -18627,6 +18753,7 @@ auto main(int argc, char** argv) -> int
 	}
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_composition_keys_open_the_pages_and_esc_returns();
+	test_finish_review_is_a_sheet_beside_the_code();
 	test_tour_retarget_key_reaches_only_the_outline();
 	test_compose_review_marks_a_kept_draft();
 	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();

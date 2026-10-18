@@ -1,5 +1,6 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
+#include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
@@ -2739,6 +2740,33 @@ namespace bpr::qt {
 		DraftExcerpt      = new draft_excerpt_view{ DiscussComposer };
 		ComposeReviewPage = makeCompositionPage(ReviewSubmissionEditor, QStringLiteral("composeReviewPage"), tr("Back"), nullptr);
 		ComposeInlinePage = makeCompositionPage(ReviewEditor, QStringLiteral("composeInlineDraftPage"), tr("Back to the code"), DraftExcerpt);
+		// [[BPR-1590]]. RFC-BPR-0085 D6, the owner's "C with an expand to A":
+		// Finish your review is a sheet at the review area's right edge, over
+		// whatever the modality shows; Expand makes it the focused page in
+		// Discuss, whose Restore brings the sheet back. The composer is one
+		// widget, lent to whichever is open.
+		ReviewSheet = new compose_review_sheet{ ReviewSurface };
+		ReviewSheet->scroll()->viewport()->setBackgroundRole(QPalette::Base);
+		{
+			const auto expandKey = shortcut_key(shortcut_command::draft_to_discuss).toString(QKeySequence::NativeText);
+			const auto closeKey  = shortcut_key(shortcut_command::leave_composer).toString(QKeySequence::NativeText);
+			ReviewSheet->set_tools(conversation_icon(conversation_glyph::maximize, palette()), tr("Expand to a page  %1").arg(expandKey), [this] { expand_review_sheet(); }, drawer_icon(drawer_glyph::close, palette()), tr("Close  %1").arg(closeKey), [this] { close_review_sheet(); });
+			auto* const sheetEscape = new QShortcut{ shortcut_key(shortcut_command::leave_composer), ReviewSheet };
+			sheetEscape->setObjectName(QStringLiteral("composeReviewSheetEscape"));
+			sheetEscape->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(sheetEscape, &QShortcut::activated, this, [this] { close_review_sheet(); });
+			auto* const sheetExpand = new QShortcut{ shortcut_key(shortcut_command::draft_to_discuss), ReviewSheet };
+			sheetExpand->setObjectName(QStringLiteral("composeReviewSheetExpandKey"));
+			sheetExpand->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(sheetExpand, &QShortcut::activated, this, [this] { expand_review_sheet(); });
+		}
+		if (auto* const restore = ComposeReviewPage->findChild<QPushButton*>(QStringLiteral("composeReviewPageBack")); restore != nullptr) {
+			const auto key = shortcut_key(shortcut_command::draft_to_discuss).toString(QKeySequence::NativeText);
+			restore->setText(tr("Restore"));
+			restore->setToolTip(tr("Back to the sheet beside the code  %1 or Esc").arg(key));
+			restore->setAccessibleDescription(tr("Return to the review sheet without submitting"));
+		}
+		CentralSplitter->installEventFilter(this);
 		// Keep the decision and its illustration visible while the before/after
 		// scrolls. Mascot preferences must never hide these semantic controls.
 		WorkshopHeader = new QWidget{ CentreSurface };
@@ -2796,8 +2824,9 @@ namespace bpr::qt {
 		});
 		ReviewSubmissionEditor->set_discard_observer([this] {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
-				close_review_composition();
+				close_review_composition(false);
 			}
+			close_review_sheet();
 		});
 		// [[BPR-1345]] v003. A review GitHub confirmed closes the page and
 		// returns to the view the reviewer came from, Review or Discuss,
@@ -2805,8 +2834,9 @@ namespace bpr::qt {
 		// unknown answer keeps the page and its recovery.
 		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments) {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
-				close_review_composition();
+				close_review_composition(false);
 			}
+			close_review_sheet();
 			const auto said = aComments == 0U ? tr("Review submitted")
 				: aComments == 1U             ? tr("Review submitted with 1 comment")
 											  : tr("Review submitted with %1 comments").arg(aComments);
@@ -7936,7 +7966,8 @@ namespace bpr::qt {
 	auto workbench_window::tour_editor() const noexcept -> review_tour_editor* { return TourEditor; }
 	void workbench_window::open_review_tour()
 	{
-		close_review_composition();
+		close_review_composition(false);
+		close_review_sheet();
 		choose_home(false);
 		choose_modality(review_modality::review);
 		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
@@ -8201,6 +8232,10 @@ namespace bpr::qt {
 
 	void workbench_window::update_compose_mark()
 	{
+		// [[BPR-1590]]. The sheet's header names the review as its page does.
+		if (ReviewSheet != nullptr && ReviewSubmissionEditor != nullptr) {
+			ReviewSheet->title()->setText(ReviewSubmissionEditor->title_label()->text());
+		}
 		if (ComposeReviewAction == nullptr || CommentAction == nullptr) {
 			return;
 		}
@@ -8464,6 +8499,19 @@ namespace bpr::qt {
 				}
 			}
 			DiscussComposer->setVisible(CompositionPage != nullptr);
+			// [[BPR-1590]]. The expanded review is one column of reading width
+			// at the page's left, as Discuss's notes are ([[BPR-1584]]), with no
+			// thread list (RFC-BPR-0085 D6); a maximized draft keeps its list
+			// beside it ([[BPR-1212]]).
+			const auto focused = CompositionPage != nullptr && CompositionPage == ComposeReviewPage;
+			const auto column  = core::reading_width_limit(Behaviour.ReadingWidth);
+			// The column is the composer's comfortable line and its margins, never
+			// wider than the reading width, so Restore sits at its top right.
+			const auto line = ReviewSubmissionEditor != nullptr ? static_cast<std::uint32_t>(ReviewSubmissionEditor->maximumWidth() + 48) : 808U;
+			DiscussComposer->setMaximumWidth(focused ? static_cast<int>(std::min({ column.value_or(line), line, static_cast<std::uint32_t>(QWIDGETSIZE_MAX) })) : QWIDGETSIZE_MAX);
+			if (ConversationPanel != nullptr && ConversationPanel->parentWidget() == DiscussPage) {
+				ConversationPanel->setVisible(!focused);
+			}
 			if (ConversationPanel != nullptr) {
 				const auto listed = CompositionPage != nullptr && ConversationPanel->parentWidget() == DiscussPage;
 				// [[BPR-1584]]. Discuss's notes stop at the reading width,
@@ -8510,6 +8558,15 @@ namespace bpr::qt {
 
 	void workbench_window::open_review_composition(const bool aInline)
 	{
+		// [[BPR-1590]]. Compose review and Finish review open the sheet; only
+		// its Expand opens the review as a page.
+		if (!aInline && !ExpandingReviewSheet) {
+			open_review_sheet();
+			return;
+		}
+		if (aInline && ReviewSheetOpen) {
+			close_review_sheet();
+		}
 		if (ReviewNavigationDispatch) {
 			ReviewNavigationDispatch(std::nullopt);
 		}
@@ -8584,8 +8641,9 @@ namespace bpr::qt {
 		open_review_composition(true);
 	}
 
-	void workbench_window::close_review_composition()
+	void workbench_window::close_review_composition(const bool aRestoreSheet)
 	{
+		const auto reviewPage      = CompositionPage != nullptr && CompositionPage == ComposeReviewPage;
 		const auto inlineDraft     = CompositionPage == ComposeInlinePage;
 		const auto returnsToDrawer = inlineDraft && CompositionReturnsToDrawer;
 		const auto returnModality  = std::exchange(CompositionReturnModality, std::nullopt);
@@ -8612,9 +8670,131 @@ namespace bpr::qt {
 			return;
 		}
 		CompositionCaret = -1;
+		// [[BPR-1590]]. The expanded review restores to its sheet, beside the
+		// surface it came from.
+		if (reviewPage && aRestoreSheet) {
+			const auto back = CompositionReturnFocus;
+			open_review_sheet();
+			SheetReturnFocus = back;
+			return;
+		}
 		if (CompositionReturnFocus && CompositionReturnFocus->isVisible()) {
 			CompositionReturnFocus->setFocus(Qt::OtherFocusReason);
 		}
+	}
+
+	auto workbench_window::review_sheet() const noexcept -> compose_review_sheet*
+	{
+		return ReviewSheet;
+	}
+
+	auto workbench_window::review_sheet_open() const noexcept -> bool
+	{
+		return ReviewSheetOpen;
+	}
+
+	void workbench_window::place_review_sheet()
+	{
+		if (ReviewSheet == nullptr || CentralSplitter == nullptr) {
+			return;
+		}
+		ReviewSheet->place(CentralSplitter->geometry());
+	}
+
+	void workbench_window::move_review_composer(const bool aToSheet)
+	{
+		if (ReviewSheet == nullptr || ComposeReviewPage == nullptr || ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		auto* const pageColumn = qobject_cast<QVBoxLayout*>(ComposeReviewPage->widget()->layout());
+		auto* const from       = aToSheet ? static_cast<QScrollArea*>(ComposeReviewPage) : ReviewSheet->scroll();
+		auto* const to         = aToSheet ? ReviewSheet->scroll() : static_cast<QScrollArea*>(ComposeReviewPage);
+		const auto  inSheet    = ReviewSubmissionEditor->parentWidget() == ReviewSheet->scroll()->widget();
+		if (inSheet == aToSheet) {
+			return;
+		}
+		const auto scroll = from->verticalScrollBar()->value();
+		if (aToSheet) {
+			pageColumn->removeWidget(ReviewSubmissionEditor);
+			ReviewSheet->content_layout()->addWidget(ReviewSubmissionEditor, 1);
+		} else {
+			ReviewSheet->content_layout()->removeWidget(ReviewSubmissionEditor);
+			pageColumn->addWidget(ReviewSubmissionEditor, 1);
+		}
+		ReviewSubmissionEditor->show();
+		// The sheet's header names the review; the page shows the editor's own title.
+		ReviewSubmissionEditor->title_label()->setVisible(!aToSheet);
+		ReviewSheet->title()->setText(ReviewSubmissionEditor->title_label()->text());
+		to->widget()->adjustSize();
+		to->verticalScrollBar()->setValue(scroll);
+		// The geometry settles on the next pass; keep the place the reader had.
+		QTimer::singleShot(0, to, [to, scroll] { to->verticalScrollBar()->setValue(scroll); });
+	}
+
+	void workbench_window::open_review_sheet(const bool aFocus)
+	{
+		if (ReviewSheet == nullptr) {
+			return;
+		}
+		if (CompositionPage != nullptr) {
+			// An inline draft's page gives way; the expanded review becomes the sheet.
+			close_review_composition(false);
+		}
+		if (!ReviewSheetOpen) {
+			SheetReturnFocus = QApplication::focusWidget();
+		}
+		move_review_composer(true);
+		ReviewSheetOpen = true;
+		ReviewSubmissionEditor->ensurePolished();
+		ReviewSheet->content_layout()->activate();
+		place_review_sheet();
+		ReviewSheet->show();
+		ReviewSheet->raise();
+		// Its content's minimum settles once shown; the sheet follows it.
+		QTimer::singleShot(0, ReviewSheet, [this] {
+			if (ReviewSheetOpen) {
+				place_review_sheet();
+			}
+		});
+		if (!aFocus) {
+			return;
+		}
+		auto* const body = ReviewSubmissionEditor->body_editor();
+		if (body->isVisible() && body->isEnabled()) {
+			body->setFocus(Qt::OtherFocusReason);
+		} else {
+			ReviewSheet->close_button()->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::close_review_sheet()
+	{
+		if (ReviewSheet == nullptr || !ReviewSheetOpen) {
+			return;
+		}
+		ReviewSheetOpen = false;
+		ReviewSheet->hide();
+		if (SheetReturnFocus && SheetReturnFocus->isVisible()) {
+			SheetReturnFocus->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::expand_review_sheet()
+	{
+		if (ReviewSheet == nullptr) {
+			return;
+		}
+		const auto caret = ReviewSubmissionEditor->body_editor()->textCursor();
+		const auto focus = SheetReturnFocus;
+		ReviewSheetOpen  = false;
+		ReviewSheet->hide();
+		move_review_composer(false);
+		ExpandingReviewSheet = true;
+		CompositionReturnFocus.clear();
+		open_review_composition(false);
+		ExpandingReviewSheet   = false;
+		CompositionReturnFocus = focus;
+		ReviewSubmissionEditor->body_editor()->setTextCursor(caret);
 	}
 
 	auto workbench_window::begin_new_comment(const bool aSuggestion) -> bool
@@ -13380,6 +13560,10 @@ namespace bpr::qt {
 		if (aEvent != nullptr && aEvent->type() == QEvent::Paint && aWatched == statusBar() && home_status_echoes_bar()) {
 			return true;
 		}
+		// [[BPR-1590]]. The sheet keeps to the review area's right edge.
+		if (aWatched == CentralSplitter && aEvent != nullptr && (aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::Move) && ReviewSheetOpen) {
+			place_review_sheet();
+		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
@@ -17038,6 +17222,10 @@ namespace bpr::qt {
 		refresh_progress_icons();
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
 			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
+			if (ReviewSheet != nullptr) {
+				ReviewSheet->expand_button()->setIcon(conversation_icon(conversation_glyph::maximize, palette()));
+				ReviewSheet->close_button()->setIcon(drawer_icon(drawer_glyph::close, palette()));
+			}
 			CommentAction->setIcon(strip_icon(strip_glyph::comment, ink));
 		}
 		// [[BPR-1338]]. One glyph for Open on GitHub wherever it is offered.

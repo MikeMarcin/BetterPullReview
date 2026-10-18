@@ -304,6 +304,7 @@ int main(int aArgc, char** aArgv)
 			  << std::flush;
 	expect(!surface->selection() || surface->selection()->PreferredLine.Line != pendingLocation.Line || surface->selection()->PreferredLine.Side != pendingLocation.Side, "cancelled reveal cannot revive after returning to its old file");
 
+	const auto composedFrom = window.current_modality();
 	window.compose_review_action()->trigger();
 	auto* draft = window.review_submission_editor_view()->body_editor();
 	wait_for([&] { return draft->isVisible() && !draft->isReadOnly(); }, "real PR composer");
@@ -312,7 +313,7 @@ int main(int aArgc, char** aArgv)
 	settle();
 	const auto beforeEditor = panel->projection().CurrentMatch;
 	tests::window_system_key(window, Qt::Key_F4);
-	expect(window.current_modality() == qt::review_modality::discuss && draft->toPlainText() == QStringLiteral("unsent search course text") && panel->projection().CurrentMatch == beforeEditor, "F4 cannot hijack unrelated composer");
+	expect(window.current_modality() == composedFrom && draft->toPlainText() == QStringLiteral("unsent search course text") && panel->projection().CurrentMatch == beforeEditor, "F4 cannot hijack unrelated composer");
 	tests::window_system_key(window, Qt::Key_F, Qt::ControlModifier | Qt::ShiftModifier);
 	wait_for([&] { return window.current_modality() == qt::review_modality::review && panel->bar()->query_editor()->hasFocus(); }, "physical Find Files enters Review from composer");
 	expect(draft->toPlainText() == QStringLiteral("unsent search course text"), "Find Files retains unsent review body");

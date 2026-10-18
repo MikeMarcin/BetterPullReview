@@ -543,7 +543,9 @@ int main(int aArgc, char** aArgv)
 	window.choose_modality(qt::review_modality::review);
 	wait_for([&] { return shown(window, order[4]) && !access::epoch_refresh_identity(*application).TabPending; }, "return after Home retains origin file");
 
-	// Real composer native arrow keys retain text/caret and do not enter Review.
+	// Real composer native arrow keys retain text/caret and do not change the
+	// modality: [[BPR-1590]] the sheet opens over the surface it came from.
+	const auto composedFrom = window.current_modality();
 	window.compose_review_action()->trigger();
 	auto* editor = window.review_submission_editor_view()->body_editor();
 	wait_for([&] { return editor->isVisible() && !editor->isReadOnly(); }, "real summary composer visible");
@@ -553,7 +555,7 @@ int main(int aArgc, char** aArgv)
 	const auto body = editor->toPlainText();
 	for (const auto key : { Qt::Key_Up, Qt::Key_Down }) {
 		tests::window_system_key(window, key, Qt::AltModifier);
-		expect(window.current_modality() == qt::review_modality::discuss && editor->toPlainText() == body, "editable multiline keys preserve native input and modality");
+		expect(window.current_modality() == composedFrom && editor->toPlainText() == body, "editable multiline keys preserve native input and modality");
 	}
 	window.next_file_action()->trigger();
 	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "menu navigation can leave composer");

@@ -11,6 +11,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
+#include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
@@ -30725,6 +30726,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 		};
 		const auto finishPage = [&]() -> QWidget* {
+			// [[BPR-1590]]. Finish your review is a sheet, or its expanded page.
+			if (window->review_sheet_open()) {
+				return window->review_sheet();
+			}
 			auto* const page = window->findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
 			return page != nullptr && page->isVisibleTo(window) ? page : nullptr;
 		};
@@ -31070,7 +31075,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!opened || !shown(expected) || !summary->disposition_button(core::review_disposition::comment)->isEnabled()) {
 				return result::pending;
 			}
-			probe.Evidence.FinishOpened = window->current_modality() == qt::review_modality::discuss;
+			// [[BPR-1590]]. A sheet over the surface it was opened from.
+			probe.Evidence.FinishOpened = window->review_sheet_open();
 			// Comment, with no summary, is one of the three buttons that
 			// submit (v002).
 			probe.Evidence.CommentWithoutSummary = summary->shown_draft().has_value() && summary->body_editor()->toPlainText().isEmpty()
@@ -31463,7 +31469,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (finishPage() == nullptr || !shown(2U)) {
 				return result::pending;
 			}
-			probe.Evidence.FinishOpened = window->current_modality() == qt::review_modality::discuss && calm();
+			probe.Evidence.FinishOpened = window->review_sheet_open() && calm();
 			if (!probe.Evidence.FinishOpened) {
 				return fail("finish-again-not-as-drawn");
 			}
@@ -31509,7 +31515,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto selected = window->comparison_surface()->selection();
 			note("page=" + std::to_string(finishPage() != nullptr ? 1 : 0) + " modality=" + std::to_string(static_cast<int>(window->current_modality()))
 				 + " line=" + (selected ? std::to_string(selected->PreferredLine.Line) : std::string{ "-" }));
-			if (finishPage() != nullptr || window->current_modality() != qt::review_modality::review || !selected
+			// [[BPR-1590]]. The row's line shows behind the sheet, which stays open.
+			if (!window->review_sheet_open() || window->current_modality() != qt::review_modality::review || !selected
 				|| selected->PreferredLine.Side != core::diff_side::right || probe.Lines.size() != 2U || selected->PreferredLine.Line != probe.Lines.back() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("row-not-revealed");
 			}

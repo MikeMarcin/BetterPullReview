@@ -5,6 +5,7 @@
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1159,18 +1160,18 @@ namespace {
 		look("listed");
 		panel->clear_listing_button()->click();
 		QApplication::processEvents();
-		// [[BPR-1212]]. Compose review (⌥R) opens in Discuss beside the
-		// conversations, which narrow to a list at the left.
+		// [[BPR-1590]]. Compose review (⌥R) is a sheet over Discuss: the
+		// conversations keep their place and width beneath it, and every band
+		// control stays whole.
 		expect(window.compose_review_action() != nullptr && window.compose_review_action()->isEnabled(), "Compose review is offered");
+		const auto listWidth = panel->width();
 		window.compose_review_action()->trigger();
-		wait_for([&] { return window.findChild<QWidget*>(QStringLiteral("discussComposer")) != nullptr && window.findChild<QWidget*>(QStringLiteral("discussComposer"))->isVisible(); },
-				 "Compose review opens in Discuss beside the list");
-		// Beside the composer the list is narrow: the band wraps, and every
-		// control stays whole inside the list's width.
-		expect(panel->width() < 400 && box(panel->discuss_summary()).top() > box(panel->scope_whole_pull_request_button()).bottom(), "beside the composer the band wraps");
+		wait_for([&] { return window.review_sheet_open() && window.review_sheet()->isVisible(); }, "Compose review opens as a sheet over Discuss");
+		expect(window.current_modality() == qt::review_modality::discuss && panel->width() == listWidth && !window.findChild<QWidget*>(QStringLiteral("discussComposer"))->isVisible(),
+			   "the conversations are not narrowed to a list beside a composer");
 		for (auto* const control : std::vector<QWidget*>{ panel->scope_whole_pull_request_button(), panel->scope_this_file_button(), panel->filter_unread_button(),
 														  panel->filter_unresolved_button(), clear, panel->discuss_summary() }) {
-			expect(band->rect().contains(box(control)) && box(control).right() < panel->width(), "every band control is whole inside the narrow list");
+			expect(band->rect().contains(box(control)) && box(control).right() < panel->width(), "every band control is whole");
 		}
 		look("composer");
 		owner->begin_shutdown();
@@ -2497,7 +2498,7 @@ namespace {
 		const auto draftBody = QStringLiteral("Combined GHES course local review draft.");
 		editor->body_editor()->setPlainText(draftBody);
 		const auto draftId = editor->shown_draft()->Id;
-		button(updatedWindow, "composeReviewPageBack")->click();
+		updatedWindow.close_review_sheet();
 		read_cli_source_update_discussion(updatedWindow);
 		updatedWindow.modality()->action(qt::review_modality::review)->trigger();
 		expect(recoveredSurface->current_context().has_value()

@@ -103,6 +103,7 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class compose_review_sheet;
 	class destructive_question;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
@@ -1073,6 +1074,18 @@ namespace bpr::qt {
 		/// drawer at its line while the code shows; otherwise, and for the
 		/// whole-review summary, the full composer opens in Discuss.
 		void open_review_composition(bool aInline = false);
+		/// \brief [[BPR-1590]]. Finish your review as a sheet at the review
+		/// area's right edge over the current surface (RFC-BPR-0085 D6); the
+		/// expanded review page restores to it.
+		void open_review_sheet(bool aFocus = true);
+		/// \brief [[BPR-1590]]. Closes the sheet; nothing else changes.
+		void close_review_sheet();
+		/// \brief [[BPR-1590]]. The sheet's Expand: the same review as the
+		/// focused page in Discuss, its text, caret and scroll kept.
+		void               expand_review_sheet();
+		[[nodiscard]] auto review_sheet() const noexcept -> compose_review_sheet*;
+		/// \brief [[BPR-1590]]. Whether the sheet is open over the surface.
+		[[nodiscard]] auto review_sheet_open() const noexcept -> bool;
 		/// \brief [[BPR-1212]]. Opens the draft on the selected line in
 		/// Discuss's full composer (Maximize, ⌘⇧↩): a workshop proposal's
 		/// before and after needs its room.
@@ -1080,7 +1093,10 @@ namespace bpr::qt {
 		/// \brief Returns to the invoking surface and focus without submitting.
 		/// \details [[BPR-1212]]. A draft maximized from the drawer goes back
 		/// to the drawer, writing, with its text and caret.
-		void close_review_composition();
+		/// \details [[BPR-1590]]. The expanded review page restores to its
+		/// sheet unless `aRestoreSheet` is false (a submitted or discarded
+		/// review, which closes both).
+		void close_review_composition(bool aRestoreSheet = true);
 		/// \brief [[BPR-1212]]. Starts a new comment on the selected line (or
 		/// a suggested change on it) as a draft in the drawer.
 		/// \returns Whether the draft opened, in the drawer or in Discuss.
@@ -2290,11 +2306,22 @@ namespace bpr::qt {
 		std::optional<pending_comment_pick> PendingCommentPick;
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
-		bool              ThreadsRevealNotice = false;
-		QVBoxLayout*      ConversationLayout  = nullptr;
-		QScrollArea*      ComposeReviewPage   = nullptr;
-		QScrollArea*      ComposeInlinePage   = nullptr;
-		QWidget*          CompositionPage     = nullptr;
+		bool         ThreadsRevealNotice = false;
+		QVBoxLayout* ConversationLayout  = nullptr;
+		QScrollArea* ComposeReviewPage   = nullptr;
+		/// [[BPR-1590]]. Finish your review over the surface, and whether it is
+		/// open; the review composer lives in it or in the expanded page.
+		compose_review_sheet* ReviewSheet     = nullptr;
+		bool                  ReviewSheetOpen = false;
+		/// Set while Expand opens the review as a page.
+		bool              ExpandingReviewSheet = false;
+		QPointer<QWidget> SheetReturnFocus;
+		/// [[BPR-1590]]. Moves the review composer into the sheet or into the
+		/// expanded page, keeping its scroll position.
+		void              move_review_composer(bool aToSheet);
+		void              place_review_sheet();
+		QScrollArea*      ComposeInlinePage = nullptr;
+		QWidget*          CompositionPage   = nullptr;
 		QPointer<QWidget> CompositionReturnFocus;
 		/// [[BPR-1212]]. Discuss's composer column, which shows one of the
 		/// two composition pages beside the conversations.

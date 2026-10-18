@@ -231,6 +231,14 @@ namespace bpr::qt {
 				aPainter.drawPath(route);
 			},
 									  ink, disabled);
+		case drawer_glyph::close:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 12.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 7.0 * unit, 7.0 * unit }, QPointF{ 17.0 * unit, 17.0 * unit });
+				aPainter.drawLine(QPointF{ 17.0 * unit, 7.0 * unit }, QPointF{ 7.0 * unit, 17.0 * unit });
+			},
+									  ink, disabled);
 		case drawer_glyph::hide_right:
 			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
 				aPainter.setPen(QPen{ aInk, aSide / 12.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
