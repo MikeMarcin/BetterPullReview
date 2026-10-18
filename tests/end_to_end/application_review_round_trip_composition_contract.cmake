@@ -1825,7 +1825,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "729bd235edce8e857b2c48edca04a5bbead9abf9cd98b3ebdafd71a3a94c6da1"
+        "601eaa0be95b2031621ac2662bfe082657aeb2856290f51de4e01e58c823d271"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2819,3 +2819,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # merge-base-v1. No grant, target, provider, credential, transport, GitHub
 # write, mutation or publication path changes in the composition; the
 # production mutation-branch pin is unchanged.
+
+# [[BPR-1605]]. The review-submission workflow reads carried comments into
+# preflight, deduplicates them against the selected composer draft, and keys
+# its projection cache by those comments. Only review_submission_workflow.cpp
+# and .hpp change in the production app tree; observation/context projection
+# gains no publication, executor or capability path. The production-manifest
+# digest is refreshed after reviewing those changes. Source inventory, full
+# github_application digest and production mutation-host digest are unchanged.

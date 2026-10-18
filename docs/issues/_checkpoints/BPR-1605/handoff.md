@@ -21,3 +21,5 @@ frontend-design was loaded; native typography and layout remain, with one clear 
 The unchanged broad submission course stops at the legacy Agent-tab assertion documented and owned by BPR-1616; see BPR-1604 handoff for the precise scope and other verification.
 
 Final portability review: renamed a new preflight-chip structured binding from `text` (a QAbstractButton member name) to `count`, in accordance with the Qt AGENTS Windows shadowing rule. The unpresented first freeze is superseded; the replacement uses the corrected source candidate. No behavior or acceptance change.
+
+The integration contract correctly rejected the changed app-source manifest pin (729bd235… vs 601eaa0b…). Reviewed the only app-tree changes, review_submission_workflow.cpp/.hpp: carried-comment context and projection caching only, with no publication, capability or executor path changes. Updated the production app-manifest pin and retained all negative controls; the production mutation-host/full github_application digests stay unchanged. This test-only upkeep does not change the frozen d06e7400e product or rendered candidate.
