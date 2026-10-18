@@ -683,6 +683,8 @@ namespace bpr::application {
 		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
 		/// RFC-BPR-0084 Q3. Images in descriptions and comments load by default.
 		review_markdown_images MarkdownImages = review_markdown_images::load;
+		/// [[BPR-1584]]. How wide Threads and Discuss grow; never the code.
+		core::reading_width ReadingWidth = core::default_reading_width;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -724,6 +726,7 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_markdown_images::off)
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
+			&& core::valid(aSettings.ReadingWidth)
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}
 

@@ -1,4 +1,5 @@
 #include "conversation_open_card.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 
 #include "conversation_glyphs.hpp"
 
@@ -842,6 +843,21 @@ namespace bpr::qt {
 		return QRect{ gut_left + (avatar_size - mark_size) / 2, beneath, mark_size, mark_size };
 	}
 
+	void thread_post_view::set_arrival(const qreal aStrength)
+	{
+		const auto strength = std::clamp(aStrength, 0.0, 1.0);
+		if (strength == Arrival) {
+			return;
+		}
+		Arrival = strength;
+		update();
+	}
+
+	auto thread_post_view::arrival() const noexcept -> qreal
+	{
+		return Arrival;
+	}
+
 	auto thread_post_view::rail_rect() const -> QRectF
 	{
 		const auto width = feedback_rail_width(Post.Emphasis);
@@ -863,6 +879,19 @@ namespace bpr::qt {
 		// an amber edge, as the prototype marks it.
 		if (!Style.Picked.empty() && Style.Picked == Post.Id) {
 			painter.fillRect(rect(), colours.RouteSoft);
+			painter.fillRect(QRect{ 0, 0, 3, height() }, colours.Route);
+		}
+		// [[BPR-1581]]. Arrival: the same amber, stronger, ringed, settling
+		// into the resting wash. A dissolve, not motion.
+		if (Arrival > 0.0) {
+			auto wash = colours.Route;
+			wash.setAlphaF(static_cast<float>(0.22 * Arrival));
+			painter.fillRect(rect(), wash);
+			auto ring = colours.Route;
+			ring.setAlphaF(static_cast<float>(Arrival));
+			painter.setPen(QPen{ ring, 1.5 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.5, 1.5, -1.5, -1.5), 4.0, 4.0);
 			painter.fillRect(QRect{ 0, 0, 3, height() }, colours.Route);
 		}
 		if (RuleAbove) {
@@ -1257,11 +1286,50 @@ namespace bpr::qt {
 					aMenu.setToolTipsVisible(true);
 					auto* const open = aMenu.addAction(QStringLiteral("Open in Review"));
 					open->setObjectName(QStringLiteral("postOpenInReview"));
-					open->setEnabled(Style.HasCodeAnchor && static_cast<bool>(OpenInReviewRequested));
-					open->setToolTip(Style.HasCodeAnchor ? QStringLiteral("Open this comment inline in Review") : QStringLiteral("This comment has no current code anchor."));
+					// [[BPR-1581]]. The core's route decides: any comment on a
+					// file has a place in Review, an outdated one among its
+					// file's threads without a line.
+					const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
+						.Destination = core::workbench_thread_destination::review,
+						.Origin      = core::workbench_thread_origin::discuss,
+						.OnFile      = Style.OnFile,
+						.Placed      = Style.HasCodeAnchor,
+					});
+					open->setEnabled(route.Available && static_cast<bool>(OpenInReviewRequested));
+					open->setToolTip(route.Available ? QStringLiteral("Open this comment inline in Review") : QStringLiteral("This comment is not on a file; Review shows a file's threads beside its code."));
 					connect(open, &QAction::triggered, this, [this, id] {
 						// The navigation can replace this card; keep the callback alive.
 						const auto dispatch = OpenInReviewRequested;
+						if (dispatch) {
+							dispatch(id);
+						}
+					});
+				});
+			} else if (!aCard.Draft) {
+				// [[BPR-1581]]. In Review a comment's own menu shows it in
+				// Discuss, with the rest of the conversation; its tools stay
+				// in its name row.
+				view->reader()->set_extended_menu(true);
+				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+					aMenu.addSeparator();
+					aMenu.setToolTipsVisible(true);
+					auto* const show = aMenu.addAction(QStringLiteral("Show in Discuss"));
+					show->setObjectName(QStringLiteral("postShowInDiscuss"));
+					show->setEnabled(static_cast<bool>(ShowInDiscussRequested));
+					show->setToolTip(QStringLiteral("Show this comment in Discuss, with the rest of the conversation"));
+					connect(show, &QAction::triggered, this, [this, id] {
+						const auto dispatch = ShowInDiscussRequested;
+						if (dispatch) {
+							dispatch(id);
+						}
+					});
+					// [[BPR-1586]]. And its row in Threads.
+					auto* const threads = aMenu.addAction(QStringLiteral("Show in Threads"));
+					threads->setObjectName(QStringLiteral("postShowInThreads"));
+					threads->setEnabled(static_cast<bool>(ShowInThreadsRequested));
+					threads->setToolTip(QStringLiteral("Show this comment's thread in Threads"));
+					connect(threads, &QAction::triggered, this, [this, id] {
+						const auto dispatch = ShowInThreadsRequested;
 						if (dispatch) {
 							dispatch(id);
 						}

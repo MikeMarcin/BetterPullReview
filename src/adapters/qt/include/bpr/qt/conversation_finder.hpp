@@ -173,6 +173,10 @@ namespace bpr::qt {
 	/// in Discuss ask for Discuss.
 	using finder_pick_dispatch = std::function<void(const finder_location&, core::workbench_thread_destination)>;
 
+	/// \brief [[BPR-1582]]. The row menu's Mark as read (true) or Mark as
+	/// unread (false) for one thread, by its root's identity.
+	using finder_read_dispatch = std::function<void(const std::string&, bool)>;
+
 	class finder_model;
 	class finder_list;
 	class finder_chip;
@@ -208,7 +212,18 @@ namespace bpr::qt {
 		/// \brief Shown as the page: the search has focus and the cursor is on
 		/// the conversation open in Review, or kept, or on the first row.
 		void enter();
+		/// \brief [[BPR-1586]]. Puts the cursor on a thread's row, at \p aPost
+		/// when the row holds it, scrolled into view with the keyboard on the
+		/// list. A filter or a folded file that hides the row is cleared, and
+		/// \p aCleared says so. False when the finder has no such thread.
+		auto reveal(const std::string& aThread, const std::string& aPost, bool* aCleared = nullptr) -> bool;
 		void set_pick_dispatch(finder_pick_dispatch aDispatch);
+		/// \brief [[BPR-1582]]. Where the row menu's Mark as read and Mark as
+		/// unread go.
+		void set_read_dispatch(finder_read_dispatch aDispatch);
+		/// \brief [[BPR-1584]]. How wide the rows grow on a wide page.
+		void               set_reading_width(core::reading_width aWidth);
+		[[nodiscard]] auto reading_width() const noexcept -> core::reading_width;
 		/// \brief Esc on an empty search.
 		void set_leave_dispatch(std::function<void()> aDispatch);
 
@@ -233,6 +248,12 @@ namespace bpr::qt {
 		/// viewport, while it shows: on the row under the pointer and on the
 		/// cursor's row, never on a file's header or my draft. Empty otherwise.
 		[[nodiscard]] auto discuss_button_rect(const std::string& aRowKey) const -> QRect;
+		/// \brief [[BPR-1582]]. The row's Review button, beside its Discuss
+		/// button and shown with it; on my draft, alone. Empty otherwise.
+		[[nodiscard]] auto review_button_rect(const std::string& aRowKey) const -> QRect;
+		/// \brief [[BPR-1582]]. A row's people, counts and state: the
+		/// rectangle from its first bead to its right end.
+		[[nodiscard]] auto trailing_rect(const std::string& aRowKey) const -> QRect;
 		/// \brief [[BPR-1356]]. The row menu while it is open, or null: Open in
 		/// Review, the default, and Open in Discuss, each showing its key. It
 		/// and its items are made for each opening and go when it closes, as
@@ -240,6 +261,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto row_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto open_in_review_action() const noexcept -> QAction*;
 		[[nodiscard]] auto open_in_discuss_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1582]]. Mark as read or Mark as unread, as the
+		/// thread's read state decides, while the menu is open.
+		[[nodiscard]] auto read_action() const noexcept -> QAction*;
 		/// \brief Opens the row menu for one row at a point of the list's
 		/// viewport, the post under the point picked when it is a bead.
 		void popup_row_menu(const std::string& aRowKey, QPoint aPosition);
@@ -287,6 +311,7 @@ namespace bpr::qt {
 		void               open_label_menu();
 		void               pick(std::size_t aItem, std::optional<std::size_t> aBead, core::workbench_thread_destination aDestination);
 		[[nodiscard]] auto discuss_shown(std::size_t aItem) const -> bool;
+		[[nodiscard]] auto review_shown(std::size_t aItem) const -> bool;
 		void               popup_menu(std::size_t aItem, std::optional<std::size_t> aBead, QPoint aGlobal);
 		void               toggle_fold(const QString& aPath);
 		void               move_bead(int aStep);
@@ -331,14 +356,19 @@ namespace bpr::qt {
 		std::optional<std::size_t>         HoveredBead;
 		/// [[BPR-1356]]. The pointer is on the hovered row's Discuss button.
 		bool HoveredDiscuss = false;
+		/// [[BPR-1582]]. The pointer is on the hovered row's Review button.
+		bool HoveredReview = false;
 		/// [[BPR-1356]]. The row menu, and the row and post it was opened on.
 		QPointer<QMenu>            RowMenu;
 		QPointer<QAction>          OpenReview;
 		QPointer<QAction>          OpenDiscuss;
+		QPointer<QAction>          ReadAction;
 		std::string                MenuRow;
 		std::optional<std::size_t> MenuBead;
 
 		finder_pick_dispatch  PickDispatch;
+		finder_read_dispatch  ReadDispatch;
+		core::reading_width   ReadingWidth = core::default_reading_width;
 		std::function<void()> LeaveDispatch;
 
 		QWidget*        Bar          = nullptr;

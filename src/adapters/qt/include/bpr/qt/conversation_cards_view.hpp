@@ -15,6 +15,7 @@
 #include <QColor>
 #include <QFont>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
 #include <QString>
 
@@ -42,6 +43,8 @@ class QMouseEvent;
 class QPaintEvent;
 class QResizeEvent;
 class QWheelEvent;
+
+class QVariantAnimation;
 
 namespace bpr::qt {
 	class feedback_label_controls;
@@ -100,6 +103,10 @@ namespace bpr::qt {
 		copy_reply,
 		/// [[BPR-1374]]. My kept reply is discarded, once the window has asked.
 		discard_reply,
+		/// [[BPR-1581]]. Show this thread, or the post named, in Discuss.
+		show_in_discuss,
+		/// [[BPR-1586]]. Show this thread's row, at the post named, in Threads.
+		show_in_threads,
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
@@ -487,6 +494,14 @@ namespace bpr::qt {
 		/// \brief The picked post of the open thread, or empty. Opening
 		/// another thread, or closing this one, drops it.
 		[[nodiscard]] auto picked_post() const noexcept -> const std::string&;
+		/// \brief [[BPR-1581]]. Marks the picked post's arrival: its wash is
+		/// drawn stronger with an amber ring, held, then dissolves to the
+		/// pick's resting wash.
+		void mark_arrival();
+		/// \brief [[BPR-1581]]. The post whose arrival is marked, and how
+		/// strongly now, from 1 to 0; none once it has settled.
+		[[nodiscard]] auto arrival_post() const -> std::string;
+		[[nodiscard]] auto arrival_strength() const noexcept -> qreal;
 		/// \brief Opens a closed thread or closes the open one.
 		void toggle_thread(const std::string& aId);
 		/// \brief Closes the open thread, keeping it current.
@@ -717,11 +732,14 @@ namespace bpr::qt {
 		/// is about to open with.
 		std::string Picked;
 		std::string PickedNext;
-		bool        RevealPicked      = false;
-		QTimer*     PickedReveal      = nullptr;
-		int         PickedRevealSteps = 0;
-		int         PickedRevealLast  = 0;
-		std::string Hovered;
+		/// [[BPR-1581]]. The arrival mark's post and its animation.
+		std::string                 ArrivalPost;
+		QPointer<QVariantAnimation> ArrivalAnimation;
+		bool                        RevealPicked      = false;
+		QTimer*                     PickedReveal      = nullptr;
+		int                         PickedRevealSteps = 0;
+		int                         PickedRevealLast  = 0;
+		std::string                 Hovered;
 		/// The thread whose reply editor is shown in its open card.
 		std::string                                                                 Replying;
 		std::vector<thread_read_state>                                              ReadState;
