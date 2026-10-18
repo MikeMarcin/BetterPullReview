@@ -1,0 +1,96 @@
+{
+	"check_runs": [
+		{
+			"conclusion": "failure",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "build-linux",
+			"node_id": "CR_sa_1",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "build-mac",
+			"node_id": "CR_sa_2",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "build-windows",
+			"node_id": "CR_sa_3",
+			"status": "completed"
+		},
+		{
+			"conclusion": "failure",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "lint",
+			"node_id": "CR_sa_4",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "format",
+			"node_id": "CR_sa_5",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "test-engine",
+			"node_id": "CR_sa_6",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "test-ui",
+			"node_id": "CR_sa_7",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "test-shaders",
+			"node_id": "CR_sa_8",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "package",
+			"node_id": "CR_sa_9",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "docs",
+			"node_id": "CR_sa_10",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "license-scan",
+			"node_id": "CR_sa_11",
+			"status": "completed"
+		},
+		{
+			"conclusion": "success",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "size-report",
+			"node_id": "CR_sa_12",
+			"status": "completed"
+		},
+		{
+			"conclusion": "skipped",
+			"head_sha": "2222222222222222222222222222222222222222",
+			"name": "deploy-preview",
+			"node_id": "CR_sa_13",
+			"status": "completed"
+		}
+	],
+	"total_count": 13
+}

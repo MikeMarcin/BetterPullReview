@@ -119,6 +119,18 @@ them under ?. No conversation has an unknown resolution: that needs the REST
 fallback, which a GraphQL fixture does not take. Constructed, not recorded;
 `application_overview_labels_public_path` pins its counts.
 
+### `status-attention-v1`, the Status drawer with something to say
+
+Added for [[BPR-1589]], so the Overview's Status drawer can be judged with a
+role, failed checks and a reply. `scripts/build_status_attention_fixture.py`
+copies `overview-labels-v1` and makes the viewer tbutler (who requested
+changes, and whose first thread has the author's reply), mentions @tbutler in
+the description, and gives the head thirteen check runs: build-linux and lint
+failed, one skipped, ten passed. Review requests and the merge assessment come
+from GraphQL operations a contract does not serve, so it shows neither a
+request nor conflicts; the Qt and application courses cover those.
+Constructed, not recorded.
+
 ### `markdown-parity-v1`, the GitHub-parity Markdown bodies
 
 Added for [[BPR-1543]], so the Markdown reader's hidden comments, line breaks,

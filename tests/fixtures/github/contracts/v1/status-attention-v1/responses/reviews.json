@@ -1,0 +1,24 @@
+[
+	{
+		"body": "issue: The exposure uniform blocks this; the rest can follow.",
+		"commit_id": "2222222222222222222222222222222222222222",
+		"id": 5101,
+		"node_id": "PRR_ol_1",
+		"state": "CHANGES_REQUESTED",
+		"user": {
+			"login": "tbutler",
+			"node_id": "U_fixture_tbutler"
+		}
+	},
+	{
+		"body": "question: Could the widgets move land separately?",
+		"commit_id": "2222222222222222222222222222222222222222",
+		"id": 5102,
+		"node_id": "PRR_ol_2",
+		"state": "COMMENTED",
+		"user": {
+			"login": "reviewer-four",
+			"node_id": "U_fixture_reviewer-four"
+		}
+	}
+]
