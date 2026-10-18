@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1605"
 title: "Finish your review counts my pending blocking comments"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-18","owner_note":"The heading's blocking-feedback chip showed 0 while my own pending blocking comment existed. Design how it should count; it must stay consistent with the Approve warning dot.","governing_rfc":"RFC-BPR-0048","related_cards":["BPR-1085","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1604--BPR-1605--1993453ea270.json","requested_skill":"frontend-design","milestone_plan":{"id":"bpr-polish-contrast-blocking","path":"docs/rfcs/plans/bpr-polish-contrast-blocking/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d06e7400e4eb470490ee630ecf76b0b9308cfdc0","evidence":{"kind":"command","detail":"application_label_publication_recovery passes including carried-blocking-preflight through the actual application/workflow/editor: selected+carried draft counts once, carried-only after navigation remains1, adding a published blocker makes2 with1 not sent. Editor tests cover pending-only1, mixed2, exact zero and Approve-dot agreement."}},{"criterion":"AC2","outcome":"pass","revision":"d06e7400e4eb470490ee630ecf76b0b9308cfdc0","evidence":{"kind":"command","detail":"application_feedback_counters verifies a root in a pending GitHub review is pending_publication, ordinary threads stay published and publication changes the root to published. The real-app course verifies selected/carried deduplication."}},{"criterion":"AC3","outcome":"pending","revision":"d06e7400e4eb470490ee630ecf76b0b9308cfdc0","evidence":{"kind":"artifact","detail":"Owner Accept/Reject pending in session 3b007b57637c66122767174fe1a527be, cursor 8; exact frozen root /Users/jaeger/bpr-1604-1605-polish-v002.0vxi9_2l, executable sha256 4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66. Before/after renders embedded in the short session; full local handoff at /var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-1604-1605-review-6xa9fhl4/review-handoff.json."}}]
 ---
 
 # BPR-1605: Finish your review counts my pending blocking comments

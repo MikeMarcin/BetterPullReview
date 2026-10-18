@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_label_publication_recovery passes including carried-blocking-preflight through the actual application/workflow/editor: selected+carried draft counts once, carried-only after navigation remains1, adding a published blocker makes2 with1 not sent. Editor tests cover pending-only1, mixed2, exact zero and Approve-dot agreement."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_feedback_counters verifies a root in a pending GitHub review is pending_publication, ordinary threads stay published and publication changes the root to published. The real-app course verifies selected/carried deduplication."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pending",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Owner Accept/Reject pending in session 3b007b57637c66122767174fe1a527be, cursor 8; exact frozen root /Users/jaeger/bpr-1604-1605-polish-v002.0vxi9_2l, executable sha256 4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66. Before/after renders embedded in the short session; full local handoff at /var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-1604-1605-review-6xa9fhl4/review-handoff.json."
+      }
+    }
+  ]
+}
