@@ -1,0 +1,20 @@
+{
+  "session_id": "3b007b57637c66122767174fe1a527be",
+  "consumed_event_cursor": 11,
+  "decision_event": 10,
+  "handed_back_event": 11,
+  "candidate_id": "BPR-1605-blocking-total-v001",
+  "fingerprint": "455f12cf1399826541ef4e85b920e3525e0c4b68bd7bf2320b0fde3c59077014",
+  "decision": {
+    "candidate": "BPR-1605-blocking-total-v001",
+    "fingerprint": "455f12cf1399826541ef4e85b920e3525e0c4b68bd7bf2320b0fde3c59077014",
+    "decision_id": "d9fdb9b1-3fd8-4bc0-9f84-cc5bdf2129ee",
+    "outcome": "accept",
+    "note": "",
+    "saved_at": "2026-10-18T23:25:25.283201+00:00",
+    "actor": "human"
+  },
+  "product_revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+  "executable_sha256": "4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66",
+  "pending_decisions": []
+}

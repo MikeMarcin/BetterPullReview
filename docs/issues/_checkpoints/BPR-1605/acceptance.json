@@ -1,6 +1,6 @@
 {
   "approved": true,
-  "decision": "human-pending",
+  "decision": "done",
   "records": [
     {
       "criterion": "AC1",
@@ -22,11 +22,11 @@
     },
     {
       "criterion": "AC3",
-      "outcome": "pending",
+      "outcome": "pass",
       "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
       "evidence": {
-        "kind": "artifact",
-        "detail": "Owner Accept/Reject pending in session 3b007b57637c66122767174fe1a527be, cursor 8; exact frozen root /Users/jaeger/bpr-1604-1605-polish-v002.0vxi9_2l, executable sha256 4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66. Before/after renders embedded in the short session; full local handoff at /var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-1604-1605-review-6xa9fhl4/review-handoff.json."
+        "kind": "observation",
+        "detail": "Owner ACCEPT of BPR-1605-blocking-total-v001, fingerprint 455f12cf1399826541ef4e85b920e3525e0c4b68bd7bf2320b0fde3c59077014, decision d9fdb9b1-3fd8-4bc0-9f84-cc5bdf2129ee, event 10; session 3b007b57637c66122767174fe1a527be handed back at event 11 with no pending decisions or notes. Exact frozen product and executable remain as recorded. Receipt: docs/issues/_checkpoints/BPR-1605/human-acceptance.json."
       }
     }
   ]

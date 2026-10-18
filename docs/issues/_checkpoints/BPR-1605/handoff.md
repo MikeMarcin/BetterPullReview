@@ -1,3 +1,13 @@
+# BPR-1605 accepted closeout
+
+Mandate owner-polish-2026-10-18-r1; post-attendance engineering owner /root/land_polish. The coordinator consumed cursor 11 before dispatch. Both owner accepts were independently reconciled against the exact session and fingerprints; this card's AC3 passes for the frozen d06e7400e4eb470490ee630ecf76b0b9308cfdc0 product and executable sha256 4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66. Decision d9fdb9b1-3fd8-4bc0-9f84-cc5bdf2129ee, event 10; no pending decisions or notes. See human-acceptance.json and acceptance.json beside this handoff.
+
+Current branch integrated main f067cdb8c9aafb77f45bbe2ab9aac355c98f7faa at 6d5448598670c218df541d5a1002bf455f5063e4, pushed. No accepted feature source changed in that merge. Main's BPR-1616 repairs the previously recorded Agent-tab assertion; exact merged public-path and focused integration verification is in progress. Canonical per-card finish, milestone closeout and guarded main landing remain to complete. Prior pre-attendance evidence is retained below as history.
+
+Only inherited command is the coordinator-owned review server PID 7036 / session 30710; it can stop after accepted-state disposition. This round owns its incremental build and tests in this worktree only. Root main and unrelated writers remain untouched.
+
+## Prepared handoff history (superseded status)
+
 # BPR-1605 handoff
 
 Mandate: owner-polish-2026-10-18-r1; assignment /root/finish_polish, coordinator-implementer, one bounded milestone for BPR-1604 and BPR-1605. Finish Claude's authorized work, push meaningful steps, one shared frozen build and one fresh short two-question session; keep both AC3 decisions pending and do not land on main before actual acceptance.
