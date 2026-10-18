@@ -2316,6 +2316,11 @@ namespace bpr::qt {
 						ConversationReadDispatch(aIdentity);
 					}
 					break;
+				case card_action::mark_unread:
+					if (ConversationUnreadDispatch) {
+						ConversationUnreadDispatch(aIdentity);
+					}
+					break;
 				case card_action::resolve:
 				case card_action::unresolve: {
 					// [[BPR-0657]]. What the window knows travels with the
@@ -7858,6 +7863,13 @@ namespace bpr::qt {
 		present_new_threads();
 	}
 
+	void workbench_window::present_new_conversation_comments(const std::uint32_t aCount)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_new_conversation_comments(aCount);
+		}
+	}
+
 	void workbench_window::present_new_threads()
 	{
 		// [[BPR-1589]]. The Status drawer counts what Threads' Only new lists:
@@ -8167,7 +8179,7 @@ namespace bpr::qt {
 			|| ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
 		// A refresh may retain the drawer's visual anchor without a selected
 		// file. Only standalone diff presentation falls back to that anchor.
@@ -8186,7 +8198,7 @@ namespace bpr::qt {
 		}
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
-						   : QStringLiteral("Next new comment (%1 threads)").arg(unread.size()));
+						   : QStringLiteral("Next new comment (%1 conversations)").arg(unread.size()));
 		// [[BPR-1129]]. The comments toggle carries the count of threads with a
 		// post newer than what I have read, and says it to accessibility.
 		if (auto* const toggle = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(Drawers[1].Toggle));
@@ -8389,7 +8401,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		if (unread.empty()) {
 			return;
 		}
@@ -8400,6 +8412,10 @@ namespace bpr::qt {
 		if (const auto at = std::ranges::find(unread, current); at != unread.end()) {
 			const auto following = std::next(at);
 			next                 = following != unread.end() ? *following : unread.front();
+		}
+		if (const auto location = Finder->locate(next); location.has_value() && location->Path.isEmpty()) {
+			static_cast<void>(move_thread(next, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
+			return;
 		}
 		// The conversation view's current index is what reveals the line, as a
 		// press on a card does; the cards follow it.
@@ -13554,6 +13570,10 @@ namespace bpr::qt {
 		if (!location.has_value()) {
 			return false;
 		}
+		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{ .OnFile = !location->Path.isEmpty() });
+		if (!route.Available) {
+			return false;
+		}
 		// [[BPR-1293]]. The pick is Review's: the file through the files
 		// drawer's intent, Review in the arrangement it last had, Comments
 		// opened if it is closed (a manual open, as a gutter mark's press
@@ -13574,7 +13594,6 @@ namespace bpr::qt {
 		if (const auto file = file_for_path(location->Path); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
-		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{ });
 		if (route.OpenComments && Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{
 				.Drawer = core::workbench_drawer::conversations,
@@ -13630,7 +13649,7 @@ namespace bpr::qt {
 			if (const auto location = Finder->locate(aIdentity); location.has_value()) {
 				thread                    = location->Thread;
 				post                      = location->Post;
-				onFile                    = true;
+				onFile                    = !location->Path.isEmpty();
 				path                      = location->Path;
 				const auto& conversations = Finder->conversations();
 				if (const auto found = std::ranges::find(conversations, thread, &finder_conversation::Id); found != conversations.end()) {
@@ -13665,7 +13684,7 @@ namespace bpr::qt {
 			.OnFile      = onFile,
 			.Placed      = placed,
 			.Hiding      = core::workbench_discuss_filters{
-				.OtherFile    = onFile && view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(path.toStdString()),
+				.OtherFile    = view.Scope == cards_scope::this_file && (!onFile || (view.File.has_value() && *view.File != core::file_identity_of(path.toStdString()))),
 				.OnlyNew      = view.OnlyNew && !unread,
 				.HideResolved = view.HideResolved && resolved,
 				.Listing      = view.Listing.has_value() && !view.Listing->contains(thread),

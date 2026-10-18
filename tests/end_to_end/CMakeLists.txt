@@ -4572,3 +4572,16 @@ bpr_add_network_isolated_test(NAME application_refresh_feedback_public_path WIND
 set_tests_properties(application_refresh_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "refresh-feedback-public-path:pass")
+
+# [[BPR-1601]]. Singleton read state through Discuss, Threads, Status and restart.
+bpr_add_executable(test_conversation_read_public_path conversation_read_public_path_tests.cpp)
+target_link_libraries(test_conversation_read_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_conversation_read_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_conversation_read_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_conversation_read_public_path)
+bpr_enable_warnings(test_conversation_read_public_path)
+bpr_add_network_isolated_test(NAME application_conversation_read_public_path WINDOWS_UNCONTAINED
+    COMMAND test_conversation_read_public_path)
+set_tests_properties(application_conversation_read_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CONVERSATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/conversation-renders" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "CONVERSATION_READ_PUBLIC_PATH_OK")

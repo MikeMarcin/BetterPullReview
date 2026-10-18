@@ -71,7 +71,13 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    Finished/pushed in `2e37e282e`; worktree, branch and 1.1 GB build removed.
 7b. BPR-1601: added by the coordinator’s updated handoff at `ede68f51c`,
    received through origin/main `7836cd9fb` before the final run began.
-   BPR-1589 is landed; conversation-comment/review-summary read state is next.
+   BPR-1589 is landed. Implemented directly in the managed BPR-1601 worktree:
+   singleton receipts reuse the core and existing table, host counts reach
+   Status, Discuss marks them, Threads groups them under Not on a file, and
+   next-new navigation reaches them after file threads. Core/storage, Qt at
+   three scales, the composed read/unread/restart/edit course and core-only
+   checks pass. Native-thread cache bounds were corrected after the public
+   course caught a crash. Composition checks and landing are in progress.
 8. Task-owned housekeeping: complete for items 1–7; repeat for 7b after landing. All handed-off branches/worktrees and
    frozen roots are absent. The audited BPR-1568, BPR-1577, BPR-1578 and
    BPR-1597 candidates are unprotected; all recorded host PIDs are absent.

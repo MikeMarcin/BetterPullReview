@@ -9720,8 +9720,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			const auto& threads = WindowRead->accepted_snapshot()->ReviewThreads;
 			// [[BPR-0972]]. The read-state cache names each thread once.
-			if (const auto cached = cached_thread(aIdentity)) {
-				return &threads[*cached];
+			if (const auto cached = cached_conversation(aIdentity)) {
+				// [[BPR-1601]]. Singleton receipts follow file threads in this
+				// cache; they are not indices into ReviewThreads.
+				return *cached < threads.size() ? &threads[*cached] : nullptr;
 			}
 			const application::github_review_thread_record* result = nullptr;
 			for (const auto& thread : threads) {
@@ -13620,9 +13622,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return "review-comment:" + std::string{ aComment.Comment.value() };
 		}
 
-		[[nodiscard]] static auto post_observation(
-			const application::github_review_comment_record& aComment,
-			const std::string_view                           aViewer)
+		[[nodiscard]] static auto comment_projection_id(
+			const application::github_issue_comment_record& aComment) -> std::string
+		{
+			return "issue-comment:" + std::string{ aComment.Comment.value() };
+		}
+
+		[[nodiscard]] static auto comment_projection_id(
+			const application::github_review_record& aReview) -> std::string
+		{
+			return "review:" + std::string{ aReview.Review.value() };
+		}
+
+		// [[BPR-1601]]. A PR comment or review summary is a single-post
+		// conversation. Its prefixed provider identity shares the existing
+		// ledger namespace without colliding with threads or other post kinds.
+		template <typename Post>
+		[[nodiscard]] static auto post_observation(const Post& aComment, const std::string_view aViewer)
 			-> core::conversation_post_observation
 		{
 			const auto id   = comment_projection_id(aComment);
@@ -13642,7 +13658,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		struct observed_read_state
 		{
 			std::vector<qt::thread_read_state> Presented;
-			std::uint32_t                      UnreadPosts = 0U;
+			std::uint32_t                      UnreadPosts             = 0U;
+			std::uint32_t                      ConversationUnreadPosts = 0U;
 		};
 
 		// Structural diagnostics for the retained review composition. These are
@@ -13717,6 +13734,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				names.emplace_back(thread_identity(thread), std::move(posts));
 				threads.push_back(std::move(observation));
 			}
+			const auto appendPost = [&](const auto& aPost) {
+				++ConversationPostsVisited;
+				const auto id = comment_projection_id(aPost);
+				threads.push_back(application::conversation_thread_observation{
+					.Conversation = core::review_conversation_id{ defect_identity(id).Conversation },
+					.Posts        = { post_observation(aPost, snapshot->Viewer.Login) },
+				});
+				names.emplace_back(id, std::vector<std::string>{ id });
+			};
+			for (const auto& review : snapshot->Reviews) {
+				appendPost(review);
+			}
+			for (const auto& comment : snapshot->IssueComments) {
+				if (!comment.Deleted) {
+					appendPost(comment);
+				}
+			}
 			const auto state = ReviewLedgerHost->unread_conversations(threads);
 			if (!state.has_value()) {
 				ReadStateCache.reset();
@@ -13737,7 +13771,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto  observed  = observed_read_state{ };
 			auto& presented = observed.Presented;
 			auto  cache     = read_state_cache{
+				.Snapshot    = snapshot->Snapshot,
 				.ThreadCount = snapshot->ReviewThreads.size(),
+				.Unread      = std::vector<std::uint32_t>(threads.size(), 0U),
 				.Counted     = std::vector<std::uint32_t>(threads.size(), 0U),
 			};
 			for (const auto& projection : state->Threads) {
@@ -13751,6 +13787,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						observed.UnreadPosts += static_cast<std::uint32_t>(entry.UnreadPosts.size());
 						cache.Counted[index] += static_cast<std::uint32_t>(entry.UnreadPosts.size());
 					}
+					cache.Unread[index] = static_cast<std::uint32_t>(entry.UnreadPosts.size());
+					if (index >= cache.ThreadCount) {
+						observed.ConversationUnreadPosts += cache.Unread[index];
+					}
 					presented.push_back(std::move(entry));
 				}
 			}
@@ -13762,10 +13802,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				cache.ByIdentity.emplace_back(names[index].first, index);
 			}
 			std::ranges::sort(cache.ByIdentity);
-			cache.UnreadPosts = observed.UnreadPosts;
-			cache.Threads     = std::move(threads);
-			cache.Names       = std::move(names);
-			ReadStateCache    = std::move(cache);
+			cache.ConversationUnreadPosts = observed.ConversationUnreadPosts;
+			cache.UnreadPosts             = observed.UnreadPosts;
+			cache.Threads                 = std::move(threads);
+			cache.Names                   = std::move(names);
+			ReadStateCache                = std::move(cache);
 			return observed;
 		}
 
@@ -13774,7 +13815,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// snapshot or a retired ledger drops it.
 		struct read_state_cache
 		{
+			core::provider_snapshot_id                                    Snapshot;
 			std::size_t                                                   ThreadCount = 0U;
+			std::vector<std::uint32_t>                                    Unread;
+			std::uint32_t                                                 ConversationUnreadPosts = 0U;
 			std::vector<std::uint32_t>                                    Counted;
 			std::vector<application::conversation_thread_observation>     Threads;
 			std::vector<std::pair<std::string, std::vector<std::string>>> Names;
@@ -13786,13 +13830,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<std::map<local_defect_identity, std::string>> DefectThreadNames;
 		std::uint64_t                                               ReadStateUpdates = 0U;
 
-		/// \brief The cached thread index for an identity, if the cache still
-		/// describes the accepted snapshot and names exactly one thread.
-		[[nodiscard]] auto cached_thread(const std::string_view aIdentity) const -> std::optional<std::size_t>
+		/// \brief The cached conversation index for an identity, if the cache
+		/// still describes the accepted snapshot and names it exactly once.
+		[[nodiscard]] auto cached_conversation(const std::string_view aIdentity) const -> std::optional<std::size_t>
 		{
 			const auto& snapshot = WindowRead->accepted_snapshot();
 			if (!ReadStateCache.has_value() || !snapshot.has_value()
-				|| ReadStateCache->ThreadCount != snapshot->ReviewThreads.size()) {
+				|| ReadStateCache->Snapshot != snapshot->Snapshot) {
 				return std::nullopt;
 			}
 			const auto& byIdentity = ReadStateCache->ByIdentity;
@@ -13826,6 +13870,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				append_unread_names(cache.Threads[aThread], cache.Names[aThread].second, projection.UnreadPosts, unread);
 				counted = projection.SeenBefore ? static_cast<std::uint32_t>(unread.size()) : 0U;
 			}
+			if (aThread >= cache.ThreadCount) {
+				cache.ConversationUnreadPosts = cache.ConversationUnreadPosts - cache.Unread[aThread] + static_cast<std::uint32_t>(unread.size());
+			}
+			cache.Unread[aThread] = static_cast<std::uint32_t>(unread.size());
+			Window->present_new_conversation_comments(cache.ConversationUnreadPosts);
 			cache.UnreadPosts      = cache.UnreadPosts - cache.Counted[aThread] + counted;
 			cache.Counted[aThread] = counted;
 			++ReadStateUpdates;
@@ -13861,6 +13910,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!observed.has_value() || Window == nullptr) {
 				return std::nullopt;
 			}
+			Window->present_new_conversation_comments(observed->ConversationUnreadPosts);
 			Window->present_read_state(std::move(observed->Presented));
 			return observed->UnreadPosts;
 		}
@@ -13912,7 +13962,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (!aMarked.has_value()) {
 						return;
 					}
-					const auto cached = cached_thread(aThread);
+					const auto cached = cached_conversation(aThread);
 					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
 					if (!unseen.has_value()) {
 						unseen = publish_read_state();
@@ -13925,37 +13975,62 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 #endif
 
+		[[nodiscard]] auto accepted_read_conversation(const std::string& aIdentity) const
+			-> std::optional<application::conversation_thread_observation>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot    = *WindowRead->accepted_snapshot();
+			auto        observation = application::conversation_thread_observation{
+				.Conversation = core::review_conversation_id{ defect_identity(aIdentity).Conversation },
+			};
+			if (const auto* thread = accepted_thread(aIdentity); thread != nullptr) {
+				for (const auto& comment : thread->Comments) {
+					if (!comment.Deleted) {
+						observation.Posts.push_back(post_observation(comment, snapshot.Viewer.Login));
+					}
+				}
+				return observation;
+			}
+			for (const auto& review : snapshot.Reviews) {
+				if (comment_projection_id(review) == aIdentity) {
+					observation.Posts.push_back(post_observation(review, snapshot.Viewer.Login));
+					return observation;
+				}
+			}
+			for (const auto& comment : snapshot.IssueComments) {
+				if (!comment.Deleted && comment_projection_id(comment) == aIdentity) {
+					observation.Posts.push_back(post_observation(comment, snapshot.Viewer.Login));
+					return observation;
+				}
+			}
+			return std::nullopt;
+		}
+
 		void mark_conversation_read(const std::string& aThread)
 		{
 			if (Closing || ReviewLedgerHost == nullptr) {
 				return;
 			}
-			const auto* const thread = accepted_thread(aThread);
-			if (thread == nullptr) {
+			const auto observation = accepted_read_conversation(aThread);
+			if (!observation.has_value() || observation->Posts.empty()) {
 				return;
 			}
-			auto latest = std::optional<core::conversation_post_observation>{ };
-			for (const auto& comment : thread->Comments) {
-				if (!comment.Deleted) {
-					latest = post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login);
-				}
-			}
-			if (!latest.has_value()) {
-				return;
-			}
+			const auto& latest = observation->Posts.back();
 			// [[BPR-1211]]. The cursor is written off the decision lane and
 			// the thread is presented read once it is durable.
 			ReviewLedgerHost->mark_conversation_read(
 				core::conversation_observation{
-					.Conversation  = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
-					.LatestComment = latest->Comment,
-					.LatestEdit    = latest->Edit,
+					.Conversation  = observation->Conversation,
+					.LatestComment = latest.Comment,
+					.LatestEdit    = latest.Edit,
 				},
 				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
 					if (!aMarked.has_value()) {
 						return;
 					}
-					const auto cached = cached_thread(aThread);
+					const auto cached = cached_conversation(aThread);
 					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
 					if (!unseen.has_value()) {
 						unseen = publish_read_state();
@@ -13974,25 +14049,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || ReviewLedgerHost == nullptr) {
 				return;
 			}
-			const auto* const thread = accepted_thread(aThread);
-			if (thread == nullptr) {
+			const auto observation = accepted_read_conversation(aThread);
+			if (!observation.has_value()) {
 				return;
 			}
-			auto observation = application::conversation_thread_observation{
-				.Conversation = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
-			};
-			for (const auto& comment : thread->Comments) {
-				if (!comment.Deleted) {
-					observation.Posts.push_back(post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login));
-				}
-			}
 			ReviewLedgerHost->mark_conversation_unread(
-				observation,
+				*observation,
 				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
 					if (!aMarked.has_value()) {
 						return;
 					}
-					const auto cached = cached_thread(aThread);
+					const auto cached = cached_conversation(aThread);
 					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
 					if (!unseen.has_value()) {
 						unseen = publish_read_state();

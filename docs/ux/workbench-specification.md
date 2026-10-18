@@ -133,8 +133,8 @@ click, Return or the row's Review button picks it. Picking a row or an avatar
 enters Review on that file, opens the Comments drawer if it is closed, and opens the
 thread in place at its line with the picked post washed amber and scrolled
 into view. ⌘J again, or Esc on an empty search, returns to where it was
-entered from. Pull request comments and review summaries that are not on a
-file are not listed; Discuss still reads them ([[BPR-1294]]). The drawers are
+entered from. [[BPR-1601]] adds pull request comments and review summaries
+under Not on a file, extending the original file-only list ([[BPR-1294]]). The drawers are
 hidden while Threads shows, as Discuss hides them, and nothing changes
 their states: Review comes back with the arrangement it last had, hidden
 drawers included, and Discuss's preset is not applied. Its segment's tooltip
@@ -161,7 +161,7 @@ a **Review** button, the same quiet pill, stands just left of it, one pair in
 the menu's order; my draft shows Review alone. Its tooltip reads "Open in
 Review (↩)". A press on either button opens at once; Shift with a double click
 opens in Discuss. The row menu adds, after the two destinations, **Mark as
-Read** for a thread with new posts or **Mark as Unread** for a read one: Mark
+Read** for a conversation with new posts or **Mark as Unread** for a read one: Mark
 as Read is the card's Mark read, and Mark as Unread is the core's
 `mark_conversation_unread`, which moves the seen cursor back so the latest
 post someone else wrote is new again (a thread whose every post is mine
@@ -186,6 +186,15 @@ Discuss turned off File scope, Only new and Hide resolved." The notice goes
 when the reviewer changes a filter or picks again. My draft is written beside
 its line and Discuss does not list it, so its menu offers Open in Review
 alone, and Shift+Return on it opens Review and says why in the status bar.
+
+[[BPR-1601]] adds pull-request comments and review summaries under a final
+**Not on a file** group in Threads, with their new count. These posts carry the
+same new markers and Mark read/unread actions in Discuss. The Status drawer's
+**N new comments in the conversation** line opens Discuss with **Go to them**
+and disappears when the count reaches zero. Next new comment (⌥N on macOS)
+visits file threads first, then pathless posts in Discuss order, widening
+Discuss's file scope when needed. Open in Review is unavailable for a pathless post.
+
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s

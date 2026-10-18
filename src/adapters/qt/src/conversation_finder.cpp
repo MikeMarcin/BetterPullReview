@@ -390,8 +390,7 @@ namespace bpr::qt {
 		auto result = std::vector<finder_conversation>{ };
 		for (std::size_t root = 0U; root < aForest.size(); ++root) {
 			const auto& node = aForest[root];
-			if (members[root].empty() || node.Path.empty()
-				|| (node.Kind != application::github_conversation_kind::review_thread && node.Kind != application::github_conversation_kind::review_comment)) {
+			if (members[root].empty() || node.Deleted) {
 				continue;
 			}
 			auto conversation     = finder_conversation{ };
@@ -404,7 +403,7 @@ namespace bpr::qt {
 			for (const auto member : members[root]) {
 				const auto& post = aForest[member];
 				// A native thread's root holds the thread, not a post.
-				if (post.Kind == application::github_conversation_kind::review_thread) {
+				if (post.Kind == application::github_conversation_kind::review_thread || post.Deleted) {
 					continue;
 				}
 				const auto& body  = post.ReviewerProse.has_value() ? *post.ReviewerProse : post.Body;
@@ -430,7 +429,7 @@ namespace bpr::qt {
 		std::ranges::stable_sort(result, [](const finder_conversation& aLeft, const finder_conversation& aRight) {
 			const auto left  = aLeft.Path.toStdString();
 			const auto right = aRight.Path.toStdString();
-			return left != right ? left < right : aLeft.Line < aRight.Line;
+			return left.empty() != right.empty() ? !left.empty() : (left != right ? left < right : aLeft.Line < aRight.Line);
 		});
 		return result;
 	}
@@ -662,7 +661,7 @@ namespace bpr::qt {
 				return;
 			}
 			const auto point = aEvent->position().toPoint();
-			if (!StickyPath.isEmpty() && StickyRect.contains(point)) {
+			if (!StickyRect.isEmpty() && StickyRect.contains(point)) {
 				Owner.toggle_fold(StickyPath);
 				return;
 			}
@@ -1804,7 +1803,7 @@ namespace bpr::qt {
 				std::ranges::stable_sort(Conversations, [](const finder_conversation& aLeft, const finder_conversation& aRight) {
 					const auto left  = aLeft.Path.toStdString();
 					const auto right = aRight.Path.toStdString();
-					return left != right ? left < right : aLeft.Line < aRight.Line;
+					return left.empty() != right.empty() ? !left.empty() : (left != right ? left < right : aLeft.Line < aRight.Line);
 				});
 			}
 		}
@@ -2005,7 +2004,7 @@ namespace bpr::qt {
 			}
 		}
 		hide_preview();
-		if (PickDispatch) {
+		if (PickDispatch && (aDestination != core::workbench_thread_destination::review || !conversation.Path.isEmpty())) {
 			// A copy: the dispatch leaves this page, which may rebuild it.
 			const auto location = finder_location{ .Thread = conversation.Id, .Post = conversation.Posts[post].Id, .Path = conversation.Path };
 			PickDispatch(location, aDestination);
@@ -2022,7 +2021,7 @@ namespace bpr::qt {
 
 	auto conversation_finder::review_shown(const std::size_t aItem) const -> bool
 	{
-		if (aItem >= Items.size() || Items[aItem]->Header) {
+		if (aItem >= Items.size() || Items[aItem]->Header || Conversations[Items[aItem]->Conversation].Path.isEmpty()) {
 			return false;
 		}
 		return HoveredItem == aItem || (!Cursor.empty() && Items[aItem]->Key == Cursor);
@@ -2057,11 +2056,16 @@ namespace bpr::qt {
 			action->setStatusTip(aTip);
 			return action;
 		};
-		OpenReview  = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), shortcut_command::thread_open_review,
-							   QStringLiteral("Read this thread beside its code"));
-		OpenDiscuss = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), shortcut_command::thread_open_discuss,
-							   QStringLiteral("Read this thread with the rest of the pull request's conversation"));
-		menu->setDefaultAction(OpenReview);
+		OpenReview        = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), shortcut_command::thread_open_review,
+									 QStringLiteral("Read this thread beside its code"));
+		OpenDiscuss       = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), shortcut_command::thread_open_discuss,
+									 QStringLiteral("Read this thread with the rest of the pull request's conversation"));
+		const auto onFile = !Conversations[Items[aItem]->Conversation].Path.isEmpty();
+		OpenReview->setEnabled(onFile);
+		if (!onFile) {
+			OpenReview->setToolTip(QStringLiteral("This comment is not on a file; open it in Discuss"));
+		}
+		menu->setDefaultAction(onFile ? OpenReview : OpenDiscuss);
 		// My draft is written beside its line; Discuss does not list it.
 		if (Conversations[Items[aItem]->Conversation].Draft) {
 			OpenDiscuss->setEnabled(false);
@@ -2536,11 +2540,13 @@ namespace bpr::qt {
 					fresh += conversation.Unread > 0U ? 1 : 0;
 				}
 			}
-			auto text = QStringLiteral("%1, %2, %3").arg(base_name(entry.Path), folder_of(entry.Path), count == 1 ? QStringLiteral("one thread") : QStringLiteral("%1 threads").arg(count));
-			if (fresh > 0) {
+			auto text = entry.Path.isEmpty()
+				? QStringLiteral("Not on a file, %1 comments, %2 new").arg(count).arg(fresh)
+				: QStringLiteral("%1, %2, %3").arg(base_name(entry.Path), folder_of(entry.Path), count == 1 ? QStringLiteral("one thread") : QStringLiteral("%1 threads").arg(count));
+			if (fresh > 0 && !entry.Path.isEmpty()) {
 				text += fresh == 1 ? QStringLiteral(", one with new replies") : QStringLiteral(", %1 with new replies").arg(fresh);
 			}
-			if (Reading.File == entry.File) {
+			if (!entry.Path.isEmpty() && Reading.File == entry.File) {
 				text += QStringLiteral(", open in Review");
 			}
 			text += Folded.contains(entry.Path) && Filters.Search.trimmed().isEmpty() ? QStringLiteral(", collapsed") : QStringLiteral(", expanded");
@@ -2595,7 +2601,7 @@ namespace bpr::qt {
 		aPainter.restore();
 		x += 14 + 7;
 		const auto bold = weighted(font(), QFont::DemiBold);
-		const auto name = base_name(aPath);
+		const auto name = aPath.isEmpty() ? QStringLiteral("Not on a file") : base_name(aPath);
 		aPainter.setFont(bold);
 		aPainter.setPen(colours.Ink);
 		const auto nameWidth = std::min(QFontMetrics{ bold }.horizontalAdvance(name), std::max(0, box.right() - row_padding - 30 - x));
@@ -2607,12 +2613,11 @@ namespace bpr::qt {
 							  QPointF{ static_cast<qreal>(x + nameWidth), mid + QFontMetrics{ bold }.ascent() / 2.0 + 3.0 });
 		}
 		x += nameWidth + 7;
-		const auto here  = Reading.File.has_value() && *Reading.File == core::file_identity_of(aPath.toStdString());
-		auto       fresh = false;
+		const auto here  = !aPath.isEmpty() && Reading.File.has_value() && *Reading.File == core::file_identity_of(aPath.toStdString());
+		auto       fresh = std::size_t{ 0U };
 		for (const auto& conversation : Conversations) {
 			if (conversation.Path == aPath && conversation.Unread > 0U) {
-				fresh = true;
-				break;
+				fresh += conversation.Unread;
 			}
 		}
 		const auto dotsRight = box.right() - row_padding;
@@ -2620,7 +2625,7 @@ namespace bpr::qt {
 		const auto small     = sized(font(), 0.88);
 		aPainter.setFont(small);
 		aPainter.setPen(colours.Faint);
-		const auto folder = folder_of(aPath);
+		const auto folder = aPath.isEmpty() ? QStringLiteral("%1 new").arg(fresh) : folder_of(aPath);
 		if (dirRight > x) {
 			aPainter.drawText(QRect{ x, box.top(), dirRight - x, row_height }, Qt::AlignLeft | Qt::AlignVCenter,
 							  QFontMetrics{ small }.elidedText(folder, Qt::ElideLeft, dirRight - x));

@@ -166,7 +166,7 @@ namespace {
 
 	/// \brief The pull request the tests read: five files, a long flat thread,
 	/// a resolved one, the branching one, a pull request comment and a
-	/// review summary that Threads must not list.
+	/// review summary in Not on a file.
 	[[nodiscard]] auto forest() -> std::vector<conversation>
 	{
 		auto made = std::vector<conversation>{ };
@@ -358,7 +358,7 @@ namespace {
 	void test_conversations_are_the_ones_on_a_file()
 	{
 		const auto listed = qt::finder_conversations_of(forest(), read_state(), true, QStringLiteral("fixture-author"));
-		expect(listed.size() == 6U, "six conversations on files; the pull request comment and the review summary are Discuss's");
+		expect(listed.size() == 8U && listed[6].Path.isEmpty() && listed[7].Path.isEmpty(), "six file conversations followed by the PR comment and review summary");
 		expect(listed[0].Path == QStringLiteral("src/adapters/qt/src/github_thread_map.cpp") && listed[1].Path == QStringLiteral("src/core/thread_map.cpp")
 				   && listed[2].Line == 6U && listed[3].Line == 12U && listed[4].Line == 38U && listed[5].Line == 656U,
 			   "grouped by path, then in line order");
@@ -408,7 +408,7 @@ namespace {
 		auto  shown  = page{ };
 		auto& finder = shown.Finder;
 		expect(finder.search_field()->hasFocus(), "entering focuses the search");
-		expect(shown_rows(finder).size() == 9U, "every row: four of the branching thread and five single rows");
+		expect(shown_rows(finder).size() == 11U, "every row: four of the branching thread and seven single rows");
 		expect(finder.shown_keys().front() == "file:src/adapters/qt/src/github_thread_map.cpp", "a file's header comes before its rows");
 		expect(finder.cursor_key().starts_with("row:review-thread:g282/"), "with nothing open the cursor starts on the first row");
 
@@ -426,7 +426,7 @@ namespace {
 		finder.search_field()->setText(QStringLiteral("nothing anybody wrote"));
 		expect(shown_rows(finder).empty(), "no match shows no row");
 		key(*finder.search_field(), Qt::Key_Escape);
-		expect(finder.search_field()->text().isEmpty() && shown_rows(finder).size() == 9U && shown.Leaves == 0, "Esc clears the search first");
+		expect(finder.search_field()->text().isEmpty() && shown_rows(finder).size() == 11U && shown.Leaves == 0, "Esc clears the search first");
 		key(*finder.search_field(), Qt::Key_Escape);
 		expect(shown.Leaves == 1, "and then leaves");
 
@@ -436,7 +436,7 @@ namespace {
 		expect(finder.only_new_button()->accessibleName() == QStringLiteral("Only threads with new replies (3)"), "its count names the new threads");
 		finder.only_new_button()->click();
 		finder.hide_resolved_button()->click();
-		expect(!has_row_of(finder, "t38") && shown_rows(finder).size() == 8U, "Hide resolved");
+		expect(!has_row_of(finder, "t38") && shown_rows(finder).size() == 10U, "Hide resolved");
 		finder.hide_resolved_button()->click();
 
 		// [[BPR-1087]]'s lists: a conversation is its root's label.
@@ -454,7 +454,7 @@ namespace {
 			   "one label keeps the conversations it counts");
 		expect(finder.label_button()->accessibleName() == QStringLiteral("Only threads with a issue"), "the chip names the label");
 		finder.set_filters({ });
-		expect(shown_rows(finder).size() == 9U, "Show all clears everything");
+		expect(shown_rows(finder).size() == 11U, "Show all clears everything");
 	}
 
 	/// \brief Folding: a file's header, and a row's oldest read posts past nine.
@@ -901,9 +901,14 @@ namespace {
 		finder.adopt(only);
 		finder.show();
 		QApplication::processEvents();
-		expect(finder.conversations().empty() && finder.shown_keys().empty(), "a pull request comment is not listed");
-		auto* const pages = finder.findChild<QStackedWidget*>(QStringLiteral("threadFinderPages"));
-		expect(pages != nullptr && pages->currentWidget()->objectName() == QStringLiteral("threadFinderNoneOnFile"), "the page says none is on a file");
+		expect(finder.conversations().size() == 1U && finder.shown_keys().size() == 2U && finder.shown_keys().front() == "file:", "a PR comment has a row under Not on a file");
+		finder.set_read_state({ { .Thread = issue.Id, .UnreadPosts = { issue.Id } } });
+		finder.refresh();
+		expect(finder.conversations().front().Unread == 1U && finder.list()->model()->index(0, 0).data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("1 new")), "the pathless header carries the new count accessibly");
+		const auto row = finder.shown_keys().back();
+		finder.popup_row_menu(row, finder.row_rect(row).center());
+		expect(!finder.open_in_review_action()->isEnabled() && finder.open_in_discuss_action()->isEnabled(), "pathless comments offer Discuss, with Review unavailable");
+		finder.row_menu()->close();
 		// Rebuilt only when shown: a hidden finder adopting a forest reads nothing.
 		finder.hide();
 		const auto before = finder.rebuilds();
@@ -911,7 +916,7 @@ namespace {
 		expect(finder.rebuilds() == before, "a hidden finder rebuilds nothing");
 		finder.show();
 		QApplication::processEvents();
-		expect(finder.rebuilds() == before + 1U && finder.conversations().size() == 6U, "and rebuilds once when shown");
+		expect(finder.rebuilds() == before + 1U && finder.conversations().size() == 8U, "and rebuilds once when shown");
 	}
 } // namespace
 

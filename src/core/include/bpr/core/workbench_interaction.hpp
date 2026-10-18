@@ -724,7 +724,7 @@ namespace bpr::core {
 	/// cleared, so asking for a thread always shows it. My draft is not in
 	/// Discuss's list: asked for from Threads it opens in Review, and from
 	/// Review in Discuss's composer. [[BPR-1586]]: Threads shows the thread's
-	/// row, my draft's included; a comment not on a file has none.
+	/// row, my draft's included; pathless comments appear in Not on a file.
 	[[nodiscard]] auto route_workbench_thread(
 		const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route;

@@ -64,6 +64,7 @@ namespace bpr::qt {
 		delete_draft,
 		/// Read this thread up to its latest post ([[BPR-0656]]).
 		mark_read,
+		mark_unread,
 		/// Start a reply on this thread ([[BPR-0649]]). [[BPR-1290]]: the
 		/// reply is written in place, at the foot of the open thread, through
 		/// the one Reply path; no thread starts a second thread.
@@ -470,6 +471,8 @@ namespace bpr::qt {
 		/// \details [[BPR-0972]]. Decided once per adopted forest or read
 		/// state and retained, so a scroll frame that asks again walks nothing.
 		[[nodiscard]] auto unread_threads_in_file_order() const -> const std::vector<std::string>&;
+		/// \brief [[BPR-1601]]. File threads, then PR comments and summaries in Discuss order.
+		[[nodiscard]] auto unread_conversations_in_navigation_order() const -> const std::vector<std::string>&;
 		/// \brief The zero-based lines of the threads whose first post is unread.
 		[[nodiscard]] auto unread_marked_lines(core::diff_side aSide) const -> std::vector<std::uint32_t>;
 		[[nodiscard]] auto unread_post_count() const noexcept -> std::size_t;
@@ -700,6 +703,7 @@ namespace bpr::qt {
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>                                         ReadStateByThread;
 		mutable std::optional<std::vector<std::string>>                                      UnreadThreads;
+		mutable std::optional<std::vector<std::string>>                                      UnreadConversations;
 		mutable std::map<core::file_identity, std::size_t>                                   UnreadThreadsByFile;
 		std::uint64_t                                                                        LayoutNodesVisited = 0U;
 		std::vector<thread_card>                                                             Cards;

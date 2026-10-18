@@ -1205,6 +1205,32 @@ namespace {
 	/// [[BPR-1582]]. Mark as unread goes through the same store: the latest
 	/// post someone else wrote is new again, acceptance stays, a thread of
 	/// only my posts is refused before the store, and Mark read undoes it.
+	// [[BPR-1601]]. The same seen-before rule applies to singleton posts,
+	// including a durable zero cursor after Mark unread and a reconstructed host.
+	void test_singleton_conversations_seen_before_and_restart()
+	{
+		auto log   = event_log{ };
+		auto store = recording_store{ log };
+		auto host  = rig{ store, log };
+		auto posts = std::vector<application::conversation_thread_observation>{
+			{ .Conversation = core::review_conversation_id{ 61U }, .Posts = { { .Comment = core::review_comment_id{ 71U }, .Edit = core::comment_edit_version{ 81U } } } },
+			{ .Conversation = core::review_conversation_id{ 62U }, .Posts = { { .Comment = core::review_comment_id{ 72U }, .Edit = core::comment_edit_version{ 82U } } } },
+			{ .Conversation = core::review_conversation_id{ 63U }, .Posts = { { .Comment = core::review_comment_id{ 73U }, .Edit = core::comment_edit_version{ 83U }, .Mine = true } } },
+		};
+		const auto fresh = host.observe_conversations(posts);
+		expect(fresh && fresh->Threads.size() == 2U && !fresh->Threads[0].SeenBefore && !fresh->Threads[1].SeenBefore, "new PR comment and summary have no seen cursor; my post is excluded");
+		for (const auto& post : posts) {
+			expect(host.mark({ .Conversation = post.Conversation, .LatestComment = post.Posts[0].Comment, .LatestEdit = post.Posts[0].Edit }).has_value(), "singleton read commits");
+		}
+		expect(host.observe_conversations(posts)->Threads.empty(), "both singleton kinds read");
+		expect(host.unmark(posts[0]).has_value(), "manual unread commits a singleton zero cursor");
+		posts[1].Posts[0].Edit = core::comment_edit_version{ 84U };
+		auto       restarted   = rig{ store, log };
+		const auto state       = restarted.observe_conversations(posts);
+		expect(state && state->Threads.size() == 2U && state->Threads[0].SeenBefore && state->Threads[1].SeenBefore, "restart preserves seen-before for manual unread and an edited summary");
+		expect(state->Threads[0].UnreadPosts == std::vector{ posts[0].Posts[0].Comment } && state->Threads[1].UnreadPosts == std::vector{ posts[1].Posts[0].Comment }, "restart identifies the exact two unread posts");
+	}
+
 	void test_conversation_marks_unread_through_the_store()
 	{
 		auto       log    = event_log{ };
@@ -1923,6 +1949,7 @@ auto main() -> int
 	test_receipt_action_projection_contains_only_core_legal_changes();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
 	test_conversation_marks_unread_through_the_store();
+	test_singleton_conversations_seen_before_and_restart();
 	test_a_held_store_operation_leaves_the_decision_lane_free();
 	test_admission_is_bounded();
 	test_rapid_gestures_are_fifo_and_a_failure_rolls_back_only_itself();

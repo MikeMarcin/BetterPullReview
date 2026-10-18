@@ -1,4 +1,5 @@
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/core/review_ledger.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -507,7 +508,13 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
 		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
-		add(card_action::mark_read, QStringLiteral("Mark read"), card.UnreadCount > 0U, tr("This thread has no unread posts."));
+		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
+																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
+		add(readAction == core::conversation_read_action::mark_read ? card_action::mark_read : card_action::mark_unread,
+			readAction == core::conversation_read_action::mark_read ? QStringLiteral("Mark read") : QStringLiteral("Mark unread"),
+			ReadStateKnown && readAction != core::conversation_read_action::none,
+			!ReadStateKnown ? tr("Read state is not available yet.") : tr("Every post in this conversation is yours."));
+		menu->actions().back()->setObjectName(QStringLiteral("threadReadAction"));
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
 			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Resolution is not available for this thread."));
 		if (Feed) {
@@ -630,6 +637,7 @@ namespace bpr::qt {
 		ReadStateByThread.clear();
 		ReadStateKnown = false;
 		UnreadThreads.reset();
+		UnreadConversations.reset();
 		verticalScrollBar()->setValue(0);
 		relayout();
 	}
@@ -637,6 +645,7 @@ namespace bpr::qt {
 	void conversation_cards_view::index_retained()
 	{
 		UnreadThreads.reset();
+		UnreadConversations.reset();
 		RetainedFiles = detail::conversation_file_identities(Retained);
 		RetainedById.clear();
 		RetainedRoot.clear();
@@ -1051,6 +1060,7 @@ namespace bpr::qt {
 			ReadStateByThread.emplace(ReadState[index].Thread, index);
 		}
 		UnreadThreads.reset();
+		UnreadConversations.reset();
 		relayout();
 	}
 
@@ -1074,6 +1084,9 @@ namespace bpr::qt {
 		ReadStateKnown     = true;
 		const auto& now    = ReadState[ReadStateByThread.at(aThread)].UnreadPosts;
 		const auto  wasNew = !previous.empty();
+		if (UnreadConversations.has_value() && wasNew && now.empty()) {
+			std::erase(*UnreadConversations, aThread);
+		}
 		if (UnreadThreads.has_value() && wasNew && now.empty()) {
 			if (const auto removed = std::erase(*UnreadThreads, aThread); removed > 0U) {
 				const auto index = RetainedById.at(aThread);
@@ -1083,6 +1096,7 @@ namespace bpr::qt {
 			// A thread becoming unread takes its place in file order when the
 			// list is next asked for.
 			UnreadThreads.reset();
+			UnreadConversations.reset();
 		}
 		if (std::ranges::any_of(Cards, [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
 			relayout();
@@ -1122,6 +1136,29 @@ namespace bpr::qt {
 		}
 		UnreadThreads = std::move(ids);
 		return *UnreadThreads;
+	}
+
+	auto conversation_cards_view::unread_conversations_in_navigation_order() const -> const std::vector<std::string>&
+	{
+		if (UnreadConversations.has_value()) {
+			return *UnreadConversations;
+		}
+		auto ids = unread_threads_in_file_order();
+		// Pathless roots retain projection order in Discuss. Reading this
+		// retained forest also works while the cards are scoped to one file.
+		for (const auto& node : Retained) {
+			if (node.ParentId.has_value() || node.Deleted
+				|| (node.Kind != application::github_conversation_kind::review
+					&& node.Kind != application::github_conversation_kind::issue_comment)) {
+				continue;
+			}
+			const auto state = ReadStateByThread.find(node.Id);
+			if (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {
+				ids.push_back(node.Id);
+			}
+		}
+		UnreadConversations = std::move(ids);
+		return *UnreadConversations;
 	}
 
 	auto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const
@@ -1505,6 +1542,10 @@ namespace bpr::qt {
 			card.FileLevel         = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
 			card.Suggestion        = suggestion_placement_of(node);
 			if (!isThread) {
+				const auto state = ReadStateByThread.find(node.Id);
+				card.RootUnread  = state != ReadStateByThread.end()
+					&& std::ranges::find(ReadState[state->second].UnreadPosts, node.Id) != ReadState[state->second].UnreadPosts.end();
+				card.UnreadCount   = card.RootUnread ? 1U : 0U;
 				const auto& mark   = RetainedMarks[index];
 				const auto  author = text(node.AuthorLogin);
 				card.Posts.push_back(card_post{
@@ -1512,6 +1553,7 @@ namespace bpr::qt {
 					.Author       = author,
 					.Body         = text(node.ReviewerProse.value_or(node.Body)),
 					.Mine         = !Viewer.isEmpty() && author == Viewer,
+					.Unread       = card.RootUnread,
 					.Role         = !PullRequestAuthor.isEmpty() && author == PullRequestAuthor ? QStringLiteral("author") : QStringLiteral("reviewer"),
 					.Label        = mark.Label,
 					.Emphasis     = mark.Emphasis,

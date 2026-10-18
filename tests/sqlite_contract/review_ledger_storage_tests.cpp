@@ -1742,6 +1742,27 @@ namespace {
 			   "the other scope's receipt is untouched by the replacement");
 		expect(!opened->store_conversation_receipt(*here, core::conversation_receipt{ }).has_value(),
 			   "a nameless conversation is refused");
+		// [[BPR-1601]]. A singleton adds an ordinary receipt beside existing
+		// thread receipts. No schema change or reinterpretation is needed.
+		const auto singleton = core::conversation_receipt{
+			.Conversation = core::review_conversation_id{ 601U },
+			.SeenComment  = core::review_comment_id{ 701U },
+			.SeenEdit     = core::comment_edit_version{ 801U },
+		};
+		expect(opened->store_conversation_receipt(*here, singleton).has_value(), "singleton receipt persists beside old threads");
+		opened = std::unexpected(catalog_database_failure::unavailable);
+		opened = review_ledger_database::open(directory.file("c.db"), { });
+		expect(opened_ok(opened), "ledger reopens after singleton read");
+		expect(opened->load_conversation_receipts(*here) == std::vector{ advanced, second, singleton }, "restart retains singleton and exact old thread receipts");
+		const auto posts  = std::array{ core::conversation_post_observation{ .Comment = singleton.SeenComment, .Edit = singleton.SeenEdit } };
+		const auto unread = core::mark_conversation_unread(singleton, posts);
+		expect(unread.has_value() && opened->store_conversation_receipt(*here, *unread).has_value(), "singleton unread commits");
+		opened = std::unexpected(catalog_database_failure::unavailable);
+		opened = review_ledger_database::open(directory.file("c.db"), { });
+		expect(opened_ok(opened), "ledger reopens after singleton unread");
+		const auto restarted = opened->load_conversation_receipts(*here);
+		expect(restarted && *restarted == std::vector{ advanced, second, *unread } && core::unread_posts(restarted->back(), posts).size() == 1U,
+			   "zero seen cursor survives restart as a present receipt, leaving old rows unchanged");
 		// The port opens the ledger in the state directory by itself; the
 		// direct handle is closed first so the two never share a file.
 		opened = std::unexpected(catalog_database_failure::unavailable);

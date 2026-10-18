@@ -1,3 +1,11 @@
+# BPR-1601 landing 2026-10-17 over main 887feb0ed: PR comments and review
+# summaries use the existing conversation receipt and core read/unread policy.
+# Reviewed accepted-snapshot identity construction, singleton/native-thread
+# cache bounds, seen-before queue counts, durable-before-publish callbacks,
+# and the incremental Status count. Test-only server overlays supply exact
+# summaries/comments for the composed restart/edit course. No provider write,
+# grant, credential or production mutation branch changes; mutation pin stays
+# exact. The full application and production manifest pins bind this tree.
 # BPR-1598 landing 2026-10-17 over main 57f335411: strict-tidy cleanup in
 # src/app preserves the fixture name used after startup, returns an optional
 # without dereferencing/re-wrapping it (including the tour-stop staging
@@ -1561,7 +1569,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b22a1e43f62f0827a30f7bff47bd757c675c7e10540b322dfc3802f1a1d7550d"
+		"f1b6e0213c6b0020af0cf240842cda9559ab2ecfaf585101937173fbc29dfa78"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1777,7 +1785,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d3dff26187141fda9720b035f392f9490496ebc2db8042616cf804bc27217f49"
+        "8dfc3efab6b9c0a36a1a1172e697bc32551d7113026522126a40136d6f67debd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
