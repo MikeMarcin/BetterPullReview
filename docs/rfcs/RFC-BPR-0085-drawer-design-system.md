@@ -52,6 +52,16 @@ Milestone 4 ([[BPR-1591]], [[BPR-1592]]) landed on 2026-10-18 after the
 owner's Accept of v001 with no note. The agent's material moved unchanged to a
 provisional Agent tab until [[BPR-1594]].
 
+Milestone 5 ([[BPR-1593]]) landed on 2026-10-18 after the owner's Accept
+of v001 with no note (session `9a9c8a15…`). Tours read as a route in the
+drawer and expand to their page.
+
+Milestone 6 ([[BPR-1594]]) landed on 2026-10-18 after the owner's Accept
+of v001 with no note (session `5547b234…`). Agent has its own drawer tab,
+opened by its shortcut or Ask about these lines. The accepted candidate's
+known gaps remain recorded on its handoff. [[BPR-1603]] and [[BPR-1595]]
+remain open; this milestone does not close the RFC.
+
 **Amendment, 2026-10-18 ([[BPR-1603]]).** The owner, while [[BPR-1593]] was
 under way: "The notes-on-the-pull-request thing might actually be a good UX
 for comments on the pull request too." D8 below adds it as a milestone after

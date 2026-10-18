@@ -1,3 +1,8 @@
+# BPR-1594 landing reseal 2026-10-18 over origin/main 3b68c4394.
+# Reviewed merged main.cpp delta: tests-on attended Agent fixture course,
+# profile selection and drawer gesture only. No provider, credential, grant,
+# publication or mutation authority changes. All three printed pins match
+# the accepted candidate on this merged tree; mutation pin unchanged.
 # BPR-1593 landing reseal 2026-10-18 over main a7a45e1c9. Reviewed the
 # merged src/app delta: main.cpp adds only the tests-on attended tour fixture
 # gesture course and command-line selection. No grant, credential, provider,

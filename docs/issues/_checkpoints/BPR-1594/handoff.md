@@ -67,3 +67,15 @@
   Reject, read the note and make v002.
 - Open design questions: none.
 - Running PIDs: 49516 (the review server, handed off).
+
+## Landing continuation — 2026-10-18
+
+Owner Accept consumed at sequence 4, handback at 5. Origin/main 3b68c4394
+merged cleanly after BPR-1593 landed. Reviewed app fixture delta; printed
+pins match and dated reseal added. All 16 focused rows pass serially (235.57 s), including three window
+scales, keyboard shortcuts, Agent panels/canaries, side chat, finding queue,
+Notes, finding public path, architecture and both composition contracts.
+Format22, documentation and diff checks pass. Protection released at
+sequence 6. RFC execution status records the accepted Tours/Agent milestones.
+The accepted visual design is landed without design edits; frontend-design
+is unavailable in this harness.
