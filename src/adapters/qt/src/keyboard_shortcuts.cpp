@@ -100,11 +100,19 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
 			shortcut_entry{ .Command = command::hide_drawers, .Group = views, .Binding = bound, .Title = "Hide or show every drawer", .Keys = "Ctrl+B", .StepsAsideWhileTyping = true, .Objects = "toggleWorkbenchDrawersAction;desktopToggleDrawersAction" },
+			// [[BPR-1588]]. Alt+Shift+1 to 5 are the other drawers and views.
+			shortcut_entry{ .Command = command::status_drawer, .Group = views, .Binding = bound, .Title = "Status drawer", .Place = "On Overview", .Keys = "Alt+Shift+6", .Objects = "toggleOverviewStatusAction" },
 			shortcut_entry{ .Command = command::overview, .Group = views, .Binding = bound, .Title = "Overview", .Keys = "Ctrl+1", .Objects = "reviewModalityOverviewAction" },
 			shortcut_entry{ .Command = command::review, .Group = views, .Binding = bound, .Title = "Review", .Keys = "Ctrl+2", .Objects = "reviewModalityReviewAction" },
 			shortcut_entry{ .Command = command::discuss, .Group = views, .Binding = bound, .Title = "Discuss", .Keys = "Ctrl+3", .Objects = "reviewModalityDiscussAction" },
 			shortcut_entry{ .Command = command::threads, .Group = views, .Binding = bound, .Title = "Threads", .Keys = "Ctrl+4", .Objects = "reviewModalityThreadsAction" },
 			shortcut_entry{ .Command = command::find_thread, .Group = views, .Binding = bound, .Title = "Find a thread, or go back", .Keys = "Ctrl+J", .Objects = "showWorkbenchThreadsAction;desktopShowThreadsAction" },
+			// [[BPR-1581]]. The selected thread in the other view, beside ⌘3 and
+			// ⌘2. Ctrl+Alt is AltGr on Windows, so both step aside while typing.
+			shortcut_entry{ .Command = command::show_in_discuss, .Group = views, .Binding = bound, .Title = "Show the selected thread in Discuss", .Place = "In Review", .Keys = "Ctrl+Alt+3", .StepsAsideWhileTyping = true, .Objects = "showThreadInDiscussAction;desktopShowThreadInDiscussAction;codeContextMenuShowInDiscuss;threadShowInDiscussAction;postShowInDiscuss" },
+			shortcut_entry{ .Command = command::show_in_review, .Group = views, .Binding = bound, .Title = "Show the selected thread in Review", .Place = "In Discuss", .Keys = "Ctrl+Alt+2", .StepsAsideWhileTyping = true, .Objects = "showThreadInReviewAction;desktopShowThreadInReviewAction;threadOpenInReviewAction;postOpenInReview" },
+			// [[BPR-1586]]. Its row in Threads, beside ⌘4.
+			shortcut_entry{ .Command = command::show_in_threads, .Group = views, .Binding = bound, .Title = "Show the selected thread in Threads", .Place = "In Review", .Keys = "Ctrl+Alt+4", .StepsAsideWhileTyping = true, .Objects = "showThreadInThreadsAction;desktopShowThreadInThreadsAction;codeContextMenuShowInThreads;threadShowInThreadsAction;postShowInThreads;draftShowInThreadsAction" },
 
 			// The comparison and its history.
 			shortcut_entry{ .Command = command::whole_pr, .Group = comparison, .Binding = bound, .Title = "Whole pull request", .Place = in_updates, .Keys = "Alt+1", .Objects = "wholePrComparisonAction" },

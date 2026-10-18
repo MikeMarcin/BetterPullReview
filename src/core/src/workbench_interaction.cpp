@@ -906,18 +906,69 @@ namespace bpr::core {
 	auto route_workbench_thread(const open_workbench_thread_intent& aIntent) noexcept
 		-> workbench_thread_route
 	{
-		if (aIntent.Destination == workbench_thread_destination::review || aIntent.Draft) {
+		if (aIntent.Destination == workbench_thread_destination::threads) {
+			// [[BPR-1586]]. Threads lists every thread on a file, my draft
+			// included, and nothing else.
+			if (!aIntent.OnFile) {
+				return workbench_thread_route{
+					.Modality  = aIntent.Origin == workbench_thread_origin::discuss ? workbench_modality::discuss : workbench_modality::review,
+					.Reason    = workbench_thread_route_reason::not_on_a_file,
+					.Available = false,
+				};
+			}
+			return workbench_thread_route{ .Modality = workbench_modality::threads };
+		}
+		const auto toDiscuss = aIntent.Destination == workbench_thread_destination::discuss;
+		if (toDiscuss && aIntent.Draft && aIntent.Origin == workbench_thread_origin::review) {
+			// [[BPR-1581]]. Discuss shows my draft in its composer.
 			return workbench_thread_route{
-				.Modality     = workbench_modality::review,
-				.OpenComments = true,
-				.Reason       = aIntent.Destination == workbench_thread_destination::discuss
-					? workbench_thread_route_reason::draft_opens_in_review
-					: workbench_thread_route_reason::none,
+				.Modality = workbench_modality::discuss,
+				.Reason   = workbench_thread_route_reason::draft_opens_in_composer,
+				.Composer = true,
 			};
 		}
+		if (toDiscuss && !aIntent.Draft) {
+			return workbench_thread_route{
+				.Modality = workbench_modality::discuss,
+				.Clear    = aIntent.Hiding,
+			};
+		}
+		if (!aIntent.OnFile) {
+			// [[BPR-1581]]. Nothing in Review shows it; nothing moves.
+			return workbench_thread_route{
+				.Modality  = aIntent.Origin == workbench_thread_origin::discuss ? workbench_modality::discuss : workbench_modality::review,
+				.Reason    = workbench_thread_route_reason::not_on_a_file,
+				.Available = false,
+			};
+		}
+		auto reason = workbench_thread_route_reason::none;
+		if (toDiscuss) {
+			reason = workbench_thread_route_reason::draft_opens_in_review;
+		} else if (!aIntent.Placed && !aIntent.Draft) {
+			reason = workbench_thread_route_reason::opens_without_a_line;
+		}
 		return workbench_thread_route{
-			.Modality = workbench_modality::discuss,
-			.Clear    = aIntent.Hiding,
+			.Modality     = workbench_modality::review,
+			.OpenComments = true,
+			.Reason       = reason,
 		};
+	}
+
+	auto choose_workbench_thread_target(const workbench_thread_selection& aSelection)
+		-> std::optional<workbench_thread_target>
+	{
+		if (aSelection.CodeFocused && !aSelection.LineThread.empty()) {
+			return workbench_thread_target{ .Thread = aSelection.LineThread };
+		}
+		if (!aSelection.OpenThread.empty()) {
+			return workbench_thread_target{ .Thread = aSelection.OpenThread, .Post = aSelection.PickedPost };
+		}
+		if (!aSelection.CurrentThread.empty()) {
+			return workbench_thread_target{ .Thread = aSelection.CurrentThread, .Post = aSelection.CurrentPost };
+		}
+		if (!aSelection.LineThread.empty()) {
+			return workbench_thread_target{ .Thread = aSelection.LineThread };
+		}
+		return std::nullopt;
 	}
 } // namespace bpr::core

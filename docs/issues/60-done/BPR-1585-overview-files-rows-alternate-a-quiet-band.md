@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1585"
 title: "Overview's file rows alternate a quiet band within each folder"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-17","owner_note":"Would the Overview files view benefit from a subtle alternating background for rows?","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-0647","BPR-1089","BPR-1213","BPR-1363","BPR-1529"],"reservation":"docs/issues/_reservations/BPR-1585--BPR-1585--843eb7b989aa.json","requested_skill":"frontend-design"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"5a580a955","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"test_file_rows_band_within_each_folder (qt_pull_request_overview_page, folder_rows_125/200): every shown row's ground follows the rule across every folder open, docs/api and root closed (later groups unchanged), collapse/expand all, a hidden row, a reversed sort and a refresh; headers and Not on a file on the ground; selected rows are the selection. Negative control: Qt whole-tree alternation in the band colour fails the rule."}},{"criterion":"AC2","outcome":"pass","revision":"5a580a955","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"test_band_keeps_every_ink_readable: step 1.08 in Light, Dark, HC Light, HC Dark; text, +/- lines, chip words, A/D/M letters >= 4.5:1 and badges, changed chip, read marks, unknown mark, twelve label tints >= 3:1 on the band where they hold on the ground; pre-existing shortfalls (placeholder ink, amber R badge and bubble, open digits) named on the card with both values."}},{"criterion":"AC3","outcome":"pass","revision":"5a580a955","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"Not on a file's operation, Changed and Read cells paint nothing; its name and chips paint."}},{"criterion":"AC4","outcome":"pass","revision":"5a580a955","evidence":{"kind":"command","detail":"Full ctest --preset dev on merged trees c401a1378 and e786531c9: all non-timing failures pass on rerun; large-review budgets fail only under load and pass at load 20 with an A/B showing no gap change; documentation_structure fails only on the branch NEXT_ID lag and verify_documentation passes on main. 30 focused rows pass at 5a580a955; clang-format 22.1.8 clean; clang-tidy clean on pull_request_overview_page.cpp; DOCUMENTATION_OK."}},{"criterion":"AC5","outcome":"pass","revision":"3ea341dd2837447e7c636188b136dc894efb139f","evidence":{"kind":"observation","detail":"Owner Accept, no note, attended session f1a8896a19f1fb037abd90b45bd11512, decision 545cba0f-a1e9-41b1-9a63-074b1d45d6e9 (event 4, handed back at 5), candidate BPR-1585-files-band-v001 fingerprint 925175e7, frozen root bpr1585-files-band-v001.z0knvg2u."}}]
 ---
 
 # BPR-1585: Overview's file rows alternate a quiet band within each folder
@@ -111,8 +111,8 @@ comments and review summaries cannot be resolved, so Open counts them under
 | AC1 | `test_file_rows_band_within_each_folder` (qt_pull_request_overview_page; folder_rows_125/200): every shown row's ground follows the rule with every folder open, docs/api and the root closed (later groups unchanged), all closed and reopened, a hidden row, a reversed sort, a refresh; Not on a file and headers on the ground; the selected banded and unbanded rows are the selection. Negative control: Qt's alternation in the band colour draws every other shown row and fails the rule | pass |
 | AC2 | `test_band_keeps_every_ink_readable`: step 1.08 in all four themes; text, +/− lines, chip words, A/D/M letters at 4.5:1 and badges, changed chip, read marks, unknown mark and the twelve label tints at 3:1 on the band wherever they hold on the ground | pass |
 | AC3 | the same test: Not on a file's operation, Changed and Read cells paint nothing; its name and chips paint | pass |
-| AC4 | focused 29 rows (overview page, chips and folder rows 125/200, read marks, workbench overview, workbench window 100/125/200, composed GitHub 100/125/200, files tree, nested folders and overview public paths) pass at the candidate (qt_workbench_window_scale_200 hit the runner's child timeout once at load average 250 and passed alone in 51 s); clang-format 22.1.8 clean; clang-tidy clean on `pull_request_overview_page.cpp` and the new test code; DOCUMENTATION_OK. The full `ctest --preset dev` is owed on the merged tree | partial |
-| AC5 | attended session `f1a8896a19f1fb037abd90b45bd11512`, candidate `BPR-1585-files-band-v001` (fingerprint `925175e7`), frozen root `/Users/jaeger/bpr1585-files-band-v001.z0knvg2u` | pending |
+| AC4 | (see Closeout) focused 29 rows (overview page, chips and folder rows 125/200, read marks, workbench overview, workbench window 100/125/200, composed GitHub 100/125/200, files tree, nested folders and overview public paths) pass at the candidate (qt_workbench_window_scale_200 hit the runner's child timeout once at load average 250 and passed alone in 51 s); clang-format 22.1.8 clean; clang-tidy clean on `pull_request_overview_page.cpp` and the new test code; DOCUMENTATION_OK. The full `ctest --preset dev` is owed on the merged tree | pass |
+| AC5 | attended session `f1a8896a19f1fb037abd90b45bd11512`, candidate `BPR-1585-files-band-v001` (fingerprint `925175e7`), frozen root `/Users/jaeger/bpr1585-files-band-v001.z0knvg2u`: owner Accept, decision `545cba0f` | pass |
 
 Inks already short on the ground, named as AC2 asks (ratio on the ground,
 then on the band): the placeholder ink of Note and the unknown "?" is 3.16
@@ -127,4 +127,50 @@ Candidates, not changed here: Review's file tree (`files_tree_delegate`),
 the Threads and Discuss lists and the Overview's Check details list are
 other components; Review Cycle's notes list already alternates with Qt's
 own colours.
+
+## Closeout — accepted and landed, 2026-10-17
+
+The owner accepted `BPR-1585-files-band-v001` with no note in attended
+session `f1a8896a19f1fb037abd90b45bd11512` (decision
+`545cba0f-a1e9-41b1-9a63-074b1d45d6e9`, event 4, handed back at event 5),
+on the frozen build of `3ea341dd2`. The branch landed on main as
+`5a580a955`.
+
+Merged-tree verification:
+
+- Full `ctest --preset dev` on the merged tree `c401a1378` (main
+  `26db2cfff` plus the candidate): 757 of 772 passed in the first pass at
+  load average 120–300. On serial rerun, 9 of the 15 failures passed:
+  rfc0016_production_identity_security (it had failed only on the
+  untracked `.agents` link the worktree needed for the documentation gate),
+  live_mutation_isolation, application_diff_host,
+  release_update_native_https, large_review_replay_contract, the agent
+  materialization and cleanup contracts, application_epoch_ordinary_update_recreated
+  and application_private_review_native. The five large-review
+  benchmarks failed only on timing budgets while the machine was loaded
+  (composition startup at 2 to 5 times its 1 s budget, before any pull
+  request opens); at load average 20 all five passed. An A/B of the
+  paged-load input gap, four runs each, gave 83.8–85.7 ms with the band
+  and 82.5–99.2 ms with it stubbed out. documentation_structure failed
+  because the branch's `NEXT_ID` trails the high water other branches
+  have since reached; `verify_documentation.py` on main passes
+  (DOCUMENTATION_OK).
+- A second full run on the re-merged tree `e786531c9` (main `c29d90e19`,
+  with BPR-1583's change to the same file) gave 758 of 774. Its
+  non-timing failures (application_diff_host,
+  application_anonymous_public_preview_unavailable,
+  application_threaded_reply_contract, epoch_portable_occurrence,
+  qt_hide_drawers_native_menu_key, epoch_ordinary_update_recreated,
+  terminal_diagnostics, documentation_issue_graph_contract and
+  issue_id_allocation_contract) passed on rerun. The large-review budgets
+  failed again at load average 80, and documentation_structure failed on
+  the same `NEXT_ID` lag.
+- On the landed tree `5a580a955`, 30 focused rows pass: the overview page,
+  chips and folder rows at 125/200%, read marks, workbench overview,
+  workbench window 100/125/200, composed GitHub 100/125/200, the files
+  tree, nested-folders and overview public paths, and close review.
+  clang-format 22.1.8 is clean. DOCUMENTATION_OK on main.
+
+The review server is stopped, protection is released, and the frozen root
+is removed.
 

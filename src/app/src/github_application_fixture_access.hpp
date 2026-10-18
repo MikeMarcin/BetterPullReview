@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -210,6 +211,32 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> Delayed{ 0U };
 		std::atomic<std::uint32_t> Cancelled{ 0U };
 		std::atomic<std::uint32_t> Failed{ 0U };
+		/// [[BPR-1575]]. Holds a refresh's first two answers this long each.
+		std::atomic<std::uint32_t> RefreshMilliseconds{ 0U };
+		/// [[BPR-1576]]. Holds every other answer of a pull request's read this
+		/// long, so its sections arrive one by one.
+		std::atomic<std::uint32_t> PageMilliseconds{ 0U };
+		/// [[BPR-1576]]. Holds personal discovery's searches this long.
+		std::atomic<std::uint32_t> DiscoveryMilliseconds{ 0U };
+		/// [[BPR-1575]]. What successive refreshes meet, one outcome a read,
+		/// in order and then round again; empty serves every refresh.
+		enum class refresh_outcome : std::uint8_t {
+			serve,
+			/// Someone replied to the first thread since the last read.
+			new_reply,
+			/// GitHub cannot be reached for the whole read.
+			offline,
+			/// GitHub's rate limit answers, asking to wait.
+			rate_limited,
+		};
+		std::mutex                   ScriptMutex;
+		std::vector<refresh_outcome> RefreshScript;
+		std::size_t                  ScriptNext = 0U;
+		std::uint64_t                ScriptRead = 0U;
+		refresh_outcome              ScriptOutcome{ refresh_outcome::serve };
+		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
+		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
+		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
 	};
 
 	/// \brief [[BPR-1477]]. The shown pull request's accepted snapshot, and

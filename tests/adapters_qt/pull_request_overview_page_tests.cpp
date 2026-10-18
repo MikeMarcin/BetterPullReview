@@ -2,6 +2,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
@@ -43,6 +44,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <optional>
@@ -141,16 +143,14 @@ namespace {
 		page.resize(1'100, 700);
 		page.show();
 		QApplication::processEvents();
-		expect(!page.presented() && !page.entry_button()->isEnabled()
+		expect(!page.presented() && !page.entry_path()
 				   && page.title_label()->text() == QStringLiteral("No pull request"),
 			   "before a projection the page names nothing and offers no entry");
+		// [[BPR-1588]]. The owner's decision D1: no Start review button.
+		expect(page.findChild<QPushButton*>(QStringLiteral("overviewEntryButton")) == nullptr,
+			   "the Overview has no Start review or Continue review button");
 
-		auto entered   = std::vector<std::pair<application::overview_entry_kind, QString>>{ };
 		auto activated = std::vector<QString>{ };
-		page.set_entry_dispatch(
-			[&entered](const application::overview_entry_kind aEntry, const QString& aPath) {
-				entered.emplace_back(aEntry, aPath);
-			});
 		page.set_file_dispatch([&activated](const QString& aPath) { activated.push_back(aPath); });
 		page.present(projection());
 		QApplication::processEvents();
@@ -219,17 +219,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1 unpublished"),
 			   "the side column states what happened since my last review and my progress, "
 			   "saying not available where the host cannot answer");
-		expect(page.entry_button()->isEnabled()
-				   && page.entry_button()->text() == QStringLiteral("Continue review")
-				   && page.entry_button()->toolTip().contains(QStringLiteral("HairStrandsVoxelization.cpp")),
-			   "the one action continues the review at the named file");
-
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 1U
-				   && entered.front().first == application::overview_entry_kind::continue_review
-				   && entered.front().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Continue review reports its semantic kind and entry path");
+		expect(page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
+			   "the first entry into Review lands at the first unseen change's file");
 		page.files_view()->activated(lighting);
 		QApplication::processEvents();
 		expect(activated.size() == 1U
@@ -252,14 +243,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("not available")
 				   && page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")).siblingAtColumn(qt::overview_file_model::changed_column).data().toString()
 					   == QStringLiteral("?")
-				   && page.entry_button()->text() == QStringLiteral("Start review"),
+				   && page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
 			   "what the host cannot answer reads as not known, never as none");
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 2U
-				   && entered.back().first == application::overview_entry_kind::start_review
-				   && entered.back().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Start review remains distinct from Continue review at dispatch");
 
 		auto partial                = projection();
 		partial.CommitCount         = 9'311U;
@@ -272,7 +257,7 @@ namespace {
 		page.clear();
 		QApplication::processEvents();
 		expect(!page.presented() && page.file_model()->file_count() == 0U
-				   && !page.entry_button()->isEnabled() && page.participant_rows().empty(),
+				   && !page.entry_path() && page.participant_rows().empty(),
 			   "clearing empties the page");
 		page.hide();
 	}
@@ -569,7 +554,6 @@ namespace {
 					expect(edit->verticalScrollBar()->value() > 0 && page.files_view()->verticalScrollBar()->value() == 0, "wheel scrolls only the summary");
 					int dispatched = 0;
 					page.set_file_dispatch([&](const QString&) { ++dispatched; });
-					page.set_entry_dispatch([&](auto, const QString&) { ++dispatched; });
 					const auto file = page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
 					page.files_view()->setCurrentIndex(file);
 					read->setFocus();
@@ -925,10 +909,11 @@ namespace {
 		page.resize(700, 400);
 		settle();
 		verifyRows();
-		scroll->ensureWidgetVisible(page.entry_button());
+		auto* const checks = page.findChild<QWidget*>(QStringLiteral("overviewChecksDisclosure"));
+		scroll->ensureWidgetVisible(checks);
 		settle();
-		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
-			   "review entry remains reachable after the complete participant list");
+		expect(scroll->viewport()->rect().contains(checks->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
+			   "check details remain reachable after the complete participant list");
 	}
 	/// \brief [[BPR-1363]]. Every column's left edge and width, in viewport
 	/// coordinates.
@@ -1380,7 +1365,7 @@ namespace {
 			expect(page.files_view()->isColumnHidden(column), "unknown cached workflow counts are hidden");
 		}
 		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
-		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
+		expect(!opened && !page.presented() && !page.entry_path(), "historical rows cannot enter the source workbench");
 		auto* discussion = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedDiscussion"));
 		expect(discussion && discussion->toPlainText().contains(QStringLiteral("General comments — unavailable")), "missing discussion remains explicitly unavailable");
 		cached.GeneralComments.emplace();
@@ -1659,6 +1644,13 @@ namespace {
 			const auto chosen = qt::overview_operation_mark_colours(application::overview_file_operation::modified, view->palette(), page.colours(), true);
 			expect(!chosen.Fill.isValid() && contrast(chosen.Letter, look.Highlight) >= 4.5, name + ": on a selected row it is the selection's own text, with no tile");
 
+			// [[BPR-1585]]. An unselected row's tile mixes with the row's own
+			// ground, the band on a banded row.
+			auto rowPalette = view->palette();
+			if (qt::overview_row_delegate::banded(lightRow, view)) {
+				rowPalette.setColor(QPalette::Active, QPalette::Base, qt::overview_row_band(view->palette()));
+			}
+			const auto onRow = qt::overview_operation_mark_colours(application::overview_file_operation::modified, rowPalette, page.colours(), false);
 			const auto image = view->viewport()->grab().toImage();
 			const auto scale = image.devicePixelRatio();
 			const auto boxOf = [&](const QModelIndex& aRow) {
@@ -1680,7 +1672,7 @@ namespace {
 							dark += luminance(colour) < luminance(look.Highlight) * 0.6 ? 1 : 0;
 							letter += distance(colour, chosen.Letter) < 40 ? 1 : 0;
 						} else {
-							tile += distance(colour, plain.Fill) < 12 ? 1 : 0;
+							tile += distance(colour, onRow.Fill) < 12 ? 1 : 0;
 						}
 					}
 				}
@@ -2463,6 +2455,398 @@ namespace {
 		expect(cell("read").data(Qt::AccessibleTextRole).toString() == QStringLiteral("accepted"), "a receipt update that accepts a read file shows accepted");
 		expect(tickCut(crop(view->viewport()->grab().toImage(), "read")), "and draws the accepted mark");
 	}
+
+	/// \brief [[BPR-1585]]. The nested-folders pull request with
+	/// src/engine/shaders holding six files, so turns run past two, and one
+	/// conversation on no file, so the Not on a file row shows.
+	[[nodiscard]] auto banded_projection() -> application::pull_request_overview_projection
+	{
+		auto       projected = nested_folders_projection();
+		const auto at        = std::ranges::find(projected.Files, std::string{ "src/engine/shaders/basic.vert" }, &application::overview_file_row::Path);
+		auto       extra     = std::vector<application::overview_file_row>{ };
+		for (const auto* name : { "shadow.frag", "sky.frag", "terrain.vert", "water.frag" }) {
+			extra.push_back(row(std::string{ "src/engine/shaders/" } + name, application::overview_file_operation::modified, application::overview_change_since_review::unchanged,
+								core::file_read_state::unread));
+		}
+		projected.Files.insert(std::next(at), extra.begin(), extra.end());
+		projected.Progress.FilesTotal = projected.Files.size();
+		return projected;
+	}
+
+	[[nodiscard]] auto paths_of(const application::pull_request_overview_projection& aProjection) -> std::vector<std::string>
+	{
+		auto paths = std::vector<std::string>{ };
+		for (const auto& file : aProjection.Files) {
+			paths.push_back(file.Path);
+		}
+		return paths;
+	}
+
+	/// \brief [[BPR-1585]]. The commonest colour of a shown row's whole strip:
+	/// the ground it is painted on.
+	[[nodiscard]] auto row_ground(const QImage& aImage, const QTreeView& aView, const QModelIndex& aRow) -> QColor
+	{
+		const auto rect   = aView.visualRect(aRow.siblingAtColumn(0));
+		const auto ratio  = aImage.devicePixelRatio();
+		auto       counts = std::map<QRgb, int>{ };
+		for (auto y = static_cast<int>(std::ceil(rect.top() * ratio)); y < static_cast<int>(std::floor((rect.bottom() + 1) * ratio)); ++y) {
+			for (auto x = 0; x < aImage.width(); ++x) {
+				++counts[aImage.pixel(x, y)];
+			}
+		}
+		return QColor{ std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; })->first };
+	}
+
+	/// \brief [[BPR-1585]]. The rows the view shows, top to bottom.
+	[[nodiscard]] auto shown_rows(const QTreeView& aView) -> std::vector<QModelIndex>
+	{
+		auto rows = std::vector<QModelIndex>{ };
+		for (auto at = aView.model()->index(0, 0); at.isValid(); at = aView.indexBelow(at)) {
+			rows.push_back(at);
+		}
+		return rows;
+	}
+
+	[[nodiscard]] auto heading_row(const QModelIndex& aRow) -> bool
+	{
+		return aRow.data(qt::overview_file_model::folder_role).toBool() || aRow.data(qt::overview_file_model::remainder_role).toBool();
+	}
+
+	/// \brief [[BPR-1585]]. The rule, over the shown rows alone: a heading
+	/// is on the ground and starts a group; the files under it take turns,
+	/// the first on the band.
+	[[nodiscard]] auto band_rule(const std::vector<QModelIndex>& aRows) -> std::vector<bool>
+	{
+		auto banded = std::vector<bool>{ };
+		auto turn   = 0;
+		for (const auto& at : aRows) {
+			if (heading_row(at)) {
+				turn = 0;
+				banded.push_back(false);
+				continue;
+			}
+			banded.push_back(turn % 2 == 0);
+			++turn;
+		}
+		return banded;
+	}
+
+	/// \brief [[BPR-1585]]. Qt's own alternation: every other shown row of
+	/// the whole tree, whatever it is.
+	[[nodiscard]] auto whole_tree_alternation(const std::vector<QModelIndex>& aRows) -> std::vector<bool>
+	{
+		auto banded = std::vector<bool>{ };
+		for (std::size_t at = 0U; at < aRows.size(); ++at) {
+			banded.push_back(at % 2U == 1U);
+		}
+		return banded;
+	}
+
+	/// \brief [[BPR-1585]]. The owner, 2026-10-17: "Would the Overview files
+	/// view benefit from a subtle alternating background for rows?" File rows
+	/// alternate between the ground and a quiet band, counted over the rows
+	/// shown within each folder, the first file on the band; headers and Not
+	/// on a file stay on the ground. Opening and closing folders, a sort, a
+	/// hidden row and a refresh keep the rule; a selected row is the
+	/// selection's. A control with Qt's whole-tree alternation fails the rule.
+	void test_file_rows_band_within_each_folder()
+	{
+		using core::feedback_label;
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		qt::pull_request_overview_page page;
+		profile.apply_to(page);
+		page.adopt_appearance(profile);
+		auto asked = std::vector<application::overview_feedback_request>{ };
+		page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+		const auto projected = banded_projection();
+		const auto paths     = paths_of(projected);
+		const auto review    = population({ { .Id = "review-thread:a", .Label = feedback_label::issue, .Path = "src/engine/renderer.cpp" },
+											{ .Id = "review-thread:d", .Label = feedback_label::praise, .Path = { } } });
+		page.resize(1'100, 1'060);
+		page.present(projected);
+		page.show();
+		settle();
+		expect(!asked.empty(), "the page asks for its counts");
+		page.present_feedback(feedback_for(review, asked.back(), paths));
+		page.expand_folders_button()->click();
+		auto* const view  = page.files_view();
+		auto* const model = page.file_model();
+		view->clearSelection();
+		view->setCurrentIndex({ });
+		settle();
+		expect(view->verticalScrollBar()->maximum() == 0, "every row of the pull request is on screen");
+		const auto ground = view->palette().color(QPalette::Active, QPalette::Base);
+		const auto band   = qt::overview_row_band(view->palette());
+		const auto near   = [](const QColor& aOne, const QColor& aTwo) {
+			return std::abs(aOne.red() - aTwo.red()) <= 1 && std::abs(aOne.green() - aTwo.green()) <= 1 && std::abs(aOne.blue() - aTwo.blue()) <= 1;
+		};
+		expect(!near(band, ground), "the band is not the ground");
+		const auto follows = [&](const QImage& aImage, const std::vector<QModelIndex>& aRows, const std::vector<bool>& aBanded) {
+			for (std::size_t at = 0U; at < aRows.size(); ++at) {
+				if (!near(row_ground(aImage, *view, aRows[at]), aBanded[at] ? band : ground)) {
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto keeps = [&](const std::string& aStep) {
+			settle();
+			const auto rows  = shown_rows(*view);
+			const auto image = view->viewport()->grab().toImage();
+			expect(follows(image, rows, band_rule(rows)), aStep + ": each folder's files take turns on the band, the first on it, and headers stay on the ground");
+			return image;
+		};
+		const auto shader    = [&](const char* aName) { return model->index_for_path(QStringLiteral("src/engine/shaders/%1").arg(QLatin1StringView{ aName })); };
+		auto       image     = keeps("every folder open");
+		const auto remainder = shown_rows(*view).back();
+		expect(remainder.data(qt::overview_file_model::remainder_role).toBool(), "Not on a file is the last row");
+		expect(near(row_ground(image, *view, shader("basic.frag")), band) && near(row_ground(image, *view, shader("basic.vert")), ground)
+				   && near(row_ground(image, *view, shader("shadow.frag")), band) && near(row_ground(image, *view, shader("water.frag")), ground),
+			   "src/engine/shaders' six files alternate from the band");
+		for (const auto& at : shown_rows(*view)) {
+			if (heading_row(at)) {
+				expect(near(row_ground(image, *view, at), ground), "a folder header or Not on a file is on the ground");
+			}
+		}
+
+		// [[BPR-1585]] AC3. Not on a file draws its name and chips, no marks.
+		for (const auto column : { qt::overview_file_model::operation_column, qt::overview_file_model::changed_column, qt::overview_file_model::read_column }) {
+			expect(!ink_span(image, view->visualRect(remainder.siblingAtColumn(column))), "Not on a file draws no operation, change or read mark");
+		}
+		expect(ink_span(image, view->visualRect(remainder.siblingAtColumn(qt::overview_file_model::file_column))).has_value()
+				   && ink_span(image, view->visualRect(remainder.siblingAtColumn(qt::overview_file_model::comments_column))).has_value(),
+			   "Not on a file still draws its name and its chips");
+
+		// Closing a folder moves no other group's turns.
+		const auto later = [&](const QImage& aImage) {
+			auto grounds = std::vector<QRgb>{ };
+			for (const auto* name : { "basic.frag", "basic.vert", "shadow.frag", "sky.frag", "terrain.vert", "water.frag" }) {
+				grounds.push_back(row_ground(aImage, *view, shader(name)).rgb());
+			}
+			return grounds;
+		};
+		const auto open   = later(image);
+		const auto docApi = QPersistentModelIndex{ model->index_for_path(QStringLiteral("docs/api/reference.md")).parent() };
+		view->setExpanded(docApi, false);
+		image = keeps("docs/api closed");
+		expect(later(image) == open, "closing docs/api changes no later file's ground");
+		view->setExpanded(model->index_for_path(QStringLiteral("README.md")).parent(), false);
+		image = keeps("the root folder closed too");
+		expect(later(image) == open, "closing the first folder changes no later file's ground");
+		page.collapse_folders_button()->click();
+		keeps("every folder closed");
+		page.expand_folders_button()->click();
+		keeps("every folder open again");
+
+		// A row the view hides takes no turn.
+		const auto shaders = QPersistentModelIndex{ shader("basic.frag").parent() };
+		view->setRowHidden(shader("basic.frag").row(), shaders, true);
+		image = keeps("basic.frag hidden");
+		expect(near(row_ground(image, *view, shader("basic.vert")), band), "with basic.frag hidden, basic.vert is its folder's first shown file and on the band");
+		view->setRowHidden(shader("basic.frag").row(), shaders, false);
+		keeps("basic.frag shown again");
+
+		// A sort: the host's new order arrives as moves, and turns follow it.
+		auto sorted = projected;
+		std::ranges::reverse(sorted.Files);
+		page.present(sorted);
+		image = keeps("the files in reverse order");
+		expect(near(row_ground(image, *view, shader("water.frag")), band) && near(row_ground(image, *view, shader("basic.frag")), ground),
+			   "after the sort water.frag is src/engine/shaders' first file, on the band, and basic.frag its sixth, on the ground");
+		page.present(projected);
+		image = keeps("the file order again");
+		page.present(projected);
+		image = keeps("an incremental refresh of the same pull request");
+		expect(later(image) == open, "the refresh keeps every turn");
+
+		// A selected row is the selection's, band or not.
+		for (const auto* name : { "basic.frag", "basic.vert" }) {
+			view->setCurrentIndex(shader(name));
+			settle();
+			const auto chosen = row_ground(view->viewport()->grab().toImage(), *view, shader(name));
+			expect(near(chosen, view->palette().color(QPalette::Active, QPalette::Highlight)) || near(chosen, view->palette().color(QPalette::Inactive, QPalette::Highlight)),
+				   std::string{ "the selected " } + name + " is filled with the selection, not the band");
+		}
+		view->clearSelection();
+		view->setCurrentIndex({ });
+		const auto rows = shown_rows(*view);
+		image           = keeps("the selection cleared");
+		expect(!follows(image, rows, whole_tree_alternation(rows)), "the bands are not Qt's whole-tree alternation");
+
+		// Negative control: Qt's own alternation, in the same band colour,
+		// follows the whole tree and fails the rule.
+		auto* const ours        = view->itemDelegate();
+		auto        plain       = QStyledItemDelegate{ };
+		auto        alternating = view->palette();
+		alternating.setColor(QPalette::AlternateBase, band);
+		const auto kept = view->palette();
+		view->setPalette(alternating);
+		view->setItemDelegate(&plain);
+		view->setAlternatingRowColors(true);
+		settle();
+		const auto control = view->viewport()->grab().toImage();
+		expect(follows(control, rows, whole_tree_alternation(rows)), "control: Qt's alternation draws every other shown row in the band");
+		expect(!follows(control, rows, band_rule(rows)), "control: the check fails on Qt's whole-tree alternation");
+		view->setAlternatingRowColors(false);
+		view->setItemDelegate(ours);
+		view->setPalette(kept);
+		keeps("the page's own delegate again");
+
+		if (const auto target = qEnvironmentVariable("BPR_OVERVIEW_BAND_RENDER_PATH"); !target.isEmpty()) {
+			expect(page.grab().save(target, "PNG"), "the band render is saved for inspection");
+		}
+	}
+
+	/// \brief [[BPR-1585]]. In the four built-in themes the band is visible
+	/// and quiet, and every ink a file row draws reads on it as on the
+	/// ground: text 4.5:1, marks 3:1. Pairs already short on the ground are
+	/// printed with both values and may lose no more than the band's step.
+	void test_band_keeps_every_ink_readable()
+	{
+		const auto contrast = [](const QColor& aOne, const QColor& aTwo) { return qt::contrast_ratio(qt::to_appearance_color(aOne), qt::to_appearance_color(aTwo)); };
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto                     theme = std::string{ core::stable_name(profile.variant()) };
+			qt::pull_request_overview_page page;
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			// The label tints of the theme, as the composition hands them over.
+			auto marks  = qt::feedback_mark_theme{ };
+			marks.Tints = qt::feedback_label_tints_of(profile.palette());
+			page.set_label_marks(marks);
+			const auto  palette = page.files_view()->palette();
+			const auto& colours = page.colours();
+			const auto  ground  = palette.color(QPalette::Active, QPalette::Base);
+			const auto  band    = qt::overview_row_band(palette);
+			const auto  step    = contrast(band, ground);
+			std::cout << "band " << theme << ": ground " << ground.name().toStdString() << " band " << band.name().toStdString() << " step " << step << '\n';
+			expect(step >= 1.03 && step <= 1.25, theme + ": the band is visible and quiet against the ground");
+			expect(std::abs(step - qt::overview_row_band_contrast) < 0.02, theme + ": the band stands its designed step from the ground");
+			struct pair
+			{
+				std::string                                                              Name;
+				double                                                                   Floor;
+				std::function<std::pair<QColor, QColor>(const QPalette&, const QColor&)> Colours;
+			};
+			const auto on    = [](const QColor& aInk) { return [aInk](const QPalette&, const QColor& aGround) { return std::pair{ aInk, aGround }; }; };
+			const auto cut   = [](const QColor& aFill) { return [aFill](const QPalette&, const QColor& aGround) { return std::pair{ aGround, aFill }; }; };
+			const auto badge = [&colours](const application::overview_file_operation aOperation, const bool aLetter) {
+				return [&colours, aOperation, aLetter](const QPalette& aPalette, const QColor& aGround) {
+					const auto mark = qt::overview_operation_mark_colours(aOperation, aPalette, colours, false);
+					return aLetter ? std::pair{ mark.Letter, mark.Fill } : std::pair{ mark.Fill, aGround };
+				};
+			};
+			using operation = application::overview_file_operation;
+			auto pairs      = std::vector<pair>{
+				{ "file name", 4.5, on(palette.color(QPalette::Text)) },
+				{ "added lines", 4.5, on(colours.Accepted) },
+				{ "removed lines", 4.5, on(colours.Defect) },
+				{ "open chip digits", 4.5, on(colours.States.Open) },
+				{ "note", 4.5, on(palette.color(QPalette::PlaceholderText)) },
+				{ "unknown change ?", 4.5, on(palette.color(QPalette::PlaceholderText)) },
+				{ "changed chip word", 4.5, cut(colours.Unread) },
+				{ "new chip word", 4.5, cut(colours.Accepted) },
+				{ "A badge letter", 4.5, badge(operation::added, true) },
+				{ "D badge letter", 4.5, badge(operation::removed, true) },
+				{ "R badge letter", 4.5, badge(operation::renamed, true) },
+				{ "M badge letter", 4.5, badge(operation::modified, true) },
+				{ "M badge letter on the row", 4.5, [&colours](const QPalette& aPalette, const QColor& aGround) {
+					 return std::pair{ qt::overview_operation_mark_colours(operation::modified, aPalette, colours, false).Letter, aGround };
+				 } },
+				{ "A badge", 3.0, badge(operation::added, false) },
+				{ "D badge", 3.0, badge(operation::removed, false) },
+				{ "R badge", 3.0, badge(operation::renamed, false) },
+				{ "changed chip", 3.0, on(colours.Unread) },
+				{ "unresolved bubble", 3.0, on(colours.Marker) },
+				{ "unread ring", 3.0, on(colours.Progress.Neutral) },
+				{ "seen mark", 3.0, on(colours.Progress.Seen) },
+				{ "read mark", 3.0, on(colours.Progress.Read) },
+				{ "accepted mark", 3.0, on(colours.Progress.Accepted) },
+				{ "excluded strike", 3.0, on(colours.Progress.Excluded) },
+				{ "unknown state mark", 3.0, [](const QPalette& aPalette, const QColor& aGround) { return std::pair{ qt::feedback_state_faint(aPalette), aGround }; } },
+			};
+			for (std::size_t label = 0U; label < core::feedback_label_count; ++label) {
+				pairs.push_back({ "label mark " + std::to_string(label), 3.0, on(colours.Marks.Tints[label]) });
+			}
+			auto atBand = palette;
+			atBand.setColor(QPalette::Active, QPalette::Base, band);
+			atBand.setColor(QPalette::Inactive, QPalette::Base, qt::overview_row_band(palette, QPalette::Inactive));
+			for (const auto& checked : pairs) {
+				const auto [inkG, backG] = checked.Colours(palette, ground);
+				const auto [inkB, backB] = checked.Colours(atBand, band);
+				const auto onGround      = contrast(inkG, backG);
+				const auto onBand        = contrast(inkB, backB);
+				const auto name          = theme + ": " + checked.Name;
+				if (onGround >= checked.Floor) {
+					expect(onBand >= checked.Floor, name + " reads on the band as on the ground (" + std::to_string(onBand) + ")");
+				} else {
+					std::cout << "band short before: " << name << " ground " << onGround << " band " << onBand << " floor " << checked.Floor << '\n';
+					expect(onBand >= (onGround / step) - 0.02, name + ": the band costs no more than its step");
+				}
+			}
+		}
+	}
+
+	/// \brief [[BPR-1585]]. The owner's look: the banded nested-folders pull
+	/// request with every folder open, a few changed files, a note, comments on two
+	/// files and one not on a file, one row selected, in the built-in Light
+	/// and Dark themes. Saved under BPR_OVERVIEW_BAND_RENDER_ROOT.
+	void render_band_look(const QString& aRoot)
+	{
+		using core::feedback_label;
+		auto projected = banded_projection();
+		auto paths     = std::vector<std::string>{ };
+		for (auto& file : projected.Files) {
+			paths.push_back(file.Path);
+			if (file.Path == "src/engine/renderer.cpp" || file.Path == "src/ui/widgets/slider.cpp") {
+				file.Changed = application::overview_change_since_review::changed;
+			}
+			if (file.Path == "src/engine/shaders/basic.frag") {
+				file.Note = std::string{ "Check the precision qualifiers" };
+			}
+			if (file.Path == "docs/guide.md" || file.Path == "src/engine/renderer.h") {
+				file.Read = core::file_read_state::read;
+				file.Mark = core::file_progress_mark::read;
+			}
+		}
+		const auto review = population({
+			{ .Id = "review-thread:a", .Label = feedback_label::issue, .Path = "src/engine/renderer.cpp" },
+			{ .Id = "review-thread:b", .Label = feedback_label::question, .Path = "src/engine/renderer.cpp" },
+			{ .Id = "review-thread:c", .Label = std::nullopt, .Path = "src/ui/widgets/button.cpp" },
+			{ .Id = "review-thread:d", .Label = feedback_label::praise, .Path = { } },
+		});
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
+										  std::pair{ core::appearance_mode::high_contrast_light, QStringLiteral("high-contrast-light") },
+										  std::pair{ core::appearance_mode::high_contrast_dark, QStringLiteral("high-contrast-dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			qt::pull_request_overview_page page;
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			auto marks  = qt::feedback_mark_theme{ };
+			marks.Tints = qt::feedback_label_tints_of(profile.palette());
+			page.set_label_marks(marks);
+			auto asked = std::vector<application::overview_feedback_request>{ };
+			page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+			page.resize(1'240, 960);
+			page.present(projected);
+			page.set_label_columns(*core::make_feedback_label_columns(std::vector{ feedback_label::issue, feedback_label::question }));
+			page.show();
+			settle();
+			if (!asked.empty()) {
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+			}
+			page.expand_folders_button()->click();
+			settle();
+			auto* const view = page.files_view();
+			view->setCurrentIndex(page.file_model()->index_for_path(QStringLiteral("src/engine/shaders/post/tonemap.frag")));
+			view->setFocus(Qt::OtherFocusReason);
+			settle();
+			expect(page.grab().save(QStringLiteral("%1/files-band-%2.png").arg(aRoot, name), "PNG"), "the band look is saved");
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -2483,7 +2867,14 @@ auto main(int argc, char** argv) -> int
 		test_folder_disclosure_never_moves_a_column();
 		test_folder_disclosure_is_the_leftmost_mark();
 		test_folder_counts_share_one_column();
+		test_file_rows_band_within_each_folder();
 		std::cout << "pull-request-overview-folder-rows:pass dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1585]]. The banded look in the four themes, for the owner's review.
+	if (argc > 2 && std::string_view{ argv[1] } == "--band-look") {
+		render_band_look(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-band-look:pass\n";
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-1331]] v003. The read column's marks alone.
@@ -2512,6 +2903,8 @@ auto main(int argc, char** argv) -> int
 	test_modified_mark_reads_on_every_row();
 	test_the_read_column_shows_the_mark();
 	test_chips_read_at_this_scale_in_every_theme_and_style();
+	test_file_rows_band_within_each_folder();
+	test_band_keeps_every_ink_readable();
 	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

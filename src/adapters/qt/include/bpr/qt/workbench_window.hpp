@@ -16,6 +16,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/reference_page.hpp"
+#include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -122,6 +123,8 @@ namespace bpr::qt {
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
+	class pending_veil;
+	class refresh_note;
 	class keyboard_shortcuts_window;
 	class home_panel;
 	class diff_workbench;
@@ -496,7 +499,7 @@ namespace bpr::qt {
 		/// it last had, the Comments drawer if it is closed (a manual open),
 		/// and the thread in place at \p aPost, once the file's comparison
 		/// shows it. False when the window has no such conversation.
-		auto open_conversation_in_review(const std::string& aThread, const std::string& aPost) -> bool;
+		auto open_conversation_in_review(const std::string& aThread, const std::string& aPost, bool aFocus = false) -> bool;
 		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review, named
 		/// by its root or any of its posts; false for one that is not on a file.
 		auto reveal_conversation_in_review(const std::string& aIdentity) -> bool;
@@ -506,6 +509,23 @@ namespace bpr::qt {
 		/// `core::route_workbench_thread`, and the window performs the route.
 		/// False when the window has no such thread.
 		auto open_thread_from_threads(const std::string& aThread, const std::string& aPost, core::workbench_thread_destination aDestination) -> bool;
+		/// \brief [[BPR-1581]]. Moves one thread, named by its root or one of
+		/// its posts, to Review or Discuss where the core routes it, from a
+		/// gesture made in \p aOrigin. The window observes the facts (a draft,
+		/// on a file, at a current line, which of Discuss's filters hide it),
+		/// `core::route_workbench_thread` decides, and the window performs:
+		/// the thread opens at the post, selected, in view and focused, and
+		/// the post's arrival is marked briefly. False when nothing moved; the
+		/// status bar says why.
+		auto move_thread(const std::string& aIdentity, core::workbench_thread_origin aOrigin, core::workbench_thread_destination aDestination) -> bool;
+		/// \brief [[BPR-1581]]. Show in Discuss (⌥⌘3) or Show in Review (⌥⌘2)
+		/// for what the window holds selected, as
+		/// `core::choose_workbench_thread_target` chooses it.
+		auto               show_selected_thread(core::workbench_thread_destination aDestination) -> bool;
+		[[nodiscard]] auto show_thread_in_discuss_action() const noexcept -> QAction*;
+		[[nodiscard]] auto show_thread_in_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1586]]. Show Thread in Threads (⌥⌘4), from Review.
+		[[nodiscard]] auto show_thread_in_threads_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.
 		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
@@ -654,6 +674,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_repository_onboarding_button() const noexcept -> QPushButton*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
+		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
+		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-0661]]. Adopts the sink the Reviews & queue preference rows dispatch to.
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
 		/// \brief The review-behaviour preferences the host last published.
@@ -965,6 +987,8 @@ namespace bpr::qt {
 			-> QToolButton*;
 		[[nodiscard]] auto review_controls_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto menu_bar() const noexcept -> QMenuBar*;
+		/// \brief [[BPR-1588]]. Collapses or expands the Overview's Status drawer.
+		[[nodiscard]] auto toggle_status_drawer_action() const noexcept -> QAction*;
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		/// [[BPR-1334]]. View > Line Details.
@@ -1174,7 +1198,30 @@ namespace bpr::qt {
 		/// takes focus, since the button that had it is gone.
 		void close_review();
 		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
+		/// \details [[BPR-1576]]. Every pane's failure in the loading pattern
+		/// takes it too.
 		void set_home_failure_ink(const QColor& aInk);
+		/// \brief [[BPR-1576]]. Whether the theme on screen is a high-contrast
+		/// one: waiting panes then drop their veil's wash and draw stronger
+		/// placeholders.
+		void set_pending_high_contrast(bool aHigh);
+		/// \brief [[BPR-1576]]. The loading-state presenters the window lays
+		/// over its own panes, for courses: the review's content while it is
+		/// refreshed, the Files drawer, conversations, Threads, the
+		/// repositories drawer and Home's list.
+		struct pending_panes
+		{
+			pending_veil* Content       = nullptr;
+			pending_veil* Files         = nullptr;
+			pending_veil* Conversations = nullptr;
+			pending_veil* Threads       = nullptr;
+			pending_veil* Repositories  = nullptr;
+			pending_veil* HomeList      = nullptr;
+		};
+		[[nodiscard]] auto pending_veils() const noexcept -> const pending_panes&;
+		/// \brief [[BPR-1576]]. Whether waits are drawn turning: only when the
+		/// system has been observed not to ask for reduced motion.
+		[[nodiscard]] auto pending_full_motion() const noexcept -> bool;
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
 		///
 		/// \details The window is the one writer of the notice under the bar: a
@@ -1233,6 +1280,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto github_refresh_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Home's refresh glyph: the profile's discovery.
 		[[nodiscard]] auto queue_refresh_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1575]]. Runs `aDispatch`, a read of the open pull
+		/// request the application makes by itself (after publishing, after
+		/// resolving a thread), so the read it starts is presented as automatic
+		/// rather than as the reviewer's Refresh.
+		void run_automatic_refresh(const std::function<void()>& aDispatch);
+		/// \brief [[BPR-1575]]. The open pull request's refresh, as presented.
+		[[nodiscard]] auto pull_request_refresh() const noexcept -> const core::refresh_state&;
+		/// \brief [[BPR-1575]]. Home's discovery refresh, as presented.
+		[[nodiscard]] auto home_refresh() const noexcept -> const core::refresh_state&;
+		/// \brief [[BPR-1575]]. The note under the refresh button.
+		[[nodiscard]] auto refresh_note_widget() const noexcept -> refresh_note*;
+		/// \brief [[BPR-1575]]. The status bar's freshness: "Updated 2 min ago".
+		[[nodiscard]] auto refresh_freshness_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1575]]. The freshness words for the surface shown, at
+		/// the window clock's reading now.
+		[[nodiscard]] auto refresh_freshness_text() const -> QString;
 		/// \brief [[BPR-0990]]. The one sentence Home says about discovery.
 		[[nodiscard]] auto home_discovery_status() const noexcept -> QLabel*;
 		/// \brief [[BPR-0990]]. The Pull Request menu and its two local gestures.
@@ -1483,6 +1546,30 @@ namespace bpr::qt {
 		void clear_github_pull_request();
 		void update_github_presentation_state();
 		void update_review_readiness();
+		/// [[BPR-1576]]. Builds the window's own pane veils once the panes exist.
+		void build_pending_veils();
+		/// [[BPR-1575]]. Follows the open pull request's refresh from the read
+		/// the core named in a transition; the outcome is settled once the
+		/// whole update is applied.
+		void observe_refresh_read(const core::pull_request_read_delta& aRead);
+		/// [[BPR-1575]]. Settles a refresh that ended in this update.
+		void settle_pull_request_refresh(const application::github_presentation_update& aUpdate);
+		/// [[BPR-1575]]. Follows Home's discovery from one queue projection to the next.
+		void observe_home_refresh(const application::queue_discovery_status& aBefore, const application::queue_landing_projection& aAfter);
+		/// [[BPR-1575]]. Applies one event to a refresh and presents and
+		/// announces what it changed.
+		void apply_refresh_event(bool aHome, const core::refresh_event& aEvent);
+		/// [[BPR-1575]]. The buttons, the note and the freshness, from both refreshes.
+		void               present_refresh();
+		[[nodiscard]] auto refresh_clock() const -> std::int64_t;
+		[[nodiscard]] auto refresh_result_text(bool aHome, const core::refresh_state& aState) const -> QString;
+		/// [[BPR-1576]]. Puts each window pane's veil in the look its facts give.
+		void update_pending_panes();
+		/// [[BPR-1576]]. Motion, contrast and failure ink to every veil.
+		void apply_pending_appearance();
+		/// [[BPR-1576]]. The read's current step in words: "the changed files,
+		/// page 3"; empty with no read under way.
+		[[nodiscard]] auto read_stage_words() const -> QString;
 		/// \brief Disables what the signed-out mode cannot do, with wording.
 		void apply_public_preview_availability();
 		/// \brief Presents the observed inline conversation, or says it was not.
@@ -1663,10 +1750,8 @@ namespace bpr::qt {
 		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
-		/// \brief Selects the overview entry file and enters its semantic modality.
-		void enter_overview_at(
-			application::overview_entry_kind aEntry,
-			const QString&                   aPath);
+		/// \brief [[BPR-1588]]. The pull request the Overview shows, as owner/name#number.
+		[[nodiscard]] auto overview_review_key() const -> QString;
 		/// \brief Selects a file-row or thread path and enters Review.
 		void enter_review_at(const QString& aPath);
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
@@ -1726,6 +1811,17 @@ namespace bpr::qt {
 		void apply_line_details();
 		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
 		void apply_markdown_images();
+		/// [[BPR-1584]]. Threads' and Discuss's reading width; never the code.
+		void apply_reading_width();
+		/// [[BPR-1581]]. My draft in Discuss's composer, as Maximize opens it.
+		auto show_draft_in_discuss(const std::string& aCard) -> bool;
+		/// [[BPR-1581]]. The thread the drawer holds on a line, without
+		/// opening the drawer.
+		[[nodiscard]] auto thread_card_on_line(core::diff_side aSide, std::uint32_t aLine) const -> std::optional<std::string>;
+		/// [[BPR-1581]]. Updates Show in Discuss and Show in Review.
+		void update_show_thread_actions();
+		/// [[BPR-1586]]. Threads with the thread's row the cursor's, at its post.
+		auto show_thread_in_threads(const std::string& aThread, const std::string& aPost) -> bool;
 		void apply_line_numbers();
 		void dispatch_one_pane_toggle();
 		void apply_one_pane();
@@ -2096,11 +2192,39 @@ namespace bpr::qt {
 		QLabel*                                                        StatusLabel          = nullptr;
 		QWidget*                                                       ReviewSurface        = nullptr;
 		std::optional<application::github_read_progress>               ReadProgress;
-		workbench_central_splitter*                                    CentralSplitter   = nullptr;
-		QWidget*                                                       CentreSurface     = nullptr;
-		diff_workbench*                                                ComparisonSurface = nullptr;
-		pull_request_overview_page*                                    OverviewPage      = nullptr;
-		std::optional<application::pull_request_overview_projection>   PresentedOverview;
+		workbench_central_splitter*                                    CentralSplitter = nullptr;
+		pending_panes                                                  PendingPanes;
+		/// [[BPR-1575]]. Both refreshes and what their presentation holds.
+		core::refresh_state                                          PullRefresh;
+		core::refresh_state                                          HomeRefresh;
+		core::pull_request_refresh_observation                       RefreshBaseline;
+		core::pull_request_refresh_observation                       RefreshLatest;
+		std::optional<core::pull_request_read_delta>                 RefreshEnded;
+		std::optional<core::provider_snapshot_id>                    RefreshSnapshot;
+		std::optional<std::uint32_t>                                 RefreshRetryAfter;
+		std::vector<core::pull_request_ref>                          HomeRefs;
+		std::vector<core::pull_request_ref>                          HomeBaseline;
+		bool                                                         AutomaticRefreshNoted = false;
+		bool                                                         RefreshReadSeen       = false;
+		std::optional<core::refresh_changes>                         ElsewhereChanges;
+		QTimer*                                                      HomeSlowTimer       = nullptr;
+		bool                                                         HomeRefreshAsked    = false;
+		bool                                                         PullSettledCue      = false;
+		bool                                                         HomeSettledCue      = false;
+		int                                                          RefreshFrame        = 0;
+		QTimer*                                                      RefreshFrames       = nullptr;
+		QTimer*                                                      PullCueTimer        = nullptr;
+		QTimer*                                                      HomeCueTimer        = nullptr;
+		QTimer*                                                      RefreshAgeTimer     = nullptr;
+		QTimer*                                                      RefreshSlowTimer    = nullptr;
+		refresh_note*                                                RefreshNote         = nullptr;
+		QLabel*                                                      RefreshFreshness    = nullptr;
+		bool                                                         PendingHighContrast = false;
+		QColor                                                       PendingFailureInk;
+		QWidget*                                                     CentreSurface     = nullptr;
+		diff_workbench*                                              ComparisonSurface = nullptr;
+		pull_request_overview_page*                                  OverviewPage      = nullptr;
+		std::optional<application::pull_request_overview_projection> PresentedOverview;
 		/// [[BPR-0972]]. The presented overview's first row for each path.
 		std::unordered_map<std::string, std::size_t> PresentedOverviewRows;
 		bool                                         OverviewFileFactsDirty = true;
@@ -2111,6 +2235,10 @@ namespace bpr::qt {
 		QWidget*             ThreadsPage       = nullptr;
 		conversation_finder* Finder            = nullptr;
 		QAction*             ShowThreadsAction = nullptr;
+		/// [[BPR-1581]]. ⌥⌘3 and ⌥⌘2.
+		QAction* ShowInDiscussAction = nullptr;
+		QAction* ShowInReviewAction  = nullptr;
+		QAction* ShowInThreadsAction = nullptr;
 		/// The modality Threads was entered from, and where focus was.
 		std::optional<review_modality> ThreadsReturn;
 		QPointer<QWidget>              ThreadsReturnFocus;
@@ -2121,6 +2249,8 @@ namespace bpr::qt {
 			std::string                                 Post;
 			core::file_identity                         File{ };
 			std::optional<core::file_comparison_digest> Before;
+			/// [[BPR-1581]]. The notes take the keyboard once it opens.
+			bool Focus = false;
 		};
 		std::optional<conversation_pick> PendingPick;
 		/// [[BPR-1345]] v002. A pending comment waiting for its file's
@@ -2181,6 +2311,7 @@ namespace bpr::qt {
 		std::array<navigation_entry, 2> ChangeEnds{ };
 		QAction*                        NextNewCommentAction = nullptr;
 		conversation_read_dispatch      ConversationReadDispatch;
+		conversation_read_dispatch      ConversationUnreadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
 		files_tree_view*                FilesTree                = nullptr;
@@ -2344,7 +2475,7 @@ namespace bpr::qt {
 		review_behaviour_dispatch                 BehaviourDispatch;
 		application::review_behaviour_settings    Behaviour;
 		QWidget*                                  BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 10> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 11> BehaviourOptions{ };
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
@@ -2465,10 +2596,14 @@ namespace bpr::qt {
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
 		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;
 		std::optional<core::markdown_context>                                                   PageContext;
-		QAction*                                                                                OpenOnGithubAction       = nullptr;
-		QToolButton*                                                                            OpenOnGithubButton       = nullptr;
-		QAction*                                                                                OpenOnGithubButtonAction = nullptr;
-		QMenu*                                                                                  HomeRowMenu              = nullptr;
+		QAction*                                                                                OpenOnGithubAction = nullptr;
+		/// [[BPR-1588]]. The Overview's Status drawer toggle (Alt+Shift+6).
+		QAction* ToggleStatusDrawerAction = nullptr;
+		/// [[BPR-1588]]. The pull request this window last entered Review for.
+		QString      ReviewEnteredFor;
+		QToolButton* OpenOnGithubButton       = nullptr;
+		QAction*     OpenOnGithubButtonAction = nullptr;
+		QMenu*       HomeRowMenu              = nullptr;
 		/// [[BPR-1342]]. Open Review and Open Review in New Window, in Home's row menu.
 		QAction*                                                      HomeOpenReviewAction       = nullptr;
 		QAction*                                                      HomeOpenReviewWindowAction = nullptr;
