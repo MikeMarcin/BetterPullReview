@@ -77,21 +77,24 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    the conversation count. All 14 native focused rows pass across the affected
    checks, including the public read/unread/restart/edit/menu course and both
    composition contracts (664.58 s, with a production Release build). Three
-   core-only rows pass; format22, documentation and its 67 tests pass. Ready
-   for board Finish, push and managed-worktree cleanup.
+   core-only rows pass; format22, documentation and its 67 tests pass.
+   Finished and pushed in `1abb3f581`. The managed worktree is archived,
+   its source/build trees removed and its merged local branch deleted.
 
-8. Task-owned housekeeping: complete for items 1–7; repeat for 7b after landing. All handed-off branches/worktrees and
+8. Task-owned housekeeping: complete for items 1–7 and 7b. All handed-off branches/worktrees and
    frozen roots are absent. The audited BPR-1568, BPR-1577, BPR-1578 and
    BPR-1597 candidates are unprotected; all recorded host PIDs are absent.
    Historical decisions and session files are retained. The older BPR-1568
    mockup session was already unprotected and has no host or frozen build.
    `git worktree prune` completes; unrelated and paused work is retained.
-9. One final integrated configure/build/full ctest and format/tidy: not
-   started. The preflight cleanup push met a newer origin/main and was merged
-   normally. Its amended handoff adds item 7b before this run. The earlier
-   155 GiB/no-other-build preflight will be repeated after that landing. Debug
-   will use `-g0` for disk use, with assertions and test behavior unchanged.
+9. One final integrated configure/build/full ctest and format/tidy: ready
+   to start on main after all queued cards landed. The quiet-machine preflight
+   found another project's Release build and ThreadSanitizer run active; wait
+   for that work to finish and recheck process load before starting. Debug will
+   use `-g0` for disk use, retaining assertions and test behavior. Build
+   concurrency is six and CTest concurrency four, respecting serial rows.
    Every full-suite failure will be rerun alone and its cause recorded.
+
 
 Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.
 BPR-1589 landed separately; the amended handoff assigns BPR-1601 here.
