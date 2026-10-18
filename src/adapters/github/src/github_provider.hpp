@@ -47,7 +47,8 @@ namespace bpr::adapters::github::detail {
 	class github_wire_transport_factory_port
 	{
 	public:
-		github_wire_transport_factory_port()          = default;
+		github_wire_transport_factory_port() = default;
+		std::shared_ptr<application::insights_observer> Insights;
 		virtual ~github_wire_transport_factory_port() = default;
 
 		github_wire_transport_factory_port(

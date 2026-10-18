@@ -126,6 +126,7 @@ namespace bpr::adapters::github::detail {
 	{
 	public:
 		class implementation;
+		void set_insights_channel(std::shared_ptr<github_insights_channel> aChannel) override;
 
 		explicit native_https_transport(
 			std::unique_ptr<implementation> aImplementation) noexcept;

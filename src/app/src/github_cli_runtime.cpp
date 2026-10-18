@@ -84,6 +84,12 @@ namespace bpr::app {
 		{
 		}
 
+		void set_insights_channel(std::shared_ptr<adapters::github::detail::github_insights_channel> aChannel) override
+		{
+			github_wire_transport_port::set_insights_channel(aChannel);
+			Transport.set_insights_channel(aChannel);
+			Process->set_insights_channel(std::move(aChannel));
+		}
 		[[nodiscard]] auto strict_cli() const noexcept -> bool override { return true; }
 		[[nodiscard]] auto begin_operation(std::stop_token aStop) -> adapters::github::detail::github_wire_operation override { return Transport.begin_operation(aStop); }
 		[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override { return Transport.begin_mutation_operation(aStop); }
@@ -91,8 +97,7 @@ namespace bpr::app {
 		auto acquire(const application::git_smart_request_context& aContext)
 			-> application::git_smart_transport_result<application::git_smart_transport> override
 		{
-			return adapters::github::detail::make_gh_cli_git_smart_transport(Profile, Configuration, Git, Session, aContext,
-																			 [self = shared_from_this()] { return self->Transport.configuration_unchanged(); });
+			return adapters::github::detail::make_gh_cli_git_smart_transport(Profile, Configuration, Git, Session, aContext, [self = shared_from_this()] { return self->Transport.configuration_unchanged(); }, insights_channel());
 		}
 
 		[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override

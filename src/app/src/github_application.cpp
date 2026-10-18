@@ -4245,12 +4245,13 @@ namespace bpr::app {
 				});
 			};
 		}
-		std::unique_ptr<qt::insights_window>        Insights;
-		std::shared_ptr<application::insights_host> InsightsHost;
-		std::optional<core::bpr_window_context>     InsightsOwner;
-		bool                                        InsightsInitializing = true;
-		std::map<std::string, std::string>          InsightsRepositoryLabels;
-		void                                        present_insights(core::bpr_window_context aContext, QWidget* aOpener)
+		std::unique_ptr<qt::insights_window>            Insights;
+		std::shared_ptr<application::insights_host>     InsightsHost;
+		std::shared_ptr<application::insights_recorder> InsightsRecorder;
+		std::optional<core::bpr_window_context>         InsightsOwner;
+		bool                                            InsightsInitializing = true;
+		std::map<std::string, std::string>              InsightsRepositoryLabels;
+		void                                            present_insights(core::bpr_window_context aContext, QWidget* aOpener)
 		{
 			if (!current_window(aContext)) {
 				return;
@@ -5134,6 +5135,9 @@ namespace bpr::app {
 				} catch (...) { /* Diagnostics allocation must not prevent application startup. */
 				}
 			}
+			InsightsRecorder           = std::make_shared<application::insights_recorder>(InsightsEffects);
+			TransportFactory->Insights = InsightsRecorder;
+			DiagnosticLog              = application::observe_insights_problems(DiagnosticLog, InsightsRecorder);
 			if (DiagnosticLog) {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::started }));
 			}
@@ -5259,7 +5263,8 @@ namespace bpr::app {
 				AnonymousTransportFactory = ShippedAnonymousTransports;
 			}
 #endif
-			auto anonymousProvider = make_github_provider(
+			AnonymousTransportFactory->Insights = InsightsRecorder;
+			auto anonymousProvider              = make_github_provider(
 				ProfileCatalog,
 				ProviderEffects,
 				AnonymousTransportFactory,
@@ -5572,6 +5577,7 @@ namespace bpr::app {
 							}
 							return;
 						}
+						InsightsRecorder->attach(admittedStorage);
 						InsightsHost = std::make_shared<application::insights_host>(admittedStorage, InsightsEffects, DecisionLane, [this](const auto& aSnapshot) {
 							if (!Closing && Insights && Insights->isVisible()) {
 								Insights->apply(aSnapshot);

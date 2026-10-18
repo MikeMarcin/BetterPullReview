@@ -1611,7 +1611,9 @@ namespace bpr::adapters::github::detail {
 			if (!secret) {
 				return std::unexpected{ secret.error() };
 			}
-			return std::make_shared<gh_cli_transport>(Profile, Configuration, Process, std::move(*secret));
+			auto acquired = std::make_shared<gh_cli_transport>(Profile, Configuration, Process, std::move(*secret));
+			acquired->set_insights_channel(insights_channel());
+			return acquired;
 		} catch (...) {
 			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
 		}
@@ -1756,7 +1758,7 @@ namespace bpr::adapters::github::detail {
 		if (!configuration_unchanged()) {
 			return wire_error(aRequest, application::github_provider_failure::cli_unavailable);
 		}
-		const auto invocation = compile_gh_cli_process_request(Configuration, Profile, aRequest);
+		auto invocation = compile_gh_cli_process_request(Configuration, Profile, aRequest);
 		if (!invocation.has_value()) {
 			return wire_error(
 				aRequest,
@@ -1768,7 +1770,10 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		const auto result = run_gh_cli(Process, Configuration, *invocation, aStop, Credential);
+		invocation->Insights         = insights_channel();
+		invocation->InsightsResource = insights_resource_for(aRequest.Wire.Operation);
+		invocation->InsightsCategory = insights_category_for(aRequest.Wire.Operation);
+		const auto result            = run_gh_cli(Process, Configuration, *invocation, aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}
@@ -1779,6 +1784,9 @@ namespace bpr::adapters::github::detail {
 			return wire_error(aRequest, process_failure(result.error()));
 		}
 		auto response = parse_gh_cli_response(result->StandardOutput);
+		if (insights_channel()) {
+			insights_channel()->request(insights_resource_for(aRequest.Wire.Operation), insights_category_for(aRequest.Wire.Operation), response ? &*response : nullptr, 0);
+		}
 		if (!response) {
 			return wire_error(aRequest, response.error());
 		}
@@ -1904,8 +1912,11 @@ namespace bpr::adapters::github::detail {
 		if (writes && (!aWitness || !aWitness())) {
 			return github_mutation_wire_error{ };
 		}
-		const auto sent   = writes ? transmission::indeterminate : transmission::definitely_not_sent;
-		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
+		const auto sent             = writes ? transmission::indeterminate : transmission::definitely_not_sent;
+		invocation.Insights         = insights_channel();
+		invocation.InsightsResource = exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core;
+		invocation.InsightsCategory = core::insights_category::publishing;
+		const auto result           = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_mutation_wire_cancelled{ .Transmission = sent };
 		}
@@ -1913,6 +1924,10 @@ namespace bpr::adapters::github::detail {
 			return github_mutation_wire_error{ .Transmission = sent };
 		}
 		auto response = parse_gh_cli_response(result->StandardOutput);
+		if (insights_channel()) {
+			insights_channel()->request(exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core, core::insights_category::publishing, response ? &*response : nullptr, 0);
+		}
+
 		// [[BPR-1538]]. A page of the review list or comment collection may
 		// be larger than any other answer here.
 		if (!response || response->Body.size() > maximum_review_mutation_wire_response_bytes(aRequest.Wire.Operation)
@@ -1969,7 +1984,9 @@ namespace bpr::adapters::github::detail {
 		}
 		invocation.Arguments.emplace_back("--input");
 		invocation.Arguments.emplace_back("-");
-		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
+		invocation.Insights         = insights_channel();
+		invocation.InsightsResource = core::insights_resource::graphql;
+		const auto result           = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}
@@ -1980,6 +1997,9 @@ namespace bpr::adapters::github::detail {
 			return error(process_failure(result.error()));
 		}
 		auto parsed = parse_gh_cli_response(result->StandardOutput);
+		if (insights_channel()) {
+			insights_channel()->request(core::insights_resource::graphql, core::insights_category::other, parsed ? &*parsed : nullptr, 0);
+		}
 		if (!parsed) {
 			return error(parsed.error());
 		}

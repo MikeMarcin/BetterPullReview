@@ -16,7 +16,8 @@ namespace bpr::adapters::github::detail {
 		const std::filesystem::path&                  aGit,
 		core::github_session_request_context          aSession,
 		const application::git_smart_request_context& aContext,
-		std::function<bool()>                         aConfigurationCurrent)
+		std::function<bool()>                         aConfigurationCurrent,
+		std::shared_ptr<github_insights_channel>      aInsights = { })
 		-> application::git_smart_transport_result<application::git_smart_transport>;
 }
 

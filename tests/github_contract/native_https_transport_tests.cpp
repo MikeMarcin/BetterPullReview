@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_wire_request_validation.hpp"
 #include "native_https_transport.hpp"
@@ -2532,6 +2533,10 @@ namespace {
 		auto       transport = fixture_transport(*profile, request, framedCredential, configuration);
 		wipe(framedCredential);
 		expect(transport.has_value(), "fixture-transport");
+		auto observer = std::make_shared<tests::insights_observer>();
+		auto channel  = std::make_shared<github_insights_channel>(observer, 1);
+		channel->bind(203);
+		(*transport)->set_insights_channel(channel);
 
 		const auto started    = std::chrono::steady_clock::now();
 		const auto completion = perform_fixture(**transport, request, aScenario);
@@ -2540,6 +2545,23 @@ namespace {
 			expect(elapsed >= 500ms && elapsed < 4s, "fixture-timeout-window");
 		}
 		expect_fixture_completion(completion, request.Correlation, aScenario);
+		const auto    observedEvents   = observer->events();
+		std::uint64_t observedRequests = 0;
+		for (const auto& event : observedEvents) {
+			observedRequests += event.Kind == core::insights_event_kind::request ? event.Count : 0;
+		}
+		if (aScenario == fixture_scenario::pre_cancel) {
+			expect(observedRequests == 0, "Insights does not count a preflight refusal");
+		} else {
+			expect(observedRequests >= 1, "each actual native API hop reaches passive Insights intake");
+		}
+		if (aScenario == fixture_scenario::success) {
+			expect(observedRequests == 1, "one successful wire request is counted once");
+			expect(std::ranges::none_of(observedEvents, [](const auto& aEvent) { return aEvent.Remaining.has_value(); }), "headerless GHES responses count without inventing a reading");
+		}
+		if (aScenario == fixture_scenario::response_metadata) {
+			expect(std::ranges::any_of(observedEvents, [](const auto& aEvent) { return aEvent.Remaining.has_value() && aEvent.Count == 0; }), "response headers reach Insights separately without a second request count");
+		}
 		if (aScenario != fixture_scenario::graphql_redirect
 			&& aScenario != fixture_scenario::graphql_link
 			&& aScenario != fixture_scenario::graphql_403_rate

@@ -208,15 +208,17 @@ namespace bpr::adapters::github::detail {
 
 		struct native_request
 		{
-			native_request_surface                  Surface                 = native_request_surface::rest_read;
-			application::github_rate_limit_resource RateLimitResource       = application::github_rate_limit_resource::uninitialized;
-			bool                                    RequireRateLimitHeaders = true;
-			http_method                             Method                  = http_method::get;
-			std::string                             Path;
-			std::string                             Query;
-			std::vector<http_header>                Headers;
-			std::string                             Body;
-			std::size_t                             ResponseLimit = native_https_maximum_response_body_bytes;
+			std::shared_ptr<github_insights_channel> Insights;
+			core::insights_category                  InsightsCategory        = core::insights_category::other;
+			native_request_surface                   Surface                 = native_request_surface::rest_read;
+			application::github_rate_limit_resource  RateLimitResource       = application::github_rate_limit_resource::uninitialized;
+			bool                                     RequireRateLimitHeaders = true;
+			http_method                              Method                  = http_method::get;
+			std::string                              Path;
+			std::string                              Query;
+			std::vector<http_header>                 Headers;
+			std::string                              Body;
+			std::size_t                              ResponseLimit = native_https_maximum_response_body_bytes;
 			// The one non-success status whose body is a contract outcome
 			// rather than a failure. Zero admits none, and a hop that reached
 			// no status at all is already refused before this is consulted.
@@ -2162,6 +2164,7 @@ namespace bpr::adapters::github::detail {
 	class native_https_transport::implementation final
 	{
 	public:
+		std::shared_ptr<github_insights_channel> Insights;
 		implementation(
 			const validated_github_host_profile& aProfile,
 			bootstrap_credential                 aCredential,
@@ -2324,6 +2327,7 @@ namespace bpr::adapters::github::detail {
 					return unavailable(aRequest.Correlation);
 				}
 				native                         = native_request_from(aRequest);
+				native.InsightsCategory        = insights_category_for(aRequest.Wire.Operation);
 				native.RequireRateLimitHeaders = Profile.server_contract()
 					== application::github_server_contract::github_com_2022_11_28;
 				if (!valid_request_shape(native)) {
@@ -2398,6 +2402,7 @@ namespace bpr::adapters::github::detail {
 					};
 				}
 				native                         = native_request_from(aRequest, *exchange);
+				native.InsightsCategory        = core::insights_category::publishing;
 				native.RequireRateLimitHeaders = Profile.server_contract()
 					== application::github_server_contract::github_com_2022_11_28;
 				if (!valid_request_shape(native)
@@ -2812,6 +2817,13 @@ namespace bpr::adapters::github::detail {
 											 github_mutation_transmission_witness aWitness = { })
 			-> hop_result
 		{
+			if (aNative.Surface != native_request_surface::device_authorization && aNative.Surface != native_request_surface::markdown_image) {
+				aNative.Insights = Insights;
+				if (aNative.Surface == native_request_surface::publication) {
+					aNative.InsightsCategory = core::insights_category::publishing;
+				}
+			}
+
 			if (Closing.load(std::memory_order_acquire) || Dispatcher == nullptr
 				|| Manager == nullptr) {
 				return provider_error(
@@ -3691,6 +3703,12 @@ namespace bpr::adapters::github::detail {
 					application::github_provider_failure::network);
 			}
 
+			const auto insightsResource = aOperation->Request.RateLimitResource == application::github_rate_limit_resource::graphql ? core::insights_resource::graphql
+																																	: (aOperation->Request.RateLimitResource == application::github_rate_limit_resource::search ? core::insights_resource::search : core::insights_resource::core);
+			if (aOperation->Request.Insights) {
+				aOperation->Request.Insights->request(insightsResource, aOperation->Request.InsightsCategory);
+			}
+
 			active_hop_guard active{ state, ActiveHop };
 			state.Reply->setReadBufferSize(static_cast<qint64>(std::min(
 				responseBodyLimit + 1U, response_read_buffer_bytes)));
@@ -3739,6 +3757,11 @@ namespace bpr::adapters::github::detail {
 			cancellation.stop();
 			inspect_metadata(state);
 			read_available(state);
+			if (aOperation->Request.Insights && !state.Malformed && !state.HeaderLimit && !state.Certificate
+				&& tls_terminal_valid(*state.Reply, aUrl, state.EncryptedSignalObserved)) {
+				const auto observed = wire_response{ state.Status, allowlisted_success_headers(state), state.Body, page_completeness::complete };
+				aOperation->Request.Insights->request(insightsResource, aOperation->Request.InsightsCategory, &observed, 0);
+			}
 			if (state.Cancellation || cancellation_result(aOperation)) {
 				active.reset();
 				return hop_cancelled{ };
@@ -4483,6 +4506,14 @@ namespace bpr::adapters::github::detail {
 	{
 		return native_git_smart_transport::acquire(
 			std::move(aTransport), aContext, aAuthenticationSession);
+	}
+
+	void native_https_transport::set_insights_channel(std::shared_ptr<github_insights_channel> aChannel)
+	{
+		github_wire_transport_port::set_insights_channel(aChannel);
+		if (Implementation) {
+			Implementation->Insights = std::move(aChannel);
+		}
 	}
 
 	auto native_https_transport::perform(const github_wire_request& aRequest,

@@ -128,7 +128,7 @@ namespace bpr::adapters::sqlite {
 			auto*      db       = opened->Database.get();
 			const auto identity = detail::scalar_integer(db, "PRAGMA application_id");
 			const auto version  = detail::scalar_integer(db, "PRAGMA user_version");
-			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 1) {
+			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 2) {
 				return { };
 			}
 			if (!detail::configure_connection(db)) {
@@ -150,7 +150,111 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 			}
+			if (*version < 2) {
+				constexpr std::array historySchema{
+					"BEGIN IMMEDIATE",
+					"CREATE TABLE insights_github_selection(singleton INTEGER PRIMARY KEY CHECK(singleton=1),host INTEGER NOT NULL,account INTEGER NOT NULL) STRICT",
+					"CREATE TABLE insights_history(at INTEGER NOT NULL,host INTEGER NOT NULL,account INTEGER NOT NULL,kind INTEGER NOT NULL,resource INTEGER NOT NULL,category INTEGER NOT NULL,count INTEGER NOT NULL,lim INTEGER,remaining INTEGER,reset INTEGER NOT NULL,secondary INTEGER NOT NULL,retry INTEGER NOT NULL,failure INTEGER NOT NULL,duration INTEGER NOT NULL,launched INTEGER NOT NULL,quarantined INTEGER NOT NULL,abandoned INTEGER NOT NULL,PRIMARY KEY(at,host,account,kind,resource,category,reset,secondary,retry,failure,launched,quarantined,abandoned)) STRICT",
+					"PRAGMA user_version=2", "COMMIT"
+				};
+				for (const auto sql : historySchema) {
+					if (!detail::execute(db, sql)) {
+						return { };
+					}
+				}
+			}
 			return opened;
+		}
+
+		constexpr auto insert_history = "INSERT INTO insights_history VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17) ON CONFLICT DO UPDATE SET count=count+excluded.count,lim=COALESCE(excluded.lim,lim),remaining=CASE WHEN remaining IS NULL THEN excluded.remaining WHEN excluded.remaining IS NULL THEN remaining ELSE MIN(remaining,excluded.remaining) END,duration=MAX(duration,excluded.duration)";
+		auto           history_event(sqlite3_stmt* aQuery) -> core::insights_event
+		{
+			core::insights_event event;
+			const auto           value = [aQuery](int aColumn) { return sqlite3_column_int64(aQuery, aColumn); };
+			event.UnixSeconds          = value(0);
+			event.Scope                = { static_cast<std::uint64_t>(value(1)), static_cast<std::uint64_t>(value(2)) };
+			event.Kind                 = static_cast<core::insights_event_kind>(value(3));
+			event.Resource             = static_cast<core::insights_resource>(value(4));
+			event.Category             = static_cast<core::insights_category>(value(5));
+			event.Count                = static_cast<std::uint64_t>(value(6));
+			if (sqlite3_column_type(aQuery, 7) == SQLITE_INTEGER) {
+				event.Limit = static_cast<std::uint64_t>(value(7));
+			}
+			if (sqlite3_column_type(aQuery, 8) == SQLITE_INTEGER) {
+				event.Remaining = static_cast<std::uint64_t>(value(8));
+			}
+			event.ResetUnixSeconds = value(9);
+			event.SecondaryLimited = value(10) != 0;
+			if (value(11) >= 0) {
+				event.RetryAfterSeconds = static_cast<std::uint32_t>(value(11));
+			}
+			event.ProcessFailure       = static_cast<core::insights_process_failure>(value(12));
+			event.DurationMicroseconds = static_cast<std::uint64_t>(value(13));
+			event.Launched             = value(14) != 0;
+			event.Quarantined          = value(15) != 0;
+			event.Abandoned            = value(16) != 0;
+			return event;
+		}
+		auto insert_event(sqlite3* aDatabase, const core::insights_event& aEvent, const std::int64_t aWidth) -> bool
+		{
+			auto query = detail::prepare(aDatabase, insert_history);
+			if (!query || aWidth <= 0) {
+				return false;
+			}
+			const std::array<std::int64_t, 17> values{
+				aEvent.UnixSeconds / aWidth * aWidth, static_cast<std::int64_t>(aEvent.Scope.Host), static_cast<std::int64_t>(aEvent.Scope.Account),
+				static_cast<std::int64_t>(aEvent.Kind), static_cast<std::int64_t>(aEvent.Resource), static_cast<std::int64_t>(aEvent.Category), static_cast<std::int64_t>(aEvent.Count),
+				static_cast<std::int64_t>(aEvent.Limit.value_or(0)), static_cast<std::int64_t>(aEvent.Remaining.value_or(0)), aEvent.ResetUnixSeconds,
+				aEvent.SecondaryLimited ? 1 : 0, aEvent.RetryAfterSeconds ? static_cast<std::int64_t>(*aEvent.RetryAfterSeconds) : -1,
+				static_cast<std::int64_t>(aEvent.ProcessFailure), static_cast<std::int64_t>(aEvent.DurationMicroseconds), aEvent.Launched ? 1 : 0, aEvent.Quarantined ? 1 : 0, aEvent.Abandoned ? 1 : 0
+			};
+			for (std::size_t index = 0; index < values.size(); ++index) {
+				const auto parameter = static_cast<int>(index + 1);
+				if ((index == 7 && !aEvent.Limit) || (index == 8 && !aEvent.Remaining)) {
+					sqlite3_bind_null(query->Value, parameter);
+				} else {
+					sqlite3_bind_int64(query->Value, parameter, values[index]);
+				}
+			}
+			return sqlite3_step(query->Value) == SQLITE_DONE;
+		}
+		auto valid_history(const core::insights_event& aEvent) -> bool
+		{
+			return aEvent.UnixSeconds >= 0 && static_cast<unsigned>(aEvent.Kind) <= 2 && static_cast<unsigned>(aEvent.Resource) <= 2
+				&& static_cast<unsigned>(aEvent.Category) <= 4 && static_cast<unsigned>(aEvent.ProcessFailure) <= 8
+				&& aEvent.Count <= 1000000000 && aEvent.Scope.Host <= static_cast<std::uint64_t>(INT64_MAX) && aEvent.Scope.Account <= static_cast<std::uint64_t>(INT64_MAX)
+				&& (!aEvent.Limit || *aEvent.Limit <= 1000000000) && (!aEvent.Remaining || (aEvent.Limit && *aEvent.Remaining <= *aEvent.Limit));
+		}
+		auto read_history(sqlite3* aDatabase) -> std::vector<core::insights_event>
+		{
+			std::vector<core::insights_event> result;
+			auto                              query = detail::prepare(aDatabase, "SELECT * FROM insights_history ORDER BY at LIMIT 300000");
+			if (!query) {
+				return result;
+			}
+			while (sqlite3_step(query->Value) == SQLITE_ROW) {
+				auto event = history_event(query->Value);
+				if (valid_history(event)) {
+					result.push_back(event);
+				}
+				if (result.size() >= 300000) {
+					throw std::runtime_error{ "Insights history bound reached" };
+				}
+			}
+			return result;
+		}
+		void compact_history(sqlite3* aDatabase, const std::int64_t aNow)
+		{
+			auto events = read_history(aDatabase);
+			if (!detail::execute(aDatabase, "DELETE FROM insights_history")) {
+				throw std::runtime_error{ "Insights retention failed" };
+			}
+			for (const auto& event : events) {
+				const auto width = core::insights_history_width(event.UnixSeconds, aNow);
+				if (width != 0 && !insert_event(aDatabase, event, width)) {
+					throw std::runtime_error{ "Insights retention failed" };
+				}
+			}
 		}
 
 		class storage final : public application::insights_storage_port
@@ -209,7 +313,71 @@ namespace bpr::adapters::sqlite {
 				return result;
 			}
 
+			void record(const std::vector<core::insights_event>& aEvents, const std::optional<core::insights_scope> aSelected) override
+			{
+				auto connection = open_database(Root);
+				if (!connection) {
+					return;
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return;
+				}
+				for (const auto& event : aEvents) {
+					if (!valid_history(event) || !insert_event(db, event, 1)) {
+						throw std::runtime_error{ "Insights history write failed" };
+					}
+				}
+				if (aSelected) {
+					auto query = detail::prepare(db, "INSERT INTO insights_github_selection VALUES(1,?1,?2) ON CONFLICT DO UPDATE SET host=excluded.host,account=excluded.account");
+					if (!query) {
+						throw std::runtime_error{ "Insights selection failed" };
+					}
+					sqlite3_bind_int64(query->Value, 1, static_cast<std::int64_t>(aSelected->Host));
+					sqlite3_bind_int64(query->Value, 2, static_cast<std::int64_t>(aSelected->Account));
+					if (sqlite3_step(query->Value) != SQLITE_DONE) {
+						throw std::runtime_error{ "Insights selection failed" };
+					}
+				}
+				if (!aEvents.empty()) {
+					const auto now = aEvents.back().UnixSeconds;
+					if (LastCompaction == 0 || now - LastCompaction >= 300) {
+						compact_history(db, now);
+						LastCompaction = now;
+					}
+				}
+
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Insights history commit failed" };
+				}
+			}
+			auto github(const std::int64_t aNow) -> core::insights_github_snapshot override
+			{
+				auto connection = open_database(Root);
+				if (!connection) {
+					return { };
+				}
+				auto* db = connection->Database.get();
+				if (LastCompaction == 0 || aNow - LastCompaction >= 300) {
+					if (detail::execute(db, "BEGIN IMMEDIATE")) {
+						compact_history(db, aNow);
+						if (!detail::execute(db, "COMMIT")) {
+							throw std::runtime_error{ "Insights retention commit failed" };
+						}
+						LastCompaction = aNow;
+					}
+				}
+				auto                 query = detail::prepare(db, "SELECT host,account FROM insights_github_selection WHERE singleton=1");
+				core::insights_scope scope;
+				if (query && sqlite3_step(query->Value) == SQLITE_ROW) {
+					scope.Host    = static_cast<std::uint64_t>(sqlite3_column_int64(query->Value, 0));
+					scope.Account = static_cast<std::uint64_t>(sqlite3_column_int64(query->Value, 1));
+				}
+				return core::build_insights_github(read_history(db), scope, aNow);
+			}
+
 		private:
+			std::int64_t                                                    LastCompaction = 0;
 			std::filesystem::path                                           Root;
 			std::function<std::vector<application::insights_storage_row>()> Git;
 			bool                                                            Available = false;

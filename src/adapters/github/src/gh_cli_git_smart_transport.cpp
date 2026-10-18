@@ -211,7 +211,7 @@ namespace bpr::adapters::github::detail {
 			gh_cli_git_smart_transport(const validated_github_host_profile&  aProfile,
 									   const validated_gh_cli_configuration& aConfiguration, const std::filesystem::path& aGit,
 									   core::github_session_request_context aSession, const git_smart_request_context& aContext,
-									   std::function<bool()> aCurrent)
+									   std::function<bool()> aCurrent, std::shared_ptr<github_insights_channel> aInsights)
 				: Profile{ aProfile }
 				, Configuration{ aConfiguration }
 				, Git{ aGit }
@@ -219,6 +219,7 @@ namespace bpr::adapters::github::detail {
 				, Context{ aContext }
 				, ConfigurationCurrent{ std::move(aCurrent) }
 				, GitObservation{ observe_git(aGit) }
+				, Insights{ std::move(aInsights) }
 			{ }
 
 			void revoke() noexcept override { Revocation.request_stop(); }
@@ -262,10 +263,13 @@ namespace bpr::adapters::github::detail {
 				if (const auto error = admission(aRequest.Context, aStop)) {
 					return std::unexpected{ git_smart_transport_error{ *error } };
 				}
-				const auto invocation = compile_gh_cli_exact_blob_request(Configuration, Profile, aRequest);
+				auto invocation = compile_gh_cli_exact_blob_request(Configuration, Profile, aRequest);
 				if (!invocation) {
 					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 				}
+				invocation->Insights         = Insights;
+				invocation->InsightsResource = core::insights_resource::core;
+				invocation->InsightsCategory = core::insights_category::opening;
 				std::stop_source   stop;
 				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
@@ -274,14 +278,19 @@ namespace bpr::adapters::github::detail {
 					if (!process) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
+					process->set_insights_channel(Insights);
 					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
 					if (!credential) {
 						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 					}
-					gh_cli_transport                    identity{ Profile, Configuration, *process, *credential };
+					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+					identity.set_insights_channel(Insights);
 					const git_smart_exact_blobs_request batch{ .Context = aRequest.Context, .ExpectedBlobs = { aRequest.ExpectedBlob }, .MaximumBytes = std::min(aRequest.MaximumBytes, maximum_git_exact_blob_batch_bytes) };
-					if (const auto query = compile_gh_cli_exact_blobs_request(Configuration, Profile, batch)) {
-						const auto response = run_gh_cli(*process, Configuration, *query, stop.get_token(), *credential);
+					if (auto query = compile_gh_cli_exact_blobs_request(Configuration, Profile, batch)) {
+						query->Insights         = Insights;
+						query->InsightsResource = core::insights_resource::graphql;
+						query->InsightsCategory = core::insights_category::opening;
+						const auto response     = run_gh_cli(*process, Configuration, *query, stop.get_token(), *credential);
 						if (response && response->ExitCode == 0) {
 							auto named = verified_blobs(batch, response->StandardOutput);
 							if (named) {
@@ -396,10 +405,13 @@ namespace bpr::adapters::github::detail {
 				if (const auto error = admission(aRequest.Context, aStop)) {
 					return std::unexpected{ git_smart_transport_error{ *error } };
 				}
-				const auto invocation = compile_gh_cli_exact_blobs_request(Configuration, Profile, aRequest);
+				auto invocation = compile_gh_cli_exact_blobs_request(Configuration, Profile, aRequest);
 				if (!invocation) {
 					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 				}
+				invocation->Insights         = Insights;
+				invocation->InsightsResource = core::insights_resource::graphql;
+				invocation->InsightsCategory = core::insights_category::opening;
 				std::stop_source   stop;
 				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
@@ -410,12 +422,14 @@ namespace bpr::adapters::github::detail {
 					}
 					// Constructed before the read so that its configuration
 					// baseline precedes it, as the observation's did.
+					process->set_insights_channel(Insights);
 					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
 					if (!credential) {
 						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 					}
 					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
-					const auto       response = run_gh_cli(*process, Configuration, *invocation, stop.get_token(), *credential);
+					identity.set_insights_channel(Insights);
+					const auto response = run_gh_cli(*process, Configuration, *invocation, stop.get_token(), *credential);
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
@@ -603,6 +617,7 @@ namespace bpr::adapters::github::detail {
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
+				process->set_insights_channel(Insights);
 				aStep                = git_smart_transport_step::cli_version;
 				const auto ghVersion = run_gh_cli(*process, Configuration, compile_gh_cli_version_request(Configuration), aStop);
 				if (!ghVersion) {
@@ -665,6 +680,7 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 				}
 				gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+				identity.set_insights_channel(Insights);
 				aStep             = git_smart_transport_step::identity_before;
 				const auto before = viewer(identity, aStop);
 				if (!before) {
@@ -684,6 +700,7 @@ namespace bpr::adapters::github::detail {
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
+					cloneProcess->set_insights_channel(Insights);
 					// [[BPR-1373]]. Pinned, the clone and the credential helper it
 					// launches read the same private configuration.
 					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
@@ -801,22 +818,23 @@ namespace bpr::adapters::github::detail {
 				return { };
 			}
 
-			validated_github_host_profile         Profile;
-			validated_gh_cli_configuration        Configuration;
-			std::filesystem::path                 Git;
-			core::github_session_request_context  Session;
-			git_smart_request_context             Context;
-			std::function<bool()>                 ConfigurationCurrent;
-			std::optional<executable_observation> GitObservation;
-			std::stop_source                      Revocation;
-			std::mutex                            Mutex;
+			validated_github_host_profile            Profile;
+			validated_gh_cli_configuration           Configuration;
+			std::filesystem::path                    Git;
+			core::github_session_request_context     Session;
+			git_smart_request_context                Context;
+			std::function<bool()>                    ConfigurationCurrent;
+			std::optional<executable_observation>    GitObservation;
+			std::stop_source                         Revocation;
+			std::mutex                               Mutex;
+			std::shared_ptr<github_insights_channel> Insights;
 		};
 	}
 
 	auto make_gh_cli_git_smart_transport(const validated_github_host_profile&  aProfile,
 										 const validated_gh_cli_configuration& aConfiguration, const std::filesystem::path& aGit,
 										 core::github_session_request_context aSession, const application::git_smart_request_context& aContext,
-										 std::function<bool()> aConfigurationCurrent)
+										 std::function<bool()> aConfigurationCurrent, std::shared_ptr<github_insights_channel> aInsights)
 		-> application::git_smart_transport_result<application::git_smart_transport>
 	{
 		if (!application::valid(aContext) || aProfile.authentication_transport() != application::github_authentication_transport::github_cli
@@ -827,6 +845,6 @@ namespace bpr::adapters::github::detail {
 			|| !observe_git(aGit) || !aConfigurationCurrent || !aConfigurationCurrent()) {
 			return std::unexpected{ application::git_smart_transport_error{ application::git_smart_transport_failure::unavailable } };
 		}
-		return std::make_shared<gh_cli_git_smart_transport>(aProfile, aConfiguration, aGit, aSession, aContext, std::move(aConfigurationCurrent));
+		return std::make_shared<gh_cli_git_smart_transport>(aProfile, aConfiguration, aGit, aSession, aContext, std::move(aConfigurationCurrent), std::move(aInsights));
 	}
 }

@@ -1169,3 +1169,9 @@ bpr_add_network_isolated_test(
     NAME core_review_role
     COMMAND test_better_pull_review_review_role_core_tests
 )
+
+bpr_add_executable(test_insights_core insights_tests.cpp)
+target_link_libraries(test_insights_core PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_insights_core)
+bpr_enable_warnings(test_insights_core)
+bpr_add_network_isolated_test(NAME core_insights COMMAND test_insights_core)

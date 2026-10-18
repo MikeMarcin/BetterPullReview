@@ -1,6 +1,8 @@
 #ifndef BPR_APPLICATION_INSIGHTS_PROJECTION_HPP
 #define BPR_APPLICATION_INSIGHTS_PROJECTION_HPP
 
+#include "bpr/core/insights.hpp"
+
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -26,6 +28,7 @@ namespace bpr::application {
 		std::optional<std::uint64_t>      TotalBytes;
 		std::optional<std::uint64_t>      GitBytes;
 		std::string                       BackgroundWork;
+		core::insights_github_snapshot    Github;
 	};
 
 	/// \brief Presentation gestures; none gives Qt access to a storage or process capability.

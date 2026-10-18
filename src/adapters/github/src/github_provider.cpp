@@ -1721,6 +1721,14 @@ namespace bpr::adapters::github::detail {
 							failed(transport.error());
 							return;
 						}
+						std::shared_ptr<github_insights_channel> insights;
+						if (state->TransportFactory->Insights) {
+							insights = std::make_shared<github_insights_channel>(state->TransportFactory->Insights, profile->host().value());
+							if (accountContext) {
+								insights->bind(accountContext->Authority.Account.value());
+							}
+							(*transport)->set_insights_channel(insights);
+						}
 						const auto wire = viewer_wire_request(*profile, request);
 						if (!wire.has_value()) {
 							failed(wire.error());
@@ -1838,6 +1846,9 @@ namespace bpr::adapters::github::detail {
 							};
 						}
 
+						if (insights) {
+							insights->bind(observed->Viewer.Account.value());
+						}
 						application::github_account_transport accountTransport;
 						if (accountContext.has_value()) {
 							accountTransport = std::make_shared<github_wire_account_transport>(
@@ -2342,6 +2353,11 @@ namespace bpr::adapters::github::detail {
 					.Error   = transport.error(),
 				});
 				return;
+			}
+			if (state->TransportFactory->Insights) {
+				auto channel = std::make_shared<github_insights_channel>(state->TransportFactory->Insights, profile->host().value());
+				channel->bind(0);
+				(*transport)->set_insights_channel(std::move(channel));
 			}
 			readTransport = std::move(*transport);
 		} else {

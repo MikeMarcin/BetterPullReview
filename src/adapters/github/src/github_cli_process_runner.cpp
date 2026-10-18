@@ -816,6 +816,16 @@ namespace bpr::adapters::github::detail {
 				}
 #endif
 
+				if (aRequest.Insights) {
+					core::insights_event event;
+					event.Kind     = core::insights_event_kind::process;
+					event.Launched = true;
+					aRequest.Insights->observe(event);
+					if (aRequest.InsightsResource) {
+						aRequest.Insights->request(*aRequest.InsightsResource, aRequest.InsightsCategory);
+					}
+				}
+
 				if (aTestSeam != nullptr) {
 					aTestSeam->after_started();
 				}
@@ -964,11 +974,37 @@ namespace bpr::adapters::github::detail {
 				}
 				const auto failStandardHandleList = TestSeam != nullptr
 					&& TestSeam->fail_standard_handle_list();
-				return execute_process(
+				const auto started   = clock::now();
+				auto       execution = execute_process(
 					aItem.Request,
 					aItem.Stop,
 					aShutdownRequested,
 					aItem.Deadline, FileLimits, failStandardHandleList, aItem.Capture, aItem.Credential, aItem.CredentialEnvironment, TestSeam);
+				if (aItem.Request.Insights) {
+					core::insights_event event;
+					event.Kind                 = core::insights_event_kind::process;
+					event.DurationMicroseconds = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - started).count());
+					if (execution.Result && execution.Result->ExitCode != 0) {
+						event.ProcessFailure = core::insights_process_failure::nonzero_exit;
+					}
+					if (!execution.Result) {
+						using failure  = github_cli_process_failure;
+						using observed = core::insights_process_failure;
+						switch (execution.Result.error()) {
+						case failure::timeout:               event.ProcessFailure = observed::timeout; break;
+						case failure::cancelled:             event.ProcessFailure = observed::cancelled; break;
+						case failure::standard_output_limit:
+						case failure::standard_error_limit:  event.ProcessFailure = observed::output_limit; break;
+						case failure::process_crash:         event.ProcessFailure = observed::crash; break;
+						case failure::nonzero_exit:          event.ProcessFailure = observed::nonzero_exit; break;
+						case failure::reap_failure:          event.ProcessFailure = observed::reap; break;
+						case failure::start_failure:         event.ProcessFailure = observed::start; break;
+						default:                             event.ProcessFailure = observed::other; break;
+						}
+					}
+					aItem.Request.Insights->observe(event);
+				}
+				return execution;
 			}
 
 			/// \brief The bounded last attempt on a child the launch could not reap.
@@ -982,6 +1018,17 @@ namespace bpr::adapters::github::detail {
 					aExecution.ProcessGroupId,
 					github_cli_process_max_reap_timeout,
 					tree_kill_for(TestSeam));
+			}
+
+			static void observe(process_work_item& aItem, const process_support::lane_observation aObservation) noexcept
+			{
+				if (aItem.Request.Insights) {
+					core::insights_event event;
+					event.Kind        = core::insights_event_kind::process;
+					event.Quarantined = aObservation == process_support::lane_observation::quarantined;
+					event.Abandoned   = aObservation == process_support::lane_observation::abandoned;
+					aItem.Request.Insights->observe(event);
+				}
 			}
 
 			std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
@@ -1043,6 +1090,12 @@ namespace bpr::adapters::github::detail {
 			: public github_cli_process_port
 		{
 		public:
+			void set_insights_channel(std::shared_ptr<github_insights_channel> aChannel) override
+			{
+				std::lock_guard lock{ WorkerMutex };
+				Insights = std::move(aChannel);
+			}
+
 			explicit qprocess_github_cli_process_runner(
 				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
 				github_cli_process_file_limits                       aFileLimits)
@@ -1090,7 +1143,7 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
-			[[nodiscard]] auto dispatch(const github_cli_process_request& aRequest, std::stop_token aStop,
+			[[nodiscard]] auto dispatch(github_cli_process_request aRequest, std::stop_token aStop,
 										std::shared_ptr<cli_sensitive_bytes> aCapture = { }, cli_transient_credential aCredential = { },
 										cli_credential_environment aEnvironment = cli_credential_environment::github) -> github_cli_process_result
 			{
@@ -1103,6 +1156,9 @@ namespace bpr::adapters::github::detail {
 								TestSeam, FileLimits);
 						}
 						worker = Worker.get();
+						if (!aRequest.Insights) {
+							aRequest.Insights = Insights;
+						}
 					}
 					return worker->submit(aRequest, aStop, std::move(aCapture), std::move(aCredential), aEnvironment);
 				} catch (...) {
@@ -1117,6 +1173,7 @@ namespace bpr::adapters::github::detail {
 			github_cli_process_file_limits                       FileLimits;
 			std::mutex                                           WorkerMutex;
 			std::unique_ptr<process_worker>                      Worker;
+			std::shared_ptr<github_insights_channel>             Insights;
 		};
 
 		[[nodiscard]] auto make_qprocess_github_cli_process_runner(

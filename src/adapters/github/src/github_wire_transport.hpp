@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_WIRE_TRANSPORT_HPP
 
 #include "github_capability_probe.hpp"
+#include "github_insights.hpp"
 #include "github_read_contract.hpp"
 
 #include "bpr/application/github_host_authority.hpp"
@@ -140,7 +141,13 @@ namespace bpr::adapters::github::detail {
 		auto operator=(github_wire_transport_port&&)
 			-> github_wire_transport_port&    = delete;
 		virtual ~github_wire_transport_port() = default;
+		virtual void       set_insights_channel(std::shared_ptr<github_insights_channel> aChannel) { Insights = std::move(aChannel); }
+		[[nodiscard]] auto insights_channel() const -> const std::shared_ptr<github_insights_channel>& { return Insights; }
 
+	private:
+		std::shared_ptr<github_insights_channel> Insights;
+
+	public:
 		/// \brief Fresh operation authority; a null owner means this transport has no scoped credential.
 		[[nodiscard]] virtual auto begin_operation(std::stop_token) -> github_wire_operation { return std::shared_ptr<github_wire_transport_port>{ }; }
 		[[nodiscard]] virtual auto strict_cli() const noexcept -> bool { return false; }

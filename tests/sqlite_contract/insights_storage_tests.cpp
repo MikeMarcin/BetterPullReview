@@ -62,9 +62,34 @@ int main()
 	for (const auto canary : { "repository-canary", "ACCOUNT_CANARY", "PR_CANARY", "PATH_CANARY", "BODY_CANARY", "state/v1" }) {
 		expect(exported.find(canary) == std::string::npos, "no identity, path or body reaches the export");
 	}
+	core::insights_event request;
+	request.Scope            = { 1, 7 };
+	request.UnixSeconds      = 1000;
+	request.Limit            = 5000;
+	request.Remaining        = 3760;
+	request.ResetUnixSeconds = 4000;
+	store->record({ request }, request.Scope);
+	request.UnixSeconds = 1010;
+	request.Remaining   = 3800;
+	store->record({ request }, std::nullopt);
+	request.UnixSeconds = 1020;
+	request.Limit.reset();
+	request.Remaining.reset();
+	request.ResetUnixSeconds = 0;
+	store->record({ request }, std::nullopt);
+	expect(store->github(1100).Budgets[0].OwnRequests == 3, "real store records headerless and observed requests");
 	store.reset();
 	store = adapters::sqlite::make_insights_storage(scratch.path(), [] { return std::vector<application::insights_storage_row>{ }; });
 	expect(store->measure().TotalBytes.has_value(), "restart reuses the Insights store");
+	const auto github = store->github(1100);
+	expect(github.Budgets[0].OwnRequests == 3 && github.Budgets[0].OtherClients == 1237, "restart inside the window keeps BPR requests out of other clients");
+	expect(!store->github(4001).Budgets[0].Limit, "reset without a response remains no reading and issues no request");
+	request.UnixSeconds      = 4010;
+	request.Limit            = 5000;
+	request.Remaining        = 4999;
+	request.ResetUnixSeconds = 7600;
+	store->record({ request }, std::nullopt);
+	expect(store->github(4020).Budgets[0].OwnRequests == 1, "a new reset does not inherit the preceding window count");
 #if !defined(_WIN32)
 	fs::create_symlink(state / "markdown-images.sqlite3", state / "link.sqlite3");
 	bool refused = false;

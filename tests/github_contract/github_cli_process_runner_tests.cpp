@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "../support/test_expectation.hpp"
 #include "github_cli_process_runner.hpp"
 
@@ -1045,8 +1046,12 @@ namespace {
 	{
 		QTemporaryDir directory;
 		expect(directory.isValid(), "completed output directory is available");
-		const auto runner  = make_github_cli_process_runner();
-		auto       request = base_request(directory, { "--bpr-helper", "http-error" });
+		const auto runner   = make_github_cli_process_runner();
+		auto       observer = std::make_shared<bpr::tests::insights_observer>();
+		auto       channel  = std::make_shared<github_insights_channel>(observer, 1);
+		channel->bind(203);
+		runner->set_insights_channel(channel);
+		auto request = base_request(directory, { "--bpr-helper", "http-error" });
 		expect_failure(*runner, request, github_cli_process_failure::nonzero_exit,
 					   "default rejects completed HTTP error output");
 		request.PreserveCompletedOutput = true;
@@ -1080,6 +1085,15 @@ namespace {
 		canceller.join();
 		expect(!cancelled.has_value() && cancelled.error() == github_cli_process_failure::cancelled,
 			   "opt-in cancellation exposes no partial output");
+
+		const auto observed = bpr::core::build_insights_github(observer->events(), { 1, 203 }, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+		expect(observed.Processes == 7 && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::nonzero_exit)] == 2
+				   && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::output_limit)] == 2
+				   && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::crash)] == 1
+				   && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::timeout)] == 1
+				   && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::cancelled)] == 1
+				   && observed.SlowestMicroseconds.has_value(),
+			   "real runner launch/failure/duration facts reach Insights exactly once");
 	}
 
 #if defined(Q_OS_UNIX)
@@ -1627,7 +1641,11 @@ namespace {
 	{
 		QTemporaryDir directory;
 		expect(directory.isValid(), "unreapable-child course owns its root");
-		auto       runner   = make_github_cli_process_runner_for_test(std::make_shared<kill_surviving_test_seam>());
+		auto runner   = make_github_cli_process_runner_for_test(std::make_shared<kill_surviving_test_seam>());
+		auto observer = std::make_shared<bpr::tests::insights_observer>();
+		auto channel  = std::make_shared<github_insights_channel>(observer, 1);
+		channel->bind(203);
+		runner->set_insights_channel(channel);
 		const auto pidFile  = directory.filePath(QStringLiteral("unreapable.pid"));
 		auto       request  = base_request(directory, { "--bpr-helper", "pid-hang", utf8(pidFile) });
 		request.Timeout     = 300ms;
@@ -1647,6 +1665,8 @@ namespace {
 				   && std::chrono::steady_clock::now() - refusedAt < 1s,
 			   "after abandonment a later request fails at once with reap_failure");
 		expect(!QFileInfo::exists(marker), "a request after abandonment never launches");
+		const auto observed = bpr::core::build_insights_github(observer->events(), { 1, 203 }, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+		expect(observed.Processes == 1 && observed.Quarantines == 1 && observed.Abandoned == 1, "shared supervision supplies exact quarantine and abandonment facts");
 
 		std::atomic_bool destroyed   = false;
 		auto             untilJoined = bpr::tests::exit_on_failure{ };

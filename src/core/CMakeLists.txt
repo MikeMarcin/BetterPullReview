@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/insights.cpp
         src/source_search.cpp
         src/source_match_compile.cpp
         src/source_match_scan.cpp

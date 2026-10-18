@@ -8,8 +8,10 @@ namespace {
 	class local_storage final : public bpr::application::insights_storage_port
 	{
 	public:
-		int  Measurements = 0;
-		auto measure() -> bpr::application::insights_snapshot override
+		int                                    Measurements = 0;
+		std::vector<bpr::core::insights_event> Recorded;
+		void                                   record(const std::vector<bpr::core::insights_event>& aEvents, std::optional<bpr::core::insights_scope>) override { Recorded.insert(Recorded.end(), aEvents.begin(), aEvents.end()); }
+		auto                                   measure() -> bpr::application::insights_snapshot override
 		{
 			++Measurements;
 			bpr::application::insights_snapshot snapshot;
@@ -54,5 +56,12 @@ int main()
 	decisions.drain();
 	host->refresh(true, "Idle");
 	expect(host->quiescent() && publications == beforeShutdown && effects.pending() == 0, "shutdown drains the exact terminal without a late publication or new effect");
+	auto recorder   = std::make_shared<application::insights_recorder>(effects);
+	auto problemLog = application::observe_insights_problems({ }, recorder);
+	static_cast<void>(problemLog->record({ .Outcome = application::diagnostic_outcome::failed }));
+	recorder->attach(storage);
+	effects.drain();
+	expect(effects.pending() == 0 && storage->Recorded.size() == 1 && storage->Recorded.front().Kind == core::insights_event_kind::problem, "problem tallies work without a diagnostic logger and drain one bounded effect task");
+
 	std::cout << "insights-host:pass\n";
 }

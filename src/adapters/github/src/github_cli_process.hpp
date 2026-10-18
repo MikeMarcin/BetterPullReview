@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_CLI_PROCESS_HPP
 
 #include "cli_sensitive_bytes.hpp"
+#include "github_insights.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -63,7 +64,10 @@ namespace bpr::adapters::github::detail {
 		bool                                            PreserveCompletedOutput = false;
 		std::shared_ptr<github_cli_process_observation> Observation{ };
 
-		auto operator==(const github_cli_process_request&) const -> bool = default;
+		std::shared_ptr<github_insights_channel> Insights;
+		std::optional<core::insights_resource>   InsightsResource;
+		core::insights_category                  InsightsCategory                                            = core::insights_category::other;
+		auto                                     operator==(const github_cli_process_request&) const -> bool = default;
 	};
 
 	struct github_cli_process_success
@@ -108,6 +112,7 @@ namespace bpr::adapters::github::detail {
 		auto operator=(github_cli_process_port&&)
 			-> github_cli_process_port&    = delete;
 		virtual ~github_cli_process_port() = default;
+		virtual void set_insights_channel(std::shared_ptr<github_insights_channel>) { }
 
 		[[nodiscard]] virtual auto run(
 			const github_cli_process_request& aRequest,

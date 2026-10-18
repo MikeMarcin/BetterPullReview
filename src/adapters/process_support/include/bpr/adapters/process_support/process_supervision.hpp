@@ -88,6 +88,8 @@ namespace bpr::adapters::process_support {
 	auto abandon_unreaped_process(std::unique_ptr<QProcess>& aProcess) noexcept -> void;
 
 	/// \brief The failures the lane itself reports, before or around a launch.
+	enum class lane_observation : std::uint8_t { quarantined,
+												 abandoned };
 	enum class lane_failure : std::uint8_t {
 		cancelled,
 		timeout,
@@ -206,6 +208,9 @@ namespace bpr::adapters::process_support {
 				{
 					std::lock_guard lock{ Mutex };
 					if (Busy) {
+						if (!Quarantined) {
+							observe(*aItem, lane_observation::quarantined);
+						}
 						Quarantined = true;
 					}
 				}
@@ -236,6 +241,12 @@ namespace bpr::adapters::process_support {
 			}
 		}
 
+		void observe(item_type& aItem, const lane_observation aEvent) noexcept
+		{
+			if constexpr (requires { Traits.observe(aItem, aEvent); }) {
+				Traits.observe(aItem, aEvent);
+			}
+		}
 		auto worker_loop() -> void
 		{
 			for (;;) {
@@ -274,6 +285,9 @@ namespace bpr::adapters::process_support {
 				if (execution->AwaitingReap != nullptr) {
 					{
 						std::lock_guard lock{ Mutex };
+						if (!Quarantined) {
+							observe(*item, lane_observation::quarantined);
+						}
 						Quarantined = true;
 					}
 					SlotAvailable.notify_all();
@@ -287,6 +301,7 @@ namespace bpr::adapters::process_support {
 						execution->AwaitingReap.reset();
 					} else {
 						abandon_unreaped_process(execution->AwaitingReap);
+						observe(*item, lane_observation::abandoned);
 					}
 				}
 				{

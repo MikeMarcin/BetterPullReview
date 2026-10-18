@@ -2595,9 +2595,19 @@ namespace bpr::app::detail {
 					&& (!State->CliStrictCapability || State->CliStrictCapability->load());
 			}
 
-			[[nodiscard]] auto perform(
+			[[nodiscard]] auto perform(const github_wire_request& aRequest, const std::stop_token aStop) -> github_wire_completion override
+			{
+				auto result = perform_impl(aRequest, aStop);
+				if (insights_channel()) {
+					if (const auto* success = std::get_if<github_wire_success>(&result)) {
+						insights_channel()->request(adapters::github::detail::insights_resource_for(aRequest.Wire.Operation), adapters::github::detail::insights_category_for(aRequest.Wire.Operation), &success->Response);
+					}
+				}
+				return result;
+			}
+			[[nodiscard]] auto perform_impl(
 				const github_wire_request& aRequest,
-				const std::stop_token      aStop) -> github_wire_completion override
+				const std::stop_token      aStop) -> github_wire_completion
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
