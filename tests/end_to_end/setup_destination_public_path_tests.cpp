@@ -1290,15 +1290,19 @@ namespace {
 	/// \brief [[BPR-1355]]. The window's words about review threads say
 	/// thread: [[BPR-1341]] named the modality Threads, and no visible or
 	/// accessible string still calls one a conversation. "AI conversations",
-	/// the Notes tab's agent chats, is a different thing and keeps its word.
+	/// the Agent tab's agent chats, is a different thing and keeps its word.
 	/// [[BPR-1601]]. Status also names the PR conversation's standalone comments.
-	void expect_no_conversation_words(const char* aState)
+	[[nodiscard]] auto review_thread_conversation_words(const std::vector<window_word>& aWords) -> std::set<QString>
 	{
-		QApplication::processEvents();
 		auto found = std::set<QString>{ };
-		for (const auto& word : window_words()) {
+		for (const auto& word : aWords) {
 			auto text = word.Text;
 			text.remove(QStringLiteral("AI conversations"));
+			// The accepted Agent tab describes agent chats, never review threads.
+			text.remove(QStringLiteral("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
+			if (word.Where.startsWith(QStringLiteral("QPushButton agentHistoryBack ("))) {
+				text.remove(QStringLiteral("Back to the conversation"));
+			}
 			if (word.Where.startsWith(QStringLiteral("QLabel overviewNewConversationText ("))
 				|| word.Where.startsWith(QStringLiteral("QToolButton overviewGoToNewConversation ("))) {
 				text.remove(QStringLiteral("new comments in the conversation"));
@@ -1308,6 +1312,13 @@ namespace {
 				found.insert(word.Where + QStringLiteral(": ") + word.Text);
 			}
 		}
+		return found;
+	}
+
+	void expect_no_conversation_words(const char* aState)
+	{
+		QApplication::processEvents();
+		const auto found = review_thread_conversation_words(window_words());
 		for (const auto& line : found) {
 			std::cerr << aState << ": " << line.toStdString() << '\n';
 		}
@@ -1318,6 +1329,14 @@ namespace {
 	/// and in Settings: no window string calls a thread a conversation.
 	void run_thread_words_course()
 	{
+		// Negative controls: Agent's exact exemption cannot hide review-thread
+		// wording elsewhere, or an extra offending sentence in its tooltip.
+		const auto bad = review_thread_conversation_words({
+			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Back to the conversation") },
+			{ QStringLiteral("QPushButton agentHistoryBack (text)"), QStringLiteral("Back to the conversation; resolve this conversation") },
+			{ QStringLiteral("QAction showWorkbenchAiToolsAction (tooltip)"), QStringLiteral("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it. Resolve the conversation.") },
+		});
+		expect(bad.size() == 3U, "Agent wording exceptions still reject review-thread conversation wording");
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated thread-words course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };

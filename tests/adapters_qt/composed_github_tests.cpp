@@ -6,6 +6,8 @@
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/reference_page.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -110,16 +112,13 @@ namespace {
 		}
 	}
 
-	/// [[BPR-1242]]. RFC-BPR-0023 gave the Notes tab two pages, Private
-	/// history first and Agent tools second; the agent surfaces are on the
-	/// second, so a course that inspects them opens it as a reviewer would.
+	/// [[BPR-1594]]. Agent tools live in their own drawer tab.
 	void show_agent_tools(qt::workbench_window& aWindow)
 	{
-		auto* const pages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		expect(pages != nullptr && pages->indexOf(aWindow.findings_tab_scroll()) >= 0,
-			   "the Notes tab offers its Agent tools page");
-		pages->setCurrentWidget(aWindow.findings_tab_scroll());
+		aWindow.open_agent_action()->trigger();
 		QApplication::processEvents();
+		expect(aWindow.tray_tabs()->currentIndex() == 3 && aWindow.agent_tab()->isVisible(),
+			   "the Agent action opens the accepted drawer tab");
 	}
 
 	template <typename Widget>
@@ -5903,8 +5902,7 @@ namespace {
 		};
 		publish_session_ready(window);
 		publish_pull_request(window);
-		// Tall enough that the drawer can show the whole agent stack at once,
-		// which is what the capture below has to be a picture of.
+		// The capture includes the Agent conversation and question field.
 		window.resize(1'400, 1'500);
 		window.show();
 
@@ -5922,58 +5920,25 @@ namespace {
 		expect(
 			drawer != nullptr && drawer->isVisible(),
 			"the conversations drawer opens on the core's decided state");
-		// [[BPR-1134]]. The agent surfaces are the Findings tab's.
+		// [[BPR-1594]]. The Agent action opens the dedicated tab.
 		window.ai_tools_action()->setChecked(true);
 		QApplication::processEvents();
 		show_agent_tools(window);
 
-		const auto named = [drawer](const QString& aName) -> QWidget* {
-			for (auto* const widget : drawer->findChildren<QWidget*>()) {
-				if (widget->accessibleName() == aName) {
-					return widget;
-				}
-			}
-			return nullptr;
-		};
-		auto* const sideChat     = named(QStringLiteral("AI side chat"));
-		auto* const findingQueue = named(QStringLiteral("AI finding queue"));
-		expect(
-			sideChat != nullptr && sideChat == window.side_chat(),
-			"the open drawer holds the side chat panel under its accessible name");
-		expect(
-			findingQueue != nullptr && findingQueue == window.finding_queue(),
-			"the open drawer holds the finding queue under its accessible name");
-
-		const auto laidOut = [](QWidget* const aWidget) {
-			auto* const parent
-				= aWidget == nullptr ? nullptr : aWidget->parentWidget();
-			return parent != nullptr && parent->layout() != nullptr
-				&& parent->layout()->indexOf(aWidget) >= 0;
-		};
-		expect(
-			laidOut(sideChat),
-			"the side chat is laid into the drawer's own column, not merely parented to it");
-		expect(
-			laidOut(findingQueue),
-			"the finding queue is laid into the drawer's own column, not merely parented to it");
-
-		auto* const agentPanel = window.agent_panel();
-		auto* const editor     = window.review_editor();
-		expect(
-			agentPanel != nullptr && editor != nullptr
-				&& agentPanel->parentWidget() == sideChat->parentWidget()
-				&& sideChat->parentWidget() == findingQueue->parentWidget(),
-			"both agent surfaces share the drawer column the agent launch panel is in");
-		const auto columnTop = [drawer](const QWidget* const aWidget) {
-			return aWidget->mapTo(drawer, QPoint{ 0, 0 }).y();
-		};
-		expect(
-			sideChat->isVisible() && findingQueue->isVisible()
-				&& sideChat->width() > 0 && sideChat->height() > 0
-				&& findingQueue->width() > 0 && findingQueue->height() > 0
-				&& columnTop(agentPanel) < columnTop(sideChat)
-				&& columnTop(sideChat) < columnTop(findingQueue),
-			"the agent launcher, the side chat, and the finding queue stack down one visible column");
+		auto* const agent   = window.agent_tab();
+		auto* const editor  = window.review_editor();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->refresh();
+		QApplication::processEvents();
+		expect(agent->state() == qt::agent_tab_state::idle && agent->ask_button()->isVisible()
+				   && window.side_chat()->composer()->isVisible()
+				   && agent->isAncestorOf(window.side_chat()->composer())
+				   && agent->isAncestorOf(window.agent_panel()->profile_selector()),
+			   "the Agent tab presents the borrowed profile and question controls");
 
 		// The workshop a promotion opens is the retained draft editor's own, on
 		// its dedicated in-window page. There is no second editor or top-level window.
@@ -5985,63 +5950,25 @@ namespace {
 				&& composePage->isAncestorOf(editor->workshop_proposal_editor()),
 			"the comment workshop a finding promotion reaches is the retained editor on its dedicated page");
 
-		auto* const convert = window.finding_queue()->action(
-			qt::finding_queue_action::convert_to_draft_comment);
-		expect(convert != nullptr, "the queue declares the promotion action");
-		auto* offered = static_cast<QToolButton*>(nullptr);
-		for (auto* const button : drawer->findChildren<QToolButton*>()) {
-			if (button->defaultAction() == convert) {
-				offered = button;
-			}
-		}
-		expect(
-			offered != nullptr && offered->isVisible(),
-			"the finding action that opens the workshop is offered in the drawer");
-
-		// The drawer button reaches the panel's own way out and nothing else.
-		// The window sets no dispatch, so this one is the test's.
+		// The visible finding card dispatches the queue's existing promotion.
 		auto intents = std::vector<qt::finding_action_intent>{ };
-		window.finding_queue()->set_dispatch(
-			[&intents](qt::finding_action_intent aIntent) {
-				intents.push_back(std::move(aIntent));
-			});
+		window.finding_queue()->set_dispatch([&intents](qt::finding_action_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		});
 		auto delivery = application::agent_finding_delivery{ };
 		delivery.Findings.push_back(application::agent_delivered_finding{ });
 		delivery.Findings.front().Finding.Claim = "BPR-0513 placed finding";
 		window.finding_queue()->present(delivery);
-		window.finding_queue()->select(0U);
+		QApplication::processEvents();
+		const auto cards = agent->finding_cards();
+		expect(cards.size() == 1U && cards.front()->isVisible(), "the finding appears in the Agent conversation");
+		auto* const offered = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		expect(offered != nullptr && offered->isVisible(), "the visible finding offers Draft a comment");
 		offered->click();
 		QApplication::processEvents();
-		expect(
-			intents.size() == 1U
-				&& intents.front().Action
-					== qt::finding_queue_action::convert_to_draft_comment,
-			"clicking the placed button emits exactly one promotion intent and performs nothing");
+		expect(intents.size() == 1U && intents.front().Action == qt::finding_queue_action::convert_to_draft_comment,
+			   "the card emits exactly one queue promotion intent and performs nothing");
 		window.finding_queue()->set_dispatch({ });
-
-		// The column is taller than the drawer, so it scrolls. Bringing the
-		// two agent surfaces into the drawer's own visible region is what
-		// makes the capture below a picture of them rather than of whatever
-		// happened to be at the top of the column.
-		auto* const column = window.findings_tab_scroll();
-		expect(
-			column != nullptr && drawer->isAncestorOf(column) && column->isVisible(),
-			"the Findings tab's column scrolls rather than squeezing its panels");
-		column->verticalScrollBar()->setValue(
-			column->verticalScrollBar()->value()
-			+ sideChat->mapTo(column->viewport(), QPoint{ 0, 0 }).y());
-		QApplication::processEvents();
-		const auto mostlyShown = [drawer](const QWidget* const aWidget) {
-			const QRect placed{
-				aWidget->mapTo(drawer, QPoint{ 0, 0 }),
-				aWidget->size(),
-			};
-			return drawer->rect().intersected(placed).height()
-				>= placed.height() / 2;
-		};
-		expect(
-			mostlyShown(sideChat) && mostlyShown(findingQueue),
-			"scrolling the drawer's column shows both agent surfaces inside the drawer");
 
 		// The capture the acceptance criterion asks for, cropped to the drawer
 		// the panels are in. A whole-window diff would pass on a repaint
@@ -6116,7 +6043,7 @@ namespace {
 		const auto sizes = window.central_splitter()->sizes();
 		expect(!drawer->isVisible() && !drawer->rail()->isVisible() && !drawer->controls_shown()
 				   && sizes.size() == 4 && sizes[3] == 0
-				   && !sideChat->isVisible() && !findingQueue->isVisible(),
+				   && !agent->isVisible() && !window.side_chat()->composer()->isVisible(),
 			   "with the drawer controls hidden a collapsed drawer occupies zero "
 			   "width in the splitter and both placed agent surfaces go with it");
 		rightEdge(QStringLiteral("drawer-controls-hidden"));
@@ -6132,15 +6059,15 @@ namespace {
 				&& drawer->width() == qt::workbench_drawer_rail::width_pixels
 				&& heading != nullptr && !heading->isVisible()
 				&& !drawer->collapse_button()->isVisible()
-				&& !sideChat->isVisible() && !findingQueue->isVisible(),
+				&& !agent->isVisible() && !window.side_chat()->composer()->isVisible(),
 			"collapsing the drawer to its rail hides both placed agent surfaces "
 			"with it, and nothing of the heading row stays above the rail");
 		rightEdge(QStringLiteral("drawer-controls-rail"));
 		window.publish(opened);
 		QApplication::processEvents();
 		expect(
-			drawer->isVisible() && sideChat->isVisible()
-				&& findingQueue->isVisible(),
+			drawer->isVisible() && agent->isVisible()
+				&& window.side_chat()->composer()->isVisible(),
 			"reopening the drawer restores both placed agent surfaces");
 	}
 	/// \brief Whether a layout, or a row nested inside it, manages a widget.
@@ -6224,26 +6151,11 @@ namespace {
 		}
 	}
 
-	/// \brief Every control in the conversations drawer is inside its width.
-	///
-	/// \details The drawer's column scrolls down and refuses to scroll
-	/// sideways, so a control whose rectangle leaves the visible width is not
-	/// offscreen — it is absent, and no gesture in the product reaches it.
-	/// BPR-0513's capture showed that happening to the defect rows; BPR-0520
-	/// measured those two rows rather than looking at them. BPR-0527 widens
-	/// the same measurement to the whole drawer, because two rows it did not
-	/// name — the conversation panel's reveal and the agent launcher's run
-	/// controls — were still overflowing while this case passed.
-	///
-	/// So it asks three questions. Whether the column is no wider than the
-	/// width a reviewer can reach, which is the one claim that covers a row
-	/// added tomorrow. Whether every control the column holds is inside that
-	/// width, swept from the widget tree and named in the failure. And
-	/// whether each action the drawer offers is still there under the object
-	/// name it carried, is laid into a layout rather than merely parented,
-	/// and was reached by the sweep — so a rename fails here rather than
-	/// silently skipping. One executable is the 1.0x, 1.25x and 2.0x scale
-	/// cases, so each is measured at all three scales the card names.
+	/// \brief [[BPR-1616]]. Sweep the accepted Agent tab's visible controls
+	/// for horizontal reachability, including the borrowed question field and
+	/// profile selector. Comments keeps its own defect-navigation checks.
+	/// Registered at 1.0x, 1.25x and 2.0x scale.
+
 	auto test_drawer_controls_are_reachable_in_the_conversations_drawer() -> void
 	{
 		qt::workbench_window window{
@@ -6279,150 +6191,36 @@ namespace {
 		window.ai_tools_action()->setChecked(true);
 		QApplication::processEvents();
 		show_agent_tools(window);
-		auto* const column = window.findings_tab_scroll();
-		expect(
-			column != nullptr && column->isVisible() && column->viewport() != nullptr
-				&& column->viewport()->width() > 0,
-			"the drawer's column has a visible width to be inside of");
-		// The premise everything below rests on. At its default width the
-		// column does not scroll sideways, so the viewport's width is the whole
-		// of what a reviewer can reach, at every scroll position the column
-		// has. ([[BPR-0728]] lets it scroll sideways only beneath the column's
-		// own minimum, which a drag below the default reaches; not this width.)
-		expect(
-			column->horizontalScrollBar()->maximum() == 0
-				&& !column->horizontalScrollBar()->isVisible(),
-			"the drawer's column does not scroll sideways at its default width");
-
-		// Every control the column holds, swept from the widget tree rather
-		// than listed, so a row nobody thought to list is measured too.
-		expect(
-			column->widget() != nullptr,
-			"the drawer's column holds a widget to sweep");
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->refresh();
+		QApplication::processEvents();
 		auto controls = std::vector<QWidget*>{ };
-		collect_drawer_controls(column->widget(), controls);
-		expect(
-			!controls.empty(),
-			"the sweep reaches the drawer's controls rather than an empty column");
-		// BPR-0527's one claim about the drawer rather than about a control in
-		// it, and the one that covers a row added tomorrow. A column is
-		// resized to its own minimum whenever that minimum is wider than the
-		// viewport, and everything past the viewport is then unreachable at
-		// every scroll position - so the column fitting is the whole of what
-		// makes its contents reachable. It is asked first because it names
-		// what made the column too wide, which is not the same widget as the
-		// one that then sticks out of it: a row that asks for nine pixels too
-		// many stretches every panel beside it, and the sweep below reports
-		// whichever of those the walk reaches first.
-		auto* widest = static_cast<QWidget*>(nullptr);
+		collect_drawer_controls(agent, controls);
+		expect(!controls.empty(), "the width sweep reaches the accepted Agent controls");
 		for (auto* const control : controls) {
-			if (widest == nullptr
-				|| control->minimumSizeHint().width()
-					> widest->minimumSizeHint().width()) {
-				widest = control;
-			}
+			const QRect placed{ control->mapTo(agent, QPoint{ }), control->size() };
+			expect(placed.left() >= 0 && placed.right() < agent->width(),
+				   std::string{ "the Agent control is within the drawer width: " } + control_name(control));
 		}
-		expect(
-			column->widget()->width() <= column->viewport()->width()
-				&& column->horizontalScrollBar()->maximum() == 0,
-			std::string{ "the drawer's column is no wider than the width a "
-						 "reviewer can reach; the widest thing in it is " }
-				+ control_name(widest) + ", asking "
-				+ std::to_string(widest->minimumSizeHint().width())
-				+ " px of a " + std::to_string(column->viewport()->width())
-				+ " px viewport");
-
-		for (auto* const control : controls) {
-			const QRect placed{
-				control->mapTo(column->viewport(), QPoint{ 0, 0 }),
-				control->size(),
-			};
-			expect(
-				placed.left() >= 0
-					&& placed.right() < column->viewport()->width(),
-				std::string{ "the drawer control is inside the drawer's "
-							 "visible width: " }
-					+ control_name(control));
+		for (auto* const control : { static_cast<QWidget*>(window.side_chat()->composer()),
+									 static_cast<QWidget*>(window.agent_panel()->profile_selector()), static_cast<QWidget*>(agent->ask_button()) }) {
+			expect(control->isVisible() && agent->isAncestorOf(control)
+					   && std::ranges::find(controls, control) != controls.end(),
+				   "the width sweep includes the borrowed profile, question field and Ask");
 		}
-
 		const auto offered = [drawer](const QString& aName) -> QToolButton* {
-			auto* found = static_cast<QToolButton*>(nullptr);
 			for (auto* const button : drawer->findChildren<QToolButton*>()) {
-				auto* const action = button->defaultAction();
-				if (action != nullptr && action->objectName() == aName) {
-					found = button;
+				if (button->defaultAction() != nullptr && button->defaultAction()->objectName() == aName) {
+					return button;
 				}
 			}
-			return found;
+			return nullptr;
 		};
-		// Every action the drawer offers, row by row, under the object name it
-		// already carried. The sweep above measures whatever the column holds;
-		// this list is what the drawer is supposed to hold, so a renamed or
-		// dropped action fails here rather than passing as an absence.
-		for (const auto* const name :
-			 { // The agent launcher's run controls (RFC-BPR-0011).
-			   "agentExistingCheckoutAction", "startAgentAction",
-			   "cancelAgentAction",
-			   // The side chat's row (RFC-BPR-0012, placed by BPR-0513).
-			   "sideChatSend", "sideChatAddContext", "sideChatStartNewSession",
-			   "sideChatContinueOldRevision",
-			   // The six the finding queue declares (BPR-0506).
-			   "findingOpenEvidence", "findingAskFollowUp",
-			   "findingConvertToDraftComment", "findingConvertToDraftDefect",
-			   "findingAddToPrivateNotes", "findingDismiss",
-			   // The private note editor and one-item promotion (BPR-1210).
-			   "newReviewNoteAction", "newFileNoteAction", "savePrivateNoteAction",
-			   "promotePrivateNoteAction", "deletePrivateNoteAction",
-			   "discardPrivateNoteChangesAction", "promoteChatReplyAction" }) {
-			auto* const button = offered(QString::fromLatin1(name));
-			expect(
-				button != nullptr && button->isVisible() && button->width() > 0
-					&& button->height() > 0,
-				std::string{ "the open drawer offers a visible button for " }
-					+ name);
-			expect(
-				laid_into(button->parentWidget()->layout(), button),
-				std::string{ "the drawer action is laid into the layout that "
-							 "owns it, not merely parented to it: " }
-					+ name);
-			// And that the sweep saw it. A sweep that walked past the panels
-			// would leave these names measured only by the loop that lists
-			// them, which is the sample the card refused.
-			expect(
-				std::find(controls.begin(), controls.end(), button)
-					!= controls.end(),
-				std::string{ "the sweep reached the drawer action: " } + name);
-			const QRect placed{
-				button->mapTo(column->viewport(), QPoint{ 0, 0 }),
-				button->size(),
-			};
-			expect(
-				placed.left() >= 0
-					&& placed.right() < column->viewport()->width(),
-				std::string{ "the drawer action is inside the drawer's "
-							 "visible width: " }
-					+ name);
-		}
-
-		// The two rows BPR-0527 stacked, asserted as stacked rather than as
-		// merely fitting. The width above is the width the product opens at,
-		// and it is the reviewer's to change: the drawer drags down to
-		// `minimum_workbench_drawer_width`, and at those widths what keeps a
-		// row's last control reachable is that the row is a column. Measured
-		// as the arrangement it is - the second control begins at or below the
-		// bottom of the first, so the two do not share a line - because a
-		// horizontal row of these three run controls asks for 366 px, nine
-		// more than the stacked column asks for, and the difference is small
-		// enough to hide inside the column's own margins at the opening
-		// width while being lost at every narrower one.
-		const auto stackedUnder = [](const QWidget* const aAbove,
-									 const QWidget* const aBelow) {
-			return aAbove != nullptr && aBelow != nullptr
-				&& aBelow->mapTo(aBelow->window(), QPoint{ 0, 0 }).y()
-				>= aAbove->mapTo(aAbove->window(), QPoint{ 0, 0 }).y()
-					+ aAbove->height();
-		};
-		// [[BPR-1134]]. The availability sentence is the Comments tab's.
 		window.tray_tabs()->setCurrentIndex(0);
 		QApplication::processEvents();
 		auto* const availability = drawer->findChild<QLabel*>(
@@ -6433,30 +6231,6 @@ namespace {
 			availability != nullptr && window.comments_tab_scroll()->widget()->isAncestorOf(availability)
 				&& availability->isVisible() == window.conversation_panel()->cards()->cards().empty(),
 			"the review-thread availability sentence is the Comments tab's, shown while it has no thread to show");
-		window.tray_tabs()->setCurrentIndex(1);
-		QApplication::processEvents();
-		show_agent_tools(window);
-		expect(!offered(QStringLiteral("showReviewThreadsAction")),
-			   "the conversation drawer has no focus-only reveal action below its availability sentence");
-		expect(
-			stackedUnder(
-				offered(QStringLiteral("agentExistingCheckoutAction")),
-				offered(QStringLiteral("startAgentAction")))
-				&& stackedUnder(
-					offered(QStringLiteral("startAgentAction")),
-					offered(QStringLiteral("cancelAgentAction"))),
-			"the agent launcher's run controls are stacked rather than laid in a row: startAgentAction, cancelAgentAction");
-
-		// The moved controls must be absent from Notes, not silently omitted
-		// from its width sweep. Comments keeps its own measured navigation.
-		for (const auto* name : { "classifySelectedDefect", "previousDefect", "nextDefect",
-								  "defectVerify", "defectReopen", "defectWithdraw", "defectAcceptAsIs", "defectReclassify" }) {
-			const auto* button = offered(QString::fromLatin1(name));
-			expect(button == nullptr || !column->isAncestorOf(button),
-				   std::string{ "Notes contains no thread control: " } + name);
-		}
-		expect(!column->isAncestorOf(window.defect_card()) && !column->isAncestorOf(window.defect_count_label()),
-			   "Notes contains neither the defect editor nor the queue position");
 		window.tray_tabs()->setCurrentIndex(0);
 		QApplication::processEvents();
 		auto* const comments = window.comments_tab_scroll();
@@ -6535,13 +6309,9 @@ namespace {
 						.arg(configured.path(), configured.completeBaseName()),
 					"PNG"),
 				"the defect drawer crop is saved in the ignored build tree");
-			// And the column whole. The crop above is what the drawer shows at
-			// one scroll position, and BPR-0527's claim is about every row, so
-			// looking at it means looking at all of them. The column renders at
-			// exactly the width a reviewer can reach, so a control past that
-			// width is cut off in this picture as it is in the drawer.
+			// Capture the Agent tab at the same width that the sweep measured.
 			expect(
-				column->widget()->grab().save(
+				agent->grab().save(
 					QStringLiteral("%1/%2-drawer-column.png")
 						.arg(configured.path(), configured.completeBaseName()),
 					"PNG"),
