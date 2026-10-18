@@ -10,6 +10,7 @@
 #include <QColor>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPixmap>
@@ -23,6 +24,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -327,6 +330,80 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief WCAG relative luminance of a colour.
+	[[nodiscard]] auto luminance(const QColor& aColour) -> double
+	{
+		const auto channel = [](const double aValue) { return aValue <= 0.03928 ? aValue / 12.92 : std::pow((aValue + 0.055) / 1.055, 2.4); };
+		return (0.2126 * channel(aColour.redF())) + (0.7152 * channel(aColour.greenF())) + (0.0722 * channel(aColour.blueF()));
+	}
+
+	[[nodiscard]] auto contrast(const QColor& aOne, const QColor& aOther) -> double
+	{
+		const auto one   = luminance(aOne);
+		const auto other = luminance(aOther);
+		return (std::max(one, other) + 0.05) / (std::min(one, other) + 0.05);
+	}
+
+	/// [[BPR-1589]]. A section header reads in every theme, opens by key and
+	/// mouse, and its chevron says which; a meter draws its proportions.
+	void test_section_header_and_meter_in_every_theme()
+	{
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto name = std::string{ core::stable_name(profile.variant()) };
+			QWidget    host;
+			profile.apply_to(host);
+			host.setAutoFillBackground(true);
+			auto* const column = new QVBoxLayout{ &host };
+			auto* const header = new qt::drawer_section_header{ &host };
+			header->setText(QStringLiteral("Needs attention"));
+			header->set_count(QStringLiteral("4"));
+			auto* const meter = new qt::drawer_meter{ &host };
+			const auto  green = profile.color(core::appearance_role::state_accepted);
+			const auto  red   = profile.color(core::appearance_role::state_defect);
+			meter->set_segments({ { 3.0, green }, { 1.0, red } }, 8.0);
+			column->addWidget(header);
+			column->addWidget(meter);
+			column->addStretch(1);
+			host.resize(320, 120);
+			host.show();
+			settle();
+			expect(header->sizeHint().width() <= header->width() && header->minimumSizeHint().width() < header->sizeHint().width(), name + ": the header fits its title and count, and shortens in a narrow drawer");
+			expect(header->arrowType() == Qt::RightArrow && !header->isChecked(), name + ": a section opens closed");
+			header->setFocus(Qt::OtherFocusReason);
+			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+			QApplication::sendEvent(header, &press);
+			QApplication::sendEvent(header, &release);
+			settle();
+			expect(header->isChecked() && header->arrowType() == Qt::DownArrow, name + ": Space opens it and the chevron points down");
+			const auto image   = host.grab().toImage();
+			const auto dpr     = image.devicePixelRatio();
+			const auto ground  = host.palette().color(QPalette::Active, QPalette::Window);
+			auto       darkest = 1.0;
+			const auto top     = header->mapTo(&host, QPoint{ 0, 0 });
+			for (int y = top.y() + 2; y < top.y() + header->height() - 2; ++y) {
+				for (int x = top.x() + 4; x < top.x() + 80; ++x) {
+					const auto pixel = image.pixelColor(static_cast<int>(x * dpr), static_cast<int>(y * dpr));
+					darkest          = std::max(darkest, contrast(pixel, ground));
+				}
+			}
+			expect(darkest >= 4.5, name + ": the title reads at 4.5:1 or more (" + std::to_string(darkest) + ")");
+			const auto at = [&](const double aFraction) {
+				const auto spot = meter->mapTo(&host, QPoint{ static_cast<int>(meter->width() * aFraction), meter->height() / 2 });
+				return image.pixelColor(static_cast<int>(spot.x() * dpr), static_cast<int>(spot.y() * dpr));
+			};
+			expect(close_to(at(0.2), green, 12) && close_to(at(0.45), red, 12) && !close_to(at(0.8), green, 12) && !close_to(at(0.8), red, 12),
+				   name + ": the meter draws three eighths green, one eighth red and the rest as track");
+			const auto violations = qt::drawer_principle_violations(host);
+			expect(violations.isEmpty(), name + ": the section parts keep every principle: " + violations.join(QStringLiteral("; ")).toStdString());
+			save(host, QStringLiteral("drawer-section-%1").arg(QString::fromStdString(name)));
+		}
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -334,6 +411,7 @@ auto main(int argc, char** argv) -> int
 	test_the_header_wraps_its_tools_rather_than_clipping_a_tab();
 	test_the_audit_fails_each_broken_principle();
 	test_status_is_a_real_drawer();
+	test_section_header_and_meter_in_every_theme();
 	if (Failures != 0) {
 		std::cerr << Failures << " failure(s)\n";
 		return EXIT_FAILURE;

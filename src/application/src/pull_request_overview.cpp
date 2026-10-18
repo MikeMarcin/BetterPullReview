@@ -96,6 +96,95 @@ namespace bpr::application {
 			return aActor.has_value() ? aActor->Login : std::string{ };
 		}
 
+		/// \brief [[BPR-1589]]. My latest submitted review's state; a pending
+		/// review is not submitted.
+		[[nodiscard]] auto my_latest_review(const github_pull_request_snapshot& aSnapshot, const std::string& aViewer)
+			-> std::optional<core::my_review_state>
+		{
+			auto latest = std::optional<core::my_review_state>{ };
+			for (const auto& review : aSnapshot.Reviews) {
+				if (!review.Author.has_value() || !core::same_login(review.Author->Login, aViewer)) {
+					continue;
+				}
+				switch (review.State) {
+				case github_review_state::commented:
+					latest = core::my_review_state::commented;
+					break;
+				case github_review_state::approved:
+					latest = core::my_review_state::approved;
+					break;
+				case github_review_state::changes_requested:
+					latest = core::my_review_state::changes_requested;
+					break;
+				case github_review_state::dismissed:
+					latest = core::my_review_state::dismissed;
+					break;
+				case github_review_state::pending:
+				case github_review_state::uninitialized:
+					break;
+				}
+			}
+			return latest;
+		}
+
+		/// \brief [[BPR-1589]]. Where someone else first mentioned me: the
+		/// description, then any comment or review.
+		[[nodiscard]] auto mention_of(const github_pull_request_snapshot& aSnapshot, const std::string& aViewer)
+			-> std::optional<core::mention_place>
+		{
+			const auto byOther = [&aViewer](const std::optional<github_actor_record>& aAuthor) {
+				return !aAuthor.has_value() || !core::same_login(aAuthor->Login, aViewer);
+			};
+			if (byOther(aSnapshot.PullRequest.Author) && core::mentions_login(aSnapshot.PullRequest.Body, aViewer)) {
+				return core::mention_place::description;
+			}
+			const auto inComment = [&](const auto& aComment) { return byOther(aComment.Author) && core::mentions_login(aComment.Body, aViewer); };
+			if (std::ranges::any_of(aSnapshot.IssueComments, inComment) || std::ranges::any_of(aSnapshot.Reviews, inComment)) {
+				return core::mention_place::comment;
+			}
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				if (std::ranges::any_of(thread.Comments, inComment)) {
+					return core::mention_place::comment;
+				}
+			}
+			for (const auto& group : aSnapshot.ReviewCommentGroups) {
+				if (inComment(group.Root) || std::ranges::any_of(group.Replies, inComment)) {
+					return core::mention_place::comment;
+				}
+			}
+			return std::nullopt;
+		}
+
+		/// \brief [[BPR-1589]]. Decides my roles and the attention list.
+		void project_status(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection)
+		{
+			const auto& viewer = aSnapshot.Viewer.Login;
+			auto        facts  = core::review_role_facts{ .Viewer = viewer, .Author = aProjection.AuthorLogin };
+			for (const auto& request : aProjection.ReviewRequests) {
+				facts.Requests.push_back({ .Name = request.Name, .Team = request.Team, .CodeOwner = request.CodeOwner });
+			}
+			if (!viewer.empty()) {
+				facts.LatestReview = my_latest_review(aSnapshot, viewer);
+				facts.Mention      = mention_of(aSnapshot, viewer);
+			}
+			aProjection.Status.Viewer = viewer;
+			aProjection.Status.Roles  = core::decide_review_roles(facts);
+
+			auto        attention = core::status_attention_facts{ .Viewer = viewer, .RepliesToMe = aProjection.SinceLastReview.RepliesToMe };
+			const auto& merge     = aSnapshot.Merge;
+			attention.Conflicts   = merge.Assessment == github_merge_assessment::conflicts
+				&& (merge.Availability == github_observation_availability::available || merge.Stale);
+			for (const auto& row : aProjection.CheckRows) {
+				if (row.Failed && !std::ranges::contains(attention.FailedChecks, row.Name)) {
+					attention.FailedChecks.push_back(row.Name);
+				}
+			}
+			for (const auto& request : aProjection.ReviewRequests) {
+				attention.WaitingOn.push_back(request.Name);
+			}
+			aProjection.Status.Attention = core::decide_status_attention(attention);
+		}
+
 		/// \brief A participant list that keeps first-seen order.
 		class participant_roster final
 		{
@@ -388,14 +477,20 @@ namespace bpr::application {
 					}
 				}
 			}
+			// [[BPR-1589]]. The Status drawer names each failure once, in its
+			// attention list; its details show the other conditions.
+			auto& open = aProjection.Status.OpenConditions;
+			open       = conditions;
 			for (const auto& row : aProjection.CheckRows) {
 				if (row.Failed) {
 					conditions.push_back(row.Name + " failed" + (row.Requirement == "Optional" ? " (optional)" : ""));
 				}
 			}
+			open.insert(open.end(), missing.begin(), missing.end());
 			std::ranges::move(missing, std::back_inserter(conditions));
 			if (merge.Stale) {
 				conditions.emplace_back("Last known; refresh to update");
+				open.emplace_back("Last known; refresh to update");
 			}
 		}
 		void project_checks(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aPolicy)
@@ -641,6 +736,7 @@ namespace bpr::application {
 		project_checks(aSnapshot, projection, checkPolicy);
 		project_merge_requirements(aSnapshot, projection, checkPolicy);
 		sort_check_rows(projection);
+		project_status(aSnapshot, projection);
 
 		// The files. [[BPR-0972]]. Receipts and notes are ordered by file once,
 		// so each file's are a binary search; the first for a file answers,

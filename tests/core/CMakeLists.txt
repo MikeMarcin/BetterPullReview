@@ -1137,3 +1137,21 @@ target_compile_definitions(test_better_pull_review_markdown_code_tests PRIVATE
 bpr_enable_hardening(test_better_pull_review_markdown_code_tests)
 bpr_enable_warnings(test_better_pull_review_markdown_code_tests)
 bpr_add_network_isolated_test(NAME core_markdown_code COMMAND test_better_pull_review_markdown_code_tests)
+
+# [[BPR-1589]]. My role and the attention list.
+bpr_add_executable(
+    test_better_pull_review_review_role_core_tests
+    review_role_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_role_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_review_role_core_tests)
+bpr_enable_warnings(test_better_pull_review_review_role_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_review_role
+    COMMAND test_better_pull_review_review_role_core_tests
+)

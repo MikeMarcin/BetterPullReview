@@ -1770,6 +1770,10 @@ namespace bpr::qt {
 		void resume_deferred_reply();
 		/// \brief [[BPR-1293]]. ⌘J: Threads, or back from it.
 		void toggle_threads();
+		/// \brief [[BPR-1589]]. Tells the Status drawer how many threads have
+		/// new posts, and opens Threads with Only new for its Go to them.
+		void present_new_threads();
+		void show_new_threads();
 		/// \brief [[BPR-1293]]. Back to the modality Threads was entered from.
 		void leave_threads();
 		/// \brief [[BPR-1293]]. Opens a waiting pick once its file's

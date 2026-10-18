@@ -45,6 +45,9 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class overview_status_drawer;
 	class overview_status_splitter;
+	class drawer_meter;
+	class drawer_section_header;
+	class identity_avatar_view;
 	class appearance_profile;
 	class overview_description_view;
 	class overview_summary_splitter;
@@ -364,6 +367,48 @@ namespace bpr::qt {
 		const overview_colours&              Colours;
 	};
 
+	/// \brief [[BPR-1589]]. One person or team as a face in People's strip.
+	struct overview_face
+	{
+		QString Identity;
+		/// The initials' source when it is not the identity (a team's slug).
+		QString InitialsFrom;
+		bool    Team = false;
+		/// The standing's mark at the face's corner; none when invalid.
+		QColor Badge;
+
+		auto operator==(const overview_face&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1589]]. People at a glance: a row of faces, each with its
+	/// standing's mark, as many as fit.
+	class overview_faces final : public QWidget
+	{
+	public:
+		explicit overview_faces(QWidget* aParent = nullptr);
+
+		void               set_faces(std::vector<overview_face> aFaces);
+		[[nodiscard]] auto faces() const -> const std::vector<overview_face>&;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		std::vector<overview_face> Faces;
+	};
+
+	/// \brief [[BPR-1589]]. The Status drawer's sections, in their order.
+	enum class overview_status_section : std::uint8_t {
+		attention,
+		my_review,
+		checks,
+		people,
+	};
+
+	inline constexpr std::size_t overview_status_section_count = 4U;
+
 	/// \brief The values the overview's side column names.
 	enum class overview_value : std::uint8_t {
 		uploads,
@@ -454,6 +499,32 @@ namespace bpr::qt {
 		[[nodiscard]] auto entry_path() const -> std::optional<QString>;
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
+		/// \brief [[BPR-1589]]. How many threads have posts I have not read,
+		/// as Threads' Only new counts them; My review says so with Go to them.
+		void               set_new_threads(std::size_t aCount);
+		[[nodiscard]] auto new_threads() const noexcept -> std::size_t;
+		/// \brief [[BPR-1589]]. Go to them: open Threads with Only new on.
+		void               set_new_threads_dispatch(std::function<void()> aDispatch);
+		[[nodiscard]] auto new_threads_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1589]]. New pull-request comments that are not on a
+		/// file, once the ledger keeps their read state: "N new comments in
+		/// the conversation" with Go to them, which opens Discuss. Absent or
+		/// zero draws nothing; until that read state exists nothing sets it.
+		void               set_new_conversation_comments(std::optional<std::size_t> aCount);
+		void               set_new_conversation_dispatch(std::function<void()> aDispatch);
+		[[nodiscard]] auto new_conversation_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1589]]. A Status section's header, its disclosure.
+		[[nodiscard]] auto status_section_header(overview_status_section aSection) const noexcept -> drawer_section_header*;
+		/// \brief [[BPR-1589]]. A Status section, header, body and details.
+		[[nodiscard]] auto status_section(overview_status_section aSection) const noexcept -> QWidget*;
+		/// \brief [[BPR-1589]]. My role's line and the faint line of my others.
+		[[nodiscard]] auto role_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto other_roles_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1589]]. Each Needs attention row's title and its second
+		/// line, if shown, joined by a newline.
+		[[nodiscard]] auto attention_rows() const -> QStringList;
+		[[nodiscard]] auto people_faces() const noexcept -> overview_faces*;
+		[[nodiscard]] auto people_summary() const noexcept -> QLabel*;
 		/// \brief Sends an explicit check destination gesture to the accepted host.
 		void set_check_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
 
@@ -546,6 +617,14 @@ namespace bpr::qt {
 		void refresh_folder_icons();
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 		void present_merge(const application::pull_request_overview_projection& aProjection);
+		/// [[BPR-1589]]. My role, the sections' facts and their memory.
+		void present_status(bool aSamePullRequest);
+		void present_attention();
+		void present_my_review();
+		void present_people();
+		void show_value(overview_value aValue, bool aShown);
+		void remember_sections();
+		void hide_status();
 		/// [[BPR-1089]]. The rows in the order the sort or the file order gives.
 		[[nodiscard]] auto ordered_rows() const -> std::vector<application::overview_file_row>;
 		void               apply_rows();
@@ -572,10 +651,9 @@ namespace bpr::qt {
 		std::optional<application::pull_request_overview_projection> Projection;
 		void                                                         present_checks(bool aSamePullRequest);
 		void                                                         present_selected_check();
-		QToolButton*                                                 ChecksDisclosure      = nullptr;
+		drawer_section_header*                                       ChecksDisclosure      = nullptr;
 		QLabel*                                                      MergeState            = nullptr;
 		QLabel*                                                      MergeConditions       = nullptr;
-		QLabel*                                                      WaitingHeading        = nullptr;
 		QVBoxLayout*                                                 Requests              = nullptr;
 		QLabel*                                                      RequestsNote          = nullptr;
 		QLabel*                                                      RequirementDetails    = nullptr;
@@ -619,6 +697,37 @@ namespace bpr::qt {
 		QLabel*                                                      Values[overview_value_count]{ };
 		overview_status_splitter*                                    StatusSplit  = nullptr;
 		overview_status_drawer*                                      StatusDrawer = nullptr;
+		/// [[BPR-1589]]. The Status drawer's content.
+		struct status_section_parts
+		{
+			drawer_section_header* Header  = nullptr;
+			QWidget*               Frame   = nullptr;
+			QWidget*               Details = nullptr;
+		};
+		status_section_parts       Sections[overview_status_section_count]{ };
+		QLabel*                    StatusNote     = nullptr;
+		QWidget*                   RoleRow        = nullptr;
+		identity_avatar_view*      RoleFace       = nullptr;
+		QLabel*                    RoleText       = nullptr;
+		QLabel*                    RoleAlso       = nullptr;
+		QVBoxLayout*               AttentionList  = nullptr;
+		drawer_meter*              ReadMeter      = nullptr;
+		drawer_meter*              ChecksMeter    = nullptr;
+		QWidget*                   NewThreadsRow  = nullptr;
+		QLabel*                    NewThreadsText = nullptr;
+		QToolButton*               NewThreadsGo   = nullptr;
+		std::size_t                NewThreads     = 0U;
+		std::function<void()>      NewThreadsDispatch;
+		QWidget*                   NewConversationRow  = nullptr;
+		QLabel*                    NewConversationText = nullptr;
+		QToolButton*               NewConversationGo   = nullptr;
+		std::optional<std::size_t> NewConversation;
+		std::function<void()>      NewConversationDispatch;
+		overview_faces*            Faces         = nullptr;
+		QLabel*                    PeopleSummary = nullptr;
+		/// Which sections are open, by pull request, for this window.
+		QHash<QString, std::uint8_t> SectionMemory;
+		QString                      SectionKey;
 		// [[BPR-1089]]. The Comments column's view state and controls.
 		core::feedback_label_columns                          Columns{ };
 		core::feedback_resolution_mode                        DefaultMode = core::default_feedback_resolution_mode;

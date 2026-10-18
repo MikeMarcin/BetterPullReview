@@ -6,6 +6,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -28,6 +29,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -42,6 +44,7 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPen>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRectF>
@@ -633,7 +636,9 @@ namespace bpr::qt {
 			case overview_value::drafted_comments:
 				break;
 			}
-			return QStringLiteral("Drafted comments");
+			// [[BPR-1589]]. My comments not yet published, as Compose review
+			// lists them.
+			return QStringLiteral("Pending comments");
 		}
 
 		[[nodiscard]] auto value_object_name(const overview_value aValue) -> QString
@@ -2240,7 +2245,8 @@ namespace bpr::qt {
 			standing = Colours.Accepted;
 			break;
 		case application::overview_signoff::changes_requested:
-			standing = Colours.Marker;
+			// [[BPR-1589]]. Red is blocking (RFC-BPR-0085 principle 4), as the face's mark.
+			standing = Colours.Defect;
 			break;
 		case application::overview_signoff::dismissed:
 		case application::overview_signoff::pending:
@@ -2649,62 +2655,94 @@ namespace bpr::qt {
 		sideColumn->setSpacing(2);
 		sideColumn->setSizeConstraint(QLayout::SetMinimumSize);
 
-		// [[BPR-1405]]. The merge state in a word, one short line per unmet
-		// condition, then who is waited on as roster rows. What the evidence
-		// cannot establish is said once, in the details.
-		sideColumn->addWidget(make_heading(QStringLiteral("Merge"), QStringLiteral("overviewMergeHeading"), side));
-		const auto makeMergeText = [&](const QString& aName) {
-			auto* label = new QLabel{ side };
+		// [[BPR-1589]]. RFC-BPR-0085 D7, the owner's "attention first": my role,
+		// then what needs me, my review, the checks and the people, each a
+		// section that opens in place to its details. Nothing is drawn to say
+		// 0, — or not available; each failed check is named in one place.
+		StatusNote = new QLabel{ side };
+		StatusNote->setObjectName(QStringLiteral("overviewStatusNote"));
+		StatusNote->setTextFormat(Qt::PlainText);
+		StatusNote->setWordWrap(true);
+		StatusNote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		StatusNote->setForegroundRole(QPalette::PlaceholderText);
+		StatusNote->hide();
+		sideColumn->addWidget(StatusNote);
+
+		const auto makeText = [](QWidget* const aOwner, const QString& aName) {
+			auto* label = new QLabel{ aOwner };
 			label->setObjectName(aName);
 			label->setTextFormat(Qt::PlainText);
 			label->setWordWrap(true);
 			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-			sideColumn->addWidget(label);
 			return label;
 		};
-		MergeState     = makeMergeText(QStringLiteral("overviewMergeState"));
-		auto stateFont = MergeState->font();
-		stateFont.setWeight(QFont::DemiBold);
-		MergeState->setFont(stateFont);
-		MergeConditions = makeMergeText(QStringLiteral("overviewMergeConditions"));
-		WaitingHeading  = make_heading(QStringLiteral("Waiting on"), QStringLiteral("overviewWaitingHeading"), side);
-		sideColumn->addSpacing(8);
-		sideColumn->addWidget(WaitingHeading);
-		Requests = new QVBoxLayout;
-		Requests->setContentsMargins(0, 0, 0, 0);
-		Requests->setSpacing(0);
-		sideColumn->addLayout(Requests);
-		RequestsNote = makeMergeText(QStringLiteral("overviewReviewRequestsNote"));
-		RequestsNote->setForegroundRole(QPalette::PlaceholderText);
-		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
-		RequirementDisclosure = new disclosure_button{ side };
-		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));
-		RequirementDisclosure->setText(QStringLiteral("Requirement details"));
-		RequirementDisclosure->setAccessibleDescription(QStringLiteral("Show applicable rule origins, approval restrictions and auto-merge observation"));
-		sideColumn->addSpacing(4);
-		sideColumn->addWidget(RequirementDisclosure);
-		RequirementDetails = makeMergeText(QStringLiteral("overviewRequirementDetails"));
-		RequirementDetails->setForegroundRole(QPalette::PlaceholderText);
-		RequirementDetails->hide();
-		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
-		sideColumn->addSpacing(12);
 
-		auto* const participantsHeading
-			= make_heading(QStringLiteral("Participants"), QStringLiteral("overviewParticipantsHeading"), side);
-		sideColumn->addWidget(participantsHeading);
-		Participants = new QVBoxLayout;
-		Participants->setContentsMargins(0, 0, 0, 0);
-		Participants->setSpacing(0);
-		sideColumn->addLayout(Participants);
+		// My role: my face and one line, the strongest role; the others, if
+		// any, in a faint line beneath.
+		RoleRow = new QWidget{ side };
+		RoleRow->setObjectName(QStringLiteral("overviewStatusRole"));
+		auto* const roleLayout = new QHBoxLayout{ RoleRow };
+		roleLayout->setContentsMargins(4, 4, 4, 6);
+		roleLayout->setSpacing(10);
+		RoleFace = new identity_avatar_view{ 24, RoleRow };
+		RoleFace->setObjectName(QStringLiteral("overviewRoleFace"));
+		roleLayout->addWidget(RoleFace, 0, Qt::AlignTop);
+		auto* const roleWords = new QVBoxLayout;
+		roleWords->setContentsMargins(0, 0, 0, 0);
+		roleWords->setSpacing(1);
+		RoleText      = makeText(RoleRow, QStringLiteral("overviewRoleText"));
+		auto roleFont = RoleText->font();
+		roleFont.setWeight(QFont::DemiBold);
+		RoleText->setFont(roleFont);
+		RoleAlso = makeText(RoleRow, QStringLiteral("overviewRoleAlso"));
+		RoleAlso->setForegroundRole(QPalette::PlaceholderText);
+		roleWords->addWidget(RoleText);
+		roleWords->addWidget(RoleAlso);
+		roleLayout->addLayout(roleWords, 1);
+		sideColumn->addWidget(RoleRow);
 
-		SinceHeading = make_heading(QStringLiteral("Since my last review"), QStringLiteral("overviewSinceHeading"), side);
-		sideColumn->addSpacing(12);
-		sideColumn->addWidget(SinceHeading);
-		const auto addValue = [this, side, sideColumn](const overview_value aValue) {
-			auto* const row       = new QWidget{ side };
+		struct section_layouts
+		{
+			QVBoxLayout* Body    = nullptr;
+			QVBoxLayout* Details = nullptr;
+		};
+		const auto makeSection = [this, side, sideColumn](const overview_status_section aSection, const QString& aTitle, const QString& aName) {
+			auto& parts  = Sections[static_cast<std::size_t>(aSection)];
+			parts.Frame  = new QWidget{ side };
+			auto* column = new QVBoxLayout{ parts.Frame };
+			column->setContentsMargins(0, 6, 0, 2);
+			column->setSpacing(2);
+			parts.Header = new drawer_section_header{ parts.Frame };
+			parts.Header->setObjectName(aName);
+			parts.Header->setText(aTitle);
+			parts.Header->setAccessibleName(aTitle);
+			column->addWidget(parts.Header);
+			auto* const body       = new QWidget{ parts.Frame };
+			auto* const bodyLayout = new QVBoxLayout{ body };
+			bodyLayout->setContentsMargins(4, 0, 4, 0);
+			bodyLayout->setSpacing(2);
+			column->addWidget(body);
+			parts.Details             = new QWidget{ parts.Frame };
+			auto* const detailsLayout = new QVBoxLayout{ parts.Details };
+			detailsLayout->setContentsMargins(4, 8, 4, 2);
+			detailsLayout->setSpacing(2);
+			parts.Details->hide();
+			column->addWidget(parts.Details);
+			sideColumn->addWidget(parts.Frame);
+			connect(parts.Header, &QToolButton::toggled, this, [this, aSection](const bool aOpen) {
+				Sections[static_cast<std::size_t>(aSection)].Details->setVisible(aOpen);
+				remember_sections();
+				if (aSection == overview_status_section::checks) {
+					present_attention();
+				}
+			});
+			return section_layouts{ bodyLayout, detailsLayout };
+		};
+		const auto addValue = [this](QVBoxLayout* const aColumn, const overview_value aValue) {
+			auto* const row       = new QWidget{ aColumn->parentWidget() };
 			auto* const rowLayout = new QHBoxLayout{ row };
-			rowLayout->setContentsMargins(0, 3, 0, 3);
+			rowLayout->setContentsMargins(0, 2, 0, 2);
 			auto* const name = new QLabel{ value_name(aValue), row };
 			name->setTextFormat(Qt::PlainText);
 			auto* const value = new QLabel{ row };
@@ -2712,50 +2750,125 @@ namespace bpr::qt {
 			value->setAccessibleName(value_name(aValue));
 			value->setTextFormat(Qt::PlainText);
 			value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-			if (aValue == overview_value::checks) {
-				value->setWordWrap(true);
-				value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			}
-			rowLayout->addWidget(name, aValue == overview_value::checks ? 0 : 1);
-			rowLayout->addWidget(value, aValue == overview_value::checks ? 1 : 0);
-			sideColumn->addWidget(row);
+			rowLayout->addWidget(name, 1);
+			rowLayout->addWidget(value, 0);
+			aColumn->addWidget(row);
 			Values[static_cast<std::size_t>(aValue)] = value;
 		};
-		addValue(overview_value::uploads);
-		addValue(overview_value::files_changed);
-		addValue(overview_value::new_comments);
-		addValue(overview_value::replies_to_me);
-		addValue(overview_value::my_unresolved_threads);
-		addValue(overview_value::checks);
 
-		auto* const myReviewHeading
-			= make_heading(QStringLiteral("My review"), QStringLiteral("overviewMyReviewHeading"), side);
-		sideColumn->addSpacing(12);
-		sideColumn->addWidget(myReviewHeading);
-		addValue(overview_value::files_read);
-		addValue(overview_value::private_notes);
-		addValue(overview_value::drafted_comments);
+		// Needs attention, opening to Merge's conditions and the requirement
+		// details. With nothing to attend to, it is Merge, and says its state.
+		const auto attention         = makeSection(overview_status_section::attention, QStringLiteral("Needs attention"), QStringLiteral("overviewAttentionSection"));
+		AttentionList                = attention.Body;
+		auto* const attentionDetails = Sections[static_cast<std::size_t>(overview_status_section::attention)].Details;
+		MergeState                   = makeText(attentionDetails, QStringLiteral("overviewMergeState"));
+		auto stateFont               = MergeState->font();
+		stateFont.setWeight(QFont::DemiBold);
+		MergeState->setFont(stateFont);
+		attention.Details->addWidget(MergeState);
+		MergeConditions = makeText(attentionDetails, QStringLiteral("overviewMergeConditions"));
+		attention.Details->addWidget(MergeConditions);
+		// [[BPR-1579]]. A disclosure bar drawn from the theme, not the style.
+		RequirementDisclosure = new disclosure_button{ attentionDetails };
+		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));
+		RequirementDisclosure->setText(QStringLiteral("Requirement details"));
+		RequirementDisclosure->setAccessibleDescription(QStringLiteral("Show applicable rule origins, approval restrictions and auto-merge observation"));
+		attention.Details->addSpacing(4);
+		attention.Details->addWidget(RequirementDisclosure);
+		RequirementDetails = makeText(attentionDetails, QStringLiteral("overviewRequirementDetails"));
+		RequirementDetails->setForegroundRole(QPalette::PlaceholderText);
+		RequirementDetails->hide();
+		attention.Details->addWidget(RequirementDetails);
+		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) { RequirementDetails->setVisible(aOpen); });
+
+		// My review: files read with a bar, my notes and pending comments, and
+		// the threads with posts I have not read, with Go to them. It opens to
+		// what happened since my last review that has a value.
+		const auto  myReview = makeSection(overview_status_section::my_review, QStringLiteral("My review"), QStringLiteral("overviewMyReviewSection"));
+		auto* const myBody   = myReview.Body->parentWidget();
+		addValue(myReview.Body, overview_value::files_read);
+		ReadMeter = new drawer_meter{ myBody };
+		ReadMeter->setObjectName(QStringLiteral("overviewReadMeter"));
+		myReview.Body->addWidget(ReadMeter);
+		myReview.Body->addSpacing(4);
+		addValue(myReview.Body, overview_value::private_notes);
+		addValue(myReview.Body, overview_value::drafted_comments);
+		NewThreadsRow = new QWidget{ myBody };
+		NewThreadsRow->setObjectName(QStringLiteral("overviewNewThreads"));
+		auto* const newLayout = new QHBoxLayout{ NewThreadsRow };
+		newLayout->setContentsMargins(0, 0, 0, 0);
+		NewThreadsText = new QLabel{ NewThreadsRow };
+		NewThreadsText->setObjectName(QStringLiteral("overviewNewThreadsText"));
+		NewThreadsText->setTextFormat(Qt::PlainText);
+		NewThreadsGo = new QToolButton{ NewThreadsRow };
+		NewThreadsGo->setObjectName(QStringLiteral("overviewGoToNewThreads"));
+		NewThreadsGo->setText(QStringLiteral("Go to them"));
+		NewThreadsGo->setAutoRaise(true);
+		NewThreadsGo->setCursor(Qt::PointingHandCursor);
+		NewThreadsGo->setToolTip(QStringLiteral("Open Threads with Only new on"));
+		newLayout->addWidget(NewThreadsText, 1);
+		newLayout->addWidget(NewThreadsGo, 0);
+		NewThreadsRow->hide();
+		myReview.Body->addWidget(NewThreadsRow);
+		connect(NewThreadsGo, &QToolButton::clicked, this, [this] {
+			if (NewThreadsDispatch) {
+				NewThreadsDispatch();
+			}
+		});
+		// The conversation's new comments, which open in Discuss. Hidden until
+		// the ledger keeps read state for comments that are not on a file.
+		NewConversationRow = new QWidget{ myBody };
+		NewConversationRow->setObjectName(QStringLiteral("overviewNewConversation"));
+		auto* const conversationLayout = new QHBoxLayout{ NewConversationRow };
+		conversationLayout->setContentsMargins(0, 0, 0, 0);
+		NewConversationText = new QLabel{ NewConversationRow };
+		NewConversationText->setObjectName(QStringLiteral("overviewNewConversationText"));
+		NewConversationText->setTextFormat(Qt::PlainText);
+		NewConversationGo = new QToolButton{ NewConversationRow };
+		NewConversationGo->setObjectName(QStringLiteral("overviewGoToNewConversation"));
+		NewConversationGo->setText(QStringLiteral("Go to them"));
+		NewConversationGo->setAutoRaise(true);
+		NewConversationGo->setCursor(Qt::PointingHandCursor);
+		NewConversationGo->setToolTip(QStringLiteral("Open Discuss on the pull request"));
+		conversationLayout->addWidget(NewConversationText, 1);
+		conversationLayout->addWidget(NewConversationGo, 0);
+		NewConversationRow->hide();
+		myReview.Body->addWidget(NewConversationRow);
+		connect(NewConversationGo, &QToolButton::clicked, this, [this] {
+			if (NewConversationDispatch) {
+				NewConversationDispatch();
+			}
+		});
+		SinceHeading = make_heading(QStringLiteral("Since my last review"), QStringLiteral("overviewSinceHeading"), Sections[static_cast<std::size_t>(overview_status_section::my_review)].Details);
+		myReview.Details->addWidget(SinceHeading);
+		addValue(myReview.Details, overview_value::uploads);
+		addValue(myReview.Details, overview_value::files_changed);
+		addValue(myReview.Details, overview_value::new_comments);
+		addValue(myReview.Details, overview_value::replies_to_me);
+		addValue(myReview.Details, overview_value::my_unresolved_threads);
 
 		// [[BPR-1588]]. No Start review: the owner, 2026-10-17, "Start review is
 		// probably unnecessary now that the Review tab is so convenient, and
 		// double-clicking a file or clicking Next file also works." Its one
 		// job, Review at the first unseen change, is the first entry into
 		// Review from here (`entry_path`).
-		ChecksDisclosure = new disclosure_button{ side };
-		ChecksDisclosure->setObjectName(QStringLiteral("overviewChecksDisclosure"));
-		ChecksDisclosure->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		sideColumn->addSpacing(12);
-		sideColumn->addWidget(ChecksDisclosure);
-		CheckDetails = new QWidget{ side };
-		CheckDetails->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		CheckDetails->setObjectName(QStringLiteral("overviewCheckDetails"));
-		auto* const checkColumn = new QVBoxLayout{ CheckDetails };
-		checkColumn->setContentsMargins(0, 0, 0, 0);
-		ChecksNote = new QLabel{ CheckDetails };
-		ChecksNote->setTextFormat(Qt::PlainText);
-		ChecksNote->setWordWrap(true);
-		ChecksNote->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		checkColumn->addWidget(ChecksNote);
+
+		// Checks: one bar and its counts, opening to every result, the selected
+		// result's card and Open check details (RFC-BPR-0068).
+		const auto checks      = makeSection(overview_status_section::checks, QStringLiteral("Checks"), QStringLiteral("overviewChecksDisclosure"));
+		ChecksDisclosure       = Sections[static_cast<std::size_t>(overview_status_section::checks)].Header;
+		CheckDetails           = Sections[static_cast<std::size_t>(overview_status_section::checks)].Details;
+		auto* const checksBody = checks.Body->parentWidget();
+		ChecksMeter            = new drawer_meter{ checksBody };
+		ChecksMeter->setObjectName(QStringLiteral("overviewChecksMeter"));
+		checks.Body->addWidget(ChecksMeter);
+		auto* const checksValue = makeText(checksBody, value_object_name(overview_value::checks));
+		checksValue->setAccessibleName(value_name(overview_value::checks));
+		checks.Body->addWidget(checksValue);
+		Values[static_cast<std::size_t>(overview_value::checks)] = checksValue;
+		ChecksNote                                               = makeText(CheckDetails, QStringLiteral("overviewChecksNote"));
+		ChecksNote->setForegroundRole(QPalette::PlaceholderText);
+		checks.Details->addWidget(ChecksNote);
 		CheckList = new QTreeWidget{ CheckDetails };
 		CheckList->setObjectName(QStringLiteral("overviewCheckList"));
 		CheckList->setAccessibleName(QStringLiteral("Check results"));
@@ -2767,26 +2880,45 @@ namespace bpr::qt {
 		CheckList->header()->setSectionResizeMode(QHeaderView::Stretch);
 		CheckList->setMinimumWidth(0);
 		CheckList->setFixedHeight(180);
-		checkColumn->addWidget(CheckList);
-		CheckHeading = new QLabel{ CheckDetails };
-		CheckHeading->setObjectName(QStringLiteral("overviewSelectedCheck"));
-		CheckHeading->setTextFormat(Qt::PlainText);
-		CheckHeading->setWordWrap(true);
-		CheckHeading->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		checkColumn->addWidget(CheckHeading);
+		checks.Details->addWidget(CheckList);
+		CheckHeading = makeText(CheckDetails, QStringLiteral("overviewSelectedCheck"));
+		checks.Details->addWidget(CheckHeading);
 		CheckDescription = new QPlainTextEdit{ CheckDetails };
 		CheckDescription->setObjectName(QStringLiteral("overviewCheckDescription"));
 		CheckDescription->setAccessibleName(QStringLiteral("Check explanation"));
 		CheckDescription->setReadOnly(true);
 		CheckDescription->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 		CheckDescription->setFixedHeight(140);
-		checkColumn->addWidget(CheckDescription);
+		checks.Details->addWidget(CheckDescription);
 		CheckOpen = new QPushButton{ QStringLiteral("Open check details"), CheckDetails };
 		CheckOpen->setObjectName(QStringLiteral("overviewOpenCheck"));
 		CheckOpen->setAccessibleName(QStringLiteral("Open check details"));
-		checkColumn->addWidget(CheckOpen);
-		sideColumn->addWidget(CheckDetails);
-		connect(ChecksDisclosure, &QToolButton::toggled, this, [this](const bool aOpen) { CheckDetails->setVisible(aOpen); });
+		checks.Details->addWidget(CheckOpen, 0, Qt::AlignLeft);
+
+		// People: faces with their standing and one line, opening to the
+		// roster with each person's request, review and code-owner marking.
+		const auto  people     = makeSection(overview_status_section::people, QStringLiteral("People"), QStringLiteral("overviewPeopleSection"));
+		auto* const peopleBody = people.Body->parentWidget();
+		auto* const facesRow   = new QHBoxLayout;
+		facesRow->setContentsMargins(0, 2, 0, 2);
+		facesRow->setSpacing(10);
+		Faces = new overview_faces{ peopleBody };
+		facesRow->addWidget(Faces, 0);
+		PeopleSummary = makeText(peopleBody, QStringLiteral("overviewPeopleSummary"));
+		PeopleSummary->setForegroundRole(QPalette::PlaceholderText);
+		facesRow->addWidget(PeopleSummary, 1);
+		people.Body->addLayout(facesRow);
+		Participants = new QVBoxLayout;
+		Participants->setContentsMargins(0, 0, 0, 0);
+		Participants->setSpacing(0);
+		people.Details->addLayout(Participants);
+		Requests = new QVBoxLayout;
+		Requests->setContentsMargins(0, 0, 0, 0);
+		Requests->setSpacing(0);
+		people.Details->addLayout(Requests);
+		RequestsNote = makeText(Sections[static_cast<std::size_t>(overview_status_section::people)].Details, QStringLiteral("overviewReviewRequestsNote"));
+		RequestsNote->setForegroundRole(QPalette::PlaceholderText);
+		people.Details->addWidget(RequestsNote);
 		connect(CheckList, &QTreeWidget::currentItemChanged, this, [this] { present_selected_check(); });
 		connect(CheckOpen, &QPushButton::clicked, this, [this] {
 			if (!Projection || !CheckList->currentItem() || !CheckLinkDispatch) {
@@ -2925,35 +3057,25 @@ namespace bpr::qt {
 		rebuild_participants(aProjection.Participants);
 
 		apply_history({ .Known = since.Known, .ReviewedAt = since.ReviewedAt, .Uploads = since.Uploads });
-		const auto countOr = [](const std::optional<std::size_t>& aCount, const QString& aAbsent) {
-			return aCount.has_value() ? count_text(*aCount) : aAbsent;
-		};
+		// [[BPR-1589]]. What happened since my last review, in My review's
+		// details: a fact with no value is not drawn.
 		set_value(overview_value::files_changed,
-				  since.Known ? countOr(since.FilesChanged, QStringLiteral("not yet resolved")) : QStringLiteral("—"),
+				  since.FilesChanged.has_value() ? count_text(*since.FilesChanged) : QStringLiteral("not yet resolved"),
 				  since.FilesChanged.value_or(0U) != 0U);
-		set_value(overview_value::new_comments,
-				  countOr(since.NewComments, QStringLiteral("not available")),
-				  since.NewComments.value_or(0U) != 0U);
+		show_value(overview_value::files_changed, since.Known && since.FilesChanged.value_or(1U) != 0U);
+		set_value(overview_value::new_comments, count_text(since.NewComments.value_or(0U)), since.NewComments.value_or(0U) != 0U);
+		show_value(overview_value::new_comments, since.NewComments.value_or(0U) != 0U);
 		set_value(overview_value::replies_to_me, count_text(since.RepliesToMe), since.RepliesToMe != 0U);
+		show_value(overview_value::replies_to_me, since.RepliesToMe != 0U);
 		set_value(overview_value::my_unresolved_threads, count_text(since.MyUnresolvedThreads), false);
-		set_value(overview_value::checks, checks_text(aProjection.Checks), aProjection.Checks.Failed != 0U);
+		show_value(overview_value::my_unresolved_threads, since.MyUnresolvedThreads != 0U);
 		present_checks(samePullRequest);
 		present_merge(aProjection);
 		if (!samePullRequest) {
 			RequirementDisclosure->setChecked(false);
 		}
 		RequirementDetails->setVisible(RequirementDisclosure->isChecked());
-		set_value(overview_value::files_read,
-				  QStringLiteral("%1 of %2").arg(count_text(aProjection.Progress.FilesRead), count_text(aProjection.Progress.FilesTotal)),
-				  false);
-		set_value(overview_value::private_notes, count_text(aProjection.Progress.PrivateNotes), false);
-		set_value(overview_value::drafted_comments,
-				  aProjection.Progress.DraftedComments.has_value()
-					  ? (*aProjection.Progress.DraftedComments == 0U
-							 ? QStringLiteral("none")
-							 : QStringLiteral("%1 unpublished").arg(count_text(*aProjection.Progress.DraftedComments)))
-					  : QStringLiteral("not available"),
-				  false);
+		present_status(samePullRequest);
 
 		apply_pending();
 	}
@@ -2966,19 +3088,22 @@ namespace bpr::qt {
 	void pull_request_overview_page::present_checks(const bool aSamePullRequest)
 	{
 		const auto& shown = *Projection;
-		ChecksDisclosure->show();
-		auto summary = checks_text(shown.Checks);
+		// [[BPR-1589]]. One bar of passed, failed and skipped, and their counts;
+		// a pull request with no results draws no Checks at all.
+		Sections[static_cast<std::size_t>(overview_status_section::checks)].Frame->setVisible(!shown.CheckRows.empty() || shown.Checks.total() != 0U);
+		auto summary = shown.Checks.total() == 0U ? QStringLiteral("No results yet") : checks_text(shown.Checks);
 		if (!shown.ChecksComplete) {
-			summary = shown.CheckRows.empty() ? QStringLiteral("unavailable") : summary + QStringLiteral(" (partial)");
+			summary += QStringLiteral(" (partial)");
 		}
-		set_value(overview_value::checks, summary, shown.Checks.Failed != 0U);
-		auto disclosure = QStringLiteral("Check details");
-		if (shown.Checks.Failed != 0U) {
-			disclosure += QStringLiteral(": %1 failed").arg(count_text(shown.Checks.Failed));
-		}
-		ChecksDisclosure->setText(disclosure);
-		ChecksDisclosure->setAccessibleName(disclosure);
-		ChecksDisclosure->setAccessibleDescription(QStringLiteral("Expand to identify and inspect check results"));
+		set_value(overview_value::checks, summary, false);
+		const auto& tally = shown.Checks;
+		ChecksMeter->set_segments({ { static_cast<double>(tally.Passed), Colours.Accepted },
+									{ static_cast<double>(tally.Failed), Colours.Defect },
+									{ static_cast<double>(tally.Pending), Colours.Caution } },
+								  static_cast<double>(tally.total()));
+		ChecksMeter->setAccessibleName(QStringLiteral("Checks: %1").arg(summary));
+		ChecksDisclosure->set_count(tally.total() == 0U ? QString{ } : count_text(tally.total()));
+		ChecksDisclosure->setAccessibleName(QStringLiteral("Checks: %1").arg(summary));
 		ChecksNote->setText(text(shown.ChecksNote));
 		ChecksNote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		const auto           selected = aSamePullRequest && CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString() : QString{ };
@@ -3021,10 +3146,10 @@ namespace bpr::qt {
 		} else if (CheckList->topLevelItemCount() != 0) {
 			CheckList->setCurrentItem(CheckList->topLevelItem(0));
 		}
+		// The list is as tall as its results, up to 180 pixels, then scrolls.
+		const auto listed = CheckList->topLevelItemCount() == 0 ? 0 : CheckList->sizeHintForRow(0) * CheckList->topLevelItemCount();
+		CheckList->setFixedHeight(std::clamp(listed + (2 * CheckList->frameWidth()) + 4, 48, 180));
 		CheckList->verticalScrollBar()->setValue(scroll);
-		if (!aSamePullRequest) {
-			ChecksDisclosure->setChecked(shown.Checks.Failed != 0U);
-		}
 		CheckDetails->setVisible(ChecksDisclosure->isChecked());
 		present_selected_check();
 	}
@@ -3050,6 +3175,9 @@ namespace bpr::qt {
 		if (CheckDescription->toPlainText() != description) {
 			CheckDescription->setPlainText(description);
 		}
+		// As tall as its explanation, up to 140 pixels, then it scrolls.
+		const auto lines = static_cast<int>(std::ceil(CheckDescription->document()->size().height()));
+		CheckDescription->setFixedHeight(std::clamp((std::max(lines, 2) * CheckDescription->fontMetrics().lineSpacing()) + (2 * CheckDescription->frameWidth()) + 12, 48, 140));
 		CheckOpen->setEnabled(row->LinkAvailable);
 		CheckOpen->setToolTip(row->LinkAvailable ? QStringLiteral("Open the supplied destination in your browser") : QStringLiteral("No admitted detail destination"));
 	}
@@ -3085,9 +3213,8 @@ namespace bpr::qt {
 		} else {
 			SinceHeading->setText(QStringLiteral("Since my last review"));
 		}
-		set_value(overview_value::uploads,
-				  since.Known ? (since.Uploads ? count_text(*since.Uploads) : QStringLiteral("not retained")) : QStringLiteral("—"),
-				  since.Uploads.value_or(0U) != 0U);
+		set_value(overview_value::uploads, count_text(since.Uploads.value_or(0U)), since.Uploads.value_or(0U) != 0U);
+		show_value(overview_value::uploads, since.Known && since.Uploads.value_or(0U) != 0U);
 	}
 
 	void pull_request_overview_page::apply_receipts(const application::overview_receipt_update& aUpdate)
@@ -3103,9 +3230,7 @@ namespace bpr::qt {
 		Model->update_rows(aUpdate.Rows);
 		FileColumns->apply();
 		present_files_heading(*Projection);
-		set_value(overview_value::files_read,
-				  QStringLiteral("%1 of %2").arg(count_text(Projection->Progress.FilesRead), count_text(Projection->Progress.FilesTotal)),
-				  false);
+		present_my_review();
 	}
 
 	void pull_request_overview_page::clear()
@@ -3114,7 +3239,6 @@ namespace bpr::qt {
 		Projection.reset();
 		MergeState->hide();
 		MergeConditions->hide();
-		WaitingHeading->hide();
 		RequestsNote->hide();
 		while (Requests->count() != 0) {
 			auto* const item = Requests->takeAt(0);
@@ -3123,8 +3247,7 @@ namespace bpr::qt {
 		}
 		RequirementDisclosure->hide();
 		RequirementDetails->hide();
-		ChecksDisclosure->hide();
-		CheckDetails->hide();
+		hide_status();
 		CheckItems.clear();
 		CheckList->clear();
 		CheckDescription->clear();
@@ -3163,7 +3286,7 @@ namespace bpr::qt {
 		SinceHeading->setText(QStringLiteral("Since my last review"));
 		for (auto* const value : Values) {
 			if (value != nullptr) {
-				value->setText(QStringLiteral("—"));
+				value->clear();
 				value->setForegroundRole(QPalette::PlaceholderText);
 			}
 		}
@@ -3330,6 +3453,10 @@ namespace bpr::qt {
 			none->setWordWrap(true);
 			none->setText(QStringLiteral("Participants unavailable offline"));
 		}
+		// [[BPR-1589]]. Offline the Status drawer has nothing current to say,
+		// and says that once.
+		StatusNote->setText(QStringLiteral("My role, checks and people are unavailable offline. Open this pull request again to retry."));
+		StatusNote->show();
 		apply_pending();
 	}
 
@@ -4313,8 +4440,10 @@ namespace bpr::qt {
 		MergeState->setAccessibleName(QStringLiteral("Merge state: %1").arg(MergeState->text()));
 		MergeState->show();
 
+		// [[BPR-1589]]. Each failed check is named in Needs attention; the
+		// details carry Merge's other conditions.
 		auto conditions = QStringList{ };
-		for (const auto& condition : aProjection.MergeConditions) {
+		for (const auto& condition : aProjection.Status.OpenConditions) {
 			conditions.push_back(text(condition));
 		}
 		MergeConditions->setText(conditions.join(QLatin1Char{ '\n' }));
@@ -4337,7 +4466,6 @@ namespace bpr::qt {
 		RequestsNote->setText(text(aProjection.ReviewRequestsNote));
 		RequestsNote->setAccessibleName(RequestsNote->text());
 		RequestsNote->setVisible(!aProjection.ReviewRequestsNote.empty());
-		WaitingHeading->setVisible(!aProjection.ReviewRequests.empty() || !aProjection.ReviewRequestsNote.empty());
 
 		RequirementDetails->setText(text(aProjection.RequirementDetails));
 		RequirementDetails->setAccessibleName(RequirementDetails->text());
@@ -4395,5 +4523,466 @@ namespace bpr::qt {
 			none->setForegroundRole(QPalette::PlaceholderText);
 			Participants->addWidget(none);
 		}
+	}
+	// ---- [[BPR-1589]] the Status drawer's content -----------------------------
+
+	namespace {
+		[[nodiscard]] auto plural(const std::size_t aCount, const QString& aOne, const QString& aMany) -> QString
+		{
+			return aCount == 1U ? aOne : aMany.arg(count_text(aCount));
+		}
+
+		/// \brief Names in order: one, two joined by "and", or the first two
+		/// and how many more.
+		[[nodiscard]] auto name_list(const std::vector<std::string>& aNames) -> QString
+		{
+			if (aNames.empty()) {
+				return { };
+			}
+			if (aNames.size() == 1U) {
+				return text(aNames.front());
+			}
+			if (aNames.size() == 2U) {
+				return QStringLiteral("%1 and %2").arg(text(aNames[0]), text(aNames[1]));
+			}
+			return QStringLiteral("%1, %2 and %3 more").arg(text(aNames[0]), text(aNames[1]), count_text(aNames.size() - 2U));
+		}
+
+		[[nodiscard]] auto review_words(const core::my_review_state aState) -> QString
+		{
+			switch (aState) {
+			case core::my_review_state::approved:
+				return QStringLiteral("You approved");
+			case core::my_review_state::changes_requested:
+				return QStringLiteral("You requested changes");
+			case core::my_review_state::dismissed:
+				return QStringLiteral("Your review was dismissed");
+			case core::my_review_state::commented:
+				break;
+			}
+			return QStringLiteral("You reviewed with comments");
+		}
+
+		/// \brief One role as a sentence. It never says my review is required:
+		/// a code owner's request is named as GitHub marks it (RFC-BPR-0069).
+		[[nodiscard]] auto role_sentence(const core::review_role& aRole) -> QString
+		{
+			switch (aRole.Kind) {
+			case core::review_role_kind::author:
+				return QStringLiteral("You are the author");
+			case core::review_role_kind::requested:
+				return aRole.CodeOwner ? QStringLiteral("Review requested from you as a code owner") : QStringLiteral("Review requested from you");
+			case core::review_role_kind::team_requested: {
+				auto sentence = QStringLiteral("Review requested from %1").arg(name_list(aRole.Teams));
+				if (aRole.CodeOwner) {
+					sentence += QStringLiteral(" as code owners");
+				}
+				return aRole.MembershipObserved ? sentence : sentence + QStringLiteral("; you may be a member");
+			}
+			case core::review_role_kind::reviewed:
+				return aRole.Review ? review_words(*aRole.Review) : QStringLiteral("You reviewed");
+			case core::review_role_kind::mentioned:
+				break;
+			}
+			return aRole.Mention == core::mention_place::description ? QStringLiteral("You are mentioned in the description") : QStringLiteral("You are mentioned in a comment");
+		}
+	} // namespace
+
+	overview_faces::overview_faces(QWidget* const aParent)
+		: QWidget{ aParent }
+	{
+		setObjectName(QStringLiteral("overviewPeopleFaces"));
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	}
+
+	namespace {
+		constexpr int face_side  = 22;
+		constexpr int face_step  = 26;
+		constexpr int most_faces = 8;
+	} // namespace
+
+	void overview_faces::set_faces(std::vector<overview_face> aFaces)
+	{
+		if (Faces == aFaces) {
+			return;
+		}
+		Faces = std::move(aFaces);
+		updateGeometry();
+		update();
+	}
+
+	auto overview_faces::faces() const -> const std::vector<overview_face>&
+	{
+		return Faces;
+	}
+
+	auto overview_faces::sizeHint() const -> QSize
+	{
+		const auto shown = static_cast<int>(std::min<std::size_t>(Faces.size(), most_faces));
+		return QSize{ shown == 0 ? 0 : ((shown - 1) * face_step) + face_side + 2, face_side + 4 };
+	}
+
+	auto overview_faces::minimumSizeHint() const -> QSize
+	{
+		return sizeHint();
+	}
+
+	void overview_faces::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto grounds = identity_avatar_grounds_of(palette());
+		auto       left    = 1.0;
+		for (std::size_t index = 0U; index < Faces.size() && index < most_faces; ++index) {
+			const auto& face = Faces[index];
+			const auto  box  = QRectF{ left, 2.0, static_cast<qreal>(face_side), static_cast<qreal>(face_side) };
+			paint_identity_avatar(painter, box, { .Identity = face.Identity, .InitialsFrom = face.InitialsFrom, .Shape = face.Team ? identity_avatar_shape::group : identity_avatar_shape::person }, grounds, font());
+			if (face.Badge.isValid()) {
+				// The standing's mark at the corner, cut from the drawer's ground.
+				const auto mark = QRectF{ box.right() - 7.0, box.bottom() - 7.0, 9.0, 9.0 };
+				painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::AlternateBase), 2.0 });
+				painter.setBrush(face.Badge);
+				painter.drawEllipse(mark);
+			}
+			left += face_step;
+		}
+	}
+
+	auto pull_request_overview_page::status_section_header(const overview_status_section aSection) const noexcept -> drawer_section_header*
+	{
+		return Sections[static_cast<std::size_t>(aSection)].Header;
+	}
+
+	auto pull_request_overview_page::status_section(const overview_status_section aSection) const noexcept -> QWidget*
+	{
+		return Sections[static_cast<std::size_t>(aSection)].Frame;
+	}
+
+	auto pull_request_overview_page::role_label() const noexcept -> QLabel*
+	{
+		return RoleText;
+	}
+
+	auto pull_request_overview_page::other_roles_label() const noexcept -> QLabel*
+	{
+		return RoleAlso;
+	}
+
+	auto pull_request_overview_page::people_faces() const noexcept -> overview_faces*
+	{
+		return Faces;
+	}
+
+	auto pull_request_overview_page::people_summary() const noexcept -> QLabel*
+	{
+		return PeopleSummary;
+	}
+
+	auto pull_request_overview_page::new_threads_button() const noexcept -> QToolButton*
+	{
+		return NewThreadsGo;
+	}
+
+	auto pull_request_overview_page::new_threads() const noexcept -> std::size_t
+	{
+		return NewThreads;
+	}
+
+	void pull_request_overview_page::set_new_threads_dispatch(std::function<void()> aDispatch)
+	{
+		NewThreadsDispatch = std::move(aDispatch);
+	}
+
+	auto pull_request_overview_page::new_conversation_button() const noexcept -> QToolButton*
+	{
+		return NewConversationGo;
+	}
+
+	void pull_request_overview_page::set_new_conversation_dispatch(std::function<void()> aDispatch)
+	{
+		NewConversationDispatch = std::move(aDispatch);
+	}
+
+	void pull_request_overview_page::set_new_conversation_comments(const std::optional<std::size_t> aCount)
+	{
+		NewConversation = aCount;
+		present_my_review();
+	}
+
+	void pull_request_overview_page::set_new_threads(const std::size_t aCount)
+	{
+		NewThreads = aCount;
+		present_my_review();
+	}
+
+	auto pull_request_overview_page::attention_rows() const -> QStringList
+	{
+		auto rows = QStringList{ };
+		for (int index = 0; index < AttentionList->count(); ++index) {
+			if (auto* const row = AttentionList->itemAt(index)->widget(); row != nullptr && !row->isHidden()) {
+				rows.push_back(row->property("statusText").toString());
+			}
+		}
+		return rows;
+	}
+
+	void pull_request_overview_page::show_value(const overview_value aValue, const bool aShown)
+	{
+		if (auto* const label = Values[static_cast<std::size_t>(aValue)]; label != nullptr && label->parentWidget() != nullptr) {
+			label->parentWidget()->setVisible(aShown);
+		}
+	}
+
+	void pull_request_overview_page::hide_status()
+	{
+		StatusNote->hide();
+		RoleRow->hide();
+		for (const auto& section : Sections) {
+			section.Frame->hide();
+		}
+		NewThreadsRow->hide();
+		NewConversationRow->hide();
+	}
+
+	void pull_request_overview_page::remember_sections()
+	{
+		if (SectionKey.isEmpty()) {
+			return;
+		}
+		auto open = std::uint8_t{ 0U };
+		for (std::size_t index = 0U; index < overview_status_section_count; ++index) {
+			if (Sections[index].Header->isChecked()) {
+				open = static_cast<std::uint8_t>(open | (1U << index));
+			}
+		}
+		SectionMemory.insert(SectionKey, open);
+	}
+
+	void pull_request_overview_page::present_status(const bool aSamePullRequest)
+	{
+		const auto& shown  = *Projection;
+		const auto& status = shown.Status;
+		StatusNote->hide();
+		if (!aSamePullRequest) {
+			// A disclosure remembers its state for the pull request in this
+			// window; another pull request opens as it was left, or closed.
+			SectionKey       = QStringLiteral("%1/%2#%3").arg(text(shown.Owner), text(shown.RepositoryName), QString::number(shown.Number.value()));
+			const auto open  = SectionMemory.value(SectionKey, 0U);
+			const auto saved = SectionKey;
+			SectionKey.clear();
+			for (std::size_t index = 0U; index < overview_status_section_count; ++index) {
+				Sections[index].Header->setChecked((open & (1U << index)) != 0U);
+				Sections[index].Details->setVisible(Sections[index].Header->isChecked());
+			}
+			SectionKey = saved;
+		}
+
+		// My role: the strongest leads, the others follow faintly.
+		RoleRow->setVisible(status.Roles.ViewerKnown);
+		if (status.Roles.ViewerKnown) {
+			const auto viewer = std::ranges::find_if(shown.Participants, &application::overview_participant::Viewer);
+			RoleFace->set_identity(viewer != shown.Participants.end() ? text(viewer->Login) : text(status.Viewer));
+			const auto& roles = status.Roles.Roles;
+			RoleText->setText(roles.empty() ? QStringLiteral("No role in this review") : role_sentence(roles.front()));
+			auto others = QStringList{ };
+			for (std::size_t index = 1U; index < roles.size(); ++index) {
+				// "You approved" leads; after "Also:" it reads "you approved".
+				auto sentence = role_sentence(roles[index]);
+				if (sentence.startsWith(QStringLiteral("You")) || sentence.startsWith(QStringLiteral("Review"))) {
+					sentence[0] = sentence[0].toLower();
+				}
+				others.push_back(sentence);
+			}
+			RoleAlso->setText(others.isEmpty() ? QString{ } : QStringLiteral("Also: %1").arg(others.join(QStringLiteral("; "))));
+			RoleAlso->setVisible(!others.isEmpty());
+			RoleRow->setAccessibleName(QStringLiteral("My role: %1").arg(others.isEmpty() ? RoleText->text() : RoleText->text() + QStringLiteral(". ") + RoleAlso->text()));
+		}
+		for (auto section : { overview_status_section::attention, overview_status_section::my_review, overview_status_section::people }) {
+			Sections[static_cast<std::size_t>(section)].Frame->show();
+		}
+		present_attention();
+		present_my_review();
+		present_people();
+	}
+
+	void pull_request_overview_page::present_attention()
+	{
+		if (!Projection) {
+			return;
+		}
+		const auto& shown  = *Projection;
+		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::attention)].Header;
+		while (AttentionList->count() != 0) {
+			auto* const item = AttentionList->takeAt(0);
+			delete item->widget();
+			delete item;
+		}
+		const auto& items = shown.Status.Attention;
+		if (items.empty()) {
+			// Nothing needs me: the section is Merge, and says its state.
+			header->setText(QStringLiteral("Merge"));
+			header->set_count(text(shown.MergeState));
+			header->setAccessibleName(QStringLiteral("Merge: %1").arg(text(shown.MergeState)));
+			return;
+		}
+		header->setText(QStringLiteral("Needs attention"));
+		header->set_count(count_text(items.size()));
+		header->setAccessibleName(QStringLiteral("Needs attention: %1").arg(plural(items.size(), QStringLiteral("1 item"), QStringLiteral("%1 items"))));
+		// Each failed check is named once: here, unless Checks is open and
+		// lists them.
+		const auto checksOpen = Sections[static_cast<std::size_t>(overview_status_section::checks)].Header->isChecked()
+			&& !Sections[static_cast<std::size_t>(overview_status_section::checks)].Frame->isHidden();
+		auto* const parent = AttentionList->parentWidget();
+		const auto  faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		for (const auto& item : items) {
+			auto title  = QString{ };
+			auto detail = QString{ };
+			auto tone   = faint;
+			switch (item.Kind) {
+			case core::status_attention_kind::conflicts:
+				title  = QStringLiteral("Conflicts with %1").arg(text(shown.BaseRef));
+				detail = QStringLiteral("GitHub cannot merge until they are resolved");
+				tone   = Colours.Defect;
+				break;
+			case core::status_attention_kind::failed_checks:
+				title = plural(item.Count, QStringLiteral("1 check failed"), QStringLiteral("%1 checks failed"));
+				if (!checksOpen) {
+					auto names = QStringList{ };
+					for (const auto& name : item.Names) {
+						names.push_back(text(name));
+					}
+					detail = names.join(QStringLiteral(", "));
+				}
+				tone = Colours.Defect;
+				break;
+			case core::status_attention_kind::waiting_on: {
+				title            = QStringLiteral("Waiting on %1").arg(name_list(item.Names));
+				const auto owner = std::ranges::any_of(shown.ReviewRequests, [&](const application::overview_review_request& aRequest) {
+					return aRequest.CodeOwner && std::ranges::contains(item.Names, aRequest.Name);
+				});
+				detail           = owner ? QStringLiteral("Code-owner review requested") : plural(item.Count, QStringLiteral("Review requested"), QStringLiteral("%1 reviews requested"));
+				break;
+			}
+			case core::status_attention_kind::replies_to_me:
+				title = plural(item.Count, QStringLiteral("1 reply to you"), QStringLiteral("%1 replies to you"));
+				tone  = Colours.Unread;
+				break;
+			}
+			// One wrapping label: the tone's dot hangs beside the title and its
+			// second line, so a long line wraps under its own text.
+			const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
+			auto       html = QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\"><tr><td width=\"16\" valign=\"top\"><span style=\"color:%1\">&#9679;</span></td>"
+											 "<td valign=\"top\"><span style=\"color:%2\">%3</span>")
+								  .arg(tone.name(), ink.name(), title.toHtmlEscaped());
+			if (!detail.isEmpty()) {
+				html += QStringLiteral("<br><span style=\"color:%1\">%2</span>").arg(faint.name(), detail.toHtmlEscaped());
+			}
+			html += QStringLiteral("</td></tr></table>");
+			auto* const row = new QLabel{ parent };
+			row->setObjectName(QStringLiteral("overviewAttentionRow"));
+			row->setTextFormat(Qt::RichText);
+			row->setText(html);
+			row->setWordWrap(true);
+			row->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			row->setContentsMargins(0, 2, 0, 2);
+			row->setProperty("statusText", detail.isEmpty() ? title : title + QLatin1Char{ '\n' } + detail);
+			row->setAccessibleName(detail.isEmpty() ? title : title + QStringLiteral(": ") + detail);
+			AttentionList->addWidget(row);
+		}
+	}
+
+	void pull_request_overview_page::present_my_review()
+	{
+		if (!Projection) {
+			NewThreadsRow->hide();
+			NewConversationRow->hide();
+			return;
+		}
+		const auto& progress = Projection->Progress;
+		set_value(overview_value::files_read, QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)), false);
+		show_value(overview_value::files_read, progress.FilesTotal != 0U);
+		ReadMeter->set_segments({ { static_cast<double>(progress.FilesRead), Colours.Accepted } }, static_cast<double>(progress.FilesTotal));
+		ReadMeter->setAccessibleName(QStringLiteral("%1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+		ReadMeter->setVisible(progress.FilesTotal != 0U);
+		set_value(overview_value::private_notes, count_text(progress.PrivateNotes), false);
+		show_value(overview_value::private_notes, progress.PrivateNotes != 0U);
+		set_value(overview_value::drafted_comments, count_text(progress.DraftedComments.value_or(0U)), false);
+		show_value(overview_value::drafted_comments, progress.DraftedComments.value_or(0U) != 0U);
+		NewThreadsText->setText(plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts")));
+		NewThreadsGo->setAccessibleName(QStringLiteral("Go to the %1").arg(NewThreadsText->text()));
+		auto unread = palette();
+		unread.setColor(QPalette::WindowText, Colours.Unread);
+		NewThreadsText->setPalette(unread);
+		for (auto* const go : { NewThreadsGo, NewConversationGo }) {
+			auto link = go->palette();
+			link.setColor(QPalette::ButtonText, Colours.Unread);
+			go->setPalette(link);
+		}
+		NewThreadsRow->setVisible(NewThreads != 0U);
+		const auto conversation = NewConversation.value_or(0U);
+		NewConversationText->setText(plural(conversation, QStringLiteral("1 new comment in the conversation"), QStringLiteral("%1 new comments in the conversation")));
+		NewConversationText->setPalette(unread);
+		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(NewConversationText->text()));
+		NewConversationRow->setVisible(conversation != 0U);
+		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
+		header->set_count(progress.FilesTotal == 0U ? QString{ } : QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+		header->setAccessibleName(QStringLiteral("My review: %1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+	}
+
+	void pull_request_overview_page::present_people()
+	{
+		const auto& shown = *Projection;
+		auto        faces = std::vector<overview_face>{ };
+		auto        tally = std::array<std::size_t, 3>{ };
+		for (const auto& person : shown.Participants) {
+			auto face = overview_face{ .Identity = text(person.Login) };
+			switch (person.Signoff) {
+			case application::overview_signoff::approved:
+				face.Badge = Colours.Accepted;
+				++tally[0];
+				break;
+			case application::overview_signoff::changes_requested:
+				face.Badge = Colours.Defect;
+				++tally[1];
+				break;
+			case application::overview_signoff::commented:
+				++tally[2];
+				break;
+			case application::overview_signoff::none:
+			case application::overview_signoff::uploaded:
+			case application::overview_signoff::dismissed:
+			case application::overview_signoff::pending:
+				break;
+			}
+			faces.push_back(std::move(face));
+		}
+		for (const auto& request : shown.ReviewRequests) {
+			const auto identity = text(request.Name);
+			faces.push_back({ .Identity = identity, .InitialsFrom = request.Team ? identity.mid(identity.indexOf(QLatin1Char{ '/' }) + 1) : QString{ }, .Team = request.Team });
+		}
+		Faces->set_faces(std::move(faces));
+		auto words = QStringList{ };
+		if (tally[0] != 0U) {
+			words.push_back(QStringLiteral("%1 approved").arg(count_text(tally[0])));
+		}
+		if (tally[1] != 0U) {
+			words.push_back(QStringLiteral("%1 requested changes").arg(count_text(tally[1])));
+		}
+		if (tally[2] != 0U) {
+			words.push_back(QStringLiteral("%1 commented").arg(count_text(tally[2])));
+		}
+		if (!shown.ReviewRequests.empty()) {
+			words.push_back(QStringLiteral("%1 requested").arg(count_text(shown.ReviewRequests.size())));
+		}
+		if (words.isEmpty()) {
+			words.push_back(plural(shown.Participants.size(), QStringLiteral("1 person"), QStringLiteral("%1 people")));
+		}
+		PeopleSummary->setText(words.join(QStringLiteral(", ")));
+		Faces->setAccessibleName(QStringLiteral("People: %1").arg(PeopleSummary->text()));
+		const auto  people = shown.Participants.size() + shown.ReviewRequests.size();
+		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::people)].Header;
+		header->set_count(count_text(people));
+		header->setAccessibleName(QStringLiteral("People: %1").arg(PeopleSummary->text()));
 	}
 } // namespace bpr::qt

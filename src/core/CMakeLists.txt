@@ -84,6 +84,7 @@ add_library(
         src/private_thread_lineage.cpp
         src/review_ledger.cpp
         src/file_progress_mark.cpp
+        src/review_role.cpp
         src/review_queue.cpp
         src/release_update.cpp
         src/release_maintenance.cpp

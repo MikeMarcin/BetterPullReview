@@ -6,11 +6,14 @@
 #include <QIcon>
 #include <QString>
 #include <QStringList>
+#include <QToolButton>
 #include <QWidget>
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <utility>
+#include <vector>
 
 class QAction;
 class QEnterEvent;
@@ -20,7 +23,6 @@ class QPainter;
 class QPaintEvent;
 class QResizeEvent;
 class QTabBar;
-class QToolButton;
 
 /// \file
 /// \brief [[BPR-1587]]. RFC-BPR-0085's shared drawer parts.
@@ -183,6 +185,57 @@ namespace bpr::qt {
 	private:
 		QLabel*      Sentence = nullptr;
 		QToolButton* Action   = nullptr;
+	};
+
+	/// \brief [[BPR-1589]]. A section of a drawer's tab that opens in place to
+	/// its details (RFC-BPR-0085's progressive disclosure).
+	///
+	/// \details The section's title in the drawer's ink at semibold weight, a
+	/// faint count before a chevron at the right edge, and no fill until the
+	/// pointer is over it: a quiet header, not a grey bar (principle 5). It is
+	/// one keyboard stop; Space or Return opens and closes it, the chevron and
+	/// `arrowType()` say which, and focus draws the window's focus ring.
+	class drawer_section_header final : public QToolButton
+	{
+	public:
+		explicit drawer_section_header(QWidget* aParent = nullptr);
+
+		/// \brief The faint count at the right; empty draws none.
+		void               set_count(const QString& aCount);
+		[[nodiscard]] auto count() const -> const QString&;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		void describe();
+
+		QString Count;
+	};
+
+	/// \brief [[BPR-1589]]. A thin bar of proportions: files read of all, or
+	/// checks passed, failed and skipped, each segment in a colour of meaning
+	/// over a neutral track.
+	class drawer_meter final : public QWidget
+	{
+	public:
+		explicit drawer_meter(QWidget* aParent = nullptr);
+
+		/// \brief The segments, left to right, as weights and colours; the
+		/// track shows where the weights fall short of `aTotal`.
+		void               set_segments(std::vector<std::pair<double, QColor>> aSegments, double aTotal);
+		[[nodiscard]] auto segments() const -> const std::vector<std::pair<double, QColor>>&;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		std::vector<std::pair<double, QColor>> Segments;
+		double                                 Total = 0.0;
 	};
 
 	/// \brief Every place a widget tree breaks RFC-BPR-0085's principles that a
