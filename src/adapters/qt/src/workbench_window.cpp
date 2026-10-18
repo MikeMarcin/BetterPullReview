@@ -25,6 +25,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/feedback_label_settings.hpp"
@@ -35,6 +36,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -422,55 +424,6 @@ namespace bpr::qt {
 		constexpr int discuss_composer_list_width = 340;
 		constexpr int tray_findings_tab           = 1;
 
-		/// \brief [[BPR-1134]]. The Comments tab's count of threads with new
-		/// comments: a pill in the accent, painted from the palette.
-		class tray_count_pill final : public QWidget
-		{
-		public:
-			explicit tray_count_pill(QWidget* const aParent)
-				: QWidget{ aParent }
-			{
-				setFocusPolicy(Qt::NoFocus);
-				setAttribute(Qt::WA_TransparentForMouseEvents, true);
-			}
-
-			void set_count(const std::size_t aCount)
-			{
-				Text = aCount == 0U ? QString{ } : QString::number(aCount);
-				setVisible(aCount != 0U);
-				updateGeometry();
-				update();
-			}
-
-			[[nodiscard]] auto text() const -> const QString&
-			{
-				return Text;
-			}
-
-			[[nodiscard]] auto sizeHint() const -> QSize override
-			{
-				const auto height = fontMetrics().height();
-				return QSize{ std::max(height, fontMetrics().horizontalAdvance(Text) + height / 2 + 4), height };
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* const aEvent) override
-			{
-				static_cast<void>(aEvent);
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				painter.setPen(Qt::NoPen);
-				painter.setBrush(palette().color(QPalette::Active, QPalette::Highlight));
-				const auto box = QRectF{ rect() };
-				painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
-				painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
-				painter.drawText(rect(), Qt::AlignCenter, Text);
-			}
-
-		private:
-			QString Text;
-		};
-
 		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
 		///
 		/// \details [[BPR-1209]]. Hand-back 49 asks for a smaller corner presence.
@@ -542,72 +495,6 @@ namespace bpr::qt {
 		/// reviewer can drag it narrower and the host persists what they chose.
 		/// What holds at those narrower widths is that every row is a column, so
 		/// a row cannot put its last control out of reach.
-		/// \brief [[BPR-1290]]. The tray's tab row: the tabs at the left and the
-		/// Comments tab's tools at the right, or on a second row when the drawer
-		/// is too narrow for both, so no tab scrolls out of reach.
-		class tray_header final : public QWidget
-		{
-		public:
-			explicit tray_header(QWidget* aParent)
-				: QWidget{ aParent }
-			{
-				Grid = new QGridLayout{ this };
-				Grid->setContentsMargins(0, 0, 6, 0);
-				Grid->setHorizontalSpacing(1);
-				Grid->setVerticalSpacing(0);
-				Grid->setColumnStretch(1, 1);
-			}
-
-			void set_parts(QWidget* aTabs, QWidget* aTools)
-			{
-				Tabs  = aTabs;
-				Tools = aTools;
-				Grid->addWidget(Tabs, 0, 0, Qt::AlignBottom | Qt::AlignLeft);
-				arrange();
-			}
-
-		protected:
-			void resizeEvent(QResizeEvent* aEvent) override
-			{
-				QWidget::resizeEvent(aEvent);
-				arrange();
-			}
-
-			auto event(QEvent* aEvent) -> bool override
-			{
-				if (aEvent->type() == QEvent::LayoutRequest || aEvent->type() == QEvent::FontChange) {
-					arrange();
-				}
-				return QWidget::event(aEvent);
-			}
-
-		private:
-			void arrange()
-			{
-				if (Tabs == nullptr || Tools == nullptr) {
-					return;
-				}
-				const auto wrap = width() > 0 && Tabs->sizeHint().width() + Tools->sizeHint().width() + 8 > width();
-				if (wrap == Wrapped && Grid->indexOf(Tools) >= 0) {
-					return;
-				}
-				Wrapped = wrap;
-				// Wrapped, the tabs take the whole row.
-				Grid->setContentsMargins(0, 0, wrap ? 0 : 6, 0);
-				Grid->removeWidget(Tools);
-				if (wrap) {
-					Grid->addWidget(Tools, 1, 0, 1, 3, Qt::AlignRight | Qt::AlignVCenter);
-				} else {
-					Grid->addWidget(Tools, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
-				}
-			}
-
-			QGridLayout* Grid    = nullptr;
-			QWidget*     Tabs    = nullptr;
-			QWidget*     Tools   = nullptr;
-			bool         Wrapped = false;
-		};
-
 		constexpr int conversation_drawer_default_width = 375;
 		/// \brief [[BPR-1290]]. The narrowest and widest the conversations
 		/// drawer drags to: the inline drawer prototype's range, which the
@@ -2172,10 +2059,24 @@ namespace bpr::qt {
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
 		OverviewPage->set_prepare_tour_action(PrepareTourAction);
-		OverviewPage->set_entry_dispatch(
-			[this](const application::overview_entry_kind aEntry, const QString& aPath) {
-				enter_overview_at(aEntry, aPath);
-			});
+		// [[BPR-1588]]. Status's tab row carries Open on GitHub too.
+		if (OpenOnGithubAction != nullptr) {
+			OverviewPage->set_open_on_github_action(OpenOnGithubAction);
+		}
+		// [[BPR-1588]]. Alt+Shift+6 collapses or expands Status while the
+		// Overview shows, as the drawers' keys do elsewhere.
+		ToggleStatusDrawerAction = new QAction{ tr("Status drawer"), this };
+		ToggleStatusDrawerAction->setObjectName(QStringLiteral("toggleOverviewStatusAction"));
+		ToggleStatusDrawerAction->setShortcuts(shortcut_keys(shortcut_command::status_drawer));
+		ToggleStatusDrawerAction->setShortcutContext(Qt::WindowShortcut);
+		ToggleStatusDrawerAction->setToolTip(tr("Hide or show the Status drawer (%1)").arg(shortcut_key(shortcut_command::status_drawer).toString(QKeySequence::NativeText)));
+		ToggleStatusDrawerAction->setEnabled(false);
+		addAction(ToggleStatusDrawerAction);
+		connect(ToggleStatusDrawerAction, &QAction::triggered, this, [this] {
+			if (OverviewPage != nullptr && CentreStack != nullptr && CentreStack->currentWidget() == OverviewPage) {
+				OverviewPage->status_drawer()->toggle();
+			}
+		});
 		OverviewPage->set_file_dispatch([this](const QString& aPath) { enter_review_at(aPath); });
 		CentreStack->addWidget(ComparisonPage);
 		CentreStack->addWidget(OverviewPage);
@@ -3020,10 +2921,7 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
 			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
-		TrayTabs->setDocumentMode(true);
-		TrayTabs->setExpanding(false);
-		TrayTabs->setDrawBase(true);
-		TrayTabs->setFocusPolicy(Qt::StrongFocus);
+		configure_drawer_tabs(*TrayTabs);
 		TrayTabs->addTab(tr("Comments"));
 		TrayTabs->addTab(tr("Notes"));
 		TrayTabs->addTab(tr("Tour"));
@@ -3031,7 +2929,7 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleTabName(1, tr("Notes"));
 		TrayTabs->setTabToolTip(0, tr("The pull request's threads, with their scope and filters"));
 		TrayTabs->setTabToolTip(1, tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
-		TrayCommentsCount = new tray_count_pill{ TrayTabs };
+		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
 		TrayCommentsCount->hide();
 		TrayTabs->setTabButton(0, QTabBar::RightSide, TrayCommentsCount);
@@ -3043,7 +2941,7 @@ namespace bpr::qt {
 		TrayPages->addWidget(makeTabColumn(TourEditor, QStringLiteral("workbenchTourScroll")));
 		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
 		// right: Only new, Hide resolved and Next new reply.
-		auto* const trayHeader = new tray_header{ conversationShell };
+		auto* const trayHeader = new drawer_header{ conversationShell };
 		trayHeader->setObjectName(QStringLiteral("workbenchTrayHeader"));
 		CommentsTools = new QWidget{ trayHeader };
 		CommentsTools->setObjectName(QStringLiteral("workbenchCommentsTools"));
@@ -6512,6 +6410,10 @@ namespace bpr::qt {
 		}
 		if (aProjection.Layout) {
 			LayoutWidths = *aProjection.Layout;
+			// [[BPR-1588]]. The window's Status drawer as the host published it.
+			if (aProjection.Layout->StatusDrawer) {
+				OverviewPage->status_drawer()->adopt(*aProjection.Layout->StatusDrawer);
+			}
 			if (aProjection.Layout->SummaryFraction) {
 				OverviewPage->set_summary_fraction(*aProjection.Layout->SummaryFraction);
 			}
@@ -7236,6 +7138,25 @@ namespace bpr::qt {
 			ReviewNavigationDispatch(std::nullopt);
 		}
 		CompositionPage = nullptr;
+		// [[BPR-1588]]. The owner's decision D1 (RFC-BPR-0085): with Start
+		// review gone, the first entry into Review from the Overview of a pull
+		// request this window has not reviewed yet lands where the button did,
+		// at the first unseen change's file. Later entries keep the file.
+		const auto reviewKey = overview_review_key();
+		// Only the reviewer's own choice (Command-2 or the Review segment); a
+		// link, Resume or a tour enters with its own target.
+		const auto firstReview = aModality == review_modality::review && aEntry == core::workbench_modality_entry::choose && Modality != nullptr
+			&& Modality->current() == review_modality::overview
+			&& !reviewKey.isEmpty() && ReviewEnteredFor != reviewKey;
+		// Only on a pull request the reviewer has not started (nothing read, no
+		// earlier review), where Start review stood; once started, a restored
+		// reading place is never replaced.
+		const auto notStarted = OverviewPage != nullptr && OverviewPage->projection().has_value()
+			&& OverviewPage->projection()->Entry == application::overview_entry_kind::start_review;
+		const auto entryPath = firstReview && notStarted ? OverviewPage->entry_path() : std::nullopt;
+		if (aModality == review_modality::review && !reviewKey.isEmpty()) {
+			ReviewEnteredFor = reviewKey;
+		}
 		// [[BPR-1293]]. Threads goes back where it was entered from.
 		if (Modality != nullptr && aModality == review_modality::threads && Modality->current() != review_modality::threads) {
 			ThreadsReturn      = Modality->current();
@@ -7284,6 +7205,11 @@ namespace bpr::qt {
 			}(),
 			.Entry = aEntry,
 		});
+		if (entryPath) {
+			if (const auto file = file_for_path(*entryPath); file.has_value()) {
+				Dispatch(core::select_workbench_file_intent{ .File = *file });
+			}
+		}
 		if (aModality != review_modality::discuss) {
 			return;
 		}
@@ -7912,7 +7838,7 @@ namespace bpr::qt {
 
 	auto workbench_window::comments_count_text() const -> QString
 	{
-		return TrayCommentsCount == nullptr ? QString{ } : static_cast<const tray_count_pill*>(TrayCommentsCount)->text();
+		return TrayCommentsCount == nullptr ? QString{ } : static_cast<const drawer_count_pill*>(TrayCommentsCount)->text();
 	}
 
 	auto workbench_window::updates_disclosure_button() const noexcept -> updates_disclosure*
@@ -8177,7 +8103,7 @@ namespace bpr::qt {
 		// [[BPR-1511]]. The file-context badges count this file; navigation
 		// continues to walk unread threads across the pull request.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
-			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(fileUnread);
+			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(fileUnread);
 			TrayTabs->setAccessibleTabName(
 				tray_comments_tab,
 				fileUnread == 0U ? tr("Comments")
@@ -8477,6 +8403,9 @@ namespace bpr::qt {
 					static_cast<QBoxLayout*>(DiscussPage->layout())->setStretchFactor(ConversationPanel, listed ? 0 : 1);
 				}
 			}
+		}
+		if (ToggleStatusDrawerAction != nullptr) {
+			ToggleStatusDrawerAction->setEnabled(page == OverviewPage);
 		}
 		const auto enteringOverview = page == OverviewPage && CentreStack->currentWidget() != OverviewPage;
 		const auto enteringThreads  = page == ThreadsPage && CentreStack->currentWidget() != ThreadsPage;
@@ -9343,20 +9272,21 @@ namespace bpr::qt {
 		box->open();
 	}
 
-	void workbench_window::enter_overview_at(
-		const application::overview_entry_kind aEntry,
-		const QString&                         aPath)
+	auto workbench_window::overview_review_key() const -> QString
 	{
-		// The overview names a path; the core knows the file by identity.
-		// Selecting it is the same intent the files drawer sends. [[BPR-1295]]:
-		// Start review and Continue review both enter Review, in the
-		// arrangement it last had in this window.
-		static_cast<void>(aEntry);
-		enter_review_at(aPath);
+		const auto* const page = OverviewPage;
+		if (page == nullptr || !page->projection()) {
+			return { };
+		}
+		const auto& shown = *page->projection();
+		return QStringLiteral("%1/%2#%3").arg(QString::fromStdString(shown.Owner), QString::fromStdString(shown.RepositoryName), QString::number(shown.Number.value()));
 	}
 
 	void workbench_window::enter_review_at(const QString& aPath)
 	{
+		// [[BPR-1588]]. A file the reviewer picked is never replaced by the
+		// first unseen change.
+		ReviewEnteredFor = overview_review_key();
 		// [[BPR-1348]]. Review first, then the file, as a conversation pick
 		// does. Choosing Review schedules its active tab's presentation
 		// ([[BPR-1132]]), so a file chosen before it lost to the tab's file:
@@ -11215,6 +11145,11 @@ namespace bpr::qt {
 	auto workbench_window::menu_bar() const noexcept -> QMenuBar*
 	{
 		return PrimaryMenuBar;
+	}
+
+	auto workbench_window::toggle_status_drawer_action() const noexcept -> QAction*
+	{
+		return ToggleStatusDrawerAction;
 	}
 
 	auto workbench_window::view_menu() const noexcept -> QMenu*

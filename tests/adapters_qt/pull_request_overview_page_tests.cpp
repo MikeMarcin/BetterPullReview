@@ -2,6 +2,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
@@ -142,16 +143,14 @@ namespace {
 		page.resize(1'100, 700);
 		page.show();
 		QApplication::processEvents();
-		expect(!page.presented() && !page.entry_button()->isEnabled()
+		expect(!page.presented() && !page.entry_path()
 				   && page.title_label()->text() == QStringLiteral("No pull request"),
 			   "before a projection the page names nothing and offers no entry");
+		// [[BPR-1588]]. The owner's decision D1: no Start review button.
+		expect(page.findChild<QPushButton*>(QStringLiteral("overviewEntryButton")) == nullptr,
+			   "the Overview has no Start review or Continue review button");
 
-		auto entered   = std::vector<std::pair<application::overview_entry_kind, QString>>{ };
 		auto activated = std::vector<QString>{ };
-		page.set_entry_dispatch(
-			[&entered](const application::overview_entry_kind aEntry, const QString& aPath) {
-				entered.emplace_back(aEntry, aPath);
-			});
 		page.set_file_dispatch([&activated](const QString& aPath) { activated.push_back(aPath); });
 		page.present(projection());
 		QApplication::processEvents();
@@ -220,17 +219,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1 unpublished"),
 			   "the side column states what happened since my last review and my progress, "
 			   "saying not available where the host cannot answer");
-		expect(page.entry_button()->isEnabled()
-				   && page.entry_button()->text() == QStringLiteral("Continue review")
-				   && page.entry_button()->toolTip().contains(QStringLiteral("HairStrandsVoxelization.cpp")),
-			   "the one action continues the review at the named file");
-
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 1U
-				   && entered.front().first == application::overview_entry_kind::continue_review
-				   && entered.front().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Continue review reports its semantic kind and entry path");
+		expect(page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
+			   "the first entry into Review lands at the first unseen change's file");
 		page.files_view()->activated(lighting);
 		QApplication::processEvents();
 		expect(activated.size() == 1U
@@ -253,14 +243,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("not available")
 				   && page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")).siblingAtColumn(qt::overview_file_model::changed_column).data().toString()
 					   == QStringLiteral("?")
-				   && page.entry_button()->text() == QStringLiteral("Start review"),
+				   && page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
 			   "what the host cannot answer reads as not known, never as none");
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 2U
-				   && entered.back().first == application::overview_entry_kind::start_review
-				   && entered.back().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Start review remains distinct from Continue review at dispatch");
 
 		auto partial                = projection();
 		partial.CommitCount         = 9'311U;
@@ -273,7 +257,7 @@ namespace {
 		page.clear();
 		QApplication::processEvents();
 		expect(!page.presented() && page.file_model()->file_count() == 0U
-				   && !page.entry_button()->isEnabled() && page.participant_rows().empty(),
+				   && !page.entry_path() && page.participant_rows().empty(),
 			   "clearing empties the page");
 		page.hide();
 	}
@@ -570,7 +554,6 @@ namespace {
 					expect(edit->verticalScrollBar()->value() > 0 && page.files_view()->verticalScrollBar()->value() == 0, "wheel scrolls only the summary");
 					int dispatched = 0;
 					page.set_file_dispatch([&](const QString&) { ++dispatched; });
-					page.set_entry_dispatch([&](auto, const QString&) { ++dispatched; });
 					const auto file = page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
 					page.files_view()->setCurrentIndex(file);
 					read->setFocus();
@@ -926,10 +909,11 @@ namespace {
 		page.resize(700, 400);
 		settle();
 		verifyRows();
-		scroll->ensureWidgetVisible(page.entry_button());
+		auto* const checks = page.findChild<QWidget*>(QStringLiteral("overviewChecksDisclosure"));
+		scroll->ensureWidgetVisible(checks);
 		settle();
-		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
-			   "review entry remains reachable after the complete participant list");
+		expect(scroll->viewport()->rect().contains(checks->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
+			   "check details remain reachable after the complete participant list");
 	}
 	/// \brief [[BPR-1363]]. Every column's left edge and width, in viewport
 	/// coordinates.
@@ -1381,7 +1365,7 @@ namespace {
 			expect(page.files_view()->isColumnHidden(column), "unknown cached workflow counts are hidden");
 		}
 		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
-		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
+		expect(!opened && !page.presented() && !page.entry_path(), "historical rows cannot enter the source workbench");
 		auto* discussion = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedDiscussion"));
 		expect(discussion && discussion->toPlainText().contains(QStringLiteral("General comments — unavailable")), "missing discussion remains explicitly unavailable");
 		cached.GeneralComments.emplace();

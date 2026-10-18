@@ -12,7 +12,8 @@ metadata: {"origin": "Owner decisions in attended session 9b6359b5e66fa4d761e1ac
 # BPR-1594: Agent is a drawer tab
 
 RFC-BPR-0085 D5: the Agent tab with ⌥⇧A, ⌘I and "Ask about these lines";
-the context row, conversation with finding cards, question field, History
+the context row, conversation with finding cards (their promote action
+reads **Draft comment**, the owner's choice at [[BPR-1588]]'s review), question field, History
 (sessions, earlier heads, private runs) and the four states.
 
 ## Acceptance

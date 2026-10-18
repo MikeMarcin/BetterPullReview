@@ -166,6 +166,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
@@ -8003,6 +8004,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->overview_page()->set_summary_resize_dispatch([this](std::optional<std::uint32_t> aFraction) {
 				if (!Closing && WorkbenchHost != nullptr) {
 					WorkbenchHost->resize_summary(aFraction);
+				}
+			});
+			// [[BPR-1588]]. The Overview's Status drawer, kept like the summary:
+			// this window's own width and collapsed state, stored locally.
+			Window->overview_page()->status_drawer()->set_change_dispatch([this](const application::workbench_status_drawer& aDrawer) {
+				if (!Closing && WorkbenchHost != nullptr) {
+					WorkbenchHost->apply_status_drawer(aDrawer);
 				}
 			});
 			// [[BPR-1334]]. The window's own Line details height, kept like

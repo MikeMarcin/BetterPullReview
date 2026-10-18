@@ -89,7 +89,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// Twenty-one since RFC-BPR-0084: whether body images load. Twenty-two since
 	/// [[BPR-1584]]: the reading width of Threads and Discuss, Wide for a
 	/// migrated row.
-	inline constexpr std::int64_t workbench_settings_schema_version = 22;
+	/// Twenty-three since [[BPR-1588]]: the window's Status drawer on the
+	/// Overview, expanded at the default width for a migrated row.
+	inline constexpr std::int64_t workbench_settings_schema_version = 23;
 
 	/// \brief Owns the durable workbench layout database.
 	///
