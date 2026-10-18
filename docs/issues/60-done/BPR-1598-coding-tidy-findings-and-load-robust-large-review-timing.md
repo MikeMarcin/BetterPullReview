@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1598"
 title: "The coding-tidy gate passes, and the large-review timing rows hold on a loaded machine"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
