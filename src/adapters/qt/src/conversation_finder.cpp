@@ -2541,7 +2541,7 @@ namespace bpr::qt {
 				}
 			}
 			auto text = entry.Path.isEmpty()
-				? QStringLiteral("Not on a file, %1 comments, %2 new").arg(count).arg(fresh)
+				? QStringLiteral("Not on a file, %1, %2 new").arg(count == 1 ? QStringLiteral("one comment") : QStringLiteral("%1 comments").arg(count)).arg(fresh)
 				: QStringLiteral("%1, %2, %3").arg(base_name(entry.Path), folder_of(entry.Path), count == 1 ? QStringLiteral("one thread") : QStringLiteral("%1 threads").arg(count));
 			if (fresh > 0 && !entry.Path.isEmpty()) {
 				text += fresh == 1 ? QStringLiteral(", one with new replies") : QStringLiteral(", %1 with new replies").arg(fresh);

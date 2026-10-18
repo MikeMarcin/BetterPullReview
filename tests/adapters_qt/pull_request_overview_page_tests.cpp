@@ -3145,6 +3145,19 @@ namespace {
 		return std::ranges::count_if(aRows, [&aWords](const QString& aRow) { return aRow.contains(aWords); });
 	}
 
+	void test_conversation_count_is_cleared_with_the_pull_request()
+	{
+		auto page = qt::pull_request_overview_page{ };
+		page.present(status_projection());
+		page.set_new_conversation_comments(2U);
+		expect(!page.new_conversation_button()->parentWidget()->isHidden(), "the current PR has new comments");
+		page.clear();
+		page.present(status_projection());
+		expect(page.new_conversation_button()->parentWidget()->isHidden(), "a reopened PR waits for its own read state instead of retaining the old count");
+		page.set_new_conversation_comments(1U);
+		expect(!page.new_conversation_button()->parentWidget()->isHidden(), "the next ledger answer shows its own count");
+	}
+
 	void test_status_leads_with_my_role_and_what_needs_attention()
 	{
 		using section = qt::overview_status_section;
@@ -3444,6 +3457,7 @@ auto main(int argc, char** argv) -> int
 	test_folder_counts_share_one_column();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_status_leads_with_my_role_and_what_needs_attention();
+	test_conversation_count_is_cleared_with_the_pull_request();
 	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
