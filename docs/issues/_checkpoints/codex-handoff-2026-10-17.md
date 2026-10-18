@@ -108,6 +108,20 @@ for each item.
   `application_epoch_portable_occurrence_two_catalogues`. Only the reservation exists; write the card.
 - May land any time between other items (it fixes main), after merging main.
 
+### 7b. BPR-1601 — pull request comments get read state (owner decision, data model)
+- Card `docs/issues/10-backlog/BPR-1601-pull-request-comments-get-read-state.md` (allocated `1202dff1e`);
+  depends on BPR-1589, which is landed. No worktree yet: branch from `main`.
+- Owner, 2026-10-17: comments that are not on a file (pull request conversation comments and review
+  summaries) have read and unread state as review threads do. Scope, per the card: the review ledger's
+  read state in core, persistence (backward compatible), Discuss's new markers, Threads' "Not on a
+  file" row, Mark as read/unread, and ⌥N next new comment.
+- The Overview's Status drawer already has the line, hidden: call
+  `pull_request_overview_page::set_new_conversation_comments(count)` from the window when the host
+  publishes the count; its Go to them already opens Discuss (`set_new_conversation_dispatch`).
+- Focused: core ledger and storage courses for read, unread, seen-before and restart; public-path
+  courses for Discuss, Threads' Not on a file row, the Status line and ⌥N; composition contracts if
+  `src/app` changes. No owner review needed (no visual design beyond the existing markers).
+
 ### 8. Housekeeping
 - Stop any leftover attended-review servers from landed cards and remove their frozen roots.
 - `git worktree prune`; delete merged branches.
@@ -119,10 +133,9 @@ for each item.
 
 ## Not for Codex (taste/design — stays with Claude)
 
-- **RFC-BPR-0085 drawer redesign is PAUSED.** Milestone 1 (BPR-1587, BPR-1588) is landed. BPR-1589
-  (Status content) is claimed, WIP on branch `bpr-1589-status-content` (`dcd4b2c08`, does not compile yet),
-  pause note committed locally on `bpr-1574-drawer-redesign` (`20113b42b`, unpushed). Do not touch
-  BPR-1589–BPR-1595 or the worktree `/Users/jaeger/.codex/worktrees/bpr1574-drawer-redesign`.
+- **RFC-BPR-0085 drawer redesign resumed with Claude.** Milestones 1 and 2 (BPR-1587, BPR-1588,
+  BPR-1589) are landed. Do not touch BPR-1590–BPR-1595 or the worktree
+  `/Users/jaeger/.codex/worktrees/bpr1574-drawer-redesign`; BPR-1601 (item 7b) is Codex's.
 - Any new owner look-and-judge question.
 
 ## Known open follow-ups (not in the queue)

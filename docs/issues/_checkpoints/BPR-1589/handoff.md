@@ -1,4 +1,4 @@
-# BPR-1589 handoff: v002 under owner review
+# BPR-1589 handoff: landed
 
 - Branch `bpr-1589-status-content`; product head `39afb7162`, not merged with
   `main` yet.
@@ -37,3 +37,11 @@
 - Next: read `status --after 3`. On Accept, merge `main`, run the focused set
   plus the composition contracts, reseal, docs gate, finish BPR-1589, push,
   stop PID 13128 and remove the frozen root. On Reject, revise from the note.
+
+## Landed (2026-10-18)
+
+The owner accepted v002 (session `82f52ad4…`, decision `71bc675f`, no note).
+Main merged at `57f335411` (`88d5f086c`), the round-trip contract resealed,
+32 focused rows passed on the merged tree (every application composition
+contract included), host PID 13128 stopped, the session released and the
+frozen root removed. BPR-1601 goes to the Codex queue (item 7b).

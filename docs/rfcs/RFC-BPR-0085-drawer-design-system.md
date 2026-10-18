@@ -35,6 +35,13 @@ Milestone 1 ([[BPR-1587]], [[BPR-1588]]) landed on 2026-10-17 after the
 owner's Accept (session `e471b4b8…`). Its settings step was renumbered from
 schema 22 to 23 at landing, because [[BPR-1584]]'s reading width took 22 first.
 
+Milestone 2 ([[BPR-1589]]) landed on 2026-10-18 after the owner's Accept of
+v002 (session `82f52ad4…`); v001 was rejected for a verbose role line and a
+"you may be a member" hedge, so v002 asks GitHub which requested teams the
+viewer is in. The owner then decided that pull-request comments get read
+state; that is [[BPR-1601]], outside this RFC, and the Status drawer's
+conversation line waits for it.
+
 The design round, its audit and the before renders are in
 [`docs/design/BPR-1574-drawers-and-agent-v1/`](../design/BPR-1574-drawers-and-agent-v1/index.html)
 and on [[BPR-1574]].
