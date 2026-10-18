@@ -12,7 +12,7 @@
 # lane/window, initialization and shutdown drain, existing Settings/export
 # gestures, and accepted cache-label persistence. No provider or mutation
 # admission changes; the production mutation-branch digest is unchanged.
-# Evidence and pending owner acceptance: docs/verification/RFC-BPR-0086.md.
+# Evidence and exact owner shell acceptance: docs/verification/RFC-BPR-0086.md.
 # BPR-1603 reseal 2026-10-18 over d163c9109 (origin/main 937f96880).
 # Self-reviewed the full src/app delta: the reply workflow persists bounded
 # quoted drafts through the existing serialized submission host and journal,

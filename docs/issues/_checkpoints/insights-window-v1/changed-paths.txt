@@ -1,9 +1,8 @@
 docs/architecture/product-contract.md
 docs/architecture/release-maintenance.md
 docs/architecture/system-architecture.md
-docs/issues/10-backlog/BPR-1607-insights-store-storage-accounting-and-the-storage-tab.md
-docs/issues/30-in-progress/BPR-1606-insights-window-shell-at-one-fixed-size.md
-docs/issues/40-parked/BPR-1606-insights-window-shell-at-one-fixed-size.md
+docs/issues/60-done/BPR-1606-insights-window-shell-at-one-fixed-size.md
+docs/issues/60-done/BPR-1607-insights-store-storage-accounting-and-the-storage-tab.md
 docs/issues/_checkpoints/insights-window-v1/continuation.md
 docs/rfcs/RFC-BPR-0086-insights-window.md
 docs/ux/insights.md

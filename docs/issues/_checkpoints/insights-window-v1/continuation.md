@@ -2,8 +2,8 @@
 
 Mandate `insights-window-v1-r1`; assignment `window-and-storage`, BPR-1606 and
 BPR-1607. Fresh post-attended engineering owner `/root/insights_first_acceptance`.
-The first milestone's criteria are **accepted**. Local finalization/integration
-is being completed below. No later milestone or RFC closeout is accepted.
+The first milestone is **accepted**, and BPR-1606/BPR-1607 are Done. No later
+milestone or RFC closeout is accepted.
 Strategy remains coordinator-implementer, recipe revision 2.
 
 ## Candidate and authority
@@ -24,7 +24,14 @@ Strategy remains coordinator-implementer, recipe revision 2.
   beside main's Done card; only the stale Ready copy was removed. BPR-1602's
   terminal store classification remains intact.
 - BPR-1606 accepted through board finish `e88e5edcf`; BPR-1607 promoted
-  `c90437d93`, claimed `db67c88c7`. Final finish/integration is recorded below.
+  `c90437d93`, claimed `db67c88c7`, finished `9cb07868f`.
+- The final pre-integration check caught main advancing to accepted polish
+  `614c6bbb78d56ead97210a2e79e02a97d4fd3bfb` before mutation. Its final
+  BPR-1604/1605 checkpoint reported commands/writer finished; main was clean.
+  Merge `1a11903aa` preserves that work. Its only conflict was the production
+  app manifest pin, resolved after reviewing the disjoint app changes. Combined
+  digest: `fa2ed4fefd1cb8be7e323782cfebd993206ec41f1b7f0d5c124d2b20039b112b`.
+  Full github_application and mutation pins remain unchanged.
 - [Execution selection](execution-selection.json), [live ID map](id-map.json),
   [changed implementation paths](changed-paths.txt) and the
   [verification ledger](../../../verification/RFC-BPR-0086.md) preserve scope.
@@ -83,9 +90,14 @@ Round 3 focused build of `test_insights_public_path` and
 CTest rows in 24.59 seconds: architecture, core reset, Insights host, SQLite
 maintenance/reset, SQLite/Git Insights accounting, composition contract, profile
 recovery and the Insights public path. No broad rebuild/matrix was run.
+The later accepted-polish merge required an incremental rebuild of those same
+two public targets, then only the affected Insights public path and composition
+contract were rerun: **2/2 pass in 5.51 seconds** on `1a11903aa` with the
+combined production manifest. Other unchanged passing evidence is reused.
 Unchanged passing LLVM/format 22, production syntax, manifest, architecture
 negative controls, scaling and 67 documentation-regression tests are reused.
-Documentation gate is rerun after final bookkeeping. No provider, credential,
+Documentation gate passes after bookkeeping and is rerun on the final checkpoint.
+No provider, credential,
 mutation, deletion or new source behavior changed in this round.
 
 The first milestone meets every bound obligation and all three exits.
@@ -107,8 +119,11 @@ access, automation or recurring waiter. Accepted candidate protection is release
 its retained frozen source stays read-only. Only exact task-owned commands were
 managed. The original implementation build tree is retained for the next owner.
 
-After BPR-1607 finish and the documentation gate, recheck main's clean state and
-revision, fast-forward locally, then bind/check the accepted milestone against
-the exact final revision. Stop at this boundary. Next plan-eligible milestone is
+Local integration uses the shared main board lock, exact expected main
+`614c6bbb7`, clean source/main trees and ancestry guard, followed by a local
+fast-forward only. The final runtime milestone observation/check records the
+resulting exact branch/main revision; it must report `fresh-context` with no
+pending first-milestone obligation before handoff. No push is performed.
+Stop at this boundary. Next plan-eligible milestone is
 `github-budget` (BPR-1608 and BPR-1609); the coordinator starts its fresh owner.
 The other milestones retain their authored dependencies.

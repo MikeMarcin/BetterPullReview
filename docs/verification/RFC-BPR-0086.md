@@ -175,3 +175,17 @@ The exact review host was stopped. After recording acceptance, scoped
 the verdict and frozen build remain intact. Consumed session cursor is now 10.
 Runtime evidence for this round is in the session's `evidence/acceptance-r3/`.
 The durable continuation records final local integration and next eligibility.
+
+The immediate final-main check caught accepted BPR-1604/1605 polish arriving at
+`614c6bbb78d56ead97210a2e79e02a97d4fd3bfb`; the obsolete expected-main guard
+refused before any mutation. Its final handoff reported no remaining writer or
+commands and main was clean. Merge `1a11903aa` retains that accepted work. The
+only conflict was the production app manifest pin: the disjoint Insights lane
+and carried-draft preflight were reviewed together, and the combined manifest
+is `fa2ed4fefd1cb8be7e323782cfebd993206ec41f1b7f0d5c124d2b20039b112b`.
+The full github_application and mutation-branch pins remain unchanged.
+The two public targets build on this combined source, and the affected Insights
+public path plus composition contract pass **2/2 in 5.51 seconds**. Other
+unchanged passing evidence above is reused. No extra product change or owner
+decision was needed. Final local integration uses a clean-tree, exact-main
+revision, ancestry and shared-main-board-lock guard; no push is authorized.
