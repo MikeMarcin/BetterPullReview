@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1377-sparse-tour-source",
+  "scope": {
+    "issues": [
+      "BPR-1377"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "pinned-source-over-sparse-gh",
+      "outcome": "Tour CLI add and show --source retrieve exact pinned source from a sparse gh cache without a desktop or broader blob authority.",
+      "work": [
+        {
+          "issue": "BPR-1377"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "bpr tour add and show stop:ID --source read exact pinned source over the gh transport when the cache holds sparse trees, without a desktop and without widening any other blob authority.",
+        "A fixture or loopback row that serves sparse trees fails before the fix and passes after it.",
+        "One live check on MikeMarcin/BPR-Test adds a stop and shows its source."
+      ],
+      "boundary": "Complete BPR-1377 and its focused verification/bookkeeping; leave BPR-1378 to the next milestone."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
