@@ -1,3 +1,7 @@
+# BPR-1578 landing 2026-10-17: main 376a4190b merged into the accepted
+# progress-track candidate. The app delta remains test-build bar order and
+# private-progress coordinates only; no publication or credential authority
+# changes. All three pins from 5f3a96baa remain exact on this merged tree.
 # BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
 # production-app change is 2a789264e in github_application.cpp, the Threads
 # row menu's Mark as Unread: the window's new unread dispatch and

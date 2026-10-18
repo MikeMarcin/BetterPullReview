@@ -13,11 +13,17 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
 
 ## Frontier
 
-1. BPR-1577: focused verification complete at `2a78a6f2e`; main fast-forwarded.
-   Finish/push and resource cleanup are next. Six Overview rows, separate switch
-   check, clang-format 22, documentation and diff checks pass. Owner Accept
-   consumed through session `cf892a3b…` cursor 5.
-2. BPR-1578: not started.
+1. BPR-1577: Done and pushed in `376a4190b`. Six Overview rows and switch
+   checks at 100%, 125% and 200% pass, as do format22/docs/diff checks. Session
+   released through event 6; server PID absent; frozen root, worktree and branch
+   removed. The stop request returned connection refused; process inspection
+   established the recorded PID was no longer alive before removing resources.
+2. BPR-1578: main `376a4190b` merged at `49b3c0f57`; affected targets built.
+   All 15 focused rows, including both composition contracts, pass (464.41 s).
+   Ready to finish/push, then remove this worktree and build. All three existing
+   composition pins are retained with a dated landing note. Format22 and docs
+   pass. All four review sessions are released and stopped; both frozen roots
+   are absent. v002 owner Accept confirmed through event 7.
 3. BPR-1597/BPR-1568: not started.
 4. BPR-1600: not started.
 5. BPR-1572: not started.

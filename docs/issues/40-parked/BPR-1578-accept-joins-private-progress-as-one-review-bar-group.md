@@ -244,3 +244,23 @@ tree: 47 rows covering the window, the review bar, keys, the composed
 selected-diff, ledger, navigation, Overview, header, zoom, refresh feedback
 and close-review paths, plus the resealed round-trip contract.: all 47 pass
 (508 s), and the round-trip contract passes. Docs gate on main after landing.
+
+## Codex landing — 2026-10-17
+
+Main `376a4190b` merged at `49b3c0f57`. Rebuilt the window test and app
+targets. All 15 focused rows pass: review-state icon, Option keys while typing,
+focus order/title row/window at 100%, 125% and 200%, selected-diff and ledger
+composition, `application_composition_contract` and
+`application_review_round_trip_composition_contract` (464.41 s total). The
+three existing pins remain exact; the contract records this merged-tree check
+in a dated note. clang-format 22 checks all six touched C++ files,
+`DOCUMENTATION_OK` and `git diff --check` pass. Reused the unchanged focused
+tidy evidence. The owner’s handoff schedules the one full suite and repository
+format/tidy at item 9. Loaded frontend-design; accepted v002 is unchanged.
+
+The v002 Accept was confirmed in its saved session through event 7. All four
+sessions are stopped and released; both frozen build roots are already absent.
+
+Before finish, main advanced to `1202dff1e` solely to allocate BPR-1601.
+Merged that counter/receipt update; product and test inputs are unchanged, so
+the passing focused evidence is reused.
