@@ -490,6 +490,11 @@ in `pull_request_overview_page`. The figures come from
   - In All, a state bar under each number shows open, resolved, unknown and
     not resolvable, using the four round state marks.
   - The active mode belongs to the view state, not to Settings (RFC-BPR-0049).
+  - The page draws the switch itself, so it looks the same in every style
+    (BPR-1577, owner). The chosen half is a quiet chip: a soft fill and a
+    thin border that reads at 3:1. The other half is its word alone. Both
+    are in the text colour at the row's height. Open keeps the round open
+    mark.
 - **Not on a file** (owner). A last row holds unanchored threads, pull request
   comments and review summaries (`Unattributed`).
 - **Unknown states** (owner, with the core's facts):

@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1577"
 title: "The Overview's Open and All switch is quiet like its row"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"This particular Open button on the overview page is ugly. I guess it's mostly because it's highlighted like that and nothing else is.","governing_rfc":"RFC-BPR-0049","related_rfcs":["RFC-BPR-0050"],"related_cards":["BPR-1089","BPR-1337","BPR-1350","BPR-1157"],"reservation":"docs/issues/_reservations/BPR-1577--BPR-1577--1dde60b7fa88.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"2a78a6f2e8d6a028724b6d6bee47b2f3b2c960bd","evidence":{"kind":"observation","detail":"Accepted v002 page-painted Fusion-like chip retained unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"2a78a6f2e8d6a028724b6d6bee47b2f3b2c960bd","evidence":{"kind":"observation","detail":"Six focused Overview tests and --switch pass; v002 theme/negative-control evidence retained."}},{"criterion":"AC3","outcome":"pass","revision":"2a78a6f2e8d6a028724b6d6bee47b2f3b2c960bd","evidence":{"kind":"observation","detail":"Focused Overview keyboard and mode-dispatch tests pass on merged source."}},{"criterion":"AC4","outcome":"pass","revision":"2a78a6f2e8d6a028724b6d6bee47b2f3b2c960bd","evidence":{"kind":"observation","detail":"Owner handoff amendment: focused tests, clang-format 22 and documentation gate pass for landing; one full suite and repository tidy remain mandatory at queue item 9. Unchanged per-file tidy evidence reused."}},{"criterion":"AC5","outcome":"pass","revision":"2a78a6f2e8d6a028724b6d6bee47b2f3b2c960bd","evidence":{"kind":"observation","detail":"Human Accept 296a1893-d1bc-4010-8463-512fc66a0f7b for v002; session cf892a3b42c656c51e88fe0830a2936f consumed through event 5."}}]
 ---
 
 # BPR-1577: The Overview's Open and All switch is quiet like its row
@@ -182,3 +182,19 @@ main: rebase, run the focused Overview rows, one full `ctest --preset dev`
 and the documentation gate, merge, finish the card Done and push. Then stop
 the host (PID 39316), release the candidate, remove the frozen root
 `/Users/jaeger/bpr1577-counts-switch-v002.4iietnlb` and the worktree.
+
+## Codex landing — 2026-10-17
+
+The owner’s ordered handoff supersedes the earlier full-suite-per-card step:
+focused checks land each card; the single integrated full suite and repository
+format/tidy gates run after the complete queue (item 9). The full-suite obligation
+remains recorded there and is not represented as a new passing observation here.
+
+- Merged current main `a57b6ca82` into the candidate at `2a78a6f2e`.
+- Built only `test_better_pull_review_qt_pull_request_overview_page_tests`.
+  All six Overview rows pass. The separate `--switch` check passes.
+- clang-format 22 checks both touched C++ files; the documentation gate prints
+  `DOCUMENTATION_OK`; `git diff --check` passes. No `src/app` change.
+- Reused v002’s exact recorded owner Accept (session `cf892a3b…`, cursor 5)
+  and its unchanged focused tidy evidence. Loaded frontend-design for this
+  mechanical landing; the accepted treatment is unchanged.

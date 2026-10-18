@@ -990,7 +990,7 @@ namespace {
 		auto* observedTitle = required_child<QLabel>(window, "overviewTitle");
 		expect(observedTitle->text() == QStringLiteral("<b>Literal provisional title</b>")
 				   && observedTitle->textFormat() == Qt::PlainText
-				   && !window.overview_page()->entry_button()->isEnabled() && !window.overview_page()->presented(),
+				   && !window.overview_page()->entry_path() && !window.overview_page()->presented(),
 			   "validated metadata paints literal useful content but grants no review authority");
 		expect(required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("3 commits"))
 				   && required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("Open. Provisional metadata")),

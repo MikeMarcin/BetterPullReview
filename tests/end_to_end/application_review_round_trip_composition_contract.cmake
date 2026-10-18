@@ -1,3 +1,10 @@
+# BPR-1597 landing 2026-10-17 over main c38432adf: Settings pages move
+# under existing typed owners, with no src/app, persistence or grant change.
+# Main's three composition pins remain exact on the merged tree.
+# BPR-1578 landing 2026-10-17: main 376a4190b merged into the accepted
+# progress-track candidate. The app delta remains test-build bar order and
+# private-progress coordinates only; no publication or credential authority
+# changes. All three pins from 5f3a96baa remain exact on this merged tree.
 # BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
 # production-app change is 2a789264e in github_application.cpp, the Threads
 # row menu's Mark as Unread: the window's new unread dispatch and
@@ -1541,7 +1548,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"1c9ac5ffbd9c1a122273449ddb4f302d3c8b1ea52b52f9ffbc71902047ed78fd"
+		"e39d9551d103f5f4b37c5614fc0bd58f1cb8c327744887192e0f8a756a2cd4ea"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1757,7 +1764,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "447a3f9d4c0731460cef046a2a5078909f9c7fb6a15a27cdbc6b64085138573e"
+        "53af513ebb060f6297972446a6221776f7853c672f485fa32f2aa46559cf2092"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2730,6 +2737,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # grant, target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1573.
+
+# [[BPR-1575]], [[BPR-1576]] reseal over main at 83a58c893, recomputed on the tree
+# that merges these cards onto it. github_application.cpp marks the window's
+# own rereads (after publishing, after resolving a thread) as automatic through
+# workbench_window::run_automatic_refresh, which runs the same dispatch it ran
+# before; tells the comparison surface when a syntax classification is awaited
+# or failed; and passes whether the theme is high contrast. main.cpp and the
+# public-path fixture add test-only delays and a refresh outcome script for
+# courses and frozen looks. No grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path changes; the production
+# mutation-branch pin is unchanged.
 
 # [[BPR-1597]] lands over main at 95e900ba4 (after BPR-1581) with main's seal
 # unchanged: it changes no src/app file. Self-review on BPR-1597.

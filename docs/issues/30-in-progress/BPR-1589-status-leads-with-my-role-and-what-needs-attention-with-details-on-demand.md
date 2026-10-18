@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1589"
 title: "Status leads with my role and what needs attention, with details on demand"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1588", "BPR-1576", "BPR-1583"]
 priority: "P2"

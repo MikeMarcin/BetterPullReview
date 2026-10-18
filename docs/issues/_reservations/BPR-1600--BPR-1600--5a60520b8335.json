@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1600"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Cmd-R refreshes Home",
+  "created": "2026-10-18T01:49:24.899664+00:00",
+  "base": "ee9830062824c10e423e1e260c94aabe85803d2b"
+}

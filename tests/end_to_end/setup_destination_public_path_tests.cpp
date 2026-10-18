@@ -2104,7 +2104,7 @@ namespace {
 				 "composed CLI course paints useful metadata while the first file page is still held");
 		capture(window, QStringLiteral("setup-cli-progressive-overview.png"));
 		const auto firstUsefulMs = loadElapsed.elapsed();
-		expect(!window.overview_page()->presented() && !window.overview_page()->entry_button()->isEnabled()
+		expect(!window.overview_page()->presented() && !window.overview_page()->entry_path()
 				   && window.overview_page()->file_model()->rowCount() == 0
 				   && window.session_panel()->status() == core::github_status::loading_pull_request
 				   && github_application_fixture_access::evidence(*application).SmartAcquireCount == 0U,
@@ -2373,10 +2373,10 @@ namespace {
 			   "reading PR-wide discussion does not require or select code");
 		updatedWindow.modality()->action(qt::review_modality::overview)->trigger();
 		verify_overview_folder_navigation(updatedWindow);
-		expect(updatedWindow.overview_page()->entry_button()->isEnabled()
-				   && updatedWindow.overview_page()->entry_button()->text() == QStringLiteral("Start review"),
-			   "Overview offers Start review for the first visit");
-		updatedWindow.overview_page()->entry_button()->click();
+		// [[BPR-1588]]. No Start review; Command-2 from a fresh Overview is the entry.
+		expect(updatedWindow.overview_page()->entry_path().has_value(),
+			   "Overview knows the first unseen change for the first visit");
+		updatedWindow.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		expect(updatedWindow.current_modality() == qt::review_modality::review,
 			   "Overview entry reaches Review");
 		auto* const recoveredFiles     = updatedWindow.files_drawer()->contents_view();

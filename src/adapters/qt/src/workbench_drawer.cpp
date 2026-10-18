@@ -372,6 +372,20 @@ namespace bpr::qt {
 		setFixedWidth(width_pixels);
 	}
 
+	workbench_drawer_rail::workbench_drawer_rail(QString aLabel, const QString& aObjectName, QWidget* const aParent)
+		: QAbstractButton{ aParent }
+		, Label{ std::move(aLabel) }
+	{
+		setObjectName(aObjectName);
+		setAccessibleName(label() + QStringLiteral(" rail"));
+		setAccessibleDescription(QStringLiteral("Expand the %1 drawer.").arg(label().toLower()));
+		setToolTip(label());
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+		setFixedWidth(width_pixels);
+	}
+
 	void workbench_drawer_rail::set_summary(const QString& aSummary)
 	{
 		if (Summary == aSummary) {
@@ -391,6 +405,9 @@ namespace bpr::qt {
 
 	auto workbench_drawer_rail::label() const -> QString
 	{
+		if (!Label.isEmpty()) {
+			return Label;
+		}
 		switch (Drawer) {
 		case core::workbench_drawer::files:
 			return QStringLiteral("Files");

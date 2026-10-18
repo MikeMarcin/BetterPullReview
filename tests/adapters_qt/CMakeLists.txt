@@ -2251,6 +2251,30 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# [[BPR-1576]]. The application's one loading-state pattern and the panes that
+# use it, driven by real facts and an injected clock.
+bpr_add_executable(test_better_pull_review_qt_pending_veil_tests pending_veil_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_pending_veil_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_pending_veil_tests)
+bpr_enable_warnings(test_better_pull_review_qt_pending_veil_tests)
+bpr_add_network_isolated_test(NAME qt_pending_veil COMMAND test_better_pull_review_qt_pending_veil_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/pending-veil")
+set_tests_properties(qt_pending_veil PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "pending-veil-tests:pass"
+    TIMEOUT 120)
+
+# [[BPR-1575]]. Refresh made visible on the pull request and on Home, from the
+# core's read stages, with a negative control that has none.
+bpr_add_executable(test_better_pull_review_qt_refresh_feedback_window_tests refresh_feedback_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_refresh_feedback_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_add_network_isolated_test(NAME qt_refresh_feedback_window COMMAND test_better_pull_review_qt_refresh_feedback_window_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/refresh-feedback")
+set_tests_properties(qt_refresh_feedback_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
+    TIMEOUT 120)
+
 # [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
 # 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,
 # and the old platform-drawn bar refused (on macOS, the native bezel).
@@ -2271,6 +2295,30 @@ foreach(bpr_disclosure_scale IN ITEMS 100 200)
             ENVIRONMENT
                 "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_disclosure_whole}.${bpr_disclosure_fraction}"
             PASS_REGULAR_EXPRESSION "disclosure-button-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+# [[BPR-1587]] [[BPR-1588]]. RFC-BPR-0085's shared drawer parts in the four
+# built-in themes with the principles audit's negative controls, and the
+# Overview's Status drawer: resize bounds, collapse and adopt.
+bpr_add_executable(test_better_pull_review_qt_drawer_parts_tests drawer_parts_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_drawer_parts_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_drawer_parts_tests)
+bpr_enable_warnings(test_better_pull_review_qt_drawer_parts_tests)
+foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_drawer_parts_whole "${bpr_drawer_parts_scale} / 100")
+    math(EXPR bpr_drawer_parts_fraction "${bpr_drawer_parts_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_drawer_parts_scale_${bpr_drawer_parts_scale}
+        COMMAND test_better_pull_review_qt_drawer_parts_tests
+    )
+    set_tests_properties(
+        qt_drawer_parts_scale_${bpr_drawer_parts_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_drawer_parts_whole}.${bpr_drawer_parts_fraction}"
+            PASS_REGULAR_EXPRESSION "drawer-parts-tests:pass"
             TIMEOUT 120
     )
 endforeach()
