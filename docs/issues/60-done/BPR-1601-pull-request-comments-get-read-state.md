@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1601"
 title: "Pull request comments get read state"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1589"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "Owner decision relayed by the coordinator during BPR-1589, 2026-10-17", "reservation": "docs/issues/_reservations/BPR-1601--BPR-1601--d8c573df027e.json", "queue": "Data-model work, not taste: a candidate for the Codex queue"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4c2d600f3","evidence":{"kind":"observation","detail":"Core and host singleton courses pass for read, unread, edits, own posts and seen-before across restart. SQLite stores read and zero-cursor singleton receipts beside unchanged existing thread receipts and reopens them. Existing migration courses pass; no schema change."}},{"criterion":"AC2","outcome":"pass","revision":"4c2d600f3","evidence":{"kind":"observation","detail":"The real composed synthetic course passes through Go to them, Discuss and Threads menus, next-new after file threads, file-scope widening, all three markers/counts, manual unread, restart and an edited stable summary. Final public course passes; offscreen renders inspected. Overview reset and finder accessibility counts pass."}},{"criterion":"AC3","outcome":"pass","revision":"4c2d600f3","evidence":{"kind":"observation","detail":"Fourteen focused native rows pass across the affected targets, including both composition contracts (664.58 s), with round-trip rerun after final app relink (5.10 s). Three core-only rows pass in 19.17 s. Format22 passes 21 C++ files; documentation gate, 67 documentation regression tests and diff check pass. Main 887feb0ed rechecked and merged; composition pins resealed, mutation digest unchanged."}}]
 ---
 # BPR-1601: Pull request comments get read state
 
