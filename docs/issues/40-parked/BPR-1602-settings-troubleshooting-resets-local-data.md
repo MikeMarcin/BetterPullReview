@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1602"
 title: "Settings › Storage & privacy › Troubleshooting resets this profile's local data"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"owner-request","origin":"Owner request relayed by the coordinator, 2026-10-18","governing_rfc":"RFC-BPR-0014","related_rfcs":["RFC-BPR-0048","RFC-BPR-0084"],"related_cards":["BPR-0953","BPR-0954","BPR-0955","BPR-0956","BPR-1217","BPR-1555","BPR-1597"],"reservation":"docs/issues/_reservations/BPR-1602--BPR-1602--48cdf9547216.json","acceptance":["BPR-1602:design","BPR-1602:scopes","BPR-1602:credentials","BPR-1602:lifecycle","BPR-1602:recovery","BPR-1602:copy","BPR-1602:gates","BPR-1602:owner"]}
+parked_on: "human-review"
 ---
 # BPR-1602: Settings › Storage & privacy › Troubleshooting resets this profile's local data
 
@@ -71,3 +72,51 @@ and the startup recovery dialog.
 - **BPR-1602:gates** Focused tests, clang-format 22, the documentation gate and
   the composition contracts.
 - **BPR-1602:owner** The owner accepts the frozen build in Light and Dark.
+
+## Design round v001 (2026-10-18)
+
+Designed with the `frontend-design` skill in the existing Settings row
+grammar; the one new element is the confirmation's Removes / Keeps ledger.
+Mockups (Light and Dark, 14 images) ask one question, A or B, in a fresh
+attended session `ea1ed38316a18d2afe3b1fe067c699d7` (state
+`~/.mask/attended-review-sessions/bpr-1602-design-v001-20261018`), candidate
+`BPR-1602-reset-design-v001`, revision `mockups-2026-10-18-v001`.
+
+Proposed scopes, by whole store file with its sidecars:
+
+| Scope | Files |
+|---|---|
+| Caches | `repositories/`, `incoming/`, `locks/`, `epoch-catalog.sqlite3`, `markdown-images.sqlite3`, `review-overviews.sqlite3`, `mcp-snapshot/` |
+| Settings | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `review-queue` (saved repositories and servers, observer rules, Home's queue), `window-restoration` |
+| Review data | `review-ledger`, `review-tours`, `review-cycles` with `publication-git-v1/`, `review-mutation-recovery` |
+| Never | `device-bindings`, `remembered-connections`, the vault, `logs/`, `profile-registry`, `release-update`, `update-draft-recovery`, `profiles/`, `updates/`, agent workspaces, exported files |
+
+Review data and Everything need an explicit acknowledgement and offer a copy
+of the removed store files in Downloads, on by default. The startup recovery
+dialog offers Clear caches and try again, Reset everything… or Quit, and
+`--reset-profile-data` opens it before the profile loads.
+
+### Damaged-store probe (main `e9b1cee35`, tests-on dev build)
+
+A fixture profile (`--github-fixture github-com --epoch-fixture-root`) opened
+its pull request, then each store's header was overwritten in a copy of that
+root (its WAL and SHM removed) and the app started again offscreen:
+
+- Opened normally, the damage silent at start: appearance-settings,
+  workbench-settings, diagnostic-preferences, review-queue, review-ledger,
+  review-tours, review-cycles, review-overviews, window-restoration,
+  review-mutation-recovery, remembered-connections.
+- Exited 1 with no window and no message: `epoch-catalog`
+  (`STARTUP_FAILURE_SOURCE:profile-runtime-construction`) and the shared
+  `profile-registry` (`STARTUP_PROFILE_REFUSAL:invalid_registry`).
+
+So the Settings resets are the main path, and the startup dialog's Clear
+caches covers the observed exit; the shared registry is outside these resets.
+
+## Next
+
+On the owner's pick: core reset scopes beside the purge categories (never
+`credential_bindings`), the inventory filtered by scope in
+`release_maintenance_files`, a reset lifecycle that reopens the profile, the
+Qt group and confirmations, the startup recovery dialog and flag, the copy,
+then tests for every acceptance row and a frozen build for the final look.
