@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1572"
 title: "Stacked pull requests: Whole PR compares from the recorded base's merge base when the base branch takes the head's commits"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1560"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"BPR-1560 follow-up (stacked pull requests), owner approved 2026-10-17","governing_rfc":"RFC-BPR-0029","related_cards":["BPR-1560"],"reservation":"docs/issues/_reservations/BPR-1572--BPR-1572--7334e3717c3a.json","acceptance":["BPR-1572:measurement","BPR-1572:provider","BPR-1572:publication","BPR-1572:wording","BPR-1572:fixture","BPR-1572:live","BPR-1572:negative-control","BPR-1572:gates"]}
+acceptance: [{"criterion":"BPR-1572:measurement","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"Recorded BPR-Test measurement table and accepted round-four review; unchanged evidence reused."}},{"criterion":"BPR-1572:provider","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"github_provider and github_paged_read pass on ce38d487e, including wrapper HTTP 500 and cancellation refusal cases."}},{"criterion":"BPR-1572:publication","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"github_mutation_contract, live_review_mutation_provider, live_review_submission_provider, staged_review_session and permalink pass; round-four target_moved/stale_head conditions confirmed."}},{"criterion":"BPR-1572:wording","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"core_epoch_policy, application_github_window_read_host, Qt epoch comparison at 100/125/200 and application_merge_base_public_path pass."}},{"criterion":"BPR-1572:fixture","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"merge_base_fixture_contract and application_merge_base_public_path pass on the merged tree."}},{"criterion":"BPR-1572:live","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"Accepted recorded round-two BPR-Test merge/fast-forward/rebase/force/criss-cross courses reused unchanged; no extra remote writes."}},{"criterion":"BPR-1572:negative-control","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"Accepted unit/fixture/live/lineage and round-four propagation negative controls reused unchanged."}},{"criterion":"BPR-1572:gates","outcome":"pass","revision":"ce38d487e","evidence":{"kind":"observation","detail":"20 focused rows and affected builds pass on ce38d487e; format22 for 35 C++ files, docs and diff pass; both composition contracts pass with dated reseal. Existing tidy evidence reused. Owner handoff moves full suite and full format/tidy to item 9."}}]
 ---
 
 # BPR-1572: Stacked pull requests compare from the recorded base's merge base
