@@ -1802,7 +1802,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7a048ad1b4e0986942117b32a0ebcc19a4031b07c58818f5a60352b902b36b42"
+        "39e289b5ab7ae6d0c23076bdc7ee5635f9e24e5076410d3a5336afaea9bacc34"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

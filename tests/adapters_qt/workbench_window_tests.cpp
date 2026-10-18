@@ -11852,6 +11852,78 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1593]]. RFC-BPR-0085 D4 and AC06: the Tour tab is the
+	/// route, the brief one card, the current stop written in place on it;
+	/// Expand opens the tour page in the main pane with no drawers, its
+	/// outline, the stop and what GitHub will show; Back to the code returns
+	/// to the route with the drawers as they were.
+	void test_the_tour_is_a_route_expanding_to_its_page()
+	{
+		const auto           root = qEnvironmentVariable("BPR_TOUR_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const editor = window.tour_editor();
+		editor->set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
+		auto tour       = tests::review_tour_fixture();
+		auto second     = tour.Stops.front();
+		second.Id       = core::tour_stop_id{ 2 };
+		second.Title    = "Zero width is a real state";
+		second.Body     = "During an interactive resize Qt reports a width of 0 for one frame.";
+		tour.LastStopId = 2;
+		tour.Stops.push_back(second);
+		application::tour_presentation presentation;
+		presentation.Draft    = std::make_shared<const core::review_tour>(tour);
+		presentation.Selected = core::tour_stop_id{ 2 };
+		editor->present(presentation);
+		window.open_review_tour();
+		editor->show_stops();
+		process_events();
+		auto* const outline = editor->outline();
+		auto* const tools   = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
+		expect(editor->mode() == qt::tour_editor_mode::route && outline->isVisible() && outline->count() == 2 && outline->verticalScrollBar()->maximum() == 0,
+			   "the Tour tab is the route: every stop in view, no list of its own to scroll");
+		expect(editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()) && outline->itemWidget(outline->item(1)) != nullptr,
+			   "the current stop is written in place on the route");
+		expect(!editor->findChild<QTabWidget*>(QStringLiteral("tourRoadmap"))->isVisible() && tools != nullptr && tools->isVisible(),
+			   "the route shows no section tabs, and the tab row has Add stop and Expand");
+		editor->show_problem();
+		process_events();
+		expect(editor->problem_editor()->isVisible() && editor->brief_open() == 0, "the brief opens in place to its field");
+		editor->show_stops();
+		process_events();
+		const auto violations = qt::drawer_principle_violations(*editor);
+		expect(violations.isEmpty(), "the route keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/tour-route.png"), "PNG"), "the route render is saved");
+		}
+
+		window.findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool"))->click();
+		process_events();
+		auto* const page = window.findChild<QWidget*>(QStringLiteral("workbenchTourPage"));
+		expect(window.tour_page_open() && page != nullptr && page->isVisible() && page->isAncestorOf(editor) && editor->mode() == qt::tour_editor_mode::page
+				   && !window.conversations_drawer()->isVisible() && !window.files_drawer()->isVisible(),
+			   "Expand opens the tour page in the main pane, with no drawers beside it");
+		expect(editor->stop_body()->isVisible() && !outline->isAncestorOf(editor->stop_body()) && editor->publication_panel()->isVisible() && outline->isVisible(),
+			   "the page has the outline, the stop's editor and what GitHub will show, together");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/tour-page.png"), "PNG"), "the page render is saved");
+		}
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		window.findChild<QPushButton*>(QStringLiteral("workbenchTourPageBack"))->click();
+		process_events();
+		static_cast<void>(escape);
+		expect(!window.tour_page_open() && editor->mode() == qt::tour_editor_mode::route && window.conversations_drawer()->isVisible() && window.files_drawer()->isVisible()
+				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()),
+			   "Back to the code returns to the route, the drawers as they were");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1328]]. The arrows are a bounded previous and next.
 	///
 	/// \details The owner, 2026-10-08: "It doesn't feel good for next change
@@ -18975,6 +19047,7 @@ auto main(int argc, char** argv) -> int
 	test_composition_pages_retain_editors_and_never_submit_on_navigation();
 	test_composition_keys_open_the_pages_and_esc_returns();
 	test_finish_review_is_a_sheet_beside_the_code();
+	test_the_tour_is_a_route_expanding_to_its_page();
 	test_pending_rows_open_their_comments_like_threads();
 	test_tour_retarget_key_reaches_only_the_outline();
 	test_compose_review_marks_a_kept_draft();

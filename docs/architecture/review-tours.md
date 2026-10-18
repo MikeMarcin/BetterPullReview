@@ -89,7 +89,21 @@ sides are refused rather than converted from painted rows into a false range.
 Related source capture uses the same admission and stores no credential-bearing
 fetch destination.
 
-The Tour stops page retains native explanation documents by stop ID, with a
+Since [[BPR-1593]] (RFC-BPR-0085 D4) the Tour tab is the route: the brief as
+one card whose Problem and Solution rows open in place, then the stops as
+numbered rings on an amber line, a file chip where the route changes file, and
+the current stop's title, source, explanation and actions written in place on
+the route. Readiness reads from the ring: a green tick for Ready, an amber
+number for Editing, a warning on the ring for Needs attention, a dashed ring
+for Suggested. **Expand** opens the tour page in the main pane, with no
+drawers: the brief and outline at the left, the stop with its code excerpt
+under the amber bracket in the middle, and what GitHub will show with the
+publication controls at the right; **Back to the code** (Esc) returns. Both
+places are the same controls, moved, so the model, publication and recovery
+below are unchanged. The section stack keeps its four pages (Problem,
+Solution, stops, preview) with no visible tabs.
+
+The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,
 source replacement and remove. Add also inserts after the current stop and
@@ -279,7 +293,7 @@ and [website/native course](../verification/RFC-BPR-0039-0043.manual-course.md).
 
 ## Optional outline and author completion
 
-The Tour stops page offers **Suggest tour outline** through the same selected
+The route and the tour page offer **Suggest an outline** through the same selected
 profile, versioned outline hook and restricted writing process as per-field
 assistance. It sends at most eight bounded sources, including the current exact
 selected source when available. Returned references resolve only against those

@@ -84,7 +84,7 @@ namespace {
 		wait([&] { return window.prepare_tour_action()->isEnabled() && !window.tour_editor()->shown().Loading; }, "ordinary PR open composes tour host");
 		window.prepare_tour_action()->trigger();
 		QApplication::processEvents();
-		expect(window.tray_tabs()->tabText(window.tray_tabs()->currentIndex()) == QStringLiteral("Tour") && window.tour_editor()->isVisible(), "Prepare review tour opens the composed Tour tray");
+		expect(window.tray_tabs()->accessibleTabName(window.tray_tabs()->currentIndex()) == QStringLiteral("Tour") && window.tour_editor()->isVisible(), "Prepare review tour opens the composed Tour tray");
 	}
 	void shutdown(app::github_application& aApp)
 	{

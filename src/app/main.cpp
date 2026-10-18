@@ -19,6 +19,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "src/installed_resources.hpp"
@@ -247,6 +248,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-unknown-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
+		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5500,6 +5502,7 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5586,6 +5589,8 @@ namespace {
 						schedule_attended_finish_review_look(aApplication);
 					} else if (look == "notes") {
 						schedule_attended_notes_look(aApplication);
+					} else if (look == "tour") {
+						schedule_attended_tour_look(aApplication);
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
@@ -5881,6 +5886,129 @@ namespace {
 				QCoreApplication::processEvents();
 			}
 			QTextStream{ stdout } << "ATTENDED_NOTES_SHOWN\n";
+			QTextStream{ stdout }.flush();
+		});
+		timer->start();
+	}
+
+	// [[BPR-1593]]. `--attended-tour-look`: on conventional-comments-v1, once
+	// the file shows, Prepare review tour opens the Tour tab and a private
+	// tour is written through its own gestures: the brief, then three stops
+	// on lines of renderer.cpp (select the line, Add stop, write), the first
+	// marked Ready. The route is left showing the second stop open, for the
+	// person. Nothing reaches GitHub.
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication)
+	{
+		struct stop_text
+		{
+			std::uint32_t Line;
+			QString       Title;
+			QString       Body;
+		};
+		static const auto stops = std::array{
+			stop_text{ 2U, QStringLiteral("Where drawing starts"), QStringLiteral("draw() is the frame's one entry point. Everything below runs once per frame, in this order.") },
+			stop_text{ 5U, QStringLiteral("The second view now draws its scene"), QStringLiteral("draw_scene() runs between the clear and present(). Please check: does the clear on the second view finish before the draw starts?") },
+			stop_text{ 11U, QStringLiteral("Resize keeps the size it was given"), QStringLiteral("resize() stores the width and height as given. A width of 0 during an interactive resize is passed through unchanged.") },
+		};
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(60);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const editor = window.tour_editor();
+			const auto  fail   = [timer](const QString& aWhy) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << "ATTENDED_TOUR_FAILED:" << aWhy << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 3'000) {
+				fail(QStringLiteral("timeout:step=%1").arg(*step));
+				return;
+			}
+			const auto& shown = editor->shown();
+			const auto  idle  = shown.Draft && !shown.Loading && !shown.Saving;
+			if (*step == 0) {
+				if (!window.prepare_tour_action()->isEnabled() || shown.Loading) {
+					return;
+				}
+				window.prepare_tour_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (!idle) {
+					return;
+				}
+				editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame, and resizing to zero width stalled the frame."));
+				editor->solution_editor()->setPlainText(QStringLiteral("Draw each view's scene between its clear and present, and keep the size a resize gives, so the next frame corrects itself."));
+				*step = 2;
+				return;
+			}
+			const auto index = static_cast<std::size_t>(*step - 2) / 3U;
+			const auto phase = (*step - 2) % 3;
+			if (index < stops.size()) {
+				const auto& stop = stops[index];
+				if (!idle) {
+					return;
+				}
+				if (phase == 0) {
+					if (!window.comparison_surface()->select_conversation_line(bpr::core::diff_side::right, stop.Line)) {
+						return;
+					}
+					window.add_tour_stop_action()->trigger();
+					++*step;
+					return;
+				}
+				if (phase == 1) {
+					if (shown.Draft->Stops.size() != index + 1U || editor->selected_stop() == nullptr) {
+						return;
+					}
+					editor->stop_title()->setText(stop.Title);
+					Q_EMIT editor->stop_title()->textEdited(stop.Title);
+					++*step;
+					return;
+				}
+				editor->stop_body()->setPlainText(stop.Body);
+				++*step;
+				return;
+			}
+			if (*step == 2 + static_cast<int>(stops.size()) * 3) {
+				if (!idle) {
+					return;
+				}
+				// The first stop is ready; the second is the one being written.
+				editor->outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
+				if (auto* const ready = editor->findChild<QPushButton*>(QStringLiteral("tourComplete")); ready != nullptr) {
+					ready->click();
+				}
+				++*step;
+				return;
+			}
+			if (!idle) {
+				return;
+			}
+			timer->stop();
+			timer->deleteLater();
+			editor->outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+			QCoreApplication::processEvents();
+			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER"); !root.isEmpty()) {
+				if (qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark")) {
+					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+				}
+				QCoreApplication::processEvents();
+				static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-route.png"), "PNG"));
+				window.open_tour_page(false);
+				QCoreApplication::processEvents();
+				static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-page.png"), "PNG"));
+				window.close_tour_page();
+				QCoreApplication::processEvents();
+			}
+			QTextStream{ stdout } << "ATTENDED_TOUR_SHOWN\n";
 			QTextStream{ stdout }.flush();
 		});
 		timer->start();
@@ -9936,7 +10064,9 @@ auto main(int argc, char** argv) -> int
 		const auto attendedUnknownReviewLook = launch.has("--attended-unknown-review-look");
 		const auto attendedFinishReviewLook  = launch.has("--attended-finish-review-look");
 		// [[BPR-1592]]. Private notes written at their lines.
-		const auto attendedNotesLook      = launch.has("--attended-notes-look");
+		const auto attendedNotesLook = launch.has("--attended-notes-look");
+		// [[BPR-1593]]. A private tour written on renderer.cpp.
+		const auto attendedTourLook       = launch.has("--attended-tour-look");
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook || attendedFinishReviewLook;
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
 		const auto attendedReadState = launch.has("--attended-read-state");
@@ -10044,6 +10174,7 @@ auto main(int argc, char** argv) -> int
 			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedFinishReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook))
 			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
+			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -10504,6 +10635,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedNotesLook) {
 						look = std::string{ "notes" };
+					}
+					if (attendedTourLook) {
+						look = std::string{ "tour" };
 					}
 					if (attendedPreflightLook.has_value()) {
 						look = attendedPreflightLook;

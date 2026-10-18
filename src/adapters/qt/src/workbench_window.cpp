@@ -445,6 +445,7 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. Notes holds only private notes; the agent's material
 		/// is the provisional Agent tab's, after Tour, until [[BPR-1594]].
 		constexpr int tray_notes_tab    = 1;
+		constexpr int tray_tour_tab     = 2;
 		constexpr int tray_findings_tab = 3;
 
 		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
@@ -3023,8 +3024,16 @@ namespace bpr::qt {
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
 		TrayPages->addWidget(notesPage);
-		TourEditor = new review_tour_editor{ conversationShell };
-		TrayPages->addWidget(makeTabColumn(TourEditor, QStringLiteral("workbenchTourScroll")));
+		// [[BPR-1593]]. The Tour tab is the route; its editor moves to the tour
+		// page on Expand and back on Back to the code, so it sits in a holder.
+		TourHolder = new QWidget{ conversationShell };
+		TourHolder->setObjectName(QStringLiteral("workbenchTourHolder"));
+		auto* const tourHolding = new QVBoxLayout{ TourHolder };
+		tourHolding->setContentsMargins(0, 0, 0, 0);
+		TourEditor = new review_tour_editor{ TourHolder };
+		tourHolding->addWidget(TourEditor);
+		TrayPages->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
+		wire_tour_page();
 		TrayPages->addWidget(agentPage);
 		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
 		// right: Only new, Hide resolved and Next new reply.
@@ -3056,14 +3065,30 @@ namespace bpr::qt {
 		elsewhere->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		notesToolsRow->addWidget(elsewhere);
 		NotesTools->hide();
+		// [[BPR-1593]]. The Tour tab's tools: Add stop, and Expand to the
+		// tour page.
+		TourTools = new QWidget{ CommentsTools->parentWidget() };
+		TourTools->setObjectName(QStringLiteral("workbenchTourTools"));
+		auto* const tourToolsRow = new QHBoxLayout{ TourTools };
+		tourToolsRow->setContentsMargins(0, 0, 0, 0);
+		tourToolsRow->setSpacing(1);
+		auto* const addStop = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::comment, palette()), tr("Add a stop on the selected lines"), QStringLiteral("workbenchAddTourStopTool"));
+		connect(addStop, &QToolButton::clicked, this, [this] { TourEditor->trigger(tour_editor_action::add_stop); });
+		tourToolsRow->addWidget(addStop);
+		auto* const expandTour = make_drawer_tool(TourTools, conversation_icon(conversation_glyph::maximize, palette()), tr("Expand to the tour page"), QStringLiteral("workbenchExpandTourTool"));
+		connect(expandTour, &QToolButton::clicked, this, [this] { open_tour_page(false); });
+		tourToolsRow->addWidget(expandTour);
+		TourTools->hide();
 		auto* const trayTools    = new QWidget{ trayHeader };
 		auto* const trayToolsRow = new QHBoxLayout{ trayTools };
 		trayToolsRow->setContentsMargins(0, 0, 0, 0);
 		trayToolsRow->setSpacing(0);
 		CommentsTools->setParent(trayTools);
 		NotesTools->setParent(trayTools);
+		TourTools->setParent(trayTools);
 		trayToolsRow->addWidget(CommentsTools);
 		trayToolsRow->addWidget(NotesTools);
+		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
 		// [[BPR-1592]]. RFC-BPR-0085 D5: below 340 pixels the tray's tabs show
 		// their icons only, so four tabs never scroll.
@@ -3080,6 +3105,7 @@ namespace bpr::qt {
 			TrayPages->setCurrentIndex(aIndex);
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
 			NotesTools->setVisible(aIndex == tray_notes_tab);
+			TourTools->setVisible(aIndex == tray_tour_tab);
 			if (aIndex == tray_notes_tab && PrivateNotes != nullptr) {
 				PrivateNotes->refresh_geometry();
 			}
@@ -8231,8 +8257,123 @@ namespace bpr::qt {
 		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			conversations_drawer_toggle_action()->trigger();
 		}
-		TrayTabs->setCurrentIndex(2);
+		TrayTabs->setCurrentIndex(tray_tour_tab);
 		TourEditor->show_problem();
+	}
+
+	void workbench_window::wire_tour_page()
+	{
+		// [[BPR-1593]]. RFC-BPR-0085 D4: Expand opens the tour page in the
+		// main pane (layout C), and Back to the code returns to the route.
+		TourPage = new QWidget{ CentreStack };
+		TourPage->setObjectName(QStringLiteral("workbenchTourPage"));
+		auto* const pageColumn = new QVBoxLayout{ TourPage };
+		pageColumn->setContentsMargins(0, 0, 0, 0);
+		pageColumn->setSpacing(0);
+		auto* const bar = new QHBoxLayout{ };
+		bar->setContentsMargins(12, 6, 12, 0);
+		bar->addStretch(1);
+		auto* const back = new QPushButton{ tr("Back to the code"), TourPage };
+		back->setObjectName(QStringLiteral("workbenchTourPageBack"));
+		back->setFlat(true);
+		back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
+		back->setToolTip(tr("Back to the code  Esc"));
+		connect(back, &QPushButton::clicked, this, [this] { close_tour_page(); });
+		bar->addWidget(back);
+		pageColumn->addLayout(bar);
+		TourPageBody           = new QWidget{ TourPage };
+		auto* const bodyColumn = new QVBoxLayout{ TourPageBody };
+		bodyColumn->setContentsMargins(0, 0, 0, 0);
+		pageColumn->addWidget(TourPageBody, 1);
+		auto* const escape = new QShortcut{ shortcut_key(shortcut_command::leave_composer), TourPage };
+		escape->setObjectName(QStringLiteral("workbenchTourPageEscape"));
+		escape->setContext(Qt::WidgetWithChildrenShortcut);
+		connect(escape, &QShortcut::activated, this, [this] { close_tour_page(); });
+		CentreStack->addWidget(TourPage);
+		TourEditor->set_expand_dispatch([this](const bool aPublication) { open_tour_page(aPublication); });
+		TourEditor->set_collapse_dispatch([this] { close_tour_page(); });
+		TourEditor->set_excerpt_source([this](const core::tour_source_range& aRange) -> std::optional<tour_excerpt> {
+			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->current_context().has_value()) {
+				return std::nullopt;
+			}
+			// The compared file's path, from the files drawer's rows.
+			auto        path  = QString{ };
+			const auto* model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+			for (int row = 0; model != nullptr && row < model->rowCount() && path.isEmpty(); ++row) {
+				const auto candidate = model->data(model->index(row, 0), Qt::DisplayRole).toString();
+				if (core::file_identity_of(candidate.toStdString()) == ComparisonSurface->current_context()->Key.File) {
+					path = candidate;
+				}
+			}
+			if (path.toStdString() != aRange.Path) {
+				return std::nullopt;
+			}
+			const auto& result   = *ComparisonSurface->current_result();
+			const auto& document = aRange.First.Side == core::diff_side::left ? result.LeftDocument : result.RightDocument;
+			if (!document.has_value() || document->Lines.empty()) {
+				return std::nullopt;
+			}
+			const auto last  = static_cast<std::uint32_t>(document->Lines.size() - 1U);
+			const auto first = aRange.First.Line > 3U ? aRange.First.Line - 3U : 0U;
+			const auto end   = std::min(last, aRange.Last.Line + 3U);
+			const auto lines = core::suggestion_source_lines(*document, first, end);
+			if (!lines.has_value()) {
+				return std::nullopt;
+			}
+			auto excerpt      = tour_excerpt{ };
+			excerpt.First     = first + 1U;
+			excerpt.StopFirst = aRange.First.Line + 1U;
+			excerpt.StopLast  = aRange.Last.Line + 1U;
+			for (const auto& line : *lines) {
+				excerpt.Lines.push_back(QString::fromStdString(line));
+			}
+			return excerpt;
+		});
+	}
+
+	void workbench_window::open_tour_page(const bool aPublication)
+	{
+		if (!TourPageOpen) {
+			TourPageOpen = true;
+			TourPageBody->layout()->addWidget(TourEditor);
+			TourEditor->set_mode(tour_editor_mode::page);
+			if (Modality != nullptr && Modality->current() != review_modality::review) {
+				choose_modality(review_modality::review);
+			}
+			apply_modality_surface();
+			// The page is the whole review area: no drawers beside it, which
+			// keep their state for Back to the code.
+			apply_drawer_layout();
+		}
+		TourEditor->show();
+		if (aPublication) {
+			if (auto* const prepare = TourEditor->findChild<QPushButton*>(QStringLiteral("tourPreparePublication")); prepare != nullptr) {
+				prepare->setFocus(Qt::OtherFocusReason);
+			}
+		} else if (TourEditor->stop_body()->isVisible()) {
+			TourEditor->stop_body()->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::close_tour_page()
+	{
+		if (!TourPageOpen) {
+			return;
+		}
+		TourPageOpen = false;
+		TourHolder->layout()->addWidget(TourEditor);
+		TourEditor->set_mode(tour_editor_mode::route);
+		TourEditor->show();
+		apply_modality_surface();
+		apply_drawer_layout();
+		if (TrayTabs != nullptr) {
+			TrayTabs->setCurrentIndex(tray_tour_tab);
+		}
+	}
+
+	auto workbench_window::tour_page_open() const noexcept -> bool
+	{
+		return TourPageOpen;
 	}
 
 	auto workbench_window::compose_review_action() const noexcept -> QAction*
@@ -8760,6 +8901,13 @@ namespace bpr::qt {
 		}
 		if (CompositionPage != nullptr) {
 			page = DiscussPage;
+		}
+		// [[BPR-1593]]. The tour page covers Review while it is open, with no
+		// drawers beside it.
+		if (TourPageOpen && TourPage != nullptr) {
+			if (Modality != nullptr && Modality->current() == review_modality::review && CompositionPage == nullptr) {
+				page = TourPage;
+			}
 		}
 		// The composer column shows the one page being written, and the
 		// conversations narrow to a list beside it.
@@ -17374,7 +17522,7 @@ namespace bpr::qt {
 		Drawers[2].Panel->adopt(presented_repositories_state());
 		// These full-content pages borrow the center width without changing the
 		// retained drawer choices. Returning restores the same code arrangement.
-		const auto fullPage = CompositionPage != nullptr
+		const auto fullPage = CompositionPage != nullptr || TourPageOpen
 			|| (Modality != nullptr
 				&& (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads));
 		for (auto& entry : Drawers) {

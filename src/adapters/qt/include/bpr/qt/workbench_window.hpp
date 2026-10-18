@@ -797,6 +797,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
 		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
 		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
+		/// \brief [[BPR-1593]]. Expand: the tour page in the main pane; with
+		/// \p aPublication, at what GitHub will show.
+		void open_tour_page(bool aPublication = false);
+		/// \brief [[BPR-1593]]. Back to the code: the route in the drawer.
+		void               close_tour_page();
+		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		void               open_review_tour();
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
 		///
@@ -2175,6 +2181,13 @@ namespace bpr::qt {
 		QWidget*        CommentsTools        = nullptr;
 		/// [[BPR-1592]]. The Notes tab's tools in the tray's header.
 		QWidget* NotesTools = nullptr;
+		/// [[BPR-1593]]. The Tour tab's tools, and the tour page.
+		QWidget* TourTools    = nullptr;
+		QWidget* TourHolder   = nullptr;
+		QWidget* TourPage     = nullptr;
+		QWidget* TourPageBody = nullptr;
+		bool     TourPageOpen = false;
+		void     wire_tour_page();
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
