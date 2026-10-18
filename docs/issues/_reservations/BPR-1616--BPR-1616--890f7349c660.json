@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1616"
+  ],
+  "reserve_for": "codex-integrated-suite-repairs",
+  "purpose": "",
+  "created": "2026-10-18T22:36:56.256445+00:00",
+  "base": "6ff840ba8488d1a58f192fcfa2594a7c705a9fff"
+}
