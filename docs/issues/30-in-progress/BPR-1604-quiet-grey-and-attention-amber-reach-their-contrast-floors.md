@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner request 2026-10-18","owner_note":"Contrast debt: colours already below the floor before BPR-1585. Raise text to 4.5:1 and icons/badges to 3:1 on the plain background and the band, in all four themes, with the smallest change that keeps each colour's character; theme-derived adjustments, not hard-coded colours.","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-1085","BPR-1089","BPR-1156","BPR-1529","BPR-1585"],"reservation":"docs/issues/_reservations/BPR-1604--BPR-1605--1993453ea270.json","requested_skill":"frontend-design"}
+metadata: {"origin":"owner request 2026-10-18","owner_note":"Contrast debt: colours already below the floor before BPR-1585. Raise text to 4.5:1 and icons/badges to 3:1 on the plain background and the band, in all four themes, with the smallest change that keeps each colour's character; theme-derived adjustments, not hard-coded colours.","governing_rfc":"RFC-BPR-0028","related_cards":["BPR-1085","BPR-1089","BPR-1156","BPR-1529","BPR-1585"],"reservation":"docs/issues/_reservations/BPR-1604--BPR-1605--1993453ea270.json","requested_skill":"frontend-design","milestone_plan":{"id":"bpr-polish-contrast-blocking","path":"docs/rfcs/plans/bpr-polish-contrast-blocking/milestone-plan.json"}}
 ---
 
 # BPR-1604: The quiet grey and the attention amber reach their contrast floors
@@ -47,8 +47,8 @@ the same treatment.
   where it reads; otherwise the least move from it toward the text that holds
   4.5:1 on Base by the band's step (`core::quiet_band_contrast_hundredths`,
   so it still holds on the band), on AlternateBase and on Window. It stays a
-  grey between the text and the ground, so it stays quiet; HC Dark's midpoint
-  already reads and is unchanged. Every `PlaceholderText` use moves with it,
+  grey between the text and the ground, so it stays quiet; a midpoint that
+  already reads on every required ground is unchanged. Every `PlaceholderText` use moves with it,
   including both folder inks, which stay the same ink ([[BPR-1529]]).
 - Attention amber in the Files table: `core::readable_signal_ink`. The
   theme's `state_attention` where it holds the text floor on Base by the

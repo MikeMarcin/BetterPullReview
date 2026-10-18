@@ -9,3 +9,13 @@ Current action: preserve the inherited implementation as a WIP commit and merge 
 Plan: complete the theme-derived quiet/amber adjustment and check all shared uses; show one open-blocking total with a pending split matching Approve; verify core, host and actual workflow/editor; self-review, format, focused composition and documentation gates; commit/push; freeze one self-contained source/build with launcher --check; embed actual before/after Light/Dark and HC contrast renders in two protected review candidates. Human AC3 for both remains pending.
 
 Engineering owner: /root/finish_polish, non-delegating. No task-owned background commands.
+
+## Candidate engineering update
+
+The heading chip paints core::open_blocking, exactly the Approve-dot count. It reads 1 (not sent) for a pending-only blocker, 2 (1 not sent) for one published plus one pending, and 0 with no Approve dot for an exact empty set. The split remains in the tooltip/menu. This avoids the published-only leading zero and the competing adjacent counts. The suffix uses the shared readable quiet ink.
+
+Carried review comments enter preflight as draft:<id>, deduplicated against the selected composer draft. Projection caching includes the carried comments without copying them for an unchanged-cache comparison. A pending GitHub review root is tagged pending_publication, excluding it from the published population. Application source tests cover pending vs published roots and publication transition. The new real-app course writes a blocking draft, starts a review, checks selected+carried count once, navigates away from its line, checks the carried-only count, then reads one published blocker and checks total/split/Approve agreement. It passes in application_label_publication_recovery. Editor tests cover pending-only, mixed and exact zero.
+
+frontend-design was loaded; native typography and layout remain, with one clear leading total and a quiet explanation. Actual before/after Qt renders are at /tmp/bpr-polish-render in Light and Dark, including the old missed-input zero, pending-only and mixed states. One shared frozen build and one fresh two-candidate session are next. No human verdict exists.
+
+The unchanged broad submission course stops at the legacy Agent-tab assertion documented and owned by BPR-1616; see BPR-1604 handoff for the precise scope and other verification.

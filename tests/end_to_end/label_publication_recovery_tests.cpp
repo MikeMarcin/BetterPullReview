@@ -218,6 +218,51 @@ namespace {
 		wait_for([&] { return aComposed.Application->status().ShutdownComplete; }, "all composed hosts quiesce");
 	}
 
+	/// [[BPR-1605]]. Read the carried draft through the actual workflow and
+	/// editor, first alongside its selected composer and then on another line.
+	void run_carried_blocking_preflight()
+	{
+		auto composed = ::composed{ };
+		open_draft(composed, false, "issue (blocking): Keep this pending blocker in the total.");
+		auto& application  = *composed.Application;
+		auto& window       = application.window();
+		auto* inlineEditor = window.review_editor();
+		auto* review       = window.conversation_panel()->cards()->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		expect(review && review->isEnabled(), "the blocking draft offers Start a review");
+		review->click();
+		wait_for([&] { return inlineEditor->shown_draft() && core::pending_in_review(*inlineEditor->shown_draft()); }, "the blocker is carried in the local review");
+		const auto line = inlineEditor->shown_draft()->Anchor.Line;
+		window.open_review_composition();
+		auto*      editor  = window.review_submission_editor_view();
+		auto*      approve = editor->disposition_button(core::review_disposition::approve);
+		const auto pending = [&] {
+			const auto& shown = editor->shown_projection();
+			return shown.Draft && shown.Draft->Comments.size() == 1U && shown.Preflight && shown.Preflight->Blockers.empty() && shown.Preflight->Pending.size() == 1U
+				&& editor->preflight_button()->text() == QStringLiteral("1 (not sent)") && !approve->icon().isNull()
+				&& approve->toolTip().contains(QStringLiteral("1 open blocking"));
+		};
+		wait_for(pending, "carried and selected versions of one draft count once, as not sent, and agree with Approve");
+		window.close_review_sheet();
+		window.choose_modality(qt::review_modality::review);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, line + 1U), "move away from the carried draft's line");
+		wait_for([&] { return !inlineEditor->shown_draft() || inlineEditor->shown_draft()->Body.empty(); }, "the composer no longer selects the blocker");
+		window.open_review_composition();
+		wait_for(pending, "the carried blocker remains counted without the composer selecting it");
+
+		github_application_fixture_access::stage_server_root(application, "PRRT_fixture_1", "issue (blocking): A published blocker of mine.", std::nullopt);
+		window.github_refresh_action()->trigger();
+		wait_for([&] {
+			return editor->preflight_button()->text() == QStringLiteral("2 (1 not sent)")
+				&& editor->shown_projection().Preflight && editor->shown_projection().Preflight->Blockers.size() == 1U && editor->shown_projection().Preflight->Pending.size() == 1U
+				&& approve->toolTip().contains(QStringLiteral("2 open blocking"));
+		},
+				 "a published blocker plus the carried blocker reads 2 with 1 not sent, matching Approve");
+		const auto evidence = github_application_fixture_access::review_mutation_evidence(application);
+		expect(evidence.Submissions == 0U && evidence.NativePosts == 0U, "preflight and navigation publish nothing");
+		shut_down(composed);
+		std::cout << "BPR_1605:carried-blocking-preflight:pass\n";
+	}
+
 	void run_lost_relabel_retried()
 	{
 		auto       composed = ::composed{ };
@@ -633,6 +678,9 @@ try {
 		RecoveryRender = QString::fromLocal8Bit(aArgv[2]);
 	}
 	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
+	if (only.empty() || only == "carried-blocking-preflight") {
+		run_carried_blocking_preflight();
+	}
 	if (only.empty() || only == "lost-relabel-retried") {
 		run_lost_relabel_retried();
 	}

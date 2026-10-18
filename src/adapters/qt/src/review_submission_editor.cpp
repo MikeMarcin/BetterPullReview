@@ -64,11 +64,9 @@ namespace bpr::qt {
 
 		/// [[BPR-1085]]. A 16 px icon drawn in one ink, on the marks' own
 		/// geometry (BPR-1083): the round "unknown" state (states are round,
-		/// labels square), the dashed "not sent" square my drafts carry beside
-		/// the code (BPR-1290) with a pencil stroke, or the attention dot.
+		/// labels square), or the attention dot.
 		enum class preflight_icon : std::uint8_t {
 			unknown,
-			draft,
 			attention,
 		};
 		[[nodiscard]] auto preflight_pixmap(const preflight_icon aIcon, const QPalette& aPalette, const qreal aRatio, const QColor& aAttention = { }) -> QPixmap
@@ -96,23 +94,6 @@ namespace bpr::qt {
 					painter.drawText(QRectF{ 0.0, 0.0, feedback_mark_size, feedback_mark_size }, Qt::AlignCenter, QStringLiteral("?"));
 					break;
 				}
-				case preflight_icon::draft: {
-					// The accepted open border: flat dashes, as a non-blocking
-					// mark draws them, so the corners stay square-cut.
-					auto border = QPen{ ink, feedback_mark_border };
-					border.setCapStyle(Qt::FlatCap);
-					border.setDashPattern({ feedback_mark_dash / feedback_mark_border, feedback_mark_dash_gap / feedback_mark_border });
-					painter.setPen(border);
-					painter.setBrush(Qt::NoBrush);
-					painter.drawRoundedRect(frame, feedback_mark_corner - inset, feedback_mark_corner - inset);
-					// A pencil: its shaft, short of the border, and its tip.
-					painter.setPen(QPen{ ink, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-					painter.drawLine(QPointF{ 6.5, 9.5 }, QPointF{ 10.5, 5.5 });
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(ink);
-					painter.drawPolygon(QPolygonF{ { QPointF{ 4.6, 11.4 }, QPointF{ 5.4, 8.9 }, QPointF{ 7.1, 10.6 } } });
-					break;
-				}
 				case preflight_icon::attention: {
 					painter.setPen(Qt::NoPen);
 					painter.setBrush(aAttention);
@@ -134,7 +115,12 @@ namespace bpr::qt {
 
 			void set_segments(std::vector<std::pair<QPixmap, QString>> aSegments)
 			{
-				Segments = std::move(aSegments);
+				Segments   = std::move(aSegments);
+				auto words = QStringList{ };
+				for (const auto& [mark, text] : Segments) {
+					words.push_back(text);
+				}
+				setText(words.join(QLatin1Char{ ' ' }));
 				updateGeometry();
 				update();
 			}
@@ -143,7 +129,7 @@ namespace bpr::qt {
 				const auto metrics = fontMetrics();
 				auto       width   = padding * 2 + arrow;
 				for (const auto& [mark, count] : Segments) {
-					width += static_cast<int>(feedback_mark_size) + gap + metrics.horizontalAdvance(count) + spacing;
+					width += (mark.isNull() ? 0 : static_cast<int>(feedback_mark_size) + gap) + metrics.horizontalAdvance(count) + spacing;
 				}
 				return { width, std::max(static_cast<int>(feedback_mark_size) + 8, metrics.height() + 8) };
 			}
@@ -164,8 +150,11 @@ namespace bpr::qt {
 				painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::ButtonText));
 				for (const auto& [mark, count] : Segments) {
 					const auto side = static_cast<int>(feedback_mark_size);
-					painter.drawPixmap(QRect{ x, middle - side / 2, side, side }, mark);
-					x += side + gap;
+					if (!mark.isNull()) {
+						painter.drawPixmap(QRect{ x, middle - side / 2, side, side }, mark);
+						x += side + gap;
+					}
+					painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, mark.isNull() ? QPalette::PlaceholderText : QPalette::ButtonText));
 					const auto advance = metrics.horizontalAdvance(count);
 					painter.drawText(QRect{ x, 0, advance, height() }, Qt::AlignVCenter | Qt::AlignLeft, count);
 					x += advance + spacing;
@@ -1272,9 +1261,11 @@ namespace bpr::qt {
 		const auto summary  = review_preflight_summary(preflight);
 		auto       segments = std::vector<std::pair<QPixmap, QString>>{ };
 		if (preflight) {
-			segments.emplace_back(mark(core::feedback_label::issue, blocking), QString::number(preflight->Blockers.size()));
+			// [[BPR-1605]]. Lead with the same total as Approve's dot. The
+			// unsent part explains that total without leading with a false zero.
+			segments.emplace_back(mark(core::feedback_label::issue, blocking), QString::number(core::open_blocking(*preflight)));
 			if (!preflight->Pending.empty()) {
-				segments.emplace_back(preflight_pixmap(preflight_icon::draft, palette(), ratio), QString::number(preflight->Pending.size()));
+				segments.emplace_back(QPixmap{ }, preflight->Blockers.empty() ? tr("(not sent)") : tr("(%n not sent)", nullptr, static_cast<int>(preflight->Pending.size())));
 			}
 			if (!preflight->Exact) {
 				// An incomplete read shows its mark even when it counts nothing.

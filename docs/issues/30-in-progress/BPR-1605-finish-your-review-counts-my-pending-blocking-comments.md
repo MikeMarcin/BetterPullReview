@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner request 2026-10-18","owner_note":"The heading's blocking-feedback chip showed 0 while my own pending blocking comment existed. Design how it should count; it must stay consistent with the Approve warning dot.","governing_rfc":"RFC-BPR-0048","related_cards":["BPR-1085","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1604--BPR-1605--1993453ea270.json","requested_skill":"frontend-design"}
+metadata: {"origin":"owner request 2026-10-18","owner_note":"The heading's blocking-feedback chip showed 0 while my own pending blocking comment existed. Design how it should count; it must stay consistent with the Approve warning dot.","governing_rfc":"RFC-BPR-0048","related_cards":["BPR-1085","BPR-1345"],"reservation":"docs/issues/_reservations/BPR-1604--BPR-1605--1993453ea270.json","requested_skill":"frontend-design","milestone_plan":{"id":"bpr-polish-contrast-blocking","path":"docs/rfcs/plans/bpr-polish-contrast-blocking/milestone-plan.json"}}
 ---
 
 # BPR-1605: Finish your review counts my pending blocking comments

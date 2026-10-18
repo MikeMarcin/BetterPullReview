@@ -2987,6 +2987,11 @@ namespace {
 			const auto  ground  = palette.color(QPalette::Active, QPalette::Base);
 			const auto  band    = qt::overview_row_band(palette);
 			const auto  step    = contrast(band, ground);
+			std::cout << "inks " << theme << ": quiet " << palette.color(QPalette::PlaceholderText).name().toStdString()
+					  << " base " << contrast(palette.color(QPalette::PlaceholderText), ground) << " band " << contrast(palette.color(QPalette::PlaceholderText), band)
+					  << " window " << contrast(palette.color(QPalette::PlaceholderText), palette.color(QPalette::Window))
+					  << " amber " << colours.Marker.name().toStdString() << " base " << contrast(colours.Marker, ground) << " band " << contrast(colours.Marker, band) << '\n';
+			expect(contrast(palette.color(QPalette::PlaceholderText), palette.color(QPalette::Window)) >= 4.5, theme + ": quiet labels read on Window too");
 			std::cout << "band " << theme << ": ground " << ground.name().toStdString() << " band " << band.name().toStdString() << " step " << step << '\n';
 			expect(step >= 1.03 && step <= 1.25, theme + ": the band is visible and quiet against the ground");
 			expect(std::abs(step - qt::overview_row_band_contrast) < 0.02, theme + ": the band stands its designed step from the ground");
@@ -3011,6 +3016,7 @@ namespace {
 				{ "removed lines", 4.5, on(colours.Defect) },
 				{ "open chip digits", 4.5, on(colours.States.Open) },
 				{ "note", 4.5, on(palette.color(QPalette::PlaceholderText)) },
+				{ "folder path", 4.5, on(palette.color(QPalette::PlaceholderText)) },
 				{ "unknown change ?", 4.5, on(palette.color(QPalette::PlaceholderText)) },
 				{ "changed chip word", 4.5, cut(colours.Unread) },
 				{ "new chip word", 4.5, cut(colours.Accepted) },
@@ -3045,12 +3051,8 @@ namespace {
 				const auto onGround      = contrast(inkG, backG);
 				const auto onBand        = contrast(inkB, backB);
 				const auto name          = theme + ": " + checked.Name;
-				if (onGround >= checked.Floor) {
-					expect(onBand >= checked.Floor, name + " reads on the band as on the ground (" + std::to_string(onBand) + ")");
-				} else {
-					std::cout << "band short before: " << name << " ground " << onGround << " band " << onBand << " floor " << checked.Floor << '\n';
-					expect(onBand >= (onGround / step) - 0.02, name + ": the band costs no more than its step");
-				}
+				expect(onGround >= checked.Floor, name + " reads on the ground (" + std::to_string(onGround) + ")");
+				expect(onBand >= checked.Floor, name + " reads on the band (" + std::to_string(onBand) + ")");
 			}
 		}
 	}
@@ -3069,8 +3071,10 @@ namespace {
 			if (file.Path == "src/engine/renderer.cpp" || file.Path == "src/ui/widgets/slider.cpp") {
 				file.Changed = application::overview_change_since_review::changed;
 			}
-			if (file.Path == "src/engine/shaders/basic.frag") {
-				file.Note = std::string{ "Check the precision qualifiers" };
+			if (file.Path == "src/engine/shaders/basic.frag" || file.Path == "src/engine/shaders/basic.vert") {
+				file.Operation = application::overview_file_operation::renamed;
+				file.Note      = std::string{ "Check the precision qualifiers" };
+				file.Changed   = application::overview_change_since_review::unknown;
 			}
 			if (file.Path == "docs/guide.md" || file.Path == "src/engine/renderer.h") {
 				file.Read = core::file_read_state::read;
@@ -3081,6 +3085,8 @@ namespace {
 			{ .Id = "review-thread:a", .Label = feedback_label::issue, .Path = "src/engine/renderer.cpp" },
 			{ .Id = "review-thread:b", .Label = feedback_label::question, .Path = "src/engine/renderer.cpp" },
 			{ .Id = "review-thread:c", .Label = std::nullopt, .Path = "src/ui/widgets/button.cpp" },
+			{ .Id = "review-thread:plain", .Label = feedback_label::issue, .Path = "src/engine/shaders/basic.vert" },
+			{ .Id = "review-thread:band", .Label = feedback_label::issue, .Path = "src/engine/shaders/basic.frag" },
 			{ .Id = "review-thread:d", .Label = feedback_label::praise, .Path = { } },
 		});
 		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
