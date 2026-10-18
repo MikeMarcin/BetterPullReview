@@ -3276,6 +3276,16 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_overview_labels_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "overview-labels-public-path:pass")
+# [[BPR-1589]]. status-attention-v1: the Status drawer's role, attention and
+# Go to them through the composed application.
+bpr_add_network_isolated_test(
+    NAME application_status_attention_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --status-attention
+)
+set_tests_properties(application_status_attention_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "status-attention-public-path:pass")
 # [[BPR-1337]]. Discuss's top section on overview-labels-v1 at 1440x900: the
 # whole pull request, one file, a filter and a drill-down, in light and dark.
 bpr_add_network_isolated_test(

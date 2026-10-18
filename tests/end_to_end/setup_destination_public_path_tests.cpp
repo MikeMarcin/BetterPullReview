@@ -6,8 +6,10 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/files_tree.hpp"
@@ -821,6 +823,56 @@ namespace {
 		wait_for([&] { return reread->images_shown() && settled(*reread) && state(*reread, 0U) == core::markdown_image_state::loaded; }, "Load shows the images again");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images restart quiescence");
+	}
+
+	// [[BPR-1589]]. status-attention-v1 read by tbutler: the Status drawer
+	// leads with the role from the snapshot, names the two failed checks once
+	// and the author's replies, counts the threads with new posts, and Go to
+	// them opens Threads with Only new on. With BPR_SETUP_ARTIFACT_ROOT set,
+	// Light and Dark are captured.
+	void run_status_attention_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated status-attention course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private status-attention course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::status_attention_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "status-attention course startup");
+		expect(owner != nullptr, "status-attention course application");
+		auto& window = owner->window();
+		window.resize(1400, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "status-attention course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page = window.overview_page();
+		wait_for([&] { return page->isVisible() && page->presented() && page->new_threads() != 0U; }, "the pull request opens on Overview with its threads' read state");
+		expect(page->role_label()->text() == QStringLiteral("You requested changes") && page->other_roles_label()->text() == QStringLiteral("Also: you are mentioned in the description"),
+			   "my role is decided from the snapshot: my latest review leads, the description's mention follows");
+		const auto rows = page->attention_rows();
+		expect(rows.size() == 2 && rows[0] == QStringLiteral("2 checks failed\nbuild-linux, lint") && rows[1] == QStringLiteral("2 replies to you"),
+			   "Needs attention names the two failed checks once and the author's two replies to my threads: " + rows.join(QStringLiteral(" | ")).toStdString());
+		expect(page->value_label(qt::overview_value::checks)->text() == QStringLiteral("10 passed, 2 failed, 1 skipped"), "Checks is one bar of passed, failed and skipped");
+		if (qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT").isEmpty() == false) {
+			for (const auto& [mode, theme] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+				expect(github_application_fixture_access::apply_appearance_gesture(*owner, mode, 4U), "Settings applies each theme");
+				QApplication::processEvents();
+				capture(window, QStringLiteral("status-attention-%1.png").arg(QString::fromLatin1(theme)));
+			}
+		}
+		page->new_threads_button()->click();
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::threads && window.finder()->filters().OnlyNew, "Go to them opens Threads with Only new on");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "status-attention quiescence");
 	}
 
 	// [[BPR-1089]]. The owner's Overview look opens overview-labels-v1: 34
@@ -2581,6 +2633,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--markdown-images")) {
 		run_markdown_images_course();
 		std::cout << "markdown-images-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--status-attention")) {
+		run_status_attention_course();
+		std::cout << "status-attention-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--overview-labels")) {

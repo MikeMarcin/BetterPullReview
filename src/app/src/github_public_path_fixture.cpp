@@ -490,10 +490,12 @@ namespace bpr::app::detail {
 			case github_public_path_fixture::markdown_images_v1:
 			case github_public_path_fixture::markdown_parity_v1:
 			case github_public_path_fixture::markdown_html_v1:
+			case github_public_path_fixture::status_attention_v1:
 				return {
 					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_images_v1 ? "markdown-images-v1"
 						: aFixture == github_public_path_fixture::markdown_parity_v1                  ? "markdown-parity-v1"
 						: aFixture == github_public_path_fixture::markdown_html_v1                    ? "markdown-html-v1"
+						: aFixture == github_public_path_fixture::status_attention_v1                 ? "status-attention-v1"
 																									  : "overview-labels-v1",
 					.CapabilityDirectory = "github-com",
 					.Server              = server_contract::github_com,

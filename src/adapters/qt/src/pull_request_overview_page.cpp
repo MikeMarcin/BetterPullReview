@@ -4926,7 +4926,7 @@ namespace bpr::qt {
 		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(NewConversationText->text()));
 		NewConversationRow->setVisible(conversation != 0U);
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
-		header->set_count(progress.FilesTotal == 0U ? QString{ } : QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+		// The files-read row under it says the count; the header does not repeat it.
 		header->setAccessibleName(QStringLiteral("My review: %1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
 	}
 

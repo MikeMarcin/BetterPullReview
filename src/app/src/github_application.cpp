@@ -1116,6 +1116,15 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed Markdown HTML",
 				};
+			case detail::github_public_path_fixture::status_attention_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed Status attention",
+				};
 			case detail::github_public_path_fixture::markdown_code_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
