@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1605"
 title: "Finish your review counts my pending blocking comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
