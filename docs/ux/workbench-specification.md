@@ -2183,10 +2183,26 @@ its other is **Draft comment**, which copies it to a local draft at its own line
 (or, for a note without a line, at Comment's target); the note stays, and
 nothing is published until the existing explicit Publish. Esc on unsaved
 changes says so once and discards on the second press. Notes stays available
-with no agent configured. The agent's panels, the private history and the
-finding queue moved unchanged to the provisional **Agent** tab after Tour
-(its spark alone), until [[BPR-1594]] rebuilds it; its introductory sentence
-says: "Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."
+with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
+follows Tour (its spark alone). Its context row names the agent, the head its
+session reads, the scope in words (Selected lines, This file, Pull request,
+Repository) and History, a menu with a new session, continuing on an earlier
+head, the private history and runs, and the sessions. Below it the
+conversation holds the replies and one card per finding: severity, likelihood
+and category, its `file:lines`, the claim and the evidence; choosing a card
+shows its lines; **Draft a comment** copies it to a local draft at its line,
+then Ask follow-up and Add to notes, which fold into More (with Show the code,
+Draft a defect and Dismiss) when the drawer is narrow. The question field
+closes the tab with its context chips, Context and Ask (⌘↩). The tab says
+which of four states it is in: not set up ("Ask an agent about this pull
+request. Nothing it says is published unless you make it a comment." and Set
+up an agent), working (what it reads, and Stop), head moved (Start a new
+session or Continue on the old head) and stopped (what happened, the question
+kept, Ask again and Show the log). ⌥⇧A opens the drawer on the Agent tab; ⌘I
+and the code's context menu "Ask about these lines" open it with the selected
+lines attached and the question field focused. The agent's authority, its
+intents and the finding queue's actions are unchanged: nothing is published
+until the existing explicit Publish.
 Below 340 pixels the tray's tabs show their icons only.
 Finding conversions retain RFC-BPR-0012's existing actions. [[BPR-1208]] puts thread
 defects on their own cards: right-click, the context-menu key or Shift+F10
