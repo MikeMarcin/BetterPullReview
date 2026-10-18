@@ -5505,9 +5505,9 @@ namespace {
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
-#if defined(BPR_AGENT_INTEGRATIONS)
+	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
-#endif
+	#endif
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5596,10 +5596,10 @@ namespace {
 						schedule_attended_notes_look(aApplication);
 					} else if (look == "tour") {
 						schedule_attended_tour_look(aApplication);
-#if defined(BPR_AGENT_INTEGRATIONS)
+	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
-#endif
+	#endif
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
@@ -6023,7 +6023,7 @@ namespace {
 		timer->start();
 	}
 
-#if defined(BPR_AGENT_INTEGRATIONS)
+	#if defined(BPR_AGENT_INTEGRATIONS)
 	// [[BPR-1594]]. `--attended-agent-look PATH`: on conventional-comments-v1,
 	// once the file shows, ⌥⇧A opens the Agent tab and its review runs once
 	// with the fixture agent named here, so the person sees its finding cards.
@@ -6038,8 +6038,8 @@ namespace {
 			if (alive.expired()) {
 				return;
 			}
-			auto& window = aApplication.window();
-			const auto done = [timer](const QString& aLine) {
+			auto&      window = aApplication.window();
+			const auto done   = [timer](const QString& aLine) {
 				timer->stop();
 				timer->deleteLater();
 				QTextStream{ stdout } << aLine << '\n';
@@ -6086,7 +6086,7 @@ namespace {
 		});
 		timer->start();
 	}
-#endif
+	#endif
 
 	// [[BPR-1084]] and [[BPR-1085]]. `--attended-preflight-look`: on
 	// conventional-comments-v1, once the file is shown, a new blocking comment
