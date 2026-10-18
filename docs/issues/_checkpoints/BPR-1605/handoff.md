@@ -19,3 +19,5 @@ Carried review comments enter preflight as draft:<id>, deduplicated against the 
 frontend-design was loaded; native typography and layout remain, with one clear leading total and a quiet explanation. Actual before/after Qt renders are at /tmp/bpr-polish-render in Light and Dark, including the old missed-input zero, pending-only and mixed states. One shared frozen build and one fresh two-candidate session are next. No human verdict exists.
 
 The unchanged broad submission course stops at the legacy Agent-tab assertion documented and owned by BPR-1616; see BPR-1604 handoff for the precise scope and other verification.
+
+Final portability review: renamed a new preflight-chip structured binding from `text` (a QAbstractButton member name) to `count`, in accordance with the Qt AGENTS Windows shadowing rule. The unpresented first freeze is superseded; the replacement uses the corrected source candidate. No behavior or acceptance change.

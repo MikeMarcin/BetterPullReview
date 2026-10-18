@@ -117,8 +117,8 @@ namespace bpr::qt {
 			{
 				Segments   = std::move(aSegments);
 				auto words = QStringList{ };
-				for (const auto& [mark, text] : Segments) {
-					words.push_back(text);
+				for (const auto& [mark, count] : Segments) {
+					words.push_back(count);
 				}
 				setText(words.join(QLatin1Char{ ' ' }));
 				updateGeometry();
