@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1603 · Pull-request comments at the Comments drawer's edge</title>
+<link rel="stylesheet" href="../BPR-1574-drawers-and-agent-v1/kit.css"><script src="../BPR-1574-drawers-and-agent-v1/kit.js"></script>
+<style>
+  /* BPR-1603 additions. No new hue: verdicts use the kit's ok and danger tokens. */
+  .ech.pr { color:var(--ink); gap:6px; padding:0 4px 0 6px; }
+  .ech.pr .cnt { height:15px; min-width:15px; font-size:9.5px; }
+  .ech.pr.quiet { color:var(--ink-2); }
+  .ech.pr.on { background:var(--signal-soft); border-color:color-mix(in srgb, var(--signal) 45%, transparent); }
+  .ech .dot { width:6px; height:6px; }
+  .edgerow { position:absolute; top:0; left:0; right:0; height:34px; display:flex; align-items:center; gap:4px; padding:0 8px; z-index:8;
+    background:linear-gradient(var(--drawer) 0 60%, color-mix(in srgb, var(--drawer) 0%, transparent)); }
+  .edgerow .arrow { color:var(--ink-3); margin:0 1px 0 4px; display:inline-flex; }
+  .edgerow .sep { width:1px; height:16px; background:var(--rule-2); margin:0 4px; }
+  .verdict { display:inline-flex; align-items:center; gap:4px; height:18px; padding:0 6px; border-radius:5px; font:600 11px/1 var(--ui); white-space:nowrap; }
+  .verdict.req { color:var(--danger); background:var(--danger-soft); }
+  .verdict.ok { color:var(--ok); background:var(--ok-soft); }
+  .verdict.com { color:var(--ink-2); background:var(--panel-2); box-shadow:inset 0 0 0 1px var(--rule); }
+  .onfiles { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center; color:var(--ink-3); font-size:11.5px; }
+  .qt { border-left:3px solid var(--rule-2); padding:0 0 0 8px; margin:0 0 6px; color:var(--ink-2); font-size:12.5px; }
+  .newrule { display:flex; align-items:center; gap:8px; margin:4px 8px 6px; color:var(--new); font:700 10.5px var(--ui); }
+  .newrule::before { content:""; flex:1; height:1px; background:color-mix(in srgb, var(--new) 55%, transparent); }
+  .listhead { display:flex; align-items:center; gap:6px; padding:6px 8px; border-bottom:1px solid var(--rule); background:var(--drawer); }
+  .acts { display:flex; align-items:center; gap:6px; margin-top:9px; }
+  .hint { color:var(--ink-3); font-size:11.5px; }
+  .dim { opacity:.38; }
+  .ch .where { font-family:var(--ui); }
+  .card.open.top::after { content:""; position:absolute; top:-7px; left:var(--notchx, 24px); border:7px solid transparent; border-bottom-color:var(--route); border-top:0; }
+  .post.one .tx { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; color:var(--ink-2); }
+  .face { position:relative; display:inline-flex; align-items:center; gap:3px; height:24px; padding:0 4px; border-radius:12px; background:var(--panel); border:1px solid var(--rule-2); }
+  .face.on { border-color:var(--route); box-shadow:0 0 0 1px var(--route-line); }
+  .face .v { position:absolute; right:-2px; bottom:-2px; width:11px; height:11px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 1.5px var(--drawer); }
+  .face .v svg { width:8px; height:8px; stroke-width:3.2; }
+  .face .v.ok { background:var(--ok); color:#fff; } .face .v.req { background:var(--danger); color:#fff; }
+  body.dark .face .v.ok, body.dark .face .v.req { color:#1A1E24; }
+  .stcard .body { padding:10px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .stcard .say { color:var(--ink-2); font-size:12px; line-height:1.45; }
+  .ovline { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:7px; background:var(--panel); box-shadow:inset 0 0 0 1px var(--rule); }
+  .ovline .t { flex:1; }
+  .shared { margin:22px 0 0; }
+  .shared h2 { margin-bottom:4px; }
+  .shared p { color:var(--ink-2); font-size:13px; line-height:1.55; max-width:84ch; margin:4px 0 0; }
+</style></head>
+<body><script>
+"use strict";
+const at = (n) => (n - 412) * 20 + 2;
+I.ask = '<path d="M4 5.5h16v10H9l-5 4z"/><path d="M9 10.5h6"/>';
+const tabs = (n) => [["Comments", ` <span class="cnt">${n}</span>`, true], ["Notes", "", false], ["Tour", "", false], ["Agent", "", false]];
+const drawerTools = tool("newonly", false, "Only new") + tool("unres", false, "Hide resolved") + tool("next", false, "Next new comment (⌥N)");
+const prChip = (o = {}) => `<span class="ech pr ${o.quiet ? "quiet" : ""} ${o.on ? "on" : ""}" title="Comments on the pull request">${ic("pr", "xs")}${o.short ? "" : `${o.total ?? 5} on the pull request`}${o.short ? `${o.total ?? 5}` : ""}${o.unread ? `<span class="cnt">${o.unread}</span>` : ""}</span>`;
+const lineChip = (line, label, unread) => `<span class="ech">${label ? mark(label) : `<span class="gm thread" style="width:12px;height:12px"></span>`}${line}${unread ? '<span class="dot"></span>' : ""}</span>`;
+const edge = (inner, above = true) => `<div class="edgerow">${inner}${above ? `<span class="arrow">${ic("up", "xs")}</span>${lineChip(416, "question", false)}` : ""}</div>`;
+const verdict = (k) => k === "req" ? `<span class="verdict req">${ic("warn", "xs")}Changes requested</span>` : k === "ok" ? `<span class="verdict ok">${ic("check", "xs")}Approved</span>` : `<span class="verdict com">Commented</span>`;
+const onFiles = `<div class="onfiles">3 on files <span class="loc">renderer.cpp:440</span><span class="loc">renderer.cpp:444</span><span class="loc">frame_stats.cpp:31</span></div>`;
+
+/* The conversation of bpr-fixtures/engine #22, oldest first. */
+const C = [
+  { who: "reviewer-one", time: "2d", review: "req", body: "The clamp reads well. Two things before this lands: the retry budget needs a test that exhausts it, and <code>begin_frame</code> now returns early without recording timing.", files: true },
+  { who: "jiayin", time: "1d", body: "Added a test that runs the budget out, <code>RetryBudgetTest.exhausts_then_skips_submit</code>, in 5e1c2a0. On the early return: I'd rather not record a frame that never submitted. @reviewer-one, OK to leave <code>Stats_</code> untouched there?" },
+  { who: "tbutler", time: "20h", body: "Perf run on the 5K panel: frame time unchanged within noise (8.31 ms against 8.29 ms over 400 frames). Fine by me." },
+  { who: "reviewer-one", time: "3h", unread: true, body: "Agreed on not recording it. Please count the skipped frames instead, so the soak run shows how often the budget runs out." },
+  { who: "author-two", time: "1h", unread: true, review: "ok", body: "Looks good once the skipped-frame counter is in." },
+];
+const cpost = (c, o = {}) => {
+  const tintStyle = c.review === "req" ? "--t:var(--danger)" : c.review === "ok" ? "--t:var(--ok)" : "";
+  const meta = c.review ? verdict(c.review) : "";
+  return `<div class="post ${o.one ? "one" : ""}" style="${tintStyle}"><i class="rail"></i>
+    <div class="gut">${av(c.who)}</div>
+    <div class="pb"><div class="nm"><b>${c.who}</b>${c.unread && !o.read ? '<span class="dot"></span>' : ""}<time>${c.time}</time><span class="meta">${meta}</span></div>
+    <div class="tx">${c.body}</div>${c.files && o.files ? onFiles : ""}${o.after || ""}</div></div>`;
+};
+const closedRow = (c, o = {}) => `<div class="card flow closed ${o.hov ? "hov" : ""}" style="padding-left:0">${cpost(c, o)}</div>`;
+const replyBox = (quoteWho, quote, text) => `<div style="padding:4px 10px 10px 12px">
+  <div class="field focus" style="min-height:84px"><div class="qt">${quoteWho}: ${quote}</div>${text}<span style="border-left:1.5px solid var(--signal);margin-left:1px"></span></div>
+  <div class="acts"><span class="hint">Posts to the conversation, as on GitHub</span><span class="sp"></span><span class="pill quiet sm">Cancel</span><span class="pill primary sm">Comment <span class="kk">⌘↩</span></span></div></div>`;
+const replyText = "Done in 7c41e09: <code>Stats_.skipped_frames</code> counts them, and the soak dashboard plots it.";
+const openHead = (state, extra = "") => `<div class="ch"><span class="where">${ic("pr", "xs")} Pull request</span><span class="state">${state}</span><span class="sp"></span>${extra}${tool("ext", false, "Show in Discuss")}${tool("close", false, "Close (Esc)")}</div>`;
+const threadsBehind = (cls = "") => `
+  <div class="card closed ${cls}" style="top:${at(428) - 10}px">${post("tbutler", "1d", "Should <code>scale()</code> round or truncate? <code>lround</code> moves a 1-pixel seam at 125 percent.", { label: "question" })}</div>
+  <div class="card closed ${cls}" style="top:${at(440) - 4}px">${post("reviewer-one", "2d", "The budget resets every frame, so one bad frame cannot starve the next. Say so in a comment here.", { label: "suggestion" })}</div>
+  <div class="card closed ${cls}" style="top:${at(444) + 30}px">${post("jiayin", "4h", "Moved the warning below the early return, as asked.", { unread: true })}</div>`;
+const codeMarks = { 428: "thread", 440: "thread", 444: "newthr" };
+const ticks = [[18, ""], [36, "u"], [44, ""], [71, ""]];
+const status = "Actionable file 3 of 18. 2 threads and 2 comments on the pull request are new.";
+
+/* ---------- A: one chip, a list in place (Notes' pattern) ---------- */
+const aBody = `<div style="position:absolute;inset:0;overflow:hidden">
+  <div class="listhead"><span class="ech">${ic("left", "xs")}Back to threads at their lines</span><span class="sp"></span>${tool("ext", false, "Show the conversation in Discuss")}</div>
+  <div class="grouph" style="padding-top:9px"><b>On the pull request</b><span class="cnt quiet">5</span><span class="sp"></span>oldest first</div>
+  ${closedRow(C[0], { files: true })}
+  ${closedRow(C[1])}
+  ${closedRow(C[2])}
+  <div class="newrule">New</div>
+  <div class="card flow open" style="margin-top:2px">
+    ${openHead("Comment")}
+    ${cpost(C[3], { read: true, after: `<div class="acts"><span class="pill quiet sm">Mark unread</span></div>` })}
+    ${replyBox("reviewer-one", "Agreed on not recording it. Please count the skipped frames…", replyText)}
+  </div>
+  ${closedRow(C[4], { files: false })}
+</div>`;
+const aFrame = win({
+  badge: 4, status,
+  centre: codeCol({ marks: codeMarks, ticks }),
+  drawer: drawer({ tabs: tabs(4), tools: drawerTools, body: aBody }),
+}) + annot(1, 790, 92, "The top edge's chip, “5 on the pull request” with its new count, turns the drawer into this list; the back chip returns to the threads at their lines")
+  + annot(2, 790, 210, "A review summary carries its verdict and the comments it left on files; each opens its thread")
+  + annot(3, 790, 455, "Opened in place and read once seen; Reply has started a comment under it. Show in Discuss is in its header")
+  + annot(4, 790, 600, "A reply is a new pull-request comment that quotes the one it answers, as GitHub's conversation is flat");
+const aStates = `
+  <div class="stcard"><div class="cap">Top edge, in Review</div><div class="body" style="position:relative;min-height:60px"><div class="edgerow" style="position:relative;background:none;padding:0">${prChip({ unread: 2 })}<span class="arrow">${ic("up", "xs")}</span>${lineChip(416, "question")}</div>
+    <div class="say">The chip leads the top edge; the threads scrolled above follow its arrow, as Notes does.</div></div></div>
+  <div class="stcard"><div class="cap">Nothing new</div><div class="body"><div>${prChip({ quiet: true })}</div><div class="say">No count. The chip stays, so the conversation is always one press away.</div></div></div>
+  <div class="stcard"><div class="cap">Narrow drawer, 280 px</div><div class="body"><div>${prChip({ short: true, unread: 2 })}</div><div class="say">The words go; the glyph, total and new count stay. The tooltip says “5 comments on the pull request, 2 new”.</div></div></div>
+  <div class="stcard"><div class="cap">Return or Down on the list</div><div class="body"><div class="say">Up and Down move between comments, Return opens one, Esc closes it, Esc again goes back to the threads. ⌥N visits the new ones after the file's threads.</div></div></div>`;
+
+/* ---------- B: the conversation hangs from the top edge as one thread ---------- */
+const bBody = `${threadsBehind("dim")}
+  ${edge(prChip({ unread: 2, on: true }))}
+  <div class="card open top" style="top:40px;--notchx:30px">
+    ${openHead("5 comments, 2 new")}
+    ${cpost(C[0], { one: true })}
+    ${cpost(C[1], { one: true })}
+    ${cpost(C[2], { one: true })}
+    <div class="newrule" style="margin:2px 10px 0">New</div>
+    ${cpost(C[3], { read: true })}
+    ${cpost(C[4], { read: true, files: true, after: onFiles })}
+    <div style="border-top:1px solid var(--rule)">${replyBox("author-two", "Looks good once the skipped-frame counter is in.", replyText)}</div>
+  </div>`;
+const bFrame = win({
+  badge: 4, status,
+  centre: codeCol({ marks: codeMarks, ticks }),
+  drawer: drawer({ tabs: tabs(4), tools: drawerTools, body: bBody }),
+}) + annot(1, 790, 92, "The chip opens the whole conversation as one thread, hanging from the top edge as a thread hangs from its line")
+  + annot(2, 790, 168, "What you have read folds to one line each; press one to read it whole")
+  + annot(3, 790, 300, "New posts follow the New rule, exactly as in a thread")
+  + annot(4, 790, 640, "Reply quotes the post you pick (or the last one) and posts to the conversation");
+const bStates = `
+  <div class="stcard"><div class="cap">Closed: the edge at rest</div><div class="body"><div class="edgerow" style="position:relative;background:none;padding:0">${prChip({ unread: 2 })}<span class="arrow">${ic("up", "xs")}</span>${lineChip(416, "question")}</div><div class="say">The same chip as A. Esc or the chip again closes the conversation and the threads come back.</div></div></div>
+  <div class="stcard"><div class="cap">A long conversation</div><div class="body"><div class="say">Thirty comments: the card grows to two thirds of the drawer and scrolls inside, opening at the New rule. Older posts stay one line each.</div></div></div>
+  <div class="stcard"><div class="cap">Quote a post</div><div class="body"><div class="say">Hover a post for Reply; it starts the reply with that post quoted. Without a pick, Reply quotes nothing and simply comments.</div></div></div>
+  <div class="stcard"><div class="cap">Keys</div><div class="body"><div class="say">The chip takes focus like a thread chip: Return opens, Up and Down move between posts, R replies, Esc closes. ⌥N reaches new posts after the file's threads.</div></div></div>`;
+
+/* ---------- C: one chip per comment ---------- */
+const face = (who, o = {}) => `<span class="face ${o.on ? "on" : ""}">${av(who, "")}${o.v ? `<i class="v ${o.v}">${ic(o.v === "ok" ? "check" : "warn")}</i>` : ""}${o.unread ? '<span class="dot"></span>' : ""}</span>`;
+const cEdge = `<div class="edgerow">${ic("pr", "xs")}<span style="width:2px"></span>${face("reviewer-one", { v: "req" })}${face("jiayin")}${face("tbutler")}${face("reviewer-one", { unread: true, on: true })}${face("author-two", { v: "ok", unread: true })}<span class="sep"></span><span class="arrow">${ic("up", "xs")}</span>${lineChip(416, "question")}</div>`;
+const cBody = `${threadsBehind()}
+  ${cEdge}
+  <div class="card open top" style="top:42px;--notchx:118px">
+    ${openHead("Comment 4 of 5", tool("left", false, "Previous comment on the pull request") + tool("right", false, "Next comment on the pull request"))}
+    ${cpost(C[3], { read: true, after: `<div class="acts"><span class="pill outline sm">${ic("ask", "xs")}Reply</span><span class="pill quiet sm">Mark unread</span></div>` })}
+  </div>`;
+const cFrame = win({
+  badge: 4, status,
+  centre: codeCol({ marks: codeMarks, ticks }),
+  drawer: drawer({ tabs: tabs(4), tools: drawerTools, body: cBody }),
+}) + annot(1, 790, 92, "Each comment on the pull request is a face at the top edge, oldest first; a review summary carries its verdict on the face")
+  + annot(2, 790, 200, "The picked face opens its comment in place, with Previous and Next")
+  + annot(3, 790, 300, "Reply composes under the comment, quoting it, as in A; the threads stay at their lines");
+const cStates = `
+  <div class="stcard"><div class="cap">Many comments</div><div class="body"><div class="edgerow" style="position:relative;background:none;padding:0">${ic("pr", "xs")}${face("jiayin")}${face("tbutler", { unread: true })}${face("author-two", { v: "ok", unread: true })}<span class="ech">+14</span></div><div class="say">The newest three show; “+14” opens the oldest of the rest. The faces push the threads' chips to a second row.</div></div></div>
+  <div class="stcard"><div class="cap">Narrow drawer, 280 px</div><div class="body"><div class="edgerow" style="position:relative;background:none;padding:0">${ic("pr", "xs")}${face("reviewer-one", { unread: true })}${face("author-two", { v: "ok", unread: true })}<span class="ech">+3</span></div><div class="say">Two faces and a count; the arrow and the threads above wrap below.</div></div></div>
+  <div class="stcard"><div class="cap">Nothing new</div><div class="body"><div class="say">Faces without dots. Five faces stay at the edge even after every comment is read.</div></div></div>
+  <div class="stcard"><div class="cap">Keys</div><div class="body"><div class="say">Tab reaches each face; Left and Right move along them, as Previous and Next do in the open card.</div></div></div>`;
+
+/* ---------- shared ---------- */
+const notesChip = `<span class="ech">${`<span class="gm note" style="width:12px;height:12px;border-radius:3px"></span>`}2 on the pull request</span>`;
+const shared = `<section class="shared"><h2>What every direction keeps</h2>
+  <p>Comments on the pull request are the ones on no file: conversation comments and review summaries. Discuss keeps every one of them as today, and the Comments tab's count adds their new ones to the threads' (4 = 2 threads + 2 comments). Each opened comment is read once seen (BPR-1601) and offers Show in Discuss, which opens Discuss at that comment. A review summary reads as a comment with its verdict and the comments it left on files. GitHub's conversation is flat, so a reply is a new pull-request comment that quotes the one it answers.</p>
+  <div class="states">
+    <div class="stcard"><div class="cap">Beside the Notes tab's chip</div><div class="body"><div style="display:flex;gap:6px;flex-wrap:wrap">${prChip({ unread: 2 })}${notesChip}</div><div class="say">Comments (left) and Notes (right) never share a drawer. The same shape and place; Notes' face is a dashed lock square, Comments' is the pull-request glyph with a blue new count.</div></div></div>
+    <div class="stcard"><div class="cap">Overview, Status drawer</div><div class="body"><div class="ovline">${ic("comments", "s")}<span class="t">2 new comments in the conversation</span><span class="pill quiet sm">Go to them</span></div><div class="say">BPR-1589's line counts the same two. Go to them still opens Discuss; the chip is the way to them in Review.</div></div></div>
+    <div class="stcard"><div class="cap">A review summary</div><div class="body" style="padding:6px 0">${cpost(C[0], { files: true })}</div></div>
+    <div class="stcard"><div class="cap">An ordinary comment, new</div><div class="body" style="padding:6px 0">${cpost(C[3])}</div></div>
+  </div></section>`;
+
+page({
+  nav: "", title: "Comments on the pull request, at the Comments drawer's edge",
+  lede: "BPR-1603 (RFC-BPR-0085 D8). Notes already keeps your notes on the pull request in a chip at the top of the drawer. These directions give the same place to the comments that are on no file. Every frame is pull request #22 in Review with renderer.cpp open; two threads and two pull-request comments are new.",
+  before: shared,
+  directions: [
+    { id: "pr-A", letter: "A", name: "One chip, a list in place", frame: aFrame, states: aStates,
+      idea: "<p>Exactly Notes' pattern. “5 on the pull request” leads the top edge, with the new count in blue. Pressing it turns the drawer into the list of those comments, oldest first, with a New rule; one opens in place as a thread does. Back to threads at their lines returns.</p>",
+      pros: ["Identical to Notes: one shape, one place, one gesture", "The list has room for every comment and every review summary", "Least new code: the Notes list and the thread card already exist"],
+      cons: ["The threads beside the code disappear while the list shows", "Two steps to a new comment: the chip, then the row"] },
+    { id: "pr-B", letter: "B", name: "The conversation hangs from the top edge", frame: bFrame, states: bStates,
+      idea: "<p>The pull request is treated as one more anchor. Its conversation is one thread that hangs from the top edge, the way a thread hangs from its line: read posts fold to a line each, new ones follow the New rule in full, and the reply field sits at its foot.</p>",
+      pros: ["One press shows what is new, already open", "Reads like the conversation it is, in time order", "The threads stay where they are underneath"],
+      cons: ["A long conversation covers much of the drawer while open", "Unlike Notes, which lists its pull-request notes"] },
+    { id: "pr-C", letter: "C", name: "One chip per comment", frame: cFrame, states: cStates,
+      idea: "<p>Each comment on the pull request gets its own chip at the top edge, a face like the thread chips' marks: who wrote it, a verdict on a review summary's face, a dot when new. A face opens its comment in place with Previous and Next.</p>",
+      pros: ["Who said something new is visible without opening anything", "One press opens a particular comment"],
+      cons: ["Crowds the edge the threads' own chips use; past a handful it needs “+N”", "Faces do not say what a comment is about; the order is easy to misread", "Least like Notes"] },
+  ],
+});
+document.querySelector("nav.surf")?.remove();
+</script></body></html>
