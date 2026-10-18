@@ -22,16 +22,17 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    `49b3c0f57`, with the later main allocation-only update merged. Format22,
    documentation and diff checks pass; existing composition pins match.
    All sessions released/stopped; frozen roots, worktree and branch removed.
-3. BPR-1597/BPR-1568: main `c38432adf` merged at `c6c4eeff3`. Two conflicts
-   reconciled in the settings inventory and reseal history; no C++ conflict.
-   No schema addition; main's schema 23 remains. Affected targets built and
-   all 28 focused Settings/Home/workshop/composition rows pass (514.66 s).
-   Ready to finish both cards and push, then release/remove their resources. All 16 touched
-   C++ files pass format22; documentation gate passes. Owner Accept
-   `cec0a456-a98a-4d02-8eda-45507c5c5458` confirmed through session a090236d
-   cursor 6. BPR-1568 closes into the accepted BPR-1597; its rejected v002
-   is not retroactively accepted.
-4. BPR-1600: not started.
+3. BPR-1597/BPR-1568: Done and pushed in `19a3392d2` and `93ebf4eef`.
+   All 28 focused rows pass at `c6c4eeff3`; format22/docs/diff pass.
+   No schema addition. The accepted owner verdict closes BPR-1568 into
+   BPR-1597, without changing the earlier Rejects. Session released, server PID
+   absent, frozen root, worktree and branch removed.
+4. BPR-1600: inherited WIP/card committed at `324653f18`, current main merged
+   at `db2cd82d1` without conflict. Three affected targets build. All 14 focused
+   key/catalogue/typing/Home/composed/refresh-feedback tests pass (30.69 s),
+   as do format22/docs/diff. Focused clang-tidy22 passes all four touched translation units. Removing
+   only `apply_refresh_key(home)` made the key test fail; exact restoration,
+   rebuild and rerun pass. Ready to finish/push and clean up. No src/app delta.
 5. BPR-1572: not started.
 6. BPR-1598: not started.
 7. BPR-1599: not started.

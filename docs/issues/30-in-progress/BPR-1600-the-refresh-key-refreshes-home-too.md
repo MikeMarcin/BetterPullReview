@@ -49,3 +49,27 @@ which governs Home's explicit Refresh action.
   Home; no key is bound twice.
 - `BPR-1600:gates`: clang-format 22, tidy on the changed lines, the
   documentation gate.
+
+## Implementation and landing evidence — 2026-10-17
+
+Resumed the existing uncommitted card and implementation, preserved them in
+`324653f18`, and merged main `93ebf4eef` at `db2cd82d1`. Qt moves the
+existing Refresh binding between the two existing actions; core, host, request
+and feedback semantics are unchanged. The catalogue describes both conditional
+bindings. The owner reversal is recorded in RFC-BPR-0026 and the UX specification.
+
+- Built the workbench, composed GitHub and refresh-feedback Qt targets. All
+  14 focused rows pass (30.69 s): shortcut/catalogue, Home discovery, focus
+  order and composed GitHub at 100%, 125% and 200%, plus typing and refresh
+  feedback. They cover signed-out refusal, in-flight refusal, Home over an
+  open review, PR refresh, and the Open bar's unchanged text/focus.
+- Negative control: removed only `apply_refresh_key(home)` from the Home/PR
+  transition, rebuilt, and `qt_keyboard_shortcuts_scale_100` failed at
+  "on Home the Refresh key is bound once". Restored the exact original bytes,
+  rebuilt, and that row passed (1.66 s). No control edit remains.
+- clang-format 22 passes all six touched C++ files; clang-tidy 22 with
+  warnings as errors passes all four touched translation units; documentation
+  and diff gates pass. No `src/app` delta, so no composition reseal is needed.
+- The owner explicitly requires no new visual review. Frontend-design was
+  loaded for this queue; this change binds an existing action. The one full
+  suite and repository format/tidy remain scheduled at handoff item 9.
