@@ -69,15 +69,17 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    documentation and diff checks. Composition pins match BPR-1598.
    The new regression also covers cached arrival and a later load.
    Finished/pushed in `2e37e282e`; worktree, branch and 1.1 GB build removed.
-7b. BPR-1601: added by the coordinator’s updated handoff at `ede68f51c`,
-   received through origin/main `7836cd9fb` before the final run began.
-   BPR-1589 is landed. Implemented directly in the managed BPR-1601 worktree:
-   singleton receipts reuse the core and existing table, host counts reach
-   Status, Discuss marks them, Threads groups them under Not on a file, and
-   next-new navigation reaches them after file threads. Core/storage, Qt at
-   three scales, the composed read/unread/restart/edit course and core-only
-   checks pass. Native-thread cache bounds were corrected after the public
-   course caught a crash. Composition checks and landing are in progress.
+7b. BPR-1601: added by the amended handoff at `ede68f51c`, implemented
+   directly at `39d056d37` and `4c2d600f3` over main `887feb0ed`. Singleton
+   receipts reuse the core and existing table. Discuss, Threads' Not on a file
+   group, Status and next-new navigation share the read state. The native
+   lookup is bounded before indexing file threads, and clearing a PR resets
+   the conversation count. All 14 native focused rows pass across the affected
+   checks, including the public read/unread/restart/edit/menu course and both
+   composition contracts (664.58 s, with a production Release build). Three
+   core-only rows pass; format22, documentation and its 67 tests pass. Ready
+   for board Finish, push and managed-worktree cleanup.
+
 8. Task-owned housekeeping: complete for items 1–7; repeat for 7b after landing. All handed-off branches/worktrees and
    frozen roots are absent. The audited BPR-1568, BPR-1577, BPR-1578 and
    BPR-1597 candidates are unprotected; all recorded host PIDs are absent.

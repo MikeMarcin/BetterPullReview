@@ -75,12 +75,32 @@ posts, and Discuss's matching markers; the viewer's own comment has none. The
 owner's live desktop was not used. The handoff requires no owner look for this
 extension of existing markers.
 
-## Verification in progress
+## Verification — 2026-10-17
 
-Core, application-host, storage and architecture tests pass. The updated Qt
-cards/finder courses and Overview course pass; finder runs cover 100%, 125%
-and 200%. The final public-path course passes in 4.47 s, including restart,
-edit, scope widening and a read through the Threads menu. Core-only ledger,
-routing and architecture checks pass (19.17 s). Composition checks and the
-final landing record are pending. No full suite runs for this card; handoff
-item 9 supplies the single integrated full suite.
+Implementation `39d056d37`, followed by `4c2d600f3` for singular accessibility
+wording and clearing the count with the PR. Main `887feb0ed` is an ancestor;
+fetch/recheck and merge reported up to date. All 21 changed C++ files pass
+format22; the documentation gate, its 67 regression tests and diff check pass.
+
+Fourteen native focused rows pass across the affected checks: core ledger and
+workbench routing, ledger host, SQLite ledger storage, architecture boundaries,
+Qt cards, finder at 100/125/200%, Overview page, composed Overview, the new
+conversation read course and both composition contracts. The public course
+uses only the synthetic conversations fixture and actual actions/menus. It
+covers both singleton kinds, the viewer's own post, file-to-Discuss navigation
+and scope widening, both read menus, all three counts/markers, restart and a
+same-identity body edit. The final count-reset/page and public-path checks pass
+in 33.66 s. Core-only ledger, routing and architecture checks pass in 19.17 s.
+
+The composition pair passes in 664.58 s, including its separate production
+Release build. The full application and manifest pins were resealed with a
+dated scope review; the production mutation branch remains unchanged. The
+round-trip contract passes again after the final native app relink (5.10 s).
+The initial focused tidy batch (11 translation units) and the new public test
+pass; handoff item 9 supplies the required full tidy gate on final main.
+
+The initial UI failures identified old file-only row-count expectations and
+a test fixture without threads. The first complete public course exposed the
+singleton/native-thread cache-index crash described above; it passes with the
+bound in place. No native Windows or Linux run is claimed. No full suite ran
+per card; item 9 supplies the single integrated run after this landing.
