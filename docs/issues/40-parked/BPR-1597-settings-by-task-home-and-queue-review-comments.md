@@ -95,3 +95,28 @@ BPR-1597-settings-by-task-v001, revision frozen-956172a57-v001, frozen build
 
 Next: on Accept, wait for BPR-1581 on main, merge main, run one full dev ctest on
 that tree, record the verdict, finish this card, close BPR-1568 into it, land.
+
+## Codex closeout — 2026-10-17
+
+Owner **Accept**, no note, decision `cec0a456-a98a-4d02-8eda-45507c5c5458`,
+for `BPR-1597-settings-by-task-v001` in session `a090236d…`; handback consumed
+through event 6. This accepts the built ten-page Settings and folds BPR-1568
+into Comments › Comment workshop. Its earlier rejected versions remain rejected.
+
+Main `c38432adf` merged at `c6c4eeff3`. Reconciled only two conflicts: the
+settings inventory retains the new Review row and main's Status drawer row;
+the composition contract retains both histories and main's exact pins. No
+schema step is added; main's schema 23 remains intact. The architecture and
+settings inventory now describe ten pages and the separate group resets.
+
+All 28 focused rows pass (514.66 s): composed GitHub at 100/125/200%, Settings
+at 100/125/150/200%, workbench and Home at 100/125/200%, label settings and
+threads, all six workshop courses, workbench/review-behaviour/label-authoring,
+tour and setup destination public paths, and both application composition
+contracts. clang-format 22 checks all 16 touched C++ files; documentation and
+diff gates pass. Existing focused tidy and negative-control evidence are
+unchanged. Loaded frontend-design for the accepted UI landing.
+
+The owner's ordered handoff replaces the full-suite-per-card gate with one
+integrated full suite and repository format/tidy at item 9; those are still
+mandatory queue work, not a passing observation claimed by this landing.

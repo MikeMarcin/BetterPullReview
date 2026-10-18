@@ -96,3 +96,16 @@ The owner picked A, by task, in session 0e5dbaff0d166bcc2c23a4c2c39ac937
 page Review. [[BPR-1597]] builds it with this card's switch folded in, on branch
 `claude/bpr-1597-settings-by-task`; its final Accept or Reject waits in session
 a090236dc78e408d1bd6fd6752c2dfbe. This card closes into BPR-1597 when it lands.
+
+## Closed into BPR-1597 — 2026-10-17
+
+The owner accepted BPR-1597's built Settings-by-task candidate (decision
+`cec0a456-a98a-4d02-8eda-45507c5c5458`); RFC-BPR-0048 amendment 3 supersedes
+this card's old location and v002 look criterion. Feedback guidance and its
+independent Reset now live in Comments › Comment workshop. The stored value,
+key and workshop semantics remain unchanged. The 28 focused tests on the
+merged `c6c4eeff3` tree include Settings/search/reset, all workshop guidance
+courses and both composition contracts; all pass. Format22 and documentation
+pass; unchanged tidy evidence is retained. The owner's handoff places the
+single full suite and repository tidy at queue item 9. The earlier rejected
+candidates are not retroactively accepted. No independent work remains here.

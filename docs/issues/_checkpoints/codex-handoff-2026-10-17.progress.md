@@ -18,13 +18,19 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    released through event 6; server PID absent; frozen root, worktree and branch
    removed. The stop request returned connection refused; process inspection
    established the recorded PID was no longer alive before removing resources.
-2. BPR-1578: main `376a4190b` merged at `49b3c0f57`; affected targets built.
-   All 15 focused rows, including both composition contracts, pass (464.41 s).
-   Ready to finish/push, then remove this worktree and build. All three existing
-   composition pins are retained with a dated landing note. Format22 and docs
-   pass. All four review sessions are released and stopped; both frozen roots
-   are absent. v002 owner Accept confirmed through event 7.
-3. BPR-1597/BPR-1568: not started.
+2. BPR-1578: Done and pushed in `c38432adf`; 15 focused rows pass at
+   `49b3c0f57`, with the later main allocation-only update merged. Format22,
+   documentation and diff checks pass; existing composition pins match.
+   All sessions released/stopped; frozen roots, worktree and branch removed.
+3. BPR-1597/BPR-1568: main `c38432adf` merged at `c6c4eeff3`. Two conflicts
+   reconciled in the settings inventory and reseal history; no C++ conflict.
+   No schema addition; main's schema 23 remains. Affected targets built and
+   all 28 focused Settings/Home/workshop/composition rows pass (514.66 s).
+   Ready to finish both cards and push, then release/remove their resources. All 16 touched
+   C++ files pass format22; documentation gate passes. Owner Accept
+   `cec0a456-a98a-4d02-8eda-45507c5c5458` confirmed through session a090236d
+   cursor 6. BPR-1568 closes into the accepted BPR-1597; its rejected v002
+   is not retroactively accepted.
 4. BPR-1600: not started.
 5. BPR-1572: not started.
 6. BPR-1598: not started.
