@@ -42,3 +42,11 @@ RFC base: `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
 | **AC10 Work tab.** - A seeded 250 ms main-thread block appears as one stall with that duration. - A diff fixture that hits each work limit is counted under it. - The five slowest files and the syntax and search figures match their host statistics. | Pending. |
 | **AC11 Privacy and export.** - The anonymized export preview's Insights section contains no repository, account, pull request, path or body text. Checked against a fixture profile whose names are unique strings. - The identifying export adds nothing from Insights. | Pending. |
 | **AC12 Idle cost.** - On macOS, with one signed-in profile and no window, one hour in the background stays within the idle budget for background CPU and wakeups. The run is recorded with the build and the measured figures. - A miss is filed as a card naming the operation that caused it. | Pending. |
+
+## First milestone checkpoint
+
+Window and Storage engineering is complete; the owner shell judgment remains
+pending in a fresh short attended session. See the [durable continuation](../_checkpoints/insights-window-v1/continuation.md)
+and [verification ledger](../../verification/RFC-BPR-0086.md). This is partial
+evidence for AC01/AC05/AC11; the full criterion table remains pending until
+each authored milestone and the closeout procedures are satisfied.

@@ -73,3 +73,11 @@ refused the profile could otherwise destroy its decision executor before the
 new task posted its terminal. The corrected candidate reuses the public startup
 recovery course as well as the Insights path; the first frozen build was
 superseded before preparation or owner review.
+
+The corrected source is `5a02177b30250494811033052b673c20a9b5a7b0`.
+Its final quiescent developer build and three affected public courses pass:
+`application_profile_recovery_public_path`, `application_insights_public_path`
+and `application_review_round_trip_composition_contract` (11.21 seconds total).
+Unchanged passing evidence above is reused. The earlier frozen root was removed
+with the freeze tool; the replacement and its own launcher check are recorded in
+[the continuation](../issues/_checkpoints/insights-window-v1/continuation.md).
