@@ -500,6 +500,9 @@ namespace bpr::qt {
 		}
 		for (auto& card : CardWidgets) {
 			if (card != nullptr) {
+				// Gone from view now; deleted once any press on it returns.
+				card->hide();
+				CardColumn->removeWidget(card);
 				card->deleteLater();
 			}
 		}
