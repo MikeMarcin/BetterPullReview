@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1377"
 title: "bpr tour add and show --source refuse every pinned-source read over the gh transport's sparse trees"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
