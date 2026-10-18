@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/progress_mark.hpp"
 
@@ -139,7 +140,7 @@ namespace bpr::qt {
 	/// \brief [[BPR-1585]]. How far the Files table's band stands from its
 	/// ground, as a luminance contrast ratio: a step the eye follows across a
 	/// wide row and nothing reads as a mark.
-	inline constexpr double overview_row_band_contrast = 1.08;
+	inline constexpr double overview_row_band_contrast = static_cast<double>(core::quiet_band_contrast_hundredths) / 100.0;
 
 	/// \brief [[BPR-1585]]. The quiet band that alternate file rows of the
 	/// Files table lie on: the palette's `Base` moved toward its `Text` until

@@ -1,0 +1,32 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-polish-contrast-blocking",
+  "scope": {
+    "issues": [
+      "BPR-1604",
+      "BPR-1605"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "polish-review",
+      "outcome": "Readable quiet and amber inks and an accurate pending blocking total, accepted through one attended session.",
+      "work": [
+        {
+          "issue": "BPR-1604"
+        },
+        {
+          "issue": "BPR-1605"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1604 AC1 and AC2 pass through the built-in palette and Files rendering with no grandfathered failures.",
+        "BPR-1605 AC1 and AC2 pass through review submission workflow, editor, and feedback source observations.",
+        "Both AC3 owner judgments supplied against exact frozen before/after candidates; until then remain human-pending.",
+        "Focused composition, format and documentation checks complete; explicit commits pushed; handoffs record candidates, pending decisions and commands."
+      ],
+      "boundary": "Stop at the human acceptance boundary after all unattended work and one short two-candidate session is ready."
+    }
+  ]
+}

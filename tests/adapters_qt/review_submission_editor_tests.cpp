@@ -21,6 +21,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <string_view>
 
 namespace {
 	using namespace bpr;
@@ -66,6 +67,63 @@ auto main(int argc, char** argv) -> int
 			canvas.fill(lookEditor.palette().color(QPalette::Window));
 			lookEditor.render(&canvas);
 			expect(canvas.save(look + QStringLiteral("-") + QString::fromLatin1(name) + QStringLiteral(".png")), "comparison render saved");
+		}
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1605]] comparison render: Finish your review carrying one pending
+	// blocking comment of mine, with none on GitHub ("pending"), and with
+	// one on GitHub as well ("mixed"), in Light and Dark. "as-read" is the
+	// preflight the composition handed over before BPR-1605, which did not
+	// read the review's own comments.
+	if (const auto look = qEnvironmentVariable("BPR_BLOCKING_CHIP_RENDER"); !look.isEmpty()) {
+		qt::review_submission_editor lookEditor{ [](auto) { } };
+		auto                         carrying = draft;
+		carrying.Body                         = { };
+		auto blocking                         = core::review_submission_comment{ };
+		blocking.Draft                        = core::review_draft_id{ 7U };
+		blocking.Path                         = "src/engine/renderer.cpp";
+		blocking.Line                         = 430U;
+		blocking.DraftRevision                = 1U;
+		blocking.Body                         = "issue (blocking): The cache is never invalidated.";
+		auto nit                              = blocking;
+		nit.Draft                             = core::review_draft_id{ 8U };
+		nit.Line                              = 433U;
+		nit.Body                              = "nit: scale could be constexpr.";
+		carrying.Comments                     = { blocking, nit };
+		carrying.Disposition                  = core::review_disposition::approve;
+		lookEditor.resize(380, 560);
+		lookEditor.show();
+		for (const auto* state : { "as-read", "pending", "mixed" }) {
+			auto preflight  = core::review_preflight{ };
+			preflight.Exact = true;
+			if (std::string_view{ state } != "as-read") {
+				preflight.Pending = { { .Draft = "draft:7", .Label = core::feedback_label::issue } };
+			}
+			if (std::string_view{ state } == "mixed") {
+				preflight.Blockers = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved } };
+			}
+			auto lookProjection       = qt::review_submission_editor_projection{ .Draft = carrying, .Controls = core::controls(carrying), .TargetDescription = projection.TargetDescription };
+			lookProjection.Prepared   = core::prepare_review_decision(carrying, { });
+			lookProjection.Preflight  = std::move(preflight);
+			lookProjection.References = { { "review-thread:T1", { QStringLiteral("src/cache.cpp:12"), QStringLiteral("Evict on resize.") } },
+										  { "draft:7", { QStringLiteral("renderer.cpp, line 431"), QStringLiteral("The cache is never invalidated.") } } };
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				lookEditor.setPalette(profile.derive(QApplication::palette()));
+				lookEditor.set_attention_colour(profile.color(core::appearance_role::state_attention));
+				lookEditor.present(lookProjection);
+				for (auto turn = 0; turn < 4; ++turn) {
+					QApplication::processEvents();
+				}
+				auto canvas = QPixmap{ lookEditor.size() * lookEditor.devicePixelRatioF() };
+				canvas.setDevicePixelRatio(lookEditor.devicePixelRatioF());
+				canvas.fill(lookEditor.palette().color(QPalette::Window));
+				lookEditor.render(&canvas);
+				expect(canvas.save(look + QStringLiteral("-%1-%2.png").arg(QString::fromLatin1(state), QString::fromLatin1(name))), "blocking chip render saved");
+				std::cout << state << ' ' << name << ": " << lookEditor.preflight_button()->toolTip().replace(QLatin1Char{ '\n' }, QStringLiteral(" | ")).toStdString() << " || "
+						  << lookEditor.disposition_button(core::review_disposition::approve)->toolTip().toStdString() << '\n';
+			}
 		}
 		return EXIT_SUCCESS;
 	}
@@ -175,6 +233,7 @@ auto main(int argc, char** argv) -> int
 	expect(editor.shown_draft()->Disposition == core::review_disposition::approve && editor.disposition_button(core::review_disposition::approve)->isEnabled(),
 		   "Approve stays the reviewer's explicit choice while blocking feedback is open");
 	const auto chipWords = QStringLiteral("Yours on GitHub: 2 open blocking\nYours, not sent: 1 blocking\n1 chore, not marked blocking\n1 of yours: GitHub didn't say if resolved\nOthers: 2 open blocking (not yours)");
+	expect(editor.preflight_button()->text().startsWith(QStringLiteral("3 (1 not sent)")), "the heading leads with the same combined count as Approve");
 	expect(editor.preflight_button()->toolTip() == chipWords && editor.preflight_button()->accessibleDescription() == chipWords, "the chip's tooltip and accessible description name each group");
 	auto* approve = editor.disposition_button(core::review_disposition::approve);
 	expect(!approve->icon().isNull() && approve->toolTip() == QStringLiteral("Approve. You have 3 open blocking comment(s) of your own; approving does not resolve them.")
@@ -208,9 +267,19 @@ auto main(int argc, char** argv) -> int
 	auto none      = withPreflight;
 	none.Preflight = core::review_preflight{ .Exact = true };
 	editor.present(none);
-	expect(editor.preflight_button()->toolTip() == QStringLiteral("Yours on GitHub: 0 open blocking") && approve->icon().isNull()
+	expect(editor.preflight_button()->text() == QStringLiteral("0") && editor.preflight_button()->toolTip() == QStringLiteral("Yours on GitHub: 0 open blocking") && approve->icon().isNull()
 			   && approve->toolTip() == QStringLiteral("Approve this pull request."),
 		   "an exact zero is said as zero, and Approve carries no dot");
+	auto pendingOnly               = none;
+	pendingOnly.Preflight->Pending = { { .Draft = "draft:9", .Label = core::feedback_label::issue } };
+	editor.present(pendingOnly);
+	expect(editor.preflight_button()->text() == QStringLiteral("1 (not sent)") && !approve->icon().isNull() && approve->toolTip().contains(QStringLiteral("1 open blocking")),
+		   "a pending-only blocker leads with one, says not sent, and agrees with Approve");
+	auto mixed                = pendingOnly;
+	mixed.Preflight->Blockers = { { .Conversation = "review-thread:T1", .Label = core::feedback_label::issue, .Resolution = core::feedback_resolution::unresolved } };
+	editor.present(mixed);
+	expect(editor.preflight_button()->text() == QStringLiteral("2 (1 not sent)") && approve->toolTip().contains(QStringLiteral("2 open blocking")),
+		   "one published and one pending blocker lead with their total and explain its pending part");
 	editor.present(withPreflight);
 	QApplication::processEvents();
 	for (auto* button : { editor.disposition_button(core::review_disposition::approve), editor.preflight_button() }) {

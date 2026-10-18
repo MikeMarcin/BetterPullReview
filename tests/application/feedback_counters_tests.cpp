@@ -199,6 +199,24 @@ namespace {
 			   "a person's words around the index make it an ordinary comment");
 	}
 
+	/// [[BPR-1605]]. Pending review threads are not published feedback,
+	/// even when a read includes them beside ordinary published threads.
+	void test_pending_review_threads_are_unpublished()
+	{
+		auto snapshot                                                = base_snapshot();
+		snapshot.ReviewThreads[0].Comments[0].Observation.ReviewNode = "r2";
+		snapshot.ReviewThreads[1].Comments[0].Observation.ReviewNode = "r1";
+		const auto origin                                            = [](const application::feedback_sources& aSources, std::string_view aId) {
+			return std::ranges::find_if(aSources.Conversations, [aId](const auto& aConversation) { return aConversation.Facts.Id == aId; })->Facts.Origin;
+		};
+		const auto sources = application::observe_feedback_sources(snapshot);
+		expect(origin(sources, "review-thread:t1") == core::feedback_unit_origin::pending_publication, "the pending review's root is not published too");
+		expect(origin(sources, "review-thread:t2") == core::feedback_unit_origin::published, "a published review's thread stays published");
+		expect(origin(sources, "review-thread:t3") == core::feedback_unit_origin::published, "a thread without a pending review stays published");
+		snapshot.Reviews[1].State = application::github_review_state::commented;
+		expect(origin(application::observe_feedback_sources(snapshot), "review-thread:t1") == core::feedback_unit_origin::published, "after publication the same root belongs to the published population");
+	}
+
 	void test_projects_accepted_buckets_per_scope()
 	{
 		auto       model  = feedback_counter_model{ };
@@ -619,6 +637,7 @@ namespace {
 auto main() -> int
 try {
 	test_the_adapter_reads_the_accepted_model();
+	test_pending_review_threads_are_unpublished();
 	test_projects_accepted_buckets_per_scope();
 	test_a_website_edit_updates_its_own_scopes();
 	test_resolving_and_reopening_update_without_a_new_head();

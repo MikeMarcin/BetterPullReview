@@ -1,3 +1,12 @@
+# RFC-BPR-0086 accepted-milestone integration over main 614c6bbb7.
+# Self-reviewed the combined app scope: Insights keeps its profile-owned local
+# lane/window, initialization/shutdown and existing export/cache gestures; main's
+# accepted BPR-1605 reads carried draft comments into preflight with draft-ID
+# deduplication and a carried-comment-aware cache. The changes are disjoint.
+# No provider, credential, grant, executor or publication path is added here.
+# Full github_application and production mutation-branch pins stay unchanged;
+# only the combined production-source manifest is resealed.
+# Evidence: docs/verification/RFC-BPR-0086.md, acceptance round 3.
 # RFC-BPR-0086 first milestone reseal over 0378ab977..the window-and-storage
 # candidate. Scoped engineering self-review: one profile-owned local Insights
 # lane/window, initialization and shutdown drain, existing Settings/export
@@ -1831,7 +1840,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "970511f98c6d73d6d8311027646c2ad831c3cc86a213ac9ab7bf94b8c0739157"
+        "fa2ed4fefd1cb8be7e323782cfebd993206ec41f1b7f0d5c124d2b20039b112b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2825,3 +2834,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # merge-base-v1. No grant, target, provider, credential, transport, GitHub
 # write, mutation or publication path changes in the composition; the
 # production mutation-branch pin is unchanged.
+
+# [[BPR-1605]]. The review-submission workflow reads carried comments into
+# preflight, deduplicates them against the selected composer draft, and keys
+# its projection cache by those comments. Only review_submission_workflow.cpp
+# and .hpp change in the production app tree; observation/context projection
+# gains no publication, executor or capability path. The production-manifest
+# digest is refreshed after reviewing those changes. Source inventory, full
+# github_application digest and production mutation-host digest are unchanged.

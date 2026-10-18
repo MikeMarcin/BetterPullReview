@@ -3,6 +3,8 @@
 #include "bpr/core/feedback_conversation.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 
+#include <set>
+#include <string_view>
 #include <utility>
 
 namespace bpr::application {
@@ -67,6 +69,15 @@ namespace bpr::application {
 			};
 			const auto threads  = aSnapshot.ReviewThreadsAvailability == github_collection_availability::available;
 			const auto comments = aSnapshot.ReviewCommentsAvailability == github_collection_availability::available;
+			// [[BPR-1605]]. A thread whose root comment is in my pending GitHub
+			// review is not published yet, as that review's body is not: the
+			// preflight reads it from the review's own comments, as not sent.
+			auto pendingReviews = std::set<std::string_view>{ };
+			for (const auto& review : aSnapshot.Reviews) {
+				if (review.State == github_review_state::pending) {
+					pendingReviews.insert(review.Review.value());
+				}
+			}
 			if (threads) {
 				for (const auto& thread : aSnapshot.ReviewThreads) {
 					auto                                conversation = prefixed("review-thread:", thread.Thread.value());
@@ -90,6 +101,7 @@ namespace bpr::application {
 					}
 					sources.Conversations.push_back(
 						{ .Facts = { .Id         = conversation,
+									 .Origin     = roots == 1U && pendingReviews.contains(root->Observation.ReviewNode) ? core::feedback_unit_origin::pending_publication : core::feedback_unit_origin::published,
 									 .Resolution = thread.Resolved ? core::feedback_resolution::resolved : core::feedback_resolution::unresolved,
 									 .Anchor     = thread.Path.empty() ? core::feedback_anchor{ } : core::feedback_anchor{ .Status = core::feedback_anchor_status::file, .Path = thread.Path, .Outdated = thread.Outdated } },
 						  // No root, or more than one, names no author.

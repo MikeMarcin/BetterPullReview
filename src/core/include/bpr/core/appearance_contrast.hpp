@@ -449,6 +449,54 @@ namespace bpr::core {
 		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
 		-> appearance_color;
 
+	/// \brief [[BPR-1585]]. The step, in hundredths of a contrast ratio, that the
+	/// Overview Files table's quiet row band stands from the table's ground.
+	inline constexpr std::uint32_t quiet_band_contrast_hundredths = 108U;
+
+	/// \brief [[BPR-1604]]. The floor an ink holds on a table's ground so that it
+	/// still reaches `aMinimum` on the quiet band: the floor raised by the band's
+	/// step, rounded up, with one hundredth for the band's own rounding.
+	[[nodiscard]] constexpr auto banded_floor_hundredths(const std::uint32_t aMinimum) noexcept -> std::uint32_t
+	{
+		return ((aMinimum * quiet_band_contrast_hundredths) + 99U) / 100U + 1U;
+	}
+
+	/// \brief [[BPR-1604]]. One ground an ink is drawn on, and the ratio it
+	/// must reach there.
+	struct contrast_ground
+	{
+		appearance_color Colour;
+		std::uint32_t    MinimumHundredths = text_contrast_minimum_hundredths;
+
+		auto operator<=>(const contrast_ground&) const = default;
+	};
+
+	/// \brief [[BPR-1604]]. The quiet secondary ink: notes, folder paths,
+	/// hints, unknown marks.
+	///
+	/// \details The midpoint of `aText` and `aBase` (each channel's integer
+	/// mean, `aText`'s alpha), which is what the derived palette always gave
+	/// `PlaceholderText`, wherever it reaches every ground's floor. Where it
+	/// does not, the least move from it toward `aText` that does, so it stays a
+	/// grey between the text and the ground: quieter than the text and never a
+	/// new hue. When even `aText` cannot reach a floor, `aText`.
+	[[nodiscard]] auto readable_muted_ink(appearance_color aText, appearance_color aBase, std::span<const contrast_ground> aGrounds) noexcept -> appearance_color;
+
+	/// \brief [[BPR-1604]]. A state colour (the attention amber) drawn as
+	/// digits, a badge with a letter cut from the ground, or a small mark.
+	///
+	/// \details `aSignal` wherever it reaches every ground's floor. Otherwise
+	/// it moves away from the first ground, by the least amount that reaches
+	/// every floor, in two stages that keep its character. On a light ground it
+	/// first darkens only its weaker channels, holding the strongest, so it
+	/// keeps its saturation and leans toward its dominant primary: an amber
+	/// turns a burnt orange instead of the olive brown that mixing it with black
+	/// gives. On a dark ground it first raises its strongest channel. Only if
+	/// that stage cannot reach the floors does it then move toward black or
+	/// white, and it is that extreme when nothing between does. A grey has no
+	/// weaker channel and goes straight to the second stage.
+	[[nodiscard]] auto readable_signal_ink(appearance_color aSignal, std::span<const contrast_ground> aGrounds) noexcept -> appearance_color;
+
 	/// \brief The colour a keyboard focus ring is drawn in over `aSurface`.
 	///
 	/// \details [[BPR-1157]]. The window's focus rings are drawn in the

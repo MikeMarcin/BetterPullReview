@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_label_publication_recovery passes including carried-blocking-preflight through the actual application/workflow/editor: selected+carried draft counts once, carried-only after navigation remains1, adding a published blocker makes2 with1 not sent. Editor tests cover pending-only1, mixed2, exact zero and Approve-dot agreement."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "application_feedback_counters verifies a root in a pending GitHub review is pending_publication, ordinary threads stay published and publication changes the root to published. The real-app course verifies selected/carried deduplication."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner ACCEPT of BPR-1605-blocking-total-v001, fingerprint 455f12cf1399826541ef4e85b920e3525e0c4b68bd7bf2320b0fde3c59077014, decision d9fdb9b1-3fd8-4bc0-9f84-cc5bdf2129ee, event 10; session 3b007b57637c66122767174fe1a527be handed back at event 11 with no pending decisions or notes. Exact frozen product and executable remain as recorded. Receipt: docs/issues/_checkpoints/BPR-1605/human-acceptance.json."
+      }
+    }
+  ]
+}

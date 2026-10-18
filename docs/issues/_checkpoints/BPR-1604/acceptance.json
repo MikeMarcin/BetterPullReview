@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Four-theme Files-palette tests strictly pass every text/letter/digit at 4.5:1 and every mark at 3:1 on Base and band; quiet labels also pass Window. Quiet Base/band/Window: Light4.90/4.54/4.58, Dark5.24/4.84/4.53, HC Light5.09/4.71/5.09, HC Dark5.46/5.05/5.46. Amber Base/band:4.87/4.51,7.49/6.92,6.32/5.85,12.63/11.69."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Core appearance contrast, actual Overview, appearance-profile and BPR-1529 Files-tree pixel tests pass. Existing readable inks remain unchanged; folders share exactly PlaceholderText and remain distinct from file names. Actual old Qt source baseline fails the new strict check."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner ACCEPT of BPR-1604-contrast-v001, fingerprint 18165d213f8efc13646e35315ea5674870c522faa7f649c1f043cbf842d742e5, decision e0d9c8b1-6351-45d2-ad4b-57646094073a, event 9; session 3b007b57637c66122767174fe1a527be handed back at event 11 with no pending decisions or notes. Exact frozen product and executable remain as recorded. Receipt: docs/issues/_checkpoints/BPR-1604/human-acceptance.json."
+      }
+    }
+  ]
+}
