@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Four-theme Files-palette tests strictly pass every text/letter/digit at 4.5:1 and every mark at 3:1 on Base and band; quiet labels also pass Window. Quiet Base/band/Window: Light4.90/4.54/4.58, Dark5.24/4.84/4.53, HC Light5.09/4.71/5.09, HC Dark5.46/5.05/5.46. Amber Base/band:4.87/4.51,7.49/6.92,6.32/5.85,12.63/11.69."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "command",
+        "detail": "Core appearance contrast, actual Overview, appearance-profile and BPR-1529 Files-tree pixel tests pass. Existing readable inks remain unchanged; folders share exactly PlaceholderText and remain distinct from file names. Actual old Qt source baseline fails the new strict check."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pending",
+      "revision": "d06e7400e4eb470490ee630ecf76b0b9308cfdc0",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Owner Accept/Reject pending in session 3b007b57637c66122767174fe1a527be, cursor 8; exact frozen root /Users/jaeger/bpr-1604-1605-polish-v002.0vxi9_2l, executable sha256 4e2a73bdd5b8d7d9c782b72a4e515c3825f784c70d006509e0ce2f0bb275ee66. Before/after renders embedded in the short session; full local handoff at /var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-1604-1605-review-6xa9fhl4/review-handoff.json."
+      }
+    }
+  ]
+}
