@@ -113,7 +113,7 @@ int main(int argc, char** argv)
 	// equivalent against the main menu alone, which is the path the menu item's
 	// key takes, and the one [[BPR-0796]]'s course sends Command-N through.
 	// Before this the course failed at the send whenever the screen was locked.
-	const auto send_command_b = [activationRefused] {
+	const auto sendCommandB = [activationRefused] {
 		if (native::send_command_key_to_key_window('b')) {
 			return true;
 		}
@@ -159,7 +159,7 @@ int main(int argc, char** argv)
 		   "an editable note has the keyboard");
 	expect(!native::main_menu_item_is_enabled("View", "Hide Drawers"),
 		   "while the note has the keyboard AppKit's item is disabled, so its key equivalent cannot fire");
-	expect(send_command_b(), "Command-B is sent through AppKit");
+	expect(sendCommandB(), "Command-B is sent through AppKit");
 	settle(400);
 	note("note focused: toggles=" + std::to_string(toggles) + " open=" + std::to_string(open() ? 1 : 0));
 	expect(toggles == 0 && open() && body->hasFocus() && body->toPlainText() == QStringLiteral("half a sentence"),
@@ -171,11 +171,11 @@ int main(int argc, char** argv)
 	window.files_tree()->setFocus(Qt::OtherFocusReason);
 	expect(wait_quietly([&window] { return QApplication::focusWidget() == window.files_tree(); }, 2000),
 		   "the files list has the keyboard");
-	expect(send_command_b(), "Command-B is sent through AppKit again");
+	expect(sendCommandB(), "Command-B is sent through AppKit again");
 	expect(wait_quietly([&] { return toggles == 1 && !open(); }, 2000),
 		   "with the files list focused, Command-B hides the drawers");
 	expect(native::main_menu_item_is_enabled("View", "Hide Drawers"), "the native item stays enabled in Review");
-	expect(send_command_b(), "Command-B is sent a third time");
+	expect(sendCommandB(), "Command-B is sent a third time");
 	expect(wait_quietly([&] { return toggles == 2 && open(); }, 2000), "and again shows them");
 	note("list focused: toggles=" + std::to_string(toggles));
 	window.close();

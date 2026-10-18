@@ -125,7 +125,8 @@ namespace bpr::core {
 	/// Whole PR resolves to its pair with the base anchor unavailable and the
 	/// reason `merge_base_unavailable`: the newest base is not the commit
 	/// GitHub's Files changed compares from. Comparisons between updates are
-	/// unaffected.
+	/// unaffected. [[BPR-1572]]: under `disputed_base` likewise, with the
+	/// reason `merge_base_disputed`.
 	[[nodiscard]] auto resolve_comparison(
 		const pull_request_authority& aAuthority,
 		const comparison_selection&   aSelection,

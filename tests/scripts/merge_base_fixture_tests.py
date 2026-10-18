@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""[[BPR-1560]]. merge-base-v1 is exactly what its builder writes.
+"""[[BPR-1560]], [[BPR-1572]]. merge-base-v1 and stacked-merge-base-v1 are
+exactly what their builders write.
 
 The builder runs into a scratch root and every file it writes must equal the
 committed one byte for byte. The composed fixture's descriptor names the same
@@ -21,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 TREES = ("tests/fixtures/github/pull-requests/merge-base-v1", "tests/fixtures/github/contracts/v1/merge-base-v1")
+STACKED_TREES = ("tests/fixtures/github/pull-requests/stacked-merge-base-v1", "tests/fixtures/github/contracts/v1/stacked-merge-base-v1")
 GENERATED = {"construction.json", "objects.pack"}
 
 
@@ -41,6 +43,31 @@ class MergeBaseFixtureTests(unittest.TestCase):
                 with self.subTest(tree=relative):
                     committed = {name: data for name, data in files(ROOT / relative).items() if name != "README.md"}
                     self.assertEqual(files(scratch / relative), committed)
+
+    def test_stacked_builder_regenerates_the_committed_tree(self) -> None:
+        with contained_temporary_directory(prefix="bpr-stacked-merge-base-fixture-") as root:
+            scratch = Path(root)
+            result = subprocess.run([sys.executable, "-I", str(ROOT / "scripts/build_stacked_merge_base_fixture.py"), "--root", str(scratch)],
+                                    capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("STACKED_MERGE_BASE_FIXTURE_OK:", result.stdout)
+            for relative in STACKED_TREES:
+                with self.subTest(tree=relative):
+                    committed = {name: data for name, data in files(ROOT / relative).items() if name != "README.md"}
+                    self.assertEqual(files(scratch / relative), committed)
+
+    def test_stacked_descriptor_names_the_built_commits(self) -> None:
+        construction = json.loads((ROOT / STACKED_TREES[0] / "construction.json").read_text(encoding="utf-8"))
+        source = (ROOT / "src/app/src/github_public_path_fixture.cpp").read_text(encoding="utf-8")
+        block = source[source.index("case github_public_path_fixture::stacked_merge_base_v1:"):]
+        block = block[:block.index("};")]
+        named = dict(re.findall(r"\.(BaseOid|HeadOneOid|MergeBaseOid|BranchTipOid)\s*=\s*\"([0-9a-f]{40})\"", block))
+        self.assertEqual(named.get("BaseOid"), construction["pull_request"]["base"]["sha"])
+        self.assertEqual(named.get("HeadOneOid"), construction["pull_request"]["head"]["sha"])
+        self.assertEqual(named.get("MergeBaseOid"), construction["merge_base"])
+        self.assertEqual(named.get("BranchTipOid"), construction["branch_tip"])
+        self.assertEqual([commit["sha"] for commit in construction["commits"]], [construction["branch_tip"], construction["pull_request"]["head"]["sha"]])
+        self.assertIn(f".Commits             = {len(construction['commits'])}U", block)
 
     def test_descriptor_names_the_built_commits(self) -> None:
         construction = json.loads((ROOT / TREES[0] / "construction.json").read_text(encoding="utf-8"))

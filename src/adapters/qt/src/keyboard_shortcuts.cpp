@@ -100,6 +100,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
 			shortcut_entry{ .Command = command::hide_drawers, .Group = views, .Binding = bound, .Title = "Hide or show every drawer", .Keys = "Ctrl+B", .StepsAsideWhileTyping = true, .Objects = "toggleWorkbenchDrawersAction;desktopToggleDrawersAction" },
+			// [[BPR-1588]]. Alt+Shift+1 to 5 are the other drawers and views.
+			shortcut_entry{ .Command = command::status_drawer, .Group = views, .Binding = bound, .Title = "Status drawer", .Place = "On Overview", .Keys = "Alt+Shift+6", .Objects = "toggleOverviewStatusAction" },
 			shortcut_entry{ .Command = command::overview, .Group = views, .Binding = bound, .Title = "Overview", .Keys = "Ctrl+1", .Objects = "reviewModalityOverviewAction" },
 			shortcut_entry{ .Command = command::review, .Group = views, .Binding = bound, .Title = "Review", .Keys = "Ctrl+2", .Objects = "reviewModalityReviewAction" },
 			shortcut_entry{ .Command = command::discuss, .Group = views, .Binding = bound, .Title = "Discuss", .Keys = "Ctrl+3", .Objects = "reviewModalityDiscussAction" },
@@ -146,6 +148,11 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::home_open_review, .Group = home, .Binding = read, .Title = "Open the review", .Place = "On a Home row", .Keys = "Return", .Objects = "homeOpenReviewAction" },
 			shortcut_entry{ .Command = command::home_open_window, .Group = home, .Binding = read, .Title = "Open the review in a new window", .Place = "On a Home row", .Keys = "Ctrl+Return", .Objects = "homeOpenReviewInNewWindowAction" },
 			shortcut_entry{ .Command = command::home_resume, .Group = home, .Binding = read, .Title = "Resume where you were", .Place = "In Recently viewed", .Keys = "Shift+Return", .Objects = "homeRecentResumeAction" },
+			// [[BPR-1600]]. The window's Refresh key does whichever refresh is
+			// showing: the key is on this action while Home shows and on the pull
+			// request's otherwise, never on both. Like the pull request's, it
+			// acts while the keyboard is in Home's Open bar.
+			shortcut_entry{ .Command = command::home_refresh, .Group = home, .Binding = bound, .Title = "Refresh my pull requests", .Place = "On Home", .Standard = QKeySequence::Refresh, .Conditional = true, .Objects = "refreshQueueAction" },
 
 		// Review Cycles: a local project's own keys ([[BPR-1157]], [[BPR-1280]]).
 		// The code view reads Return as macOS names it and Enter as Windows
@@ -184,7 +191,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::quit, .Group = application, .Binding = bound, .Title = "Quit", .Standard = QKeySequence::Quit, .Objects = "quitProfilesAction;desktopQuitProfilesAction" },
 			shortcut_entry{ .Command = command::connect, .Group = application, .Binding = bound, .Title = "Sign in to GitHub", .Keys = "Ctrl+Shift+C", .Objects = "connectGithubAction" },
 			shortcut_entry{ .Command = command::open_pull_request, .Group = application, .Binding = bound, .Title = "Open a pull request", .Standard = QKeySequence::Open, .Objects = "openPullRequestAction" },
-			shortcut_entry{ .Command = command::refresh, .Group = application, .Binding = bound, .Title = "Refresh the pull request", .Standard = QKeySequence::Refresh, .Objects = "refreshPullRequestAction" },
+			shortcut_entry{ .Command = command::refresh, .Group = application, .Binding = bound, .Title = "Refresh the pull request", .Place = "With a pull request showing", .Standard = QKeySequence::Refresh, .Conditional = true, .Objects = "refreshPullRequestAction" },
 		};
 
 		[[nodiscard]] consteval auto in_command_order() -> bool

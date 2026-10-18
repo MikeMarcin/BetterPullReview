@@ -250,10 +250,15 @@ namespace {
 			if (MutationHook) {
 				MutationHook();
 			}
+			if (MutationHandler) {
+				return MutationHandler(aRequest);
+			}
 			return github_mutation_wire_success{ };
 		}
 		unsigned              MutationCalls = 0;
 		std::function<void()> MutationHook;
+		/// [[BPR-1572]]. Answers a mutation-transport exchange, when set.
+		std::function<github_mutation_wire_completion(const github_mutation_wire_request&)> MutationHandler;
 
 		read_handler                                      ReadHandler;
 		capability_handler                                CapabilityHandler;
@@ -1806,42 +1811,77 @@ namespace {
 		}
 	}
 
-	/// [[BPR-1560]]. The provider says why a snapshot has no merge base: a
-	/// read that failed (a window may keep the merge base it had) differs from
-	/// answers proving there is no single one (the base branch and the
-	/// recorded base name different merge bases, or the pull request moved
-	/// between the snapshot and the read confirming it), which a window must
-	/// never override with an earlier answer.
+	/// [[BPR-1560]], [[BPR-1572]]. The provider says why a snapshot has no
+	/// merge base: a read that failed (a window may keep the merge base it
+	/// had) differs from answers proving there is no single one (the pull
+	/// request moved between the snapshot and the read confirming it, or the
+	/// base branch names another merge base while GitHub's own answers do not
+	/// show it still compares from the recorded base), which a window must
+	/// never override with an earlier answer. A base branch that only moved
+	/// forward from the recorded base, as a stacked pull request's does when
+	/// it takes some of the head's commits, leaves GitHub comparing from the
+	/// recorded base's merge base, which is accepted.
 	void test_merge_base_failure_and_refusal_are_distinct()
 	{
 		enum class course : std::uint8_t { agree,
 										   tip_disagrees,
 										   moved,
-										   compare_fails };
+										   compare_fails,
+										   stacked_forward,
+										   stacked_rewritten,
+										   stacked_count_differs,
+										   stacked_ancestry_fails,
+										   stacked_moved,
+										   stacked_commits_drop };
 		const auto mergeBase = std::string(40, 'a');
 		const auto otherBase = std::string(40, 'c');
-		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails }) {
+		const auto branchTip = std::string(40, 'b');
+		const auto recorded  = std::string(40, '1');
+		for (const auto which : { course::agree, course::tip_disagrees, course::moved, course::compare_fails, course::stacked_forward, course::stacked_rewritten,
+								  course::stacked_count_differs, course::stacked_ancestry_fails, course::stacked_moved, course::stacked_commits_drop }) {
 			provider_fixture fixture{ application::github_authentication_transport::native_https };
-			const auto       request       = pull_request_for(fixture, account_lease(fixture));
-			auto             pullRequests  = 0U;
-			auto             compares      = 0U;
+			const auto       request      = pull_request_for(fixture, account_lease(fixture));
+			auto             pullRequests = 0U;
+			auto             compares     = 0U;
+			auto             ancestries   = 0U;
+			const auto       stacked      = which == course::stacked_forward || which == course::stacked_rewritten || which == course::stacked_count_differs
+				|| which == course::stacked_ancestry_fails || which == course::stacked_moved || which == course::stacked_commits_drop;
+			// [[BPR-1572]]. The snapshot's pull request reports two commits; the
+			// confirming read, one (GitHub's commit count moved, n to n-1).
+			const auto twoCommits          = which == course::stacked_commits_drop;
 			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
 				if (aWire.Wire.Operation == read_operation::get_merge_base) {
 					++compares;
 					expect(validate_outbound_read_request(aWire.Wire).has_value(), "the compare request is canonical");
-					auto response = viewer_response();
-					if (which == course::compare_fails) {
+					auto       response = viewer_response();
+					const auto byBranch = !aWire.Wire.Semantic.BranchRef.empty();
+					// The recorded base against the branch tip GitHub resolved:
+					// whether the base branch only moved forward from it.
+					const auto ancestry = !byBranch && aWire.Wire.Semantic.HeadOid == branchTip;
+					ancestries += ancestry ? 1U : 0U;
+					if (which == course::compare_fails || (ancestry && which == course::stacked_ancestry_fails)) {
 						response.Status = 500;
 						response.Body   = R"({"message":"fixture compare unavailable"})";
 						return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 					}
-					const auto byBranch = !aWire.Wire.Semantic.BranchRef.empty();
-					const auto asked    = byBranch ? aWire.Wire.Semantic.BranchRef : aWire.Wire.Semantic.BaseOid;
-					const auto named    = byBranch && which == course::tip_disagrees ? otherBase : mergeBase;
-					response.Body       = R"({"url":"https://api.github.com/repos/)";
+					const auto asked = byBranch ? aWire.Wire.Semantic.BranchRef : aWire.Wire.Semantic.BaseOid;
+					auto       named = mergeBase;
+					auto       ahead = std::string{ };
+					if (byBranch && (which == course::tip_disagrees || stacked)) {
+						named = otherBase;
+						ahead = R"("ahead_by":1,)";
+					} else if (ancestry) {
+						named = which == course::stacked_rewritten ? std::string(40, 'e') : recorded;
+						ahead = R"("ahead_by":2,)";
+					} else if (stacked) {
+						// The pull request reports one commit (pull_request.json),
+						// or two on the commits-drop course.
+						ahead = which == course::stacked_count_differs || twoCommits ? R"("ahead_by":2,)" : R"("ahead_by":1,)";
+					}
+					response.Body = R"({"url":"https://api.github.com/repos/)";
 					response.Body.append(aWire.Wire.Semantic.Owner).append("/").append(aWire.Wire.Semantic.Repository).append("/compare/").append(asked).append("...");
-					response.Body.append(aWire.Wire.Semantic.HeadOid).append(R"(","status":"ahead","base_commit":{"sha":")");
-					response.Body.append(byBranch ? std::string(40, 'b') : aWire.Wire.Semantic.BaseOid).append(R"("},"merge_base_commit":{"sha":")");
+					response.Body.append(aWire.Wire.Semantic.HeadOid).append(R"(","status":"ahead",)").append(ahead).append(R"("base_commit":{"sha":")");
+					response.Body.append(byBranch ? branchTip : aWire.Wire.Semantic.BaseOid).append(R"("},"merge_base_commit":{"sha":")");
 					response.Body.append(named).append(R"("},"commits":[],"files":[]})");
 					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
 				}
@@ -1866,8 +1906,17 @@ namespace {
 				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
 					response.Headers.back().Value = "search";
 				}
-				if (aWire.Wire.Operation == read_operation::get_pull_request && ++pullRequests == 2U && which == course::moved) {
-					const auto position = response.Body.find("1111111111111111111111111111111111111111");
+				const auto pullRequestRead = aWire.Wire.Operation == read_operation::get_pull_request ? ++pullRequests : 0U;
+				if (twoCommits && pullRequestRead == 1U) {
+					const auto position = response.Body.find(R"("commits": 1)");
+					expect(position != std::string::npos, "the recorded pull request reports its commits");
+					response.Body.replace(position, 12U, R"("commits": 2)");
+				} else if (twoCommits && aWire.Wire.Operation == read_operation::list_pull_request_commits) {
+					const auto at = response.Body.find('{');
+					response.Body.insert(at, R"({"sha":"3333333333333333333333333333333333333333","node_id":"C_fixture_first","commit":{"message":"first"},"author":{"node_id":"U_fixture_author","login":"octo-author"}},)");
+				}
+				if (pullRequestRead == 2U && (which == course::moved || which == course::stacked_moved)) {
+					const auto position = response.Body.find(recorded);
 					expect(position != std::string::npos, "the recorded pull request names its base");
 					response.Body.replace(position, 40U, std::string(40, 'd'));
 				}
@@ -1878,23 +1927,49 @@ namespace {
 			fixture.Effects.run_next();
 			const auto& success  = require_one<application::github_pull_request_success>(completions, "the read completes with or without a merge base");
 			const auto& snapshot = success.Snapshot;
+			const auto  refused  = snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid;
 			switch (which) {
 			case course::agree:
 				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
-						   && snapshot.MergeBaseOid->value() == mergeBase && compares == 2U && pullRequests == 2U,
+						   && snapshot.MergeBaseOid->value() == mergeBase && snapshot.MergeBaseTipOid && snapshot.MergeBaseTipOid->value() == branchTip
+						   && compares == 2U && ancestries == 0U && pullRequests == 2U,
 					   "the recorded base and the base branch name one merge base, and the pull request is unchanged");
 				break;
 			case course::tip_disagrees:
-				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && compares == 2U,
-					   "the base branch naming another merge base is a refusal, not a failure");
+				expect(refused && compares == 2U && ancestries == 0U,
+					   "the base branch naming another merge base, with no commit count from GitHub to say which it compares from, is a refusal");
 				break;
 			case course::moved:
-				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::refused && !snapshot.MergeBaseOid && pullRequests == 2U,
-					   "the pull request moving under the read is a refusal, not a failure");
+				expect(refused && pullRequests == 2U, "the pull request moving under the read is a refusal, not a failure");
 				break;
 			case course::compare_fails:
 				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::failed && !snapshot.MergeBaseOid,
 					   "a compare that fails is a failure a window may outlive");
+				break;
+			case course::stacked_forward:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+						   && snapshot.MergeBaseOid->value() == mergeBase && snapshot.MergeBaseTipOid && snapshot.MergeBaseTipOid->value() == recorded
+						   && compares == 3U && ancestries == 1U && pullRequests == 2U,
+					   "a base branch that only moved forward from the recorded base leaves GitHub comparing from the recorded base's merge base");
+				break;
+			case course::stacked_rewritten:
+				expect(refused && compares == 3U && ancestries == 1U,
+					   "a base branch that no longer contains the recorded base is about to replace it: refused");
+				break;
+			case course::stacked_count_differs:
+				expect(refused && compares == 2U && ancestries == 0U,
+					   "GitHub's commit count for the pull request not being the recorded base's is a refusal, asked nothing more");
+				break;
+			case course::stacked_ancestry_fails:
+				expect(snapshot.MergeBaseAvailability == application::github_merge_base_availability::failed && !snapshot.MergeBaseOid && ancestries == 1U,
+					   "the ancestry read failing is a failure, not an acceptance");
+				break;
+			case course::stacked_moved:
+				expect(refused && compares == 3U && pullRequests == 2U, "the pull request moving under a stacked read is a refusal");
+				break;
+			case course::stacked_commits_drop:
+				expect(refused && compares == 3U && ancestries == 1U && pullRequests == 2U && snapshot.PullRequest.ReportedCommitCount == std::optional<std::size_t>{ 2U },
+					   "GitHub's commit count moving from 2 to 1 between the snapshot and the confirming read is a refusal");
 				break;
 			}
 		}
@@ -2476,6 +2551,9 @@ namespace {
 			const application::review_mutation_acting_identity identity{ .Account = core::github_account_id{ 1001 }, .DatabaseId = 1001, .NodeId = "U_viewer", .Login = "viewer" };
 			const github_mutation_wire_request                 request{ .Context = lease->credential_context(), .Wire = *compile_viewer_observation_request(identity) };
 			const auto                                         before = fixture.Transport->ReadRequests.size();
+			// A read: the account is checked before and after it. A write bound
+			// to a pull request also reads the pull request after its pre-write
+			// check ([[BPR-1572]], test_cli_wrapper_reads_the_pull_request_last_before_a_write).
 			expect(std::holds_alternative<github_mutation_wire_success>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; })) && fixture.Transport->ReadRequests.size() == before + 2, "mutation dispatch has pre/post account checks");
 			changed                         = !postflight;
 			fixture.Transport->MutationHook = [&] { changed = true; };
@@ -2487,6 +2565,115 @@ namespace {
 			const auto after = fixture.Transport->MutationCalls;
 			static_cast<void>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; }));
 			expect(fixture.Transport->MutationCalls == after, "mismatched lease cannot publish again after account returns");
+		}
+	}
+
+	/// [[BPR-1572]]. Through the production GitHub CLI account wrapper, whose
+	/// account checks are reads of their own: the session reads the pull
+	/// request, then writes; between them the wrapper checks the account after
+	/// the read and before the write. The wrapper reads the pull request once
+	/// more after its pre-write check, so the pull request is the last read
+	/// before the write. GitHub replacing the recorded base during either
+	/// intervening account read, moving the head, or both, sends nothing.
+	void test_cli_wrapper_reads_the_pull_request_last_before_a_write()
+	{
+		enum class course : std::uint8_t { unchanged,
+										   base_during_read_postcheck,
+										   base_during_write_precheck,
+										   head_during_write_precheck,
+										   both_during_write_precheck,
+										   wrapper_read_fails,
+										   wrapper_read_cancelled };
+		for (const auto which : { course::unchanged, course::base_during_read_postcheck, course::base_during_write_precheck, course::head_during_write_precheck, course::both_during_write_precheck,
+								  course::wrapper_read_fails, course::wrapper_read_cancelled }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			auto sequence                  = std::vector<std::string>{ };
+			auto moveAt                    = std::size_t{ 0U };
+			auto baseMoved                 = false;
+			auto headMoved                 = false;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				sequence.emplace_back("viewer");
+				if (moveAt != 0U && sequence.size() == moveAt) {
+					baseMoved = which != course::head_during_write_precheck;
+					headMoved = which == course::head_during_write_precheck || which == course::both_during_write_precheck;
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+			};
+			auto  viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			auto& success = std::get<application::github_viewer_success>(viewer);
+			auto* factory = dynamic_cast<application::review_mutation_transport_factory_port*>(success.AccountTransport.get());
+			auto  lease   = std::dynamic_pointer_cast<github_review_mutation_transport_lease>(factory->acquire_review_mutation_transport());
+			expect(lease && lease->mutation_transport(), "CLI lease exposes observed mutation transport");
+			const auto target = application::review_mutation_target_binding{
+				.Semantic                 = { .Host = lease->credential_context().Authority.Host, .Repository = core::repository_id{ 12U }, .PullRequest = core::pull_request_id{ 13U }, .ExpectedHead = *core::parse_git_commit_oid(std::string(40U, '2')) },
+				.Hostname                 = lease->credential_context().Authority.Hostname,
+				.ServerContract           = lease->credential_context().Authority.ServerContract,
+				.Repository               = { .Owner = "octo-org", .Name = "review-repository" },
+				.Number                   = core::pull_request_number{ 7U },
+				.RepositoryDatabaseId     = 101U,
+				.RepositoryNodeId         = "R_fixture",
+				.PullRequestDatabaseId    = 7001U,
+				.PullRequestNodeId        = "PR_fixture",
+				.BaseRepositoryDatabaseId = 101U,
+				.BaseOid                  = *core::parse_git_commit_oid(std::string(40U, '1')),
+				.BaseRef                  = "main",
+				.HeadRef                  = "feature",
+				.Open                     = true,
+			};
+			fixture.Transport->MutationHandler = [&](const github_mutation_wire_request& aRequest) -> github_mutation_wire_completion {
+				sequence.emplace_back(aRequest.Wire.Operation == review_mutation_operation::observe_pull_request ? "pull" : "write");
+				if (aRequest.Wire.Operation != review_mutation_operation::observe_pull_request) {
+					return github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{}" } };
+				}
+				// The wrapper's own read of the pull request (the second) fails
+				// with a 500, or is cancelled.
+				if (std::ranges::count(sequence, std::string{ "pull" }) == 2) {
+					if (which == course::wrapper_read_fails) {
+						return github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } };
+					}
+					if (which == course::wrapper_read_cancelled) {
+						return github_mutation_wire_cancelled{ };
+					}
+				}
+				auto body = std::string{ R"({"id":7001,"node_id":"PR_fixture","number":7,"state":"open","head":{"sha":")" };
+				body.append(headMoved ? std::string(40U, '3') : std::string(40U, '2')).append(R"(","ref":"feature"},"base":{"sha":")");
+				body.append(baseMoved ? std::string(40U, 'b') : std::string(40U, '1')).append(R"(","ref":"main","repo":{"id":101,"node_id":"R_fixture","full_name":"octo-org/review-repository"}}})");
+				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = { { .Name = "Content-Type", .Value = "application/json" } }, .Body = std::move(body) } };
+			};
+			const auto identity  = application::review_mutation_acting_identity{ .Account = core::github_account_id{ 1001 }, .DatabaseId = 1001, .NodeId = "U_viewer", .Login = "viewer" };
+			const auto pullRead  = github_mutation_wire_request{ .Context = lease->credential_context(), .Wire = *compile_target_observation_request(target, target.ServerContract) };
+			const auto writeWire = compile_review_submission_request({ .Target = target, .ActingIdentity = identity, .Body = "Looks good." }, target.ServerContract);
+			expect(writeWire.has_value(), "a review compiles for the fixture pull request");
+			const auto write = github_mutation_wire_request{ .Context = lease->credential_context(), .Wire = *writeWire };
+			sequence.clear();
+			// The session's last read: viewer, pull request, viewer. Then the
+			// write: viewer, the wrapper's pull request read, the POST, viewer.
+			const auto quiet = which == course::unchanged || which == course::wrapper_read_fails || which == course::wrapper_read_cancelled;
+			moveAt           = which == course::base_during_read_postcheck ? 3U : quiet ? 0U
+																						: 4U;
+			const auto read  = lease->mutation_transport()->perform_review_mutation(pullRead, { }, { });
+			expect(std::holds_alternative<github_mutation_wire_success>(read), "the session's read of the pull request is answered");
+			const auto result = lease->mutation_transport()->perform_review_mutation(write, { }, [] { return true; });
+			if (which == course::wrapper_read_fails || which == course::wrapper_read_cancelled) {
+				const auto* error     = std::get_if<github_mutation_wire_error>(&result);
+				const auto* cancelled = std::get_if<github_mutation_wire_cancelled>(&result);
+				expect(std::ranges::count(sequence, std::string{ "write" }) == 0
+						   && (which == course::wrapper_read_fails
+								   ? error && error->Failure == application::review_mutation_failure::unavailable && error->Transmission == github_mutation_transmission::definitely_not_sent
+								   : cancelled && cancelled->Transmission == github_mutation_transmission::definitely_not_sent),
+					   "the wrapper's read failing is unavailable, and cancelled inside it is cancelled; either way nothing is written and nothing was sent");
+			} else if (which == course::unchanged) {
+				expect(std::holds_alternative<github_mutation_wire_success>(result)
+						   && sequence == std::vector<std::string>{ "viewer", "pull", "viewer", "viewer", "pull", "write", "viewer" },
+					   "the wrapper reads the pull request after its account check, last before the write");
+			} else {
+				const auto* error    = std::get_if<github_mutation_wire_error>(&result);
+				const auto  expected = which == course::head_during_write_precheck ? application::review_mutation_failure::stale_head : application::review_mutation_failure::target_moved;
+				expect(error && error->Failure == expected && error->Transmission == github_mutation_transmission::definitely_not_sent
+						   && std::ranges::count(sequence, std::string{ "write" }) == 0,
+					   "a recorded base or head moved during an intervening account read sends nothing; a moved recorded base is the target moving, a moved head alone a stale head");
+			}
 		}
 	}
 
@@ -2725,5 +2912,6 @@ int main(int aArgc, char** aArgv)
 	test_cli_git_lease_forwarding();
 	test_cli_exact_blob_cancellation();
 	test_cli_mutation_lease_account_checks();
+	test_cli_wrapper_reads_the_pull_request_last_before_a_write();
 	return EXIT_SUCCESS;
 }

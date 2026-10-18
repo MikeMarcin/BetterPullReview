@@ -114,17 +114,17 @@ namespace {
 		const auto before = deliveries().size();
 		const auto file   = aExports / "printed.md";
 		write_file(file, "kept\n");
-		const auto to_file = [&](const std::optional<core::cycle_material_digest>& aConfirmed) {
+		const auto toFile = [&](const std::optional<core::cycle_material_digest>& aConfirmed) {
 			auto destination = std::shared_ptr<application::cycle_export_destination>{ adapters::workspace::make_local_export_destination(file) };
 			return aNotes.run<application::cycle_file_share>([&](auto aDone) {
 				return aNotes.Runtime.export_round_to_file_selected(request(1, core::cycle_disclosure_channel::local_file), destination, "printed.md", aConfirmed,
 																	tests::workspace_contract::session_operation(aNotes.NextOperation++), std::move(aDone));
 			});
 		};
-		const auto kept = to_file(std::nullopt);
+		const auto kept = toFile(std::nullopt);
 		expect(kept && kept->Save && kept->Save->Action == cycle_round_save_action::conflict && !kept->Recorded && read_file(file) == "kept\n" && deliveries().size() == before,
 			   "other bytes are kept and nothing is recorded");
-		const auto saved = to_file(digest_of("kept\n"));
+		const auto saved = toFile(digest_of("kept\n"));
 		expect(saved && saved->Recorded && read_file(file) == aFirst, "F1 replaces exactly the confirmed bytes");
 		const auto recorded = deliveries();
 		expect(recorded.size() == before + 1U && recorded.back().Observation.State == core::cycle_delivery_state::saved && recorded.back().Observation.Destination == "printed.md"

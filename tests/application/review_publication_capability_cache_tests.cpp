@@ -55,6 +55,7 @@ int main()
 		case 10: changed.ClassifierRevision = 2; break;
 		case 11: changed.FreshnessGeneration = 2; break;
 		case 12: changed.AnchorDigest[0] = 2; break;
+		default: expect(false, "the fixture selects a known identity field"); break;
 		}
 		expect(!cache.lookup(changed, 100), "changed authority/operation/revision never borrows evidence");
 	}
@@ -65,7 +66,7 @@ int main()
 	evidence.State = state::unknown;
 	expect(!cache.record(key(), evidence, 100), "ambiguous outcomes supply no evidence");
 	evidence.State = state::supported;
-	for (std::size_t index = 1; index < cache.maximum_entries; ++index) {
+	for (std::size_t index = 1; index < application::review_publication_capability_cache::maximum_entries; ++index) {
 		auto changed = key();
 		changed.RepositoryDatabaseId += index;
 		expect(cache.record(changed, evidence, 100), "bounded entries admitted");

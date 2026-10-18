@@ -823,26 +823,26 @@ namespace {
 	{
 		const auto oldCommit = *parse_git_commit_oid("1111111111111111111111111111111111111111");
 		const auto newCommit = *parse_git_commit_oid("2222222222222222222222222222222222222222");
-		const auto check     = [&](const computed_file_diff& diff, std::uint32_t first, std::uint32_t last, tour_mapping mapping, std::optional<std::uint32_t> destination) {
+		const auto check     = [&](const computed_file_diff& aDiff, std::uint32_t aFirst, std::uint32_t aLast, tour_mapping aMapping, std::optional<std::uint32_t> aDestination) {
 			auto        tour         = bpr::tests::review_tour_fixture();
-			const auto& a            = diff.Alignment.Key.Authority;
+			const auto& a            = aDiff.Alignment.Key.Authority;
 			tour.Owner.Host          = a.Host;
 			tour.Owner.HostAuthority = a.HostAuthority;
 			tour.Owner.Account       = a.Account;
 			tour.Owner.Repository    = a.Repository;
 			tour.Owner.PullRequest   = a.PullRequest;
-			tour.Stops[0].Original   = tour_source_range{ line(diff, diff_side::left, first), line(diff, diff_side::left, last), oldCommit, diff.Alignment.Key.LeftBlob, "old.cpp" };
+			tour.Stops[0].Original   = tour_source_range{ line(aDiff, diff_side::left, aFirst), line(aDiff, diff_side::left, aLast), oldCommit, aDiff.Alignment.Key.LeftBlob, "old.cpp" };
 			tour.Stops[0].Remote     = tour_remote_binding{ .DatabaseId = 601, .Entity = "original601", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#discussion_r601", .Own = true };
 			const auto original      = tour.Stops[0].Original;
 			tour                     = apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::observe_head, .Head = newCommit }).Accepted;
-			const auto index         = build_diff_semantic_index(std::make_shared<const computed_file_diff>(diff));
+			const auto index         = build_diff_semantic_index(std::make_shared<const computed_file_diff>(aDiff));
 			expect(index.has_value(), "tour comparison index");
-			const tour_code_destination left{ oldCommit, diff.Alignment.Key.LeftBlob, "old.cpp", diff_side::left, 0, 0 }, right{ newCommit, diff.Alignment.Key.RightBlob, "renamed.cpp", diff_side::right, 0, 0 };
+			const tour_code_destination left{ oldCommit, aDiff.Alignment.Key.LeftBlob, "old.cpp", diff_side::left, 0, 0 }, right{ newCommit, aDiff.Alignment.Key.RightBlob, "renamed.cpp", diff_side::right, 0, 0 };
 			const auto                  mapped = map_tour_revision(tour, *index, left, right);
-			expect(mapped.Stops[0].Mapping == mapping, "tour classifies admitted correspondence");
+			expect(mapped.Stops[0].Mapping == aMapping, "tour classifies admitted correspondence");
 			expect(mapped.Stops[0].Original == original && mapped.Head == oldCommit && mapped.Stops[0].Remote == tour.Stops[0].Remote && !needs_tour_destination(mapped.Stops[0]), "proposal preserves original anchor and remote identity without replacement writes");
 			expect(mapped.Stops[0].Preparation == tour_preparation::needs_attention && !mapped.Stops[0].ReaffirmedHead, "changed context requires explanation reaffirmation even with identical selected bytes");
-			expect(destination ? mapped.Stops[0].Mapped && mapped.Stops[0].Mapped->First.Line == *destination && mapped.Stops[0].Mapped->Path == "renamed.cpp" : !mapped.Stops[0].Mapped, "mapped range has admitted new path/lines or remains absent");
+			expect(aDestination ? mapped.Stops[0].Mapped && mapped.Stops[0].Mapped->First.Line == *aDestination && mapped.Stops[0].Mapped->Path == "renamed.cpp" : !mapped.Stops[0].Mapped, "mapped range has admitted new path/lines or remains absent");
 			auto affirmed = apply(mapped, { .Draft = mapped.Id, .Owner = mapped.Owner, .ExpectedRevision = mapped.Revision, .Kind = tour_command_kind::reaffirm, .Stop = mapped.Stops[0].Id });
 			expect(affirmed.Refusal == tour_refusal::none && affirmed.Accepted.Stops[0].ReaffirmedHead == newCommit && affirmed.Accepted.Stops[0].Original == original, "explicit explanation reaffirmation retains original source");
 			auto foreign          = tour;

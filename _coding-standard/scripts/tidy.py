@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
+import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -12,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Set
 
 from _coding_standard import (
+    PINNED_CLANG_FORMAT_DIRECTORIES,
     TIDY_EXTENSIONS,
     display_path,
     iter_source_files,
@@ -19,6 +23,26 @@ from _coding_standard import (
     repo_root,
     resolve_tool,
 )
+
+
+def resolve_tidy_tool(requested: Optional[str]) -> str:
+    """Prefer the documented LLVM 22 install without changing the host's PATH."""
+    if requested is not None:
+        return resolve_tool(requested)
+    candidates = [shutil.which("clang-tidy-22")]
+    suffix = ".exe" if os.name == "nt" else ""
+    for directory in PINNED_CLANG_FORMAT_DIRECTORIES:
+        candidate = Path(directory) / f"clang-tidy{suffix}"
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            candidates.append(str(candidate))
+    candidates.append(shutil.which("clang-tidy"))
+    for candidate in dict.fromkeys(item for item in candidates if item is not None):
+        version = subprocess.run([candidate, "--version"], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, check=False)
+        if version.returncode == 0 and re.search(r"\bversion\s+22(?:\.|\b)", version.stdout):
+            return candidate
+    raise FileNotFoundError("clang-tidy 22 is required for the default gate; install llvm@22 or clang-tidy-22. "
+                            "Use --clang-tidy to select an explicit tool for a separate analysis.")
 
 
 def find_compile_commands(root: Path, build_dir: Optional[Path], compile_commands: Optional[Path]) -> Optional[Path]:
@@ -172,12 +196,19 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=None, help="Project root to scan. Defaults to the current working directory.")
     parser.add_argument("--build-dir", type=Path, default=None, help="Build directory containing compile_commands.json.")
     parser.add_argument("--compile-commands", type=Path, default=None, help="Path to compile_commands.json.")
-    parser.add_argument("--clang-tidy", default="clang-tidy", help="clang-tidy executable path or PATH name.")
+    parser.add_argument("--clang-tidy", default=None, help="Explicit analyser path or PATH name; default discovery selects LLVM 22.")
     parser.add_argument("--fix", action="store_true", help="Allow clang-tidy to apply fixes.")
     parser.add_argument("--paths", nargs="*", default=None, help="Files or directories to check. Defaults to normal project roots.")
     parser.add_argument("--changed", action="store_true", help="Check changed translation units according to Git.")
     parser.add_argument("--warnings-as-errors", action="store_true", help="Promote all clang-tidy warnings to errors.")
-    return parser.parse_args(argv)
+    parser.add_argument("--jobs", type=int, default=os.environ.get("CODING_STANDARD_TIDY_JOBS", "1"),
+                        help="Concurrent analyser processes (default: CODING_STANDARD_TIDY_JOBS, or 1).")
+    args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
+    if args.fix and args.jobs != 1:
+        parser.error("--fix requires --jobs=1 because translation units can share headers")
+    return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -185,7 +216,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     root = repo_root(args.root)
 
     try:
-        clang_tidy = resolve_tool(args.clang_tidy)
+        clang_tidy = resolve_tidy_tool(args.clang_tidy)
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -218,24 +249,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("No selected C/C++ translation units are present in the compilation database.")
         return 0
 
-    print(f"Running clang-tidy on {len(files)} translation unit(s)")
-    print(f"Compilation database: {compile_commands}")
+    print(f"Running clang-tidy on {len(files)} translation unit(s), {args.jobs} process(es)", flush=True)
+    print(f"Compilation database: {compile_commands}", flush=True)
     rewritten = filtered_compilation_database(compile_commands)
     build_root = rewritten if rewritten is not None else compile_commands.parent
 
     extra_args = host_extra_args()
     failures: List[Path] = []
+
+    def check_file(path: Path):
+        cmd = [clang_tidy, str(path), "-p", str(build_root), *extra_args]
+        if args.warnings_as_errors:
+            cmd.append("--warnings-as-errors=*")
+        if args.fix:
+            cmd.append("--fix")
+        completed = subprocess.run(cmd, cwd=str(root), stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True)
+        return path, cmd, completed
+
     try:
-        for path in files:
-            cmd = [clang_tidy, str(path), "-p", str(build_root), *extra_args]
-            if args.warnings_as_errors:
-                cmd.append("--warnings-as-errors=*")
-            if args.fix:
-                cmd.append("--fix")
-            print("+", " ".join(cmd))
-            completed = subprocess.run(cmd, cwd=str(root))
-            if completed.returncode != 0:
-                failures.append(path)
+        # Preserve file order and whole diagnostic blocks while read-only
+        # analysis runs concurrently. Fixes stay serial: two units can both
+        # propose edits to the same header.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+            for path, cmd, completed in pool.map(check_file, files):
+                print("+", " ".join(cmd), flush=True)
+                print(completed.stdout, end="", flush=True)
+                if completed.returncode != 0:
+                    failures.append(path)
     finally:
         # BPR-1051. The rewritten database is this run's own directory, and
         # nothing else removes it: every run that stripped a flag left one

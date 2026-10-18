@@ -213,7 +213,7 @@ namespace bpr::application {
 			const staged_review_actor  actor{ binding.ActingIdentity.DatabaseId, binding.ActingIdentity.NodeId, binding.ActingIdentity.Login };
 			const auto                 root = initial_navigation(aRecord.Plan).front().Destination;
 			std::vector<std::uint64_t> ids;
-			const auto                 identity = [&](const staged_review_comment& comment) { return comment.Id && !comment.NodeId.empty() && comment.Actor == actor && !comment.Source && !comment.Review.value() && !comment.Reply && comment.WebUrl == root + "#issuecomment-" + std::to_string(comment.Id); };
+			const auto                 identity = [&](const staged_review_comment& aComment) { return aComment.Id && !aComment.NodeId.empty() && aComment.Actor == actor && !aComment.Source && !aComment.Review.value() && !aComment.Reply && aComment.WebUrl == root + "#issuecomment-" + std::to_string(aComment.Id); };
 			const auto                 bodies   = staged_final_bodies(aRecord);
 			if (aRecord.Patched && !bodies) {
 				return false;

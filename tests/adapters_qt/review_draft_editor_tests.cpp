@@ -1652,7 +1652,7 @@ namespace {
 	{
 		qt::review_draft_editor                            editor({ }, { });
 		std::vector<core::revisioned_review_draft_command> commands;
-		editor.set_revisioned_dispatch([&](auto command) { commands.push_back(std::move(command)); });
+		editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
 		auto placeholder     = core::revisioned_review_draft{ a_draft(""), 1, core::review_draft_scope_id{ 9 } };
 		placeholder.Draft.Id = core::review_draft_id{ std::numeric_limits<std::uint64_t>::max() };
 		editor.present(placeholder);

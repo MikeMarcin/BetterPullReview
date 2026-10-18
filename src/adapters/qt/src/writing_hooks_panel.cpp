@@ -84,6 +84,13 @@ namespace bpr::qt {
 		const auto current = Hook->currentData();
 		return current.isValid() ? static_cast<core::writing_hook>(current.toInt()) : core::writing_hook::problem;
 	}
+	void writing_hooks_panel::select_hook(const core::writing_hook aHook)
+	{
+		const auto index = Hook->findData(QVariant::fromValue(static_cast<int>(aHook)));
+		if (index >= 0) {
+			Hook->setCurrentIndex(index);
+		}
+	}
 	void writing_hooks_panel::show_hook()
 	{
 		const auto hook    = selected_hook();
@@ -95,9 +102,11 @@ namespace bpr::qt {
 		const bool feedback = hook == core::writing_hook::feedback;
 		Scope->setVisible(feedback);
 		if (feedback) {
+			// [[BPR-1568]]. Whether it is sent is Comments › Comment
+			// workshop's; this line only says so.
 			Scope->setText(LabelHelper == application::review_label_helper::on
-							   ? tr("On. Sent with each comment workshop request while the label helper is on.")
-							   : tr("Off. Sent with comment workshop requests only while the label helper is on: Reviews & queue › Comment labels › Label helper."));
+							   ? tr("On. Sent with each comment workshop request: Comments › Comment workshop.")
+							   : tr("Off. Not sent with comment workshop requests; turn it on in Comments › Comment workshop."));
 		}
 		TestButton->setEnabled(!feedback);
 		TestButton->setToolTip(feedback ? tr("Test uses a tour field. Ask the comment workshop to try this guidance.") : QString{ });

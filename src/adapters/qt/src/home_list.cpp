@@ -21,6 +21,9 @@
 #include <utility>
 
 namespace bpr::qt {
+	template class home_fitted_view<QListView>;
+	template class home_fitted_view<QListWidget>;
+
 	namespace {
 		constexpr auto state_count = std::size_t{ 4U };
 		/// The all-empty sentence sits at a row's inset inside its panel.

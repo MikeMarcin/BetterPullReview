@@ -80,6 +80,9 @@ namespace bpr::adapters::github::detail {
 		/// \brief `aLeftLine` also asks GitHub's merge base, before a write of
 		/// a plan with a LEFT stop ([[BPR-1560]]).
 		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop, bool aLeftLine = false) -> bool;
+		/// \brief [[BPR-1572]]. `verify_staged`'s reads of the review, its
+		/// comments and the description, which precede the pull request's.
+		[[nodiscard]] auto verify_staged_reads(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
 		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 
 		github_mutation_wire_transport*                               Transport;

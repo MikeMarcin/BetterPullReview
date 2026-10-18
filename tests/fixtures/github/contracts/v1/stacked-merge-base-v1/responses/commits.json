@@ -1,0 +1,24 @@
+[
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "the pull request's first commit"
+		},
+		"node_id": "C_513cbb56",
+		"sha": "513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "the pull request's second commit"
+		},
+		"node_id": "C_22222222",
+		"sha": "2222222222222222222222222222222222222222"
+	}
+]

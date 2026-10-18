@@ -121,7 +121,11 @@ namespace {
 		return result;
 	}
 
-	const auto listed = std::vector<std::string>{ "README.md", "src/a/x.cpp", "src/a/y.cpp", "src/b/z.cpp", "lib/one.cpp" };
+	auto listed() -> const std::vector<std::string>&
+	{
+		static const auto paths = std::vector<std::string>{ "README.md", "src/a/x.cpp", "src/a/y.cpp", "src/b/z.cpp", "lib/one.cpp" };
+		return paths;
+	}
 
 	auto columns(std::vector<feedback_label> aLabels) -> core::feedback_label_columns
 	{
@@ -162,7 +166,7 @@ namespace {
 		down.Row           = aRow;
 		down.Path          = std::move(aPath);
 		down.Target        = aTarget;
-		const auto listing = application::list_overview_drill_down(aModel, listed, aRequest, down);
+		const auto listing = application::list_overview_drill_down(aModel, listed(), aRequest, down);
 		expect(listing.has_value(), "the drill-down is answered");
 		expect(listing->Conversations.size() == listing->Count && listing->Epoch == aModel.population().Epoch && listing->Mode == aRequest.Mode,
 			   "a drill-down lists exactly its number's conversations, at the accepted epoch and mode");
@@ -191,13 +195,13 @@ namespace {
 	void test_every_number_drills_into_exactly_its_conversations()
 	{
 		auto model = feedback_counter_model{ };
-		expect(!application::project_overview_feedback(model, listed, request({ }, feedback_resolution_mode::unresolved)), "nothing before a snapshot is admitted");
+		expect(!application::project_overview_feedback(model, listed(), request({ }, feedback_resolution_mode::unresolved)), "nothing before a snapshot is admitted");
 		expect(model.observe(review_key(), snapshot()).Admitted, "the snapshot is admitted");
 		for (const auto& labels : { std::vector<feedback_label>{ }, std::vector{ feedback_label::issue, feedback_label::question }, all_twelve() }) {
 			for (const auto mode : { feedback_resolution_mode::unresolved, feedback_resolution_mode::all }) {
 				const auto asked      = request(labels, mode);
-				const auto projection = application::project_overview_feedback(model, listed, asked);
-				expect(projection.has_value() && projection->Files.size() == listed.size() && projection->Folders.size() == 4U && projection->Order.empty(),
+				const auto projection = application::project_overview_feedback(model, listed(), asked);
+				expect(projection.has_value() && projection->Files.size() == listed().size() && projection->Folders.size() == 4U && projection->Order.empty(),
 					   "one row per listed file and per folder that holds one, in file order");
 				const auto what = std::to_string(labels.size()) + " chips, " + std::string{ core::stable_name(mode) };
 				auto       rows = std::vector<overview_feedback_row>{ projection->Files.begin(), projection->Files.end() };
@@ -209,7 +213,7 @@ namespace {
 				}
 				// The file rows and the remainder count every conversation once.
 				auto everyRow = drill(model, asked, overview_feedback_row_kind::remainder, { }, { .Kind = feedback_count_kind::included });
-				for (const auto& file : listed) {
+				for (const auto& file : listed()) {
 					const auto ids = drill(model, asked, overview_feedback_row_kind::file, file, { .Kind = feedback_count_kind::included });
 					everyRow.insert(everyRow.end(), ids.begin(), ids.end());
 				}
@@ -225,7 +229,7 @@ namespace {
 
 		// The typical subset in Open: x.cpp shows issue 1 and Other 1; the
 		// resolved issue and the reply's question count nowhere.
-		const auto typical = *application::project_overview_feedback(model, listed, request({ feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved));
+		const auto typical = *application::project_overview_feedback(model, listed(), request({ feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved));
 		const auto x       = row_of(typical, overview_feedback_row_kind::file, "src/a/x.cpp").Counts;
 		expect(x.Dedicated[0].Count == 1U && x.Dedicated[1].Count == 0U && x.Catchall == 1U && x.Exact, "x.cpp in Open: one open issue, the plain thread in Other; a reply's label counts nothing");
 		expect(drill(model, request({ feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved), overview_feedback_row_kind::file, "src/a/x.cpp",
@@ -238,7 +242,7 @@ namespace {
 		expect(remainder.Dedicated[0].Count == 1U && remainder.Dedicated[1].Count == 1U && remainder.ScopeTotal == 4U && remainder.Uncertain == 2U,
 			   "Not on a file: the issue on the unlisted file, the unanchored question, and the comment and summary that are not resolvable");
 		// All keeps the breakdown: x.cpp's issue is one open and one resolved.
-		const auto all = *application::project_overview_feedback(model, listed, request({ feedback_label::issue }, feedback_resolution_mode::all));
+		const auto all = *application::project_overview_feedback(model, listed(), request({ feedback_label::issue }, feedback_resolution_mode::all));
 		expect(row_of(all, overview_feedback_row_kind::file, "src/a/x.cpp").Counts.Dedicated[0].States == core::feedback_state_counts{ 1U, 1U, 0U, 0U },
 			   "All shows the issue's breakdown: one open, one resolved");
 		// Refusals.
@@ -246,10 +250,10 @@ namespace {
 		down.Row    = overview_feedback_row_kind::file;
 		down.Path   = "old/gone.cpp";
 		down.Target = { .Kind = feedback_count_kind::included };
-		expect(!application::list_overview_drill_down(model, listed, typical.Request, down), "an unlisted file has no row to drill into");
+		expect(!application::list_overview_drill_down(model, listed(), typical.Request, down), "an unlisted file has no row to drill into");
 		down.Path   = "src/a/x.cpp";
 		down.Target = { .Kind = feedback_count_kind::dedicated, .Label = feedback_label::praise };
-		expect(!application::list_overview_drill_down(model, listed, typical.Request, down), "a label without a chip has no drill-down");
+		expect(!application::list_overview_drill_down(model, listed(), typical.Request, down), "a label without a chip has no drill-down");
 	}
 
 	void test_a_new_mode_or_chip_reads_no_conversation()
@@ -257,8 +261,8 @@ namespace {
 		auto model = feedback_counter_model{ };
 		static_cast<void>(model.observe(review_key(), snapshot()));
 		const auto generation = model.generation();
-		const auto open       = application::project_overview_feedback(model, listed, request({ feedback_label::issue }, feedback_resolution_mode::unresolved));
-		const auto all        = application::project_overview_feedback(model, listed, request(all_twelve(), feedback_resolution_mode::all));
+		const auto open       = application::project_overview_feedback(model, listed(), request({ feedback_label::issue }, feedback_resolution_mode::unresolved));
+		const auto all        = application::project_overview_feedback(model, listed(), request(all_twelve(), feedback_resolution_mode::all));
 		expect(open && all && open->Generation == generation && all->Generation == generation && model.generation() == generation,
 			   "the projection reads the kept tallies of one generation, whatever the chips and mode");
 		const auto same = model.observe(review_key(), snapshot());
@@ -271,7 +275,7 @@ namespace {
 		static_cast<void>(model.observe(review_key(), snapshot()));
 		auto byIssue      = request({ feedback_label::issue, feedback_label::question }, feedback_resolution_mode::unresolved);
 		byIssue.Sort      = feedback_count_target{ .Kind = feedback_count_kind::dedicated, .Label = feedback_label::issue };
-		const auto sorted = application::project_overview_feedback(model, listed, byIssue);
+		const auto sorted = application::project_overview_feedback(model, listed(), byIssue);
 		// src/a has two open issues, src/b none, the root none; within src/a,
 		// x.cpp and y.cpp tie at one each and keep their order.
 		expect(sorted && sorted->Order == std::vector<std::string>{ "src/a/x.cpp", "src/a/y.cpp", "README.md", "src/b/z.cpp", "lib/one.cpp" },
@@ -280,11 +284,11 @@ namespace {
 		// come before lib/one.cpp's three, although that file alone has more.
 		auto byAll = byIssue;
 		byAll.Sort = feedback_count_target{ .Kind = feedback_count_kind::included };
-		expect(application::project_overview_feedback(model, listed, byAll)->Order == std::vector<std::string>{ "src/a/x.cpp", "src/a/y.cpp", "lib/one.cpp", "src/b/z.cpp", "README.md" },
+		expect(application::project_overview_feedback(model, listed(), byAll)->Order == std::vector<std::string>{ "src/a/x.cpp", "src/a/y.cpp", "lib/one.cpp", "src/b/z.cpp", "README.md" },
 			   "sorted by all open conversations: folders by their own number, then their files");
 		auto byQuestion = byIssue;
 		byQuestion.Sort = feedback_count_target{ .Kind = feedback_count_kind::dedicated, .Label = feedback_label::question };
-		expect(application::project_overview_feedback(model, listed, byQuestion)->Order.front() == "src/b/z.cpp", "sorted by open questions: src/b/z.cpp first");
+		expect(application::project_overview_feedback(model, listed(), byQuestion)->Order.front() == "src/b/z.cpp", "sorted by open questions: src/b/z.cpp first");
 	}
 
 	void test_unknown_resolution_never_reads_as_a_clean_zero()
@@ -298,7 +302,7 @@ namespace {
 		auto model = feedback_counter_model{ };
 		expect(model.observe(review_key(), rest).Admitted, "the comment groups are admitted");
 		const auto  asked      = request({ feedback_label::issue }, feedback_resolution_mode::unresolved);
-		const auto  projection = *application::project_overview_feedback(model, listed, asked);
+		const auto  projection = *application::project_overview_feedback(model, listed(), asked);
 		const auto& whole      = projection.PullRequest.Counts;
 		expect(whole.Included == 0U && whole.Uncertain == 2U && !whole.Exact
 				   && std::ranges::find(whole.Limits, core::feedback_count_limit::resolution_unknown) != whole.Limits.end(),
@@ -313,7 +317,7 @@ namespace {
 		none.Viewer = actor("reviewer");
 		auto empty  = feedback_counter_model{ };
 		static_cast<void>(empty.observe(review_key(), none));
-		const auto unread = *application::project_overview_feedback(empty, listed, asked);
+		const auto unread = *application::project_overview_feedback(empty, listed(), asked);
 		expect(!row_of(unread, overview_feedback_row_kind::file, "README.md").Counts.Exact && !unread.PullRequest.Counts.Exact,
 			   "with no inline collection, an empty file's zero is qualified");
 	}
@@ -348,7 +352,7 @@ namespace {
 		expect(std::ranges::is_sorted(labels->Labels, { }, [](const auto& aListing) { return static_cast<int>(aListing.Label); }),
 			   "in catalog order");
 		// The same numbers the Overview's chips give, with every label a chip and All.
-		const auto counted = *application::project_overview_feedback(model, listed, request(all_twelve(), feedback_resolution_mode::all));
+		const auto counted = *application::project_overview_feedback(model, listed(), request(all_twelve(), feedback_resolution_mode::all));
 		for (const auto& entry : labels->Labels) {
 			expect(core::feedback_count_of(counted.PullRequest.Counts, { .Kind = feedback_count_kind::dedicated, .Label = entry.Label }) == entry.Conversations.size(),
 				   "each list is exactly the pull request's chip count for its label");

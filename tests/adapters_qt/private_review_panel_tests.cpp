@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 	expect(detail.contains(QStringLiteral("unknown")) && detail.contains(QStringLiteral("Conflicting")) && detail.contains(QStringLiteral("Requested")) && detail.contains(QStringLiteral("Content self-reported")), "unknown and conflicting fact bases stay visible");
 	panel.resize(420, 1300);
 	panel.show();
-	app.processEvents();
+	QApplication::processEvents();
 	const auto provenanceDirectory = qEnvironmentVariable("BPR_PRIVATE_REVIEW_VARIANTS_DIR");
 	if (!provenanceDirectory.isEmpty()) {
 		auto* provenanceWidget = panel.findChild<QPlainTextEdit*>(QStringLiteral("privateProvenanceDetails"));
@@ -75,7 +75,7 @@ int main(int argc, char** argv)
 	auto* pages = panel.findChild<QTabWidget*>(QStringLiteral("privateReviewPages"));
 	auto  tabTo = [&](int aPage, const char* aFrom, const char* aTo) {
 		pages->setCurrentIndex(aPage);
-		app.processEvents();
+		QApplication::processEvents();
 		auto* from = panel.findChild<QPushButton*>(QString::fromLatin1(aFrom));
 		auto* to   = panel.findChild<QPushButton*>(QString::fromLatin1(aTo));
 		from->setFocus(Qt::TabFocusReason);
@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 	expect(QAccessible::queryAccessibleInterface(panel.findChild<QPlainTextEdit*>(QStringLiteral("privateProvenanceDetails")))->text(QAccessible::Name).contains(QStringLiteral("self-reported")), "provenance bases are named to assistive technology");
 	auto renderVariant = [&](const QString& aName) {
 		panel.present(projection);
-		app.processEvents();
+		QApplication::processEvents();
 		const auto directory = qEnvironmentVariable("BPR_PRIVATE_REVIEW_VARIANTS_DIR");
 		if (!directory.isEmpty()) {
 			expect(QDir{ }.mkpath(directory) && panel.grab().save(directory + QLatin1Char('/') + aName + QStringLiteral(".png")), "synthetic variant capture");
@@ -143,7 +143,7 @@ int main(int argc, char** argv)
 	auto composition = application::private_composition_projection{ .Generation = 2, .Sources = { { .Source = source, .Latest = source.Key, .Actor = created.Revision.Actor, .Availability = core::private_subject_availability::stale } }, .Status = "Stale source: select current code explicitly; no guessed line." };
 	editor.present(composition);
 	editor.show();
-	app.processEvents();
+	QApplication::processEvents();
 	auto* accept = editor.findChild<QPushButton*>(QStringLiteral("privateCompositionAccept"));
 	expect(!accept->isEnabled() && compositionIntents.empty(), "stale/unplaceable workspace cannot accept or silently dispatch");
 	auto* mode = editor.findChild<QComboBox*>(QStringLiteral("privateCompositionMode"));

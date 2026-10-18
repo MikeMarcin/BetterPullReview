@@ -54,7 +54,8 @@ auto main(int aArgc, char** aArgv) -> int
 		// [[BPR-0877]]. Name the refusal rather than only reporting that the
 		// seed failed: this store's own failure value says which.
 		if (!state) {
-			std::cerr << "SEED_REGISTRY_REFUSAL:" << static_cast<int>(state.error()) << std::endl;
+			std::cerr << "SEED_REGISTRY_REFUSAL:" << static_cast<int>(state.error()) << '\n'
+					  << std::flush;
 		}
 		expect(state.has_value(), "seed registry");
 		const auto revision  = state->Revision++;

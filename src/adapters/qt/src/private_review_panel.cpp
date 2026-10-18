@@ -374,11 +374,11 @@ namespace bpr::qt {
 		}
 		auto picked = choices->findData(selected);
 		if (picked < 0) {
-			const auto first = std::ranges::find_if(Shown.Drafts, [](const auto& draft) { return !draft.Body.empty(); });
+			const auto first = std::ranges::find_if(Shown.Drafts, [](const auto& aDraft) { return !aDraft.Body.empty(); });
 			picked           = first != Shown.Drafts.end() ? static_cast<int>(first - Shown.Drafts.begin()) : 0;
 		}
 		choices->setCurrentIndex(picked);
-		SavedComments->findChild<QPushButton*>(QStringLiteral("savedCommentsFreeUnused"))->setEnabled(Shown.Available && Shown.SavedScope && !Shown.Busy && std::ranges::any_of(Shown.Drafts, [](const auto& draft) { return draft.Unused; }));
+		SavedComments->findChild<QPushButton*>(QStringLiteral("savedCommentsFreeUnused"))->setEnabled(Shown.Available && Shown.SavedScope && !Shown.Busy && std::ranges::any_of(Shown.Drafts, [](const auto& aDraft) { return aDraft.Unused; }));
 		show_saved_comment();
 	}
 	void private_review_panel::show_saved_comment()

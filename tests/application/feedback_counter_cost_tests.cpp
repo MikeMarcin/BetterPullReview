@@ -366,7 +366,7 @@ namespace {
 		}
 		expect_admitted(aShape, snapshot, files);
 		const auto key   = review_key();
-		const auto posts = static_cast<std::uint64_t>(2U * aShape.Conversations + 10U + 5U);
+		const auto posts = 2U * static_cast<std::uint64_t>(aShape.Conversations) + 10U + 5U;
 
 		// The first observation: every body parsed, every scope tallied. Each
 		// run observes into a model of its own, made before the measurement.

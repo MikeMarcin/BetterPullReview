@@ -694,9 +694,12 @@ namespace bpr::application {
 	/// older producer); `failed` means it was asked and GitHub gave no usable
 	/// answer (no common ancestor, a refusal, a timeout or a malformed reply);
 	/// `refused` means GitHub answered and the answers prove this snapshot has
-	/// no single merge base: the base branch and the recorded base name
-	/// different merge bases, or the pull request moved between the snapshot
-	/// and the read that confirms it. None is ever replaced by the recorded
+	/// no single merge base: the pull request moved between the snapshot and
+	/// the read that confirms it, or the base branch names another merge base
+	/// than the recorded base while GitHub's commit count for the pull request
+	/// is not the recorded base's or the recorded base is not an ancestor of
+	/// the branch tip (GitHub is replacing it). A base branch that only moved
+	/// forward from the recorded base is not a refusal ([[BPR-1572]]). None is ever replaced by the recorded
 	/// base, and only `failed` lets a window keep the merge base it already
 	/// had for the same head, recorded base and base branch.
 	enum class github_merge_base_availability : std::uint8_t {
@@ -797,8 +800,9 @@ namespace bpr::application {
 		/// `MergeBaseTipOid` and exactly `PullRequest.HeadOid`: the commit
 		/// GitHub's Files changed, and so every file row above, compares from.
 		/// `MergeBaseTipOid` is the base branch tip GitHub resolved in that same
-		/// answer for an open pull request, or `PullRequest.BaseOid` for a
-		/// closed one. Both present exactly when `MergeBaseAvailability` is
+		/// answer for an open pull request whose base branch names the same
+		/// merge base, or `PullRequest.BaseOid` for a closed one or one whose
+		/// base branch only moved forward from it ([[BPR-1572]]). Both present exactly when `MergeBaseAvailability` is
 		/// `available`.
 		std::optional<commit_oid>      MergeBaseOid;
 		std::optional<commit_oid>      MergeBaseTipOid;

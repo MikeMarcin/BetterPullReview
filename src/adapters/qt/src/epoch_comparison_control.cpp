@@ -2,6 +2,7 @@
 
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
+#include "bpr/qt/pending_veil.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -144,6 +145,12 @@ namespace bpr::qt {
 				// names; without it there is nothing that matches GitHub.
 				return QStringLiteral(
 					"GitHub did not say where this pull request branched, so Whole PR cannot match its Files changed. Compare two updates, or refresh.");
+			case core::epoch_reason_code::merge_base_disputed:
+				// [[BPR-1572]]. GitHub answered, but its answers disagree: the
+				// pull request moved while it was read, or its base branch is
+				// being rewritten.
+				return QStringLiteral(
+					"GitHub's answers about where this pull request branched disagree, so Whole PR cannot match its Files changed yet. Refresh in a moment, or compare two updates.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}
@@ -416,6 +423,15 @@ namespace bpr::qt {
 		ReadinessLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		ReadinessLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		ReadinessLabel->setFixedHeight(epoch_line::height_pixels);
+		// [[BPR-1576]]. The words keep the mark's place whether it turns or
+		// not, so they never move when a wait starts or ends.
+		ReadinessMark = new pending_mark{ ReadinessLabel };
+		ReadinessMark->setForegroundRole(QPalette::WindowText);
+		{
+			const auto side = QFontMetrics{ ReadinessLabel->font() }.height();
+			ReadinessMark->setGeometry(2, (epoch_line::height_pixels - side) / 2, side, side);
+			ReadinessLabel->setIndent(side + 8);
+		}
 		ReadinessLabel->hide();
 		lineRow->addWidget(ReadinessLabel, 1);
 		lineRow->addWidget(LineSummary);
@@ -850,6 +866,17 @@ namespace bpr::qt {
 	auto epoch_comparison_control::readiness_text() const -> QString
 	{
 		return Readiness;
+	}
+
+	void epoch_comparison_control::set_readiness_busy(const bool aBusy, const bool aFullMotion)
+	{
+		ReadinessMark->set_full_motion(aFullMotion);
+		ReadinessMark->set_turning(aBusy);
+	}
+
+	auto epoch_comparison_control::readiness_mark() const noexcept -> pending_mark*
+	{
+		return ReadinessMark;
 	}
 
 	auto epoch_comparison_control::release_comparing_button() -> QToolButton*

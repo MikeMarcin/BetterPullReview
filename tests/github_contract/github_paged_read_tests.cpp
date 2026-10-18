@@ -674,7 +674,7 @@ namespace {
 			};
 			fixture_array ignoredTopics;
 			for (std::size_t index = 0U; index < 101U; ++index) {
-				ignoredTopics.push_back(std::string{ "topic-" } + std::to_string(index));
+				ignoredTopics.emplace_back(std::string{ "topic-" } + std::to_string(index));
 			}
 			repository.insert_or_assign("ignored_topics", ignoredTopics);
 			if (Scenario == fixture_scenario::aggregate_byte_ceiling) {
@@ -1967,8 +1967,8 @@ namespace {
 				   && !fileResult->ReviewThreads.front().Line
 				   && !fileResult->ReviewThreads.front().OriginalLine
 				   && fileResult->ReviewThreads.front().Comments.size() == 101U
-				   && std::ranges::all_of(fileResult->ReviewThreads.front().Comments, [](const auto& comment) {
-						  return !comment.Line && !comment.OriginalLine;
+				   && std::ranges::all_of(fileResult->ReviewThreads.front().Comments, [](const auto& aComment) {
+						  return !aComment.Line && !aComment.OriginalLine;
 					  }),
 			   "a paged FILE thread discards its synthetic first-line position and preserves all comments");
 
@@ -3542,6 +3542,26 @@ namespace {
 		other.Responses.push_back(success_response(compare_body(tip, mergeBase)));
 		expect(!read(other, exact, profile(), provider_request()), "an answer about another base commit is refused");
 
+		// [[BPR-1572]]. `ahead_by` is the commit count GitHub gives the pair;
+		// absent, the answer says nothing about it, and malformed it is refused.
+		expect(named && !named->AheadBy, "an answer without ahead_by names no commit count");
+		auto counted = merge_base_fixture_transport{ };
+		auto body    = compare_body(recorded, mergeBase);
+		body.insert(body.find(R"("total_commits")"), R"("ahead_by":3,)");
+		counted.Responses.push_back(success_response(body));
+		const auto withCount = read(counted, exact, profile(), provider_request());
+		expect(withCount && withCount->AheadBy == std::optional<std::uint64_t>{ 3U }, "the answer's ahead_by is the pair's commit count");
+		auto badCount = merge_base_fixture_transport{ };
+		auto badBody  = compare_body(recorded, mergeBase);
+		badBody.insert(badBody.find(R"("total_commits")"), R"("ahead_by":"3",)");
+		badCount.Responses.push_back(success_response(badBody));
+		expect(!read(badCount, exact, profile(), provider_request()), "a malformed ahead_by is refused");
+		auto negativeCount = merge_base_fixture_transport{ };
+		auto negativeBody  = compare_body(recorded, mergeBase);
+		negativeBody.insert(negativeBody.find(R"("total_commits")"), R"("ahead_by":-1,)");
+		negativeCount.Responses.push_back(success_response(negativeBody));
+		expect(!read(negativeCount, exact, profile(), provider_request()), "a negative ahead_by is refused");
+
 		const auto refused = [&](std::string aBody, const int aStatus, const char* aMessage) {
 			auto scripted   = merge_base_fixture_transport{ };
 			auto response   = success_response(std::move(aBody));
@@ -4015,7 +4035,7 @@ namespace {
 				if (aRequest.Wire.Semantic.Page == 1U) {
 					auto reviews = fixture_array{ };
 					for (std::uint64_t id = 1U; id <= 100U; ++id) {
-						reviews.push_back(retained_review(id, "PENDING"));
+						reviews.emplace_back(retained_review(id, "PENDING"));
 					}
 					return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
 				}
@@ -4075,7 +4095,7 @@ namespace {
 			transport.Reviews  = [](const github_wire_request& aRequest) {
 				auto reviews = fixture_array{ };
 				for (std::uint64_t index = 0U; index < 100U; ++index) {
-					reviews.push_back(retained_review((aRequest.Wire.Semantic.Page - 1U) * 100U + index + 1U));
+					reviews.emplace_back(retained_review((aRequest.Wire.Semantic.Page - 1U) * 100U + index + 1U));
 				}
 				return success_response(fixture_json(reviews), "<https://api.github.com/repos/octo-org/review-repository/pulls/17/reviews?page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + "&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
 			};
@@ -4112,8 +4132,7 @@ namespace {
 					const auto id       = index == 0 ? "18446744073709551615" : std::to_string(index + 1);
 					const auto raw      = "### Author's tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
 					const auto existing = "\"bodyText\":\"comment " + std::to_string(index) + "\"";
-					const auto added    = existing + ",\"body\":" + fixture_json(raw) + ",\"url\":" + fixture_json(prefix + "#discussion_r" + id)
-						+ ",\"fullDatabaseId\":\"" + id + "\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}";
+					const auto added    = std::string{ existing }.append(",\"body\":").append(fixture_json(raw)).append(",\"url\":").append(fixture_json(std::string{ prefix }.append("#discussion_r").append(id))).append(",\"fullDatabaseId\":\"").append(id).append("\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}");
 					replace_raw(aResponse.Body, existing, added);
 				}
 				replace_raw(aResponse.Body, "\"author\":null", "\"author\":{\"id\":\"U_viewer\",\"login\":\"octo-reviewer\"}");
@@ -4168,7 +4187,7 @@ namespace {
 						auto statuses = fixture_array{ };
 						for (unsigned index = 0; index < 100; ++index) {
 							const auto identity = std::to_string((aRequest.Wire.Semantic.Page - 1U) * 100U + index);
-							statuses.push_back(fixture_object{ { "node_id", "status-" + identity }, { "context", "context-" + identity }, { "state", "success" }, { "description", nullptr }, { "target_url", nullptr } });
+							statuses.emplace_back(fixture_object{ { "node_id", "status-" + identity }, { "context", "context-" + identity }, { "state", "success" }, { "description", nullptr }, { "target_url", nullptr } });
 						}
 						aResponse.Body = fixture_json(statuses);
 						aResponse.Headers.push_back({ "Link", "<https://api.github.com/repos/octo-org/review-repository/commits/" + std::string{ head_oid } + "/statuses?per_page=100&page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + ">; rel=\"next\"" });
@@ -4252,10 +4271,10 @@ namespace {
 				} else if (aRequest.Wire.Operation == read_operation::list_review_requests) {
 					auto nodes = fixture_array{ };
 					for (int index = 0; index < 3; ++index) {
-						nodes.push_back(fixture_object{ { "id", "RR_" + std::to_string(index) }, { "asCodeOwner", true }, { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "TEAM_" + std::to_string(index) }, { "name", "Owner team " + std::to_string(index) }, { "slug", "team-" + std::to_string(index) }, { "organization", fixture_object{ { "login", "octo-org" } } } } } });
+						nodes.emplace_back(fixture_object{ { "id", "RR_" + std::to_string(index) }, { "asCodeOwner", true }, { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "TEAM_" + std::to_string(index) }, { "name", "Owner team " + std::to_string(index) }, { "slug", "team-" + std::to_string(index) }, { "organization", fixture_object{ { "login", "octo-org" } } } } } });
 					}
-					nodes.push_back(fixture_object{ { "id", "RR_user" }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_requested" }, { "login", "first-time-reviewer" } } } });
-					nodes.push_back(fixture_object{ { "id", "RR_hidden" }, { "asCodeOwner", true }, { "requestedReviewer", nullptr } });
+					nodes.emplace_back(fixture_object{ { "id", "RR_user" }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_requested" }, { "login", "first-time-reviewer" } } } });
+					nodes.emplace_back(fixture_object{ { "id", "RR_hidden" }, { "asCodeOwner", true }, { "requestedReviewer", nullptr } });
 					pull.insert_or_assign("reviewRequests", connection(5U, nodes, false, std::optional<std::string_view>{ "END" }));
 				} else if (aRequest.Wire.Operation == read_operation::list_branch_rules) {
 					expect(aRequest.Wire.Path.ends_with("/rules/branches/main"), "server selects active applicable target rules; no repository ruleset enumeration");
@@ -4314,7 +4333,7 @@ namespace {
 				auto       nodes = fixture_array{ };
 				for (unsigned index = 0; index < (next ? 100U : 1U); ++index) {
 					const auto id = std::to_string(index + (aRequest.Wire.Semantic.Page - 1U) * 100U);
-					nodes.push_back(fixture_object{ { "id", "request-" + id }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "actor-" + id }, { "login", "user-" + id } } } });
+					nodes.emplace_back(fixture_object{ { "id", "request-" + id }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "actor-" + id }, { "login", "user-" + id } } } });
 				}
 				if (aRequest.Wire.Semantic.Page == 2U) {
 					expect(aRequest.Wire.Semantic.ReviewCursor == "NEXT", "exact continuation reaches compiled read");
@@ -4338,7 +4357,7 @@ namespace {
 				} else if (aRequest.Wire.Operation == read_operation::list_requested_reviewers) {
 					auto users = fixture_array{ };
 					if (!empty) {
-						users.push_back(rest_actor("U_new", "new-reviewer"));
+						users.emplace_back(rest_actor("U_new", "new-reviewer"));
 					}
 					aResponse.Body = fixture_json(fixture_object{ { "users", users }, { "teams", fixture_array{ } } });
 				}

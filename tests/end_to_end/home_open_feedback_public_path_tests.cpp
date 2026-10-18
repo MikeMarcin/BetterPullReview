@@ -249,7 +249,7 @@ try {
 	// the composition marks Recently viewed's #17 as the open review, the
 	// queue's #17 says it too, neither is drawn with the selection's fill, and
 	// Home shows one selection, in the list that last took the keyboard.
-	const auto reviewing_course = [&](const QString& aName) {
+	const auto reviewingCourse = [&](const QString& aName) {
 		auto* const recent    = window->home_recent_list();
 		const auto  servedQ   = QString::fromUtf8(served_name);
 		const auto  recentRow = [&] {
@@ -478,7 +478,7 @@ try {
 		expect(window->home_landing()->state() == qt::landing_state::back_to_review && window->home_landing()->isVisible()
 				   && listTop() == quietList && barTop() == quietBar,
 			   "Home over the open review offers the way back and keeps the bar and the list where they were");
-		reviewing_course(QStringLiteral("reviewing"));
+		reviewingCourse(QStringLiteral("reviewing"));
 	}
 	// [[BPR-1365]]. The high-contrast themes, over the same open review.
 	delay->Milliseconds = 0U;
@@ -489,7 +489,7 @@ try {
 		window->choose_home(true);
 		QApplication::processEvents();
 		expect(window->showing_home(), "each appearance shows Home over the open review");
-		reviewing_course(QStringLiteral("reviewing"));
+		reviewingCourse(QStringLiteral("reviewing"));
 	}
 
 	static_cast<void>(QAccessible::installUpdateHandler(previous));

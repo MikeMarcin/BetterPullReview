@@ -2,6 +2,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
@@ -17,7 +18,10 @@
 #include <QClipboard>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -27,10 +31,12 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRect>
+#include <QRegion>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QStyleHints>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTextBlock>
@@ -40,6 +46,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -142,16 +149,14 @@ namespace {
 		page.resize(1'100, 700);
 		page.show();
 		QApplication::processEvents();
-		expect(!page.presented() && !page.entry_button()->isEnabled()
+		expect(!page.presented() && !page.entry_path()
 				   && page.title_label()->text() == QStringLiteral("No pull request"),
 			   "before a projection the page names nothing and offers no entry");
+		// [[BPR-1588]]. The owner's decision D1: no Start review button.
+		expect(page.findChild<QPushButton*>(QStringLiteral("overviewEntryButton")) == nullptr,
+			   "the Overview has no Start review or Continue review button");
 
-		auto entered   = std::vector<std::pair<application::overview_entry_kind, QString>>{ };
 		auto activated = std::vector<QString>{ };
-		page.set_entry_dispatch(
-			[&entered](const application::overview_entry_kind aEntry, const QString& aPath) {
-				entered.emplace_back(aEntry, aPath);
-			});
 		page.set_file_dispatch([&activated](const QString& aPath) { activated.push_back(aPath); });
 		page.present(projection());
 		QApplication::processEvents();
@@ -220,17 +225,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("1 unpublished"),
 			   "the side column states what happened since my last review and my progress, "
 			   "saying not available where the host cannot answer");
-		expect(page.entry_button()->isEnabled()
-				   && page.entry_button()->text() == QStringLiteral("Continue review")
-				   && page.entry_button()->toolTip().contains(QStringLiteral("HairStrandsVoxelization.cpp")),
-			   "the one action continues the review at the named file");
-
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 1U
-				   && entered.front().first == application::overview_entry_kind::continue_review
-				   && entered.front().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Continue review reports its semantic kind and entry path");
+		expect(page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
+			   "the first entry into Review lands at the first unseen change's file");
 		page.files_view()->activated(lighting);
 		QApplication::processEvents();
 		expect(activated.size() == 1U
@@ -253,14 +249,8 @@ namespace {
 				   && page.value_label(qt::overview_value::drafted_comments)->text() == QStringLiteral("not available")
 				   && page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp")).siblingAtColumn(qt::overview_file_model::changed_column).data().toString()
 					   == QStringLiteral("?")
-				   && page.entry_button()->text() == QStringLiteral("Start review"),
+				   && page.entry_path() == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
 			   "what the host cannot answer reads as not known, never as none");
-		page.entry_button()->click();
-		QApplication::processEvents();
-		expect(entered.size() == 2U
-				   && entered.back().first == application::overview_entry_kind::start_review
-				   && entered.back().second == QStringLiteral("Engine/Renderer/HairStrandsVoxelization.cpp"),
-			   "Start review remains distinct from Continue review at dispatch");
 
 		auto partial                = projection();
 		partial.CommitCount         = 9'311U;
@@ -273,7 +263,7 @@ namespace {
 		page.clear();
 		QApplication::processEvents();
 		expect(!page.presented() && page.file_model()->file_count() == 0U
-				   && !page.entry_button()->isEnabled() && page.participant_rows().empty(),
+				   && !page.entry_path() && page.participant_rows().empty(),
 			   "clearing empties the page");
 		page.hide();
 	}
@@ -570,7 +560,6 @@ namespace {
 					expect(edit->verticalScrollBar()->value() > 0 && page.files_view()->verticalScrollBar()->value() == 0, "wheel scrolls only the summary");
 					int dispatched = 0;
 					page.set_file_dispatch([&](const QString&) { ++dispatched; });
-					page.set_entry_dispatch([&](auto, const QString&) { ++dispatched; });
 					const auto file = page.file_model()->index_for_path(QStringLiteral("Engine/Renderer/HairStrandsLighting.cpp"));
 					page.files_view()->setCurrentIndex(file);
 					read->setFocus();
@@ -926,10 +915,11 @@ namespace {
 		page.resize(700, 400);
 		settle();
 		verifyRows();
-		scroll->ensureWidgetVisible(page.entry_button());
+		auto* const checks = page.findChild<QWidget*>(QStringLiteral("overviewChecksDisclosure"));
+		scroll->ensureWidgetVisible(checks);
 		settle();
-		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
-			   "review entry remains reachable after the complete participant list");
+		expect(scroll->viewport()->rect().contains(checks->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
+			   "check details remain reachable after the complete participant list");
 	}
 	/// \brief [[BPR-1363]]. Every column's left edge and width, in viewport
 	/// coordinates.
@@ -1381,7 +1371,7 @@ namespace {
 			expect(page.files_view()->isColumnHidden(column), "unknown cached workflow counts are hidden");
 		}
 		QMetaObject::invokeMethod(page.files_view(), "activated", Qt::DirectConnection, Q_ARG(QModelIndex, index));
-		expect(!opened && !page.presented() && !page.entry_button()->isEnabled(), "historical rows cannot enter the source workbench");
+		expect(!opened && !page.presented() && !page.entry_path(), "historical rows cannot enter the source workbench");
 		auto* discussion = page.findChild<QPlainTextEdit*>(QStringLiteral("overviewCachedDiscussion"));
 		expect(discussion && discussion->toPlainText().contains(QStringLiteral("General comments — unavailable")), "missing discussion remains explicitly unavailable");
 		cached.GeneralComments.emplace();
@@ -1532,10 +1522,14 @@ namespace {
 		return result;
 	}
 
-	const auto lighting  = std::string{ "Engine/Renderer/HairStrandsLighting.cpp" };
-	const auto voxel     = std::string{ "Engine/Renderer/HairStrandsVoxelization.cpp" };
-	const auto deep      = std::string{ "Engine/Shaders/HairStrandsDeepShadow.usf" };
-	const auto all_files = std::vector<std::string>{ lighting, voxel, deep };
+	constexpr auto lighting = "Engine/Renderer/HairStrandsLighting.cpp";
+	constexpr auto voxel    = "Engine/Renderer/HairStrandsVoxelization.cpp";
+	constexpr auto deep     = "Engine/Shaders/HairStrandsDeepShadow.usf";
+	auto           all_files() -> const std::vector<std::string>&
+	{
+		static const auto paths = std::vector<std::string>{ lighting, voxel, deep };
+		return paths;
+	}
 
 	[[nodiscard]] auto mixed_review() -> core::feedback_population
 	{
@@ -1582,8 +1576,10 @@ namespace {
 		const auto count  = QRectF{ aChip.Box.left() + 16.0 + 3.0, aChip.Box.top(), aChip.Box.width() - 19.0, aChip.Box.height() };
 		auto       amber  = 0;
 		auto       pixels = 0;
-		for (auto y = count.top(); y < count.bottom(); y += 0.5) {
-			for (auto x = count.left(); x < count.right(); x += 0.5) {
+		for (auto row = 0; row * 0.5 < count.height(); ++row) {
+			const auto y = count.top() + row * 0.5;
+			for (auto column = 0; column * 0.5 < count.width(); ++column) {
+				const auto x = count.left() + column * 0.5;
 				amber += amberish(image.pixelColor(QPoint{ static_cast<int>(x * scale), static_cast<int>(y * scale) })) ? 1 : 0;
 				++pixels;
 			}
@@ -1754,7 +1750,7 @@ namespace {
 		const auto review = mixed_review();
 
 		// No chips: the speech bubble counts every open conversation.
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		expect(page.open_counts_button()->isVisible() && page.open_counts_button()->isChecked() && page.all_counts_button()->isVisible()
 				   && page.label_key_button()->isVisible() && !page.open_counts_button()->icon().isNull(),
@@ -1769,7 +1765,7 @@ namespace {
 		// A typical subset: issue and question, Other once.
 		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue, core::feedback_label::question }));
 		expect(asked.size() == 2U && asked.back().Columns.Count == 2U, "choosing chips asks again");
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips.size() == 3U && chips[0].Label == core::feedback_label::issue && chips[0].Count == 1U && chips[1].Label == core::feedback_label::question
@@ -1820,7 +1816,7 @@ namespace {
 		// Only a conversation of unknown state: Open counts none, and the cell
 		// still is not blank.
 		page.present_feedback(feedback_for(population({ { .Id = "review-thread:u", .Label = core::feedback_label::issue, .State = core::feedback_resolution::unknown, .Path = lighting } }),
-										   asked.back(), all_files));
+										   asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips.size() == 1U && chips[0].Kind == qt::overview_comment_chip::kind::uncertain && cell(page, lighting).data().toString() == QStringLiteral("? 1"),
@@ -1835,7 +1831,7 @@ namespace {
 		}
 		many.push_back({ .Id = "review-thread:plain", .Label = std::nullopt, .State = core::feedback_resolution::unresolved, .Path = lighting });
 		page.set_label_columns(*core::make_feedback_label_columns(twelve));
-		page.present_feedback(feedback_for(population(many), asked.back(), all_files));
+		page.present_feedback(feedback_for(population(many), asked.back(), all_files()));
 		settle();
 		chips           = chips_of(page, cell(page, lighting));
 		const auto more = std::ranges::find(chips, qt::overview_comment_chip::kind::more, &qt::overview_comment_chip::Kind);
@@ -1852,7 +1848,7 @@ namespace {
 		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue }));
 		page.all_counts_button()->click();
 		expect(asked.back().Mode == core::feedback_resolution_mode::all && page.all_counts_button()->isChecked(), "All asks for every conversation");
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips[0].Label == core::feedback_label::issue && chips[0].Count == 2U && chips[0].States == core::feedback_state_counts{ 1U, 1U, 0U, 0U },
@@ -1861,7 +1857,7 @@ namespace {
 			   "and each count says its breakdown");
 
 		// A stale answer, for a request no longer current, is dropped.
-		page.present_feedback(feedback_for(review, request_for({ }, core::feedback_resolution_mode::unresolved), all_files));
+		page.present_feedback(feedback_for(review, request_for({ }, core::feedback_resolution_mode::unresolved), all_files()));
 		expect(model->feedback()->Request.Mode == core::feedback_resolution_mode::all, "an answer to an earlier request is dropped");
 		expect(resets == 0, "no count, chip or mode change resets the model");
 		expect(page.body_view()->geometry() == bodyBefore, "the description keeps its geometry");
@@ -1911,7 +1907,7 @@ namespace {
 		page.show();
 		settle();
 		const auto review = mixed_review();
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		auto* const view  = page.files_view();
 		auto* const model = page.file_model();
@@ -2013,7 +2009,7 @@ namespace {
 		QObject::connect(model, &QAbstractItemModel::rowsMoved, [&] { ++moves; });
 		auto refreshed = review;
 		refreshed.Units.pop_back();
-		page.present_feedback(feedback_for(refreshed, asked.back(), all_files));
+		page.present_feedback(feedback_for(refreshed, asked.back(), all_files()));
 		settle();
 		expect(view->currentIndex() == cell(page, lighting) && resets == 0 && moves == 0, "a refresh keeps the current Comments cell and resets nothing");
 		expect(page.focused_chip() && page.focused_chip()->Label == core::feedback_label::issue, "and the keyboard stays on the issue chip");
@@ -2028,7 +2024,7 @@ namespace {
 		delete sort;
 		expect(asked.back().Sort == core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = core::feedback_label::question },
 			   "choosing a label asks for that sort");
-		auto sorted  = feedback_for(refreshed, asked.back(), all_files);
+		auto sorted  = feedback_for(refreshed, asked.back(), all_files());
 		sorted.Order = { deep, voxel, lighting };
 		page.present_feedback(sorted);
 		settle();
@@ -2050,6 +2046,249 @@ namespace {
 		page.present(other);
 		settle();
 		expect(asked.back().Mode == core::feedback_resolution_mode::all && !asked.back().Sort && !model->feedback(), "another pull request starts at the default, unsorted, with no counts");
+	}
+
+	/// \brief [[BPR-1577]]. \p aWidget drawn over \p aGround at twice its
+	/// size, whatever the screen's scale, so a word's stems cover whole
+	/// pixels and its ink can be read from them.
+	[[nodiscard]] auto snapshot(QWidget& aWidget, const QColor& aGround) -> QImage
+	{
+		auto image = QImage{ aWidget.size() * 2, QImage::Format_ARGB32_Premultiplied };
+		image.setDevicePixelRatio(2.0);
+		image.fill(aGround);
+		aWidget.render(&image, QPoint{ }, QRegion{ }, QWidget::DrawChildren);
+		return image;
+	}
+
+	/// \brief [[BPR-1577]]. What one look of the Open and All switch fails,
+	/// read from its pixels over the page's ground: empty when both halves
+	/// are the row's height with their words at 4.5:1 or more, the chosen half
+	/// is a quiet chip (a border of 3:1 or more round a fill that stays a
+	/// tint, never a block) and the other half has neither fill nor border.
+	[[nodiscard]] auto switch_failures(QToolButton& aChosen, QToolButton& aOther, const QWidget& aRowButton, const QColor& aGround) -> std::vector<std::string>
+	{
+		auto       failures = std::vector<std::string>{ };
+		const auto ground   = qt::to_appearance_color(aGround);
+		const auto contrast = [&](const QColor& aColour) { return qt::contrast_ratio(qt::to_appearance_color(aColour), ground); };
+		const auto near     = [&](const QColor& aColour) {
+			return std::abs(aColour.red() - aGround.red()) <= 3 && std::abs(aColour.green() - aGround.green()) <= 3 && std::abs(aColour.blue() - aGround.blue()) <= 3;
+		};
+		for (auto* const half : { &aChosen, &aOther }) {
+			const auto name  = half->objectName().toStdString();
+			const auto image = snapshot(*half, aGround);
+			const auto scale = image.devicePixelRatio();
+			const auto at    = [&](const int aX, const int aY) { return image.pixelColor(static_cast<int>(aX * scale), static_cast<int>(aY * scale)); };
+			const auto high  = half->height();
+			const auto wide  = half->width();
+			if (high != aRowButton.height()) {
+				failures.push_back(name + " is " + std::to_string(high) + " px high beside the row's " + std::to_string(aRowButton.height()));
+			}
+			// The word: its strongest pixel right of any mark, inside the edges.
+			auto strongest = 1.0;
+			for (auto y = static_cast<int>(3 * scale); y < image.height() - static_cast<int>(3 * scale); ++y) {
+				for (auto x = image.width() / 2; x < image.width() - static_cast<int>(3 * scale); ++x) {
+					strongest = std::max(strongest, contrast(image.pixelColor(x, y)));
+				}
+			}
+			if (strongest < 4.5) {
+				failures.push_back(name + "'s word reads at " + std::to_string(strongest) + ":1");
+			}
+			// The edge midway along three sides, and the fill just inside it.
+			const auto edges = std::array{ at(0, high / 2), at(wide - 1, high / 2), at(wide / 2, 0) };
+			const auto fills = std::array{ at(3, high / 2), at(wide - 4, high / 2), at(wide / 2, 3) };
+			if (half == &aChosen) {
+				for (const auto& edge : edges) {
+					if (contrast(edge) < 3.0) {
+						failures.push_back(name + " is chosen with a border of " + std::to_string(contrast(edge)) + ":1, under 3:1");
+						break;
+					}
+				}
+				for (const auto& fill : fills) {
+					if (near(fill) || contrast(fill) > 1.35) {
+						failures.push_back(name + " is chosen with a fill of " + std::to_string(contrast(fill)) + ":1, not a quiet tint");
+						break;
+					}
+				}
+			} else if (!std::ranges::all_of(edges, near) || !std::ranges::all_of(fills, near)) {
+				failures.push_back(name + " is not chosen but has a fill or a border");
+			}
+		}
+		return failures;
+	}
+
+	/// \brief [[BPR-1577]]. The Open and All switch is as quiet as its row in
+	/// every built-in theme: the row's height, its words at
+	/// 4.5:1, the chosen half a quiet chip with a 3:1 border and the other
+	/// bare; choosing
+	/// moves nothing, and names, tooltips, Tab, Space and the dispatched mode
+	/// are as before. The control is the switch as the style drew it, which
+	/// the same reading refuses. With BPR_OVERVIEW_SWITCH_RENDER_ROOT set,
+	/// each theme's row is saved there in both states.
+	void test_counts_switch_is_quiet_in_every_theme()
+	{
+		const auto root = qEnvironmentVariable("BPR_OVERVIEW_SWITCH_RENDER_ROOT");
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto                     theme = std::string{ core::stable_name(profile.variant()) };
+			qt::pull_request_overview_page page;
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			auto asked = std::vector<application::overview_feedback_request>{ };
+			page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+			page.resize(1'000, 560);
+			page.present(projection());
+			page.show();
+			settle();
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
+			settle();
+			auto* const open   = page.open_counts_button();
+			auto* const all    = page.all_counts_button();
+			const auto  ground = page.palette().color(QPalette::Active, QPalette::Window);
+			expect(open->isVisible() && open->isChecked() && !all->isChecked(), theme + ": the switch shows with Open chosen");
+			const auto openFailures = switch_failures(*open, *all, *page.label_key_button(), ground);
+			for (const auto& failure : openFailures) {
+				std::cerr << theme << ": " << failure << '\n';
+			}
+			expect(openFailures.empty(), theme + ": with Open chosen, Open alone is a quiet chip");
+
+			// Names and tooltips as BPR-1089 accepted them.
+			expect(open->objectName() == QStringLiteral("overviewModeOpen") && open->text() == QStringLiteral("Open") && open->accessibleName() == QStringLiteral("Open threads")
+					   && open->toolTip() == QStringLiteral("Unresolved threads (default)") && !open->icon().isNull(),
+				   theme + ": Open keeps its name, accessible name, tooltip and mark");
+			expect(all->objectName() == QStringLiteral("overviewModeAll") && all->text() == QStringLiteral("All") && all->accessibleName() == QStringLiteral("All threads")
+					   && all->toolTip() == QStringLiteral("Every thread: open, resolved, unknown"),
+				   theme + ": All keeps its name, accessible name and tooltip");
+			expect(open->isCheckable() && open->autoExclusive() && open->focusPolicy() == Qt::StrongFocus && all->isCheckable() && all->autoExclusive() && all->focusPolicy() == Qt::StrongFocus,
+				   theme + ": both halves stay one exclusive, focusable choice");
+
+			// The keyboard route is Qt's for an exclusive choice, as before: Tab
+			// reaches the chosen half, Right moves to the other and Space
+			// chooses it, Tab leaves the switch. The focused half shows its ring.
+			const auto openWidth = open->width();
+			const auto allWidth  = all->width();
+			const auto before    = asked.size();
+			const auto ringed    = [&](QToolButton& aHalf) {
+				// Two pixels in: inside a chosen chip's border, on the ring.
+				const auto image  = snapshot(aHalf, ground);
+				const int  middle = aHalf.height() / 2;
+				const auto ring   = image.pixelColor(static_cast<int>(2.0 * image.devicePixelRatio()), static_cast<int>(middle * image.devicePixelRatio()));
+				return qt::contrast_ratio(qt::to_appearance_color(ring), qt::to_appearance_color(ground)) >= 3.0;
+			};
+			page.activateWindow();
+			settle();
+			open->setFocus(Qt::TabFocusReason);
+			settle();
+			expect(open->hasFocus() && ringed(*open) && !ringed(*all), theme + ": Tab onto Open shows its ring");
+			auto right = QKeyEvent{ QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier };
+			QApplication::sendEvent(open, &right);
+			settle();
+			expect(all->hasFocus() && ringed(*all), theme + ": Right moves to All, with its ring");
+			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+			QApplication::sendEvent(all, &press);
+			QApplication::sendEvent(all, &release);
+			settle();
+			expect(asked.size() == before + 1U && asked.back().Mode == core::feedback_resolution_mode::all && all->isChecked() && !open->isChecked(),
+				   theme + ": All asks once for every conversation, as before");
+			auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+			QApplication::sendEvent(all, &tab);
+			settle();
+			expect(!open->hasFocus() && !all->hasFocus(), theme + ": Tab leaves the switch");
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
+			if (auto* const focused = QApplication::focusWidget(); focused != nullptr) {
+				focused->clearFocus();
+			}
+			settle();
+			expect(open->width() == openWidth && all->width() == allWidth, theme + ": choosing moves neither half");
+			const auto allFailures = switch_failures(*all, *open, *page.label_key_button(), ground);
+			for (const auto& failure : allFailures) {
+				std::cerr << theme << ": " << failure << '\n';
+			}
+			expect(allFailures.empty(), theme + ": with All chosen, All alone is a quiet chip");
+			if (!root.isEmpty()) {
+				const auto key = page.label_key_button()->mapTo(&page, QPoint{ page.label_key_button()->width(), 0 });
+				const auto row = QRect{ QPoint{ open->mapTo(&page, QPoint{ 0, 0 }).x() - 12, key.y() - 6 }, QPoint{ key.x() + 12, key.y() + open->height() + 6 } };
+				static_cast<void>(page.grab(row).save(QStringLiteral("%1/switch-%2-all.png").arg(root, QString::fromStdString(theme)), "PNG"));
+				open->click();
+				settle();
+				static_cast<void>(page.grab(row).save(QStringLiteral("%1/switch-%2-open.png").arg(root, QString::fromStdString(theme)), "PNG"));
+			}
+
+			// The control: the switch as the style drew it, a checked
+			// auto-raise Open beside its mark and a text-only All.
+			auto host = QWidget{ };
+			profile.apply_to(host);
+			auto* const layout   = new QHBoxLayout{ &host };
+			auto* const oldOpen  = new QToolButton{ &host };
+			auto* const oldAll   = new QToolButton{ &host };
+			auto* const oldKey   = new QToolButton{ &host };
+			auto        colours  = qt::default_feedback_state_colours(host.palette());
+			const auto  markIcon = QIcon{ qt::feedback_state_mark_pixmap(core::feedback_resolution::unresolved, colours, host.devicePixelRatioF()) };
+			for (auto* const button : { oldOpen, oldAll, oldKey }) {
+				button->setAutoRaise(true);
+				button->setIconSize(QSize{ 16, 16 });
+				layout->addWidget(button);
+			}
+			for (auto* const button : { oldOpen, oldAll }) {
+				button->setCheckable(true);
+				button->setAutoExclusive(true);
+			}
+			oldOpen->setObjectName(QStringLiteral("controlOpen"));
+			oldOpen->setText(QStringLiteral("Open"));
+			oldOpen->setIcon(markIcon);
+			oldOpen->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			oldAll->setObjectName(QStringLiteral("controlAll"));
+			oldAll->setText(QStringLiteral("All"));
+			oldAll->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			oldKey->setIcon(markIcon);
+			oldOpen->setChecked(true);
+			host.show();
+			settle();
+			expect(!switch_failures(*oldOpen, *oldAll, *oldKey, host.palette().color(QPalette::Active, QPalette::Window)).empty(),
+				   theme + ": the control fails: the style-drawn switch is not this chip");
+		}
+	}
+
+	/// \brief [[BPR-1577]]. Saves the Files row's switch, Open chosen and All
+	/// chosen, in each built-in theme under \p aRoot, for the owner's review.
+	/// \details Run on the platform the owner uses (cocoa on macOS, with
+	/// QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1), the style is the
+	/// native one the application gets, while the page is never put on screen
+	/// (Qt::WA_DontShowOnScreen) and nothing of the desktop is read. The colour
+	/// scheme follows the theme, as the system's appearance would.
+	void render_counts_switch(const QString& aRoot)
+	{
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto dark = mode == core::appearance_mode::dark || mode == core::appearance_mode::high_contrast_dark;
+			QGuiApplication::styleHints()->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+			settle();
+			const auto                     theme = QString::fromStdString(std::string{ core::stable_name(profile.variant()) });
+			qt::pull_request_overview_page page;
+			page.setAttribute(Qt::WA_DontShowOnScreen, true);
+			profile.apply_to(page);
+			page.adopt_appearance(profile);
+			auto asked = std::vector<application::overview_feedback_request>{ };
+			page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+			page.resize(1'000, 560);
+			page.present(projection());
+			page.show();
+			settle();
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
+			settle();
+			auto* const open = page.open_counts_button();
+			auto* const all  = page.all_counts_button();
+			const auto  key  = page.label_key_button()->mapTo(&page, QPoint{ page.label_key_button()->width(), 0 });
+			const auto  row  = QRect{ QPoint{ open->mapTo(&page, QPoint{ 0, 0 }).x() - 12, key.y() - 6 }, QPoint{ key.x() + 12, key.y() + open->height() + 6 } };
+			static_cast<void>(page.grab(row).save(QStringLiteral("%1/%2-open.png").arg(aRoot, theme), "PNG"));
+			all->click();
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
+			settle();
+			static_cast<void>(page.grab(row).save(QStringLiteral("%1/%2-all.png").arg(aRoot, theme), "PNG"));
+			std::cout << "switch-render " << theme.toStdString() << " style=" << page.style()->name().toStdString() << '\n';
+		}
 	}
 
 	/// \brief [[BPR-1094]]. The chips at the scale this row runs at (1.0,
@@ -2413,9 +2652,11 @@ namespace {
 			const auto green  = page.colours().Progress.Accepted;
 			const auto middle = QPointF{ 13.0, std::floor(((static_cast<qreal>(aCell.height()) / ratio) - 1.0) / 2.0) };
 			auto       cut    = false;
-			for (auto y = middle.y() - 3.0; y <= middle.y() + 3.0; y += 0.5) {
-				for (auto x = middle.x() - 3.0; x <= middle.x() + 3.0; x += 0.5) {
-					cut = cut || !near(aCell.pixelColor(QPointF{ x * ratio, y * ratio }.toPoint()), green, 80);
+			for (auto row = -6; row <= 6; ++row) {
+				const auto y = middle.y() + row * 0.5;
+				for (auto column = -6; column <= 6; ++column) {
+					const auto x = middle.x() + column * 0.5;
+					cut          = cut || !near(aCell.pixelColor(QPointF{ x * ratio, y * ratio }.toPoint()), green, 80);
 				}
 			}
 			return paints(aCell, green) && cut;
@@ -2878,6 +3119,18 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-chips:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1577]]. The Open and All switch alone, for its renders.
+	if (argc > 1 && std::string_view{ argv[1] } == "--switch") {
+		test_counts_switch_is_quiet_in_every_theme();
+		std::cout << "pull-request-overview-switch:pass dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1577]]. The switch's renders for review, in whatever style runs.
+	if (argc > 2 && std::string_view{ argv[1] } == "--switch-render") {
+		render_counts_switch(QString::fromLocal8Bit(argv[2]));
+		std::cout << "pull-request-overview-switch-render:done\n";
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1363]]. The 125% and 200% rows run the folder rows at their scale.
 	if (argc > 1 && std::string_view{ argv[1] } == "--folder-rows") {
 		test_folder_disclosure_never_moves_a_column();
@@ -2918,6 +3171,7 @@ auto main(int argc, char** argv) -> int
 	test_chip_activation_names_exactly_its_count();
 	test_modified_mark_reads_on_every_row();
 	test_the_read_column_shows_the_mark();
+	test_counts_switch_is_quiet_in_every_theme();
 	test_chips_read_at_this_scale_in_every_theme_and_style();
 	test_file_rows_band_within_each_folder();
 	test_band_keeps_every_ink_readable();

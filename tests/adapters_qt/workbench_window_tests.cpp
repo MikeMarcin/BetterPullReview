@@ -27,6 +27,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -67,12 +68,16 @@
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QMouseEvent>
+#include <QPaintEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPen>
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPointer>
 #include <QPushButton>
+#include <QRectF>
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -920,8 +925,9 @@ namespace {
 
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair and its position, the
-		// change pair and its position, Accept, private progress, a spacer, Compose
-		// review and Comment.
+		// change pair and its position, a gap, the progress track (Seen, Read,
+		// Accept and the private-progress menu, [[BPR-1578]]), a spacer,
+		// Compose review and Comment.
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
@@ -936,8 +942,8 @@ namespace {
 				&& named(ordered, 7, "workbenchStripChangePositionAction")
 				&& ordered[8] == navigation[2]
 				&& ordered[9] == navigation[3]
-				&& named(ordered, 10, "workbenchAcceptFileAction")
-				&& named(ordered, 11, "workbenchReviewControlsAction")
+				&& named(ordered, 10, "reviewBarProgressGapAction")
+				&& named(ordered, 11, "workbenchProgressTrackAction")
 				&& named(ordered, 12, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
@@ -950,17 +956,53 @@ namespace {
 		std::rotate(labelsAfter.begin() + 4, labelsAfter.begin() + 5, labelsAfter.begin() + 7);
 		std::rotate(labelsAfter.begin() + 7, labelsAfter.begin() + 8, labelsAfter.begin() + 10);
 		expect(!matchesReviewOrder(labelsAfter), "negative control: labels after the arrow pairs fail the review-bar order");
-		const auto rails = bar->grab().toImage();
-		const auto scale = rails.devicePixelRatio();
+		const auto rails  = bar->grab().toImage();
+		const auto scale  = rails.devicePixelRatio();
+		const auto ink    = bar->palette().color(QPalette::Active, QPalette::Highlight);
+		const auto railAt = [&bar, scale, &ink](const QImage& aImage, const int aX) {
+			return aImage.pixelColor(qRound(aX * scale), qRound((bar->height() - 2) * scale)) == ink;
+		};
 		for (const auto start : { 4, 7 }) {
 			const auto first = bar->actionGeometry(barActions[start]);
 			const auto last  = bar->actionGeometry(barActions[start + 2]);
-			const auto ink   = bar->palette().color(QPalette::Active, QPalette::Highlight);
 			for (const auto x : { first.left() + 3, (first.left() + last.right()) / 2, last.right() - 3 }) {
-				expect(rails.pixelColor(qRound(x * scale), qRound((bar->height() - 2) * scale)) == ink,
-					   "a continuous palette-derived rail joins each label and both arrows");
+				expect(railAt(rails, x), "a continuous palette-derived rail joins each label and both arrows");
 			}
 		}
+		// [[BPR-1578]]. The progress track is one group on one rail, drawn as
+		// File's and Changes' are, from its left edge to its right edge, and
+		// parted from the Changes rail by a gap.
+		auto* const strip       = static_cast<qt::workbench_strip*>(bar);
+		const auto  progressRun = [&bar, &barActions, &railAt](const QImage& aImage) {
+			const auto first = bar->actionGeometry(barActions[11]);
+			const auto last  = first;
+			return std::ranges::all_of(std::array{ first.left() + 3, first.center().x(), (first.right() + last.left()) / 2, last.center().x(), last.right() - 3 },
+									   [&](const int aX) { return railAt(aImage, aX); });
+		};
+		const auto railGap = [strip] { return strip->group_rail(2).left() - strip->group_rail(1).right() - 1; };
+		expect(strip->group_rail_count() == 3U && progressRun(rails)
+				   && strip->group_rail(2).left() == bar->actionGeometry(barActions[11]).left() + 2
+				   && strip->group_rail(2).right() == bar->actionGeometry(barActions[11]).right() - 2,
+			   "one rail runs under the progress track, from its left edge to its right edge");
+		expect(railGap() >= 12 && !railAt(rails, bar->actionGeometry(barActions[10]).center().x())
+				   && !railAt(rails, strip->group_rail(1).right() + 2) && !railAt(rails, strip->group_rail(2).left() - 2),
+			   "the progress group's rail stops short of the Changes rail, so the two groups read apart");
+		// Negative controls: the old two rails leave Accept and its menu
+		// unjoined, and without the gap the two rails nearly touch.
+		strip->set_group_rails({ { .First = barActions[4], .Last = barActions[6] }, { .First = barActions[7], .Last = barActions[9] } });
+		QApplication::processEvents();
+		expect(!progressRun(bar->grab().toImage()), "negative control: the old File and Changes rails alone fail the progress group's rail");
+		strip->set_group_rails({
+			{ .First = barActions[4], .Last = barActions[6] },
+			{ .First = barActions[7], .Last = barActions[9] },
+			{ .First = barActions[11], .Last = barActions[11] },
+		});
+		barActions[10]->setVisible(false);
+		QApplication::processEvents();
+		expect(railGap() < 12, "negative control: without the gap the progress rail runs into the Changes rail");
+		barActions[10]->setVisible(true);
+		QApplication::processEvents();
+		expect(progressRun(bar->grab().toImage()) && railGap() >= 12, "the restored bar keeps the progress group's own rail");
 
 		auto oldOrder = barActions;
 		std::rotate(oldOrder.begin() + 4, oldOrder.begin() + 7, oldOrder.begin() + 10);
@@ -6102,11 +6144,24 @@ namespace {
 					   "the chrome render is saved for inspection");
 			}
 		};
+		auto* const track = dynamic_cast<qt::progress_track*>(window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack")));
+		expect(track != nullptr && !track->compact(), "at 1280 the progress track names every step");
 		save(QStringLiteral("review-bar-1280x852"));
 		window.resize(window.minimumWidth(), 852);
 		process_events();
 		expect(window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("#14366")),
 			   "at the width floor the title row keeps the name and its number");
+		// [[BPR-1578]]. At the floor too, Accept and private progress keep one
+		// rail of their own, apart from the Changes rail.
+		auto* const strip = static_cast<qt::workbench_strip*>(window.review_bar());
+		expect(strip->group_rail_count() == 3U && !strip->group_rail(2).isEmpty()
+				   && strip->group_rail(2).left() - strip->group_rail(1).right() - 1 >= 12,
+			   "at the width floor the progress group keeps its own rail, apart from the Changes rail");
+		// [[BPR-1578]]. The track's own yield is the last one: at the floor Seen
+		// and Read keep their marks, names and tooltips, and Accept its word.
+		expect(track->compact() && track->cell(qt::progress_track::read_step).width() < track->cell(qt::progress_track::accept_step).width()
+				   && window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"))->accessibleName() == QStringLiteral("Read"),
+			   "at the width floor Seen and Read show their marks alone and keep their names");
 		save(QStringLiteral("review-bar-floor"));
 		window.hide();
 	}
@@ -7553,6 +7608,8 @@ namespace {
 			barStop(window.next_file_action()),
 			barStop(window.previous_change_action()),
 			barStop(window.next_change_action()),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep")),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
 			barStop(window.compose_review_action()),
@@ -8259,6 +8316,141 @@ namespace {
 		return false;
 	}
 
+	/// [[BPR-1578]] v002. The owner chose the progress track (round 2's "C2.
+	/// Progress track, refined"): Seen, Read and Accept as steps of one
+	/// control with the menu's chevron as its last cell. The reached step is
+	/// solid (the accent, or the acceptance green once accepted), steps still
+	/// to come are available, and a click only moves the file forward: Seen
+	/// marks an unread file seen, Read marks it read, a step already reached
+	/// does nothing (Mark unread stays in the menu), and Accept toggles to
+	/// Revoke as before. Names, tooltips, keyboard and palette follow.
+	void test_progress_track_shows_and_takes_each_step()
+	{
+		qt::workbench_window window;
+		auto                 dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.resize(1'280, 820);
+		window.show();
+		publish_positioned_review_bar(window);
+		process_events();
+		auto* const track  = dynamic_cast<qt::progress_track*>(window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack")));
+		auto* const seen   = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"));
+		auto* const read   = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"));
+		auto* const accept = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		auto* const menu   = window.review_controls_button();
+		expect(track != nullptr && seen != nullptr && read != nullptr && accept != nullptr
+				   && seen->parentWidget() == track && read->parentWidget() == track && accept->parentWidget() == track && menu->parentWidget() == track
+				   && accept->defaultAction() == window.accept_action() && menu->menu() == window.review_controls_menu(),
+			   "the track holds the Seen and Read steps, the retained Accept button and the private-progress menu button");
+		expect(track->cell(qt::progress_track::seen_step).right() + 1 == track->cell(qt::progress_track::read_step).left()
+				   && track->cell(qt::progress_track::read_step).right() + 1 == track->cell(qt::progress_track::accept_step).left()
+				   && track->cell(qt::progress_track::accept_step).right() + 1 == track->cell(qt::progress_track::menu_cell).left(),
+			   "the four cells sit edge to edge in one frame");
+		for (auto* const step : { seen, read, accept, menu }) {
+			expect(step->focusPolicy() == Qt::StrongFocus && !step->accessibleName().isEmpty(), "every cell is a named keyboard stop");
+		}
+
+		const auto colours  = window.shown_progress_mark_colours();
+		const auto interior = [track](const std::size_t aIndex) {
+			const auto image = track->grab().toImage();
+			const auto dpr   = image.devicePixelRatio();
+			const auto at    = track->cell(aIndex);
+			return image.pixelColor(qRound((at.left() + 3) * dpr), qRound((at.height() / 2.0) * dpr));
+		};
+		const auto highlight = window.palette().color(QPalette::Active, QPalette::Highlight);
+		const auto button    = window.palette().color(QPalette::Active, QPalette::Button);
+		const auto publish   = [&window](const core::file_receipt& aReceipt) {
+			window.publish(application::project_file_receipt_actions(aReceipt));
+			process_events();
+		};
+
+		// Unread: nothing reached, every step available.
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		publish(receipt);
+		expect(track->shown().Live && !track->current_step().has_value() && seen->isEnabled() && read->isEnabled() && accept->isEnabled()
+				   && interior(qt::progress_track::seen_step) == button && interior(qt::progress_track::read_step) == button,
+			   "an unread file has no solid step and every step is available");
+		expect(seen->toolTip() == QStringLiteral("Mark this file seen.") && read->toolTip() == QStringLiteral("Mark this file read.")
+				   && track->word(qt::progress_track::accept_step) == QStringLiteral("Accept"),
+			   "the steps still to come say what a click does");
+		seen->click();
+		expect(dispatched.size() == 1U && dispatched.back().Kind == core::file_receipt_command_kind::mark_seen && dispatched.back().Material == receipt.Material,
+			   "Seen on an unread file marks it seen");
+
+		// Seen: the Seen step is solid in the accent; Read moves it on.
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::seen_step } && interior(qt::progress_track::seen_step) == highlight
+				   && interior(qt::progress_track::read_step) == button && !seen->isEnabled() && read->isEnabled()
+				   && seen->toolTip() == QStringLiteral("This file is seen."),
+			   "a seen file's Seen step is solid in the accent, and Read is still available");
+		read->setFocus(Qt::TabFocusReason);
+		process_events();
+		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+			process_events();
+		}
+		expect(dispatched.size() == 2U && dispatched.back().Kind == core::file_receipt_command_kind::mark_read,
+			   "Space on the focused Read step marks the file read");
+		read->clearFocus();
+
+		// Read: a step already reached does nothing, even forced enabled.
+		receipt.Read = core::file_read_state::read;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::read_step } && interior(qt::progress_track::read_step) == highlight
+				   && !seen->isEnabled() && !read->isEnabled() && read->toolTip().contains(QStringLiteral("Mark unread is in Private progress")),
+			   "a read file's Read step is solid and says where Mark unread is");
+		for (auto* const passed : { seen, read }) {
+			passed->setEnabled(true);
+			passed->click();
+		}
+		expect(dispatched.size() == 2U, "clicking a step already reached dispatches nothing, so the track never un-reads a file");
+		// Negative control: the menu's own Read item, which the track does not
+		// use for a reached step, would have marked the file unread.
+		window.read_action()->trigger();
+		expect(dispatched.size() == 3U && dispatched.back().Kind == core::file_receipt_command_kind::mark_unread,
+			   "negative control: the menu's Read item on a read file marks it unread, which the step must not");
+		publish(receipt);
+
+		// Accept takes the last step and becomes Revoke.
+		accept->click();
+		expect(dispatched.size() == 4U && dispatched.back().Kind == core::file_receipt_command_kind::accept, "Accept on the track accepts the exact file");
+		receipt.Accepted = true;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::accept_step } && interior(qt::progress_track::accept_step) == colours.Accepted
+				   && interior(qt::progress_track::read_step) == button && track->word(qt::progress_track::accept_step) == QStringLiteral("Accepted")
+				   && accept->text().contains(QStringLiteral("Revoke")) && accept->accessibleName() == QStringLiteral("Revoke file acceptance")
+				   && accept->isEnabled(),
+			   "accepted, the Accept step is solid green and says Accepted, and its button revokes");
+		accept->click();
+		expect(dispatched.size() == 5U && dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "the Accepted step revokes acceptance");
+
+		// Excluded and no file: the track rests; the menu keeps Include.
+		receipt.Accepted = false;
+		receipt.Excluded = true;
+		publish(receipt);
+		expect(!track->shown().Live && track->shown().Excluded && !track->current_step().has_value() && !seen->isEnabled() && !read->isEnabled()
+				   && !accept->isEnabled() && menu->isEnabled() && seen->toolTip().contains(QStringLiteral("Include"))
+				   && interior(qt::progress_track::seen_step) == button,
+			   "an excluded file rests the track and keeps Include in the menu");
+		window.clear_review_ledger();
+		process_events();
+		expect(!track->shown().Live && !track->current_step().has_value() && !seen->isEnabled() && !read->isEnabled() && !accept->isEnabled()
+				   && seen->toolTip() == QStringLiteral("Select an available text comparison first."),
+			   "with no file material the steps are disabled and say why");
+
+		// A palette change repaints the solid step in the new accent.
+		receipt      = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
+		auto changed = window.palette();
+		changed.setColor(QPalette::Active, QPalette::Highlight, QColor{ 0x80, 0x20, 0xA0 });
+		window.setPalette(changed);
+		process_events();
+		expect(interior(qt::progress_track::seen_step) == QColor{ 0x80, 0x20, 0xA0 }, "a palette refresh repaints the solid step in the new accent");
+		window.hide();
+	}
+
 	/// [[BPR-1331]] v003. The owner rejected v002, 2026-10-09: "It's very weird
 	/// to me that we have 2 icon languages for the same concept. Pick one. I
 	/// think the circles here is probably better overall but it should get
@@ -8545,6 +8737,758 @@ namespace {
 		}
 		painter.end();
 		expect(sheet.save(path), "the review-state sheet is written");
+	}
+
+	/// [[BPR-1578]] v002. The owner rejected v001 ("I think we can do better,
+	/// feel free to try some redesigns of this element"). Three directions for
+	/// the review bar's third group, painted as prototypes into the real bar so
+	/// the File and Changes groups, the rails and the themes around them are
+	/// the product's own. Render-only: nothing here is product behaviour.
+	enum class progress_direction : std::uint8_t {
+		caption_and_action,
+		split_button,
+		progress_track,
+		/// Round 2 ([[BPR-1578]], the owner: "I like progress the best but I'm
+		/// not in love with any of them").
+		progress_track_refined,
+		stepper,
+		meter_chip,
+		accept_only,
+	};
+
+	enum class progress_case : std::uint8_t {
+		seen,
+		accepted,
+		excluded,
+		no_file,
+	};
+
+	class progress_group_prototype final : public QWidget
+	{
+	public:
+		progress_group_prototype(const progress_direction aDirection, const qt::progress_mark_colours& aColours, QWidget* const aParent)
+			: QWidget{ aParent }
+			, Direction{ aDirection }
+			, Colours{ aColours }
+		{
+			setFocusPolicy(Qt::NoFocus);
+		}
+
+		void set_case(const progress_case aCase)
+		{
+			Case = aCase;
+			updateGeometry();
+			update();
+		}
+
+		[[nodiscard]] auto sizeHint() const -> QSize override
+		{
+			return QSize{ draw(nullptr), qt::strip_style::button_height };
+		}
+
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override
+		{
+			return sizeHint();
+		}
+
+	protected:
+		void paintEvent(QPaintEvent* const aEvent) override
+		{
+			static_cast<void>(aEvent);
+			auto painter = QPainter{ this };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			static_cast<void>(draw(&painter));
+		}
+
+	private:
+		using mark                          = core::file_progress_mark;
+		static constexpr qreal frame_height = qt::strip_style::button_height;
+		static constexpr qreal radius       = 5.0;
+		static constexpr qreal pad          = 7.0;
+		static constexpr qreal glyph        = 16.0;
+
+		[[nodiscard]] auto top() const -> qreal
+		{
+			return (static_cast<qreal>(height()) - frame_height) / 2.0;
+		}
+
+		[[nodiscard]] auto ink() const -> QColor
+		{
+			return palette().color(QPalette::Active, QPalette::ButtonText);
+		}
+
+		[[nodiscard]] auto dim() const -> QColor
+		{
+			return palette().color(QPalette::Disabled, QPalette::ButtonText);
+		}
+
+		[[nodiscard]] auto text_width(const QString& aText) const -> qreal
+		{
+			return fontMetrics().horizontalAdvance(aText);
+		}
+
+		void frame(QPainter* const aPainter, const QRectF& aBox, const QColor& aFill, const QColor& aBorder) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(aBorder.alpha() == 0 ? QPen{ Qt::NoPen } : QPen{ aBorder, 1.0 });
+			aPainter->setBrush(aFill);
+			aPainter->drawRoundedRect(aBox.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+		}
+
+		void text(QPainter* const aPainter, const qreal aX, const QString& aText, const QColor& aColour) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(aColour);
+			aPainter->setFont(font());
+			aPainter->drawText(QRectF{ aX, top(), text_width(aText) + 2.0, frame_height }, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, aText);
+		}
+
+		void tick(QPainter* const aPainter, const qreal aX, const QColor& aColour) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			auto inked = palette();
+			inked.setColor(QPalette::Active, QPalette::ButtonText, aColour);
+			inked.setColor(QPalette::Disabled, QPalette::ButtonText, aColour);
+			qt::strip_icon(qt::strip_glyph::accept_file, inked).paint(aPainter, QRectF{ aX, top() + 3.0, glyph, glyph }.toRect());
+		}
+
+		void progress(QPainter* const aPainter, const qreal aX, const std::optional<mark> aMark, const bool aEnabled) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			qt::paint_progress_mark(*aPainter, QRectF{ aX, top() + 3.0, glyph, glyph }, aMark, aEnabled ? Colours : qt::monochrome_progress_mark_colours(dim()));
+		}
+
+		void chevron(QPainter* const aPainter, const qreal aCentre, const QColor& aColour) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			auto pen = QPen{ aColour, 1.5 };
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter->setPen(pen);
+			aPainter->setBrush(Qt::NoBrush);
+			const auto mid   = top() + (frame_height / 2.0) + 0.5;
+			auto       arrow = QPainterPath{ };
+			arrow.moveTo(aCentre - 3.0, mid - 1.5);
+			arrow.lineTo(aCentre, mid + 1.5);
+			arrow.lineTo(aCentre + 3.0, mid - 1.5);
+			aPainter->drawPath(arrow);
+		}
+
+		[[nodiscard]] auto state_mark() const -> std::optional<mark>
+		{
+			switch (Case) {
+			case progress_case::seen:
+				return mark::seen;
+			case progress_case::accepted:
+				return mark::accepted;
+			case progress_case::excluded:
+				return mark::excluded;
+			case progress_case::no_file:
+				return std::nullopt;
+			}
+			return std::nullopt;
+		}
+
+		/// Paints the group, or only measures it when `aPainter` is null.
+		/// Returns its width.
+		[[nodiscard]] auto draw(QPainter* const aPainter) const -> int
+		{
+			switch (Direction) {
+			case progress_direction::caption_and_action:
+				return caption_and_action(aPainter);
+			case progress_direction::split_button:
+				return split_button(aPainter);
+			case progress_direction::progress_track:
+				return progress_track(aPainter);
+			case progress_direction::progress_track_refined:
+				return progress_track_refined(aPainter);
+			case progress_direction::stepper:
+				return stepper(aPainter);
+			case progress_direction::meter_chip:
+				return meter_chip(aPainter);
+			case progress_direction::accept_only:
+				return accept_only(aPainter);
+			}
+			return 0;
+		}
+
+		/// A. "◐ Seen  [✓ Accept] [▾]": the state is the group's caption, as
+		/// "File 3 of 40" is File's, and Accept is its action.
+		[[nodiscard]] auto caption_and_action(QPainter* const aPainter) const -> int
+		{
+			const auto  words   = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
+			const auto& caption = words[static_cast<std::size_t>(Case)];
+			const auto  live    = Case != progress_case::no_file;
+			auto        x       = 2.0;
+			progress(aPainter, x, state_mark(), live);
+			x += glyph + 5.0;
+			text(aPainter, x, caption, live ? palette().color(QPalette::Active, QPalette::WindowText) : dim());
+			x += text_width(caption) + 10.0;
+			const auto accepted = Case == progress_case::accepted;
+			const auto enabled  = Case == progress_case::seen || accepted;
+			const auto label    = accepted ? QStringLiteral("Revoke") : QStringLiteral("Accept");
+			const auto button   = QRectF{ x, top(), pad + glyph + 4.0 + text_width(label) + pad, frame_height };
+			const auto accent   = palette().color(QPalette::Active, QPalette::Highlight);
+			auto       soft     = accent;
+			soft.setAlpha(56);
+			frame(aPainter, button, accepted ? soft : palette().color(QPalette::Active, QPalette::Button), accepted ? accent : palette().color(QPalette::Active, QPalette::Mid));
+			tick(aPainter, x + pad, enabled ? ink() : dim());
+			text(aPainter, x + pad + glyph + 4.0, label, enabled ? ink() : dim());
+			x               = button.right() + 4.0;
+			const auto menu = QRectF{ x, top(), 22.0, frame_height };
+			frame(aPainter, menu, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			chevron(aPainter, menu.center().x(), live ? ink() : dim());
+			return static_cast<int>(std::ceil(menu.right()));
+		}
+
+		/// B. "[✓ Accept ┊ ◐ ▾]": one split control. Accept is the filled,
+		/// primary half until the file is accepted; then the control goes
+		/// quiet and offers Revoke acceptance. The state mark and the menu are
+		/// its other half.
+		[[nodiscard]] auto split_button(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto offered  = Case == progress_case::seen;
+			const auto live     = Case != progress_case::no_file;
+			const auto label    = accepted ? QStringLiteral("Revoke acceptance") : QStringLiteral("Accept");
+			const auto primary  = accepted ? pad + text_width(label) + pad : pad + glyph + 4.0 + text_width(label) + pad;
+			const auto whole    = QRectF{ 0.5, top(), primary + 7.0 + glyph + 3.0 + 8.0 + 7.0, frame_height };
+			const auto accent   = palette().color(QPalette::Active, QPalette::Highlight);
+			frame(aPainter, whole, palette().color(QPalette::Active, QPalette::Button), offered ? accent : palette().color(QPalette::Active, QPalette::Mid));
+			if (aPainter != nullptr && offered) {
+				aPainter->save();
+				aPainter->setClipRect(QRectF{ whole.left(), whole.top(), primary, whole.height() });
+				frame(aPainter, whole, accent, accent);
+				aPainter->restore();
+			}
+			const auto primaryInk = offered ? palette().color(QPalette::Active, QPalette::HighlightedText) : accepted ? ink()
+																													  : dim();
+			auto       x          = whole.left() + pad;
+			if (!accepted) {
+				tick(aPainter, x, primaryInk);
+				x += glyph + 4.0;
+			}
+			text(aPainter, x, label, primaryInk);
+			if (aPainter != nullptr) {
+				aPainter->setPen(QPen{ offered ? accent : palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				const auto divider = whole.left() + primary + 0.5;
+				aPainter->drawLine(QPointF{ divider, whole.top() + (offered ? 0.5 : 4.0) }, QPointF{ divider, whole.bottom() - (offered ? 0.5 : 4.0) });
+			}
+			x = whole.left() + primary + 7.0;
+			progress(aPainter, x, state_mark(), live);
+			chevron(aPainter, x + glyph + 3.0 + 4.0, live ? ink() : dim());
+			return static_cast<int>(std::ceil(whole.right()));
+		}
+
+		/// C. "[◐ Seen │ ● Read │ ✓ Accept] [▾]": the file's progress as a
+		/// track. Reached steps show their mark, the current step is tinted,
+		/// and Accept is the last step, pressed to take it. The menu keeps
+		/// Exclude and Mark unread.
+		[[nodiscard]] auto progress_track(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Read"), accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept") };
+			// The step the file has reached: Seen, Read or Accepted; none.
+			const auto reached = Case == progress_case::seen ? 0 : accepted ? 2
+																			: -1;
+			auto       widths  = std::array<qreal, 3>{ };
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				widths[index] = pad + glyph + 4.0 + text_width(words[index]) + pad;
+			}
+			const auto whole  = QRectF{ 0.5, top(), widths[0] + widths[1] + widths[2], frame_height };
+			const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
+			auto       soft   = accent;
+			soft.setAlpha(56);
+			frame(aPainter, whole, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			auto x = whole.left();
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				const auto segment = QRectF{ x, whole.top(), widths[index], whole.height() };
+				const auto current = static_cast<int>(index) == reached;
+				const auto done    = live && static_cast<int>(index) <= reached;
+				if (aPainter != nullptr && current) {
+					aPainter->save();
+					aPainter->setClipRect(segment);
+					frame(aPainter, whole, soft, accent);
+					aPainter->restore();
+				}
+				if (aPainter != nullptr && index > 0U && !current && static_cast<int>(index) - 1 != reached) {
+					aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+					aPainter->drawLine(QPointF{ x + 0.5, whole.top() + 4.0 }, QPointF{ x + 0.5, whole.bottom() - 4.0 });
+				}
+				const auto marks = std::array{ mark::seen, mark::read, mark::accepted };
+				if (index == 2U && !accepted) {
+					// The step still to take is a command: the line tick, in
+					// full ink while it is offered.
+					tick(aPainter, x + pad, live ? ink() : dim());
+				} else {
+					progress(aPainter, x + pad, done ? std::optional{ marks[index] } : std::optional{ mark::unread }, done);
+				}
+				const auto wordInk = !live ? dim() : (done || index == 2U) ? ink()
+																		   : dim();
+				text(aPainter, x + pad + glyph + 4.0, words[index], wordInk);
+				x += widths[index];
+			}
+			const auto menu = QRectF{ whole.right() + 4.0, top(), Case == progress_case::excluded ? 7.0 + glyph + 3.0 + 8.0 + 7.0 : 22.0, frame_height };
+			frame(aPainter, menu, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			if (Case == progress_case::excluded) {
+				progress(aPainter, menu.left() + 7.0, mark::excluded, true);
+				chevron(aPainter, menu.left() + 7.0 + glyph + 3.0 + 4.0, ink());
+			} else {
+				chevron(aPainter, menu.center().x(), Case == progress_case::no_file ? dim() : ink());
+			}
+			return static_cast<int>(std::ceil(menu.right()));
+		}
+
+		[[nodiscard]] auto accent() const -> QColor
+		{
+			return palette().color(QPalette::Active, QPalette::Highlight);
+		}
+
+		[[nodiscard]] auto on_accent() const -> QColor
+		{
+			return palette().color(QPalette::Active, QPalette::HighlightedText);
+		}
+
+		/// Legible text on a solid fill: the window's dark or light, whichever
+		/// contrasts with it.
+		[[nodiscard]] static auto ink_on(const QColor& aFill) -> QColor
+		{
+			const auto luminance = (0.2126 * aFill.redF()) + (0.7152 * aFill.greenF()) + (0.0722 * aFill.blueF());
+			return luminance > 0.55 ? QColor{ 0x1F, 0x23, 0x28 } : QColor{ Qt::white };
+		}
+
+		void pill(QPainter* const aPainter, const QRectF& aBox, const QColor& aFill, const QColor& aBorder) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(aBorder.alpha() == 0 ? QPen{ Qt::NoPen } : QPen{ aBorder, 1.0 });
+			aPainter->setBrush(aFill);
+			const auto box = aBox.adjusted(0.5, 0.5, -0.5, -0.5);
+			aPainter->drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+		}
+
+		void ring(QPainter* const aPainter, const QPointF aCentre, const qreal aRadius, const QColor& aColour) const
+		{
+			if (aPainter == nullptr) {
+				return;
+			}
+			aPainter->setPen(QPen{ aColour, 1.6 });
+			aPainter->setBrush(Qt::NoBrush);
+			aPainter->drawEllipse(aCentre, aRadius, aRadius);
+		}
+
+		/// C2. The progress track again: steps still to come in full ink, the
+		/// current step solid in the accent, Accept in the accent while it is
+		/// to do and solid green once taken; the menu's chevron is the track's
+		/// last cell.
+		[[nodiscard]] auto progress_track_refined(QPainter* const aPainter) const -> int
+		{
+			constexpr qreal step     = 6.0;
+			constexpr qreal gap      = 3.0;
+			const auto      accepted = Case == progress_case::accepted;
+			const auto      live     = Case == progress_case::seen || accepted;
+			const auto      words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Read"), accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept") };
+			const auto      reached  = Case == progress_case::seen ? 0 : accepted ? 2
+																				  : -1;
+			auto            widths   = std::array<qreal, 3>{ };
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				widths[index] = step + glyph + gap + text_width(words[index]) + step;
+			}
+			const auto tail  = Case == progress_case::excluded ? glyph + 8.0 : 18.0;
+			const auto whole = QRectF{ 0.5, top(), widths[0] + widths[1] + widths[2] + tail, frame_height };
+			frame(aPainter, whole, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			auto x = whole.left();
+			for (std::size_t index = 0U; index < words.size(); ++index) {
+				const auto segment = QRectF{ x, whole.top(), widths[index], whole.height() };
+				const auto current = live && static_cast<int>(index) == reached;
+				const auto done    = live && static_cast<int>(index) < reached;
+				const auto taken   = current && index == 2U;
+				const auto fill    = taken ? Colours.Accepted : accent();
+				if (aPainter != nullptr && current) {
+					aPainter->save();
+					aPainter->setClipRect(segment.adjusted(index == 0U ? -1.0 : 0.0, 0.0, 0.0, 0.0));
+					frame(aPainter, whole, fill, fill);
+					aPainter->restore();
+				}
+				if (aPainter != nullptr && index > 0U && !current && static_cast<int>(index) - 1 != reached) {
+					aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+					aPainter->drawLine(QPointF{ x + 0.5, whole.top() + 4.0 }, QPointF{ x + 0.5, whole.bottom() - 4.0 });
+				}
+				const auto marks  = std::array{ mark::seen, mark::read, mark::accepted };
+				const auto onFill = current ? ink_on(fill) : ink();
+				const auto box    = QRectF{ x + step, top() + 3.0, glyph, glyph };
+				if (!live) {
+					if (index == 2U) {
+						tick(aPainter, box.left(), dim());
+					} else {
+						ring(aPainter, box.center(), 6.0, dim());
+					}
+				} else if (current) {
+					if (aPainter != nullptr) {
+						// The mark on the solid step, in that step's own ink.
+						qt::paint_progress_mark(*aPainter, box, marks[index], qt::monochrome_progress_mark_colours(onFill));
+					}
+				} else if (done) {
+					progress(aPainter, box.left(), marks[index], true);
+				} else if (index == 2U) {
+					// The step still to take previews its outcome: the
+					// acceptance green's tick, beside the word in full ink.
+					tick(aPainter, box.left(), Colours.Accepted);
+				} else {
+					ring(aPainter, box.center(), 6.0, ink());
+				}
+				const auto wordInk = !live ? dim() : current ? onFill
+															 : ink();
+				text(aPainter, x + step + glyph + gap, words[index], wordInk);
+				x += widths[index];
+			}
+			if (aPainter != nullptr) {
+				aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				aPainter->drawLine(QPointF{ x + 0.5, whole.top() + 4.0 }, QPointF{ x + 0.5, whole.bottom() - 4.0 });
+			}
+			if (Case == progress_case::excluded && aPainter != nullptr) {
+				// Excluded: the track rests, and its last cell carries the mark.
+				qt::paint_progress_mark(*aPainter, QRectF{ x + 4.0, top() + 3.0, glyph, glyph }, mark::excluded, Colours);
+			} else {
+				chevron(aPainter, x + (tail / 2.0), Case == progress_case::no_file ? dim() : ink());
+			}
+			return static_cast<int>(std::ceil(whole.right()));
+		}
+
+		/// D. A stepper: Seen and Read as dots joined by short lines, ending in
+		/// the Accept pill, which becomes a solid green "Accepted" check.
+		[[nodiscard]] auto stepper(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto mid      = top() + (frame_height / 2.0);
+			auto       x        = 3.0;
+			const auto dot      = [&](const bool aReached, const QColor& aColour) {
+				const auto centre = QPointF{ x + 6.0, mid };
+				if (aPainter != nullptr) {
+					if (!live) {
+						ring(aPainter, centre, 5.0, dim());
+					} else if (aReached) {
+						aPainter->setPen(Qt::NoPen);
+						aPainter->setBrush(aColour);
+						aPainter->drawEllipse(centre, 6.0, 6.0);
+					} else {
+						ring(aPainter, centre, 5.0, ink());
+					}
+				}
+				x += 12.0;
+			};
+			const auto joint = [&](const bool aReached) {
+				if (aPainter != nullptr) {
+					aPainter->setPen(QPen{ live && aReached ? ink() : palette().color(QPalette::Active, QPalette::Mid), 2.0 });
+					aPainter->drawLine(QPointF{ x + 2.0, mid }, QPointF{ x + 10.0, mid });
+				}
+				x += 12.0;
+			};
+			dot(live, Colours.Seen);
+			joint(accepted);
+			dot(accepted, Colours.Read);
+			joint(accepted);
+			const auto label  = accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept");
+			const auto button = QRectF{ x, top(), 8.0 + glyph + 3.0 + text_width(label) + 10.0, frame_height };
+			if (accepted) {
+				pill(aPainter, button, Colours.Accepted, Colours.Accepted);
+			} else {
+				pill(aPainter, button, palette().color(QPalette::Active, QPalette::Button), live ? Colours.Accepted : palette().color(QPalette::Active, QPalette::Mid));
+			}
+			const auto face = accepted ? ink_on(Colours.Accepted) : live ? ink()
+																		 : dim();
+			tick(aPainter, button.left() + 8.0, accepted || !live ? face : Colours.Accepted);
+			text(aPainter, button.left() + 8.0 + glyph + 3.0, label, face);
+			x               = button.right() + 4.0;
+			const auto menu = QRectF{ x, top(), Case == progress_case::excluded ? 7.0 + glyph + 3.0 + 8.0 + 6.0 : 20.0, frame_height };
+			frame(aPainter, menu, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			if (Case == progress_case::excluded) {
+				progress(aPainter, menu.left() + 7.0, mark::excluded, true);
+				chevron(aPainter, menu.left() + 7.0 + glyph + 3.0 + 4.0, ink());
+			} else {
+				chevron(aPainter, menu.center().x(), Case == progress_case::no_file ? dim() : ink());
+			}
+			return static_cast<int>(std::ceil(menu.right()));
+		}
+
+		/// E. One rounded chip: a ring that fills as the file progresses, the
+		/// state's word, then Accept as the chip's action and the menu.
+		[[nodiscard]] auto meter_chip(QPainter* const aPainter) const -> int
+		{
+			const auto  accepted = Case == progress_case::accepted;
+			const auto  live     = Case == progress_case::seen || accepted;
+			const auto  words    = std::array{ QStringLiteral("Seen"), QStringLiteral("Accepted"), QStringLiteral("Excluded"), QStringLiteral("No file") };
+			const auto& word     = words[static_cast<std::size_t>(Case)];
+			const auto  action   = accepted ? QStringLiteral("Revoke") : QStringLiteral("Accept");
+			const auto  first    = 8.0 + glyph + 4.0 + text_width(word) + 8.0;
+			const auto  second   = 8.0 + (accepted ? 0.0 : glyph + 3.0) + text_width(action) + 8.0;
+			const auto  chip     = QRectF{ 0.5, top(), first + second + 20.0, frame_height };
+			pill(aPainter, chip, palette().color(QPalette::Active, QPalette::Button), live ? accent() : palette().color(QPalette::Active, QPalette::Mid));
+			const auto box = QRectF{ chip.left() + 8.0, top() + 3.0, glyph, glyph };
+			if (aPainter != nullptr) {
+				if (Case == progress_case::seen) {
+					// A third of the way: the ring's track, and its first arc.
+					ring(aPainter, box.center(), 6.5, palette().color(QPalette::Active, QPalette::Mid));
+					aPainter->setPen(QPen{ Colours.Seen, 2.4, Qt::SolidLine, Qt::RoundCap });
+					aPainter->drawArc(QRectF{ box.center().x() - 6.5, box.center().y() - 6.5, 13.0, 13.0 }, 90 * 16, -120 * 16);
+				} else {
+					progress(aPainter, box.left(), state_mark(), Case != progress_case::no_file);
+				}
+			}
+			text(aPainter, box.right() + 4.0, word, Case == progress_case::no_file ? dim() : palette().color(QPalette::Active, QPalette::WindowText));
+			auto x = chip.left() + first;
+			if (aPainter != nullptr) {
+				aPainter->setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				aPainter->drawLine(QPointF{ x + 0.5, top() + 4.0 }, QPointF{ x + 0.5, chip.bottom() - 4.0 });
+				aPainter->drawLine(QPointF{ x + second + 0.5, top() + 4.0 }, QPointF{ x + second + 0.5, chip.bottom() - 4.0 });
+			}
+			const auto face = live ? ink() : dim();
+			x += 8.0;
+			if (!accepted) {
+				tick(aPainter, x, live ? Colours.Accepted : face);
+				x += glyph + 3.0;
+			}
+			text(aPainter, x, action, face);
+			chevron(aPainter, chip.left() + first + second + 9.0, Case == progress_case::no_file ? dim() : ink());
+			return static_cast<int>(std::ceil(chip.right()));
+		}
+
+		/// F. Accept alone: no state and no menu on the bar. Seen and Read are
+		/// automatic and shown in Files and Overview; Exclude and Mark unread
+		/// live in the Pull Request menu and the file's context menu.
+		[[nodiscard]] auto accept_only(QPainter* const aPainter) const -> int
+		{
+			const auto accepted = Case == progress_case::accepted;
+			const auto live     = Case == progress_case::seen || accepted;
+			const auto label    = accepted ? QStringLiteral("Accepted") : Case == progress_case::excluded ? QStringLiteral("Excluded")
+																										  : QStringLiteral("Accept");
+			const auto button   = QRectF{ 0.5, top(), pad + glyph + 4.0 + text_width(label) + pad + 2.0, frame_height };
+			const auto fill     = accepted ? Colours.Accepted : accent();
+			if (live) {
+				frame(aPainter, button, fill, fill);
+			} else {
+				frame(aPainter, button, palette().color(QPalette::Active, QPalette::Button), palette().color(QPalette::Active, QPalette::Mid));
+			}
+			const auto face = live ? ink_on(fill) : dim();
+			if (Case == progress_case::excluded) {
+				progress(aPainter, button.left() + pad, mark::excluded, false);
+			} else {
+				tick(aPainter, button.left() + pad, face);
+			}
+			text(aPainter, button.left() + pad + glyph + 4.0, label, face);
+			return static_cast<int>(std::ceil(button.right()));
+		}
+
+		progress_direction        Direction;
+		qt::progress_mark_colours Colours;
+		progress_case             Case = progress_case::seen;
+	};
+
+	struct bar_sheet_row final
+	{
+		QString Caption;
+		QImage  Bar;
+		QColor  Window;
+		QColor  Text;
+	};
+
+	/// Stacks captioned review-bar renders into one sheet.
+	void save_bar_sheet(const std::vector<bar_sheet_row>& aRows, const QString& aPath)
+	{
+		const auto dpr     = aRows.front().Bar.devicePixelRatio();
+		const auto caption = 22.0;
+		auto       width   = 0.0;
+		auto       height  = 0.0;
+		for (const auto& entry : aRows) {
+			width = std::max(width, entry.Bar.width() / dpr);
+			height += caption + (entry.Bar.height() / dpr) + 10.0;
+		}
+		auto sheet = QImage{ static_cast<int>((width + 16.0) * dpr), static_cast<int>((height + 8.0) * dpr), QImage::Format_ARGB32_Premultiplied };
+		sheet.setDevicePixelRatio(dpr);
+		sheet.fill(Qt::transparent);
+		auto painter = QPainter{ &sheet };
+		auto top     = 0.0;
+		for (const auto& entry : aRows) {
+			const auto band = QRectF{ 0.0, top, width + 16.0, caption + (entry.Bar.height() / dpr) + 10.0 };
+			painter.fillRect(band, entry.Window);
+			painter.setPen(entry.Text);
+			painter.drawText(QRectF{ 8.0, top + 2.0, width, caption - 2.0 }, Qt::AlignLeft | Qt::AlignVCenter, entry.Caption);
+			painter.drawImage(QPointF{ 8.0, top + caption }, entry.Bar);
+			top += band.height();
+		}
+		painter.end();
+		expect(sheet.save(aPath), "the review bar sheet is written");
+	}
+
+	/// [[BPR-1578]] v002. One sheet per direction, each the whole review bar
+	/// in Light and Dark with a seen file (Accept offered), an accepted file
+	/// (Revoke), an excluded file and no file yet (disabled). Written beside
+	/// `BPR_QT_RENDER_PATH` as `<name>-<direction>.png`.
+	void render_review_bar_direction_sheets(const std::vector<std::pair<progress_direction, QString>>& aDirections)
+	{
+		const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (path.isEmpty()) {
+			return;
+		}
+		const QFileInfo file{ path };
+		const auto&     directions = aDirections;
+		const auto      cases      = std::array{
+			std::pair{ progress_case::seen, QStringLiteral("seen file, Accept offered") },
+			std::pair{ progress_case::accepted, QStringLiteral("accepted file, Revoke offered") },
+			std::pair{ progress_case::excluded, QStringLiteral("excluded file, Accept disabled") },
+			std::pair{ progress_case::no_file, QStringLiteral("no file material yet, Accept disabled") },
+		};
+		for (const auto& [direction, name] : directions) {
+			auto rows = std::vector<bar_sheet_row>{ };
+			for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+				auto settings                = qt::default_appearance_settings();
+				settings.Mode                = mode;
+				auto                 profile = qt::appearance_profile{ settings };
+				qt::workbench_window window;
+				window.resize(1'280, 820);
+				profile.apply_to(window);
+				window.set_progress_mark_colours(qt::progress_mark_colours_for(profile));
+				window.show();
+				publish_positioned_review_bar(window);
+				process_events();
+				auto* const bar   = static_cast<qt::workbench_strip*>(window.review_bar());
+				auto        named = [bar](const char* const aName) {
+					for (auto* const action : bar->actions()) {
+						if (action->objectName() == QLatin1String{ aName }) {
+							return action;
+						}
+					}
+					return static_cast<QAction*>(nullptr);
+				};
+				named("workbenchAcceptFileAction")->setVisible(false);
+				named("workbenchReviewControlsAction")->setVisible(false);
+				auto* const prototype = new progress_group_prototype{ direction, window.shown_progress_mark_colours(), bar };
+				auto* const group     = bar->insertWidget(named("reviewBarSpacerAction"), prototype);
+				bar->set_group_rails({
+					{ .First = named("workbenchStripFilePositionAction"), .Last = window.next_file_action() },
+					{ .First = named("workbenchStripChangePositionAction"), .Last = window.next_change_action() },
+					{ .First = group, .Last = group },
+				});
+				const auto theme = mode == core::appearance_mode::light ? QStringLiteral("Light") : QStringLiteral("Dark");
+				for (const auto& [state, words] : cases) {
+					prototype->set_case(state);
+					process_events();
+					rows.push_back(bar_sheet_row{
+						.Caption = QStringLiteral("%1, %2").arg(theme, words),
+						.Bar     = bar->grab().toImage(),
+						.Window  = window.palette().color(QPalette::Active, QPalette::Window),
+						.Text    = window.palette().color(QPalette::Active, QPalette::WindowText),
+					});
+				}
+				window.hide();
+			}
+			save_bar_sheet(rows, QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), name));
+		}
+	}
+
+	/// [[BPR-1578]]. The whole review bar with the file's progress group
+	/// unaccepted, accepted (Revoke) and disabled (an excluded file, and no
+	/// file material yet), in the built-in Light and Dark themes, captioned,
+	/// for a person to compare. Written only when `BPR_QT_RENDER_PATH` names a
+	/// file; it asserts nothing about the design, so the same code renders the
+	/// bar before and after a change.
+	void render_review_bar_accept_sheet()
+	{
+		const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (path.isEmpty()) {
+			return;
+		}
+		struct row final
+		{
+			QString Caption;
+			QImage  Bar;
+			QColor  Window;
+			QColor  Text;
+		};
+		auto rows = std::vector<row>{ };
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto settings                = qt::default_appearance_settings();
+			settings.Mode                = mode;
+			auto                 profile = qt::appearance_profile{ settings };
+			qt::workbench_window window;
+			window.resize(1'280, 820);
+			profile.apply_to(window);
+			window.set_progress_mark_colours(qt::progress_mark_colours_for(profile));
+			window.show();
+			publish_positioned_review_bar(window);
+			process_events();
+			const auto theme = mode == core::appearance_mode::light ? QStringLiteral("Light") : QStringLiteral("Dark");
+			const auto grab  = [&](const QString& aState) {
+				process_events();
+				rows.push_back(row{
+					.Caption = QStringLiteral("%1, %2").arg(theme, aState),
+					.Bar     = window.review_bar()->grab().toImage(),
+					.Window  = window.palette().color(QPalette::Active, QPalette::Window),
+					.Text    = window.palette().color(QPalette::Active, QPalette::WindowText),
+				});
+			};
+			auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("unread file, every step available"));
+			receipt.Read = core::file_read_state::seen;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("seen file, Accept offered"));
+			receipt.Read = core::file_read_state::read;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("read file, Accept offered"));
+			if (auto* const step = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")); step != nullptr) {
+				step->setFocus(Qt::TabFocusReason);
+				grab(QStringLiteral("read file, keyboard focus on Accept"));
+				step->clearFocus();
+			}
+			receipt.Accepted = true;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("accepted file, Revoke acceptance offered"));
+			receipt.Read     = core::file_read_state::seen;
+			receipt.Accepted = false;
+			receipt.Excluded = true;
+			window.publish(application::project_file_receipt_actions(receipt));
+			grab(QStringLiteral("excluded file, Accept disabled"));
+			window.clear_review_ledger();
+			grab(QStringLiteral("no file material yet, Accept disabled"));
+			window.hide();
+		}
+		const auto dpr     = rows.front().Bar.devicePixelRatio();
+		const auto caption = 22.0;
+		auto       width   = 0.0;
+		auto       height  = 0.0;
+		for (const auto& entry : rows) {
+			width = std::max(width, entry.Bar.width() / dpr);
+			height += caption + (entry.Bar.height() / dpr) + 10.0;
+		}
+		auto sheet = QImage{ static_cast<int>((width + 16.0) * dpr), static_cast<int>((height + 8.0) * dpr), QImage::Format_ARGB32_Premultiplied };
+		sheet.setDevicePixelRatio(dpr);
+		sheet.fill(Qt::transparent);
+		auto painter = QPainter{ &sheet };
+		auto top     = 0.0;
+		for (const auto& entry : rows) {
+			const auto band = QRectF{ 0.0, top, width + 16.0, caption + (entry.Bar.height() / dpr) + 10.0 };
+			painter.fillRect(band, entry.Window);
+			painter.setPen(entry.Text);
+			painter.drawText(QRectF{ 8.0, top + 2.0, width, caption - 2.0 }, Qt::AlignLeft | Qt::AlignVCenter, entry.Caption);
+			painter.drawImage(QPointF{ 8.0, top + caption }, entry.Bar);
+			top += band.height();
+		}
+		painter.end();
+		expect(sheet.save(path), "the review bar's Accept sheet is written");
 	}
 
 	void test_selection_synchronisation_and_restart_persistence()
@@ -11659,9 +12603,9 @@ namespace {
 		});
 		auto* const editor = window.behaviour_editor();
 		expect(editor != nullptr
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(editor)
+				   && window.settings()->page_widget(qt::settings_page::review)->isAncestorOf(editor)
 				   && !window.home_page()->isAncestorOf(editor),
-			   "the preference rows live on Reviews and queue, off Home");
+			   "the preference rows live on Settings › Review, off Home");
 		const auto button = [&window](const char* const aName) {
 			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
 			expect(found != nullptr, "every preference option is a named button");
@@ -11701,17 +12645,21 @@ namespace {
 				   && records.back() == application::review_behaviour_settings{ .OpenModality = application::review_open_modality::last_used },
 			   "Reset on the reading group returns its rows to the defaults and leaves the modality rules alone");
 		window.publish(application::workbench_projection{ .Behaviour = records.back() });
-		button("resetModalityRules")->click();
-		expect(records.size() == 4U
+		// [[BPR-1597]]. Opening holds the open modality and the return
+		// comparison; its Reset returns both.
+		button("returnComparisonSinceLastUpload")->click();
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		button("resetOpening")->click();
+		expect(records.size() == 5U
 				   && records.back() == application::review_behaviour_settings{ },
-			   "Reset on the modality group returns its rows to the defaults");
+			   "Reset on the Opening group returns the modality and the return comparison to the defaults");
 		window.publish(projection);
 		// [[BPR-0721]]. The drawers group: one row, off by default, its own
 		// Reset.
 		expect(button("drawerControlsHidden")->isChecked() && !button("drawerControlsShown")->isChecked(),
 			   "the drawer controls start hidden, the owner's direction");
 		button("drawerControlsShown")->click();
-		expect(records.size() == 5U
+		expect(records.size() == 6U
 				   && records.back().DrawerControls == application::review_drawer_controls::shown
 				   && records.back().CommentsFilter == application::review_comments_filter::unread,
 			   "choosing Shown dispatches the whole record with the drawer controls shown");
@@ -11719,9 +12667,9 @@ namespace {
 		shown.DrawerControls = application::review_drawer_controls::shown;
 		projection.Behaviour = shown;
 		window.publish(projection);
-		button("resetDrawers")->click();
-		expect(records.size() == 6U && records.back() == published,
-			   "Reset on the drawers group hides the controls again and leaves the other groups alone");
+		button("resetLayout")->click();
+		expect(records.size() == 7U && records.back() == published,
+			   "Reset on the Layout group hides the drawer controls again and leaves the other groups alone");
 	}
 
 	/// \brief [[BPR-1334]]. View > Line Details and its Settings row are one
@@ -11771,9 +12719,9 @@ namespace {
 		expect(action->isChecked() && strip->isVisible(), "a published Shown brings the strip back");
 
 		window.publish(application::workbench_projection{ .Behaviour = hidden });
-		button("resetComparisonBehaviour")->click();
+		button("resetLayout")->click();
 		expect(records.size() == 3U && records.back().LineDetails == application::review_line_details::shown,
-			   "Reset on the Comparison group shows Line details again");
+			   "Reset on the Layout group shows Line details again");
 		window.hide();
 	}
 
@@ -11860,11 +12808,11 @@ namespace {
 			expect(map->hit_test(point) == link.Identity, "the painted ribbon retains exact hit identity at every supported width sample");
 			save_render(window, QStringLiteral("ribbon-%1").arg(logicalWidth));
 		}
-		window.open_settings(qt::settings_page::reviews_and_queue);
+		window.open_settings(qt::settings_page::review);
 		process_events();
-		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings Reviews and queue");
-		window.findChild<QToolButton*>(QStringLiteral("resetComparisonBehaviour"))->click();
-		expect(records.back().CenterRibbonWidth == 28U, "Comparison Reset restores the new 28-pixel default");
+		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings › Review");
+		window.findChild<QToolButton*>(QStringLiteral("resetLayout"))->click();
+		expect(records.back().CenterRibbonWidth == 28U, "Layout Reset restores the new 28-pixel default");
 		window.publish(application::workbench_projection{ .Behaviour = records.back() });
 		process_events();
 		expect(control->value() == 28 && map->width() == 28, "accepted Reset reaches both Settings and the divider");
@@ -11987,10 +12935,10 @@ namespace {
 		auto behaviour = application::workbench_projection{ };
 		window.choose_modality(qt::review_modality::overview);
 		process_events();
-		window.overview_page()->entry_button()->click();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		process_events();
 		expect(window.current_modality() == qt::review_modality::review,
-			   "Continue review enters Review");
+			   "Command-2 from the Overview enters Review");
 
 		const auto openFromHome = [&window, &opened] {
 			const auto before = opened;
@@ -12816,16 +13764,16 @@ namespace {
 		auto* const page = window.settings()->page_widget(qt::settings_page::repositories);
 		auto*       list = window.saved_repository_list();
 		expect(page != nullptr && page->isAncestorOf(list) && page->isAncestorOf(window.findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton")))
-				   && !window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(list)
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories")) != nullptr,
-			   "saved repositories live on their own Settings page; Reviews & queue only points there");
+				   && !window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(list)
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories")) != nullptr,
+			   "saved repositories live on their own Settings page; Home & queue only points there");
 		expect(qt::settings_page_title(qt::settings_page::repositories) == QStringLiteral("Repositories")
 				   && window.settings()->sidebar()->item(static_cast<int>(qt::settings_page::repositories))->text() == QStringLiteral("Repositories")
 				   && static_cast<int>(qt::settings_page::repositories) == static_cast<int>(qt::settings_page::accounts_and_hosts) + 1,
 			   "the Repositories page follows Accounts & hosts in the sidebar");
 		window.settings()->findChild<QPushButton*>(QStringLiteral("reviewsOpenRepositories"))->click();
 		process_events();
-		expect(window.settings()->current_page() == qt::settings_page::repositories, "Reviews & queue's pointer opens Repositories");
+		expect(window.settings()->current_page() == qt::settings_page::repositories, "Home & queue's pointer opens Repositories");
 		expect(list->count() == 1 && list->item(0)->text() == QStringLiteral("octo/app") && list->isVisibleTo(page) && !window.saved_repositories_empty()->isVisibleTo(page)
 				   && window.findChild<QLabel*>(QStringLiteral("repositoriesDestination"))->text() == QStringLiteral("Saved for @reviewer on github.com")
 				   && list->item(0)->toolTip().contains(QStringLiteral("github.com")),
@@ -12981,7 +13929,7 @@ namespace {
 		// still named, still explained, still the same controls, but stops of
 		// another top-level window, which the workbench never declares.
 		const auto  focusOrder = window.focus_order();
-		auto* const defaults   = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const defaults   = window.settings()->page_widget(qt::settings_page::home_and_queue);
 		for (auto* const selector : { window.queue_role_filter(),
 									  window.queue_observer_filter(),
 									  window.queue_bucket_filter(),
@@ -12994,7 +13942,7 @@ namespace {
 					&& !focusOrder.contains(selector)
 					&& defaults != nullptr && defaults->isAncestorOf(selector)
 					&& !window.home_page()->isAncestorOf(selector),
-				"every queue preference control is named, explained, on Reviews & queue and off the workbench's order");
+				"every queue preference control is named, explained, on Home & queue and off the workbench's order");
 		}
 	}
 
@@ -14297,7 +15245,7 @@ namespace {
 		auto* const panel  = window.conversation_panel();
 		auto* const finder = window.finder();
 		auto* const editor = window.behaviour_editor();
-		expect(editor != nullptr, "the Reviews & queue rows exist");
+		expect(editor != nullptr, "the Review rows exist");
 		const auto button = [&window](const char* aName) {
 			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
 			expect(found != nullptr, std::string{ "the reading width offers " } + aName);
@@ -14700,9 +15648,9 @@ namespace {
 		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "one receipt signals one page row and one tree row");
 		expect(treeModel->index_for_file(file).data(qt::files_tree_model::read_role).toInt() == static_cast<int>(core::file_read_state::read),
 			   "the drawer tree presents the committed read state");
-		expect(window.overview_page()->entry_button()->text() == QStringLiteral("Continue review")
+		expect(window.overview_page()->entry_path().has_value()
 				   && window.overview_page()->files_heading()->text().contains(QStringLiteral("514 not read")),
-			   "the progress and the one action follow the receipt");
+			   "the progress and the entry file follow the receipt");
 		window.publish(changed);
 		expect(structural == 0 && pageChanges == 1 && treeChanges == 1, "the equivalent complete overview is already presented");
 	}
@@ -14763,14 +15711,6 @@ namespace {
 			   "once decided, Overview shows the page beneath the epoch line in place "
 			   "of the comparison");
 
-		window.choose_modality(qt::review_modality::review);
-		process_events();
-		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
-			   "every other modality shows the comparison");
-		window.choose_modality(qt::review_modality::overview);
-		process_events();
-		expect(window.showing_overview(), "Overview returns to the page");
-
 		// [[BPR-1348]]. The file an Overview gesture selects, provided the
 		// selection follows Review's modality intent: choosing Review
 		// presents its active tab, so a selection sent before it loses.
@@ -14787,27 +15727,31 @@ namespace {
 			}
 			return file;
 		};
+		// [[BPR-1588]]. The owner's decision D1: no Start review. The first
+		// entry into Review from a fresh Overview lands where it did.
+		expect(window.overview_page()->findChild<QPushButton*>(QStringLiteral("overviewEntryButton")) == nullptr,
+			   "the Overview has no Start review button");
 		log.Workbench.clear();
-		window.overview_page()->entry_button()->click();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		process_events();
 		expect(selectedAfterReview() == workbench_file(2U),
-			   "Start review selects the entry file through the core, after entering Review");
-		expect(window.current_modality() == qt::review_modality::review,
-			   "Start review enters Review even while Continue review defaults to Read");
+			   "the first Review (Command-2) from a fresh Overview selects the first unseen change's file, after entering Review");
 		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
-			   "Start review shows the comparison");
+			   "every other modality shows the comparison");
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(window.showing_overview(), "Overview returns to the page");
+		log.Workbench.clear();
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		expect(!selectedAfterReview() && window.current_modality() == qt::review_modality::review,
+			   "a later Review keeps the file the reviewer is on");
 
-		overview.Entry = application::overview_entry_kind::continue_review;
+		// Another pull request in the window is fresh again; a picked row wins.
+		overview.Number = core::pull_request_number{ 2U };
 		window.publish(overview);
 		window.choose_modality(qt::review_modality::overview);
-		log.Workbench.clear();
-		window.overview_page()->entry_button()->click();
 		process_events();
-		expect(selectedAfterReview() == workbench_file(2U)
-				   && window.current_modality() == qt::review_modality::review,
-			   "Continue review keeps its intended entry file and enters Review");
-
-		window.choose_modality(qt::review_modality::overview);
 		log.Workbench.clear();
 		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
 		window.overview_page()->files_view()->activated(first);
@@ -14816,7 +15760,7 @@ namespace {
 				   && window.current_modality() == qt::review_modality::review,
 			   "activating a file row enters Review, then selects that file");
 		expect(githubIntents == 0U,
-			   "Start review, Continue review, and file-row navigation publish no GitHub intent");
+			   "Review entry and file-row navigation publish no GitHub intent");
 
 		window.choose_modality(qt::review_modality::overview);
 		window.clear_overview();
@@ -15967,7 +16911,7 @@ namespace {
 								   QStringLiteral("Reset to defaults"),
 								   // [[BPR-0783]]. The text Qt is given: the doubled
 								   // ampersand is the mnemonic escape, not what is shown.
-								   QStringLiteral("Nothing here changes GitHub."), QStringLiteral("Open Reviews && queue") },
+								   QStringLiteral("Nothing here changes GitHub."), QStringLiteral("Open Home && queue") },
 			   message_for("View names every group and its value as item text",
 						   native_menu_labels(*menu).join(QStringLiteral(" | ")).toStdString()));
 		const auto submenus = std::array{
@@ -15980,7 +16924,7 @@ namespace {
 									QStringLiteral("My review is requested"), QStringLiteral("I took part in it"),
 									QStringLiteral("None of these (a rule or a follow added it)") } },
 			std::pair{ qt::home_view_choice::added_by,
-					   QStringList{ QStringLiteral("Observer rules are mine, kept in Settings › Reviews && queue"), QStringLiteral("Any way"),
+					   QStringList{ QStringLiteral("Observer rules are mine, kept in Settings › Home && queue"), QStringLiteral("Any way"),
 									QStringLiteral("A rule on a repository"), QStringLiteral("A rule on an author"), QStringLiteral("A rule on a path") } },
 			std::pair{ qt::home_view_choice::quiet,
 					   QStringList{ QStringLiteral("Quiet: nothing new for me and nothing waiting on anyone"), QStringLiteral("Show"),
@@ -16003,7 +16947,7 @@ namespace {
 			expect(!action->isSeparator() || action->text().isEmpty(), "View uses no section title at all");
 		}
 		expect(window.home_filter_settings_action()->isEnabled(),
-			   "the way to Settings › Reviews & queue is reachable from the menu");
+			   "the way to Settings › Home & queue is reachable from the menu");
 
 		// [[BPR-0783]]. What a reviewer actually sees, rather than what the source
 		// wrote: a menu eats a single "&" as a mnemonic and draws "Reviews _queue".
@@ -16023,16 +16967,16 @@ namespace {
 		auto* const addedByAccessible = QAccessible::queryAccessibleInterface(window.home_view_submenu(qt::home_view_choice::added_by));
 		expect(addedByAccessible != nullptr && addedByAccessible->childCount() > 0
 				   && addedByAccessible->child(0)->text(QAccessible::Name)
-					   == QStringLiteral("Observer rules are mine, kept in Settings › Reviews & queue"),
+					   == QStringLiteral("Observer rules are mine, kept in Settings › Home & queue"),
 			   "Added by says where observer rules are kept, with one plain ampersand");
 		expect(displayed(footerAction) == QStringLiteral("Nothing here changes GitHub."),
 			   message_for("the footer says nothing here changes GitHub", displayed(footerAction).toStdString()));
-		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Reviews & queue"),
-			   message_for("and so does the way to Reviews & queue",
+		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Home & queue"),
+			   message_for("and so does the way to Home & queue",
 						   displayed(window.home_filter_settings_action()).toStdString()));
 		window.home_filter_settings_action()->trigger();
 		process_events();
-		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::reviews_and_queue,
+		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::home_and_queue,
 			   "and it opens that page");
 		window.settings()->hide();
 		process_events();
@@ -16267,7 +17211,7 @@ namespace {
 		window.publish(projection);
 		process_events();
 
-		auto* const page  = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const page  = window.settings()->page_widget(qt::settings_page::home_and_queue);
 		auto* const group = [page] {
 			for (auto* const box : page->findChildren<QGroupBox*>()) {
 				if (box->title() == QStringLiteral("Queue defaults")) {
@@ -16276,7 +17220,7 @@ namespace {
 			}
 			return static_cast<QGroupBox*>(nullptr);
 		}();
-		expect(group != nullptr, "Reviews & queue has a Queue defaults group");
+		expect(group != nullptr, "Home & queue has a Queue defaults group");
 		const auto selectors = std::array{ window.queue_role_filter(), window.queue_observer_filter(),
 										   window.queue_bucket_filter(), window.queue_repository_filter(),
 										   window.queue_quiet_filter(), window.queue_sort_selector() };
@@ -17023,6 +17967,26 @@ namespace {
 		qt::review_cycle_view cycle;
 		const auto            problems = catalogue_problems({ &window, &desktop, &cycle });
 		expect(problems.empty(), "the catalogue is exactly what the window, the resident bar and a Review Cycle bind:" + joined(problems));
+		// [[BPR-1600]]. On Home the Refresh key is Home's refresh's, as the
+		// catalogue writes it, and bound once.
+		window.choose_home(true);
+		process_events();
+		const auto bound = [&window](const QKeySequence& aKey) {
+			auto names = QStringList{ };
+			for (const auto& binding : live_bindings(window)) {
+				if (binding.Keys.contains(aKey)) {
+					names.push_back(binding.Name);
+				}
+			}
+			return names;
+		};
+		const auto refreshKeys = qt::shortcut_keys(qt::shortcut_command::home_refresh);
+		expect(window.showing_home() && refreshKeys == qt::shortcut_keys(qt::shortcut_command::refresh) && !refreshKeys.isEmpty()
+				   && window.queue_refresh_action()->shortcuts() == refreshKeys && bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshQueueAction") },
+			   "on Home the Refresh key is bound once, on Home's refresh: " + bound(refreshKeys.front()).join(QLatin1Char{ ',' }).toStdString());
+		window.choose_home(false);
+		process_events();
+		expect(bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshPullRequestAction") }, "and back in the review, once, on the pull request's");
 
 		// Negative control: each kind of drift is reported, by name.
 		qt::workbench_window drifted;
@@ -17290,6 +18254,146 @@ namespace {
 		process_events();
 		expect(!page->isVisible(), "Close closes it");
 	}
+
+	/// \brief [[BPR-1600]]. The owner's amendment of 2026-10-17: the Refresh key
+	/// (⌘R, or the platform's) does whichever refresh the window shows. On Home
+	/// it is Home's discovery, with [[BPR-1575]]'s note, result, failure and
+	/// Retry; on a pull request it is the pull request's. The key is on one
+	/// action at a time. Like the pull request's it does not step aside while
+	/// typing, so it acts from Home's Open bar and leaves the bar's text alone.
+	/// Signed out, or while a discovery runs, it refreshes nothing.
+	void test_refresh_key_does_the_refresh_showing()
+	{
+		const auto refreshKey = QKeySequence{ QKeySequence::Refresh };
+		expect(!refreshKey.isEmpty(), "the platform has a Refresh key");
+		const auto key       = static_cast<int>(refreshKey[0].key());
+		const auto modifiers = refreshKey[0].keyboardModifiers();
+		const auto press     = [&](qt::workbench_window& aWindow) { window_key(aWindow, key, modifiers); };
+
+		auto pullIntents = 0;
+		auto other       = 0;
+		auto discovery   = std::vector<application::queue_discovery_intent>{ };
+		auto window      = qt::workbench_window{
+			{ },
+			{ },
+			{ },
+			{ },
+			[&](const application::github_intent& aIntent) {
+				++(std::holds_alternative<core::refresh_pull_request_intent>(aIntent) ? pullIntents : other);
+			},
+		};
+		// Arriving at Home also asks discovery to catch up ([[BPR-0990]]);
+		// what the key sends is the explicit refresh.
+		const auto refreshes = [&discovery] { return std::ranges::count(discovery, application::queue_discovery_intent::refresh); };
+		window.resize(1'280, 820);
+		window.set_queue_discovery_dispatch([&discovery](application::queue_discovery_intent aIntent) { discovery.push_back(aIntent); });
+		window.show();
+		window.activateWindow();
+		process_events();
+		auto* const home         = window.queue_refresh_action();
+		auto* const pull         = window.github_refresh_action();
+		auto        homeTriggers = 0;
+		auto        pullTriggers = 0;
+		QObject::connect(home, &QAction::triggered, [&homeTriggers] { ++homeTriggers; });
+		QObject::connect(pull, &QAction::triggered, [&pullTriggers] { ++pullTriggers; });
+		const auto keyOn = [&refreshKey](const QAction* const aAction) { return aAction->shortcuts() == QList{ refreshKey }; };
+
+		// Negative control: Home signed out has no refresh to run.
+		expect(window.showing_home() && keyOn(home) && pull->shortcuts().isEmpty(), "on Home the key is Home's refresh's, and only its");
+		press(window);
+		expect(discovery.empty() && homeTriggers == 0 && pullTriggers == 0 && pullIntents == 0, "signed out, the key refreshes nothing");
+
+		// Signed in, ⌘R on Home is one discovery refresh, the reviewer's.
+		sign_in(window);
+		using state = application::queue_discovery_state;
+		auto status = application::queue_discovery_status{ .Host = "github.com", .Account = "octo-reviewer", .State = state::current, .LastSuccess = 1'700'000'000, .Repositories = 1U };
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(window.showing_home() && home->isEnabled() && keyOn(home) && pull->shortcuts().isEmpty(), "signed in, Home's refresh can run and has the key");
+		press(window);
+		expect(discovery == std::vector{ application::queue_discovery_intent::refresh } && homeTriggers == 1, "⌘R on Home sends exactly one refresh");
+		expect(pullTriggers == 0 && pullIntents == 0, "and does not refresh the pull request");
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		process_events();
+		auto* const note = window.refresh_note_widget();
+		expect(window.home_refresh().Phase == core::refresh_phase::refreshing && window.home_refresh().Trigger == core::refresh_trigger::reviewer,
+			   "the refresh it started is the reviewer's");
+		expect(note->isVisible() && note->text() == QStringLiteral("Finding my pull requests…"), "and says so under the button");
+		press(window);
+		expect(refreshes() == 1 && homeTriggers == 1, "while it runs a second press starts nothing");
+		status.State             = state::stale;
+		status.Problem           = application::queue_discovery_problem::rate_limited;
+		status.RetryAfterSeconds = 30U;
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(note->tone() == qt::refresh_note_tone::failed && note->retry_button()->isVisible(), "a failure is said, with Retry");
+		status.State       = state::current;
+		status.Problem     = application::queue_discovery_problem::none;
+		status.LastSuccess = 1'700'000'100;
+		window.publish(discovery_projection(status));
+		process_events();
+		press(window);
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		process_events();
+		status.State       = state::current;
+		status.LastSuccess = 1'700'000'200;
+		window.publish(discovery_projection(status));
+		process_events();
+		expect(refreshes() == 2 && note->tone() == qt::refresh_note_tone::settled && !note->text().isEmpty(), "a finished refresh says what it found: " + note->text().toStdString());
+
+		// Typing in the Open bar: the pull request's key does not step aside,
+		// and neither does Home's.
+		expect(!qt::steps_aside_while_typing(qt::shortcut(qt::shortcut_command::refresh)) && !qt::steps_aside_while_typing(qt::shortcut(qt::shortcut_command::home_refresh)),
+			   "neither refresh key steps aside while typing");
+		auto* const bar = window.home_open_bar();
+		bar->setFocus(Qt::OtherFocusReason);
+		bar->setText(QStringLiteral("octo-org/app#1"));
+		process_events();
+		press(window);
+		expect(refreshes() == 3 && bar->text() == QStringLiteral("octo-org/app#1") && bar->hasFocus(), "from the Open bar ⌘R refreshes Home and leaves the bar as it was");
+		status.State = state::refreshing;
+		window.publish(discovery_projection(status));
+		status.State       = state::current;
+		status.LastSuccess = 1'700'000'300;
+		window.publish(discovery_projection(status));
+		bar->clear();
+		process_events();
+
+		// On a pull request the key is the pull request's refresh.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = { { .Id = core::github_command_id::refresh_pull_request, .Enabled = true } },
+				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+			.PullRequest = application::github_pull_request_projection{
+				.Snapshot       = core::provider_snapshot_id{ 1U },
+				.Repository     = core::repository_id{ 3U },
+				.PullRequest    = core::pull_request_id{ 4U },
+				.Owner          = "octo-org",
+				.RepositoryName = "app",
+				.Number         = core::pull_request_number{ 7U },
+				.Title          = "Seven",
+				.HeadOid        = "aaaa",
+				.CommitCount    = 1U,
+			},
+		});
+		window.choose_home(false);
+		process_events();
+		expect(!window.showing_home() && pull->isEnabled() && keyOn(pull) && home->shortcuts().isEmpty(), "on a pull request the key is the pull request's, and only its");
+		const auto homeBefore = homeTriggers;
+		press(window);
+		expect(pullTriggers == 1 && pullIntents == 1 && homeTriggers == homeBefore && refreshes() == 3, "⌘R on a pull request refreshes the pull request, once");
+
+		// Back on Home with the review behind it, the key is Home's again.
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && keyOn(home) && pull->shortcuts().isEmpty(), "Home over the review takes the key back");
+		press(window);
+		expect(refreshes() == 4 && pullTriggers == 1 && pullIntents == 1 && other == 0, "and ⌘R refreshes Home, not the review behind it");
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -17342,6 +18446,8 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--keyboard-shortcuts"))) {
 		test_shortcut_catalogue_is_what_the_window_binds();
 		test_keyboard_shortcuts_page();
+		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
+		test_refresh_key_does_the_refresh_showing();
 		std::cout << "keyboard-shortcuts:pass\n";
 		return EXIT_SUCCESS;
 	}
@@ -17360,8 +18466,36 @@ auto main(int argc, char** argv) -> int
 		test_file_accept_is_one_click_and_keeps_projected_eligibility();
 		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
 		test_review_state_icon_shows_the_decided_mark();
+		test_progress_track_shows_and_takes_each_step();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions"))) {
+		// [[BPR-1578]] v002. Three directions for the progress group, for a person.
+		render_review_bar_direction_sheets({
+			{ progress_direction::caption_and_action, QStringLiteral("a-caption-and-action") },
+			{ progress_direction::split_button, QStringLiteral("b-split-button") },
+			{ progress_direction::progress_track, QStringLiteral("c-progress-track") },
+		});
+		std::cout << "review-bar-directions:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions-round-2"))) {
+		// [[BPR-1578]] v002 round 2: the progress track refined, and three new directions.
+		render_review_bar_direction_sheets({
+			{ progress_direction::progress_track_refined, QStringLiteral("c2-progress-track") },
+			{ progress_direction::stepper, QStringLiteral("d-stepper") },
+			{ progress_direction::meter_chip, QStringLiteral("e-meter-chip") },
+			{ progress_direction::accept_only, QStringLiteral("f-accept-only") },
+		});
+		std::cout << "review-bar-directions-round-2:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-accept-sheet"))) {
+		// [[BPR-1578]]. The review bar's Accept group, before and after, for a person.
+		render_review_bar_accept_sheet();
+		std::cout << "review-bar-accept-sheet:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {
@@ -17538,6 +18672,7 @@ auto main(int argc, char** argv) -> int
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_review_state_icon_shows_the_decided_mark();
+	test_progress_track_shows_and_takes_each_step();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
 	test_unread_badge_follows_only_the_current_file();

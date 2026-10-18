@@ -78,6 +78,12 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1560]]. REST compare: the merge base GitHub numbers a LEFT
 		/// line in now, asked before anything on a LEFT line is published.
 		observe_merge_base,
+		/// [[BPR-1572]]. REST compare of the recorded base and the expected
+		/// head, asked when the base branch names another merge base.
+		observe_recorded_merge_base,
+		/// [[BPR-1572]]. REST compare of the recorded base and the base
+		/// branch: whether the branch only moved forward from it.
+		observe_base_ancestry,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -202,6 +208,9 @@ namespace bpr::adapters::github::detail {
 	struct review_mutation_target_observation
 	{
 		application::review_mutation_target_binding Target;
+		/// [[BPR-1572]]. The commit count GitHub reports for the pull request
+		/// (`commits`), when the answer carried it.
+		std::optional<std::uint64_t> Commits;
 
 		auto operator<=>(const review_mutation_target_observation&) const = default;
 	};
@@ -374,24 +383,90 @@ namespace bpr::adapters::github::detail {
 	/// \brief Validates stable PR identity for read-only recovery, ignoring revision movement.
 	[[nodiscard]] auto parse_review_submission_recovery_target(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aExpected) -> review_mutation_parse_result<void>;
 
-	/// \brief [[BPR-1560]]. Compiles GitHub's compare of the target's base
-	/// branch and exactly its expected head, on the page with no file list.
+	/// \brief [[BPR-1572]]. Which pair a merge-base observation compares:
+	/// the base branch and the expected head (`observe_merge_base`), the
+	/// recorded base and the expected head (`observe_recorded_merge_base`), or
+	/// the recorded base and the base branch tip the first answer resolved
+	/// (`observe_base_ancestry`, whose merge base is the recorded base exactly
+	/// when that tip descends from it). The ancestry request is compiled from
+	/// `merge_base_ancestry_binding`, whose expected head is that tip.
+	enum class merge_base_observation_basis : std::uint8_t {
+		base_branch,
+		recorded_base,
+		base_ancestry,
+	};
+
+	/// \brief [[BPR-1572]]. What one compare answer named: the merge base,
+	/// the base commit it was computed against (the base branch's tip for
+	/// `base_branch`), and `ahead_by` when the answer carried it.
+	struct merge_base_observation
+	{
+		core::git_commit_oid         MergeBase;
+		core::git_commit_oid         BaseCommit;
+		std::optional<std::uint64_t> AheadBy;
+
+		auto operator<=>(const merge_base_observation&) const = default;
+	};
+
+	/// \brief [[BPR-1572]]. The binding the ancestry observation is compiled
+	/// and parsed with: the target, its expected head replaced by the base
+	/// branch tip `aTip` the base-branch answer resolved, so the pair is
+	/// exactly the recorded base and that commit.
+	[[nodiscard]] auto merge_base_ancestry_binding(
+		const application::review_mutation_target_binding& aTarget,
+		const core::git_commit_oid&                        aTip) -> application::review_mutation_target_binding;
+
+	/// \brief [[BPR-1560]]. Compiles GitHub's compare of the pair `aBasis`
+	/// names, on the page with no file list.
 	[[nodiscard]] auto compile_merge_base_observation_request(
 		const application::review_mutation_target_binding& aTarget,
-		application::github_server_contract                aServer)
+		application::github_server_contract                aServer,
+		merge_base_observation_basis                       aBasis = merge_base_observation_basis::base_branch)
 		-> review_mutation_request_result;
 
-	/// \brief [[BPR-1560]]. The merge base GitHub's compare names for the
-	/// target's base branch and expected head; the answer must echo that head.
+	/// \brief [[BPR-1560]]. What GitHub's compare named for the pair `aBasis`
+	/// names; the answer must echo that pair's head, name a full commit of the
+	/// head's format for both commits, a non-negative `ahead_by` if any, and
+	/// for a pair from the recorded base, the recorded base as base commit.
 	[[nodiscard]] auto parse_merge_base_observation(
 		const review_mutation_wire_response&               aResponse,
-		const application::review_mutation_target_binding& aExpected)
-		-> review_mutation_parse_result<core::git_commit_oid>;
+		const application::review_mutation_target_binding& aExpected,
+		merge_base_observation_basis                       aBasis = merge_base_observation_basis::base_branch)
+		-> review_mutation_parse_result<merge_base_observation>;
+
+	/// \brief [[BPR-1572]]. Whether GitHub still numbers LEFT lines in the
+	/// target's comparison base. The base branch's merge base naming it
+	/// settles it. Otherwise GitHub compares a pull request from the merge
+	/// base of its recorded base and head while the base branch only moves
+	/// forward from that base, so the lines are kept only when the recorded
+	/// base's merge base is the comparison base, its `ahead_by` is the commit
+	/// count GitHub reports for the pull request (`aReportedCommits`, read
+	/// before and again after these answers), and the recorded base is an
+	/// ancestor of the tip the base branch resolved. The caller confirms the
+	/// pull request, its recorded base and head unchanged after the answers.
+	[[nodiscard]] auto left_lines_numbered_in_comparison_base(
+		const application::review_mutation_target_binding& aTarget,
+		const merge_base_observation&                      aBranch,
+		const std::optional<merge_base_observation>&       aRecorded,
+		const std::optional<merge_base_observation>&       aAncestry,
+		const std::optional<std::uint64_t>&                aReportedCommits) noexcept -> bool;
 
 	[[nodiscard]] auto parse_target_observation(
 		const review_mutation_wire_response&               aResponse,
 		const application::review_mutation_target_binding& aExpected)
 		-> review_mutation_parse_result<review_mutation_target_observation>;
+	/// \brief [[BPR-1572]]. The pull request a witnessed write is bound to:
+	/// the target of a review comment, a reply, a review or a tour write.
+	/// None for a read or an unwitnessed write.
+	[[nodiscard]] auto written_target(const review_mutation_wire_request& aRequest)
+		-> std::optional<application::review_mutation_target_binding>;
+	/// \brief [[BPR-1572]]. Whether the answer is the expected pull request in
+	/// every respect `parse_target_observation` checks except its recorded
+	/// base, which GitHub has replaced: the target moving, as opposed to a
+	/// malformed answer or another pull request.
+	[[nodiscard]] auto target_recorded_base_moved(
+		const review_mutation_wire_response&               aResponse,
+		const application::review_mutation_target_binding& aExpected) -> bool;
 	[[nodiscard]] auto parse_viewer_observation(
 		const review_mutation_wire_response&                aResponse,
 		const application::review_mutation_acting_identity& aExpected)

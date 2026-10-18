@@ -149,6 +149,8 @@ namespace bpr::e2e::large_review {
 		return std::ranges::find(PlatformKnownInputMisses, aPhase) != PlatformKnownInputMisses.end();
 	}
 
+	// Glaze reflects these recorded fixture field names verbatim.
+	// NOLINTBEGIN(readability-identifier-naming)
 	struct fixture_blob
 	{
 		std::string   oid;
@@ -167,6 +169,7 @@ namespace bpr::e2e::large_review {
 		std::uint64_t             pack_bytes = 0;
 		std::vector<fixture_file> files;
 	};
+	// NOLINTEND(readability-identifier-naming)
 	struct phase_measurement
 	{
 		std::string Name;
@@ -177,6 +180,18 @@ namespace bpr::e2e::large_review {
 		/// before classification and the rest of readiness; -1 when the phase
 		/// names none.
 		double VisibleMs = -1;
+		/// [[BPR-1598]]. The times above are attributed (see
+		/// attributed_ns); these are the same phase's wall readings and the
+		/// time the GUI thread, and every thread of the process together,
+		/// waited for a processor, kept for diagnosis.
+		double WallElapsedMs = 0, WallMaxPulseIntervalMs = 0, ThreadWaitMs = 0, ProcessWaitMs = 0;
+		/// The whole phase as a GUI-thread interval: what a phase that is one
+		/// input (a drawer, a theme, a sort) is held to, so a stall of the GUI
+		/// thread counts in full there under any load.
+		double ThreadElapsedMs = 0;
+		/// The longest attributed gap's own wall time, GUI-thread processor
+		/// time and GUI-thread wait.
+		double MaxGapWallMs = 0, MaxGapThreadCpuMs = 0, MaxGapThreadWaitMs = 0;
 	};
 	struct resource_sample
 	{
@@ -185,6 +200,107 @@ namespace bpr::e2e::large_review {
 		// Above the course's first (before_application) sample.
 		std::uint64_t FootprintGrowthBytes = 0, LifetimePeakGrowthBytes = 0, LiveHeapGrowthBytes = 0;
 		std::size_t   DiffCacheEntries = 0, DiffJobs = 0, EpochJobs = 0;
+	};
+
+	/// [[BPR-1598]]. Attributing a timed interval. A thread's wall time is its
+	/// processor time, its time blocked, and its time runnable while another
+	/// process held the processors; only the last is the machine's, and it is
+	/// the one part external load inflates. A reading is the wall time less
+	/// that wait, never below `aFloorNs` of processor time, which load does
+	/// not inflate, and never above the wall time. On a quiet machine the
+	/// wait is about zero and the reading is the wall time.
+	[[nodiscard]] auto attributed_ns(std::int64_t aWallNs, std::uint64_t aWaitNs, std::uint64_t aFloorNs) -> std::int64_t
+	{
+		const auto wall  = std::max<std::int64_t>(0, aWallNs);
+		const auto floor = std::min(wall, static_cast<std::int64_t>(aFloorNs));
+		return std::max(floor, wall - static_cast<std::int64_t>(std::min<std::uint64_t>(aWaitNs, static_cast<std::uint64_t>(wall))));
+	}
+
+	[[nodiscard]] auto increase(std::uint64_t aFrom, std::uint64_t aTo) -> std::uint64_t
+	{
+		return aTo > aFrom ? aTo - aFrom : 0U;
+	}
+
+	/// An interval of the observed (GUI) thread, both marks taken on it: the
+	/// wait is that thread's own, so a stall it spends working or blocked (a
+	/// sleep, a lock, a pipe) counts in full under any load.
+	[[nodiscard]] auto thread_interval_ns(const native_schedule_mark& aFrom, const native_schedule_mark& aTo) -> std::int64_t
+	{
+		return attributed_ns(aTo.WallNs - aFrom.WallNs, increase(aFrom.ThreadWaitNs, aTo.ThreadWaitNs), increase(aFrom.ThreadCpuNs, aTo.ThreadCpuNs));
+	}
+
+	[[nodiscard]] auto milliseconds(std::int64_t aNanoseconds) -> double
+	{
+		return static_cast<double>(aNanoseconds) / 1'000'000.0;
+	}
+
+	/// [[BPR-1598]]. The most processor time any one thread used between two
+	/// readings. A thread that started in between counts from zero.
+	[[nodiscard]] auto busiest_thread_cpu_ns(const std::vector<native_thread_cpu>& aBefore, const std::vector<native_thread_cpu>& aAfter) -> std::uint64_t
+	{
+		auto busiest = std::uint64_t{ 0U };
+		for (const auto& thread : aAfter) {
+			const auto before = std::ranges::find(aBefore, thread.Thread, &native_thread_cpu::Thread);
+			busiest           = std::max(busiest, increase(before == aBefore.end() ? std::uint64_t{ 0U } : before->CpuNs, thread.CpuNs));
+		}
+		return busiest;
+	}
+
+	/// [[BPR-1598]]. The start of an interval other threads' work completes
+	/// (a phase, a drain, a startup). Its reading subtracts the wait of every
+	/// thread of the process and is floored by the busiest thread's processor
+	/// time. Both are lower bounds on the time the interval would take on a
+	/// quiet machine, so under load such a limit is never stricter than on a
+	/// quiet one; on a quiet machine the reading is the wall time.
+	struct completion_start
+	{
+		native_schedule_mark           Mark          = native_schedule_now();
+		std::uint64_t                  ProcessWaitNs = native_process_wait_ns();
+		std::vector<native_thread_cpu> Threads       = native_thread_cpu_times();
+	};
+
+	[[nodiscard]] auto completion_ns(const completion_start& aStart, const native_schedule_mark& aEnd) -> std::int64_t
+	{
+		const auto floor = std::max(busiest_thread_cpu_ns(aStart.Threads, native_thread_cpu_times()), increase(aStart.Mark.ThreadCpuNs, aEnd.ThreadCpuNs));
+		return attributed_ns(aEnd.WallNs - aStart.Mark.WallNs, increase(aStart.ProcessWaitNs, native_process_wait_ns()), floor);
+	}
+
+	/// [[BPR-1598]]. A stopwatch read on the thread that started it: `ms` as
+	/// a thread interval and `wall_ms` as wall time from `start` (cheap enough
+	/// for a 1 ms input probe), and `completion_ms` as a completion from
+	/// `start_completion`, which also reads every thread's processor time.
+	class attributed_clock final
+	{
+	public:
+		void start()
+		{
+			Start.Mark          = native_schedule_now();
+			Start.ProcessWaitNs = 0U;
+			Start.Threads.clear();
+			Started    = true;
+			Completion = false;
+		}
+		void start_completion()
+		{
+			Start      = completion_start{ };
+			Started    = true;
+			Completion = true;
+		}
+		void               invalidate() { Started = false; }
+		[[nodiscard]] auto is_valid() const -> bool { return Started; }
+		[[nodiscard]] auto ms() const -> double { return milliseconds(thread_interval_ns(Start.Mark, native_schedule_now())); }
+		[[nodiscard]] auto completion_ms() const -> double
+		{
+			if (!Completion) {
+				throw std::logic_error{ "a completion is read from start_completion" };
+			}
+			return milliseconds(completion_ns(Start, native_schedule_now()));
+		}
+		[[nodiscard]] auto wall_ms() const -> double { return milliseconds(native_schedule_now().WallNs - Start.Mark.WallNs); }
+
+	private:
+		completion_start Start;
+		bool             Started = false, Completion = false;
 	};
 
 	struct latency_budget
@@ -200,6 +316,8 @@ namespace bpr::e2e::large_review {
 	{
 		std::string Path;
 		double      PostedAtMs = 0, DeliveredAfterMs = 0, AppliedAfterMs = 0;
+		/// [[BPR-1598]]. The wall readings of the two attributed figures above.
+		double      WallDeliveredAfterMs = 0, WallAppliedAfterMs = 0;
 		std::size_t DiffAtPost = 0, DiffAtDelivery = 0, EpochAtDelivery = 0, WorkbenchAtDelivery = 0;
 		bool        PendingAtDelivery = false, Delivered = false, Applied = false;
 	};
@@ -214,22 +332,23 @@ namespace bpr::e2e::large_review {
 			, Inputs{ aInputs }
 			, OnDelivery{ std::move(aOnDelivery) }
 		{ }
-		QElapsedTimer Clock;
-		bool          Armed = false;
+		attributed_clock Clock;
+		bool             Armed = false;
 
 	protected:
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
 		{
 			if (Armed && aEvent->type() == QEvent::KeyPress) {
-				auto&      input          = Inputs.back();
-				const auto work           = access::diff_work_evidence(Application);
-				input.DeliveredAfterMs    = static_cast<double>(Clock.nsecsElapsed()) / 1'000'000.0;
-				input.DiffAtDelivery      = work.OutstandingJobs;
-				input.EpochAtDelivery     = work.EpochOutstandingJobs;
-				input.WorkbenchAtDelivery = work.WorkbenchOutstandingRequests;
-				input.PendingAtDelivery   = work.Pending;
-				input.Delivered           = true;
-				Armed                     = false;
+				auto&      input           = Inputs.back();
+				const auto work            = access::diff_work_evidence(Application);
+				input.DeliveredAfterMs     = Clock.ms();
+				input.WallDeliveredAfterMs = Clock.wall_ms();
+				input.DiffAtDelivery       = work.OutstandingJobs;
+				input.EpochAtDelivery      = work.EpochOutstandingJobs;
+				input.WorkbenchAtDelivery  = work.WorkbenchOutstandingRequests;
+				input.PendingAtDelivery    = work.Pending;
+				input.Delivered            = true;
+				Armed                      = false;
 				OnDelivery(input);
 			}
 			return QObject::eventFilter(aWatched, aEvent);
@@ -268,6 +387,18 @@ namespace bpr::e2e::large_review {
 		std::string KnownCost     = "Preparation is always on, and a round starts only while the reviewer has no diff, workbench or epoch work (BPR-1344). The reviewer's own selection is therefore not slowed by preparation; the shown-and-quiet time is enforced under 1250 ms.";
 	};
 
+	/// [[BPR-1598]]. How this course's intervals were attributed, the
+	/// scheduler's share of the whole course, and the wall reading of every
+	/// attributed figure kept outside Phases (the largest, where a figure is a
+	/// maximum).
+	struct schedule_attribution
+	{
+		std::string                   Method       = native_schedule_method();
+		bool                          WaitMeasured = native_schedule_wait_measured();
+		double                        CourseWallMs = 0, CourseThreadWaitMs = 0, CourseProcessWaitMs = 0;
+		std::map<std::string, double> WallMs;
+	};
+
 	struct extended_measurement
 	{
 		bool                         AllocationProfile = false;
@@ -295,6 +426,7 @@ namespace bpr::e2e::large_review {
 		std::vector<std::string> KnownInputMisses{ PlatformKnownInputMisses.begin(), PlatformKnownInputMisses.end() };
 		std::string              MemoryMethod     = native_memory_method(), LimitBasis{ PlatformLimitBasis }, Failure, WaitExpiry;
 		int                      CourseClockScale = RunBudgetScale;
+		schedule_attribution     Schedule;
 	};
 
 	struct benchmark_report
@@ -400,7 +532,7 @@ namespace bpr::e2e::large_review {
 		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes                        = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
-		std::string                    TimingScope = "BuildConfiguration identifies the measured configuration; Debug is diagnostic only. 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS input-delivery clock is observed. The separate held-provider course observes continuous fixture entry, stop-token callback and provider exit on a steady clock; it models waiting work, not CPU occupancy. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. The independent 1 ms all-zone live-heap sampler reports a lower-bound peak and its largest sample interval/cost; it cannot exclude unsampled peaks. No cross-platform latency budget.";
+		std::string                    TimingScope = "BuildConfiguration identifies the measured configuration; Debug is diagnostic only. 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS input-delivery clock is observed. The separate held-provider course observes continuous fixture entry, stop-token callback and provider exit on a steady clock; it models waiting work, not CPU occupancy. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. Every timed figure a limit reads is attributed (BPR-1598): its wall time less the time spent runnable while another process held the processors, never below a processor time load does not inflate and never above the wall time. A GUI-thread interval (a pulse gap, a dispatch, a queued input) subtracts that thread's own wait and is floored by its own processor time, so a stall it spends working or blocked counts in full; a completion (a phase, a drain, a startup) subtracts every thread's wait and is floored by the busiest thread's processor time, a lower bound on its quiet-machine time. Extended.Schedule.Method says how each platform measures the waits; the wall readings stay beside them (Phases' Wall fields, Extended.Schedule.WallMs). The independent 1 ms all-zone live-heap sampler reports a lower-bound peak and its largest sample interval/cost; it cannot exclude unsampled peaks. No cross-platform latency budget.";
 	};
 
 	void require(bool aCondition, const char* aReason)
@@ -410,14 +542,37 @@ namespace bpr::e2e::large_review {
 		}
 	}
 
+	/// [[BPR-1598]]. A timing limit missed. Attribution takes out the time
+	/// the course's threads waited for a processor, but not every effect of a
+	/// loaded machine: a GUI thread blocked on a lock that a preempted thread
+	/// holds (malloc's fork lock while a worker starts Git) still waits. So a
+	/// course that missed a timing limit while its GUI thread was kept waiting
+	/// says so (LARGE_REVIEW_TIMING_RETRYABLE), and its row runs it once more
+	/// (large_review_course.py). Every other failure is final.
+	class timing_limit_missed final : public std::runtime_error
+	{
+	public:
+		using std::runtime_error::runtime_error;
+	};
+
+	void require_timing(bool aCondition, const char* aReason)
+	{
+		if (!aCondition) {
+			throw timing_limit_missed{ aReason };
+		}
+	}
+
 	/// A numeric limit gates only where BudgetsEnforced; elsewhere its miss is
 	/// named once in UnenforcedLimitMisses and the course continues.
-	void require_limit(benchmark_report& aReport, bool aWithin, const std::string& aReason)
+	void require_limit(benchmark_report& aReport, bool aWithin, const std::string& aReason, bool aTiming = false)
 	{
 		if (aWithin) {
 			return;
 		}
 		if (aReport.Extended.BudgetsEnforced) {
+			if (aTiming) {
+				throw timing_limit_missed{ aReason };
+			}
 			throw std::runtime_error{ aReason };
 		}
 		if (std::ranges::find(aReport.Extended.UnenforcedLimitMisses, aReason) == aReport.Extended.UnenforcedLimitMisses.end()) {
@@ -442,6 +597,37 @@ namespace bpr::e2e::large_review {
 	[[nodiscard]] auto budgets_met(const benchmark_report& aReport) -> bool
 	{
 		return input_target_met(aReport) && std::ranges::all_of(aReport.CompletionBudgets, budget_met);
+	}
+
+	/// [[BPR-1598]]. Works on the calling thread until it has used
+	/// `aMilliseconds` of processor time, however long the scheduler takes to
+	/// give it that.
+	void spend_thread_cpu(int aMilliseconds)
+	{
+		const auto start = native_schedule_now().ThreadCpuNs;
+		while (native_schedule_now().ThreadCpuNs - start < static_cast<std::uint64_t>(aMilliseconds) * 1'000'000U) { }
+	}
+
+	/// [[BPR-1598]]. A launch marker large_review_launch.py times, then the
+	/// process's scheduler wait and this thread's processor time up to it, so
+	/// the observer can attribute the marker's arrival as a completion. Until
+	/// main the process has one thread, so its wait is that thread's.
+	void print_launch_marker(const char* aMarker, const char* aName)
+	{
+		const auto mark = native_schedule_now();
+		const auto wait = native_process_wait_ns();
+		std::cout << aMarker << '\n'
+				  << std::flush;
+		std::cout << "LARGE_REVIEW_SCHEDULE:" << aName << " wait_ns=" << wait << " thread_cpu_ns=" << mark.ThreadCpuNs
+				  << " wait_measured=" << (native_schedule_wait_measured() ? 1 : 0) << '\n'
+				  << std::flush;
+	}
+
+	/// Keeps the largest wall reading of an attributed figure for diagnosis.
+	void note_wall(benchmark_report& aReport, const std::string& aName, double aWallMs)
+	{
+		auto& kept = aReport.Extended.Schedule.WallMs[aName];
+		kept       = std::max(kept, aWallMs);
 	}
 
 	[[nodiscard]] auto source_path(int aIndex) -> QString
@@ -551,18 +737,31 @@ namespace bpr::e2e::large_review {
 			* (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
 				   : aReport.CacheEntryCourse                            ? 180'000
 																		 : 90'000);
-		QElapsedTimer elapsed;
-		elapsed.start();
+		// [[BPR-1598]]. Every interval below is attributed: the gaps and the
+		// action as GUI-thread intervals, the phase and its first visible
+		// comparison as completions. The wall readings stay in the phase.
+		const auto began = completion_start{ };
 		QEventLoop loop;
 		QTimer     pulse, readiness;
 		pulse.setTimerType(Qt::PreciseTimer);
 		pulse.setInterval(5);
 		readiness.setInterval(1);
 		std::vector<double> intervals;
-		qint64              previous = 0;
+		auto                previous     = began.Mark;
+		double              maxWallPulse = 0;
+		const auto          noteGap      = [&phase](const native_schedule_mark& aFrom, const native_schedule_mark& aTo, double aAttributedMs) {
+			if (aAttributedMs >= phase.MaxPulseIntervalMs) {
+				phase.MaxPulseIntervalMs = aAttributedMs;
+				phase.MaxGapWallMs       = milliseconds(aTo.WallNs - aFrom.WallNs);
+				phase.MaxGapThreadCpuMs  = milliseconds(static_cast<std::int64_t>(increase(aFrom.ThreadCpuNs, aTo.ThreadCpuNs)));
+				phase.MaxGapThreadWaitMs = milliseconds(static_cast<std::int64_t>(increase(aFrom.ThreadWaitNs, aTo.ThreadWaitNs)));
+			}
+		};
 		QObject::connect(&pulse, &QTimer::timeout, &loop, [&] {
-			const auto now = elapsed.nsecsElapsed();
-			intervals.push_back(static_cast<double>(now - previous) / 1'000'000.0);
+			const auto now = native_schedule_now();
+			intervals.push_back(milliseconds(thread_interval_ns(previous, now)));
+			noteGap(previous, now, intervals.back());
+			maxWallPulse    = std::max(maxWallPulse, milliseconds(now.WallNs - previous.WallNs));
 			previous        = now;
 			const auto work = access::diff_work_evidence(aApplication);
 			phase.PulsesWithDiffWork += work.OutstandingJobs != 0U ? 1U : 0U;
@@ -574,7 +773,7 @@ namespace bpr::e2e::large_review {
 		bool       ready   = false;
 		const auto visible = [&] {
 			if (aVisible && phase.VisibleMs < 0 && aVisible()) {
-				phase.VisibleMs = static_cast<double>(elapsed.nsecsElapsed()) / 1'000'000.0;
+				phase.VisibleMs = milliseconds(completion_ns(began, native_schedule_now()));
 			}
 		};
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
@@ -589,31 +788,39 @@ namespace bpr::e2e::large_review {
 		});
 		pulse.start();
 		aAction();
-		phase.ActionMs = static_cast<double>(elapsed.nsecsElapsed()) / 1'000'000.0;
+		phase.ActionMs = milliseconds(thread_interval_ns(began.Mark, native_schedule_now()));
 		visible();
 		ready = aReady();
 		if (!ready && aBudget.elapsed() < courseClockMs) {
 			readiness.start();
 			loop.exec();
 		}
-		const auto finished = elapsed.nsecsElapsed();
-		phase.ElapsedMs     = static_cast<double>(finished) / 1'000'000.0;
+		const auto finished   = native_schedule_now();
+		phase.ElapsedMs       = milliseconds(completion_ns(began, finished));
+		phase.ThreadElapsedMs = milliseconds(thread_interval_ns(began.Mark, finished));
+		phase.WallElapsedMs   = milliseconds(finished.WallNs - began.Mark.WallNs);
+		phase.ThreadWaitMs    = milliseconds(static_cast<std::int64_t>(increase(began.Mark.ThreadWaitNs, finished.ThreadWaitNs)));
+		phase.ProcessWaitMs   = milliseconds(static_cast<std::int64_t>(increase(began.ProcessWaitNs, native_process_wait_ns())));
 		// Readiness can finish synchronously or stall after the last timer. Both
 		// intervals delay real input even though no subsequent pulse is delivered.
-		phase.FinalIntervalMs    = static_cast<double>(finished - previous) / 1'000'000.0;
-		phase.MaxPulseIntervalMs = phase.FinalIntervalMs;
-		phase.Pulses             = intervals.size();
+		phase.FinalIntervalMs = milliseconds(thread_interval_ns(previous, finished));
+		noteGap(previous, finished, phase.FinalIntervalMs);
+		phase.WallMaxPulseIntervalMs = std::max(maxWallPulse, milliseconds(finished.WallNs - previous.WallNs));
+		phase.Pulses                 = intervals.size();
 		if (!intervals.empty()) {
 			std::ranges::sort(intervals);
-			phase.MaxPulseIntervalMs = std::max(phase.MaxPulseIntervalMs, intervals.back());
 			phase.P95PulseIntervalMs = intervals[(intervals.size() - 1U) * 95U / 100U];
 		}
 		aReport.Phases.push_back(std::move(phase));
-		std::cerr << "large-review phase: " << aName << " ms=" << aReport.Phases.back().ElapsedMs;
+		std::cerr << "large-review phase: " << aName << " ms=" << aReport.Phases.back().ElapsedMs << " wall_ms=" << aReport.Phases.back().WallElapsedMs
+				  << " thread_wait_ms=" << aReport.Phases.back().ThreadWaitMs << " process_wait_ms=" << aReport.Phases.back().ProcessWaitMs << " gap_ms=" << aReport.Phases.back().MaxPulseIntervalMs
+				  << " wall_gap_ms=" << aReport.Phases.back().WallMaxPulseIntervalMs << " gap_cpu_ms=" << aReport.Phases.back().MaxGapThreadCpuMs
+				  << " gap_wait_ms=" << aReport.Phases.back().MaxGapThreadWaitMs;
 		if (aReport.Phases.back().VisibleMs >= 0) {
 			std::cerr << " visible_ms=" << aReport.Phases.back().VisibleMs;
 		}
-		std::cerr << std::endl;
+		std::cerr << '\n'
+				  << std::flush;
 		if (!ready) {
 			const auto evidence = access::evidence(aApplication);
 			const auto work     = access::diff_work_evidence(aApplication);
@@ -845,14 +1052,14 @@ namespace bpr::e2e::large_review {
 		const auto initialResets = history->statistics().ModelResets;
 		// [[BPR-1344]]. Every phase settles on the reviewer's epoch jobs; the
 		// preparation tail after it is measured on its own.
-		const auto settled        = [&] { return reviewer_settled(aApplication); };
-		const auto source_matches = [&](int aFile, std::int64_t aEpoch, int aValue) {
+		const auto settled       = [&] { return reviewer_settled(aApplication); };
+		const auto sourceMatches = [&](int aFile, std::int64_t aEpoch, int aValue) {
 			return selected(surface, source_path(aFile)) && surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == aEpoch
 				&& surface.left_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = 0;").arg(aFile, 4, 10, QChar{ '0' })
 				&& surface.right_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = %2;").arg(aFile, 4, 10, QChar{ '0' }).arg(aValue);
 		};
 		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
-			const auto ordinal = static_cast<std::int64_t>(index + 1U);
+			const auto ordinal = static_cast<std::int64_t>(index) + 1;
 			if (index != 0U) {
 				const auto expectedHead = QString::fromStdString(aManifest.heads[index]);
 				require(window.github_refresh_action()->isEnabled(), "public refresh unavailable");
@@ -869,7 +1076,7 @@ namespace bpr::e2e::large_review {
 			const auto file           = index == 0U ? 0 : static_cast<int>(index - 1U);
 			const auto value          = static_cast<int>(ordinal);
 			const auto selectionPhase = "epoch_source_selection_" + std::to_string(ordinal);
-			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return source_matches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
+			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return sourceMatches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
 			wait_preparation_tail(aApplication, aBudget, aReport, selectionPhase);
 			if (index == 0U) {
 				const auto& selectedAnchor = surface.current_result()->Alignment.Key.RightAnchor;
@@ -894,7 +1101,7 @@ namespace bpr::e2e::large_review {
 		const auto anchor = history->anchor_at(history->index(controls.right_selector()->currentIndex(), 0));
 		require(anchor.has_value(), "selected epoch has no typed public anchor");
 		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
-			const auto stored = access::maintenance_evidence(aApplication, core::review_epoch_id{ anchor->Identity.Authority, anchor->Identity.Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } });
+			const auto stored = access::maintenance_evidence(aApplication, core::review_epoch_id{ anchor->Identity.Authority, anchor->Identity.Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index) + 1 } });
 			std::cerr << "retained-epoch:" << index + 1U << ':' << *glz::write_json(stored) << '\n';
 			require(stored.TargetBaseRefPresent && stored.TargetHeadRefPresent
 						&& stored.TargetBaseRefOid == aManifest.base && stored.TargetHeadRefOid == aManifest.heads[index]
@@ -903,11 +1110,11 @@ namespace bpr::e2e::large_review {
 			++aReport.RetainedEpochsVerified;
 		}
 		const auto historicalBaseReady = [&] {
-			return source_matches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
+			return sourceMatches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
 		};
 		require(measure_wait(aApplication, aBudget, aReport, "historical_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, historicalBaseReady), "historical base selection did not settle");
 		wait_preparation_tail(aApplication, aBudget, aReport, "historical_base_selection");
-		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return source_matches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
+		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return sourceMatches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
 		wait_preparation_tail(aApplication, aBudget, aReport, "historical_first_head");
 		require(window.grab().save(QString::fromLocal8Bit(aImage) + QStringLiteral(".historical.png")), "historical window render failed");
 		QTimer selections;
@@ -926,7 +1133,7 @@ namespace bpr::e2e::large_review {
 			select_epoch(controls, next++, core::comparison_side::right);
 			++aReport.EpochSelections;
 		});
-		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && source_matches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
+		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && sourceMatches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
 		wait_preparation_tail(aApplication, aBudget, aReport, "epoch_selection_supersession");
 		require(aReport.EpochSelections == 31U && aReport.EpochSelectionsWithOutstandingWork != 0U,
 				"epoch selection did not exercise supersession during active work");
@@ -953,10 +1160,10 @@ namespace bpr::e2e::large_review {
 		for (const auto& phase : aReport.Phases) {
 			if (phase.Name.starts_with("epoch_refresh_")) {
 				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistoryRefreshLimitMs,
-							  "epoch refresh exceeded its measured platform budget");
+							  "epoch refresh exceeded its measured platform budget", true);
 			} else if (phase.Name.starts_with("epoch_source_selection_")) {
 				require_limit(aReport, phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistorySourceSelectionLimitMs,
-							  "epoch source selection exceeded its measured platform budget");
+							  "epoch source selection exceeded its measured platform budget", true);
 			}
 		}
 	}
@@ -1201,12 +1408,12 @@ namespace bpr::e2e::large_review {
 		require(access::diff_work_evidence(aApplication).PreparedHits == 0U, "an unprepared open was answered by preparation");
 		access::set_preparation_enabled(aApplication, true);
 		aReport.Extended.PreparedOpen.PreparedFirstVisibleMs = open(400, "prepared_first_open", true);
-		const auto window_prepared                           = access::diff_work_evidence(aApplication);
-		std::cerr << "prepared-open window: rounds=" << window_prepared.PreparationRounds << " resolutions=" << window_prepared.PreparedResolutions
-				  << " entries=" << window_prepared.PreparedEntries << " preparing=" << window_prepared.Preparing
-				  << " in_flight=" << window_prepared.PreparationsInFlight << " cache=" << window_prepared.CacheEntries << '\n';
-		require(window_prepared.PreparationRounds != 0U && window_prepared.PreparedEntries != 0U
-					&& window_prepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
+		const auto windowPrepared                            = access::diff_work_evidence(aApplication);
+		std::cerr << "prepared-open window: rounds=" << windowPrepared.PreparationRounds << " resolutions=" << windowPrepared.PreparedResolutions
+				  << " entries=" << windowPrepared.PreparedEntries << " preparing=" << windowPrepared.Preparing
+				  << " in_flight=" << windowPrepared.PreparationsInFlight << " cache=" << windowPrepared.CacheEntries << '\n';
+		require(windowPrepared.PreparationRounds != 0U && windowPrepared.PreparedEntries != 0U
+					&& windowPrepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
 				"the window after the first file was not prepared within its share");
 		for (int index = 1; index < 6; ++index) {
 			const auto phase  = "prepared_open_" + std::to_string(index);
@@ -1235,7 +1442,7 @@ namespace bpr::e2e::large_review {
 		std::cerr << "prepared-open: unprepared_min_ms=" << cold.front() << " unprepared_median_ms=" << medianCold
 				  << " prepared_max_ms=" << slowestPrepared << " tolerance_ms=" << toleranceMs
 				  << " prepared_first_ms=" << aReport.Extended.PreparedOpen.PreparedFirstVisibleMs << '\n';
-		require(slowestPrepared <= medianCold + toleranceMs, "a prepared open was slower than the median unprepared one beyond the tolerance");
+		require_timing(slowestPrepared <= medianCold + toleranceMs, "a prepared open was slower than the median unprepared one beyond the tolerance");
 		verify_navigation_syntax(aApplication, aManifest, aReport, aBudget, aImage);
 		aReport.ExactFinalSource = true;
 		aReport.WindowWidth      = window.width();
@@ -1326,7 +1533,7 @@ namespace bpr::e2e::large_review {
 		};
 		QTimer inputDuringMeasurement;
 		inputDuringMeasurement.setInterval(1);
-		QElapsedTimer       inputClock;
+		attributed_clock    inputClock;
 		std::vector<double> inputIntervals;
 		const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
 		QObject::connect(&inputDuringMeasurement, &QTimer::timeout, &window, [&] {
@@ -1334,8 +1541,9 @@ namespace bpr::e2e::large_review {
 				inputClock.invalidate();
 				return;
 			}
-			if (inputClock.isValid()) {
-				inputIntervals.push_back(static_cast<double>(inputClock.nsecsElapsed()) / 1'000'000.0);
+			if (inputClock.is_valid()) {
+				inputIntervals.push_back(inputClock.ms());
+				note_wall(aReport, "measurement_input_gap", inputClock.wall_ms());
 			}
 			inputClock.start();
 			const auto  frames = surface.statistics().FrameApplications;
@@ -1510,7 +1718,7 @@ namespace bpr::e2e::large_review {
 		const auto record    = [&](const std::string& aName, double aMeasured, double aLimit, bool aEnforced = true) {
 			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced && aReport.Extended.BudgetsEnforced });
 		};
-		const auto optimized_record = [&](const std::string& aName, double aMeasured, double aLimit) {
+		const auto optimizedRecord = [&](const std::string& aName, double aMeasured, double aLimit) {
 			record(aName, aMeasured, aLimit, optimized);
 		};
 		const auto phase = [&](const char* aName, double aLimit, bool aEnforced = true) {
@@ -1518,12 +1726,19 @@ namespace bpr::e2e::large_review {
 			require(found != aReport.Phases.end(), "required responsiveness phase missing");
 			record(aName, found->ElapsedMs, aLimit, aEnforced);
 		};
+		// [[BPR-1598]]. A phase that is one input meets the input target as a
+		// GUI-thread interval, not as a completion.
+		const auto inputPhase = [&](const char* aName) {
+			const auto found = std::ranges::find(aReport.Phases, aName, &phase_measurement::Name);
+			require(found != aReport.Phases.end(), "required responsiveness phase missing");
+			record(aName, found->ThreadElapsedMs, aReport.InputIntervalLimitMs, !known_input_miss(aName));
+		};
 		record("composition_startup_render", aReport.CompositionStartupMs, 1'000.0);
-		optimized_record("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
-		optimized_record("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
-		optimized_record("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
-		optimized_record("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
-		optimized_record("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
+		optimizedRecord("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
+		optimizedRecord("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
+		optimizedRecord("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
+		optimizedRecord("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
+		optimizedRecord("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
 		phase("paged_review_and_git_load", 12'000.0);
 		phase("large_file_selection", 2'500.0);
 		phase("binary_fallback_render", 1'250.0);
@@ -1540,12 +1755,12 @@ namespace bpr::e2e::large_review {
 		// [[BPR-1295]]. read_modality became review_modality when Read merged
 		// into Review; drawers_hide and drawers_show are Command-B both ways.
 		for (const auto* name : { "review_modality", "files_drawer_open", "files_drawer_close", "conversations_drawer_open", "conversations_drawer_close", "drawers_hide", "drawers_show", "appearance_settings_open", "theme_light", "theme_dark" }) {
-			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
+			inputPhase(name);
 		}
 		// [[BPR-1293]]. Threads: in, a search, its clearing, out and a
 		// pick, each one input; the pick's file opening as a file selection.
 		for (const auto* name : { "conversations_enter", "conversations_search", "conversations_search_clear", "conversations_leave", "conversations_pick" }) {
-			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
+			inputPhase(name);
 		}
 		// [[BPR-1336]]. Each zoom command's dispatch and every turn of the
 		// remeasurement that follows it meet the 100 ms target; the whole
@@ -1567,14 +1782,14 @@ namespace bpr::e2e::large_review {
 		// [[BPR-1094]]. Settings' chip changes to three, twelve and none, each
 		// one input against the same target.
 		for (const auto* name : { "overview_counts_all", "overview_counts_open", "overview_sort_by_comments", "overview_file_order", "overview_columns_3", "overview_columns_12", "overview_columns_0" }) {
-			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
+			inputPhase(name);
 		}
 		require(!aReport.ChangeActionMs.empty() && aReport.InputsDuringMeasurement != 0U && aReport.WheelEvents == 1000U,
 				"responsiveness budgets lack real navigation and input observations");
 		record("next_change_dispatch", std::ranges::max(aReport.ChangeActionMs), aReport.InputIntervalLimitMs);
 		record("wheel_dispatch", aReport.MaxWheelEventMs, aReport.InputIntervalLimitMs);
 		record("measurement_input_gap", aReport.MaxMeasurementInputIntervalMs, aReport.InputIntervalLimitMs);
-		require(budgets_met(aReport), "Mac fixture responsiveness budget exceeded");
+		require_timing(budgets_met(aReport), "Mac fixture responsiveness budget exceeded");
 	}
 
 	void verify_active_work_budgets(benchmark_report& aReport)
@@ -1609,7 +1824,7 @@ namespace bpr::e2e::large_review {
 		require(aReport.Extended.PreparationTail.ActiveShownMs >= 0, "active-work final file was never shown quiet");
 		record("active_supersession_shown", aReport.Extended.PreparationTail.ActiveShownMs, 1'250.0);
 		record("active_close_quiescence", aReport.ActiveCloseDrainMs, PlatformActiveCloseQuiescenceLimitMs);
-		require(budgets_met(aReport), "Mac active-work input or drain budget exceeded");
+		require_timing(budgets_met(aReport), "Mac active-work input or drain budget exceeded");
 	}
 
 	void run_responsiveness_interactions(app::github_application& aApplication, const fixture_manifest& aManifest,
@@ -1626,7 +1841,7 @@ namespace bpr::e2e::large_review {
 			++aReport.InteractionFrames;
 			return true;
 		};
-		const auto save_frame = [&](const char* aPhase) {
+		const auto saveFrame = [&](const char* aPhase) {
 			require(frame.save(QString::fromLocal8Bit(aImage) + QLatin1Char('.') + QString::fromLatin1(aPhase) + QStringLiteral(".png")), "interaction frame write failed");
 		};
 		const auto toggle = [&](QAction* aAction, qt::workbench_drawer_panel* aDrawer, const char* aPhase) {
@@ -1636,7 +1851,7 @@ namespace bpr::e2e::large_review {
 																												&& aDrawer->state() == (expanded ? core::workbench_drawer_state::expanded : core::workbench_drawer_state::collapsed)
 																												&& (!expanded || (aDrawer->isVisible() && aDrawer->width() >= 100))
 																												&& quiet(aApplication) && rendered(); }), "drawer did not reach its rendered state");
-			save_frame(aPhase);
+			saveFrame(aPhase);
 		};
 		// [[BPR-1295]]. The window's first entry to Review applies its preset.
 		require(window.files_drawer_toggle_action()->isChecked() && window.conversations_drawer_toggle_action()->isChecked(),
@@ -1653,12 +1868,12 @@ namespace bpr::e2e::large_review {
 		require(measure_wait(aApplication, aBudget, aReport, "drawers_hide", [&] { hideDrawers->trigger(); }, [&] { return hideDrawers->isChecked()
 																														&& !window.files_drawer()->isVisible() && !window.conversations_drawer()->isVisible()
 																														&& quiet(aApplication) && rendered(); }), "Hide Drawers did not reach its rendered state");
-		save_frame("drawers_hide");
+		saveFrame("drawers_hide");
 		require(measure_wait(aApplication, aBudget, aReport, "drawers_show", [&] { hideDrawers->trigger(); }, [&] { return !hideDrawers->isChecked()
 																														&& window.files_drawer()->isVisible() && window.conversations_drawer()->isVisible()
 																														&& std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() } == widths
 																														&& quiet(aApplication) && rendered(); }), "Show Drawers did not restore both drawers at their widths");
-		save_frame("drawers_show");
+		saveFrame("drawers_show");
 		require(measure_wait(aApplication, aBudget, aReport, "appearance_settings_open", [&] { window.open_settings(qt::settings_page::appearance); }, [&] { return window.settings() && window.settings()->isVisible() && window.appearance_settings()->isVisible()
 																																								 && !window.settings()->grab().isNull(); }), "Appearance settings did not render");
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
@@ -1666,7 +1881,7 @@ namespace bpr::e2e::large_review {
 			const auto  writes = aApplication.status().AppearanceDurableWrites;
 			require(measure_wait(aApplication, aBudget, aReport, phase, [&] { window.appearance_settings()->choose_mode(mode); }, [&] { return aApplication.status().ProfileMode == mode && aApplication.status().AppearanceDurableWrites > writes
 																																			&& quiet(aApplication) && rendered(); }), "theme did not persist and render");
-			save_frame(phase);
+			saveFrame(phase);
 		}
 		window.settings()->close();
 		require(surface.current_result()->Alignment.Key == comparison
@@ -1692,7 +1907,7 @@ namespace bpr::e2e::large_review {
 			};
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_enter", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::threads && finder->isVisible()
 																															 && rows() == 1000 && !window.files_drawer()->isVisible() && page(); }), "Threads did not render every thread");
-			save_frame("conversations_enter");
+			saveFrame("conversations_enter");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search", [&] { finder->search_field()->setText(QStringLiteral("observation 0042")); }, [&] { return rows() == 1 && page(); }), "the search did not find its one conversation");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search_clear", [&] { finder->search_field()->clear(); }, [&] { return rows() == 1000 && page(); }), "clearing the search did not show every conversation");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_leave", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::review && !finder->isVisible()
@@ -1711,22 +1926,22 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_pick_open", [] { }, [&] { return selected(surface, source_path(42)) && cards->open_thread_id() == thread
 																											  && cards->picked_post() == "review-comment:SYNTHETIC_COMMENT_900042" && cards->open_card() != nullptr
 																											  && quiet(aApplication) && rendered(); }), "the picked conversation did not open in place on its file");
-			save_frame("conversations_pick_open");
+			saveFrame("conversations_pick_open");
 			finder->search_field()->clear();
 		}
 		require(measure_wait(aApplication, aBudget, aReport, "generated_source_render", [&] { select_file(window, QStringLiteral("generated/table.inc")); }, [&] { return selected(surface, QStringLiteral("generated/table.inc")) && quiet(aApplication) && rendered(); }), "generated source timed out");
 		verify_generated(surface, aManifest);
 		aReport.Extended.ExactGeneratedSource = true;
-		save_frame("generated_source");
+		saveFrame("generated_source");
 		require(measure_wait(aApplication, aBudget, aReport, "binary_fallback_render", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(aApplication) && rendered(); }), "binary fallback timed out");
-		save_frame("binary_fallback");
+		saveFrame("binary_fallback");
 		require(surface.current_result()->Alignment.Content == core::diff_content_state::binary
 					&& surface.status_text() == QStringLiteral("Binary file comparison")
 					&& surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty(),
 				"binary fallback retained stale source or hid its reason");
 		aReport.BinaryStatusVerified = true;
 		require(measure_wait(aApplication, aBudget, aReport, "large_source_revisit_render", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(aApplication) && rendered(); }), "source recovery timed out");
-		save_frame("large_source_revisit");
+		saveFrame("large_source_revisit");
 		verify_large(surface, aManifest);
 		require(surface.current_result()->Alignment.Key == comparison, "fallback recovery changed exact anchors");
 		// [[BPR-1212]]. The keyboard line cursor on the large source: one
@@ -1750,7 +1965,7 @@ namespace bpr::e2e::large_review {
 			const auto far = surface.current_result()->Alignment.RightLineCount / 2U;
 			require(surface.select_conversation_line(core::diff_side::right, far) && !surface.source_line_visible(core::diff_side::right, far + 1U), "a line out of view is selected");
 			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_reveal", [&] { key(Qt::Key_Down, Qt::NoModifier); }, [&] { return line() == far + 1U && surface.source_line_visible(core::diff_side::right, far + 1U) && quiet(aApplication) && rendered(); }), "Down from a line out of view did not reveal the next");
-			save_frame("keyboard_line_reveal");
+			saveFrame("keyboard_line_reveal");
 		}
 		// [[BPR-1336]]. Zoom In, Zoom Out and Actual Size on the 20,000-line
 		// comparison, each one public command through the profile's appearance
@@ -1778,7 +1993,7 @@ namespace bpr::e2e::large_review {
 				require(measure_wait(aApplication, aBudget, aReport, name, [&] { command->trigger(); }, [&] { return std::abs(right->font().pointSizeF() - baseSize * factor) < 0.01
 																												  && aApplication.status().AppearanceDurableWrites > writes
 																												  && quiet(aApplication) && rendered(); }), "zoom did not persist, apply and remeasure");
-				save_frame(name);
+				saveFrame(name);
 			}
 			verify_large(surface, aManifest);
 			require(surface.current_result()->Alignment.Key == comparison && aApplication.status().ClassificationSubmissions == classified,
@@ -1793,9 +2008,10 @@ namespace bpr::e2e::large_review {
 		QObject    lifetime;
 		const auto target = core::review_epoch_id{ aComparison.LeftAnchor.Authority, aComparison.LeftAnchor.Incarnation, aComparison.LeftAnchor.Epoch };
 		QObject::connect(qApp, &QGuiApplication::lastWindowClosed, &lifetime, [&] { aReport.WindowCloseObserved = true; aApplication.begin_shutdown(); });
-		QElapsedTimer close, admission;
-		bool          admissionFailed = false;
-		QTimer        closeWhenPending;
+		QElapsedTimer    admission;
+		attributed_clock close;
+		bool             admissionFailed = false;
+		QTimer           closeWhenPending;
 		closeWhenPending.setInterval(1);
 		QObject::connect(&closeWhenPending, &QTimer::timeout, &lifetime, [&] {
 			if (admission.elapsed() >= 2'000) {
@@ -1810,14 +2026,16 @@ namespace bpr::e2e::large_review {
 			aReport.ActiveCloseDiffJobs  = work.OutstandingJobs;
 			aReport.ActiveCloseEpochJobs = work.EpochOutstandingJobs;
 			closeWhenPending.stop();
-			close.start();
+			close.start_completion();
 			window.close();
-			aReport.ActiveCloseDispatchMs = static_cast<double>(close.nsecsElapsed()) / 1'000'000.0;
+			aReport.ActiveCloseDispatchMs = close.ms();
+			note_wall(aReport, "active_close_dispatch", close.wall_ms());
 		});
 		require(measure_wait(aApplication, aBudget, aReport, "active_window_close", [&] {
 			admission.start(); select_file(window, source_path(200)); closeWhenPending.start(); }, [&] { return admissionFailed || aApplication.status().ShutdownComplete; }), "active close failed to drain");
-		require(!admissionFailed && close.isValid(), "active close did not observe outstanding cold-file work");
-		aReport.ActiveCloseDrainMs = static_cast<double>(close.nsecsElapsed()) / 1'000'000.0;
+		require(!admissionFailed && close.is_valid(), "active close did not observe outstanding cold-file work");
+		aReport.ActiveCloseDrainMs = close.completion_ms();
+		note_wall(aReport, "active_close_quiescence", close.wall_ms());
 		const auto closed          = access::diff_work_evidence(aApplication);
 		aReport.ActiveCloseDrained = aReport.WindowCloseObserved && !window.isVisible() && closed.Quiescent && !closed.Pending
 			&& closed.OutstandingJobs == 0U && closed.WorkbenchOutstandingRequests == 0U && closed.EpochOutstandingJobs == 0U
@@ -1867,8 +2085,9 @@ namespace bpr::e2e::large_review {
 										   holdingFinal = aInput.Path == finalPath.toStdString();
 									   } };
 		view->installEventFilter(&observer);
-		QElapsedTimer course, drain;
-		QTimer        selections;
+		QElapsedTimer    course;
+		attributed_clock drain;
+		QTimer           selections;
 		selections.setTimerType(Qt::PreciseTimer);
 		selections.setInterval(1);
 		int         next          = 0;
@@ -1878,7 +2097,7 @@ namespace bpr::e2e::large_review {
 		const auto  failInput    = [&](const char* aReason) { inputFailure = aReason; selections.stop(); };
 		QObject::connect(&selections, &QTimer::timeout, &lifetime, [&] {
 			if (awaitingInput) {
-				if (observer.Clock.elapsed() >= 1'000) {
+				if (observer.Clock.wall_ms() >= 1'000.0) {
 					failInput("queued active-work input was not applied within watchdog");
 					return;
 				}
@@ -1886,8 +2105,9 @@ namespace bpr::e2e::large_review {
 				if (!input.Delivered) {
 					return;
 				}
-				input.Applied        = view->currentIndex().data(qt::files_tree_model::path_role).toString() == requested;
-				input.AppliedAfterMs = static_cast<double>(observer.Clock.nsecsElapsed()) / 1'000'000.0;
+				input.Applied            = view->currentIndex().data(qt::files_tree_model::path_role).toString() == requested;
+				input.AppliedAfterMs     = observer.Clock.ms();
+				input.WallAppliedAfterMs = observer.Clock.wall_ms();
 				if (!input.Applied) {
 					failInput("queued key did not select the exact next file");
 					return;
@@ -1924,7 +2144,7 @@ namespace bpr::e2e::large_review {
 			observer.Armed = true;
 			awaitingInput  = true;
 			if (next == 31) {
-				drain.start();
+				drain.start_completion();
 			}
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier });
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyRelease, Qt::Key_Down, Qt::NoModifier });
@@ -1938,15 +2158,18 @@ namespace bpr::e2e::large_review {
 					}
 					const auto shown = next == 32 && selected(surface, finalPath) && quiet(aApplication);
 					if (shown && shownMs < 0) {
-						shownMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+						shownMs = drain.completion_ms();
+						note_wall(aReport, "active_supersession_shown", drain.wall_ms());
 					}
 					return shown && access::diff_work_evidence(aApplication).EpochReviewerJobs == 0U; }), "active-work supersession timed out");
 		selections.stop();
 		require(inputFailure == nullptr, inputFailure);
-		aReport.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+		aReport.SupersessionDrainMs = drain.completion_ms();
+		note_wall(aReport, "supersession_final_drain", drain.wall_ms());
 		wait_preparation_tail(aApplication, aBudget, aReport, "active_queued_selection_supersession");
 		std::cerr << "large-review preparation: active_shown_ms=" << shownMs << " reviewer_drain_ms=" << aReport.SupersessionDrainMs
-				  << " tail_ms=" << aReport.Extended.PreparationTail.Tails.back().Ms << " known_cost=" << aReport.Extended.PreparationTail.KnownCost << std::endl;
+				  << " tail_ms=" << aReport.Extended.PreparationTail.Tails.back().Ms << " known_cost=" << aReport.Extended.PreparationTail.KnownCost << '\n'
+				  << std::flush;
 		require(!stale && aReport.ActiveSourceObservations != 0U && surface.current_result()->Alignment.Key == expected,
 				"stale source or authority adopted while final keyboard target was held");
 		for (int line = 0; line < 8; ++line) {
@@ -2014,21 +2237,21 @@ namespace bpr::e2e::large_review {
 		}
 		record("provider_cancel_ack", aReport.Extended.ProviderCancelAckMs);
 		record("provider_cancel_exit", aReport.Extended.ProviderExitMs);
-		require(std::ranges::all_of(aReport.CompletionBudgets, budget_met), "held provider input/cancellation budget exceeded");
+		require_timing(std::ranges::all_of(aReport.CompletionBudgets, budget_met), "held provider input/cancellation budget exceeded");
 		aReport.ShutdownComplete = true;
 	}
 
-	auto run_benchmark(QApplication& qtApplication, int argc, char** argv,
-					   const QElapsedTimer& aMainClock, double aQApplicationStartupMs) -> int
+	auto run_benchmark(QApplication& aQtApplication, int aArgc, char** aArgv,
+					   const attributed_clock& aMainClock, double aQApplicationStartupMs) -> int
 	{
-		if (argc == 5 && std::string_view{ argv[4] } == "--history-session-race") {
+		if (aArgc == 5 && std::string_view{ aArgv[4] } == "--history-session-race") {
 			if (!app::detail::verify_large_review_history_session_interleaving()) {
 				return EXIT_FAILURE;
 			}
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--prepared-open" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
+		if (aArgc != 4 && (aArgc != 5 || (std::string_view{ aArgv[4] } != "--unavailable" && std::string_view{ aArgv[4] } != "--approximate" && std::string_view{ aArgv[4] } != "--resources" && std::string_view{ aArgv[4] } != "--history" && std::string_view{ aArgv[4] } != "--loaded-close" && std::string_view{ aArgv[4] } != "--cache-entries" && std::string_view{ aArgv[4] } != "--cache-bytes" && std::string_view{ aArgv[4] } != "--first-tab" && std::string_view{ aArgv[4] } != "--prepared-open" && std::string_view{ aArgv[4] } != "--timing-control" && std::string_view{ aArgv[4] } != "--responsiveness" && std::string_view{ aArgv[4] } != "--active-work" && std::string_view{ aArgv[4] } != "--pathological" && std::string_view{ aArgv[4] } != "--provider-cancel" && std::string_view{ aArgv[4] } != "--allocation-profile"))) {
 			return EXIT_FAILURE;
 		}
 		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
@@ -2037,7 +2260,7 @@ namespace bpr::e2e::large_review {
 		// [[BPR-1297]]'s bounded heap sampler (before it, the sampler's lock
 		// made a Windows Debug selection take 135-372 s). The row reports
 		// Skipped, with this reason, not a pass.
-		if (!OptimizedBuild && argc == 5 && std::string_view{ argv[4] } == "--cache-bytes") {
+		if (!OptimizedBuild && aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes") {
 			std::cout << "LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course runs only in an optimized build; "
 					  << "a " << BPR_BENCH_BUILD_CONFIGURATION << " build is diagnostic only\n";
 			return cache_bytes_debug_skip_exit_code;
@@ -2065,22 +2288,31 @@ namespace bpr::e2e::large_review {
 		const auto& dataRoot = *privateRoot;
 
 		benchmark_report report;
-		report.Extended.AllocationProfile                                  = argc == 5 && std::string_view{ argv[4] } == "--allocation-profile";
+		// [[BPR-1598]]. The scheduler's share of the whole course, for every
+		// report this course writes.
+		const auto courseBegan   = completion_start{ };
+		const auto closeSchedule = [&report, &courseBegan] {
+			const auto now                               = native_schedule_now();
+			report.Extended.Schedule.CourseWallMs        = milliseconds(now.WallNs - courseBegan.Mark.WallNs);
+			report.Extended.Schedule.CourseThreadWaitMs  = milliseconds(static_cast<std::int64_t>(increase(courseBegan.Mark.ThreadWaitNs, now.ThreadWaitNs)));
+			report.Extended.Schedule.CourseProcessWaitMs = milliseconds(static_cast<std::int64_t>(increase(courseBegan.ProcessWaitNs, native_process_wait_ns())));
+		};
+		report.Extended.AllocationProfile                                  = aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile";
 		report.Extended.QApplicationStartupMs                              = aQApplicationStartupMs;
-		report.Extended.ProviderCancelCourse                               = argc == 5 && std::string_view{ argv[4] } == "--provider-cancel";
+		report.Extended.ProviderCancelCourse                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--provider-cancel";
 		auto heldRead                                                      = std::make_shared<held_provider_read>();
-		report.ActiveWorkCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--active-work";
-		report.ResponsivenessCourse                                        = argc == 5 && std::string_view{ argv[4] } == "--responsiveness";
-		report.Extended.PathologicalCourse                                 = argc == 5 && std::string_view{ argv[4] } == "--pathological";
-		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (argc == 5 && std::string_view{ argv[4] } == "--unavailable");
-		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
-		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (argc == 5 && std::string_view{ argv[4] } == "--loaded-close");
-		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
-		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
-		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
-		report.FirstTabCourse                                              = argc == 5 && std::string_view{ argv[4] } == "--first-tab";
-		report.Extended.PreparedOpen.Course                                = argc == 5 && std::string_view{ argv[4] } == "--prepared-open";
-		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
+		report.ActiveWorkCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--active-work";
+		report.ResponsivenessCourse                                        = aArgc == 5 && std::string_view{ aArgv[4] } == "--responsiveness";
+		report.Extended.PathologicalCourse                                 = aArgc == 5 && std::string_view{ aArgv[4] } == "--pathological";
+		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--unavailable");
+		report.ApproximateCourse                                           = aArgc == 5 && std::string_view{ aArgv[4] } == "--approximate";
+		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (aArgc == 5 && std::string_view{ aArgv[4] } == "--loaded-close");
+		report.ResourceCourse                                              = report.LoadedCloseCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--resources");
+		report.HistoryCourse                                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--history";
+		report.CacheByteCourse                                             = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes";
+		report.FirstTabCourse                                              = aArgc == 5 && std::string_view{ aArgv[4] } == "--first-tab";
+		report.Extended.PreparedOpen.Course                                = aArgc == 5 && std::string_view{ aArgv[4] } == "--prepared-open";
+		report.CacheEntryCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-entries";
 		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
@@ -2102,10 +2334,10 @@ namespace bpr::e2e::large_review {
 			report.Platform                   = QSysInfo::prettyProductName().toStdString();
 			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
 			report.QtVersion                  = qVersion();
-			report.Style                      = qtApplication.style()->objectName().toStdString();
+			report.Style                      = QApplication::style()->objectName().toStdString();
 			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors          = QThread::idealThreadCount();
-			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ argv[1] } };
+			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ aArgv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
 			if (report.Extended.ProviderCancelCourse) {
 				fixtureOptions.BeforeFilesPage = [heldRead](std::stop_token aStop) { heldRead->wait(aStop); };
@@ -2129,8 +2361,8 @@ namespace bpr::e2e::large_review {
 				fixtureOptions.DiffComputeLimits.MaximumMatrixCells = 1U;
 			}
 			sample_resources(report, nullptr, "before_application");
-			QElapsedTimer compositionStartup;
-			compositionStartup.start();
+			attributed_clock compositionStartup;
+			compositionStartup.start_completion();
 			auto startupTerminal = false;
 			auto startupHandle   = access::start(app::detail::github_public_path_fixture::large_review_v1, std::move(fixtureOptions), [&](auto aResult) {
 				startupTerminal = true;
@@ -2154,7 +2386,7 @@ namespace bpr::e2e::large_review {
 				std::cerr << "LARGE_REVIEW_STARTUP_SOURCE:" << app::startup_failure_source() << '\n';
 			}
 			require(application != nullptr, "application startup succeeds");
-			if (argc == 5 && std::string_view{ argv[4] } == "--timing-control") {
+			if (aArgc == 5 && std::string_view{ aArgv[4] } == "--timing-control") {
 				QElapsedTimer controlBudget;
 				controlBudget.start();
 				require(measure_wait(*application, controlBudget, report, "synchronous_timing_control", [] { QThread::msleep(120); }, [] { return true; }), "synchronous timing control failed");
@@ -2162,14 +2394,38 @@ namespace bpr::e2e::large_review {
 				require(measure_wait(*application, controlBudget, report, "terminal_timing_control", [&] { QTimer::singleShot(30, application->window().comparison_surface(), [&] { terminal = true; }); }, [&] {
 					if (terminal) { QThread::msleep(120); }
 					return terminal; }), "terminal timing control failed");
+				// [[BPR-1598]]. The same probe while this process keeps every
+				// processor busy, as another process's build would: a 120 ms
+				// stall the GUI thread spends working still counts in full, and
+				// 40 ms of work it is kept waiting for is attributed to the
+				// scheduler, not to the course.
+				{
+					std::atomic<bool>         contending{ true };
+					std::vector<std::jthread> contenders;
+					for (int index = 0; index < 2 * std::max(1, QThread::idealThreadCount()); ++index) {
+						contenders.emplace_back([&contending] {
+							while (contending.load(std::memory_order_relaxed)) { }
+						});
+					}
+					require(measure_wait(*application, controlBudget, report, "contended_busy_timing_control", [] { spend_thread_cpu(120); }, [] { return true; }), "contended busy timing control failed");
+					require(measure_wait(*application, controlBudget, report, "contended_light_timing_control", [] { spend_thread_cpu(40); }, [] { return true; }), "contended light timing control failed");
+					contending.store(false);
+				}
 				const auto synchronous = report.Phases[0];
 				const auto trailing    = report.Phases[1];
+				const auto busy        = report.Phases[2];
+				const auto light       = report.Phases[3];
 				require(measure_wait(*application, controlBudget, report, "shutdown", [&] { application->begin_shutdown(); }, [&] { return application->status().ShutdownComplete; }), "timing control shutdown failed");
 				std::cerr << "timing-controls:" << *glz::write_json(report.Phases) << '\n';
 				require(synchronous.Pulses == 0U && synchronous.MaxPulseIntervalMs >= 100.0,
 						"synchronous-ready phase hid its 120 ms event-loop stall");
 				require(trailing.Pulses != 0U && trailing.MaxPulseIntervalMs >= 100.0,
 						"terminal phase hid its final 120 ms event-loop stall");
+				require(busy.Pulses == 0U && busy.MaxPulseIntervalMs >= 100.0 && busy.WallMaxPulseIntervalMs >= busy.MaxPulseIntervalMs,
+						"contended phase hid its 120 ms stall of GUI-thread work");
+				require(light.Pulses == 0U && light.MaxPulseIntervalMs <= light.WallMaxPulseIntervalMs
+							&& (!native_schedule_wait_measured() || light.MaxPulseIntervalMs < 100.0),
+						"contended phase charged the scheduler's wait to 40 ms of GUI-thread work");
 #if BPR_LARGE_REVIEW_NATIVE_MEMORY
 				live_heap_sampler heapControl{ true };
 				{
@@ -2198,11 +2454,12 @@ namespace bpr::e2e::large_review {
 			if (report.ResponsivenessCourse) {
 				const auto startupFrame            = window.grab();
 				report.StartupRendered             = !startupFrame.isNull();
-				report.CompositionStartupMs        = static_cast<double>(compositionStartup.nsecsElapsed()) / 1'000'000.0;
-				report.Extended.MainToHomeRenderMs = static_cast<double>(aMainClock.nsecsElapsed()) / 1'000'000.0;
-				std::cout << "LARGE_REVIEW_HOME_RENDERED\n"
-						  << std::flush;
-				require(report.StartupRendered && startupFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".startup.png")), "composition startup did not render Home");
+				report.CompositionStartupMs        = compositionStartup.completion_ms();
+				report.Extended.MainToHomeRenderMs = aMainClock.completion_ms();
+				note_wall(report, "composition_startup_render", compositionStartup.wall_ms());
+				note_wall(report, "main_to_home_render", aMainClock.wall_ms());
+				print_launch_marker("LARGE_REVIEW_HOME_RENDERED", "home");
+				require(report.StartupRendered && startupFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".startup.png")), "composition startup did not render Home");
 			}
 			auto&         surface = *window.comparison_surface();
 			QElapsedTimer budget;
@@ -2214,9 +2471,10 @@ namespace bpr::e2e::large_review {
 			if (report.Extended.ProviderCancelCourse) {
 				report.Fixture = "large-review-v1 held provider read";
 				run_provider_cancellation(*application, *heldRead, report, budget);
+				closeSchedule();
 				const auto encoded = glz::write_json(report);
 				require(encoded.has_value(), "provider cancellation report encoding");
-				std::ofstream output{ argv[2], std::ios::binary };
+				std::ofstream output{ aArgv[2], std::ios::binary };
 				output << *encoded << '\n';
 				output.close();
 				require(output.good(), "provider cancellation report write");
@@ -2224,9 +2482,9 @@ namespace bpr::e2e::large_review {
 						  << *encoded << '\n';
 				return EXIT_SUCCESS;
 			}
-			QElapsedTimer metadataClock;
-			QTimer        metadataObserver;
-			QPixmap       provisionalFrame, acceptedFrame;
+			attributed_clock metadataClock;
+			QTimer           metadataObserver;
+			QPixmap          provisionalFrame, acceptedFrame;
 			metadataObserver.setInterval(1);
 			QObject::connect(&metadataObserver, &QTimer::timeout, &window, [&] {
 				auto* page = window.overview_page();
@@ -2234,26 +2492,28 @@ namespace bpr::e2e::large_review {
 					return;
 				}
 				if (!report.Extended.ProvisionalMetadataObserved && page->summary_label()->text().contains(QStringLiteral("Provisional metadata"))
-					&& !page->entry_button()->isEnabled() && page->file_model()->file_count() == 0U) {
-					const auto captureStart                     = metadataClock.nsecsElapsed();
+					&& !page->entry_path() && page->file_model()->file_count() == 0U) {
+					const auto captureStart                     = metadataClock.wall_ms();
 					provisionalFrame                            = window.grab();
-					report.Extended.ProvisionalCaptureMs        = static_cast<double>(metadataClock.nsecsElapsed() - captureStart) / 1'000'000.0;
+					report.Extended.ProvisionalCaptureMs        = metadataClock.wall_ms() - captureStart;
 					report.Extended.ProvisionalMetadataObserved = !provisionalFrame.isNull();
-					report.Extended.ProvisionalMetadataRenderMs = static_cast<double>(metadataClock.nsecsElapsed()) / 1'000'000.0;
-					report.Extended.MetadataTitle               = page->title_label()->text().toStdString();
+					report.Extended.ProvisionalMetadataRenderMs = metadataClock.completion_ms();
+					note_wall(report, "provisional_metadata_render", metadataClock.wall_ms());
+					report.Extended.MetadataTitle = page->title_label()->text().toStdString();
 				}
 				if (!report.Extended.AcceptedMetadataObserved && page->projection().has_value() && page->file_model()->file_count() == 515U) {
-					const auto captureStart                  = metadataClock.nsecsElapsed();
+					const auto captureStart                  = metadataClock.wall_ms();
 					acceptedFrame                            = window.grab();
-					report.Extended.AcceptedCaptureMs        = static_cast<double>(metadataClock.nsecsElapsed() - captureStart) / 1'000'000.0;
+					report.Extended.AcceptedCaptureMs        = metadataClock.wall_ms() - captureStart;
 					report.Extended.AcceptedMetadataObserved = !acceptedFrame.isNull()
 						&& page->title_label()->text().toStdString() == report.Extended.MetadataTitle
 						&& report.Extended.MetadataTitle == "Synthetic large review benchmark";
-					report.Extended.AcceptedMetadataRenderMs = static_cast<double>(metadataClock.nsecsElapsed()) / 1'000'000.0;
+					report.Extended.AcceptedMetadataRenderMs = metadataClock.completion_ms();
+					note_wall(report, "accepted_metadata_render", metadataClock.wall_ms());
 				}
 			});
 			if (report.ResponsivenessCourse) {
-				metadataClock.start();
+				metadataClock.start_completion();
 				metadataObserver.start();
 			}
 			// [[BPR-1387]]. Poll only the application while measuring its event
@@ -2266,22 +2526,22 @@ namespace bpr::e2e::large_review {
 				require(report.Extended.ProvisionalMetadataObserved && report.Extended.AcceptedMetadataObserved
 							&& report.Extended.ProvisionalMetadataRenderMs < report.Extended.AcceptedMetadataRenderMs,
 						"distinct provisional and accepted metadata did not render");
-				require(provisionalFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".provisional.png"))
-							&& acceptedFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".accepted.png")),
+				require(provisionalFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".provisional.png"))
+							&& acceptedFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".accepted.png")),
 						"metadata frame write failed");
 			}
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
 			if (report.FirstTabCourse) {
-				run_first_tab(*application, manifest, report, budget, argv[3]);
+				run_first_tab(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.Extended.PreparedOpen.Course) {
-				run_prepared_open(*application, manifest, report, budget, argv[3]);
+				run_prepared_open(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.CacheByteCourse) {
-				run_cache_bytes(*application, manifest, report, budget, argv[3]);
+				run_cache_bytes(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.CacheEntryCourse) {
-				run_cache_entries(*application, manifest, report, budget, argv[3]);
+				run_cache_entries(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.HistoryCourse) {
-				run_history(*application, manifest, report, budget, argv[3]);
+				run_history(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.UnavailableCourse) {
 				enter_review(*application, report, budget);
 				const auto limitedPath = report.Extended.PathologicalCourse ? QStringLiteral("generated/table.inc") : QStringLiteral("large/comparison.cpp");
@@ -2316,7 +2576,7 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth               = window.width();
 				report.WindowHeight              = window.height();
 				report.DevicePixelRatio          = window.devicePixelRatioF();
-				report.Rendered                  = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered                  = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "unavailable full-window capture failed");
 				require(measure_wait(*application, budget, report, "binary_file_selection", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(*application); }), "binary selection timed out");
 				require(surface.current_result()->Alignment.Content == core::diff_content_state::binary && surface.status_text() == QStringLiteral("Binary file comparison"), "binary status must be distinct");
@@ -2362,7 +2622,7 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth                  = window.width();
 				report.WindowHeight                 = window.height();
 				report.DevicePixelRatio             = window.devicePixelRatioF();
-				report.Rendered                     = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered                     = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "approximate full-window capture failed");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "approximate course bypassed the real diff host");
 			} else {
@@ -2406,7 +2666,7 @@ namespace bpr::e2e::large_review {
 						aChange();
 						perChange.push_back(publications() - before);
 					};
-					const auto settle_columns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+					const auto settleColumns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
 						counted([&] {
 							tick(aLabel, aOn);
 							QElapsedTimer waited;
@@ -2417,7 +2677,7 @@ namespace bpr::e2e::large_review {
 							require(columns(aCount), "a chip change in Settings reaches the Overview");
 						});
 					};
-					const auto measure_columns = [&](const char* aPhase, const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+					const auto measureColumns = [&](const char* aPhase, const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
 						counted([&] {
 							require(measure_wait(*application, budget, report, aPhase, [&] { tick(aLabel, aOn); }, [&] { return columns(aCount); }), "a measured chip change timed out");
 						});
@@ -2431,18 +2691,18 @@ namespace bpr::e2e::large_review {
 					}
 					// Twelve ticks up to all twelve chips, then twelve unticks
 					// back to none: 24 changes.
-					settle_columns(labels[0], true, 1U);
-					settle_columns(labels[1], true, 2U);
-					measure_columns("overview_columns_3", labels[2], true, 3U);
+					settleColumns(labels[0], true, 1U);
+					settleColumns(labels[1], true, 2U);
+					measureColumns("overview_columns_3", labels[2], true, 3U);
 					for (std::size_t label = 3U; label + 1U < labels.size(); ++label) {
-						settle_columns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
+						settleColumns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
 					}
-					measure_columns("overview_columns_12", labels.back(), true, 12U);
+					measureColumns("overview_columns_12", labels.back(), true, 12U);
 					for (std::size_t label = labels.size() - 1U; label > 1U; --label) {
-						settle_columns(labels[label], false, static_cast<std::uint8_t>(label));
+						settleColumns(labels[label], false, static_cast<std::uint8_t>(label));
 					}
-					settle_columns(labels[1], false, 1U);
-					measure_columns("overview_columns_0", labels[0], false, 0U);
+					settleColumns(labels[1], false, 1U);
+					measureColumns("overview_columns_0", labels[0], false, 0U);
 					// A late echo of the last change would land after its wait.
 					counted([&] {
 						QElapsedTimer drained;
@@ -2466,7 +2726,8 @@ namespace bpr::e2e::large_review {
 							  << " scopes_tallied_on_request=" << after.ScopesTalliedOnRequest - before.ScopesTalliedOnRequest
 							  << " units_tallied=" << after.UnitsTallied - before.UnitsTallied
 							  << " publications=" << workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications
-							  << " per_change=" << perChangeText << " trailing=" << trailing << std::endl;
+							  << " per_change=" << perChangeText << " trailing=" << trailing << '\n'
+							  << std::flush;
 					require(access::evidence(*application).AccountReadCount == readsBefore && workAfter.FeedbackObservations == workBefore.FeedbackObservations
 								&& workAfter.FeedbackBodiesParsed == workBefore.FeedbackBodiesParsed && after.Observations == before.Observations && after.BodiesParsed == before.BodiesParsed
 								&& after.ScopesRetallied == before.ScopesRetallied && after.UnitsTallied == before.UnitsTallied,
@@ -2481,7 +2742,7 @@ namespace bpr::e2e::large_review {
 				enter_review(*application, report, budget);
 				const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
 				QTimer              inputDuringMeasurement;
-				QElapsedTimer       measurementInputClock;
+				attributed_clock    measurementInputClock;
 				std::vector<double> measurementInputIntervals;
 				QPixmap             firstSourceFrame;
 				inputDuringMeasurement.setInterval(1);
@@ -2490,8 +2751,9 @@ namespace bpr::e2e::large_review {
 						|| !selected(surface, QStringLiteral("large/comparison.cpp"))) {
 						return;
 					}
-					if (measurementInputClock.isValid()) {
-						measurementInputIntervals.push_back(static_cast<double>(measurementInputClock.nsecsElapsed()) / 1'000'000.0);
+					if (measurementInputClock.is_valid()) {
+						measurementInputIntervals.push_back(measurementInputClock.ms());
+						note_wall(report, "measurement_input_gap", measurementInputClock.wall_ms());
 					}
 					measurementInputClock.start();
 					const auto  frames = surface.statistics().FrameApplications;
@@ -2507,14 +2769,15 @@ namespace bpr::e2e::large_review {
 					if (report.ResponsivenessCourse) {
 						require(surface.isVisible() && surface.left_pane()->isVisible() && surface.right_pane()->isVisible(), "first source render is visible");
 						firstSourceFrame = window.grab();
-						report.Extended.MainToFirstSourceRenderMs = static_cast<double>(aMainClock.nsecsElapsed()) / 1'000'000.0;
+						report.Extended.MainToFirstSourceRenderMs = aMainClock.completion_ms();
+						note_wall(report, "main_to_first_source_render", aMainClock.wall_ms());
 						require(!firstSourceFrame.isNull(), "first source render failed");
 						++report.InteractionFrames;
 					}
 					return true; }), "large selection timed out");
 				inputDuringMeasurement.stop();
 				if (report.ResponsivenessCourse) {
-					require(firstSourceFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".first-source.png")), "first source frame write failed");
+					require(firstSourceFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".first-source.png")), "first source frame write failed");
 				}
 				if (!measurementInputIntervals.empty()) {
 					std::ranges::sort(measurementInputIntervals);
@@ -2537,10 +2800,11 @@ namespace bpr::e2e::large_review {
 				require(surface.selection() && surface.selection()->PreferredLine.Line == 0U, "initial selected change is line one");
 				for (int change = 0; change < 2; ++change) {
 					require(window.next_change_action()->isEnabled(), "change navigation action unavailable");
-					QElapsedTimer gesture;
+					attributed_clock gesture;
 					gesture.start();
 					window.next_change_action()->trigger();
-					report.ChangeActionMs.push_back(static_cast<double>(gesture.nsecsElapsed()) / 1'000'000.0);
+					report.ChangeActionMs.push_back(gesture.ms());
+					note_wall(report, "next_change_dispatch", gesture.wall_ms());
 					require(surface.selection() && surface.selection()->PreferredLine.Line == static_cast<std::uint32_t>((change + 1) * 1000), "next change selected wrong source line");
 				}
 				auto* controller = surface.scroll_controller();
@@ -2554,11 +2818,12 @@ namespace bpr::e2e::large_review {
 				QElapsedTimer wheel;
 				wheel.start();
 				for (int event = 0; event < 1000; ++event) {
-					QElapsedTimer eventTimer;
-					eventTimer.start();
+					const auto  eventStart = native_schedule_now();
 					QWheelEvent inputEvent{ QPointF{ 20, 20 }, QPointF{ 20, 20 }, QPoint{ 0, -1 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
 					QApplication::sendEvent(surface.right_pane()->viewport(), &inputEvent);
-					report.MaxWheelEventMs = std::max(report.MaxWheelEventMs, static_cast<double>(eventTimer.nsecsElapsed()) / 1'000'000.0);
+					const auto eventEnd    = native_schedule_now();
+					report.MaxWheelEventMs = std::max(report.MaxWheelEventMs, milliseconds(thread_interval_ns(eventStart, eventEnd)));
+					note_wall(report, "wheel_dispatch", milliseconds(eventEnd.WallNs - eventStart.WallNs));
 				}
 				report.WheelBatchMs           = static_cast<double>(wheel.nsecsElapsed()) / 1'000'000.0;
 				const auto after              = surface.statistics();
@@ -2586,14 +2851,14 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth      = window.width();
 				report.WindowHeight     = window.height();
 				report.DevicePixelRatio = window.devicePixelRatioF();
-				report.Rendered         = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered         = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "full-window capture failed");
 
 				if (report.ResponsivenessCourse) {
-					run_responsiveness_interactions(*application, manifest, report, budget, argv[3]);
+					run_responsiveness_interactions(*application, manifest, report, budget, aArgv[3]);
 				}
 				if (report.ActiveWorkCourse) {
-					run_active_work(*application, manifest, report, budget, argv[3]);
+					run_active_work(*application, manifest, report, budget, aArgv[3]);
 				} else if (!report.ResourceCourse) {
 					auto* conversationModel = window.conversation_model();
 					QObject::connect(conversationModel, &QAbstractItemModel::rowsInserted, &window,
@@ -2603,9 +2868,9 @@ namespace bpr::e2e::large_review {
 									 });
 					QTimer selections;
 					selections.setInterval(1);
-					int           next = 0;
-					QString       requested;
-					QElapsedTimer drain;
+					int              next = 0;
+					QString          requested;
+					attributed_clock drain;
 					QObject::connect(&selections, &QTimer::timeout, &window, [&] {
 						if (next == 32) {
 							selections.stop();
@@ -2620,12 +2885,13 @@ namespace bpr::e2e::large_review {
 						select_file(window, requested);
 						++report.RapidSelections;
 						if (next == 32) {
-							drain.start();
+							drain.start_completion();
 						}
 					});
 					require(measure_wait(*application, budget, report, "rapid_selection_supersession", [&] { selections.start(); }, [&] { return next == 32 && selected(surface, source_path(31)) && quiet(*application); }), "supersession timed out");
 					require(report.PeakConversationRootsDuringSelections <= 2U, "file switching temporarily widened conversations to unrelated threads");
-					report.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+					report.SupersessionDrainMs = drain.completion_ms();
+					note_wall(report, "supersession_final_drain", drain.wall_ms());
 					require(report.SelectionsWithOutstandingDiff != 0U, "supersession never overlapped outstanding diff work");
 					report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
 					require(report.ExactFinalSource, "stale source adopted after supersession");
@@ -2656,7 +2922,7 @@ namespace bpr::e2e::large_review {
 				report.PruneReleasedIndex     = resourceIndex.expired();
 				report.PruneClearedProjection = !surface.current_result() && surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty();
 				sample_resources(report, application.get(), "after_prune");
-				require(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".pruned.png")), "pruned window render failed");
+				require(window.grab().save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".pruned.png")), "pruned window render failed");
 				std::cerr << "prune-ownership: diff=" << report.PruneReleasedDiff << " index=" << report.PruneReleasedIndex << " projection=" << report.PruneClearedProjection << '\n';
 				require(measure_wait(*application, budget, report, "public_cache_delete", [&] { confirm_fixture_maintenance(*window.epoch_selectors()->delete_cache_action(), QStringLiteral("deleteRepositoryCacheConfirmationDialog")); }, maintenanceReady), "public cache deletion timed out");
 				const auto deleted = access::maintenance_evidence(*application, target);
@@ -2693,7 +2959,7 @@ namespace bpr::e2e::large_review {
 			if (observeResources) {
 				// Match main's last-window-close -> application shutdown handoff;
 				// measure_wait drives the existing shutdown poll to completion.
-				QObject::connect(&qtApplication, &QGuiApplication::lastWindowClosed, &window, [&] {
+				QObject::connect(&aQtApplication, &QGuiApplication::lastWindowClosed, &window, [&] {
 					report.WindowCloseObserved = true;
 					application->begin_shutdown();
 				});
@@ -2716,7 +2982,7 @@ namespace bpr::e2e::large_review {
 				}
 				if (report.CacheByteCourse) {
 					for (std::size_t index = 0; index < manifest.heads.size(); ++index) {
-						const auto target   = core::review_epoch_id{ closeTarget->Authority, closeTarget->Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } };
+						const auto target   = core::review_epoch_id{ closeTarget->Authority, closeTarget->Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index) + 1 } };
 						const auto retained = access::maintenance_evidence(*application, target, closeComparison);
 						require(retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
 									&& retained.TargetBaseRefOid == manifest.base && retained.TargetBaseCatalogOid == manifest.base
@@ -2764,7 +3030,7 @@ namespace bpr::e2e::large_review {
 					require(found != report.Phases.end(), "pathological fallback phase missing");
 					report.CompletionBudgets.push_back({ name, found->ElapsedMs, 1'500.0, found->ElapsedMs <= 1'500.0, report.Extended.BudgetsEnforced });
 				}
-				require(budgets_met(report), "pathological fallback completion/input budget exceeded");
+				require_timing(budgets_met(report), "pathological fallback completion/input budget exceeded");
 			}
 			application.reset();
 			const auto diagnostics = bpr::tests::read_diagnostic_logs(dataRoot);
@@ -2781,10 +3047,11 @@ namespace bpr::e2e::large_review {
 			// input target on all its phases, except the four resource courses:
 			// their 1 ms heap sampler perturbs the GUI thread it measures
 			// (Windows load gaps of 208-315 ms with it, 39-60 ms without).
-			require(!OptimizedBuild || observeResources || input_target_met(report), "fixture input target missed outside the platform's named phases");
+			require_timing(!OptimizedBuild || observeResources || input_target_met(report), "fixture input target missed outside the platform's named phases");
+			closeSchedule();
 			auto encoded = glz::write_json(report);
 			require(encoded.has_value(), "measurement serialization");
-			std::ofstream output{ argv[2], std::ios::binary };
+			std::ofstream output{ aArgv[2], std::ios::binary };
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
@@ -2834,12 +3101,25 @@ namespace bpr::e2e::large_review {
 			} catch (...) {
 				std::cerr << "large-review-diagnostic: unavailable\n";
 			}
+			closeSchedule();
 			if (const auto partial = glz::write_json(report); partial) {
 				std::cerr << "large-review-partial:" << *partial << '\n';
 				// [[BPR-0967]]. A failed course leaves its partial report, not a
 				// stale earlier success, at the report path.
-				std::ofstream output{ argv[2], std::ios::binary };
+				std::ofstream output{ aArgv[2], std::ios::binary };
 				output << *partial << '\n';
+			}
+			// [[BPR-1598]]. A timing miss while the GUI thread waited for a
+			// processor for at least 2% of the course (none on a quiet machine)
+			// may be run once more; any other failure is final.
+			if (dynamic_cast<const timing_limit_missed*>(&error) != nullptr) {
+				const auto& schedule = report.Extended.Schedule;
+				std::cout << "LARGE_REVIEW_TIMING_LIMIT_MISSED: " << error.what() << " course_wall_ms=" << schedule.CourseWallMs
+						  << " gui_thread_wait_ms=" << schedule.CourseThreadWaitMs << " process_wait_ms=" << schedule.CourseProcessWaitMs << '\n';
+				if (schedule.WaitMeasured && schedule.CourseThreadWaitMs >= 0.02 * schedule.CourseWallMs) {
+					std::cout << "LARGE_REVIEW_TIMING_RETRYABLE\n";
+				}
+				std::cout << std::flush;
 			}
 			return EXIT_FAILURE;
 		}
@@ -2849,17 +3129,17 @@ namespace bpr::e2e::large_review {
 
 int main(int argc, char** argv)
 {
-	QElapsedTimer mainClock;
-	mainClock.start();
-	std::cout << "LARGE_REVIEW_MAIN_ENTERED\n"
-			  << std::flush;
+	bpr::e2e::large_review::attributed_clock mainClock;
+	mainClock.start_completion();
+	bpr::e2e::large_review::native_schedule_observe_this_thread();
+	bpr::e2e::large_review::print_launch_marker("LARGE_REVIEW_MAIN_ENTERED", "main");
 	QApplication qtApplication{ argc, argv };
-	const auto   qtStartupMs = static_cast<double>(mainClock.nsecsElapsed()) / 1'000'000.0;
+	const auto   qtStartupMs = mainClock.completion_ms();
 	QApplication::setQuitOnLastWindowClosed(false);
 	// Native last-window-close delivery needs QApplication's main event loop,
 	// even though individual measurement phases use nested event loops.
 	QTimer::singleShot(0, &qtApplication, [&] {
-		qtApplication.exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv, mainClock, qtStartupMs));
+		QApplication::exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv, mainClock, qtStartupMs));
 	});
-	return qtApplication.exec();
+	return QApplication::exec();
 }

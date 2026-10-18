@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -111,6 +112,11 @@ namespace bpr::app::detail {
 		/// landing its `b.txt` change separately. GitHub's Files changed is
 		/// the merge base's comparison; see `scripts/build_merge_base_fixture.py`.
 		merge_base_v1,
+		/// [[BPR-1572]]. A stacked pull request whose base branch fast-forwarded
+		/// to the head's first commit while GitHub kept its recorded base:
+		/// GitHub's Files changed is still the recorded base's comparison; see
+		/// `scripts/build_stacked_merge_base_fixture.py`.
+		stacked_merge_base_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -210,6 +216,32 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> Delayed{ 0U };
 		std::atomic<std::uint32_t> Cancelled{ 0U };
 		std::atomic<std::uint32_t> Failed{ 0U };
+		/// [[BPR-1575]]. Holds a refresh's first two answers this long each.
+		std::atomic<std::uint32_t> RefreshMilliseconds{ 0U };
+		/// [[BPR-1576]]. Holds every other answer of a pull request's read this
+		/// long, so its sections arrive one by one.
+		std::atomic<std::uint32_t> PageMilliseconds{ 0U };
+		/// [[BPR-1576]]. Holds personal discovery's searches this long.
+		std::atomic<std::uint32_t> DiscoveryMilliseconds{ 0U };
+		/// [[BPR-1575]]. What successive refreshes meet, one outcome a read,
+		/// in order and then round again; empty serves every refresh.
+		enum class refresh_outcome : std::uint8_t {
+			serve,
+			/// Someone replied to the first thread since the last read.
+			new_reply,
+			/// GitHub cannot be reached for the whole read.
+			offline,
+			/// GitHub's rate limit answers, asking to wait.
+			rate_limited,
+		};
+		std::mutex                   ScriptMutex;
+		std::vector<refresh_outcome> RefreshScript;
+		std::size_t                  ScriptNext = 0U;
+		std::uint64_t                ScriptRead = 0U;
+		refresh_outcome              ScriptOutcome{ refresh_outcome::serve };
+		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
+		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
+		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
 	};
 
 	/// \brief [[BPR-1477]]. The shown pull request's accepted snapshot, and
@@ -302,7 +334,16 @@ namespace bpr::app::detail {
 		bool MergeBaseRace = false;
 		/// [[BPR-1560]]. GitHub's compare answers that the credential is no
 		/// longer accepted.
-		bool MergeBaseUnauthorized          = false;
+		bool MergeBaseUnauthorized = false;
+		/// [[BPR-1572]]. On a stacked fixture, GitHub's compare answers that the
+		/// recorded base is not an ancestor of the base branch's tip: the
+		/// branch was rewritten, so GitHub is replacing the recorded base.
+		bool StackedBaseRewritten = false;
+		/// [[BPR-1572]]. On a stacked fixture, GitHub replaces the recorded
+		/// base with the base branch's tip (a descendant of it) between the
+		/// snapshot and the read that confirms it: the window after the base
+		/// branch is force-pushed, before the snapshot shows the new base.
+		bool StackedBaseReset               = false;
 		bool EmptyHistoricalTimeline        = false;
 		bool UnfetchableFirstHistoricalHead = false;
 		/// [[BPR-0922]]. Serves the GHES contract over the recorded two-file

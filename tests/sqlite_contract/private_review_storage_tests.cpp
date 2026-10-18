@@ -404,7 +404,9 @@ namespace {
 			auto                                 config = configuration(scratch.path());
 			auto                                 ledger = make_review_ledger_store(config.Ledger);
 			expect(ledger.has_value(), "prepare legacy notes");
-			std::string       text{ "\0line\r\nα\tend", 14 };
+			// Keep both the leading and trailing NUL in the migration payload.
+			constexpr char    textBytes[] = "\0line\r\nα\tend";
+			std::string       text{ std::begin(textBytes), std::end(textBytes) };
 			local_note_record note{ .Id = local_note_id{ 922 }, .Attachment = local_note_attachment{ file_identity_of("f.cpp"), private_review_fixture::opaque<file_comparison_digest>(6) }, .Note = { .Text = text } };
 			auto              stored = (*ledger)->store_note(note);
 			expect(stored.has_value(), "exact bytes seed");
@@ -541,17 +543,17 @@ namespace {
 		auto                                 store  = open(config);
 		auto                                 first  = create(*store);
 		auto                                 path   = ledger_path(config);
-		const auto                           check  = [&](std::string_view column, std::uint64_t limit, const private_store_write& write) {
+		const auto                           check  = [&](std::string_view aColumn, std::uint64_t aLimit, const private_store_write& aWrite) {
 			auto raw = detail::review_ledger_database::open(path, { });
 			expect(raw.has_value(), "quota fixture observes counter");
-			auto original = detail::scalar_integer(raw->handle(), "SELECT " + std::string{ column } + " FROM private_scope_state");
+			auto original = detail::scalar_integer(raw->handle(), "SELECT " + std::string{ aColumn } + " FROM private_scope_state");
 			expect(original.has_value(), "counter observed");
 			raw = { };
-			fixture_sql(path, "UPDATE private_scope_state SET " + std::string{ column } + "=" + std::to_string(limit));
+			fixture_sql(path, "UPDATE private_scope_state SET " + std::string{ aColumn } + "=" + std::to_string(aLimit));
 			auto before  = *store->frontier();
-			auto refused = store->commit(write);
+			auto refused = store->commit(aWrite);
 			expect(!refused && refused.error() == private_store_failure::quota && store->frontier()->NextIdentity == before.NextIdentity, "full counter refuses whole atomic write without allocating");
-			fixture_sql(path, "UPDATE private_scope_state SET " + std::string{ column } + "=" + std::to_string(*original));
+			fixture_sql(path, "UPDATE private_scope_state SET " + std::string{ aColumn } + "=" + std::to_string(*original));
 		};
 		auto next = new_thread_write(*store);
 		check("threads", 4096, next);

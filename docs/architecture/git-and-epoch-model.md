@@ -259,26 +259,78 @@ comparison_anchor
 ```
 
 The friendly `Branch base` label resolves to the latest live epoch's accepted
-base anchor. [[BPR-1560]]: a live epoch's base is the merge base GitHub names,
-through its compare API, for the pull request's current head and its base
-branch's current tip (the recorded base `base.sha` for a closed pull request), which must agree
-with its merge base against `base.sha` and be confirmed by the pull request
-read again unchanged, so the file list and the merge base describe one state:
-the commit GitHub's Files changed compares from, and so the left side of every
-file row the review lists. The recorded base is not compared from. GitHub keeps
-it ahead of the merge base whenever the base branch moved before the pull
-request opened or before a force push; a two-dot comparison from it reverts the
-base branch's own changes and hides the pull request's changes the base branch
-already carries. The application never computes this merge base itself and
-never substitutes the recorded base: when GitHub names none, the accepted
-revision carries the recorded base under `comparison_base_basis::recorded_base`
-so updates stay comparable with each other, and Whole PR resolves with its
-base unavailable and the reason `merge_base_unavailable`. A window keeps a
-merge base GitHub named for the same head, recorded base and base branch across
-a read that failed, never across answers that refuse it (the base branch
-naming another merge base, or the pull request moving under the read). A merge from the base
-branch, a rebase or a squash onto another base commit moves the merge base and
-so appends an epoch whose cause is a base change; an ordinary push does not.
+base anchor. [[BPR-1560]], [[BPR-1572]]: a live epoch's base is the merge base
+GitHub's compare API names for the pull request's recorded base `base.sha` and
+its head: the commit GitHub's Files changed compares from, and so the left side
+of every file row the review lists. Measured on github.com (2026-10-17,
+stacked pull requests): GitHub's Files changed, its commit list and the lines a
+`LEFT` comment is numbered in follow that merge base, not the base branch
+tip's. GitHub keeps `base.sha` while the base branch only moves forward, also
+when it fast-forwards to, or merges, commits the head has, and replaces it with
+the branch's new tip one to six seconds after the branch is force-pushed (onto
+any commit, a descendant of `base.sha` included).
+
+The provider binds the answer to its snapshot. It asks compare for `base.sha`
+and the head (an exact pair, remembered with its `ahead_by`). For an open pull
+request it asks compare for the base branch and the head as well. When both
+name one merge base it is accepted. When the branch names another, the
+recorded base's is accepted only if GitHub's commit count for the pull request
+equals that pair's `ahead_by` and compare names `base.sha` itself as the merge
+base of `base.sha` and the exact tip the branch answer resolved (the branch
+only moved forward from it); otherwise the merge base is refused. Last, the
+pull request is read again and must still have the snapshot's head,
+`base.sha`, base branch, state, changed-file count and commit count, or the
+merge base is refused. A refusal hands the recorded base over under
+`comparison_base_basis::disputed_base`, and Whole PR says GitHub's answers
+disagree (`merge_base_disputed`); a read that failed hands it over under
+`comparison_base_basis::recorded_base`, and Whole PR says GitHub named none
+(`merge_base_unavailable`). In both, Whole PR resolves with its base
+unavailable, and the recorded base is retained so updates stay comparable but
+is never compared from: GitHub keeps it ahead of the merge base whenever the
+base branch moved before the pull request opened or before a force push, and a
+two-dot comparison from it reverts the base branch's own changes and hides the
+pull request's changes the base branch already carries. The application never
+computes this merge base itself. GitHub's compare names one merge base even
+where Git has several (criss-cross histories); the review compares from that
+one, the one GitHub names. Measured on a criss-cross pull
+request (BPR-Test #106, 2026-10-17: two merge bases X1 and Y1 whose
+comparisons with the head change different lines of one file, and a virtual
+merge of both that changes neither): compare named X1, and GitHub's Files
+changed, patches included, was exactly the comparison from X1, not from Y1 nor
+from Git's recursive virtual base; the shipped composition matched it line for
+line. GitHub's choice among several merge bases is not documented; the review
+follows the one compare names, the same answer the file list was measured to
+follow.
+
+Before a `LEFT` line is published the same rule is asked again from GitHub:
+the base branch's merge base, and when it is not the comparison base, the
+recorded base's (its `ahead_by` must equal the commit count the pull request
+reports) and the recorded base's against the exact tip the first answer
+resolved; then the pull request is read again and must be unchanged, commit
+count included, so a recorded base GitHub replaced while these were asked is
+not taken for the one they describe. The pull request is read again after an
+agreeing answer too, and it is the last read before every write on every
+publication path (a single comment, a review, each tour write, first or
+resumed), through every transport: the GitHub CLI account wrapper checks the
+account with reads of its own before each write, so for every witnessed write
+bound to a pull request it reads the pull request once more after that check and refuses
+the write when its head or recorded base moved (a moved recorded base, with or
+without the head, is `target_moved`; a moved head alone `stale_head`). The
+native HTTPS transport (github.com and GHES alike) adds no read before a write,
+and a signed-out session cannot write. That narrows but cannot close the window: a read and the POST that
+follows are not atomic, and GitHub's review and review-comment requests carry
+the head (`commit_id`) and the coordinates but no precondition on the base, so
+a recorded base GitHub replaces after the last read and before the POST
+arrives cannot be ruled out. The publications are then reconciled from what
+GitHub stored.
+
+A window keeps a merge base GitHub named for the same head, recorded base and
+base branch across a read that failed, never across answers that refuse it. A
+merge from the base branch, a rebase or a squash onto another base commit
+moves the merge base and so appends an epoch whose cause is a base change; an
+ordinary push does not. A change of base alone, with the head unchanged (the
+base branch rebased, GitHub replacing `base.sha`), is an observation with no
+head lineage on a selected-objects review as on a complete one.
 Catalogues written before [[BPR-1560]] hold the recorded base on their earlier
 epochs; their next live observation appends one base-change epoch. A review
 anchor remains semantically distinct from an epoch head even when both resolve

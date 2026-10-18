@@ -9,6 +9,7 @@
 #include <mutex>
 #include <stop_token>
 #include <thread>
+#include <vector>
 
 #if defined(__APPLE__) || defined(_WIN32) || defined(__linux__)
 	#define BPR_LARGE_REVIEW_NATIVE_MEMORY 1
@@ -35,6 +36,46 @@ namespace bpr::e2e::large_review {
 	/// mmapped chunks on Linux. Zero where no method exists.
 	[[nodiscard]] auto native_live_heap_bytes() -> std::uint64_t;
 	[[nodiscard]] auto native_memory_method() -> const char*;
+
+	/// \brief One reading of the clocks a course interval is attributed with
+	/// ([[BPR-1598]]).
+	/// \details A thread's wall time is its time on a processor, its time
+	/// blocked (a timer, a lock, a pipe), and its time runnable while the
+	/// scheduler ran something else. Only the last is the machine's: another
+	/// process held the processors. ThreadWaitNs counts it for the thread
+	/// native_schedule_observe_this_thread() named, and is zero on any other
+	/// thread: on Linux from /proc/thread-self/schedstat run_delay, on macOS
+	/// from that thread's run state and processor time sampled each
+	/// millisecond (the kernel publishes runnable time only per process).
+	/// Windows measures none. ThreadCpuNs is the calling thread's processor
+	/// time, which load does not inflate.
+	struct native_schedule_mark
+	{
+		std::int64_t  WallNs      = 0;
+		std::uint64_t ThreadCpuNs = 0, ThreadWaitNs = 0;
+	};
+	struct native_thread_cpu
+	{
+		std::uint64_t Thread = 0, CpuNs = 0;
+	};
+
+	/// Starts measuring the calling thread's scheduler wait. Call once, from
+	/// the thread whose intervals the course times; the measurement runs
+	/// until the process exits.
+	void               native_schedule_observe_this_thread();
+	[[nodiscard]] auto native_schedule_now() -> native_schedule_mark;
+	/// The time every thread of the process has spent runnable without a
+	/// processor: macOS proc_pid_rusage ri_runnable_time (which also counts
+	/// time on a processor) less ri_user_time and ri_system_time; Linux the
+	/// run_delay of every /proc/self/task; zero on Windows. Summed over
+	/// threads, it can exceed the wall time of the interval it covers.
+	[[nodiscard]] auto native_process_wait_ns() -> std::uint64_t;
+	/// Every live thread of the process with its processor time so far; empty
+	/// where the platform has no method here (Windows).
+	[[nodiscard]] auto native_thread_cpu_times() -> std::vector<native_thread_cpu>;
+	/// True where scheduler waits are measured.
+	[[nodiscard]] auto native_schedule_wait_measured() -> bool;
+	[[nodiscard]] auto native_schedule_method() -> const char*;
 
 	struct live_heap_observation
 	{

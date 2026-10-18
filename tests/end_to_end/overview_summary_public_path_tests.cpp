@@ -5,6 +5,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -173,7 +174,7 @@ int main(int aArgc, char** aArgv)
 	auto* grip   = split->handle(1);
 	auto* reader = page->body_view();
 	settle();
-	expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2 && page->files_view()->isVisible() && page->entry_button()->isVisible(), "long composed summary starts half-sized with Files and side entry");
+	expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2 && page->files_view()->isVisible() && page->status_drawer()->isVisible(), "long composed summary starts half-sized with Files and the Status drawer");
 	auto* checkDisclosure  = page->findChild<QToolButton*>(QStringLiteral("overviewChecksDisclosure"));
 	auto* checkList        = page->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
 	auto* checkExplanation = page->findChild<QPlainTextEdit*>(QStringLiteral("overviewCheckDescription"));
@@ -259,25 +260,25 @@ int main(int aArgc, char** aArgv)
 	auto* side = page->findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
 	side->ensureWidgetVisible(checkExplanation);
 	render(*application, QStringLiteral("check-details"));
-	const auto originalFont = qtApplication.font();
+	const auto originalFont = QApplication::font();
 	auto       enlarged     = originalFont;
 	enlarged.setPointSizeF(originalFont.pointSizeF() * 1.35);
-	qtApplication.setFont(enlarged);
+	QApplication::setFont(enlarged);
 	window.resize(900, 600);
 	settle();
 	side->ensureWidgetVisible(checkExplanation);
 	const auto checksUsable = checkExplanation->viewport()->width() > 80
 		&& checkOpen->minimumSizeHint().width() <= checkOpen->width()
-		&& page->entry_button()->isEnabled()
+		&& page->entry_path().has_value()
 		&& side->widget()->width() <= side->viewport()->width();
 	if (!checksUsable) {
 		std::cerr << "OVERVIEW_NARROW_CHECKS explanation_width=" << checkExplanation->viewport()->width()
 				  << " action_minimum=" << checkOpen->minimumSizeHint().width()
 				  << " action_width=" << checkOpen->width()
-				  << " entry_enabled=" << page->entry_button()->isEnabled()
+				  << " entry_path=" << page->entry_path().has_value()
 				  << " side_width=" << side->widget()->width()
 				  << " viewport_width=" << side->viewport()->width()
-				  << " font_points=" << qtApplication.font().pointSizeF() << '\n';
+				  << " font_points=" << QApplication::font().pointSizeF() << '\n';
 		render(*application, QStringLiteral("check-details-enlarged-failed"));
 	}
 	expect(checksUsable, "narrow enlarged check explanation and action remain usable with review entry available");
@@ -286,7 +287,7 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(std::ranges::all_of(page->request_rows(), [&](const auto* aRow) { return aRow->width() <= side->viewport()->width() && aRow->height() >= aRow->heightForWidth(aRow->width()) && aRow->toolTip() == aRow->accessibleName(); }) && mergeText->wordWrap() && mergeText->height() >= mergeText->heightForWidth(mergeText->width()) && requirementDisclosure->minimumSizeHint().width() <= requirementDisclosure->width(), "narrow enlarged roster rows fit, keep long qualified team names whole in tooltip and accessible name, and keep native detail control usable");
 	render(*application, QStringLiteral("review-blockers-enlarged"));
-	qtApplication.setFont(originalFont);
+	QApplication::setFont(originalFont);
 	window.resize(1280, 900);
 	settle();
 	side->verticalScrollBar()->setValue(0);
@@ -421,8 +422,8 @@ int main(int aArgc, char** aArgv)
 	}
 	window.github_refresh_action()->trigger();
 	wait_for([&] { return reader->original_body() == body; }, "long body reappears through accepted refresh");
-	page->entry_button()->click();
-	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Start/Continue review follows composed entry semantics");
+	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Command-2 from the Overview enters Review");
 	window.modality()->action(qt::review_modality::overview)->trigger();
 	settle();
 	const auto actualFile = page->file_model()->index_for_path(QString::fromStdString(page->projection()->Files.front().Path));

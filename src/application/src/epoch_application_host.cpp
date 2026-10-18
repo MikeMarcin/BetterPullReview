@@ -3775,7 +3775,7 @@ namespace bpr::application {
 				// [[BPR-1560]]. Whole PR without a merge base GitHub named has
 				// a base the core marked unavailable; its recorded base is in
 				// the cache, but a comparison from it is not GitHub's.
-				|| (State.AcceptedBasis == core::comparison_base_basis::recorded_base
+				|| (core::retained_recorded_base(State.AcceptedBasis)
 					&& !core::available_for_diff(*State.AcceptedComparison))) {
 				return std::nullopt;
 			}

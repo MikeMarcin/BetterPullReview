@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -240,10 +241,20 @@ namespace {
 
 int main(int aArgc, char** aArgv)
 {
-	const auto repetitions = aArgc > 1 ? std::max(3, std::atoi(aArgv[1])) : 9;
-	const auto largest     = aArgc > 2 ? std::strtoull(aArgv[2], nullptr, 10) : 100'000ULL;
-	auto       options     = diff_options{ };
-	options.Moves          = move_detection_policy::deterministic_exact;
+	auto       repetitions = 9;
+	auto       largest     = 100'000ULL;
+	const auto parse       = [](const char* aText, auto& aValue) {
+		const auto text   = std::string_view{ aText };
+		const auto result = std::from_chars(text.data(), text.data() + text.size(), aValue);
+		return result.ec == std::errc{ } && result.ptr == text.data() + text.size();
+	};
+	if ((aArgc > 1 && !parse(aArgv[1], repetitions)) || (aArgc > 2 && !parse(aArgv[2], largest))) {
+		std::fprintf(stderr, "Expected integer repetitions and an unsigned largest line count.\n");
+		return EXIT_FAILURE;
+	}
+	repetitions   = std::max(3, repetitions);
+	auto options  = diff_options{ };
+	options.Moves = move_detection_policy::deterministic_exact;
 	std::printf("BPR-1366 diff compute benchmark: %d repetitions, milliseconds (median, lowest, q1-q3, worst)\n", repetitions);
 	for (const auto lines : { std::uint64_t{ 2'000U }, std::uint64_t{ 10'000U }, std::uint64_t{ 40'000U }, std::uint64_t{ 100'000U } }) {
 		if (lines > largest) {

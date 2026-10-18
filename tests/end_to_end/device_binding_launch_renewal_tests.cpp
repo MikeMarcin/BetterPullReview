@@ -87,7 +87,8 @@ namespace {
 		// profile refusal that actually fired is named beside it, so a seed that
 		// cannot start says why in its own output.
 		if (application == nullptr) {
-			std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << std::endl;
+			std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << '\n'
+					  << std::flush;
 			// [[BPR-0882]]. And which composition arm refused, with what it caught.
 			std::cerr << "SEED_STARTUP_FAILURE_SOURCE:" << bpr::app::startup_failure_source() << '\n';
 		}

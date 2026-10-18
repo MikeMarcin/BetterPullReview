@@ -10,14 +10,20 @@
 #include <QToolBar>
 #include <QWidget>
 
+#include "bpr/qt/progress_mark.hpp"
+
 #include <QPoint>
+#include <QRect>
 #include <QToolButton>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
+#include <utility>
+#include <vector>
 
 class QAction;
 class QActionEvent;
@@ -62,11 +68,33 @@ namespace bpr::qt {
 		/// [[BPR-1338]]. Open on GitHub: a page whose corner an arrow leaves,
 		/// the common mark for "opens outside this application".
 		open_on_github,
+		/// [[BPR-1578]]. Accept file: a tick in the strip's line ink, the
+		/// command's glyph. The coloured circles are the file's state; a
+		/// command never wears one.
+		accept_file,
 	};
 
 	/// \brief Paints one strip glyph for a palette.
 	[[nodiscard]] auto strip_icon(strip_glyph aGlyph, const QPalette& aPalette)
 		-> QIcon;
+
+	/// \brief [[BPR-1575]]. What the refresh glyph says about its read.
+	enum class strip_refresh_look : std::uint8_t {
+		/// The arrow, at rest.
+		idle,
+		/// The arrow turning, one step a frame: a read is under way.
+		turning,
+		/// The arrow with a dot at its heart, still: a read is under way and
+		/// motion is reduced.
+		waiting,
+		/// A tick, briefly, once a read has answered.
+		settled,
+	};
+
+	/// \brief [[BPR-1575]]. The refresh glyph in one of its looks, at turn
+	/// `aFrame` of twelve. A look other than idle keeps full ink when the
+	/// button is disabled, because a read under way is not unavailable.
+	[[nodiscard]] auto strip_refresh_icon(strip_refresh_look aLook, int aFrame, const QPalette& aPalette) -> QIcon;
 
 	/// \brief Draws strip buttons as the accepted design draws them.
 	///
@@ -93,6 +121,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1129]]. The dynamic property that marks a button's icon
 		/// with the amber of my last review's tick.
 		static constexpr const char* mark_property = "stripMark";
+		/// \brief [[BPR-1575]]. The dynamic property that marks a button as
+		/// working: drawn engaged, in the accent, however its action is enabled.
+		static constexpr const char* busy_property = "stripBusy";
+		/// \brief [[BPR-1575]]. The dynamic property holding the colour of a
+		/// dot on the icon's upper right that says the last attempt failed.
+		static constexpr const char* alert_property = "stripAlert";
 
 		void drawComplexControl(
 			ComplexControl             aControl,
@@ -185,8 +219,20 @@ namespace bpr::qt {
 		/// \brief Gives a button the strip's style and focus policy.
 		void               adopt_button(QToolButton* aButton);
 		[[nodiscard]] auto button_style() const noexcept -> strip_style*;
-		/// \brief Joins each navigation label to its arrow pair with a palette-derived rail.
-		void set_navigation_rails(QAction* aFileLabel, QAction* aFileLast, QAction* aChangeLabel, QAction* aChangeLast);
+		/// \brief One group of the review bar, from its first presenter to its last.
+		struct rail_group
+		{
+			QAction* First = nullptr;
+			QAction* Last  = nullptr;
+		};
+		/// \brief Joins each group's presenters with one palette-derived rail
+		/// beneath them: File and its arrows, Changes and theirs, and
+		/// ([[BPR-1578]]) Accept and private progress.
+		void set_group_rails(std::initializer_list<rail_group> aGroups);
+		/// \brief The rail drawn beneath one group, in strip coordinates;
+		/// empty while either end is hidden or absent.
+		[[nodiscard]] auto group_rail(std::size_t aIndex) const -> QRect;
+		[[nodiscard]] auto group_rail_count() const noexcept -> std::size_t;
 		/// \brief Whether a point in the strip is bare surface, no control.
 		///
 		/// \details The spacers, the inset, the dividers and the labels are the
@@ -208,13 +254,86 @@ namespace bpr::qt {
 
 	private:
 		[[nodiscard]] auto over_empty_space(const QMouseEvent& aEvent) const -> bool;
-		void               paint_navigation_rails(QPainter& aPainter) const;
+		void               paint_group_rails(QPainter& aPainter) const;
 
-		strip_style*                     Style = nullptr;
-		strip_role                       Role  = strip_role::title_row;
-		std::array<QPointer<QAction>, 4> NavigationRails;
+		strip_style*                                                 Style = nullptr;
+		strip_role                                                   Role  = strip_role::title_row;
+		std::vector<std::pair<QPointer<QAction>, QPointer<QAction>>> GroupRails;
 		/// \brief Where inside the window frame the drag took hold, while held.
 		std::optional<QPoint> DragHold;
+	};
+
+	/// \brief [[BPR-1578]] v002. The review bar's private progress as a track:
+	/// Seen, Read and Accept as steps in one frame, and the menu's chevron as
+	/// its last cell.
+	///
+	/// \details The owner chose this from two rounds of directions (round 2's
+	/// "C2. Progress track, refined", 2026-10-17). Steps still to come are in
+	/// full ink, so they read as available; the step the file has reached is
+	/// solid in the accent, or in the acceptance green once accepted; the
+	/// step still to take shows the acceptance green's tick. The track owns no
+	/// command: its four cells are the window's own buttons, Seen and Read
+	/// steps, the retained Accept button and the private-progress menu
+	/// button, each with its own focus, name, tooltip and action. The track
+	/// lays them out edge to edge and paints them, through an event filter, as
+	/// one control; it decides nothing about what a click does.
+	class progress_track final : public QWidget
+	{
+	public:
+		/// \brief What the track shows, as the window was told it.
+		struct state
+		{
+			/// A file's progress is known and the file is not excluded.
+			bool Live     = false;
+			bool Seen     = false;
+			bool Read     = false;
+			bool Accepted = false;
+			bool Excluded = false;
+
+			[[nodiscard]] auto operator==(const state&) const -> bool = default;
+		};
+
+		/// \brief The cells, in order.
+		static constexpr std::size_t seen_step   = 0U;
+		static constexpr std::size_t read_step   = 1U;
+		static constexpr std::size_t accept_step = 2U;
+		static constexpr std::size_t menu_cell   = 3U;
+
+		progress_track(QToolButton& aSeen, QToolButton& aRead, QToolButton& aAccept, QToolButton& aMenu, QWidget* aParent = nullptr);
+
+		void set_state(const state& aState, const progress_mark_colours& aColours);
+		/// \brief The review bar's last width yield: Seen and Read show their
+		/// marks alone, their names kept in their tooltips and accessible
+		/// names; Accept keeps its word.
+		void               set_compact(bool aCompact);
+		[[nodiscard]] auto compact() const noexcept -> bool;
+		[[nodiscard]] auto shown() const noexcept -> const state&;
+		/// \brief The step drawn solid, the furthest the file has reached;
+		/// none while nothing is reached or the track rests.
+		[[nodiscard]] auto current_step() const noexcept -> std::optional<std::size_t>;
+		/// \brief A cell's rectangle in track coordinates.
+		[[nodiscard]] auto cell(std::size_t aIndex) const -> QRect;
+		/// \brief The word a step shows: Seen, Read, Accept or Accepted.
+		[[nodiscard]] auto word(std::size_t aIndex) const -> QString;
+
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+		void paintEvent(QPaintEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
+
+	private:
+		void               relayout();
+		[[nodiscard]] auto cell_width(std::size_t aIndex) const -> int;
+		[[nodiscard]] auto step_fill() const -> QColor;
+		void               paint_cell(std::size_t aIndex);
+
+		std::array<QToolButton*, 4> Cells{ };
+		state                       Shown;
+		progress_mark_colours       Colours;
+		bool                        Compact = false;
 	};
 
 	/// \brief The 1 by 18 pixel rule between strip regions.

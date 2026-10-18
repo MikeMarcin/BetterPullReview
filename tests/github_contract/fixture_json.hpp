@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_GITHUB_CONTRACT_FIXTURE_JSON_HPP
+#define BPR_TESTS_GITHUB_CONTRACT_FIXTURE_JSON_HPP
 
 #include <glaze/json.hpp>
 
@@ -20,9 +21,9 @@ namespace bpr::tests {
 
 	struct fixture_json_options : glz::opts
 	{
-		bool escape_control_characters    = true;
-		bool validate_skipped             = true;
-		bool validate_trailing_whitespace = true;
+		bool escape_control_characters    = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_skipped             = true; // NOLINT(readability-identifier-naming): Glaze option names.
+		bool validate_trailing_whitespace = true; // NOLINT(readability-identifier-naming): Glaze option names.
 		constexpr fixture_json_options()
 		{
 			null_terminated   = false;
@@ -49,3 +50,5 @@ namespace bpr::tests {
 		return body;
 	}
 }
+
+#endif

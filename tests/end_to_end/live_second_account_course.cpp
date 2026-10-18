@@ -427,7 +427,7 @@ namespace {
 		const auto files = aWindow.overview_page()->projection()->Files;
 		aWindow.choose_modality(qt::review_modality::review);
 		auto* const surface = aWindow.comparison_surface();
-		const auto  path_of = [&]() -> std::optional<std::string> {
+		const auto  pathOf  = [&]() -> std::optional<std::string> {
 			const auto& context = surface->current_context();
 			if (!context) {
 				return std::nullopt;
@@ -442,22 +442,25 @@ namespace {
 		const auto settled = [&] {
 			const auto& context = surface->current_context();
 			const auto& result  = surface->current_result();
-			return context && result && result->Alignment.Key == context->Key && path_of().has_value();
+			return context && result && result->Alignment.Key == context->Key && pathOf().has_value();
 		};
 		std::ofstream            out{ aOptions.Root / "parity.jsonl" };
 		std::vector<std::string> visited;
 		for (std::size_t index = 0U; index < files.size(); ++index) {
 			if (index == 0U) {
 				if (!wait_for(settled, "the first file's comparison (opens it next)", std::chrono::seconds{ 15 })) {
+					// [[BPR-1572]]. Says what the review shows while it waits.
+					say("parity:waiting comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
+						+ " status=" + text(aWindow.epoch_selectors()->status_text()) + " surface=" + text(surface->status_text()));
 					if (auto* const open = surface->idle_open_first_button(); open != nullptr && open->isVisible()) {
 						open->click();
 					}
 					require(settled, "the first file's comparison", std::chrono::seconds{ 120 });
 				}
 			} else {
-				const auto before = *path_of();
+				const auto before = *pathOf();
 				aWindow.next_file_action()->trigger();
-				require([&] { return settled() && *path_of() != before; }, "file " + std::to_string(index + 1U) + "'s comparison", std::chrono::seconds{ 120 });
+				require([&] { return settled() && *pathOf() != before; }, "file " + std::to_string(index + 1U) + "'s comparison", std::chrono::seconds{ 120 });
 			}
 			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 1 });
 			require(settled, "the comparison stays settled");
@@ -467,7 +470,7 @@ namespace {
 				say("parity:comparing=" + (aWindow.epoch_selectors()->comparing_button() ? text(aWindow.epoch_selectors()->comparing_button()->text()) : std::string{ "-" })
 					+ " status=" + text(aWindow.epoch_selectors()->status_text()));
 			}
-			const auto  path    = *path_of();
+			const auto  path    = *pathOf();
 			const auto& context = *surface->current_context();
 			const auto& result  = *surface->current_result();
 			const auto  blob    = [](const std::optional<core::git_blob_oid>& aBlob) {
@@ -515,7 +518,7 @@ namespace {
 				const auto& path = files[index].Path;
 				const auto  row  = aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(path));
 				aWindow.files_drawer()->contents_view()->setCurrentIndex(row);
-				const auto shownHere  = [&] { return interdiff() && path_of() == path; };
+				const auto shownHere  = [&] { return interdiff() && pathOf() == path; };
 				const auto absentHere = [&] {
 					return absent() && aWindow.files_drawer()->contents_view()->currentIndex() == row;
 				};

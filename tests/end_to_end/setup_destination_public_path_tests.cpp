@@ -546,7 +546,7 @@ namespace {
 
 		// A typical subset, chosen in Settings: issue and nitpick.
 		auto* const editor = window.label_columns_editor();
-		expect(editor != nullptr, "Reviews & queue offers the Overview chips");
+		expect(editor != nullptr, "Comments offers the Overview chips");
 		editor->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
 		wait_for([&] { return counted(1U, core::feedback_resolution_mode::unresolved); }, "a chip ticked in Settings reaches the Overview through the profile's setting");
 		editor->item_of(core::feedback_label::nitpick)->setCheckState(Qt::Checked);
@@ -883,9 +883,9 @@ namespace {
 				   && cell("src/ui/widgets/slider.cpp").data().toString() == QStringLiteral("issue 1 · suggestion 1")
 				   && folder.data().toString() == QStringLiteral("issue 2 · question 2 · Other 3") && remainder(Qt::DisplayRole) == QStringLiteral("issue 1 · ? 5"),
 			   "chips in Settings order: renderer.cpp, slider.cpp, the src/engine folder and Not on a file");
-		const auto themes         = std::array{ std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" },
-												std::pair{ core::appearance_mode::high_contrast_light, "hc-light" }, std::pair{ core::appearance_mode::high_contrast_dark, "hc-dark" } };
-		const auto capture_themes = [&](const char* aName) {
+		const auto themes        = std::array{ std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" },
+											   std::pair{ core::appearance_mode::high_contrast_light, "hc-light" }, std::pair{ core::appearance_mode::high_contrast_dark, "hc-dark" } };
+		const auto captureThemes = [&](const char* aName) {
 			if (qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT").isEmpty()) {
 				return;
 			}
@@ -895,7 +895,7 @@ namespace {
 				capture(window, QStringLiteral("overview-labels-%1-%2.png").arg(QString::fromLatin1(aName), QString::fromLatin1(theme)));
 			}
 		};
-		capture_themes("open");
+		captureThemes("open");
 		// The keyboard route for the look: renderer.cpp's row selected, Tab on
 		// its first chip, with the chip's tooltip beside it.
 		if (const auto root = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT"); !root.isEmpty()) {
@@ -923,7 +923,7 @@ namespace {
 					   == QStringLiteral("issue 2 (2 open), question 1 (1 open), suggestion 1 (1 resolved), Other 3 (2 open, 1 resolved) threads")
 				   && remainder(Qt::AccessibleTextRole) == QStringLiteral("issue 3 (1 open, 2 not resolvable), question 1 (1 not resolvable), Other 2 (2 not resolvable) threads"),
 			   "All gives each chip its breakdown, the unresolvable ones on Not on a file");
-		capture_themes("all");
+		captureThemes("all");
 		// The Label key and a Comments menu are windows of their own; in a
 		// dark theme they show the page's colours, not the application's.
 		expect(github_application_fixture_access::apply_appearance_gesture(*owner, core::appearance_mode::dark, 4U), "Settings applies the dark theme");
@@ -986,7 +986,7 @@ namespace {
 				capture(window, QStringLiteral("overview-labels-discuss-%1.png").arg(QString::fromLatin1(theme)));
 				auto* const settings = window.settings();
 				expect(settings != nullptr && editor->window() == settings, "the Overview chips live in Settings");
-				settings->present(qt::settings_page::reviews_and_queue);
+				settings->present(qt::settings_page::comments);
 				settings->resize(900, 700);
 				QApplication::processEvents();
 				for (auto* area = editor->parentWidget(); area != nullptr; area = area->parentWidget()) {
@@ -2006,10 +2006,10 @@ namespace {
 			bool                        Released = false;
 		};
 		auto gate               = std::make_shared<catalogue_gate>();
-		options.BeforeFilesPage = [gate](const std::stop_token stop) {
+		options.BeforeFilesPage = [gate](const std::stop_token aStop) {
 			gate->Reached = true;
 			std::unique_lock lock{ gate->Mutex };
-			static_cast<void>(gate->Changed.wait_for(lock, stop, std::chrono::seconds{ 20 }, [&] { return gate->Released; }));
+			static_cast<void>(gate->Changed.wait_for(lock, aStop, std::chrono::seconds{ 20 }, [&] { return gate->Released; }));
 		};
 		options.GithubCliDiscoveryAccounts
 			= std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
@@ -2104,7 +2104,7 @@ namespace {
 				 "composed CLI course paints useful metadata while the first file page is still held");
 		capture(window, QStringLiteral("setup-cli-progressive-overview.png"));
 		const auto firstUsefulMs = loadElapsed.elapsed();
-		expect(!window.overview_page()->presented() && !window.overview_page()->entry_button()->isEnabled()
+		expect(!window.overview_page()->presented() && !window.overview_page()->entry_path()
 				   && window.overview_page()->file_model()->rowCount() == 0
 				   && window.session_panel()->status() == core::github_status::loading_pull_request
 				   && github_application_fixture_access::evidence(*application).SmartAcquireCount == 0U,
@@ -2373,10 +2373,10 @@ namespace {
 			   "reading PR-wide discussion does not require or select code");
 		updatedWindow.modality()->action(qt::review_modality::overview)->trigger();
 		verify_overview_folder_navigation(updatedWindow);
-		expect(updatedWindow.overview_page()->entry_button()->isEnabled()
-				   && updatedWindow.overview_page()->entry_button()->text() == QStringLiteral("Start review"),
-			   "Overview offers Start review for the first visit");
-		updatedWindow.overview_page()->entry_button()->click();
+		// [[BPR-1588]]. No Start review; Command-2 from a fresh Overview is the entry.
+		expect(updatedWindow.overview_page()->entry_path().has_value(),
+			   "Overview knows the first unseen change for the first visit");
+		updatedWindow.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		expect(updatedWindow.current_modality() == qt::review_modality::review,
 			   "Overview entry reaches Review");
 		auto* const recoveredFiles     = updatedWindow.files_drawer()->contents_view();

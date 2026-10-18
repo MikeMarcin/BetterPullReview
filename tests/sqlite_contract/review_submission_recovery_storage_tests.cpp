@@ -312,7 +312,7 @@ namespace {
 			expect(store->admit(record(value)).has_value(), "bounded capacity admits exact rows");
 		}
 		const auto pending = store->pending();
-		expect(pending && pending->size() == application::maximum_review_mutation_recovery_records && std::ranges::all_of(*pending, [](const auto& value) { return value.Transmission == application::review_mutation_recovery_transmission::prepared; }), "all prepared records remain discoverable at exact capacity");
+		expect(pending && pending->size() == application::maximum_review_mutation_recovery_records && std::ranges::all_of(*pending, [](const auto& aValue) { return aValue.Transmission == application::review_mutation_recovery_transmission::prepared; }), "all prepared records remain discoverable at exact capacity");
 		for (const auto& scope : std::array<adapters::sqlite::review_mutation_recovery_configuration, 3>{ { { .StorageRoot = root.Path, .Host = "github.com", .Account = "22", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 1 },
 																											{ .StorageRoot = root.Path, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/another-repository", .PullRequest = 1 },
 																											{ .StorageRoot = root.Path, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = 2 } } }) {

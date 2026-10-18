@@ -176,8 +176,8 @@ namespace bpr::adapters::sqlite::detail {
 			for (std::size_t index = 0U; index < core::appearance_variant_count;
 				 ++index) {
 				const auto stored = variant_stored_column(variant_at(index));
-				sql += variant_document_column(variant_at(index)) + " TEXT NOT NULL,";
-				sql += stored + " INTEGER NOT NULL CHECK(" + stored + " IN (0, 1)),";
+				sql.append(variant_document_column(variant_at(index))).append(" TEXT NOT NULL,");
+				sql.append(stored).append(" INTEGER NOT NULL CHECK(").append(stored).append(" IN (0, 1)),");
 			}
 			sql += "ui_family TEXT NOT NULL,"
 				   "ui_point_size INTEGER NOT NULL,"

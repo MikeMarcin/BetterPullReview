@@ -52,7 +52,9 @@ namespace bpr::qt {
 			settings_page::general,
 			settings_page::accounts_and_hosts,
 			settings_page::repositories,
-			settings_page::reviews_and_queue,
+			settings_page::home_and_queue,
+			settings_page::review,
+			settings_page::comments,
 			settings_page::appearance,
 			settings_page::notifications,
 			settings_page::agents_and_context,
@@ -73,17 +75,21 @@ namespace bpr::qt {
 			case settings_page::general:
 				return QStringLiteral(
 					"New windows open Home. Window restoration is not available in this build. "
-					"Review navigation defaults are in Reviews & Queue; colours and fonts are in Appearance.");
+					"How a pull request opens and reads is in Review; colours and fonts are in Appearance.");
 			case settings_page::accounts_and_hosts:
 				return QStringLiteral(
 					"Sign in, sign out and enterprise servers are in the review window's "
 					"header for now. Remembered servers will move here.");
 			case settings_page::repositories:
 				return QStringLiteral("Saved repositories for the signed-in account will be listed here.");
-			case settings_page::reviews_and_queue:
+			case settings_page::home_and_queue:
 				return QStringLiteral(
 					"Observer rules and queue ordering are in the review window's queue "
 					"for now.");
+			case settings_page::review:
+				return QStringLiteral("How a pull request opens and reads will be set here.");
+			case settings_page::comments:
+				return QStringLiteral("Comment labels and the comment workshop will be set here.");
 			case settings_page::appearance:
 				return QStringLiteral("Appearance settings are unavailable in this build.");
 			case settings_page::notifications:
@@ -471,8 +477,12 @@ namespace bpr::qt {
 			return QStringLiteral("Accounts & hosts");
 		case settings_page::repositories:
 			return QStringLiteral("Repositories");
-		case settings_page::reviews_and_queue:
-			return QStringLiteral("Reviews & queue");
+		case settings_page::home_and_queue:
+			return QStringLiteral("Home & queue");
+		case settings_page::review:
+			return QStringLiteral("Review");
+		case settings_page::comments:
+			return QStringLiteral("Comments");
 		case settings_page::appearance:
 			return QStringLiteral("Appearance");
 		case settings_page::notifications:

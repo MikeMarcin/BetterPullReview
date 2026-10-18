@@ -31,6 +31,10 @@ groups the cards:
 | [[BPR-1594]] | Agent as a drawer tab (AC07) |
 | [[BPR-1595]] | Closeout (AC08, AC09) |
 
+Milestone 1 ([[BPR-1587]], [[BPR-1588]]) landed on 2026-10-17 after the
+owner's Accept (session `e471b4b8…`). Its settings step was renumbered from
+schema 22 to 23 at landing, because [[BPR-1584]]'s reading width took 22 first.
+
 The design round, its audit and the before renders are in
 [`docs/design/BPR-1574-drawers-and-agent-v1/`](../design/BPR-1574-drawers-and-agent-v1/index.html)
 and on [[BPR-1574]].
@@ -76,9 +80,11 @@ Each is the owner's, from session `9b6359b5`, verbatim notes quoted.
   file also works." The button only entered Review at the first unseen
   change's file (`enter_review_at(EntryPath)`) and was the page's default
   button; it started nothing and recorded nothing. Both behaviours stay: the
-  first entry into Review (⌘2, the Review segment) from the Overview of a pull
-  request in which no file has been chosen in this window selects
-  `EntryPath`, and Return on the Overview's Files list opens the selected file.
+  reviewer's first entry into Review (⌘2, the Review segment) from the Overview
+  of a pull request they have not started (nothing read, no earlier review,
+  where Start review stood) selects `EntryPath`; a started review keeps its
+  restored reading place, and a link or a file row keeps its own target. Return
+  on the Overview's Files list opens the selected file.
 - **D2, principles:** Accept (`235de4db`).
 - **D3, Notes:** A, margin notes (`566b134c`). Note: "I'm looking for something
   a bit better than 'Make it a comment' I initially thought 'Promote to
@@ -141,12 +147,13 @@ Each is the owner's, from session `9b6359b5`, verbatim notes quoted.
 ### Promoting private material
 
 A private note and an agent finding become a local draft through one shared
-action whose label the owner chooses at [[BPR-1588]]'s review (one option
-question): **To comment**, **Draft comment** or **Use as draft**. "Post as
-comment" and "Share" are not offered: promotion publishes nothing and shares
-nothing; it copies the text to a local draft at the same line or file, the
-source stays, and only the draft's own Publish or review submission sends it.
-Until the owner answers, the label is "To comment".
+action labelled **Draft comment**: the owner's choice at [[BPR-1588]]'s review
+(session `e471b4b8…`, decision `bcb5d520`, 2026-10-17, from To comment, Draft
+comment and Use as draft). It copies the text to a local draft at the same line
+or file, the source stays, and only the draft's own Publish or review
+submission sends it; "Post as comment" and "Share" were left out because the
+action publishes and shares nothing. [[BPR-1592]] (Notes) and [[BPR-1594]]
+(Agent findings) use this label.
 
 ### The Overview's Status drawer (D1, D7)
 
@@ -205,7 +212,7 @@ submission, refusal and unknown-answer behaviour of [[BPR-1345]] and
 
 ### Notes (D3)
 
-Notes holds only private notes. Each note hangs from its line beside the code
+Notes holds only private notes; the promote action reads Draft comment. Each note hangs from its line beside the code
 and opens in place, exactly as a thread does, drawn dashed with a lock; notes
 on the whole file or the pull request, and on other files, wait in the edge
 chips. Writing a note uses the blue edge (where you write). The tab's tools:

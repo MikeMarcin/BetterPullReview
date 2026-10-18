@@ -200,13 +200,13 @@ namespace {
 		expect(store->load_state(before.Owner, before.Id, { }).value() == state, "killed transaction rolls back text and both history directions together");
 #endif
 		application::manual_executor effects, decisions;
-		auto                         apply = [&](bool redo, std::uint64_t expected) {
+		auto                         apply = [&](bool aRedo, std::uint64_t aExpected) {
 			application::review_tour_host host{ before, adapters::sqlite::make_review_tour_store(scratch.path(), before.Owner.Profile), effects, decisions, { } };
 			host.start();
 			effects.drain();
 			decisions.drain();
 			expect(host.presentation().Resume == state.Resume, "optional section and stable stop survive a presentation switch");
-			auto outcome = host.execute({ .Command = { .Draft = before.Id, .Owner = before.Owner, .ExpectedRevision = expected }, .Operation = redo ? application::tour_service_operation::redo : application::tour_service_operation::undo });
+			auto outcome = host.execute({ .Command = { .Draft = before.Id, .Owner = before.Owner, .ExpectedRevision = aExpected }, .Operation = aRedo ? application::tour_service_operation::redo : application::tour_service_operation::undo });
 			host.shutdown();
 			while (!host.is_quiescent()) {
 				effects.drain();

@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <utility>
 
 namespace bpr::qt {
@@ -178,7 +179,8 @@ namespace bpr::qt {
 				aPainter.drawPath(house);
 				break;
 			}
-			case strip_glyph::private_progress: {
+			case strip_glyph::private_progress:
+			case strip_glyph::accept_file:      {
 				auto check = QPainterPath{ };
 				check.moveTo(5.0, 12.5);
 				check.lineTo(10.0, 17.5);
@@ -280,6 +282,52 @@ namespace bpr::qt {
 								  aPalette.color(QPalette::Active, QPalette::ButtonText), disabled_ink(aPalette));
 	}
 
+	auto strip_refresh_icon(const strip_refresh_look aLook, const int aFrame, const QPalette& aPalette) -> QIcon
+	{
+		if (aLook == strip_refresh_look::idle) {
+			return strip_icon(strip_glyph::refresh, aPalette);
+		}
+		const auto ink   = aPalette.color(QPalette::Active, QPalette::ButtonText);
+		auto       paint = [aLook, aFrame](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+			aPainter.save();
+			const auto unit = aSide / 24.0;
+			aPainter.scale(unit, unit);
+			auto pen = QPen{ aInk };
+			pen.setWidthF(2.0);
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			switch (aLook) {
+			case strip_refresh_look::turning:
+				// Clockwise, a twelfth of a turn a frame, about the arrow's centre.
+				aPainter.translate(12.0, 12.0);
+				aPainter.rotate(30.0 * (((aFrame % 12) + 12) % 12));
+				aPainter.translate(-12.0, -12.0);
+				stroke_glyph(aPainter, strip_glyph::refresh);
+				break;
+			case strip_refresh_look::waiting:
+				stroke_glyph(aPainter, strip_glyph::refresh);
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(aInk);
+				aPainter.drawEllipse(QPointF{ 12.0, 12.0 }, 2.2, 2.2);
+				break;
+			case strip_refresh_look::settled: {
+				auto tick = QPainterPath{ };
+				tick.moveTo(5.5, 12.5);
+				tick.lineTo(10.0, 17.0);
+				tick.lineTo(18.5, 7.0);
+				aPainter.drawPath(tick);
+				break;
+			}
+			case strip_refresh_look::idle:
+				break;
+			}
+			aPainter.restore();
+		};
+		return painted_glyph_icon(std::move(paint), ink, ink);
+	}
+
 	void set_strip_badge(QToolButton& aButton, const QString& aBadge)
 	{
 		if (aButton.property(strip_style::badge_property).toString() == aBadge) {
@@ -318,6 +366,8 @@ namespace bpr::qt {
 		const auto  down    = (option->state & State_Sunken) != 0;
 		const auto  filled  = aWidget != nullptr
 			&& aWidget->property(filled_property).toBool();
+		// [[BPR-1575]]. A button whose work is under way reads as engaged.
+		const auto busy = aWidget != nullptr && aWidget->property(busy_property).toBool();
 
 		// A presenter the toolbar stretched to its row keeps the design's
 		// height: the frame is centred in whatever rect the layout gave it.
@@ -344,7 +394,7 @@ namespace bpr::qt {
 			if (checked) {
 				ink = palette.color(QPalette::Active, QPalette::HighlightedText);
 			}
-		} else if (checked) {
+		} else if (checked || busy) {
 			fill   = soft_fill(accent);
 			border = accent;
 		}
@@ -355,7 +405,7 @@ namespace bpr::qt {
 				fill = palette.color(QPalette::Active, QPalette::Midlight);
 			}
 		}
-		if (!enabled) {
+		if (!enabled && !busy) {
 			ink = disabled_ink(palette);
 		}
 
@@ -417,6 +467,12 @@ namespace bpr::qt {
 				// [[BPR-1129]]. A kept draft: an amber dot on the icon's upper right.
 				aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Button), 1.0 });
 				aPainter->setBrush(mark_colour());
+				aPainter->drawEllipse(QPointF{ static_cast<qreal>(iconRect.right()) - 0.5, static_cast<qreal>(iconRect.top()) + 1.5 }, 3.5, 3.5);
+			}
+			if (const auto alert = aWidget != nullptr ? aWidget->property(alert_property).value<QColor>() : QColor{ }; alert.isValid()) {
+				// [[BPR-1575]]. The last attempt failed: a dot in the failure ink.
+				aPainter->setPen(QPen{ palette.color(QPalette::Active, QPalette::Button), 1.0 });
+				aPainter->setBrush(alert);
 				aPainter->drawEllipse(QPointF{ static_cast<qreal>(iconRect.right()) - 0.5, static_cast<qreal>(iconRect.top()) + 1.5 }, 3.5, 3.5);
 			}
 			x += iconWidth + gap;
@@ -556,22 +612,44 @@ namespace bpr::qt {
 		return Style;
 	}
 
-	void workbench_strip::set_navigation_rails(QAction* const aFileLabel, QAction* const aFileLast, QAction* const aChangeLabel, QAction* const aChangeLast)
+	void workbench_strip::set_group_rails(const std::initializer_list<rail_group> aGroups)
 	{
-		NavigationRails = { aFileLabel, aFileLast, aChangeLabel, aChangeLast };
+		GroupRails.clear();
+		for (const auto& group : aGroups) {
+			GroupRails.emplace_back(group.First, group.Last);
+		}
 		update();
 	}
 
-	void workbench_strip::paint_navigation_rails(QPainter& aPainter) const
+	auto workbench_strip::group_rail_count() const noexcept -> std::size_t
 	{
-		for (const auto index : { 0U, 2U }) {
-			if (NavigationRails[index] == nullptr || NavigationRails[index + 1U] == nullptr) {
-				continue;
-			}
-			const auto first = actionGeometry(NavigationRails[index]);
-			const auto last  = actionGeometry(NavigationRails[index + 1U]);
-			if (!first.isEmpty() && !last.isEmpty() && first.left() < last.right()) {
-				aPainter.fillRect(QRect{ first.left() + 2, height() - 3, last.right() - first.left() - 3, 2 }, palette().color(QPalette::Active, QPalette::Highlight));
+		return GroupRails.size();
+	}
+
+	auto workbench_strip::group_rail(const std::size_t aIndex) const -> QRect
+	{
+		if (aIndex >= GroupRails.size()) {
+			return { };
+		}
+		const auto& [firstAction, lastAction] = GroupRails[aIndex];
+		if (firstAction == nullptr || lastAction == nullptr) {
+			return { };
+		}
+		// A hidden presenter keeps no geometry of its own, so a group whose
+		// end is hidden draws nothing rather than a rail to a stale place.
+		const auto first = actionGeometry(firstAction);
+		const auto last  = actionGeometry(lastAction);
+		if (first.isEmpty() || last.isEmpty() || first.left() >= last.right()) {
+			return { };
+		}
+		return QRect{ first.left() + 2, height() - 3, last.right() - first.left() - 3, 2 };
+	}
+
+	void workbench_strip::paint_group_rails(QPainter& aPainter) const
+	{
+		for (std::size_t index = 0U; index < GroupRails.size(); ++index) {
+			if (const auto rail = group_rail(index); !rail.isEmpty()) {
+				aPainter.fillRect(rail, palette().color(QPalette::Active, QPalette::Highlight));
 			}
 		}
 	}
@@ -594,7 +672,7 @@ namespace bpr::qt {
 		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
 		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
 		painter.drawLine(0, height() - 1, width(), height() - 1);
-		paint_navigation_rails(painter);
+		paint_group_rails(painter);
 	}
 
 	void workbench_strip::actionEvent(QActionEvent* const aEvent)
@@ -689,6 +767,310 @@ namespace bpr::qt {
 			return;
 		}
 		QToolBar::mouseDoubleClickEvent(aEvent);
+	}
+
+	namespace {
+		/// [[BPR-1578]]. The track's measures: a step is its padding, a
+		/// 16-pixel mark, a gap and its word; the menu cell is a chevron, or
+		/// the excluded mark and a chevron.
+		constexpr int track_padding  = 6;
+		constexpr int track_gap      = 3;
+		constexpr int track_glyph    = 16;
+		constexpr int track_chevron  = 18;
+		constexpr int track_excluded = 6 + track_glyph + 2 + 8 + 5;
+		constexpr int track_radius   = 5;
+		constexpr int track_hover    = 40;
+
+		/// Whichever of the palette's window and window text contrasts with
+		/// a solid fill, for the word and mark drawn on it.
+		[[nodiscard]] auto ink_on(const QPalette& aPalette, const QColor& aFill) -> QColor
+		{
+			const auto luminance = [](const QColor& aColour) {
+				return (0.2126 * aColour.redF()) + (0.7152 * aColour.greenF()) + (0.0722 * aColour.blueF());
+			};
+			const auto light = aPalette.color(QPalette::Active, QPalette::Window);
+			const auto dark  = aPalette.color(QPalette::Active, QPalette::WindowText);
+			const auto fill  = luminance(aFill);
+			return std::abs(luminance(light) - fill) > std::abs(luminance(dark) - fill) ? light : dark;
+		}
+
+		/// [[BPR-1157]]. The window's focus ring, inside a focused cell.
+		void paint_focus_ring(QPainter& aPainter, const QWidget& aCell, const QPalette& aPalette, const QRectF& aArea)
+		{
+			if (!aCell.hasFocus()) {
+				return;
+			}
+			const auto inset = focus_ring_width / 2.0;
+			aPainter.setPen(QPen{ focus_ring_colour(aPalette, QPalette::Window), focus_ring_width });
+			aPainter.setBrush(Qt::NoBrush);
+			aPainter.drawRoundedRect(aArea.adjusted(inset + 0.5, inset + 0.5, -inset - 0.5, -inset - 0.5), track_radius - 1.0, track_radius - 1.0);
+		}
+
+		void paint_chevron(QPainter& aPainter, const qreal aCentre, const qreal aMiddle, const QColor& aInk)
+		{
+			auto pen = QPen{ aInk, 1.5 };
+			pen.setCapStyle(Qt::RoundCap);
+			pen.setJoinStyle(Qt::RoundJoin);
+			aPainter.setPen(pen);
+			aPainter.setBrush(Qt::NoBrush);
+			auto arrow = QPainterPath{ };
+			arrow.moveTo(aCentre - 3.0, aMiddle - 1.5);
+			arrow.lineTo(aCentre, aMiddle + 1.5);
+			arrow.lineTo(aCentre + 3.0, aMiddle - 1.5);
+			aPainter.drawPath(arrow);
+		}
+	} // namespace
+
+	progress_track::progress_track(QToolButton& aSeen, QToolButton& aRead, QToolButton& aAccept, QToolButton& aMenu, QWidget* const aParent)
+		: QWidget{ aParent }
+		, Cells{ &aSeen, &aRead, &aAccept, &aMenu }
+	{
+		setObjectName(QStringLiteral("workbenchProgressTrack"));
+		setFocusPolicy(Qt::NoFocus);
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		auto* const row = new QHBoxLayout{ this };
+		row->setContentsMargins(0, 0, 0, 0);
+		row->setSpacing(0);
+		for (auto* const button : Cells) {
+			button->setParent(this);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setAutoRaise(true);
+			button->setAttribute(Qt::WA_Hover, true);
+			button->installEventFilter(this);
+			row->addWidget(button);
+		}
+		relayout();
+	}
+
+	void progress_track::set_state(const state& aState, const progress_mark_colours& aColours)
+	{
+		if (Shown == aState && Colours == aColours) {
+			return;
+		}
+		Shown   = aState;
+		Colours = aColours;
+		relayout();
+		update();
+		for (auto* const button : Cells) {
+			button->update();
+		}
+	}
+
+	void progress_track::set_compact(const bool aCompact)
+	{
+		if (Compact == aCompact) {
+			return;
+		}
+		Compact = aCompact;
+		relayout();
+		update();
+	}
+
+	auto progress_track::compact() const noexcept -> bool
+	{
+		return Compact;
+	}
+
+	auto progress_track::shown() const noexcept -> const state&
+	{
+		return Shown;
+	}
+
+	auto progress_track::current_step() const noexcept -> std::optional<std::size_t>
+	{
+		if (!Shown.Live) {
+			return std::nullopt;
+		}
+		if (Shown.Accepted) {
+			return accept_step;
+		}
+		if (Shown.Read) {
+			return read_step;
+		}
+		if (Shown.Seen) {
+			return seen_step;
+		}
+		return std::nullopt;
+	}
+
+	auto progress_track::cell(const std::size_t aIndex) const -> QRect
+	{
+		return aIndex < Cells.size() ? Cells[aIndex]->geometry() : QRect{ };
+	}
+
+	auto progress_track::word(const std::size_t aIndex) const -> QString
+	{
+		switch (aIndex) {
+		case seen_step:
+			return QStringLiteral("Seen");
+		case read_step:
+			return QStringLiteral("Read");
+		case accept_step:
+			return Shown.Live && Shown.Accepted ? QStringLiteral("Accepted") : QStringLiteral("Accept");
+		default:
+			return { };
+		}
+	}
+
+	auto progress_track::cell_width(const std::size_t aIndex) const -> int
+	{
+		if (aIndex == menu_cell) {
+			return Shown.Excluded ? track_excluded : track_chevron;
+		}
+		if (Compact && aIndex != accept_step) {
+			return track_padding + track_glyph + track_padding;
+		}
+		return track_padding + track_glyph + track_gap + fontMetrics().horizontalAdvance(word(aIndex)) + track_padding;
+	}
+
+	void progress_track::relayout()
+	{
+		for (std::size_t index = 0U; index < Cells.size(); ++index) {
+			Cells[index]->setFixedSize(cell_width(index), strip_style::button_height);
+		}
+		updateGeometry();
+	}
+
+	auto progress_track::sizeHint() const -> QSize
+	{
+		auto width = 0;
+		for (std::size_t index = 0U; index < Cells.size(); ++index) {
+			width += cell_width(index);
+		}
+		return QSize{ width, strip_style::button_height };
+	}
+
+	auto progress_track::minimumSizeHint() const -> QSize
+	{
+		return sizeHint();
+	}
+
+	auto progress_track::step_fill() const -> QColor
+	{
+		return Shown.Accepted ? Colours.Accepted : palette().color(QPalette::Active, QPalette::Highlight);
+	}
+
+	void progress_track::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) {
+			relayout();
+			update();
+		}
+	}
+
+	void progress_track::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+		painter.setBrush(palette().color(QPalette::Active, QPalette::Button));
+		painter.drawRoundedRect(box, track_radius, track_radius);
+		const auto current = current_step();
+		if (current.has_value()) {
+			// The reached step, solid, clipped from the track's own outline
+			// so its outer corners keep the frame's rounding.
+			auto segment = QRectF{ cell(*current) };
+			if (*current == seen_step) {
+				segment.setLeft(0.0);
+			}
+			painter.save();
+			painter.setClipRect(segment);
+			painter.setPen(QPen{ step_fill(), 1.0 });
+			painter.setBrush(step_fill());
+			painter.drawRoundedRect(box, track_radius, track_radius);
+			painter.restore();
+		}
+		painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+		for (std::size_t index = 1U; index < Cells.size(); ++index) {
+			const auto beside = current.has_value() && (*current == index || *current + 1U == index);
+			if (beside && index != menu_cell) {
+				continue;
+			}
+			const auto x = static_cast<qreal>(cell(index).left()) + 0.5;
+			painter.drawLine(QPointF{ x, box.top() + 4.0 }, QPointF{ x, box.bottom() - 4.0 });
+		}
+	}
+
+	bool progress_track::eventFilter(QObject* const aWatched, QEvent* const aEvent)
+	{
+		if (aEvent->type() == QEvent::Paint) {
+			for (std::size_t index = 0U; index < Cells.size(); ++index) {
+				if (aWatched == Cells[index]) {
+					paint_cell(index);
+					return true;
+				}
+			}
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
+	}
+
+	void progress_track::paint_cell(const std::size_t aIndex)
+	{
+		auto& button  = *Cells[aIndex];
+		auto  painter = QPainter{ &button };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto& colours = palette();
+		const auto  area    = QRectF{ button.rect() };
+		const auto  middle  = area.center().y() + 0.5;
+		const auto  ink     = colours.color(QPalette::Active, QPalette::ButtonText);
+		const auto  dim     = colours.color(QPalette::Disabled, QPalette::ButtonText);
+		const auto  current = current_step() == std::optional{ aIndex };
+		const auto  onFill  = ink_on(colours, step_fill());
+		if (button.isEnabled() && !current && (button.isDown() || button.underMouse())) {
+			// Hover and press, as a light wash of the ink over the cell.
+			auto wash = ink;
+			wash.setAlpha(button.isDown() ? 2 * track_hover : track_hover);
+			painter.fillRect(area.adjusted(1.0, 1.0, -1.0, -1.0), wash);
+		}
+		const auto glyphBox = QRectF{ static_cast<qreal>(track_padding), (area.height() - track_glyph) / 2.0, track_glyph, track_glyph };
+		if (aIndex == menu_cell) {
+			auto centre = area.center().x();
+			if (Shown.Excluded) {
+				paint_progress_mark(painter, glyphBox, core::file_progress_mark::excluded, Colours);
+				centre = glyphBox.right() + 2.0 + 4.0;
+			}
+			paint_chevron(painter, centre, middle, button.isEnabled() ? ink : dim);
+		} else {
+			const auto marks = std::array{ core::file_progress_mark::seen, core::file_progress_mark::read, core::file_progress_mark::accepted };
+			const auto done  = Shown.Live
+				&& (aIndex == seen_step ? Shown.Seen : aIndex == read_step ? Shown.Read
+																		   : Shown.Accepted);
+			if (!Shown.Live) {
+				if (aIndex == accept_step) {
+					strip_icon(strip_glyph::accept_file, colours).paint(&painter, glyphBox.toRect(), Qt::AlignCenter, QIcon::Disabled);
+				} else {
+					painter.setPen(QPen{ dim, 1.6 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawEllipse(glyphBox.center(), 6.0, 6.0);
+				}
+			} else if (current) {
+				paint_progress_mark(painter, glyphBox, marks[aIndex], monochrome_progress_mark_colours(onFill));
+			} else if (done) {
+				paint_progress_mark(painter, glyphBox, marks[aIndex], Colours);
+			} else if (aIndex == accept_step) {
+				// The step still to take previews its outcome: the acceptance
+				// green's tick.
+				auto green = colours;
+				green.setColor(QPalette::Active, QPalette::ButtonText, Colours.Accepted);
+				strip_icon(strip_glyph::accept_file, green).paint(&painter, glyphBox.toRect());
+			} else {
+				painter.setPen(QPen{ ink, 1.6 });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawEllipse(glyphBox.center(), 6.0, 6.0);
+			}
+			if (Compact && aIndex != accept_step) {
+				paint_focus_ring(painter, button, colours, area);
+				return;
+			}
+			painter.setPen(!Shown.Live ? dim : current ? onFill
+													   : ink);
+			painter.setFont(button.font());
+			painter.drawText(QRectF{ glyphBox.right() + track_gap, 0.0, area.width() - glyphBox.right() - track_gap, area.height() }, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, word(aIndex));
+		}
+		paint_focus_ring(painter, button, colours, area);
 	}
 
 	strip_divider::strip_divider(QWidget* const aParent)

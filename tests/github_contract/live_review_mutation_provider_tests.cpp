@@ -569,6 +569,8 @@ namespace {
 		case review_mutation_operation::staged_update_issue_comment:   return "staged_update_issue_comment";
 		case review_mutation_operation::staged_update_pending_comment: return "staged_update_pending_comment";
 		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
+		case review_mutation_operation::observe_recorded_merge_base:   return "observe_recorded_merge_base";
+		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1802,6 +1804,110 @@ namespace {
 		review_mutation_session* Session = nullptr;
 	};
 
+	/// [[BPR-1572]]. A single LEFT comment on a stacked pull request whose base
+	/// branch names another merge base than the comparison base. The base
+	/// branch only moved forward: GitHub still numbers LEFT in the recorded
+	/// base's merge base and the comment is sent. Rewritten, a commit count
+	/// other than the recorded base's, or GitHub replacing the recorded base
+	/// with the branch tip while the merge-base answers are asked (the pull
+	/// request read again names the tip): `target_moved`, nothing sent. The
+	/// ancestry is asked of the exact tip the base branch's answer resolved.
+	void test_a_left_comment_on_a_stacked_pull_request()
+	{
+		enum class course : std::uint8_t { forward,
+										   rewritten,
+										   count_differs,
+										   reset,
+										   agree_head_moves,
+										   agree_target_fails,
+										   agree_both_move };
+		const auto recorded = std::string{ core::canonical_hex(target().BaseOid).view() };
+		const auto head     = std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() };
+		const auto tip      = std::string(40U, 'b');
+		const auto base     = commit(0x5aU);
+		const auto compare  = [](const std::string& aPair, const std::string& aBase, const std::string& aMergeBase, const std::string_view aAhead = "") -> github_mutation_wire_completion {
+			auto body = std::string{ "{\"url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/compare/" };
+			body.append(aPair).append("\",").append(aAhead).append("\"base_commit\":{\"sha\":\"").append(aBase).append("\"},\"merge_base_commit\":{\"sha\":\"").append(aMergeBase).append("\"}}");
+			return github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(body) } };
+		};
+		const auto counted = [](github_mutation_wire_completion aTarget, const std::string_view aReplaceBase = "") {
+			auto& body = std::get<github_mutation_wire_success>(aTarget).Response.Body;
+			body.insert(body.find(R"("head")"), R"("commits":2,)");
+			if (!aReplaceBase.empty()) {
+				const auto recordedBase = std::string{ core::canonical_hex(target().BaseOid).view() };
+				body.replace(body.find(recordedBase), recordedBase.size(), aReplaceBase);
+			}
+			return aTarget;
+		};
+		for (const auto which : { course::forward, course::rewritten, course::count_differs, course::reset, course::agree_head_moves, course::agree_target_fails, course::agree_both_move }) {
+			const auto agrees         = which == course::agree_head_moves || which == course::agree_target_fails || which == course::agree_both_move;
+			auto       stacked        = target();
+			stacked.ComparisonBaseOid = base;
+			auto configured           = configuration();
+			configured.Target         = stacked;
+			auto left                 = request();
+			left.Proposal.Anchor.Side = core::diff_side::left;
+			left.Proposal.Anchor.Line = 3U;
+			left.Target               = stacked.Semantic;
+			left.IdempotencyKey       = application::idempotency_key_for(left.Proposal, stacked.Semantic);
+			left.LiveBinding->Target  = stacked;
+			// A single comment names the head as its commit; LEFT numbers the line
+			// in the comparison base.
+			left.LiveBinding->Anchor = { .Semantic = left.Proposal.Anchor, .Path = "fixture/review.txt", .Commit = stacked.Semantic.ExpectedHead };
+
+			auto transport = fake_transport{ };
+			transport.answer(comments_get(), comment_list_response(0U));
+			transport.answer(viewer_get(), viewer_response());
+			transport.answer(pull_request_get(), counted(target_response()));
+			const auto pair = [](const std::string_view aFrom, const std::string_view aTo) { return std::string{ aFrom }.append("...").append(aTo); };
+			const auto path = [](const std::string& aPair) { return std::string{ "/repos/MikeMarcin/BPR-Test/compare/" }.append(aPair).append("?page=2&per_page=1"); };
+			transport.answer({ .Method = http_method::get, .Path = path(pair("main", head)) },
+							 compare(pair("main", head), tip, agrees ? std::string{ core::canonical_hex(base).view() } : std::string(40U, 'c')));
+			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, head)) },
+							 compare(pair(recorded, head), recorded, std::string{ core::canonical_hex(base).view() },
+									 which == course::count_differs ? R"("ahead_by":3,)" : R"("ahead_by":2,)"));
+			transport.answer({ .Method = http_method::get, .Path = path(pair(recorded, tip)) },
+							 compare(pair(recorded, tip), recorded, which == course::rewritten ? std::string(40U, 'e') : recorded));
+			if (which == course::agree_head_moves) {
+				transport.answer(pull_request_get(), target_response(1'328'277'631U, commit(0x77U)));
+			} else if (which == course::agree_both_move) {
+				// The recorded base and the head both moved: the pull request
+				// moved, `target_moved`, as a moved recorded base alone is; a
+				// moved head alone is a stale head.
+				auto  both = target_response(1'328'277'631U, commit(0x77U));
+				auto& body = std::get<github_mutation_wire_success>(both).Response.Body;
+				body.replace(body.find(recorded), recorded.size(), tip);
+				transport.answer(pull_request_get(), std::move(both));
+			} else if (which == course::agree_target_fails) {
+				transport.answer(pull_request_get(), github_mutation_wire_success{ .Response = { .Status = 500, .Body = R"({"message":"fixture failure"})" } });
+			} else {
+				transport.answer(pull_request_get(), counted(target_response(), which == course::reset ? tip : ""));
+			}
+			transport.answer(comment_post(), comment_response());
+			transport.answer(comments_get(), comment_list_response());
+			auto       session = review_mutation_session{ transport, configured, mutation_lease(), make_recovery() };
+			const auto result  = session.submit(left);
+			const auto sent    = std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::create_review_comment; });
+			const auto asked   = std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::observe_pull_request; }) == 2
+				&& std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == review_mutation_operation::observe_base_ancestry; }) == (agrees ? 0 : 1);
+			if (agrees) {
+				// The pull request is read again after an agreeing merge base
+				// too, and classified as the first read is.
+				expect(asked && !sent && !result
+						   && result.error()
+							   == (which == course::agree_head_moves      ? application::review_mutation_failure::stale_head
+									   : which == course::agree_both_move ? application::review_mutation_failure::target_moved
+																		  : application::review_mutation_failure::unavailable),
+					   "after an agreeing merge base a moved head is a stale head and a failing read unavailable; nothing is sent");
+			} else if (which == course::forward) {
+				expect(asked && sent, "a base branch that only moved forward keeps a LEFT comment's line and the comment is sent");
+			} else {
+				expect(asked && !sent && !result && result.error() == application::review_mutation_failure::target_moved,
+					   "a rewritten base branch, a differing commit count or a recorded base replaced under the reads sends nothing");
+			}
+		}
+	}
+
 	// [[BPR-0879]]. The coordinator applies one rule to every write it makes,
 	// and a resolution POST is counted as the submission it is. Counting only
 	// the attempt let diagnostics report zero submissions after a real write.
@@ -2058,6 +2164,7 @@ namespace {
 			 &test_an_interrupted_reply_is_recovered_from_its_thread },
 		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
 			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
+		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};
 } // namespace
 

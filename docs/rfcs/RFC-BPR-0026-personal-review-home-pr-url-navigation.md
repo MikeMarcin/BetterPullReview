@@ -261,3 +261,16 @@ My pull requests has a neutral header, existing state-colored row anatomy and a 
 ## Adopted draft Home amendment — 2026-10-11
 
 [RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) extends Home row anatomy with a compact neutral outlined Draft chip before identity/title and draft-first accessible wording. It carries last accepted exact-authority metadata through bounded discovery, retained reads and recent history; unknown remains unknown and displays no chip. Accepted ready changes remove the chip, including matching queue/recent rows. Attention colours, sections, counts, enrollment, row actions and native controls retain their contracts. No additional request or full PR hydration is introduced. Historical Done cards, plan exits and RFC0032 A8 human/native obligations are unchanged; fresh evidence belongs to BPR-1389.
+
+## Owner amendment: the Refresh key on Home — 2026-10-17
+
+The owner decided on 2026-10-17 that ⌘R (`QKeySequence::Refresh`: ⌘R on
+macOS, F5 or Ctrl+R elsewhere) refreshes Home too, reversing [[BPR-0990]]'s
+choice that Home's explicit Refresh action has no key. The window's Refresh
+key does whichever refresh the window shows: on Home, the profile's discovery
+refresh through Home's existing action, with [[BPR-1575]]'s feedback; on a pull
+request, the pull request's refresh. The key is on one action at a time, so no
+press is ambiguous, and Home's follows the pull request's binding in not
+stepping aside while typing. No request, intent, scheduler or criterion
+changes; AC-10's keyboard behaviour gains the key. [[BPR-1600]] implements it.
+BPR-0990's Done evidence and BPR-0599's closeout are unchanged.

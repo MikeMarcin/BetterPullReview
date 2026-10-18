@@ -700,7 +700,7 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& r : aRevisions) {
 				require(valid_private_revision(r) && r.Identity.Scope == aDb.Identity && r.Identity.Order.value() == r.Identity.Revision.value());
 				require(!std::holds_alternative<private_legacy_unknown_actor>(r.Actor));
-				require(std::ranges::any_of(aThreads, [&](const auto& item) { return item.Thread.Id == r.Identity.Thread; }), error::conflict);
+				require(std::ranges::any_of(aThreads, [&](const auto& aItem) { return aItem.Thread.Id == r.Identity.Thread; }), error::conflict);
 				aIds.add(r.Identity.Revision.value());
 				auto t = aDb.thread(r.Identity.Thread.value());
 				require(t.LastOrder == r.Identity.Order, error::conflict);
@@ -781,6 +781,7 @@ namespace bpr::adapters::sqlite::detail {
 				require(digest && *digest == c.State.SourceSetDigest);
 				guards(aDb, c.Sources);
 				std::vector<private_source_observation> observed;
+				observed.reserve(c.Sources.size());
 				for (const auto& source : c.Sources) {
 					observed.push_back(aDb.source(source.Source));
 				}

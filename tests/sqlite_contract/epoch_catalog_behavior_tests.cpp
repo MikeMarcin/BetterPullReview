@@ -4936,8 +4936,8 @@ namespace {
 												},
 												{ });
 		expect(reserved.has_value(), "reserve a legacy unfinished operation");
-		const auto legacy           = *reserved;
-		const auto originalSnapshot = session->snapshot({ });
+		const auto& legacy           = *reserved;
+		const auto  originalSnapshot = session->snapshot({ });
 		expect(originalSnapshot.has_value(), "snapshot exists before migration");
 		session.reset();
 		port.reset();

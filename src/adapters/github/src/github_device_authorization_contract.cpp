@@ -22,7 +22,9 @@ namespace bpr::adapters::github::detail {
 
 		struct device_json_options : glz::opts
 		{
-			bool validate_skipped             = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming) -- Glaze option name.
 			bool validate_trailing_whitespace = true;
 			constexpr device_json_options()
 			{

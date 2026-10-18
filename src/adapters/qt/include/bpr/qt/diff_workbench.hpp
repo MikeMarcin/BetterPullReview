@@ -40,6 +40,7 @@ class QTimer;
 class QWheelEvent;
 
 namespace bpr::qt {
+	class pending_veil;
 	class line_details_pane;
 	class line_details_splitter;
 
@@ -496,6 +497,14 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto token_spans(core::diff_side aSide) const noexcept
 			-> const application::shared_token_spans&;
+		/// \brief [[BPR-1576]]. A classification of this side was asked for:
+		/// until its spans are adopted the panes say their colours are coming.
+		void await_syntax(core::diff_side aSide);
+		/// \brief [[BPR-1576]]. No colours are coming for this comparison: the
+		/// classifier failed or refused.
+		void settle_syntax();
+		/// \brief [[BPR-1576]]. The panes' loading-state presenter.
+		[[nodiscard]] auto comparison_veil() const noexcept -> pending_veil*;
 
 		/// \brief [[BPR-1336]]. Where ⌘-scroll and pinch over the code send a step.
 		///
@@ -617,6 +626,7 @@ namespace bpr::qt {
 		void announce_accessible_status(QString aText);
 		/// \brief [[BPR-1335]]. The sentence that names the current line's thread, or empty.
 		[[nodiscard]] auto thread_note() const -> QString;
+		void               apply_pending();
 		void               update_status(QString aText, bool aRoutine = false);
 		void               emit_selection(bool aInteractive = false) noexcept;
 		void               emit_reading_gesture() noexcept;
@@ -644,8 +654,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto                 source_match_fragments(const core::source_match_location& aLocation) -> const std::vector<std::pair<int, int>>&;
 		bool                               StatusShown = true;
 		// [[BPR-1287]]. The direction shown in place of the panes while idle.
-		QWidget*                  IdlePage      = nullptr;
-		QWidget*                  PanesTop      = nullptr;
+		QWidget* IdlePage = nullptr;
+		QWidget* PanesTop = nullptr;
+		/// [[BPR-1576]]. The comparison's wait, and its colours' arrival.
+		pending_veil*             Veil              = nullptr;
+		bool                      ComparisonLoading = false;
+		std::array<bool, 2>       SyntaxAwaited{ };
 		QStackedLayout*           PanesSlot     = nullptr;
 		QLabel*                   IdleTitle     = nullptr;
 		QLabel*                   IdleDetail    = nullptr;
