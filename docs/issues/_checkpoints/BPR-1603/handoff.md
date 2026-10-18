@@ -121,3 +121,19 @@ Docs gate passed. Architecture/composition focused checks and touched tidy
 are running; one optional dereference tidy finding was fixed and is being
 rechecked. Composition reseal records explicit self-review of this delta.
 No built candidate or owner approval yet; do not land.
+
+
+Product commit 9eab5046a. Format22 passes over all 1652 files; docs gate and
+67 documentation tests pass (tests also need the explicit board-module
+PYTHONPATH in this unregistered worktree). Tidy checked 21 touched units;
+the only finding was staged_review_session.cpp's optional unwrap/rewrap,
+fixed before the product commit and its exact unit rechecked green.
+The six additional Qt/staged rows pass (9.36 s): finder at 100/125/200,
+workbench reveal, public-preview conversation and staged-session regression.
+Initial missing executable failures were build preparation; all required
+focused targets have now been built and those rows passed.
+Architecture boundaries and its negative-control contract pass (16.64/183.55 s).
+Production composition and round-trip checks are still running.
+Freeze in progress from product commit, own root
+/Users/jaeger/bpr1603-conversation-chips-v001.xc5dd7wg, helper process tool
+session 60768. Remove only with scripts/freeze_attended_build.py remove.
