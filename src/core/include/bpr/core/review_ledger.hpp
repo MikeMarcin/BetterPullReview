@@ -231,7 +231,9 @@ namespace bpr::core {
 	///
 	/// \details [[BPR-0656]]. The host supplies the posts in thread order,
 	/// root first; the core never sees the text. `Mine` names a post the
-	/// reader wrote, which is never unread to them.
+	/// reader wrote, which is never unread to them. [[BPR-1601]] uses the
+	/// same rules for a PR comment or review summary: one post, its stable
+	/// identity also naming the conversation, in a distinct identity namespace.
 	struct conversation_post_observation
 	{
 		review_comment_id    Comment;

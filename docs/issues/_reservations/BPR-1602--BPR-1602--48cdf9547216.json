@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1602"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Settings Troubleshooting: self-serve clear caches, reset review state, reset settings and reset everything for a profile, plus a startup recovery path for a damaged local database (owner request 2026-10-18)",
+  "created": "2026-10-18T06:21:33.500693+00:00",
+  "base": "e9b1cee350e3ef31afea34c0c537be4fd0321816"
+}

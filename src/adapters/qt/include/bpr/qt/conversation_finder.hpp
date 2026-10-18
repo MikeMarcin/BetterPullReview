@@ -280,7 +280,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto preview() const noexcept -> QWidget*;
 		/// \brief Where a conversation on a file is, named by its root or by
 		/// one of its posts; the root names its first post. Nothing for a
-		/// conversation that is not on a file.
+		/// conversation that is absent. Pathless comments have an empty Path.
 		[[nodiscard]] auto locate(const std::string& aIdentity) -> std::optional<finder_location>;
 		/// \brief Rebuilds now if anything changed, shown or not.
 		void refresh();

@@ -3368,6 +3368,8 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::clear()
 	{
+		// [[BPR-1601]]. The next pull request waits for its own ledger count.
+		NewConversation.reset();
 		set_description_expanded(false);
 		Projection.reset();
 		MergeState->hide();

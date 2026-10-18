@@ -1291,6 +1291,7 @@ namespace {
 	/// thread: [[BPR-1341]] named the modality Threads, and no visible or
 	/// accessible string still calls one a conversation. "AI conversations",
 	/// the Notes tab's agent chats, is a different thing and keeps its word.
+	/// [[BPR-1601]]. Status also names the PR conversation's standalone comments.
 	void expect_no_conversation_words(const char* aState)
 	{
 		QApplication::processEvents();
@@ -1298,6 +1299,11 @@ namespace {
 		for (const auto& word : window_words()) {
 			auto text = word.Text;
 			text.remove(QStringLiteral("AI conversations"));
+			if (word.Where.startsWith(QStringLiteral("QLabel overviewNewConversationText ("))
+				|| word.Where.startsWith(QStringLiteral("QToolButton overviewGoToNewConversation ("))) {
+				text.remove(QStringLiteral("new comments in the conversation"));
+				text.remove(QStringLiteral("new comment in the conversation"));
+			}
 			if (text.contains(QStringLiteral("conversation"), Qt::CaseInsensitive)) {
 				found.insert(word.Where + QStringLiteral(": ") + word.Text);
 			}
@@ -1309,7 +1315,7 @@ namespace {
 	}
 
 	/// \brief [[BPR-1355]]. overview-labels-v1, 39 threads, in every modality
-	/// and in Settings: no window string says Conversation.
+	/// and in Settings: no window string calls a thread a conversation.
 	void run_thread_words_course()
 	{
 		auto temporary = QTemporaryDir{ };

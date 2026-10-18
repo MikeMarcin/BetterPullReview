@@ -427,6 +427,17 @@ Both cursors record a comment identity **and** an edit version. An in-place
 edit changes no identity, so an identity-only cursor would report a
 conversation as read while its text had been rewritten.
 
+[[BPR-1601]] represents each pull-request comment and review summary as a
+single-post conversation. The existing scope and receipt table remain unchanged;
+`issue-comment:`, `review:` and `review-thread:` projection identities occupy
+distinct namespaces before deriving the durable keys. Core read/unread and
+own-post rules apply equally to these singleton conversations. A saved receipt
+with a zero seen cursor (Mark unread) still counts as seen before. The queue
+counts unread posts only in previously seen conversations; Discuss, Threads
+and the Status drawer show every unread post, including a never-read one.
+The host publishes the pathless count after the receipt commits, using the
+same incremental cache as thread reads.
+
 ## Actionability
 
 The queue is ranked by reason first and file identity second. The reason

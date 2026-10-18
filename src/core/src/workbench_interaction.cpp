@@ -907,15 +907,7 @@ namespace bpr::core {
 		-> workbench_thread_route
 	{
 		if (aIntent.Destination == workbench_thread_destination::threads) {
-			// [[BPR-1586]]. Threads lists every thread on a file, my draft
-			// included, and nothing else.
-			if (!aIntent.OnFile) {
-				return workbench_thread_route{
-					.Modality  = aIntent.Origin == workbench_thread_origin::discuss ? workbench_modality::discuss : workbench_modality::review,
-					.Reason    = workbench_thread_route_reason::not_on_a_file,
-					.Available = false,
-				};
-			}
+			// [[BPR-1601]]. Pathless comments have rows in Not on a file.
 			return workbench_thread_route{ .Modality = workbench_modality::threads };
 		}
 		const auto toDiscuss = aIntent.Destination == workbench_thread_destination::discuss;

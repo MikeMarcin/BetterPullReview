@@ -1020,7 +1020,11 @@ namespace bpr::app::detail {
 		void overlay_published_tour(std::string& aBody, read_operation aOperation, review_submission_fixture_state& aState)
 		{
 			const std::scoped_lock lock{ aState.Mutex };
-			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
+			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !aState.ReviewHistory && !aState.ConversationComments && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
+				return;
+			}
+			if (aOperation == read_operation::list_issue_comments && aState.ConversationComments) {
+				aBody = *aState.ConversationComments;
 				return;
 			}
 			if (aOperation == read_operation::list_reviews && aState.ReviewHistory) {

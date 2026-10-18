@@ -716,6 +716,8 @@ namespace bpr::qt {
 		/// in file order. [[BPR-1129]]: the title row's comments toggle carries
 		/// the selected file's count. Next new comment remains review-wide.
 		void present_read_state(std::vector<thread_read_state> aState);
+		/// \brief [[BPR-1601]]. The host's unread PR-comment and review-summary count.
+		void present_new_conversation_comments(std::uint32_t aCount);
 		/// \brief [[BPR-1326]]. My unpublished drafts as they are saved. Each
 		/// on the shown comparison is a dashed note at its line with its
 		/// gutter marker and scroll-bar tick, whichever line is selected; the

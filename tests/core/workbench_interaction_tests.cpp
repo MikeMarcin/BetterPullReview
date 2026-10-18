@@ -1741,7 +1741,7 @@ namespace {
 	}
 
 	/// [[BPR-1586]]. Show in Threads from Review: the thread's row, my
-	/// draft's included; a comment not on a file has none.
+	/// draft's included; [[BPR-1601]] adds Not on a file for PR comments.
 	auto test_a_thread_shows_in_threads() -> void
 	{
 		const auto toThreads = workbench_thread_destination::threads;
@@ -1752,8 +1752,8 @@ namespace {
 		const auto draft = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .Draft = true });
 		expect(draft.Available && draft.Modality == workbench_modality::threads && !draft.Composer, "my draft has its row in Threads");
 		const auto general = route_workbench_thread(open_workbench_thread_intent{ .Destination = toThreads, .Origin = workbench_thread_origin::review, .OnFile = false });
-		expect(!general.Available && general.Modality == workbench_modality::review && general.Reason == workbench_thread_route_reason::not_on_a_file,
-			   "a comment not on a file has no row: nothing moves");
+		expect(general.Available && general.Modality == workbench_modality::threads,
+			   "a comment not on a file has its row in Threads");
 	}
 
 	/// [[BPR-1581]]. The thread a key shows elsewhere.

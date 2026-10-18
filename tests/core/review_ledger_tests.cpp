@@ -496,6 +496,23 @@ namespace {
 		expect(core::unread_posts(core::mark_conversation_read(*unread, latest), posts).empty(), "Mark read undoes it");
 	}
 
+	// [[BPR-1601]]. PR comments and review summaries use singleton conversations.
+	void test_single_post_conversation_read_state()
+	{
+		const auto id      = core::review_conversation_id{ 71U };
+		auto       posts   = std::array{ core::conversation_post_observation{ .Comment = core::review_comment_id{ 81U }, .Edit = core::comment_edit_version{ 91U } } };
+		const auto initial = core::conversation_receipt{ .Conversation = id };
+		expect(core::unread_posts(initial, posts) == std::vector<std::size_t>{ 0U }, "an unseen singleton has one unread post");
+		const auto read = core::mark_conversation_read(initial, { .Conversation = id, .LatestComment = posts[0].Comment, .LatestEdit = posts[0].Edit });
+		expect(core::unread_posts(read, posts).empty(), "reading a singleton advances its cursor");
+		const auto unread = core::mark_conversation_unread(read, posts);
+		expect(unread.has_value() && unread->Conversation == id && unread->SeenComment == core::review_comment_id{ } && core::unread_posts(*unread, posts).size() == 1U, "manual unread retains identity while moving before the only post");
+		posts[0].Edit = core::comment_edit_version{ 92U };
+		expect(core::unread_posts(read, posts).size() == 1U, "editing the same stable comment makes it new again");
+		posts[0].Mine = true;
+		expect(core::unread_posts(initial, posts).empty() && !core::mark_conversation_unread(read, posts), "my own PR comments and summaries are never new");
+	}
+
 	void test_the_queue_order_is_deterministic_including_ties()
 	{
 		// Two files share the highest reason. Without an explicit tie-break
@@ -708,6 +725,7 @@ auto main() -> int
 	test_an_edited_comment_reopens_a_conversation();
 	test_unread_posts_follow_the_seen_cursor();
 	test_mark_unread_makes_the_latest_other_post_new();
+	test_single_post_conversation_read_state();
 	test_the_queue_order_is_deterministic_including_ties();
 	test_the_explanation_follows_the_deciding_fact();
 	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();

@@ -103,6 +103,8 @@ namespace bpr::application {
 	/// identities are the durable halves the composition derives from the
 	/// GitHub node ids; the edit versions are digests of the bodies, so an
 	/// edit is a different version without the provider naming a time.
+	/// [[BPR-1601]]. A PR comment or review summary is a one-post conversation;
+	/// the existing receipt keeps its read cursor without a storage migration.
 	struct conversation_thread_observation
 	{
 		core::review_conversation_id                     Conversation;

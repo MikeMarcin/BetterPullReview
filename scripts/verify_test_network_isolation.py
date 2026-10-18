@@ -174,6 +174,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_pending_states_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
     "application_refresh_feedback_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1601]]. Durable read state for PR comments and review summaries.
+    "application_conversation_read_public_path": "unmeasured (registered on macOS)",
     "merge_base_fixture_contract": "unmeasured (registered on macOS)",
     # RFC-BPR-0084. The fixture's regeneration check runs the builder in a
     # scratch root, as its github_recorded_fixture_contract sibling does.
