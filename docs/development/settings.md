@@ -296,6 +296,19 @@ and cannot reverse an operation past its commit boundary. Shared registry and
 updater data, sibling profiles, exports and documented empty roots/locks remain.
 Purge is not uninstall or secure erasure.
 
+**Troubleshooting** ([[BPR-1602]]) ends the page with four rows: **Clear
+caches…**, **Reset settings…**, **Reset review data…** and **Reset everything…**,
+each a name, one short line and a button. Each button asks a confirmation that
+lists what the reset removes and what it keeps; Cancel is the default and
+Escape. Reset review data and Reset everything also need "I understand my
+private notes and unsent comments will be deleted" ticked, and offer a copy of
+the removed data in Downloads, on by default. A confirmed reset closes the
+profile's windows, runs before any store reopens, and reopens the profile on
+Home, whose status bar says what was reset. No reset signs out or touches
+diagnostic logs; Reset settings keeps saved repositories, servers and observer
+rules and restores only Home's queue display choices. See
+[Reset this profile's local data](storage-and-diagnostics.md#reset-this-profiles-local-data).
+
 The [storage, diagnostics and removal guide](storage-and-diagnostics.md) gives
 the exact scope, recovery rules and residuals. Native vault/crash/full-removal
 qualification remains with RFC-BPR-0038; visible controls are not evidence of

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/app/profile_data_reset.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/application/device_authorization_projection.hpp"
@@ -85,6 +86,9 @@ namespace bpr::app {
 		bool                        NetworkDenied       = false;
 		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
 		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
+		/// [[BPR-1602]]. A confirmed reset of this profile's local data, run once
+		/// under the runtime lease after recovery and before any store opens.
+		std::optional<core::profile_data_reset_request> DataReset;
 		/// One explicit process-owned native observation shared by profile windows.
 		std::shared_ptr<qt::motion_observer> MotionObserver;
 		/// One lazily decoded production catalog shared by every profile and window.
@@ -721,11 +725,14 @@ namespace bpr::app {
 		/// desktop holds it, otherwise to the profile store. `aRespond` runs exactly once, on any lane.
 		void desktop_tour_owner_route(application::tour_channel_bytes aRequest, std::function<void(application::tour_channel_bytes)> aRespond);
 		/// \brief Completes routed commands waiting for a live draft to become durable; decision lane.
-		void                      desktop_tour_owner_tick();
-		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
-		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
-		void                      set_maintenance_retirement(release_maintenance_retirement aRetire);
-		[[nodiscard]] auto        take_maintenance() -> std::unique_ptr<release_maintenance_controls>;
+		void               desktop_tour_owner_tick();
+		[[nodiscard]] auto desktop_scratch() const -> std::shared_ptr<void>;
+		void               set_desktop_quit_handler(std::function<void(int)> aHandler);
+		void               set_maintenance_retirement(release_maintenance_retirement aRetire);
+		[[nodiscard]] auto take_maintenance() -> std::unique_ptr<release_maintenance_controls>;
+		/// \brief [[BPR-1602]]. What the reset this runtime started with did,
+		/// once; empty when it started without one.
+		[[nodiscard]] auto        take_profile_data_reset_report() -> std::optional<profile_data_reset_report>;
 		[[nodiscard]] static auto start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] auto        open_window(core::bpr_window_context aContext) -> bool;
 		enum class window_retirement { forced,

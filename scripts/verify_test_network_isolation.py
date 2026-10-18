@@ -132,6 +132,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
     "application_profile_startup_public_path": "dos-volume-name",
+    # [[BPR-1602]]. Profile data reset and startup recovery; Windows
+    # containment has not yet been measured for these courses.
+    "sqlite_profile_data_reset_files": "unmeasured (registered on macOS)",
+    "application_profile_data_reset_public_path": "unmeasured (registered on macOS)",
+    "application_profile_recovery_public_path": "unmeasured (registered on macOS)",
     # BPR-0810: measured on JaegAW 2026-09-17. Contained, both fixtures stop at
     # "FAILED: private desktop test root under the canonical storage policy",
     # make_storage_root_owner_private refusing the package temp root exactly as
@@ -174,6 +179,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_pending_states_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
     "application_refresh_feedback_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1589]]. Status attention for the signed-in reviewer.
+    "application_status_attention_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1601]]. Durable read state for PR comments and review summaries.
     "application_conversation_read_public_path": "unmeasured (registered on macOS)",
     "merge_base_fixture_contract": "unmeasured (registered on macOS)",
@@ -1197,12 +1204,25 @@ def sha256_path(path: pathlib.Path) -> str:
 
 
 def cmake_sources(root: pathlib.Path) -> list[pathlib.Path]:
+    """Read this checkout's sources without descending into nested repositories.
+
+    A nested checkout has its own registrations, whether its .git marker is a
+    directory or a worktree file. Prune those roots and generated directories
+    before walking them; exclusions apply only below the requested root.
+    """
     result: list[pathlib.Path] = []
-    for path in root.rglob("*"):
-        if any(part in {".git", "build", "_build"} for part in path.parts):
-            continue
-        if path.is_file() and (path.name == "CMakeLists.txt" or path.suffix == ".cmake"):
-            result.append(path)
+    for directory, directories, files in os.walk(root):
+        base = pathlib.Path(directory)
+        directories[:] = [
+            name
+            for name in directories
+            if name not in {".git", "build", "_build"}
+            and not (base / name / ".git").exists()
+        ]
+        for name in files:
+            path = base / name
+            if path.is_file() and (path.name == "CMakeLists.txt" or path.suffix == ".cmake"):
+                result.append(path)
     return sorted(result)
 
 

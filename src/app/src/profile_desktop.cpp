@@ -28,6 +28,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <string_view>
 #include <utility>
 
@@ -81,6 +82,18 @@ namespace bpr::app {
 				return { };
 			}
 		};
+
+		/// \brief [[BPR-1602]]. One confirmed reset: its windows are closing, then
+		/// the profile reopens with it.
+		struct reset_entry
+		{
+			core::profile_data_reset_request Request;
+			std::set<core::bpr_window_id>    Asked;
+			/// Started when confirmed; a window still open after
+			/// `reset_close_limit_ms` abandons the reset, removing nothing.
+			QElapsedTimer Closing;
+		};
+		static constexpr qint64 reset_close_limit_ms = 30000;
 
 	public:
 		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy, std::shared_ptr<QSystemTrayIcon> aStatusItem)
@@ -974,6 +987,13 @@ namespace bpr::app {
 				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ self->quit(0);
 } });
 			presented->adopt_profile_management(Projection, aContext.Profile);
+			// [[BPR-1602]]. A confirmed Troubleshooting reset closes this
+			// profile's windows here and reopens it with the reset.
+			presented->set_profile_data_reset_dispatch([weak, aContext](core::profile_data_reset_request aRequest) {
+				if (const auto self = weak.lock(); self && self->current(aContext)) {
+					self->request_data_reset(aContext, aRequest);
+				}
+			});
 			for (const auto& item : Projection.Profiles) {
 				if (item.Profile == aContext.Profile) {
 					aRuntime.set_profile_label(item.Label);
@@ -1054,6 +1074,12 @@ namespace bpr::app {
 				entry.WindowPublished = true;
 				LastUsedProfile       = aContext.Profile;
 				entry.Runtime->focus_window(aContext);
+				if (auto report = entry.Runtime->take_profile_data_reset_report()) {
+					if (auto* const reopened = entry.Runtime->window(aContext)) {
+						const auto folder = report->CopyFolder ? QString::fromStdString(report->CopyFolder->filename().string()) : QString{ };
+						reopened->present_profile_data_reset(report->Outcome, folder);
+					}
+				}
 				// [[BPR-1342]]. A window asked for by Open Review in New Window
 				// opens Home, as every new window does, and then that pull
 				// request.
@@ -1110,7 +1136,14 @@ namespace bpr::app {
 			entry.StartupSerial = serial;
 			try {
 				const auto intent = PendingLaunch && PendingLaunch->first == aProfile ? PendingLaunch->second : InitialIntent;
-				entry.Startup     = Factory(aProfile, RegistryRoot, intent, [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
+				// A pending reset reaches the first runtime started after the
+				// last one closed, whichever launch starts it, and only that one.
+				auto reset = std::optional<core::profile_data_reset_request>{ };
+				if (const auto queued = Resets.find(aProfile); queued != Resets.end()) {
+					reset = queued->second.Request;
+					Resets.erase(queued);
+				}
+				entry.Startup = Factory(aProfile, RegistryRoot, intent, std::move(reset), [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
 } });
 				if (!entry.Startup && !entry.Started) {
 					if (aProfile == Initial) {
@@ -1254,6 +1287,79 @@ namespace bpr::app {
 				}
 			}
 		}
+		/// \brief [[BPR-1602]]. Admits one confirmed reset and starts closing
+		/// the profile's windows; `poll_resets` reopens it with the reset once
+		/// its runtime, and with it the lease and every store, has gone.
+		void request_data_reset(core::bpr_window_context aContext, core::profile_data_reset_request aRequest)
+		{
+			const auto refuse = [this, aContext](const QString& aWhy) {
+				if (auto* const presented = window(aContext)) {
+					presented->refuse_profile_data_reset(aWhy);
+				}
+			};
+			if (core::admit_profile_data_reset(aRequest) != core::release_maintenance_reason::none) {
+				refuse(QStringLiteral("That reset was not confirmed. Nothing was removed."));
+				return;
+			}
+			const auto found = Runtimes.find(aContext.Profile);
+			if (Quitting || UpdatePreparing || !Host || !Projection.Ready || Projection.Busy || PendingLaunch || found == Runtimes.end() || found->second.Closing
+				|| found->second.MaintenanceClosing || Maintenance.contains(aContext.Profile) || Resets.contains(aContext.Profile)) {
+				refuse(QStringLiteral("BetterPullReview is busy with this profile. Try again in a moment; nothing was removed."));
+				return;
+			}
+			auto& entry = Resets.emplace(aContext.Profile, reset_entry{ aRequest, { }, { } }).first->second;
+			entry.Closing.start();
+		}
+		/// \brief Closes each window of a profile with a pending reset once,
+		/// then reopens the profile when its runtime is gone.
+		void poll_resets()
+		{
+			for (auto position = Resets.begin(); position != Resets.end();) {
+				const auto profile = position->first;
+				auto&      reset   = position->second;
+				if (Quitting) {
+					position = Resets.erase(position);
+					continue;
+				}
+				const auto runtime = Runtimes.find(profile);
+				if (runtime != Runtimes.end() && reset.Closing.elapsed() > reset_close_limit_ms) {
+					// A window that would not close keeps the profile running and
+					// nothing is removed; the reset is not left waiting for a
+					// later close to set it off.
+					for (const auto& [id, selected] : runtime->second.Windows) {
+						static_cast<void>(id);
+						if (auto* const presented = !selected.Closing ? window(selected.Context) : nullptr) {
+							presented->refuse_profile_data_reset(QStringLiteral("A window of this profile did not close, so nothing was reset. Close it and try again."));
+						}
+					}
+					position = Resets.erase(position);
+					continue;
+				}
+				if (runtime != Runtimes.end()) {
+					if (Host && Projection.Ready && !Projection.Busy) {
+						for (auto& [id, selected] : runtime->second.Windows) {
+							if (selected.Closing || reset.Asked.contains(id)) {
+								continue;
+							}
+							reset.Asked.insert(id);
+							if (!Host->begin_close(selected.Context)) {
+								reset.Asked.erase(id);
+							}
+							break;
+						}
+					}
+					++position;
+					continue;
+				}
+				if (!Host || !Projection.Ready || Projection.Busy || PendingLaunch) {
+					++position;
+					continue;
+				}
+				PendingLaunch = std::pair{ profile, core::profile_launch_intent::activate };
+				start_runtime(profile);
+				position = Resets.upper_bound(profile);
+			}
+		}
 		void retire_for_maintenance(core::bpr_profile_id aProfile, std::function<void(application::release_maintenance_result)> aCompletion)
 		{
 			using reason = core::release_maintenance_reason;
@@ -1308,7 +1414,7 @@ namespace bpr::app {
 				}
 				if (maintenance.Controls->closing() && maintenance.Controls->quiescent() && !maintenance.Completion && maintenance.Retired) {
 					position = Maintenance.erase(position);
-					if (Maintenance.empty() && Runtimes.empty() && !Quitting) {
+					if (Maintenance.empty() && Resets.empty() && Runtimes.empty() && !Quitting) {
 						desktop_emptied();
 					}
 				} else {
@@ -1381,7 +1487,7 @@ namespace bpr::app {
 				}
 				position = Runtimes.erase(position);
 				if (Runtimes.empty() && !Quitting) {
-					if (Maintenance.empty()) {
+					if (Maintenance.empty() && Resets.empty()) {
 						desktop_emptied();
 					}
 #if defined(__APPLE__)
@@ -1394,7 +1500,8 @@ namespace bpr::app {
 				}
 			}
 			poll_maintenance();
-			if (EmptyDesktopQuit && !Quitting && Runtimes.empty() && Maintenance.empty()) {
+			poll_resets();
+			if (EmptyDesktopQuit && !Quitting && Runtimes.empty() && Maintenance.empty() && Resets.empty()) {
 				quit_empty_desktop();
 			}
 			if (FailureQuit && quit_within_bound(FailureQuitAttempts)) {
@@ -1427,6 +1534,7 @@ namespace bpr::app {
 		unsigned                                                                    UpdateAccountPoll = 0U;
 		std::map<core::bpr_profile_id, runtime_entry>                               Runtimes;
 		std::map<core::bpr_profile_id, maintenance_entry>                           Maintenance;
+		std::map<core::bpr_profile_id, reset_entry>                                 Resets;
 		application::profile_management_projection                                  Projection;
 		std::optional<std::pair<core::bpr_profile_id, core::profile_launch_intent>> PendingLaunch;
 		QTimer                                                                      Poll;
@@ -1518,9 +1626,13 @@ namespace bpr::app {
 		const auto profile    = aConfig.Profile;
 		const auto intent     = aConfig.ProfileLaunchIntent;
 		auto       statusItem = aConfig.StatusItem;
-		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
+		// [[BPR-1602]]. A reset on the command line runs once, for the first
+		// start of the profile it names; a later reopen carries its own.
+		auto initialReset = std::make_shared<std::optional<core::profile_data_reset_request>>(std::exchange(aConfig.DataReset, std::nullopt));
+		return start_with_factory(profile, [config = std::move(aConfig), initialReset](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, std::optional<core::profile_data_reset_request> aReset, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
             next.ProfileLaunchIntent = aIntent;
+            next.DataReset = aReset ? aReset : aProfile == config.Profile ? std::exchange(*initialReset, std::nullopt) : std::nullopt;
             return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy), true, std::move(statusItem));
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }

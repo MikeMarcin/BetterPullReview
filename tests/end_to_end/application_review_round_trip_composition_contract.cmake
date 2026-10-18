@@ -1,3 +1,16 @@
+# BPR-1602 reseal 2026-10-18 over main cd80d1ab3 (pins matched at
+# 4d6b63e86): 08d50fe93 adds Settings Troubleshooting resets. Reviewed in
+# github_application.cpp: the config's one-shot DataReset, the startup root
+# step that runs run_profile_data_reset under the held lease after
+# recover_release_profile and before any store opens (refusing the start
+# when a reset stopped part-way), the report handed to the runtime, and the
+# fixture desktop's factory threading the reset. profile_desktop.cpp closes
+# the profile's windows through the management host and reopens it with the
+# request; main.cpp offers the recovery dialog after a failed start and
+# restarts the desktop in process. New src/profile_data_reset.cpp calls only
+# core admission, release_maintenance_files::reset and the queue store. No
+# provider, grant, credential, publication or mutation-branch change; the
+# mutation digest is unchanged. The source inventory lists the new runner.
 # BPR-1601 landing 2026-10-17 over main 887feb0ed: PR comments and review
 # summaries use the existing conversation receipt and core read/unread policy.
 # Reviewed accepted-snapshot identity construction, singleton/native-thread
@@ -1569,7 +1582,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"7df6f7314aed861b1ea1e0fb9b299c5758fa9b5fab500044d3b87ade133834da"
+		"47521d41a9ec4e30f96677474752847809a7661132785a9456ac73f968f87c46"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1590,6 +1603,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
+        "include/bpr/app/profile_data_reset.hpp"
         "include/bpr/app/profile_desktop.hpp"
         "include/bpr/app/release_maintenance_controls.hpp"
         "include/bpr/app/release_update_desktop.hpp"
@@ -1617,6 +1631,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/pr_search_controller.hpp"
         "src/private_review_workflow.cpp"
         "src/private_review_workflow.hpp"
+        "src/profile_data_reset.cpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -1666,6 +1681,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/native_filesystem_path.hpp"
+        "include/bpr/app/profile_data_reset.hpp"
         "include/bpr/app/profile_desktop.hpp"
         "include/bpr/app/release_maintenance_controls.hpp"
         "include/bpr/app/release_update_desktop.hpp"
@@ -1715,6 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/private_review_workflow.hpp"
         "src/profile_admission.cpp"
         "src/profile_admission.hpp"
+        "src/profile_data_reset.cpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
@@ -1785,7 +1802,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0befda60186787a835febe8be8fdebc9977a4a4c2aad8ab71d125e6f8836447b"
+        "1886c64e583ac49361c1d1e54fe7c60b470b030d21d44b8e76c1a15c4fb49386"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

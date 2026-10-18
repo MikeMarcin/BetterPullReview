@@ -13,6 +13,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -157,10 +158,20 @@ namespace {
 		bpr::app::command_line_option{ .Name = "automated-run-budget-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "device-authorization-probe" },
 		bpr::app::command_line_option{ .Name = "public-preview-probe" },
+		// [[BPR-1602]]. Opens the reset dialog before the profile loads.
+		bpr::app::command_line_option{ .Name = "reset-profile-data" },
+		// [[BPR-1602]]. Runs one named reset before the profile loads:
+		// caches, settings, review-data or everything; naming a destructive
+		// one on the command line is its acknowledgement.
+		bpr::app::command_line_option{ .Name = "reset-profile-data-scope", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "reset-profile-data-copy" },
 	};
 #if defined(BPR_BUILD_TESTING)
 	constexpr auto testing_launch_options = std::array{
 		bpr::app::command_line_option{ .Name = "github-fixture", .TakesValue = true },
+		// [[BPR-1602]]. Answers the recovery dialog without a person: quit,
+		// caches, everything or everything-copy.
+		bpr::app::command_line_option{ .Name = "profile-recovery-answer", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "test-application-data-root", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "code-font-probe" },
 		bpr::app::command_line_option{ .Name = "application-icon-probe" },
@@ -1431,6 +1442,40 @@ namespace {
 		/// shutdown transition; the displayed-comparison lines print from it.
 		std::optional<bpr::app::github_application_status> CourseEndStatus;
 	};
+
+	/// \brief [[BPR-1602]]. Whether a profile that could not start is offered
+	/// the recovery dialog: a refusal a reset can clear, in a run a person
+	/// is watching. An owner-busy, activation, registry or profile refusal is
+	/// not one, and an automated run keeps its one-word verdict.
+	[[nodiscard]] auto recoverable_startup_failure(const bpr::app::github_application_startup_failure aFailure) noexcept -> bool
+	{
+		return aFailure == bpr::app::github_application_startup_failure::unavailable || aFailure == bpr::app::github_application_startup_failure::root;
+	}
+
+	/// \brief [[BPR-1602]]. Shows the recovery dialog and returns the reset the
+	/// person confirmed, or none for Quit. `aAnswer` answers it without a
+	/// person (tests-enabled courses), printing what was offered.
+	[[nodiscard]] auto ask_profile_recovery(const bpr::core::bpr_profile_id aProfile, const QString& aCause, const std::optional<std::string_view> aAnswer)
+		-> std::optional<bpr::core::profile_data_reset_request>
+	{
+		const auto label  = aProfile == bpr::core::default_bpr_profile_id ? QStringLiteral("Default") : QString{ };
+		auto       dialog = bpr::qt::profile_recovery_dialog{ label, aCause };
+		if (aAnswer) {
+			QTextStream{ stdout } << "PROFILE_RECOVERY_OFFERED:" << (aCause.isEmpty() ? "requested" : "startup-failure") << '\n';
+			if (*aAnswer == "caches") {
+				dialog.choose(bpr::qt::profile_recovery_choice::clear_caches);
+			} else if (*aAnswer == "everything" || *aAnswer == "everything-copy") {
+				dialog.choose(bpr::qt::profile_recovery_choice::reset_everything, bpr::core::profile_data_reset_request{ bpr::core::profile_data_reset::everything, true, *aAnswer == "everything-copy" });
+			} else {
+				dialog.choose(bpr::qt::profile_recovery_choice::quit);
+			}
+		} else {
+			static_cast<void>(dialog.exec());
+		}
+		const auto request = dialog.request();
+		QTextStream{ stdout } << "PROFILE_RECOVERY_CHOICE:" << (request ? QString::fromUtf8(bpr::core::profile_data_reset_name(request->Reset)) : QStringLiteral("quit")) << '\n';
+		return request;
+	}
 
 #if defined(BPR_BUILD_TESTING)
 	[[nodiscard]] auto color_scheme_name(
@@ -10090,6 +10135,40 @@ auto main(int argc, char** argv) -> int
 		}
 #endif
 
+		// [[BPR-1602]]. A reset named on the command line, or chosen in the
+		// recovery dialog, runs once before the profile's stores open.
+		auto dataReset = std::optional<bpr::core::profile_data_reset_request>{ };
+		if (const auto scope = launch.value("--reset-profile-data-scope")) {
+			if (const auto named = bpr::core::profile_data_reset_from_name(*scope)) {
+				dataReset = bpr::core::profile_data_reset_request{ *named, true, launch.has("--reset-profile-data-copy") };
+			}
+		}
+		if ((launch.has("--reset-profile-data-scope") && (!dataReset || bpr::core::admit_profile_data_reset(*dataReset) != bpr::core::release_maintenance_reason::none))
+			|| (launch.has("--reset-profile-data-copy") && !launch.has("--reset-profile-data-scope"))) {
+			QTextStream{ stdout } << "RESET_PROFILE_DATA_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		const auto recoveryAnswer = launch.value("--profile-recovery-answer");
+		const auto automatedRun   = selfTest || renderPath.has_value() || deviceProbe || launch.has("--public-preview-probe") || launch.has("--automated-run-budget-ms");
+#if defined(BPR_BUILD_TESTING)
+		// A developer build asks only where a course answers or a person looks.
+		const auto offersRecovery = recoveryAnswer.has_value() || (launch.has("--attended-launch") && !automatedRun);
+#else
+		const auto offersRecovery = !automatedRun;
+#endif
+		if (launch.has("--reset-profile-data") && !dataReset) {
+			if (!offersRecovery) {
+				QTextStream{ stdout } << "RESET_PROFILE_DATA_CONFIGURATION_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			dataReset = ask_profile_recovery(profileLaunch->Profile, { }, recoveryAnswer);
+			if (!dataReset) {
+				return EXIT_SUCCESS;
+			}
+		}
+		auto recoveryCause  = std::optional<QString>{ };
+		auto recoveryOffers = 0;
+
 		bpr::app::github_application*              application = nullptr;
 		std::unique_ptr<bpr::app::profile_desktop> desktop;
 		auto                                       completed = [&](bpr::app::profile_desktop_startup_result aResult) {
@@ -10131,6 +10210,15 @@ auto main(int argc, char** argv) -> int
 				}
 #endif
 				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");
+				// [[BPR-1602]]. Offered once the failed desktop has gone, so the
+				// profile's lease and every store are released first. Two offers
+				// at most: clearing caches, then resetting everything.
+				if (offersRecovery && recoverable_startup_failure(aResult.error()) && recoveryOffers < 2) {
+					++recoveryOffers;
+					recoveryCause = aResult.error() == bpr::app::github_application_startup_failure::root
+						? QStringLiteral("This profile’s folder could not be opened or recovered.")
+						: QStringLiteral("A local database in this profile could not be opened.");
+				}
 				desktop->quit(EXIT_FAILURE);
 				return;
 			}
@@ -10369,18 +10457,42 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "AUTOMATED_PROFILE_PRIVATE_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		desktop =
+		const auto startDesktop = [&](const std::optional<bpr::core::profile_data_reset_request>& aReset) {
+			auto attempt      = config;
+			attempt.DataReset = aReset;
 #if defined(BPR_BUILD_TESTING)
-			selectedFixture                ? bpr::app::detail::github_application_fixture_access::start_desktop(*selectedFixture, fixtureOptions, completed)
-			: publicPreviewSelectionForced ? bpr::app::detail::github_application_fixture_access::start_desktop_public_preview_selection_available(std::move(config), completed)
-										   :
+			auto fixture      = fixtureOptions;
+			fixture.DataReset = aReset;
 #endif
-										   bpr::app::profile_desktop::start(std::move(config), completed);
+			desktop =
+#if defined(BPR_BUILD_TESTING)
+				selectedFixture                ? bpr::app::detail::github_application_fixture_access::start_desktop(*selectedFixture, std::move(fixture), completed)
+				: publicPreviewSelectionForced ? bpr::app::detail::github_application_fixture_access::start_desktop_public_preview_selection_available(std::move(attempt), completed)
+											   :
+#endif
+											   bpr::app::profile_desktop::start(std::move(attempt), completed);
+		};
+		startDesktop(dataReset);
 
 		QTimer desktopPoll;
-		QObject::connect(&desktopPoll, &QTimer::timeout, &qtApplication, [&desktop] { if (desktop->is_quiescent()) { QCoreApplication::exit(desktop->exit_code()); } });
+		QObject::connect(&desktopPoll, &QTimer::timeout, &qtApplication, [&desktop] { if (desktop && desktop->is_quiescent()) { QCoreApplication::exit(desktop->exit_code()); } });
 		desktopPoll.start(10);
-		return QApplication::exec();
+		auto exitCode = QApplication::exec();
+		// [[BPR-1602]]. A profile that could not open is offered the recovery
+		// dialog after its desktop has gone; a confirmed reset starts it again
+		// in this process, with the reset run before its stores open.
+		while (recoveryCause) {
+			const auto cause   = *std::exchange(recoveryCause, std::nullopt);
+			const auto request = ask_profile_recovery(profileLaunch->Profile, cause, recoveryAnswer);
+			if (!request) {
+				break;
+			}
+			desktop.reset();
+			application = nullptr;
+			startDesktop(request);
+			exitCode = QApplication::exec();
+		}
+		return exitCode;
 	} catch (const std::exception& error) {
 #if defined(BPR_BUILD_TESTING)
 		// The verdict on stdout stays one word. A developer build says on

@@ -99,7 +99,8 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
 
    All twelve failed rows were rerun in separate CTest invocations. Nine now
    pass after the BPR-1601 integration follow-up described below; three
-   out-of-queue inventory failures remain with their causes recorded. The
+   out-of-queue inventory failures remained at the original handoff close.
+   The owner's 2026-10-18 follow-up below resolves all three. The
    strengthened conversation-read public path also passes. The affected
    targets and final application relink pass, as do documentation and its
    67 regression tests. Full format22 passes all 1,632 files. The full tidy22
@@ -113,7 +114,7 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    repair is `5095c91f4`. These commits contain the tested source changes.
    The final documentation gate passes on their combined tree and this report.
 
-## Integrated follow-up and residual failures
+## Integrated follow-up and original inventory failures
 
 The broader workbench courses still expected file-only Threads rows. They now
 verify that a PR comment moves to its Not on a file row with selection and
@@ -134,7 +135,7 @@ These nine formerly failing rows pass individually: `qt_thread_moves_scale_100`,
 `application_conversation_read_public_path` passes again with the added count
 assertions. The thirteen isolated invocations took 143.00 seconds in total.
 
-The remaining failures reproduce alone:
+These three failures reproduced alone before the inventory follow-up:
 
 - `github_contract_fixture_security` (1.47 s): the expected fixture inventory
   omits the eleven committed `status-attention-v1` files added separately by
@@ -171,6 +172,51 @@ Raw full-suite, isolated rerun, build and lint evidence is outside Git at
 `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-codex-handoff-20261017-vwyr19ur`.
 `full-LastTest.log` and `full-LastTestsFailed.log` preserve the original suite
 before the individual reruns; `final-run.json` records timestamps and exits.
+
+## Inventory follow-up — 2026-10-18
+
+The owner requested direct fixes for the three inventory failures and a push
+to main. This follow-up starts from `902f3afaf`, including the separately
+landed BPR-1602. The fixture inventory now binds `status-attention-v1` to its
+exact synthetic identity and populated thread, review, comment and check field
+sets. Its eleven files pass the existing exact-tree, manifest, field, byte
+sanitization and artifact checks without relaxing those checks.
+
+The CMake source walk prunes nested repository roots, recognizing both a
+`.git` directory and a worktree's `.git` file. Both registration inventories
+use that walk. It keeps scanning ordinary hidden directories and applies the
+existing generated-directory exclusions relative to the requested root. Three
+new regression tests cover nested repositories, unapproved registrations in
+an unmarked hidden directory, and a checkout beneath a parent named `build`.
+Before the fix, the nested-repository cases and the parent-directory case
+fail; the hidden-directory control passes. All 72 structure tests now pass.
+No unrelated checkout was removed or changed.
+
+The missing BPR-1589 Windows registration is recorded as
+`unmeasured (registered on macOS)`. Reconfiguring the current main checkout
+also exposed BPR-1602's three missing entries:
+`sqlite_profile_data_reset_files`,
+`application_profile_data_reset_public_path` and
+`application_profile_recovery_public_path`. They receive the same unmeasured
+marker; native Windows qualification remains open.
+
+Validation on this tree:
+
+- `cmake --preset dev -DCMAKE_CXX_FLAGS_DEBUG=-g0` passes and refreshes the
+  configured inventory to 796 tests.
+- The focused three-row CTest run passes `github_contract_fixture_security`
+  (1.39 s) and the structure contract (0.70 s), and identifies the three
+  BPR-1602 entries above. After adding them, the affected structure contract
+  (0.63 s, 72 tests) and manifest (0.70 s) both pass. The manifest reports
+  `configured=796:registrations=727:backend=macos-sandbox-exec`.
+- `python3 scripts/verify_documentation.py --root .` and `git diff --check`
+  pass. No product code, fixture bytes or CMake registration changed; the
+  existing C++ build, formatting and lint evidence is reused. No additional
+  full suite was run.
+
+All three original inventory failures are resolved. Raw follow-up output is
+outside Git at
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-inventory-followup-20261018-mvxiidz7`.
 
 
 Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.

@@ -2465,6 +2465,14 @@ prepared inventory; Cancel is default/Escape at both stages. An authority or
 selection change dismisses a stale dialog. Cancellation after preparation does
 not restart the profile, and an irreversible failure can require recovery.
 
+**Troubleshooting** ([[BPR-1602]]) closes the page: Clear caches, Reset
+settings, Reset review data and Reset everything, each a name, one short line and
+a button. Its confirmation lists Removes and Keeps side by side, gates the two
+destructive resets on an acknowledgement, and offers a copy of the removed data
+first. A confirmed reset closes and reopens the profile's windows; the reopened
+status bar says what was reset. A profile that cannot open offers the same
+resets in a start-up dialog.
+
 The terminal distinguishes local export, cleared diagnostics, purged/stopped
 profile, cancellation, refusal and recovery-required cleanup. Residuals include
 shared registry/updater data, exports and sibling profiles. Follow the

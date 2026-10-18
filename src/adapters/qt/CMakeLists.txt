@@ -25,6 +25,7 @@ add_library(
         src/writing_hooks_panel.cpp
         src/claude_wrapper_panel.cpp
         src/release_maintenance_panel.cpp
+        src/profile_data_reset_views.cpp
         src/release_update_panel.cpp
         src/release_update_recovery_dialog.cpp
         src/agent_launch_panel.cpp

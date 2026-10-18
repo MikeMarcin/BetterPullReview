@@ -4428,7 +4428,35 @@ namespace bpr::qt {
 		auto* const privacy = new QLabel{ QStringLiteral("History maintenance above is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Diagnostic preview and local export are available in the profile controls. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions."), storage };
 		privacy->setWordWrap(true);
 		storageColumn->addWidget(privacy);
+		// [[BPR-1602]]. The last group on the page, below diagnostics: four
+		// resets of this profile's local data, each confirmed first.
+		storageColumn->addSpacing(12);
+		ProfileReset = new profile_reset_panel{ storage };
+		ProfileReset->set_profile_label(ProfileLabel);
+		storageColumn->addWidget(ProfileReset);
 		SettingsWindow->adopt_panel(settings_page::storage_and_privacy, storage);
+	}
+
+	void workbench_window::set_profile_data_reset_dispatch(profile_reset_panel::dispatch aDispatch)
+	{
+		ProfileReset->set_dispatch(std::move(aDispatch));
+	}
+
+	void workbench_window::present_profile_data_reset(const core::profile_data_reset_outcome& aOutcome, const QString& aCopyFolder)
+	{
+		const auto notice = profile_data_reset_notice(aOutcome, aCopyFolder);
+		statusBar()->showMessage(notice, 30000);
+		ProfileReset->present_status(aOutcome.Reason == core::release_maintenance_reason::none ? QString{ } : notice);
+	}
+
+	void workbench_window::refuse_profile_data_reset(const QString& aReason)
+	{
+		ProfileReset->present_status(aReason);
+	}
+
+	auto workbench_window::profile_reset_panel_widget() const noexcept -> profile_reset_panel*
+	{
+		return ProfileReset;
 	}
 
 	void workbench_window::set_storage_location(const QString& aPath)
@@ -12555,6 +12583,9 @@ namespace bpr::qt {
 	void workbench_window::set_profile_label(const QString& aLabel)
 	{
 		ProfileLabel = aLabel;
+		if (ProfileReset) {
+			ProfileReset->set_profile_label(aLabel);
+		}
 		SettingsWindow->set_profile_label(aLabel);
 		if (MountedSettings) {
 			MountedSettings->set_profile_label(aLabel);

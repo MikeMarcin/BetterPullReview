@@ -230,6 +230,19 @@ FIXTURES = {
             "ListIssueComments": "synthetic",
         },
     },
+    # [[BPR-1589]]. overview-labels-v1 as a reviewer with thirteen check runs,
+    # written by scripts/build_status_attention_fixture.py.
+    "status-attention-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {
+            "ListReviewThreads": "synthetic",
+            "ListReviews": "synthetic",
+            "ListIssueComments": "synthetic",
+            "ListChecks": "synthetic",
+        },
+    },
     # RFC-BPR-0084. The nested-folders contract with image-bearing bodies as
     # its description and pull request comments, written by
     # scripts/build_markdown_images_fixture.py. GitHub's rendering of them and

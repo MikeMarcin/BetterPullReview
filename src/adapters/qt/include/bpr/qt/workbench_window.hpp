@@ -32,6 +32,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/home_status_line.hpp"
+#include "bpr/qt/profile_data_reset_views.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
@@ -1283,6 +1284,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_sort_selector() const noexcept -> QComboBox*;
 		void               set_storage_location(const QString& aPath);
 		void               set_profile_label(const QString& aLabel);
+		/// \brief [[BPR-1602]]. Where a confirmed Troubleshooting reset goes.
+		void set_profile_data_reset_dispatch(profile_reset_panel::dispatch aDispatch);
+		/// \brief [[BPR-1602]]. Says on the status bar what a reset did, once
+		/// the profile has reopened.
+		void present_profile_data_reset(const core::profile_data_reset_outcome& aOutcome, const QString& aCopyFolder);
+		/// \brief [[BPR-1602]]. Says on the Troubleshooting group why a reset
+		/// could not start; the profile stays open.
+		void               refuse_profile_data_reset(const QString& aReason);
+		[[nodiscard]] auto profile_reset_panel_widget() const noexcept -> profile_reset_panel*;
 		void               set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch);
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
@@ -2473,6 +2483,7 @@ namespace bpr::qt {
 		QPushButton*                                       QueueDefaultsReset    = nullptr;
 		QLabel*                                            NotificationStatus    = nullptr;
 		QLineEdit*                                         StorageLocation       = nullptr;
+		profile_reset_panel*                               ProfileReset          = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
 		QComboBox*                                         QueueRuleSelector         = nullptr;
 		QComboBox*                                         QueueRuleKind             = nullptr;

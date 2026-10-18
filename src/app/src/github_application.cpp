@@ -4241,6 +4241,7 @@ namespace bpr::app {
 		std::unique_ptr<qt::settings_window>          Settings;
 		std::unique_ptr<release_maintenance_controls> Maintenance;
 		release_maintenance_retirement                MaintenanceRetirement;
+		std::optional<profile_data_reset_report>      DataResetReport;
 		std::optional<core::bpr_window_context>       SettingsOwner;
 		void                                          present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
 		{
@@ -19775,6 +19776,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Config.Profile             = Options.Profile;
 				Config.ProfileLaunchIntent = Options.ProfileLaunchIntent;
 				Config.ApplicationDataRoot = Options.ApplicationDataRoot;
+				Config.DataReset           = Options.DataReset;
 				Config.DifCatalog          = Options.DifCatalog;
 				Config.StatusItem          = Options.StatusItem;
 				if (!Config.ApplicationDataRoot) {
@@ -19875,6 +19877,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!recover_release_profile(*root, RuntimeLease, Config.Profile)) {
 				return std::unexpected(application::profile_startup_failure::root_unavailable);
 			}
+			// [[BPR-1602]]. A confirmed reset runs here, under the lease and before
+			// any store opens, so a damaged store is removed without being read.
+			// One that stopped part-way leaves its journal for the next start,
+			// which finishes it; until then the profile does not open over it.
+			if (Config.DataReset) {
+				DataResetReport = run_profile_data_reset(*root, RuntimeLease, Config.Profile, *Config.DataReset, aStop);
+				if (DataResetReport->Outcome.Reason == core::release_maintenance_reason::recovery_required) {
+					detail::note_startup_failure("profile-data-reset-unfinished");
+					return std::unexpected(application::profile_startup_failure::root_unavailable);
+				}
+			}
 			if (OwnerOnly) {
 				const auto endpoint = adapters::sqlite::make_profile_activation_server(*root, Config.Profile, RuntimeLease);
 				if (endpoint) {
@@ -19955,6 +19968,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 				);
 				profile->ActivationServer = std::move(ActivationServer);
+				profile->DataResetReport  = std::move(DataResetReport);
 				profile->TourOwnerServer  = std::move(TourOwnerServer);
 				profile->TourOwnerService = std::move(TourOwnerService);
 #if defined(BPR_LOCAL_AUTOMATION)
@@ -20005,6 +20019,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::shared_ptr<cycle_owner_service> CycleOwnerService;
 #endif
 		std::optional<github_application_startup_failure>                                  Handoff;
+		std::optional<profile_data_reset_report>                                           DataResetReport;
 		github_application_startup_completion                                              Completion;
 		std::filesystem::path                                                              RegistryRoot;
 		std::shared_ptr<void>                                                              Scratch;
@@ -20409,6 +20424,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
 	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
 	void github_application::set_maintenance_retirement(release_maintenance_retirement aRetire) { Profile->MaintenanceRetirement = std::move(aRetire); }
+	auto github_application::take_profile_data_reset_report() -> std::optional<profile_data_reset_report> { return std::exchange(Profile->DataResetReport, std::nullopt); }
 	auto github_application::take_maintenance() -> std::unique_ptr<release_maintenance_controls>
 	{
 		if (!Profile->Maintenance || !Profile->Settings) {
@@ -21184,8 +21200,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// course, which has no tray, gets none.
 		aOptions.StatusItem = native_menu_bar_status_item();
 		auto statusItem     = aOptions.StatusItem;
-		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
+		auto initialReset   = std::make_shared<std::optional<core::profile_data_reset_request>>(std::exchange(aOptions.DataReset, std::nullopt));
+		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions), initialReset](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, std::optional<core::profile_data_reset_request> aReset, github_application_startup_completion aDone) {
             auto next = aProfile == options.Profile || options.DistinctProfileAccounts ? options : detail::github_public_path_fixture_options{};
+            next.DataReset = aReset ? aReset : aProfile == options.Profile ? std::exchange(*initialReset, std::nullopt) : std::nullopt;
 			next.DifCatalog = options.DifCatalog;
 			next.StatusItem = options.StatusItem;
 			if (aProfile != options.Profile && options.DistinctProfileAccounts) {
@@ -21201,9 +21219,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	{
 		const auto profile = aConfig.Profile;
 		const auto intent  = aConfig.ProfileLaunchIntent;
-		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
+		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, std::optional<core::profile_data_reset_request> aReset, github_application_startup_completion aDone) {
             auto next = profile_desktop::configuration_for_profile(config, aProfile, aRoot);
             next.ProfileLaunchIntent = aIntent;
+            next.DataReset = aReset;
             return detail::github_application_fixture_access::start_profile_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent);
 	}
 

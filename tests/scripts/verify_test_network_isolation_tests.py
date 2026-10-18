@@ -147,6 +147,52 @@ class RegistrationInventoryTests(unittest.TestCase):
                 ([RAW_REGISTRATION_OWNER], 1, 1, 1),
             )
 
+    def test_nested_repositories_do_not_contribute_registrations(self) -> None:
+        for marker in ("directory", "file"):
+            with self.subTest(git_marker=marker), contained_temporary_directory() as directory:
+                root = pathlib.Path(directory)
+                nested = root / ".claude" / "worktrees" / "other-checkout"
+                nested.mkdir(parents=True)
+                for checkout in (root, nested):
+                    if marker == "directory":
+                        (checkout / ".git").mkdir()
+                    else:
+                        (checkout / ".git").write_text(
+                            "gitdir: /unused/worktree-metadata\n", encoding="utf-8"
+                        )
+                    write(checkout, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+                    write(
+                        checkout,
+                        "tests/CMakeLists.txt",
+                        "bpr_add_network_isolated_test(NAME safe WINDOWS_UNCONTAINED COMMAND x)\n"
+                        "bpr_add_designated_live_mutation_test()\n",
+                    )
+                self.assertEqual(
+                    registration_inventory(root),
+                    ([RAW_REGISTRATION_OWNER], 1, 1, 1),
+                )
+                self.assertEqual(uncontained_registration_count(root), 1)
+
+    def test_hidden_directories_without_a_repository_marker_are_checked(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            rogue = ".claude/worktrees/unmarked/CMakeLists.txt"
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            write(root, rogue, "add_test(NAME bypass COMMAND x)\n")
+            raw, _, _, _ = registration_inventory(root)
+            self.assertIn(rogue, raw)
+            self.assertTrue(raw_registration_failures(root, raw))
+
+    def test_build_exclusions_are_relative_to_the_scan_root(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory) / "build" / "checkout"
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            for excluded in (".git", "build", "_build", "tests/build"):
+                write(root, f"{excluded}/CMakeLists.txt", "add_test(NAME generated COMMAND x)\n")
+            self.assertEqual(
+                registration_inventory(root), ([RAW_REGISTRATION_OWNER], 0, 0, 0)
+            )
+
     def test_rogue_raw_registration_is_visible(self) -> None:
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory)

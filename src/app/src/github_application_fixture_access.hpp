@@ -312,6 +312,8 @@ namespace bpr::app::detail {
 
 		std::optional<std::filesystem::path>      ApplicationDataRoot;
 		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
+		/// [[BPR-1602]]. A confirmed reset run once before the profile's stores open.
+		std::optional<core::profile_data_reset_request> DataReset;
 		/// [[BPR-1250]]. The desktop's menu bar status item, set by `start_desktop`.
 		std::shared_ptr<QSystemTrayIcon> StatusItem;
 		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
