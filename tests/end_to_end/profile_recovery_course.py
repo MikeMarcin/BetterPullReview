@@ -25,8 +25,10 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 OPENED = "ATTENDED_PULL_REQUEST_OPENED"
 
@@ -89,7 +91,7 @@ def main():
     if len(sys.argv) != 3:
         fail("usage: profile_recovery_course.py APPLICATION SOURCE_ROOT")
     application, source = sys.argv[1], sys.argv[2]
-    scratch = Path(tempfile.mkdtemp(prefix="bpr-profile-recovery-")).resolve()
+    scratch = Path(make_contained_temporary_directory(prefix="bpr-profile-recovery-")).resolve()
     try:
         os.chmod(scratch, 0o700)
         root = private(scratch / "profile")

@@ -786,7 +786,7 @@ namespace bpr::qt {
 		case core::note_placement_kind::outdated:     return tr("Was line %1").arg(aNote.Attachment && aNote.Attachment->Line ? aNote.Attachment->Line->Line + 1U : 0U);
 		case core::note_placement_kind::other_file:   break;
 		}
-		const auto label = QString::fromStdString(aNote.Label);
+		auto label = QString::fromStdString(aNote.Label);
 		if (aNote.Attachment && aNote.Attachment->Line) {
 			return tr("%1, line %2").arg(label).arg(aNote.Attachment->Line->Line + 1U);
 		}

@@ -1,10 +1,12 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "cli_publication_course.hpp"
 #include "private_data_root.hpp"
@@ -320,7 +322,7 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return notes->notes().size() == 2U && newest("A private note, copied literally.") != nullptr; }, "line note commits");
 				const auto* const lineNote = newest("A private note, copied literally.");
 				const auto        noteId   = lineNote->Id;
-				const auto        noteLine = lineNote->Attachment && lineNote->Attachment->Line ? std::optional{ *lineNote->Attachment->Line } : std::nullopt;
+				const auto        noteLine = lineNote->Attachment ? lineNote->Attachment->Line : std::nullopt;
 				expect(noteId != prNote && noteLine.has_value() && noteLine->Blob.has_value() && lineNote->Label != "Pull request"
 						   && notes->placement(noteId).Kind == core::note_placement_kind::placed
 						   && (!notes->note_rect(noteId).isEmpty() || std::ranges::any_of(notes->edge_chips(), [&noteLine](const QAbstractButton* aChip) { return aChip->text() == QString::number(noteLine->Line + 1U); })),
@@ -375,12 +377,11 @@ auto main(int argc, char** argv) -> int
 				// [[BPR-1592]]. The agent's purpose and tools are the Agent tab's.
 				window.tray_tabs()->setCurrentIndex(3);
 				QApplication::processEvents();
-				auto* const purpose    = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
-				auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-				expect(window.tray_tabs()->accessibleTabName(3) == QStringLiteral("Agent") && purpose != nullptr && purpose->isVisible() && notesPages != nullptr
-						   && purpose->width() <= notesPages->width()
-						   && purpose->height() >= purpose->heightForWidth(purpose->width()) && !notes->isVisible(),
-					   "the Agent tab holds the agent's purpose and tools, and Notes holds none");
+				auto* const agent       = window.agent_tab();
+				auto* const legacyPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
+				expect(window.tray_tabs()->accessibleTabName(3) == QStringLiteral("Agent") && agent != nullptr && agent->isVisible()
+						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !notes->isVisible(),
+					   "the accepted Agent tab owns the question field; legacy nested pages and Notes are hidden");
 				window.tray_tabs()->setCurrentIndex(1);
 				QApplication::processEvents();
 				if (argc > 1) {
