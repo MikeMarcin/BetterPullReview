@@ -3,6 +3,7 @@
 #include "bpr/application/diagnostic_log_files.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/hex.hpp"
+#include "bpr/core/profile_data_reset.hpp"
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
 
@@ -239,15 +240,123 @@ namespace bpr::adapters::sqlite {
 			}
 			return false;
 		}
-		auto classified(std::string_view aPath, bool aDirectory, bool aPurge) -> bool
+		/// \brief What one inventory covers. Its value is the journal's scope
+		/// field: 0 and 1 are the original clear and purge, so their journals
+		/// read as before; 11-14 are [[BPR-1602]]'s resets.
+		enum class scope : std::uint64_t {
+			clear            = 0U,
+			purge            = 1U,
+			reset_caches     = 11U,
+			reset_settings   = 12U,
+			reset_review     = 13U,
+			reset_everything = 14U,
+		};
+		auto scope_of(core::profile_data_reset aReset) -> scope
 		{
+			switch (aReset) {
+			case core::profile_data_reset::caches:
+				return scope::reset_caches;
+			case core::profile_data_reset::settings:
+				return scope::reset_settings;
+			case core::profile_data_reset::review_data:
+				return scope::reset_review;
+			case core::profile_data_reset::everything:
+				return scope::reset_everything;
+			}
+			fail(reason::invalid_selection);
+		}
+		auto reset_of(scope aScope) -> std::optional<core::profile_data_reset>
+		{
+			switch (aScope) {
+			case scope::reset_caches:
+				return core::profile_data_reset::caches;
+			case scope::reset_settings:
+				return core::profile_data_reset::settings;
+			case scope::reset_review:
+				return core::profile_data_reset::review_data;
+			case scope::reset_everything:
+				return core::profile_data_reset::everything;
+			case scope::clear:
+			case scope::purge:
+				break;
+			}
+			return std::nullopt;
+		}
+		auto known_scope(std::uint64_t aValue) -> bool
+		{
+			return aValue == 0U || aValue == 1U || (aValue >= 11U && aValue <= 14U);
+		}
+		/// \brief A `state/v1` entry the reset selects by name: a known store
+		/// or one of its sidecars whose area the reset removes, or the epoch
+		/// catalog's lock with the caches. Core owns which area a store is in.
+		auto reset_store(std::string_view aName, core::profile_data_reset aReset) -> bool
+		{
+			if (aName == "epoch-catalog.lock") {
+				return core::profile_data_reset_removes(aReset, core::profile_data_area::caches);
+			}
+			const auto extension = aName.find(".sqlite3");
+			return extension != std::string_view::npos && store_name(aName)
+				&& core::profile_data_reset_removes(aReset, core::profile_data_store_area(aName.substr(0U, extension)));
+		}
+		/// \brief Whether a reset's scan passes over `aPath` untouched: anything
+		/// outside the folders and stores it removes. Nothing passed over is
+		/// recorded, opened or deleted.
+		auto reset_skips(std::string_view aPath, core::profile_data_reset aReset) -> bool
+		{
+			const auto path = parts(aPath);
+			if (path.size() == 1U) {
+				return aPath != "state" && !core::profile_data_reset_removes(aReset, core::profile_data_folder_area(aPath));
+			}
+			if (path[0] == "state") {
+				return path.size() == 2U ? aPath != "state/v1" : path.size() != 3U || !reset_store(path[2], aReset);
+			}
+			return !core::profile_data_reset_removes(aReset, core::profile_data_folder_area(path[0]));
+		}
+		/// \brief Whether an entry the reset recorded is one it may remove. The
+		/// cache folders are the application's own downloads, so every
+		/// owner-private file and folder in them goes, partial spools and
+		/// unindexed objects included: a reset is how a damaged cache is
+		/// cleared. The publication store keeps the purge's exact layout.
+		auto reset_member(std::string_view aPath, bool aDirectory, core::profile_data_reset aReset) -> bool
+		{
+			if (aPath == "state" || aPath == "state/v1") {
+				return aDirectory;
+			}
+			const auto path = parts(aPath);
+			if (path[0] == "state") {
+				return !aDirectory && path.size() == 3U && reset_store(path[2], aReset);
+			}
+			if (!core::profile_data_reset_removes(aReset, core::profile_data_folder_area(path[0]))) {
+				return false;
+			}
+			if (path[0] == "publication-git-v1") {
+				return path.size() == 1U ? aDirectory : publication_artifact(aPath.substr(19U), aDirectory);
+			}
+			return path.size() > 1U || aDirectory;
+		}
+		auto skipped(std::string_view aPath, std::string_view aPrefix, scope aScope) -> bool
+		{
+			if (aPath == "logs/.retention.lock" || excluded(aPath)) {
+				return true;
+			}
+			if (const auto reset = reset_of(aScope)) {
+				return reset_skips(aPath, *reset);
+			}
+			return aScope == scope::clear && aPrefix.empty() && aPath != "logs";
+		}
+		auto classified(std::string_view aPath, bool aDirectory, scope aScope) -> bool
+		{
+			if (const auto reset = reset_of(aScope)) {
+				return reset_member(aPath, aDirectory, *reset);
+			}
+			const auto purge = aScope == scope::purge;
 			if (aPath == "logs") {
 				return aDirectory;
 			}
 			if (aPath.starts_with("logs/") && application::diagnostic_log_file(aPath.substr(5U))) {
 				return !aDirectory;
 			}
-			if (!aPurge) {
+			if (!purge) {
 				return false;
 			}
 			if (aPath == "state" || aPath == "state/v1") {
@@ -314,7 +423,7 @@ namespace bpr::adapters::sqlite {
 			std::uint64_t                                   Inode           = 0U;
 			std::uint64_t                                   ObjectHigh      = 0U;
 			std::uint64_t                                   Profile         = 0U;
-			bool                                            Purge           = false;
+			scope                                           Scope           = scope::clear;
 			bool                                            CredentialsDone = false;
 			application::release_profile_resource_inventory Credentials;
 			std::vector<entry>                              Entries;
@@ -344,7 +453,7 @@ namespace bpr::adapters::sqlite {
 			append_integer(bytes, aInventory.Inode);
 			append_integer(bytes, aInventory.ObjectHigh);
 			append_integer(bytes, aInventory.Profile);
-			append_integer(bytes, aInventory.Purge ? 1U : 0U);
+			append_integer(bytes, static_cast<std::uint64_t>(aInventory.Scope));
 			append_integer(bytes, aInventory.Credentials.Entries);
 			bytes.append(reinterpret_cast<const char*>(aInventory.Credentials.Digest.data()), aInventory.Credentials.Digest.size());
 			append_integer(bytes, aInventory.Entries.size());
@@ -374,15 +483,15 @@ namespace bpr::adapters::sqlite {
 			std::string_view bytes{ aBytes };
 			bytes.remove_prefix(8U);
 			inventory result;
-			result.Device     = read_integer(bytes);
-			result.Inode      = read_integer(bytes);
-			result.ObjectHigh = read_integer(bytes);
-			result.Profile    = read_integer(bytes);
-			const auto purge  = read_integer(bytes);
-			if (purge > 1U) {
+			result.Device      = read_integer(bytes);
+			result.Inode       = read_integer(bytes);
+			result.ObjectHigh  = read_integer(bytes);
+			result.Profile     = read_integer(bytes);
+			const auto covered = read_integer(bytes);
+			if (!known_scope(covered)) {
 				fail(reason::recovery_required);
 			}
-			result.Purge           = purge == 1U;
+			result.Scope           = static_cast<scope>(covered);
 			const auto credentials = read_integer(bytes);
 			if (credentials > application::maximum_device_bindings * 2U || bytes.size() < 32U) {
 				fail(reason::recovery_required);
@@ -410,7 +519,7 @@ namespace bpr::adapters::sqlite {
 				item.ModifiedNano    = read_integer(bytes);
 				const auto directory = read_integer(bytes);
 				item.Directory       = directory == 1U;
-				if (directory > 1U || !safe_relative(item.Path) || !classified(item.Path, item.Directory, result.Purge)
+				if (directory > 1U || !safe_relative(item.Path) || !classified(item.Path, item.Directory, result.Scope)
 					|| (!result.Entries.empty() && result.Entries.back().Path >= item.Path)) {
 					fail(reason::recovery_required);
 				}
@@ -666,7 +775,7 @@ namespace bpr::adapters::sqlite {
 				fail(reason::io_failure);
 			}
 		}
-		void scan(int aDirectory, std::string_view aPrefix, bool aPurge, std::vector<entry>& aEntries, std::stop_token aStop)
+		void scan(int aDirectory, std::string_view aPrefix, scope aScope, std::vector<entry>& aEntries, std::stop_token aStop)
 		{
 			auto  directory = open_directory(aDirectory, ".");
 			auto* stream    = ::fdopendir(std::exchange(directory.Value, -1));
@@ -693,7 +802,7 @@ namespace bpr::adapters::sqlite {
 					fail(reason::limit_exceeded);
 				}
 				const auto path = aPrefix.empty() ? std::string{ name } : std::string{ aPrefix } + "/" + std::string{ name };
-				if (path == "logs/.retention.lock" || excluded(path) || (!aPurge && aPrefix.empty() && path != "logs")) {
+				if (skipped(path, aPrefix, aScope)) {
 					continue;
 				}
 				auto observedEntry = inspect(aDirectory, name);
@@ -704,7 +813,7 @@ namespace bpr::adapters::sqlite {
 				if (observedEntry->Device != held_identity(aDirectory, "").Device) {
 					fail(reason::invalid_authority);
 				}
-				if (!safe_relative(path) || !classified(path, observedEntry->Directory, aPurge)) {
+				if (!safe_relative(path) || !classified(path, observedEntry->Directory, aScope)) {
 					fail(reason::incomplete_inventory);
 				}
 				if (aEntries.size() == core::release_maintenance_entry_limit) {
@@ -716,7 +825,7 @@ namespace bpr::adapters::sqlite {
 					if (held_identity(child.Value, path) != *observedEntry) {
 						fail(reason::selection_changed);
 					}
-					scan(child.Value, path, aPurge, aEntries, aStop);
+					scan(child.Value, path, aScope, aEntries, aStop);
 				}
 			}
 		}
@@ -1137,7 +1246,7 @@ namespace bpr::adapters::sqlite {
 				fail(reason::recovery_required);
 			}
 		}
-		void scan(HANDLE aDirectory, std::string_view aPrefix, bool aPurge, std::vector<entry>& aEntries, std::stop_token aStop)
+		void scan(HANDLE aDirectory, std::string_view aPrefix, scope aScope, std::vector<entry>& aEntries, std::stop_token aStop)
 		{
 			const auto path = win::final_path_of(aDirectory);
 			if (!path) {
@@ -1173,7 +1282,7 @@ namespace bpr::adapters::sqlite {
 				name.reserve(nativeName.size());
 				std::ranges::transform(nativeName, std::back_inserter(name), [](wchar_t aCharacter) { return static_cast<char>(aCharacter); });
 				const auto relative = aPrefix.empty() ? name : std::string{ aPrefix } + "/" + name;
-				if (relative == "logs/.retention.lock" || excluded(relative) || (!aPurge && aPrefix.empty() && relative != "logs")) {
+				if (skipped(relative, aPrefix, aScope)) {
 					continue;
 				}
 				auto observed = inspect(aDirectory, name);
@@ -1184,7 +1293,7 @@ namespace bpr::adapters::sqlite {
 				if (observed->Device != held_identity(aDirectory, "").Device) {
 					fail(reason::invalid_authority);
 				}
-				if (!safe_relative(relative) || !classified(relative, observed->Directory, aPurge)) {
+				if (!safe_relative(relative) || !classified(relative, observed->Directory, aScope)) {
 					fail(reason::incomplete_inventory);
 				}
 				if (aEntries.size() == core::release_maintenance_entry_limit) {
@@ -1196,7 +1305,7 @@ namespace bpr::adapters::sqlite {
 					if (held_identity(child.Value, relative) != *observed) {
 						fail(reason::selection_changed);
 					}
-					scan(child.Value, relative, aPurge, aEntries, aStop);
+					scan(child.Value, relative, aScope, aEntries, aStop);
 				}
 			} while (::FindNextFileW(search, &data));
 			if (::GetLastError() != ERROR_NO_MORE_FILES) {
@@ -1274,7 +1383,7 @@ namespace bpr::adapters::sqlite {
 			}
 			auto               logs = open_directory(aRoot, "logs");
 			std::vector<entry> entries;
-			scan(logs.Value, "logs", false, entries, aStop);
+			scan(logs.Value, "logs", scope::clear, entries, aStop);
 			std::ranges::sort(entries, { }, &entry::Path);
 			std::string bytes;
 			std::size_t inputBytes = 0U;
@@ -1376,20 +1485,21 @@ namespace bpr::adapters::sqlite {
 				fail(reason::invalid_authority);
 			}
 		}
-		auto capture(bool aPurge, std::stop_token aStop) -> inventory
+		auto capture(scope aScope, std::stop_token aStop) -> inventory
 		{
-			inventory observed{ Device, Inode, ObjectHigh, Authority.Profile.value(), aPurge, false, { }, { } };
+			const auto purge = aScope == scope::purge;
+			inventory  observed{ Device, Inode, ObjectHigh, Authority.Profile.value(), aScope, false, { }, { } };
 			// A scoped binding-store read is closed before inventorying its native files.
-			if (aPurge && Credentials) {
+			if (purge && Credentials) {
 				auto credentials = Credentials->inspect(aStop);
 				if (!credentials) {
 					fail(credentials.error());
 				}
 				observed.Credentials = *credentials;
 			}
-			scan(RootHandle.Value, "", aPurge, observed.Entries, aStop);
+			scan(RootHandle.Value, "", aScope, observed.Entries, aStop);
 			std::ranges::sort(observed.Entries, { }, &entry::Path);
-			if (aPurge) {
+			if (purge) {
 				auto workspaceRoot = Root;
 				workspaceRoot += "-agent-workspaces-v1";
 				std::error_code error;
@@ -1418,7 +1528,7 @@ namespace bpr::adapters::sqlite {
 				fail(reason::invalid_authority);
 			}
 			std::vector<entry> current;
-			scan(RootHandle.Value, "", aInventory.Purge, current, { });
+			scan(RootHandle.Value, "", aInventory.Scope, current, { });
 			std::ranges::sort(current, { }, &entry::Path);
 			if (!aRecovery && current != aInventory.Entries) {
 				fail(reason::selection_changed);
@@ -1451,6 +1561,39 @@ namespace bpr::adapters::sqlite {
 				remove_exact(RootHandle.Value, *item);
 			}
 		}
+		/// \brief Copies every recorded `state/v1` file into `aFolder`, which it
+		/// creates owner-private and refuses when it exists. The sources are
+		/// the exact recorded files: the inventory is checked against them
+		/// again after copying, so a copy of a changed file is never kept.
+		void copy_stores(const inventory& aInventory, const std::filesystem::path& aFolder) const
+		{
+			if (!aFolder.is_absolute() || aFolder.lexically_normal() != aFolder || !aFolder.has_filename()) {
+				fail(reason::invalid_authority);
+			}
+			std::error_code error;
+			if (!std::filesystem::create_directory(aFolder, error) || error) {
+				fail(reason::selection_changed);
+			}
+			try {
+				std::filesystem::permissions(aFolder, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+				for (const auto& item : aInventory.Entries) {
+					if (item.Directory || !item.Path.starts_with("state/v1/")) {
+						continue;
+					}
+					validate();
+					std::filesystem::copy_file(Root / std::filesystem::path{ item.Path }, aFolder / leaf(item.Path), std::filesystem::copy_options::none);
+				}
+				std::vector<entry> current;
+				scan(RootHandle.Value, "", aInventory.Scope, current, { });
+				std::ranges::sort(current, { }, &entry::Path);
+				if (current != aInventory.Entries) {
+					fail(reason::selection_changed);
+				}
+			} catch (...) {
+				std::filesystem::remove_all(aFolder, error);
+				throw;
+			}
+		}
 		void validate_journal(native_handle aJournal)
 		{
 			const auto held = held_identity(aJournal, std::string{ journal_name });
@@ -1463,7 +1606,7 @@ namespace bpr::adapters::sqlite {
 			validate_journal(aJournal);
 			static_cast<void>(validate_inventory(aInventory, true));
 			if (!aInventory.CredentialsDone) {
-				if (aInventory.Purge && Credentials) {
+				if (aInventory.Scope == scope::purge && Credentials) {
 					auto erased = Credentials->erase(aInventory.Credentials);
 					if (!erased) {
 						fail(erased.error());
@@ -1535,10 +1678,10 @@ namespace bpr::adapters::sqlite {
 				candidate->Descriptor = document->Descriptor;
 				candidate->Bytes      = std::move(document->Bytes);
 			} else if (aContext.Operation == command::prepare_clear || aContext.Operation == command::prepare_purge) {
-				candidate->Inventory  = self.capture(aContext.Operation == command::prepare_purge, aStop);
+				candidate->Inventory  = self.capture(aContext.Operation == command::prepare_purge ? scope::purge : scope::clear, aStop);
 				const auto encoded    = encode(candidate->Inventory);
 				candidate->Descriptor = core::release_maintenance_inventory{ revision, digest(encoded),
-																			 candidate->Inventory.Purge ? core::release_profile_purge_categories : 1U,
+																			 candidate->Inventory.Scope == scope::purge ? core::release_profile_purge_categories : 1U,
 																			 static_cast<std::uint32_t>(candidate->Inventory.Entries.size()) + candidate->Inventory.Credentials.Entries, 0U, true };
 			} else {
 				fail(reason::invalid_command);
@@ -1564,10 +1707,10 @@ namespace bpr::adapters::sqlite {
 				fail(reason::invalid_authority);
 			}
 			if ((aContext.Operation != command::clear_diagnostics && aContext.Operation != command::purge_profile)
-				|| candidate->Inventory.Purge != (aContext.Operation == command::purge_profile)) {
+				|| candidate->Inventory.Scope != (aContext.Operation == command::purge_profile ? scope::purge : scope::clear)) {
 				fail(reason::invalid_command);
 			}
-			if (self.capture(candidate->Inventory.Purge, aStop).Credentials != candidate->Inventory.Credentials) {
+			if (self.capture(candidate->Inventory.Scope, aStop).Credentials != candidate->Inventory.Credentials) {
 				fail(reason::selection_changed);
 			}
 			static_cast<void>(self.validate_inventory(candidate->Inventory, false));
@@ -1596,6 +1739,31 @@ namespace bpr::adapters::sqlite {
 				fail(reason::invalid_authority);
 			}
 			return { };
+		} catch (const failure& error) {
+			return std::unexpected(error.Reason);
+		} catch (...) {
+			return std::unexpected(reason::io_failure);
+		}
+	}
+	auto release_maintenance_files::reset(const core::profile_data_reset aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
+		-> std::expected<std::uint32_t, reason>
+	{
+		try {
+			auto& self = *Implementation;
+			self.validate();
+			cancelled(aStop);
+			if (inspect(self.RootHandle.Value, journal_name)) {
+				fail(reason::recovery_required);
+			}
+			const auto observed = self.capture(scope_of(aReset), aStop);
+			if (aCopy) {
+				self.copy_stores(observed, *aCopy);
+			}
+			static_cast<void>(self.validate_inventory(observed, false));
+			cancelled(aStop);
+			auto journal = create_journal(self.RootHandle.Value, encode(observed));
+			self.replay(observed, journal.Value);
+			return static_cast<std::uint32_t>(observed.Entries.size());
 		} catch (const failure& error) {
 			return std::unexpected(error.Reason);
 		} catch (...) {

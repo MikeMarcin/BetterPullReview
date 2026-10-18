@@ -88,6 +88,7 @@ add_library(
         src/review_queue.cpp
         src/release_update.cpp
         src/release_maintenance.cpp
+        src/profile_data_reset.cpp
         src/agent_chat_scope.cpp
         src/agent_context_supplement.cpp
         src/agent_finding.cpp

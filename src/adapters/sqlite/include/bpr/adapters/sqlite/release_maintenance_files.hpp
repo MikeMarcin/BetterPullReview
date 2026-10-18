@@ -4,7 +4,10 @@
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
+#include "bpr/core/profile_data_reset.hpp"
+
 #include <filesystem>
+#include <optional>
 
 namespace bpr::adapters::sqlite {
 	/// \brief Native private-root maintenance under the already admitted runtime lease.
@@ -30,6 +33,19 @@ namespace bpr::adapters::sqlite {
 		auto erase(const core::release_maintenance_context&            aContext,
 				   const application::release_maintenance_preparation& aPreparation, std::stop_token aStop,
 				   const std::function<bool()>& aBeginCommit) -> application::release_maintenance_result override;
+		/// \brief [[BPR-1602]]. Removes exactly the stores and folders `aReset`
+		/// covers, under the same journal and recovery as purge.
+		/// \details Run under the runtime lease after recovery and before any
+		/// store, logger or producer opens; a damaged store is never opened.
+		/// Everything outside the reset's scope is passed over unread. Inside
+		/// it, a link, a foreign owner or a shared permission refuses before
+		/// anything is removed. With `aCopy`, that new folder (never an
+		/// existing one) first receives a copy of every removed `state/v1`
+		/// file; a failed copy removes the folder and nothing else. No
+		/// credential is read or deleted. Returns the number of exact files and
+		/// folders removed.
+		auto reset(core::profile_data_reset aReset, const std::optional<std::filesystem::path>& aCopy, std::stop_token aStop)
+			-> std::expected<std::uint32_t, core::release_maintenance_reason>;
 		/// \brief Replays only a durable exact-root inventory; changed/unknown objects remain untouched.
 		/// \details Run after producer/store quiescence and before admitting a new maintenance host.
 		auto recover() -> application::release_maintenance_result;
