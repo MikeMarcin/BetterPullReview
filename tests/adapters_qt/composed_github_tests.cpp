@@ -767,7 +767,8 @@ namespace {
 		expect(
 			!window.github_connect_action()->shortcut().isEmpty()
 				&& !window.github_open_action()->shortcut().isEmpty()
-				&& !window.github_refresh_action()->shortcut().isEmpty(),
+				// [[BPR-1600]]. The Refresh key is on the refresh showing.
+				&& !(window.showing_home() ? window.queue_refresh_action() : window.github_refresh_action())->shortcut().isEmpty(),
 			"primary actions expose keyboard shortcuts");
 		expect(
 			window.active_account_text() == "Not authenticated",
@@ -990,7 +991,7 @@ namespace {
 		auto* observedTitle = required_child<QLabel>(window, "overviewTitle");
 		expect(observedTitle->text() == QStringLiteral("<b>Literal provisional title</b>")
 				   && observedTitle->textFormat() == Qt::PlainText
-				   && !window.overview_page()->entry_button()->isEnabled() && !window.overview_page()->presented(),
+				   && !window.overview_page()->entry_path() && !window.overview_page()->presented(),
 			   "validated metadata paints literal useful content but grants no review authority");
 		expect(required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("3 commits"))
 				   && required_child<QLabel>(window, "overviewSummary")->text().contains(QStringLiteral("Open. Provisional metadata")),
@@ -5710,7 +5711,7 @@ namespace {
 			   "signed out, neither Sign out nor the grant sentence remains");
 		auto* const rules = window.rules_editor();
 		expect(rules != nullptr
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(rules)
 				   && !window.home_page()->isAncestorOf(rules)
 				   && rules->isAncestorOf(window.queue_rule_kind_selector())
 				   && rules->isAncestorOf(window.queue_rule_pattern_editor())
@@ -5718,8 +5719,8 @@ namespace {
 				   // [[BPR-0783]]. The queue's six typed controls moved to the
 				   // same page, so they are off Home and off this order too.
 				   && !window.focus_order().contains(window.queue_role_filter())
-				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(window.queue_role_filter()),
-			   "the observer-rule editor and the queue defaults live on Reviews and queue, off Home and out of the workbench's focus order");
+				   && window.settings()->page_widget(qt::settings_page::home_and_queue)->isAncestorOf(window.queue_role_filter()),
+			   "the observer-rule editor and the queue defaults live on Home & queue, off Home and out of the workbench's focus order");
 		window.hide();
 	}
 

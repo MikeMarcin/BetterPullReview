@@ -1,3 +1,4 @@
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 
 #include <QAbstractButton>
@@ -5,8 +6,10 @@
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QFile>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
@@ -26,6 +29,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 /// \file
@@ -232,6 +237,17 @@ namespace {
 	{
 		auto event = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aPoint }, aList.viewport()->mapToGlobal(QPointF{ aPoint }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(aList.viewport(), &event);
+		QApplication::processEvents();
+	}
+
+	/// [[BPR-1582]]. A double click as Qt delivers it: a press, then the
+	/// double-click event.
+	void double_click(QListView& aList, const QPoint aPoint, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+	{
+		auto first = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aPoint }, aList.viewport()->mapToGlobal(QPointF{ aPoint }), Qt::LeftButton, Qt::LeftButton, aModifiers };
+		QApplication::sendEvent(aList.viewport(), &first);
+		auto second = QMouseEvent{ QEvent::MouseButtonDblClick, QPointF{ aPoint }, aList.viewport()->mapToGlobal(QPointF{ aPoint }), Qt::LeftButton, Qt::LeftButton, aModifiers };
+		QApplication::sendEvent(aList.viewport(), &second);
 		QApplication::processEvents();
 	}
 
@@ -511,7 +527,9 @@ namespace {
 		expect(search->hasFocus() && search->text() == QStringLiteral("dr"), "typing in the list goes to the search");
 		search->clear();
 
-		// The pointer: a bead picks its post, the rest of a row its first post.
+		// [[BPR-1582]]. The pointer: a click selects, as everywhere else,
+		// and opens nothing; a double click on a bead picks its post, on the
+		// rest of a row its first post; Shift with it asks for Discuss.
 		const auto row    = std::string{ "row:review-thread:t656/review-comment:t656-1" };
 		const auto rowBox = finder.row_rect(row);
 		finder.list()->scrollTo(finder.list()->model()->index(0, 0));
@@ -519,18 +537,27 @@ namespace {
 		expect(!third.isEmpty() && rowBox.contains(third), "the third post's bead is on its row");
 		hover(*finder.list(), third.center());
 		expect(finder.preview() != nullptr && finder.preview()->accessibleName().startsWith(QStringLiteral("jiayin: praise")), "hovering a bead previews its post");
+		const auto picksBefore = shown.Picks.size();
 		press(*finder.list(), third.center());
-		expect(shown.Picks.back().Post == "review-comment:t656-3", "a bead picks that post");
+		expect(shown.Picks.size() == picksBefore && finder.cursor_key() == row && finder.cursor_post() == "review-comment:t656-3",
+			   "a click on a bead selects its row and post and picks nothing");
 		press(*finder.list(), QPoint{ finder.row_rect(row).left() + 120, finder.row_rect(row).center().y() });
-		expect(shown.Picks.back().Post == "review-comment:t656-1" && shown.Picks.back().Thread == "review-thread:t656", "a row picks its first post");
+		expect(shown.Picks.size() == picksBefore && finder.cursor_key() == row && finder.cursor_post().empty(), "a click on the row selects the row alone and picks nothing");
+		double_click(*finder.list(), third.center());
+		expect(shown.Picks.size() == picksBefore + 1U && shown.Picks.back().Post == "review-comment:t656-3", "a double click on a bead picks that post");
+		double_click(*finder.list(), QPoint{ finder.row_rect(row).left() + 120, finder.row_rect(row).center().y() });
+		expect(shown.Picks.back().Post == "review-comment:t656-1" && shown.Picks.back().Thread == "review-thread:t656", "a double click on a row picks its first post");
 		// A branch row picks its own first post.
 		const auto branchC = std::string{ "row:review-thread:branching-thread-v1/review-comment:branching-thread-v1-cc01" };
 		finder.list()->scrollTo(finder.list()->model()->index(1, 0));
 		QApplication::processEvents();
-		press(*finder.list(), QPoint{ finder.row_rect(branchC).left() + 140, finder.row_rect(branchC).center().y() });
+		double_click(*finder.list(), QPoint{ finder.row_rect(branchC).left() + 140, finder.row_rect(branchC).center().y() });
 		expect(shown.Picks.back().Post == "review-comment:branching-thread-v1-cc01", "a branch row picks the branch's first post");
 		expect(std::ranges::all_of(shown.Destinations, [](const core::workbench_thread_destination aDestination) { return aDestination == core::workbench_thread_destination::review; }),
-			   "a click and Return ask for Review");
+			   "a double click and Return ask for Review");
+		double_click(*finder.list(), QPoint{ finder.row_rect(branchC).left() + 140, finder.row_rect(branchC).center().y() }, Qt::ShiftModifier);
+		expect(shown.Destinations.back() == core::workbench_thread_destination::discuss && shown.Picks.back().Post == "review-comment:branching-thread-v1-cc01",
+			   "Shift and a double click ask for Discuss");
 
 		// Reopening starts on the conversation open in Review.
 		finder.set_reading({ .Thread = "review-thread:t656", .Post = "review-comment:t656-3" });
@@ -704,6 +731,163 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1582]]. The Review button beside the Discuss button, and
+	/// the row menu's Mark as read or Mark as unread.
+	void test_review_button_and_read_menu()
+	{
+		auto        shown  = page{ };
+		auto&       finder = shown.Finder;
+		auto        reads  = std::vector<std::pair<std::string, bool>>{ };
+		const auto  t656   = std::string{ "row:review-thread:t656/review-comment:t656-1" };
+		const auto  t38    = std::string{ "row:review-thread:t38/review-comment:t38-1" };
+		const auto& first  = finder.cursor_key();
+		finder.set_read_dispatch([&reads](const std::string& aThread, const bool aRead) { reads.emplace_back(aThread, aRead); });
+		expect(!finder.review_button_rect(first).isEmpty() && finder.review_button_rect(t656).isEmpty(), "the cursor's row shows its Review button; another row does not");
+		for (const auto& entry : finder.shown_keys()) {
+			if (entry.starts_with("file:")) {
+				expect(finder.review_button_rect(entry).isEmpty(), "a file's header has no Review button");
+			}
+		}
+		finder.list()->scrollTo(finder.list()->model()->index(0, 0));
+		const auto box = finder.row_rect(t656);
+		hover(*finder.list(), QPoint{ box.left() + 80, box.center().y() });
+		const auto review  = finder.review_button_rect(t656);
+		const auto discuss = finder.discuss_button_rect(t656);
+		expect(!review.isEmpty() && box.contains(review) && review.right() < discuss.left() && discuss.left() - review.right() <= 8 && review.top() == discuss.top()
+				   && review.height() == discuss.height(),
+			   "hovering a row shows Review then Discuss, one pair inside the row");
+		for (const auto& bead : finder.shown_beads(t656)) {
+			expect(finder.bead_rect(t656, bead).left() > discuss.right(), "the pair sits left of the people");
+		}
+		qt::hide_anchored_tooltip();
+		QHelpEvent help{ QEvent::ToolTip, review.center(), finder.list()->viewport()->mapToGlobal(review.center()) };
+		QApplication::sendEvent(finder.list()->viewport(), &help);
+		const auto* const tip = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		expect(tip != nullptr && tip->text() == QStringLiteral("Open in Review (%1)").arg(QKeySequence{ Qt::Key_Return }.toString(QKeySequence::NativeText)),
+			   "the Review button's tooltip names it and its key");
+		qt::hide_anchored_tooltip();
+		const auto picks = shown.Picks.size();
+		press(*finder.list(), review.center());
+		expect(shown.Picks.size() == picks + 1U && shown.Destinations.back() == core::workbench_thread_destination::review && shown.Picks.back().Thread == "review-thread:t656",
+			   "a press on the Review button opens the row in Review at once");
+		press(*finder.list(), finder.discuss_button_rect(t656).center());
+		expect(shown.Destinations.back() == core::workbench_thread_destination::discuss, "a press on the Discuss button opens it in Discuss");
+
+		// The row menu: Open in Review, Open in Discuss, then the read command.
+		finder.popup_row_menu(t656, QPoint{ box.left() + 80, box.center().y() });
+		auto* menu = finder.row_menu();
+		expect(menu != nullptr && finder.read_action() != nullptr && finder.read_action()->text() == QStringLiteral("Mark as Read") && finder.read_action()->isEnabled()
+				   && menu->actions().indexOf(finder.read_action()) > menu->actions().indexOf(finder.open_in_discuss_action()),
+			   "a thread with new posts offers Mark as Read after the two destinations");
+		menu->hide();
+		finder.read_action()->trigger();
+		expect(reads.size() == 1U && reads.back() == std::pair{ std::string{ "review-thread:t656" }, true }, "Mark as Read asks for the thread to be read");
+		const auto boxRead = finder.row_rect(t38);
+		finder.popup_row_menu(t38, QPoint{ boxRead.left() + 80, boxRead.center().y() });
+		menu = finder.row_menu();
+		expect(menu != nullptr && finder.read_action()->text() == QStringLiteral("Mark as Unread") && finder.read_action()->isEnabled(),
+			   "a read thread someone else wrote in offers Mark as Unread");
+		menu->hide();
+		finder.read_action()->trigger();
+		expect(reads.size() == 2U && reads.back() == std::pair{ std::string{ "review-thread:t38" }, false }, "Mark as Unread asks for it to be new again");
+		// By keyboard: the menu key on the cursor's row.
+		auto menuKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier };
+		finder.list()->setFocus(Qt::OtherFocusReason);
+		QApplication::sendEvent(finder.list(), &menuKey);
+		menu = finder.row_menu();
+		expect(menu != nullptr && menu->isVisible() && finder.read_action() != nullptr, "the menu key opens the row menu with its read command");
+		menu->hide();
+		// Negative control: with nobody to hear it, the command is offered
+		// disabled rather than doing nothing.
+		finder.set_read_dispatch({ });
+		finder.popup_row_menu(t38, QPoint{ boxRead.left() + 80, boxRead.center().y() });
+		expect(finder.read_action() != nullptr && !finder.read_action()->isEnabled(), "without a read path the command is disabled");
+		finder.row_menu()->hide();
+	}
+
+	/// \brief [[BPR-1584]]. The rows fill the page up to the reading width;
+	/// the people, counts and state stay at the row's right end.
+	void test_rows_fill_the_reading_width()
+	{
+		auto       shown  = page{ };
+		auto&      finder = shown.Finder;
+		const auto t656   = std::string{ "row:review-thread:t656/review-comment:t656-1" };
+		const auto prefix = qEnvironmentVariable("BPR_QT_FINDER_RENDER_PATH");
+		const auto page   = [&finder] { return finder.list()->viewport()->width(); };
+		struct width_case
+		{
+			int                 Window;
+			core::reading_width Width;
+		};
+		for (const auto& [window, width] : { width_case{ 1'280, core::reading_width::wide }, width_case{ 1'900, core::reading_width::wide }, width_case{ 3'440, core::reading_width::wide },
+											 width_case{ 1'900, core::reading_width::narrow }, width_case{ 3'440, core::reading_width::medium },
+											 width_case{ 3'440, core::reading_width::full } }) {
+			finder.set_reading_width(width);
+			finder.resize(window, 700);
+			QApplication::processEvents();
+			finder.list()->scrollTo(finder.list()->model()->index(0, 0));
+			QApplication::processEvents();
+			const auto row      = finder.row_rect(t656);
+			const auto column   = static_cast<int>(core::reading_column_width(width, static_cast<std::uint32_t>(page() - 14)));
+			const auto trailing = finder.trailing_rect(t656);
+			expect(row.width() == page(), "the row's rectangle is the page's width");
+			expect(trailing.right() == row.left() + 6 + column - 1 && trailing.right() <= row.right(),
+				   "the people, counts and state end at the reading column's right edge: " + std::to_string(window) + " " + std::to_string(static_cast<int>(width)));
+			if (width == core::reading_width::wide && window <= 2'560) {
+				expect(trailing.right() >= page() - 8 - 1, "an ordinary window's rows reach the page's right edge");
+			}
+			if (width != core::reading_width::full && window == 3'440) {
+				expect(trailing.right() < page() - 400, "an ultra-wide window's rows stop at the reading width");
+			}
+		}
+		// Negative control: the 880-pixel cap the rows had would fail here.
+		finder.set_reading_width(core::reading_width::wide);
+		finder.resize(1'900, 700);
+		QApplication::processEvents();
+		expect(finder.trailing_rect(t656).right() > 880 + 200, "a 1900-pixel window's rows run past the old 880-pixel cap");
+		// [[BPR-1584]]. Each reading width at an ordinary and an ultra-wide
+		// window, for the owner's look.
+		for (const auto& [option, label] : { std::pair{ core::reading_width::narrow, "narrow" }, std::pair{ core::reading_width::medium, "medium" },
+											 std::pair{ core::reading_width::wide, "wide" }, std::pair{ core::reading_width::full, "full" } }) {
+			finder.set_reading_width(option);
+			for (const auto window : { 1'900, 3'440 }) {
+				finder.resize(window, 520);
+				QApplication::processEvents();
+				const auto image = finder.grab().toImage();
+				if (!prefix.isEmpty()) {
+					expect(image.save(prefix + QStringLiteral("-width-%1-%2.png").arg(QString::fromLatin1(label)).arg(window)), "the width render is saved");
+				}
+			}
+		}
+		finder.set_reading_width(core::reading_width::wide);
+		// Renders, hover and selected rows, Light and Dark, ordinary and
+		// ultra-wide.
+		for (const auto& [name, base, text] : { std::tuple{ "light", QColor{ 0xFF, 0xFF, 0xFF }, QColor{ 0x1F, 0x23, 0x28 } }, std::tuple{ "dark", QColor{ 0x22, 0x27, 0x2E }, QColor{ 0xE6, 0xED, 0xF3 } } }) {
+			auto palette = QApplication::palette();
+			palette.setColor(QPalette::Base, base);
+			palette.setColor(QPalette::Window, base);
+			palette.setColor(QPalette::Text, text);
+			palette.setColor(QPalette::WindowText, text);
+			palette.setColor(QPalette::ButtonText, text);
+			finder.setPalette(palette);
+			for (const auto window : { 1'900, 3'440 }) {
+				finder.resize(window, 520);
+				finder.set_reading({ .Thread = "review-thread:t656", .Post = "review-comment:t656-3" });
+				finder.enter();
+				QApplication::processEvents();
+				finder.list()->scrollTo(finder.list()->model()->index(0, 0));
+				const auto other = std::string{ "row:review-thread:t38/review-comment:t38-1" };
+				const auto box   = finder.row_rect(other);
+				hover(*finder.list(), QPoint{ box.left() + 90, box.center().y() });
+				const auto image = finder.grab().toImage();
+				expect(!image.isNull(), "the rows render");
+				if (!prefix.isEmpty()) {
+					expect(image.save(prefix + QStringLiteral("-rows-%1-%2.png").arg(QString::fromLatin1(name)).arg(window)), "the rows render is saved");
+				}
+			}
+		}
+	}
+
 	/// \brief Nothing on a file: the page says so and where the rest is read.
 	void test_nothing_on_a_file()
 	{
@@ -741,6 +925,8 @@ int main(int aArgc, char** aArgv)
 	test_folding();
 	test_keys_and_pick();
 	test_discuss_button_shift_return_and_menu();
+	test_review_button_and_read_menu();
+	test_rows_fill_the_reading_width();
 	test_renders();
 	test_nothing_on_a_file();
 	std::cout << "conversation-finder-tests:pass\n";

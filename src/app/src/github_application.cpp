@@ -166,6 +166,7 @@
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
@@ -7931,6 +7932,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			Window->set_conversation_read_dispatch(
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
+			Window->set_conversation_unread_dispatch(
+				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -8003,6 +8006,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->overview_page()->set_summary_resize_dispatch([this](std::optional<std::uint32_t> aFraction) {
 				if (!Closing && WorkbenchHost != nullptr) {
 					WorkbenchHost->resize_summary(aFraction);
+				}
+			});
+			// [[BPR-1588]]. The Overview's Status drawer, kept like the summary:
+			// this window's own width and collapsed state, stored locally.
+			Window->overview_page()->status_drawer()->set_change_dispatch([this](const application::workbench_status_drawer& aDrawer) {
+				if (!Closing && WorkbenchHost != nullptr) {
+					WorkbenchHost->apply_status_drawer(aDrawer);
 				}
 			});
 			// [[BPR-1334]]. The window's own Line details height, kept like
@@ -12372,7 +12382,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The thread's new state comes back from the server the way every
 			// other fact does.
 			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-				refresh->trigger();
+				// [[BPR-1575]]. A read the window makes by itself, said as such.
+				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
 			}
 		}
 
@@ -13946,6 +13957,43 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}));
 		}
 
+		/// \brief [[BPR-1582]]. Mark as unread: the core moves the seen cursor
+		/// back so the latest post by someone else is new again, and the
+		/// thread is presented unread once that is durable.
+		void mark_conversation_unread(const std::string& aThread)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return;
+			}
+			auto observation = application::conversation_thread_observation{
+				.Conversation = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+			};
+			for (const auto& comment : thread->Comments) {
+				if (!comment.Deleted) {
+					observation.Posts.push_back(post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login));
+				}
+			}
+			ReviewLedgerHost->mark_conversation_unread(
+				observation,
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+		}
+
 		/// \brief [[BPR-1211]]. Loads the conversation receipts off the
 		/// decision lane, once, and presents the read state when they arrive.
 		/// \details A failed load is not retried here; the next change that
@@ -15252,7 +15300,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// link waiting on sign-in, a restoration, the status line) is
 			// retired by a read the window makes for itself.
 			if (WindowRead->accepted_snapshot()) {
-				WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } });
+				// [[BPR-1575]]. Presented as the application's own update, not the
+				// reviewer's Refresh.
+				Window->run_automatic_refresh([this] { WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } }); });
 			}
 		}
 		void schedule_link_location()
@@ -17690,6 +17740,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// without the file's name. The name is only needed to choose a
 				// definition, and that choice has already been made here.
 				retain_definition(*blob, definition);
+				// [[BPR-1576]]. Said as coming before it is asked for: a cached
+				// answer is adopted inside `classify` and settles it at once.
+				if (Window != nullptr && Window->comparison_surface() != nullptr) {
+					Window->comparison_surface()->await_syntax(side);
+				}
 				AppearanceHost->classify(application::token_span_cache_key{
 					.Blob       = *blob,
 					.Definition = definition,
@@ -18043,6 +18098,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			// [[BPR-1576]]. A classification that failed brings no colours:
+			// the panes stop saying they are coming.
+			if (const auto failure = aFailure.Failure; (failure == application::appearance_host_failure::classification_unavailable
+														|| failure == application::appearance_host_failure::classification_limit
+														|| failure == application::appearance_host_failure::invalid_classification_key)
+				&& Window->comparison_surface() != nullptr) {
+				Window->comparison_surface()->settle_syntax();
+			}
 			if (auto* const panel = Window->appearance_settings();
 				panel != nullptr) {
 				switch (aFailure.Failure) {
@@ -18122,6 +18185,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-1357]]. Home's status band marks a problem in the theme's failure ink.
 			Window->set_home_failure_ink(AppearanceProfile->color(core::appearance_role::state_defect));
+			// [[BPR-1576]]. A high-contrast theme draws waits without a wash.
+			Window->set_pending_high_contrast(AppearanceProfile->variant() == core::appearance_variant::high_contrast_light
+											  || AppearanceProfile->variant() == core::appearance_variant::high_contrast_dark);
 			// [[BPR-1083]]. The label tints of the theme on screen, for every
 			// surface that draws a Conventional Comments mark.
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));
@@ -26195,8 +26261,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, Accept file ([[BPR-1507]]), private
-		// progress, a spacer, the
+		// change pair with its position, a gap, the progress track holding
+		// Seen, Read, Accept file ([[BPR-1507]]) and private progress on one
+		// rail ([[BPR-1578]]), a spacer, the
 		// review chip ([[BPR-1345]], hidden with no review in progress),
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
@@ -26212,10 +26279,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& widgetActionNamed(reviewBarActions, 7, "workbenchStripChangePositionAction")
 			&& reviewBarActions[8] == previousChange
 			&& reviewBarActions[9] == nextChange
-			&& widgetActionNamed(reviewBarActions, 10, "workbenchAcceptFileAction")
-			&& acceptFile != nullptr && reviewBar->widgetForAction(reviewBarActions[10]) == acceptFile
+			&& widgetActionNamed(reviewBarActions, 10, "reviewBarProgressGapAction")
+			&& widgetActionNamed(reviewBarActions, 11, "workbenchProgressTrackAction")
+			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& acceptFile->defaultAction() == window->accept_action()
-			&& reviewBar->widgetForAction(reviewBarActions[11]) == reviewControls
+			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
 			&& reviewBarActions[13] == window->review_chip_action()
 			&& reviewBarActions[14] == window->compose_review_action()
@@ -26611,7 +26679,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			"next_file_rect_in_bar",
 			rectangle_json(requiredPresenters[2]->geometry()),
 			"private_progress_rect_in_bar",
-			rectangle_json(reviewControls->geometry()),
+			// [[BPR-1578]]. Private progress is the progress track's last cell,
+			// so its rectangle is mapped from the track into the bar.
+			rectangle_json(QRect{ reviewControls->mapTo(reviewBar, QPoint{ }), reviewControls->size() }),
 			"compose_review_rect_in_bar",
 			rectangle_json(reviewBar->actionGeometry(window->compose_review_action())),
 			"comment_rect_in_bar",

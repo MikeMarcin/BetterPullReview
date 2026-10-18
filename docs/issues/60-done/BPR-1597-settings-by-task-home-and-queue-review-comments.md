@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1597"
 title: "Settings by task: Home & queue, Review and Comments replace Reviews & queue"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-parked_on: "human-review"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"owner-decision","found_by":"Owner pick in attended-review session 0e5dbaff (decision 3229df02), 2026-10-17, and the owner's amendment naming the middle page Review","governing_rfc":"RFC-BPR-0048","related_rfcs":["RFC-BPR-0018"],"amendment":"RFC-BPR-0048 owner amendment 3 (2026-10-17)","related_cards":["BPR-1088","BPR-1289","BPR-1566","BPR-1568","BPR-1584"],"reservation":"docs/issues/_reservations/BPR-1597--BPR-1597--2851f28bd65b.json","acceptance":["BPR-1597:pages","BPR-1597:workshop","BPR-1597:search","BPR-1597:kept","BPR-1597:gates","BPR-1597:owner"]}
-acceptance: [{"criterion": "BPR-1597:pages", "outcome": "pass", "revision": "956172a57", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(qt_settings_window.*|qt_workbench_window_scale_(100|125|200)|qt_feedback_label_settings)$'", "detail": "test_settings_are_organised_by_task: the sidebar lists General, Accounts & hosts, Repositories, Home & queue, Review, Comments, Appearance, Notifications, Agents & context, Storage & privacy, each page's title is its row, and Review, Home & queue and Comments host their rows. Opening's Reset returns the modality and the return comparison, Reading's mark-read, drawer filter and reading width, Layout's drawer controls, line details and ribbon; Labels' Reset keeps the helper; Comment workshop's Reset turns only the helper off. Negative control: titling the first page Reviews & queue again fails the sidebar check."}}, {"criterion": "BPR-1597:workshop", "outcome": "pass", "revision": "956172a57", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(qt_feedback_label_settings|application_agent_finding_workshop_.*_contract|application_review_tour_composition_public_path|application_label_authoring_contract)$'", "detail": "Feedback guidance ('Send with comment workshop requests') is on Comments › Comment workshop, follows the published record, Space asks for the whole record with only the helper on, its accessible description is its info glyph's; Guidance text opens Agents & context on Review feedback, whose line names Comments › Comment workshop; the hooks panel has no check box; the guidance courses carry the guidance with the helper on and the press course without it. Negative control: the helper back in the label rows' Reset fails."}}, {"criterion": "BPR-1597:search", "outcome": "pass", "revision": "956172a57", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^qt_settings_window.*$'", "detail": "Search finds A pull request opens in and On return, compare on Review · Opening; Mark a file read, Comments drawer opens on and Reading width on Review · Reading; Drawer controls, Line details and Center ribbon width on Review · Layout; Label marks on Comments · Labels; Feedback guidance on Comments · Comment workshop; Images on Comments · Descriptions and comments; Observer reason on Home & queue · Queue defaults; no result is under Reviews & queue; Return on Feedback guidance opens Comments and changes nothing. Pre-made row controls are raised after their heading so search reads their section."}}, {"criterion": "BPR-1597:kept", "outcome": "pass", "revision": "956172a57", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(application_review_behaviour_contract|application_review_round_trip_composition_contract|application_workbench_composition_contract)$'", "detail": "No store, schema, key, tour_assist or tour_cli change; the behaviour contract and the composition contracts pass."}}]
+acceptance: [{"criterion":"BPR-1597:pages","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Ten Settings pages, per-group resets and all selected scale checks pass on the merged tree."}},{"criterion":"BPR-1597:workshop","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"All six composed workshop courses pass; guidance is in Comments/Comment workshop and preserves its typed owner."}},{"criterion":"BPR-1597:search","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Four Settings scale rows pass, including moved-row search and Return without changing values."}},{"criterion":"BPR-1597:kept","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"No schema/store/key/src-app change; main schema23 and exact composition pins retained. Behaviour/tour courses pass."}},{"criterion":"BPR-1597:gates","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"All 28 focused tests pass; format22/docs/diff pass; unchanged tidy evidence reused. Owner handoff schedules single full suite and repository tidy at item9."}},{"criterion":"BPR-1597:owner","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Human Accept cec0a456-a98a-4d02-8eda-45507c5c5458 for frozen-956172a57-v001 confirmed through event6."}}]
 ---
 
 # BPR-1597: Settings by task: Home & queue, Review and Comments replace Reviews & queue
@@ -95,3 +94,28 @@ BPR-1597-settings-by-task-v001, revision frozen-956172a57-v001, frozen build
 
 Next: on Accept, wait for BPR-1581 on main, merge main, run one full dev ctest on
 that tree, record the verdict, finish this card, close BPR-1568 into it, land.
+
+## Codex closeout — 2026-10-17
+
+Owner **Accept**, no note, decision `cec0a456-a98a-4d02-8eda-45507c5c5458`,
+for `BPR-1597-settings-by-task-v001` in session `a090236d…`; handback consumed
+through event 6. This accepts the built ten-page Settings and folds BPR-1568
+into Comments › Comment workshop. Its earlier rejected versions remain rejected.
+
+Main `c38432adf` merged at `c6c4eeff3`. Reconciled only two conflicts: the
+settings inventory retains the new Review row and main's Status drawer row;
+the composition contract retains both histories and main's exact pins. No
+schema step is added; main's schema 23 remains intact. The architecture and
+settings inventory now describe ten pages and the separate group resets.
+
+All 28 focused rows pass (514.66 s): composed GitHub at 100/125/200%, Settings
+at 100/125/150/200%, workbench and Home at 100/125/200%, label settings and
+threads, all six workshop courses, workbench/review-behaviour/label-authoring,
+tour and setup destination public paths, and both application composition
+contracts. clang-format 22 checks all 16 touched C++ files; documentation and
+diff gates pass. Existing focused tidy and negative-control evidence are
+unchanged. Loaded frontend-design for the accepted UI landing.
+
+The owner's ordered handoff replaces the full-suite-per-card gate with one
+integrated full suite and repository format/tidy at item 9; those are still
+mandatory queue work, not a passing observation claimed by this landing.

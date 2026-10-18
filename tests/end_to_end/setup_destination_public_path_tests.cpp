@@ -546,7 +546,7 @@ namespace {
 
 		// A typical subset, chosen in Settings: issue and nitpick.
 		auto* const editor = window.label_columns_editor();
-		expect(editor != nullptr, "Reviews & queue offers the Overview chips");
+		expect(editor != nullptr, "Comments offers the Overview chips");
 		editor->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
 		wait_for([&] { return counted(1U, core::feedback_resolution_mode::unresolved); }, "a chip ticked in Settings reaches the Overview through the profile's setting");
 		editor->item_of(core::feedback_label::nitpick)->setCheckState(Qt::Checked);
@@ -986,7 +986,7 @@ namespace {
 				capture(window, QStringLiteral("overview-labels-discuss-%1.png").arg(QString::fromLatin1(theme)));
 				auto* const settings = window.settings();
 				expect(settings != nullptr && editor->window() == settings, "the Overview chips live in Settings");
-				settings->present(qt::settings_page::reviews_and_queue);
+				settings->present(qt::settings_page::comments);
 				settings->resize(900, 700);
 				QApplication::processEvents();
 				for (auto* area = editor->parentWidget(); area != nullptr; area = area->parentWidget()) {
@@ -2104,7 +2104,7 @@ namespace {
 				 "composed CLI course paints useful metadata while the first file page is still held");
 		capture(window, QStringLiteral("setup-cli-progressive-overview.png"));
 		const auto firstUsefulMs = loadElapsed.elapsed();
-		expect(!window.overview_page()->presented() && !window.overview_page()->entry_button()->isEnabled()
+		expect(!window.overview_page()->presented() && !window.overview_page()->entry_path()
 				   && window.overview_page()->file_model()->rowCount() == 0
 				   && window.session_panel()->status() == core::github_status::loading_pull_request
 				   && github_application_fixture_access::evidence(*application).SmartAcquireCount == 0U,
@@ -2373,10 +2373,10 @@ namespace {
 			   "reading PR-wide discussion does not require or select code");
 		updatedWindow.modality()->action(qt::review_modality::overview)->trigger();
 		verify_overview_folder_navigation(updatedWindow);
-		expect(updatedWindow.overview_page()->entry_button()->isEnabled()
-				   && updatedWindow.overview_page()->entry_button()->text() == QStringLiteral("Start review"),
-			   "Overview offers Start review for the first visit");
-		updatedWindow.overview_page()->entry_button()->click();
+		// [[BPR-1588]]. No Start review; Command-2 from a fresh Overview is the entry.
+		expect(updatedWindow.overview_page()->entry_path().has_value(),
+			   "Overview knows the first unseen change for the first visit");
+		updatedWindow.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
 		expect(updatedWindow.current_modality() == qt::review_modality::review,
 			   "Overview entry reaches Review");
 		auto* const recoveredFiles     = updatedWindow.files_drawer()->contents_view();

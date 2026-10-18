@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1568"
 title: "The Label helper becomes its own Comment workshop group in Settings"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
-parked_on: "human-review"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"owner-decision","found_by":"Owner decision via coordinator, 2026-10-16","governing_rfc":"RFC-BPR-0048","amendment":"RFC-BPR-0048 owner amendment 3 (2026-10-16)","related_cards":["BPR-1088","BPR-1090","BPR-1091","BPR-1565","BPR-1566"],"reservation":"docs/issues/_reservations/BPR-1568--BPR-1568--12e15d37af2c.json","acceptance":["BPR-1568:moved","BPR-1568:group","BPR-1568:kept","BPR-1568:gates","BPR-1568:owner"]}
-acceptance: [{"criterion": "BPR-1568:moved", "outcome": "pass", "revision": "ba97b4154", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^qt_feedback_label_settings$'", "detail": "Comment labels holds Label marks, Overview counts, Mark colours and Overview chips; no label on Reviews & queue is named Label helper; Comment labels' Reset keeps a stored helper on and its description no longer names it. Negative control: putting the helper back into Comment labels' Reset fails at 'Reset dispatches the label defaults and keeps every other preference, the drawer filter and (BPR-1568) the helper included'."}}, {"criterion": "BPR-1568:group", "outcome": "pass", "revision": "ba97b4154", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(qt_feedback_label_settings|qt_settings_window.*|application_review_tour_composition_public_path|application_agent_finding_workshop_.*_contract)$'", "detail": "Comment workshop sits under Overview chips with Feedback guidance and Guidance text in that order; the switch says 'Send with each workshop request', is described like its info glyph and Tab-focusable; Space asks for the whole record with only the helper on and the switch shows what is published; the group's Reset turns only the helper off; Guidance text ('Agents && context' drawn as one ampersand) opens Agents & context on Review feedback, whose line reads 'On. Sent with each comment workshop request: Reviews & queue › Comment workshop.' or the Off sentence; the hooks panel has no check box; the link reads at 4.5:1 in Light and Dark. Composed: the review-tour course turns the switch on and off and the hooks line follows; the guidance courses press with the helper on and carry the guidance, the press course with it off carries none."}}, {"criterion": "BPR-1568:kept", "outcome": "pass", "revision": "ba97b4154", "evidence": {"kind": "command", "command": "focused rows above; no store, schema, tour_assist or tour_cli change", "detail": "review_behaviour_settings::LabelHelper and the label_helper column are unchanged, bpr tour hooks still reports label_helper, and the guidance courses load a stored on."}}]
+acceptance: [{"criterion":"BPR-1568:moved","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Ten Settings pages, per-group resets and all selected scale checks pass on the merged tree."}},{"criterion":"BPR-1568:group","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Owner amendment3 supersedes Reviews & queue location with Comments/Comment workshop, accepted and verified by BPR-1597 focused tests."}},{"criterion":"BPR-1568:kept","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"No schema/store/key/src-app change; main schema23 and exact composition pins retained. Behaviour/tour courses pass."}},{"criterion":"BPR-1568:gates","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"All 28 focused tests pass; format22/docs/diff pass; unchanged tidy evidence reused. Owner handoff schedules single full suite and repository tidy at item9."}},{"criterion":"BPR-1568:owner","outcome":"pass","revision":"c6c4eeff36e4d243c0f33c3a86cc7bcfe294ccc8","evidence":{"kind":"observation","detail":"Closed into BPR-1597 by explicit owner handoff; final design accepted in cec0a456. Rejected v002 stays rejected; its criterion is superseded."}}]
 ---
 
 # BPR-1568: The Label helper becomes its own Comment workshop group in Settings
@@ -96,3 +95,16 @@ The owner picked A, by task, in session 0e5dbaff0d166bcc2c23a4c2c39ac937
 page Review. [[BPR-1597]] builds it with this card's switch folded in, on branch
 `claude/bpr-1597-settings-by-task`; its final Accept or Reject waits in session
 a090236dc78e408d1bd6fd6752c2dfbe. This card closes into BPR-1597 when it lands.
+
+## Closed into BPR-1597 — 2026-10-17
+
+The owner accepted BPR-1597's built Settings-by-task candidate (decision
+`cec0a456-a98a-4d02-8eda-45507c5c5458`); RFC-BPR-0048 amendment 3 supersedes
+this card's old location and v002 look criterion. Feedback guidance and its
+independent Reset now live in Comments › Comment workshop. The stored value,
+key and workshop semantics remain unchanged. The 28 focused tests on the
+merged `c6c4eeff3` tree include Settings/search/reset, all workshop guidance
+courses and both composition contracts; all pass. Format22 and documentation
+pass; unchanged tidy evidence is retained. The owner's handoff places the
+single full suite and repository tidy at queue item 9. The earlier rejected
+candidates are not retroactively accepted. No independent work remains here.

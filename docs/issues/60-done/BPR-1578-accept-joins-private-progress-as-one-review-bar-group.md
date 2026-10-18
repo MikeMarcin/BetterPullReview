@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1578"
 title: "Accept joins private progress as one review-bar group and reads as a button"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner feedback 2026-10-17","owner_note":"Accept is a button next to other similar text labels in Changes and Files which are not buttons, it's kind of confusing. It also doesn't have the under bar that connects it to the dropdown control like Changes and Files do to their controls.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052","RFC-BPR-0007"],"related_cards":["BPR-1507","BPR-1515","BPR-1519","BPR-1531","BPR-1331"],"reservation":"docs/issues/_reservations/BPR-1578--BPR-1578--5ed4b95b967f.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Merged-tree title-row and window checks pass at 100%,125%,200%; existing rail/gap negative controls retained."}},{"criterion":"AC2","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Owner selected C2 progress track supersedes v001 affordance; qt_review_state_icon verifies states and reached-step behavior."}},{"criterion":"AC3","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Option-key, focus-order, selected-diff and ledger composition checks pass. Both mandatory application composition contracts pass; exact merged pins retained."}},{"criterion":"AC4","outcome":"pass","revision":"49b3c0f57adcfc34d7c00b7e61672cff4454a56f","evidence":{"kind":"observation","detail":"Human Accept c1ec85f1-fff7-445f-b867-ef609d2d69e8 of candidate BPR-1578-progress-track-v002 confirmed in released session 3760f12fb3aa7cf76b495c277c7d32d5."}}]
 ---
 
 # BPR-1578: Accept joins private progress as one review-bar group and reads as a button
@@ -200,3 +200,67 @@ Gates: clang-format 22.1.8 clean on the six C++ files; clang-tidy
 `--warnings-as-errors` passes on the four translation units (three test-only
 findings fixed at `d82023470`); `DOCUMENTATION_OK`. The full dev `ctest`
 runs on the merged tree at integration after acceptance.
+
+## Closeout, 2026-10-17
+
+**Owner decision: Accept**, no note, 2026-10-17T19:59:55Z (decision
+`c1ec85f1-fff7-445f-b867-ef609d2d69e8`, event 5 of session
+`3760f12fb3aa7cf76b495c277c7d32d5`), on candidate
+`BPR-1578-progress-track-v002` at `d82023470`, fingerprint `b1c5e24a…`.
+Event cursor consumed: 6. The server was stopped, the candidate's protection
+released and the frozen root removed; every earlier session of this card was
+already stopped and released.
+
+Integration. Main merged into the branch at `8d727fab6`. One full dev
+`ctest` there (774 tests, 7739 s at load averages near 70): 765 passed and 9
+failed, each reconciled:
+
+- `application_uiforetw_selected_diff_contract`: real. The app reported
+  private progress's rectangle in the track's coordinates; fixed at
+  `820958163` by mapping it into the bar, then passed.
+- `application_review_round_trip_composition_contract`: real. Its pinned
+  `github_application.cpp` and source-manifest digests follow this change;
+  resealed over main at `5a580a955` and again at `a30b1fa4a`, then passed.
+- `rfc0016_production_identity_security`: this worktree's own untracked
+  `.agents` link, which resolves outside the checkout; without it all 122
+  tests pass.
+- `live_mutation_isolation`: a 300 s timeout under load; run directly it
+  prints `LIVE_MUTATION_ISOLATION_OK` (420 binaries) in 262 s.
+- `application_composition_contract`: a 1560 s timeout under load; alone it
+  passed in 466.7 s.
+- `release_update_native_https`: the known intermittent updater proxy
+  fixture; passed alone.
+- `application_anonymous_public_preview_unavailable`: load; passed alone.
+- `application_large_review_responsiveness` and
+  `application_large_review_launch`: timing budgets ("Mac fixture
+  responsiveness budget exceeded", `ProcessToHomeMarkerMs` 1678.7 then
+  4432.8 against 1000) at load averages near 72, both runs; startup to Home
+  and large-review navigation do not involve the track. Not shown passing on
+  a quiet machine; BPR-1598 owns load-robust large-review timing rows.
+
+Main merged again at `00287bcea` (BPR-1575 and BPR-1576 refresh feedback;
+the window header conflict resolved by keeping both members). On that final
+tree: 47 rows covering the window, the review bar, keys, the composed
+selected-diff, ledger, navigation, Overview, header, zoom, refresh feedback
+and close-review paths, plus the resealed round-trip contract.: all 47 pass
+(508 s), and the round-trip contract passes. Docs gate on main after landing.
+
+## Codex landing — 2026-10-17
+
+Main `376a4190b` merged at `49b3c0f57`. Rebuilt the window test and app
+targets. All 15 focused rows pass: review-state icon, Option keys while typing,
+focus order/title row/window at 100%, 125% and 200%, selected-diff and ledger
+composition, `application_composition_contract` and
+`application_review_round_trip_composition_contract` (464.41 s total). The
+three existing pins remain exact; the contract records this merged-tree check
+in a dated note. clang-format 22 checks all six touched C++ files,
+`DOCUMENTATION_OK` and `git diff --check` pass. Reused the unchanged focused
+tidy evidence. The owner’s handoff schedules the one full suite and repository
+format/tidy at item 9. Loaded frontend-design; accepted v002 is unchanged.
+
+The v002 Accept was confirmed in its saved session through event 7. All four
+sessions are stopped and released; both frozen build roots are already absent.
+
+Before finish, main advanced to `1202dff1e` solely to allocate BPR-1601.
+Merged that counter/receipt update; product and test inputs are unchanged, so
+the passing focused evidence is reused.

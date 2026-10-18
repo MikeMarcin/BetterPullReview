@@ -5,6 +5,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -173,7 +174,7 @@ int main(int aArgc, char** aArgv)
 	auto* grip   = split->handle(1);
 	auto* reader = page->body_view();
 	settle();
-	expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2 && page->files_view()->isVisible() && page->entry_button()->isVisible(), "long composed summary starts half-sized with Files and side entry");
+	expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2 && page->files_view()->isVisible() && page->status_drawer()->isVisible(), "long composed summary starts half-sized with Files and the Status drawer");
 	auto* checkDisclosure  = page->findChild<QToolButton*>(QStringLiteral("overviewChecksDisclosure"));
 	auto* checkList        = page->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
 	auto* checkExplanation = page->findChild<QPlainTextEdit*>(QStringLiteral("overviewCheckDescription"));
@@ -268,13 +269,13 @@ int main(int aArgc, char** aArgv)
 	side->ensureWidgetVisible(checkExplanation);
 	const auto checksUsable = checkExplanation->viewport()->width() > 80
 		&& checkOpen->minimumSizeHint().width() <= checkOpen->width()
-		&& page->entry_button()->isEnabled()
+		&& page->entry_path().has_value()
 		&& side->widget()->width() <= side->viewport()->width();
 	if (!checksUsable) {
 		std::cerr << "OVERVIEW_NARROW_CHECKS explanation_width=" << checkExplanation->viewport()->width()
 				  << " action_minimum=" << checkOpen->minimumSizeHint().width()
 				  << " action_width=" << checkOpen->width()
-				  << " entry_enabled=" << page->entry_button()->isEnabled()
+				  << " entry_path=" << page->entry_path().has_value()
 				  << " side_width=" << side->widget()->width()
 				  << " viewport_width=" << side->viewport()->width()
 				  << " font_points=" << qtApplication.font().pointSizeF() << '\n';
@@ -421,8 +422,8 @@ int main(int aArgc, char** aArgv)
 	}
 	window.github_refresh_action()->trigger();
 	wait_for([&] { return reader->original_body() == body; }, "long body reappears through accepted refresh");
-	page->entry_button()->click();
-	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Start/Continue review follows composed entry semantics");
+	window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "Command-2 from the Overview enters Review");
 	window.modality()->action(qt::review_modality::overview)->trigger();
 	settle();
 	const auto actualFile = page->file_model()->index_for_path(QString::fromStdString(page->projection()->Files.front().Path));

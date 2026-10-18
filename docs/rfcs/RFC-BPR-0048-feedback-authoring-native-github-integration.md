@@ -224,6 +224,35 @@ it out.
   for the removed key), a disabled Actual Size does nothing, and Plain is
   still reached by arrows and by click.
 
+## Owner amendment 3 (2026-10-17): the label helper is Comments › Comment workshop
+
+The owner asked on 2026-10-16 for the "Label helper" to sit next to the Review
+feedback guidance it controls; after amendment 1 its only effect is whether a
+comment workshop request carries that guidance ([[BPR-1091]]). Two candidates
+were rejected: a switch in the writing hooks panel ("It makes no sense for that
+to be under agents & context. Just give it it's own section for comments or
+something.") and a Comment workshop group on Reviews & queue ("I think reviews &
+queues is too much of a big grab bag of settings and we should find a better
+organization."). From three Settings organisations the owner picked the one by
+task, with the middle page named Review: Home & queue, Review, Comments.
+[[BPR-1597]] carries it out and folds in [[BPR-1568]].
+
+- **Moved.** The helper is Settings › Comments › Comment workshop ›
+  **Feedback guidance** ("Send with comment workshop requests", with an info
+  glyph), beside **Guidance text**, a link to the Review feedback writing
+  instructions, with the group's own Reset. It is no longer a Comment labels
+  row, and the label rows' Reset no longer covers it.
+- **Kept.** The stored preference (same profile record, column and values,
+  off by default; an existing `on` stays on), `bpr tour hooks` and its
+  `label_helper` field, and what a workshop request carries. Restore default on
+  the Review feedback hook restores only the text; the hook's line says On or
+  Off and names Comments › Comment workshop.
+
+- **AM3-01:** Qt and composed tests show the switch on Comments › Comment
+  workshop and nowhere else, following the published record, writing the stored
+  value, named for assistive technology and found by Settings search, and a
+  workshop press carrying the guidance only while it is on.
+
 ## Acceptance criteria
 
 - R09: Ordinary and conventional human-only authoring work without any agent or mandatory label.

@@ -2660,6 +2660,58 @@ namespace bpr::app::detail {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 					}
 				}
+				// [[BPR-1575]], [[BPR-1576]]. A slow network for a refresh, for
+				// the rest of any pull request's read, and for discovery; and
+				// what each refresh meets. Held before any lock.
+				if (State->ReadDelay) {
+					const auto& delay = *State->ReadDelay;
+					const auto  hold  = [&aStop](const std::uint32_t aMilliseconds) {
+						const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ aMilliseconds };
+						while (std::chrono::steady_clock::now() < until && !aStop.stop_requested()) {
+							std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+						}
+						return !aStop.stop_requested();
+					};
+					const auto* parent  = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+					const auto  opening = aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request;
+					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests && delay.DiscoveryMilliseconds.load() != 0U
+						&& !hold(delay.DiscoveryMilliseconds.load())) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+					if (parent != nullptr && !opening && delay.PageMilliseconds.load() != 0U && !hold(delay.PageMilliseconds.load())) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+					if (parent != nullptr && opening && parent->ExpectedPullRequest.has_value()) {
+						auto outcome = github_read_delay_fixture::refresh_outcome::serve;
+						{
+							const std::scoped_lock script{ State->ReadDelay->ScriptMutex };
+							auto&                  owned = *State->ReadDelay;
+							if (owned.ScriptRead != parent->Request.value()) {
+								owned.ScriptRead    = parent->Request.value();
+								owned.ScriptOutcome = owned.RefreshScript.empty() ? github_read_delay_fixture::refresh_outcome::serve
+																				  : owned.RefreshScript[owned.ScriptNext++ % owned.RefreshScript.size()];
+								++owned.RefreshesSeen;
+								if (owned.ScriptOutcome == github_read_delay_fixture::refresh_outcome::new_reply) {
+									++owned.RepliesOwed;
+								}
+							}
+							outcome = owned.ScriptOutcome;
+						}
+						if (delay.RefreshMilliseconds.load() != 0U && !hold(delay.RefreshMilliseconds.load())) {
+							return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+						}
+						if (outcome == github_read_delay_fixture::refresh_outcome::offline) {
+							return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::network) };
+						}
+						if (outcome == github_read_delay_fixture::refresh_outcome::rate_limited) {
+							// GitHub's own primary-limit answer, asking for ninety seconds.
+							auto exhausted              = github_rate_limit_fixture{ };
+							exhausted.RetryAfterSeconds = 90U;
+							exhausted.ResetAfterSeconds = 90U;
+							return github_wire_success{ .Correlation = aRequest.Correlation, .Response = rate_limit_response(exhausted, 1U, aRequest.Wire.Operation) };
+						}
+					}
+				}
 				// [[BPR-1357]]. A slow network for a pull request's first
 				// answers, held before any lock so nothing else waits on it.
 				if (const auto* read = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
@@ -2929,6 +2981,21 @@ namespace bpr::app::detail {
 					identity.insert(QStringLiteral("node_id"), QStringLiteral("U_fixture_unbound_viewer"));
 					identity.insert(QStringLiteral("login"), QStringLiteral("unbound-reviewer"));
 					response->Body = QJsonDocument{ identity }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				// [[BPR-1575]]. A reply someone posted since the last read, on the
+				// first thread, owed by a refresh's script.
+				if (aRequest.Wire.Operation == read_operation::list_review_threads && State->ReadDelay && State->ReadDelay->RepliesOwed.load() != 0U) {
+					const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					const auto nodes    = document.value(QStringLiteral("data")).toObject().value(QStringLiteral("repository")).toObject().value(QStringLiteral("pullRequest")).toObject().value(QStringLiteral("reviewThreads")).toObject().value(QStringLiteral("nodes")).toArray();
+					if (!nodes.isEmpty()) {
+						const auto thread = nodes.first().toObject().value(QStringLiteral("id")).toString().toStdString();
+						while (State->ReadDelay->RepliesOwed.load() != 0U) {
+							--State->ReadDelay->RepliesOwed;
+							const auto added = ++State->ReadDelay->RepliesAdded;
+							State->ThreadOverlays[thread].Replies.emplace_back("PRRC_refresh_reply_" + std::to_string(added),
+																			   "A reply posted while you were reading (" + std::to_string(added) + ").");
+						}
+					}
 				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
 					&& (!State->ThreadOverlays.empty() || State->LargeReviewForeignPosts || !State->CreatedReviewThreads.empty())) {

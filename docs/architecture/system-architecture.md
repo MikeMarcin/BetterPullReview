@@ -145,7 +145,7 @@ public-preview session keeps the profile host's own presentation.
 
 Settings has one presentation per profile and mounts the invoking window's
 controls over shared accepted preferences. Window geometry remains independent.
-Its seven fixed categories aggregate the existing typed domain projections and
+Its ten task pages aggregate the existing typed domain projections and
 intents; there is no shared key/value settings authority. The appearance,
 workbench, queue, authentication, agent and history hosts keep their own
 validation, generations, persistence and effect lanes. Closing Settings cancels
@@ -170,7 +170,7 @@ identities with fresh generations in focus order; explicit Close removes only
 that window, while Quit retains survivors. Restored windows start on Home while
 optional restoration loads. Each desktop window restores its own
 workbench drawer states and widths and line-number visibility from the
-profile-private window-keyed layout store. RFC0063 adds an optional summary fraction to that row (schema 15), validated and coalesced by the same host, with startup choices merged after load and drained on orderly Quit. Older rows default to content-aware sizing; profile defaults and new windows carry no summary preference. No PR text or reading state is persisted as layout. Fresh windows use profile defaults.
+profile-private window-keyed layout store. RFC0063 adds an optional summary fraction to that row (schema 15), validated and coalesced by the same host, with startup choices merged after load and drained on orderly Quit. Older rows default to content-aware sizing; profile defaults and new windows carry no summary preference. RFC-BPR-0085 adds the Overview's Status drawer width and collapsed state to the row on the same terms (schema 23, [[BPR-1588]]); it is the Overview's own column, not one of the core's drawers, which the Overview keeps collapsed. No PR text or reading state is persisted as layout. Fresh windows use profile defaults.
 The same row holds bounded logical native position, normal size and maximized
 state, never profile defaults. Qt applies it once after load, fits obsolete
 display coordinates to an available screen, and reports later move/resize

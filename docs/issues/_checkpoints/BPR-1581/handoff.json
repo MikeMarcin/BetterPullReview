@@ -2,7 +2,8 @@
  "assignment": [
   "BPR-1581",
   "BPR-1582",
-  "BPR-1584"
+  "BPR-1584",
+  "BPR-1586"
  ],
  "mandate": "Owner 2026-10-17: \"Why can't I go from a selected comment in Review to see it in Discuss easily?\" Answer the why; add Show in Discuss from Review (card menus, context menu, line with a thread, a key in the BPR-1567 catalogue) and the reverse; outdated, PR-level and draft cases; core decides, Qt presents. Coordinator additions: BPR-1582 Threads click selects, double click Review, Shift+double click Discuss, Review chip, row menu with Mark as read/unread; BPR-1584 one reading width setting for Threads and Discuss (owner: not for ultra-wide removal; make it a setting; never the code comparison). One Accept/Reject per card in one fresh short session; frame sequence Light/Dark; do not merge before acceptance.",
  "governing_rfc": "RFC-BPR-0028",
@@ -78,7 +79,7 @@
   "tidy": "clang-tidy 22 (llvm@22) over touched sources: no diagnostics",
   "docs": "DOCUMENTATION_OK (main's scripts/verify_documentation.py --root worktree; worktree lacks .agents)",
   "composition_contracts": "application_review_round_trip_composition_contract and dependants fail on full github_application.cpp digest; main's own source prints 06b0059363b3... against pinned 315f7078ac1c... (pre-existing drift). Branch prints full f95aeeb45db3..., manifest 4c062b0d48a3..., mutation e067befefeff... (unchanged). Reseal at landing on the merged tree.",
-  "full_suite": "Not completed. The full dev build reached 828/859 and stopped with ENOSPC (the shared volume fell to 259 MiB from other agents' builds); the suite, started on the partial build, was stopped by its owner at 44/773 (41 passed). Its three failures (documentation_structure, documentation_issue_graph_contract, issue_id_allocation_contract) are environmental: the worktree has no untracked .agents, so their board_model import fails; the same gate passes from the main checkout (DOCUMENTATION_OK). The 9.9 GB build tree was then removed to free the volume. Obligation: one full dev ctest on the merged tree at landing, when the disk allows."
+  "full_suite": "See the cards' closeouts: 767/777 on 30f016602 (7 load-budget failures, BPR-1598), 766/775 on 45cc87c97; 18 focused rows pass on 74de8b4dd."
  },
  "review": {
   "session": "c1a9372af55350e3cb63fe7d8377eafa",
@@ -96,8 +97,14 @@
   "launch": "python3 /Users/jaeger/bpr1581-thread-moves-v001.x7yze1z4/launch.py",
   "server_pid": 30090,
   "offline_html": "/Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001/review.html",
-  "waiter": "python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.claude/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001 wait --after 9 --kind handed-back"
+  "waiter": "python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.claude/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review/owner-review-20261017-bpr1581-v001 wait --after 9 --kind handed-back",
+  "outcome": "All three accepted (events 10-12), handed back at 13, released at 14; host stopped; frozen root removed."
  },
- "next": "On hand-back: Accept -> merge current main into the branch, reseal the round-trip composition pins over the merged tree with a review note, rerun focused rows, land on main, finish the three cards, stop host 30090, resume-development --all, remove the frozen root with scripts/freeze_attended_build.py remove, remove the worktree and build. Reject -> notes become v002 on the same branch.",
- "renders": "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/95e13352-2b39-4bf8-84d4-9d2570fea6ca/scratchpad/renders (transient; the session embeds contact sheets)"
+ "next": "Done. Worktree and build removed after landing.",
+ "renders": "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/95e13352-2b39-4bf8-84d4-9d2570fea6ca/scratchpad/renders (transient; the session embeds contact sheets)",
+ "landed": {
+  "main": "9e27c40c5",
+  "branch_head": "74de8b4dd",
+  "main_merged": "1e72d4d60"
+ }
 }

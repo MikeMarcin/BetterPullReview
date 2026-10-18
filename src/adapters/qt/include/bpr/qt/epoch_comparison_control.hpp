@@ -20,6 +20,7 @@ class QLabel;
 class QLineEdit;
 
 namespace bpr::qt {
+	class pending_mark;
 	/// \brief Describes the epoch comparison control statistics record.
 	struct epoch_comparison_control_statistics
 	{
@@ -65,6 +66,10 @@ namespace bpr::qt {
 		/// \brief Places readiness in the open track or the folded comparison summary.
 		void               set_readiness(QString aText, bool aTrackOpen);
 		[[nodiscard]] auto readiness_text() const -> QString;
+		/// \brief [[BPR-1576]]. Whether the readiness words are a wait: the
+		/// turning mark stands before them, in a place they always keep.
+		void               set_readiness_busy(bool aBusy, bool aFullMotion);
+		[[nodiscard]] auto readiness_mark() const noexcept -> pending_mark*;
 		/// \brief The exact anchors, OIDs, status and maintenance, shown on request.
 		[[nodiscard]] auto details() const noexcept -> QWidget*;
 		void               set_details_visible(bool aVisible);
@@ -142,6 +147,7 @@ namespace bpr::qt {
 		QString               Readiness;
 		bool                  TrackOpen               = true;
 		QLabel*               ReadinessLabel          = nullptr;
+		pending_mark*         ReadinessMark           = nullptr;
 		QWidget*              Details                 = nullptr;
 		QComboBox*            LeftSelector            = nullptr;
 		QComboBox*            RightSelector           = nullptr;

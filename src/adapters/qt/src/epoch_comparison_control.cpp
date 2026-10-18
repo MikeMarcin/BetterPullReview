@@ -2,6 +2,7 @@
 
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
+#include "bpr/qt/pending_veil.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -422,6 +423,15 @@ namespace bpr::qt {
 		ReadinessLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		ReadinessLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		ReadinessLabel->setFixedHeight(epoch_line::height_pixels);
+		// [[BPR-1576]]. The words keep the mark's place whether it turns or
+		// not, so they never move when a wait starts or ends.
+		ReadinessMark = new pending_mark{ ReadinessLabel };
+		ReadinessMark->setForegroundRole(QPalette::WindowText);
+		{
+			const auto side = QFontMetrics{ ReadinessLabel->font() }.height();
+			ReadinessMark->setGeometry(2, (epoch_line::height_pixels - side) / 2, side, side);
+			ReadinessLabel->setIndent(side + 8);
+		}
 		ReadinessLabel->hide();
 		lineRow->addWidget(ReadinessLabel, 1);
 		lineRow->addWidget(LineSummary);
@@ -856,6 +866,17 @@ namespace bpr::qt {
 	auto epoch_comparison_control::readiness_text() const -> QString
 	{
 		return Readiness;
+	}
+
+	void epoch_comparison_control::set_readiness_busy(const bool aBusy, const bool aFullMotion)
+	{
+		ReadinessMark->set_full_motion(aFullMotion);
+		ReadinessMark->set_turning(aBusy);
+	}
+
+	auto epoch_comparison_control::readiness_mark() const noexcept -> pending_mark*
+	{
+		return ReadinessMark;
 	}
 
 	auto epoch_comparison_control::release_comparing_button() -> QToolButton*

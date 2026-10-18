@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1601"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Pull request comments get read state (owner decision during RFC-BPR-0085's BPR-1589)",
+  "created": "2026-10-18T02:08:52.444098+00:00",
+  "base": "376a4190bcfa8094b34c3d87fb0e91549b6593dd"
+}
