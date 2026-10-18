@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1582"
 title: "Threads rows select on a click, open on a double click, and offer Review, Discuss and Mark read"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"owner decision 2026-10-17, relayed by the coordinator","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052"],"related_cards":["BPR-0656","BPR-1293","BPR-1356","BPR-1567","BPR-1581"],"reservation":"docs/issues/_reservations/BPR-1582--BPR-1582--9ef6743b0873.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1582:core","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"core_review_ledger: test_mark_unread_makes_the_latest_other_post_new and conversation_read_action_for; application_review_ledger_host: test_conversation_marks_unread_through_the_store; core_workbench_interaction covers the shared route from Threads."}},{"criterion":"BPR-1582:finder","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_conversation_finder_scale_{100,125,200}: a click selects (row and bead) without a pick, double click to Review, Shift+double click to Discuss, Review and Discuss buttons on hovered and cursor rows only, their presses and tooltips, Return and Shift+Return, the row menu by right click, popup and menu key with Mark as Read / Mark as Unread as the state decides."}},{"criterion":"BPR-1582:window","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_workbench_window_scale_100 (Threads course: a click selects, a double click picks into Review; row menu with the read command) and application_profile_multi_window_public_path (Mark as Unread then Mark as Read from Threads' row menu through the composition and the ledger, seen in both windows)."}},{"criterion":"BPR-1582:negative","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"Negative controls: a click picks nothing; the read command is disabled without a read path; Mark read undoes Mark unread; a thread of only my posts is refused before the store."}},{"criterion":"BPR-1582:gates","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"clang-format 22 clean on touched files; clang-tidy 22 (llvm@22) reports nothing in the touched sources; scripts/verify_documentation.py DOCUMENTATION_OK; Full scripts/run_test_suite.py --preset dev on the merged tree 30f016602 (main 1afb7a6f9 merged): 767 of 777 passed, 1 skipped (application_large_review_cache_bytes, exit 77), 10 failed with the machine at load average 33-39 (13 agents building). Rerun alone: composed_application_hosts, application_private_review_native and application_private_review_retry pass; seven still miss time budgets or condition timeouts under that load, none in a path these cards change: application_large_review_{responsiveness,launch,active_work,pathological,history} (measured platform budgets, e.g. MainToFirstSourceRender 21 s), application_epoch_portable_occurrence_two_catalogues (composed read budget) and application_private_review_file (publish condition_timeout); BPR-1598 owns load-robust large-review rows. The earlier full run on 45cc87c97 passed 766 of 775 with only environment and load failures, each passing alone or after its test update. Final merge 74de8b4dd (main 1e72d4d60): the focused landing set passes. The round-trip composition contract is resealed for the Mark as Unread wiring over main 1e72d4d60 and the composition contracts pass."}},{"criterion":"BPR-1582:owner-look","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"observation","detail":"Owner verdict in session c1a9372af55350e3cb63fe7d8377eafa: Accept, no note; candidate BPR-1582-threads-gestures-v001, fingerprint e599f5c74bcb..., decision 03927f5c-5b93-47fa-b2f7-5042eded6694, frozen build frozen-c6644bad7-v001; handed back at event 13, cursor consumed 13, candidates released at event 14."}}]
 ---
 
 # BPR-1582: Threads rows select on a click, open on a double click
@@ -120,3 +120,31 @@ question per card; frozen root
 `python3 /Users/jaeger/bpr1581-thread-moves-v001.x7yze1z4/launch.py`.
 
 This card's candidate: `BPR-1582-threads-gestures-v001 (fingerprint `e599f5c74bcb…`)`, criterion `BPR-1582:owner-look`, Pending.
+
+## Closeout, 2026-10-17
+
+**Owner decision: Accept** (Accept, no note), decision `03927f5c-5b93-47fa-b2f7-5042eded6694` at event 11 of
+session `c1a9372af55350e3cb63fe7d8377eafa`, on candidate `BPR-1582-threads-gestures-v001`
+(fingerprint `e599f5c74bcb…`, revision `frozen-c6644bad7-v001`). Handed back at
+event 13; cursor consumed 13. The review host was stopped, every candidate
+released (event 14), and the frozen root removed.
+
+Landed on main as `9e27c40c5` (branch `bpr-1581-thread-navigation` at
+`74de8b4dd`, main `1e72d4d60` merged), together with [[BPR-1586]]'s Show in
+Threads. The round-trip composition contract is resealed over main
+`1e72d4d60` for [[BPR-1582]]'s Mark as Unread wiring (the only
+production-app change; mutation digest unchanged).
+
+Verification: the full `dev` suite on the merged tree `30f016602` passed 767
+of 777 (1 skipped). Of its 10 failures, three pass when rerun alone, and
+seven (five large-review budget rows, the two-catalogue epoch read budget and
+the private-review file course's publish timeout) still miss time budgets at
+load average 33–39 with 13 agents building. None of the seven is in a path
+these cards change; [[BPR-1598]] owns load-robust large-review rows. An
+earlier full run on `45cc87c97` passed 766 of 775, with its failures
+environmental or fixed by updating two tests that asserted the old behaviour
+(`qt_github_conversation_panel`, `qt_profile_management_window`). On the
+final merge `74de8b4dd` the 18 focused rows pass, including the thread-moves,
+finder, cards, panel, resident menu, shortcuts, window, multi-window
+composed and composition-contract rows. clang-format 22 clean, clang-tidy 22
+reports nothing in the touched sources, `DOCUMENTATION_OK`.
