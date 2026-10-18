@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1617"
+  ],
+  "reserve_for": "platform-crypto-r4",
+  "purpose": "",
+  "created": "2026-10-18T23:55:30.226310+00:00",
+  "base": "296b17d9ddfbc395005a1ee19599dc4a3cb679e1"
+}
