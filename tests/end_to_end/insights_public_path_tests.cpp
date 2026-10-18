@@ -6,9 +6,9 @@
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
-#include <QComboBox>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -16,7 +16,9 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
-#include <QTabWidget>
+#include <QScreen>
+#include <QStackedWidget>
+#include <QTabBar>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QThread>
@@ -57,16 +59,19 @@ namespace {
 			return;
 		}
 		expect(QDir{ }.mkpath(folder), "render folder exists");
+		const auto original = aShell.size();
+		aShell.setFixedSize(qt::insights_window::content_size({ 1280, 1000 }));
 		for (const auto& [mode, suffix] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
 			static_cast<void>(app::detail::github_application_fixture_access::select_appearance_mode(aRuntime, mode));
 			QApplication::processEvents();
-			auto* tabs = aShell.findChild<QTabWidget*>(QStringLiteral("insightsTabs"));
+			auto* tabs = aShell.findChild<QTabBar*>(QStringLiteral("insightsTabs"));
 			for (int page = 0; page < tabs->count(); ++page) {
 				tabs->setCurrentIndex(page);
 				QApplication::processEvents();
 				expect(aShell.grab().save(folder + QStringLiteral("/insights-%1-%2.png").arg(page).arg(suffix)), "composed Insights render saved");
 			}
 		}
+		aShell.setFixedSize(original);
 	}
 }
 
@@ -104,13 +109,19 @@ try {
 		foundInsights = foundInsights || table->item(row, 0)->text() == QStringLiteral("insights.sqlite3");
 	}
 	expect(foundInsights && !shell->findChild<QLabel*>(QStringLiteral("insightsLocalData"))->text().contains(QStringLiteral("unavailable")), "Summary and Storage display real data, including Insights itself");
-	const auto frame   = shell->frameGeometry();
-	const auto content = shell->size();
-	auto*      tabs    = shell->findChild<QTabWidget*>(QStringLiteral("insightsTabs"));
+	const auto frame     = shell->frameGeometry();
+	const auto content   = shell->size();
+	auto*      tabs      = shell->findChild<QTabBar*>(QStringLiteral("insightsTabs"));
+	auto*      pages     = shell->findChild<QStackedWidget*>(QStringLiteral("insightsPages"));
+	auto*      toolbar   = shell->findChild<QWidget*>(QStringLiteral("insightsToolbar"));
+	auto*      header    = shell->findChild<QWidget*>(QStringLiteral("insightsHeader"));
+	const auto headerBox = header->geometry();
+	expect(toolbar->geometry().bottom() < headerBox.top() && headerBox.bottom() < pages->geometry().top(), "centered toolbar precedes a fixed title/status header and page body");
+	expect(qt::insights_window::content_size({ 1280, 1000 }) == QSize{ 900, 542 } && content == qt::insights_window::content_size(shell->screen()->availableGeometry().size()), "the mockup dimensions clamp to the opening screen");
 	expect(tabs->count() == 6 && shell->minimumSize() == shell->maximumSize(), "six pages share one non-resizable size");
 	for (int page = 0; page < tabs->count(); ++page) {
 		tabs->setCurrentIndex(page);
-		for (auto* range : tabs->currentWidget()->findChildren<QComboBox*>()) {
+		for (auto* range : pages->currentWidget()->findChildren<QTabBar*>()) {
 			for (int index = 0; index < range->count(); ++index) {
 				range->setCurrentIndex(index);
 				QApplication::processEvents();
@@ -120,12 +131,21 @@ try {
 		for (int refresh = 0; refresh < 3; ++refresh) {
 			shell->refresh();
 			QApplication::processEvents();
-			expect(shell->frameGeometry() == frame && shell->size() == content, "three refreshes on each page preserve frame and content");
+			expect(shell->frameGeometry() == frame && shell->size() == content && header->geometry() == headerBox, "three refreshes on each page preserve frame and content");
 		}
 	}
-	expect(qt::insights_window::content_size({ 800, 600 }) == QSize{ 764, 564 }, "smaller screen clamps both content dimensions with an 18 px margin");
+	expect(qt::insights_window::content_size({ 800, 500 }) == QSize{ 764, 464 }, "smaller screen clamps both content dimensions with an 18 px margin");
+	shell->setFixedSize(qt::insights_window::content_size({ 800, 500 }));
+	for (int page = 0; page < tabs->count(); ++page) {
+		tabs->setCurrentIndex(page);
+		QApplication::processEvents();
+		for (auto* item : pages->currentWidget()->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
+			expect(pages->currentWidget()->rect().contains(item->geometry()), "every page fits the clamped content without page scrolling");
+		}
+	}
+	shell->setFixedSize(content);
 	render(*shell, *runtime);
-	shell->findChild<QPushButton*>(QStringLiteral("insightsExport"))->click();
+	shell->findChild<QAbstractButton*>(QStringLiteral("insightsExport"))->click();
 	QDialog* exportDialog = nullptr;
 	until([&] {
 		for (auto* widget : QApplication::topLevelWidgets()) {

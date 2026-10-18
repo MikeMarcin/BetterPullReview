@@ -6,7 +6,10 @@
 #include <QWidget>
 
 class QLabel;
-class QTabWidget;
+class QTabBar;
+class QStackedWidget;
+class QVBoxLayout;
+class QEvent;
 class QTableWidget;
 class QTimer;
 class QShowEvent;
@@ -30,22 +33,29 @@ namespace bpr::qt {
 
 	protected:
 		void showEvent(QShowEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
 		void hideEvent(QHideEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 
 	private:
 		void                           set_refresh_interval();
+		void                           build_pages();
+		void                           build_empty_page(int aIndex, QVBoxLayout& aColumn);
+		void                           refresh_typography();
 		application::insights_dispatch Dispatch;
-		QTabWidget*                    Tabs             = nullptr;
-		QLabel*                        ProfileLabel     = nullptr;
-		QLabel*                        Status           = nullptr;
-		QLabel*                        LocalData        = nullptr;
-		QLabel*                        BackgroundWork   = nullptr;
-		QLabel*                        StorageStatus    = nullptr;
-		QTableWidget*                  Stores           = nullptr;
-		QTimer*                        RefreshTimer     = nullptr;
-		QTimer*                        AgeTimer         = nullptr;
-		std::int64_t                   BuiltUnixSeconds = 0;
+		QTabBar*                       Tabs                 = nullptr;
+		QStackedWidget*                Pages                = nullptr;
+		QLabel*                        LocalDataDetail      = nullptr;
+		QLabel*                        BackgroundWorkDetail = nullptr;
+		QLabel*                        ProfileLabel         = nullptr;
+		QLabel*                        Status               = nullptr;
+		QLabel*                        LocalData            = nullptr;
+		QLabel*                        BackgroundWork       = nullptr;
+		QLabel*                        StorageStatus        = nullptr;
+		QTableWidget*                  Stores               = nullptr;
+		QTimer*                        RefreshTimer         = nullptr;
+		QTimer*                        AgeTimer             = nullptr;
+		std::int64_t                   BuiltUnixSeconds     = 0;
 	};
 }
 
