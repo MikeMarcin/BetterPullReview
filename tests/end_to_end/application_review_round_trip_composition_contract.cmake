@@ -2730,8 +2730,6 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # grant, target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1573.
-# [[BPR-1597]] candidate seal over main at f16db2a04 merged with
-# bpr-1581-thread-navigation (BPR-1581/1582/1584, accepted, not yet landed).
-# BPR-1597 itself changes no src/app file; the digests move with BPR-1581's
-# composition change on top of main. Recompute at landing, after BPR-1581 is
-# on main. Self-review on BPR-1597.
+
+# [[BPR-1597]] lands over main at 95e900ba4 (after BPR-1581) with main's seal
+# unchanged: it changes no src/app file. Self-review on BPR-1597.
