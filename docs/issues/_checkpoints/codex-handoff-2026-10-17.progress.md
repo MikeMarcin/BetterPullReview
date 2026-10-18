@@ -32,8 +32,14 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    key/catalogue/typing/Home/composed/refresh-feedback tests pass (30.69 s),
    as do format22/docs/diff. Focused clang-tidy22 passes all four touched translation units. Removing
    only `apply_refresh_key(home)` made the key test fail; exact restoration,
-   rebuild and rerun pass. Ready to finish/push and clean up. No src/app delta.
-5. BPR-1572: not started.
+   rebuild and rerun pass. Finished/pushed in `ca55c0a71`; worktree, build and
+   branch removed. No src/app delta.
+5. BPR-1572: current main merged and composition resealed at `ce38d487e`.
+   Round-four approvals and completed conditions confirmed. All 35 touched C++
+   files pass format22; documentation and diff checks pass. Affected targets
+   build and all 20 focused rows pass (239.48 s + 343.22 s), including both
+   composition contracts. Prior unchanged tidy/live/negative controls retained.
+   Ready to finish/push and clean up.
 6. BPR-1598: not started.
 7. BPR-1599: not started.
 8. Task-owned housekeeping: pending.

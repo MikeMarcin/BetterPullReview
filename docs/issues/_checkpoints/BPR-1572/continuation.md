@@ -2,8 +2,9 @@
 
 Branch `bpr-1572-stacked-merge-base` in the worktree
 `/Users/jaeger/.codex/worktrees/bpr1572/BetterPullReview`, from `11c62b589`
-(the allocation on main), main merged at `0c6d520ad`. Not merged to main: the
-owner runs independent Fable and Astra review first.
+(the allocation on main). The owner’s ordered 2026-10-17 handoff accepts
+Fable and Astra round four and authorizes landing after focused verification.
+Current main `ca55c0a71` is merged and composition resealed at `ce38d487e`.
 
 ## State
 
@@ -47,14 +48,24 @@ checks read after the final confirmation). Fixed on `3b79ec5a1`: the wrapper
 reads the pull request once more after its pre-write account check. Three
 large-review timing budgets still to rerun on a quiet machine.
 
-## Pending
+## Review round four and ordered landing
 
-- Fable and Astra review of the branch again (owner).
-- At landing: merge main again, reseal the round-trip composition contract if
-  `github_application.cpp` or the production manifest moved, rerun the
-  documentation gate, move the card to `60-done/` with its acceptance records.
+Fable approved; Astra approved with a propagation condition. The condition and
+Fable’s three follow-ups are implemented in `c8a7ec0d7`: refused review, tour
+and source-backed comment writes keep `target_moved`/`stale_head` and unsent
+status; the wrapper has 500 and cancellation courses; its comment states the
+head/recorded-base limit; the architecture wording covers every witnessed
+write bound to a pull request. The owner’s handoff accepts the reviews and
+requires no further review or live course. Existing negative controls stand.
+
+Main `ca55c0a71` was merged at `ce38d487e`. The round-trip contract’s full
+application and production-manifest pins were recomputed on that merged tree;
+the mutation-production pin remains unchanged. A dated note records the scope.
+All 20 focused landing rows pass (239.48 s + 343.22 s); all affected targets
+build, all 35 C++ files pass format22, and docs/diff checks pass. The handoff moves the full suite and
+large-review timing reruns to its final integrated pass (item 9).
 
 ## Next action
 
-Owner's review. Re-run evidence with
-`python3 tests/end_to_end/bpr1572_stacked_live_course.py --build build/dev --work <dir> --prefix <p> --variant merge|ff|rebase [--negative-control] --cleanup`.
+Finish the card on main, push, then remove this
+worktree and its build. Do not restart owner review or the completed live course.

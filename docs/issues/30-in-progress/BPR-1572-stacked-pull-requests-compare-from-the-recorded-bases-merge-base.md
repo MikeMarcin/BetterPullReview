@@ -78,8 +78,10 @@ GitHub's Files changed does **not** follow the branch's merge base. It follows
 the recorded base's merge base, reliably, in every state measured. So the
 right answer in the stacked state is neither the branch's merge base nor a
 refusal: it is compare(`base.sha`...head)'s merge base. This is a third
-outcome, beyond the two the mandate named (accept the branch's answer, or keep
-the refusal with accurate wording); it is flagged for the owner's review.
+outcome, beyond the two the original mandate named (accept the branch’s answer,
+or keep the refusal with accurate wording). The owner’s 2026-10-17 ordered
+handoff accepts the completed Fable/Astra round-four review and authorizes
+landing this outcome.
 `refused` is kept, with its own wording, for genuine movement.
 
 Rule (open pull request; a closed one is unchanged and asks only `base.sha`):
@@ -466,6 +468,30 @@ documentation rows (no `.agents` skills link in the worktree during the run;
   rebase and force variants with the LEFT wire course, and
   `bpr1572_criss_cross_probe.py`, every step PASS (round two).
 - `BPR-1572:negative-control`: the unit, fixture and live controls above.
-- `BPR-1572:gates`: one full `ctest --preset dev`, clang-format 22, tidy on the
-  changed sources, the documentation gate, the composition contracts.
+- `BPR-1572:gates`: focused landing rows, clang-format 22, existing unchanged
+  tidy evidence, the documentation gate and both composition contracts. The
+  owner’s 2026-10-17 ordered handoff moves the integrated full suite, full
+  format/tidy and large-review timing reruns to item 9, after all queue cards.
 
+
+## Ordered handoff landing — 2026-10-17
+
+The owner’s ordered handoff accepts Fable/Astra round four. Confirmed all three
+Fable follow-ups and Astra’s propagation condition in `c8a7ec0d7`; no repeat
+review or live test was needed. Frontend-design was loaded for the inherited
+Qt wording; the accepted design is unchanged.
+
+Main `ca55c0a71` was merged at `ce38d487e`. The composition pins were resealed
+on that merged tree with a dated note: full application `5b75c420…`, production
+manifest `8dda56db…`, mutation production unchanged `e067befef…`.
+
+The app and twelve affected test targets build. All 20 focused rows pass:
+core/architecture/fixture contracts (4; 239.48 s), and epoch policy, window
+read host, epoch Qt at 100/125/200%, mutation, submission, paged/provider,
+permalink, staged review, sparse cache, both composition contracts and the
+merge-base public path (16; 343.22 s). The wrapper error/cancellation and
+propagation cases are exercised by these provider/session binaries. All 35
+touched C++ files pass clang-format 22; documentation and diff checks pass.
+Unchanged focused tidy, live courses and negative controls from the accepted
+review rounds are reused. The full suite and full format/tidy run belong to
+handoff item 9.
