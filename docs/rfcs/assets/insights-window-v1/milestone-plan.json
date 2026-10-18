@@ -1,0 +1,55 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "insights-window-v1",
+  "scope": {"rfcs": ["RFC-DRAFT-0024"], "issues": ["DRAFT-0001", "DRAFT-0002", "DRAFT-0003", "DRAFT-0004", "DRAFT-0005", "DRAFT-0006", "DRAFT-0007", "DRAFT-0008", "DRAFT-0009", "DRAFT-0010"]},
+  "milestones": [
+    {
+      "id": "window-and-storage",
+      "outcome": "A fixed-size, per-profile Insights window opens with its six tabs, and Storage shows bytes on disk for every store against its budget.",
+      "work": [{"issue": "DRAFT-0001"}, {"issue": "DRAFT-0002"}],
+      "depends_on": [],
+      "exit_criteria": ["Switching every tab and range never changes the window's size, and refresh issues no network, Git or process effect.", "Storage figures match a filesystem walk within 1%, and profile purge removes the Insights store.", "The owner accepts the window shell in an attended review."],
+      "boundary": "A usable window whose Storage tab and Summary storage tiles are real; the other tabs show their empty states."
+    },
+    {
+      "id": "github-budget",
+      "outcome": "The Summary budget bar and the GitHub tab show this hour's Core budget split between BetterPullReview, other clients and what's left, drawn with the shared chart component.",
+      "work": [{"issue": "DRAFT-0003"}, {"issue": "DRAFT-0004"}],
+      "depends_on": ["window-and-storage"],
+      "exit_criteria": ["Fixture runs from two clients produce the defined split, including the restart, reset and no-reading states, without any request issued for Insights.", "The owner accepts the charts against AllTheThings' Energy chart in an attended review."],
+      "boundary": "The shared charts and the complete GitHub cost view."
+    },
+    {
+      "id": "review-stats",
+      "outcome": "The Reviews tab shows lifetime and ranged counts, the calendar and records from a store that survives cache prune and delete.",
+      "work": [{"issue": "DRAFT-0005"}, {"issue": "DRAFT-0006"}],
+      "depends_on": ["github-budget"],
+      "exit_criteria": ["Each count changes exactly once per event and survives prune, delete, Clear local diagnostics and restart.", "Ranges, calendar and records match a seeded store across a daylight-saving change."],
+      "boundary": "The complete Reviews tab and its two Summary tiles."
+    },
+    {
+      "id": "energy",
+      "outcome": "The Energy tab judges background cost against the idle budget, with foreground and background split on every row.",
+      "work": [{"issue": "DRAFT-0007"}, {"issue": "DRAFT-0008"}],
+      "depends_on": ["github-budget"],
+      "exit_criteria": ["Transitions split intervals, and background-launched child CPU counts as background.", "Tiles show background only, and an over-budget range is marked against the budget line."],
+      "boundary": "The complete Energy tab and the Summary idle-cost tile."
+    },
+    {
+      "id": "work",
+      "outcome": "The Work tab shows main-thread stalls against the 100 ms target, diff work limits, the slowest files, and syntax and search figures.",
+      "work": [{"issue": "DRAFT-0009"}],
+      "depends_on": ["github-budget"],
+      "exit_criteria": ["A seeded 250 ms block appears as one stall, and the diff limit fixtures are counted under their limits."],
+      "boundary": "The complete Work tab."
+    },
+    {
+      "id": "closeout",
+      "outcome": "RFC-DRAFT-0024 is closed with evidence for every criterion, including export privacy and a measured idle hour on macOS.",
+      "work": [{"issue": "DRAFT-0010"}],
+      "depends_on": ["review-stats", "energy", "work"],
+      "exit_criteria": ["Every acceptance criterion has evidence, and the idle hour meets the idle budget or has a filed card naming the cause."],
+      "boundary": "RFC closeout."
+    }
+  ]
+}

@@ -616,3 +616,11 @@ Mandate `inline-markdown-images-r1` adopts RFC-DRAFT-0022 (owner decision 2026-1
 | [RFC-BPR-0085](RFC-BPR-0085-drawer-design-system.md) | One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status | In Progress | None |
 
 Mandate `drawer-design-system-r1` adopts RFC-DRAFT-0023 as decided by the owner in attended session 9b6359b5 (BPR-1574). [Import and provenance](assets/drawers-and-agent-redesign-v1.LIVE_IMPORT.md); [plan](plans/drawer-design-system-v1/milestone-plan.json).
+
+## Insights window
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0086](RFC-BPR-0086-insights-window.md) | Insights: what BetterPullReview costs, and what you've reviewed | In Progress | None |
+
+Mandate `insights-window-v1-r1` adopts RFC-DRAFT-0024. [Import and provenance](assets/insights-window-v1.LIVE_IMPORT.md); [plan](plans/insights-window-v1/milestone-plan.json).

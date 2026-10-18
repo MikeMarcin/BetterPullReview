@@ -1,0 +1,18 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-1606",
+    "DRAFT-0002": "BPR-1607",
+    "DRAFT-0003": "BPR-1608",
+    "DRAFT-0004": "BPR-1609",
+    "DRAFT-0005": "BPR-1610",
+    "DRAFT-0006": "BPR-1611",
+    "DRAFT-0007": "BPR-1612",
+    "DRAFT-0008": "BPR-1613",
+    "DRAFT-0009": "BPR-1614",
+    "DRAFT-0010": "BPR-1615",
+    "RFC-DRAFT-0024": "RFC-BPR-0086"
+  },
+  "plan_path": "docs/rfcs/plans/insights-window-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "0d039bf637ebcb076c7b14b317012e396c78ea5f7d0a5188c0693e468a4c0ee6"
+}

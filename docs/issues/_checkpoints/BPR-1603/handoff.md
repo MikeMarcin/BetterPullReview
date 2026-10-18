@@ -200,3 +200,17 @@ had no decision; review resumed at 5). Verdict binds product 9eab5046a and
 fingerprint 7811444792049c97c9c9a899673b746c38015bd031b0c61d962e93f8dcff9bf8.
 Proceeding with landing and then integrated suite. Origin/main remains
 937f96880 at fetch; all pre-review focused evidence applies unchanged.
+
+
+### Landing and integrated verification complete
+
+Finished BPR-1603 through the board helper and plain-pushed 6ca8aaccc to
+origin/main. RFC execution status updated. Review protection released at
+8; own host stopped. Frozen root and worktree/build/local branch removed.
+Item 9 completed on the landed product: 789 pass, 8 reproducible failures,
+1 deliberate Debug skip; full format passes and full tidy has 3 confirmed
+findings. Every failure and source-level cause is recorded in
+`docs/issues/_checkpoints/codex-handoff-2026-10-17.progress.md` under
+Final integrated verification after BPR-1603. Final main build/dev removed;
+no further card work or owner review remains in this requested queue.
+BPR-1595 remains with Claude; the RFC is not closed.
