@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1603"
 title: "Pull-request comments wait at the Comments drawer's edge"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1594"]
 priority: "P2"
