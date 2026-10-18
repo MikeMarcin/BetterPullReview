@@ -54,7 +54,7 @@ The UI uses native profile typography/palette, fixed content and a compact tab s
 - State: `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-window-v001-20261018`.
 - Script: `/Users/jaeger/.codex/worktrees/3996/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py`.
 - Registry: `/Users/jaeger/.mask/attended-review-resources` (shared default).
-- Session: `a25204cd201da1ca5dbff4439c52bda4`; consumed event cursor: **5**.
+- Session: `a25204cd201da1ca5dbff4439c52bda4`; consumed event cursor: **7**.
 - Candidate: `BPR-1606-insights-shell-v001`, revision `5a02177b3-v001`.
 - Fingerprint: `2d266983a09915e9ca589be39aadf67a9230894e0c1023b7418f46473e071bf4`.
 - Ready, protected, no verdict. One Accept/Reject criterion: accept the fixed
@@ -97,3 +97,7 @@ storage evidence, reconcile main, and integrate locally. Reject requires candida
 release through `resume-development`, correction and a new frozen revision.
 `github-budget` becomes eligible only after `window-and-storage` is accepted;
 no later milestone is currently eligible. Preserve the selected strategy.
+
+## Owner handback 2026-10-18
+
+Session identity and candidate fingerprint matched on intake. Events 6–7 consumed: owner rejected shell with note “that looks almost nothing like the mockups /Users/jaeger/Downloads/bpr_insights_window_fixed_size_mockup.html”. No acceptance granted. Fresh engineering round must inspect the named HTML, release the affected candidate with resume-development, revise against that visual reference, verify and prepare a new frozen candidate. Previous writers and build commands are quiescent; review server remains available.
