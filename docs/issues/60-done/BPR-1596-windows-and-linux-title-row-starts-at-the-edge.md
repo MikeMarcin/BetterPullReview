@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1596"
 title: "On Windows and Linux the title row starts at the edge, with no macOS window-control gap"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "linux", "mac"]
 metadata: {"origin":"owner note on BPR-1580's acceptance, 2026-10-17","owner_note":"I also noticed the home button looks misplaced on windows. Seems like it's still offset for the macos window controls.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052"],"related_cards":["BPR-0646","BPR-0653","BPR-1129","BPR-1580"],"reservation":"docs/issues/_reservations/BPR-1596--BPR-1596--538e525a145a.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7e77f3bf3","evidence":{"kind":"command","detail":"qt_workbench_title_row 100/125/200: test_title_row_leading_inset_per_platform checks title_row_leading_inset for macOS (78), Windows (0) and other (0) on any host, the running platform's inset width and that the first control starts right after it; on Windows also the caption buttons last. Negative control: inset +30 fails ('the row's inset is its platform's value: 108')."}},{"criterion":"AC2","outcome":"pass","revision":"7e77f3bf3","evidence":{"kind":"command","detail":"refresh_toolbar_icons repaints the Windows menu control's glyph in the live palette; the Windows-only part of the same test asserts the glyph takes the new ink after a theme change (runs on the Windows station)."}},{"criterion":"AC3","outcome":"pass","revision":"7e77f3bf3","evidence":{"kind":"command","detail":"Focused rows, documentation rows, round-trip composition contract and DOCUMENTATION_OK on the merge with 95e900ba4; full run_test_suite --preset dev: 766 passed, 8 failed, 1 skipped, all eight environmental or in rows that do not link the Qt adapter (see card); clang-format 22 clean; clang-tidy 22 no findings on the touched units."}}]
 ---
 
 # BPR-1596: On Windows and Linux the title row starts at the edge, with no macOS window-control gap
