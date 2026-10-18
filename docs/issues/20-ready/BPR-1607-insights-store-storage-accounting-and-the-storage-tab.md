@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1607"
 title: "Insights store, storage accounting and the Storage tab"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1606"]
 platforms: ["mac", "win", "linux"]
