@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1590"
 title: "Compose review is a sheet over the code that expands to a focused page"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1587"]
 priority: "P2"
