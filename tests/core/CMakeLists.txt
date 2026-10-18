@@ -1068,6 +1068,20 @@ bpr_enable_hardening(test_better_pull_review_core_home_open_tests)
 bpr_enable_warnings(test_better_pull_review_core_home_open_tests)
 bpr_add_network_isolated_test(NAME core_home_open COMMAND test_better_pull_review_core_home_open_tests)
 
+# [[BPR-1576]]. The application's one loading-state pattern.
+bpr_add_executable(test_better_pull_review_core_pending_presentation_tests pending_presentation_tests.cpp)
+target_link_libraries(test_better_pull_review_core_pending_presentation_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_pending_presentation_tests)
+bpr_enable_warnings(test_better_pull_review_core_pending_presentation_tests)
+bpr_add_network_isolated_test(NAME core_pending_presentation COMMAND test_better_pull_review_core_pending_presentation_tests)
+
+# [[BPR-1575]]. A refresh's lifecycle, changes, age words and announcements.
+bpr_add_executable(test_better_pull_review_core_refresh_feedback_tests refresh_feedback_tests.cpp)
+target_link_libraries(test_better_pull_review_core_refresh_feedback_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_refresh_feedback_tests)
+bpr_enable_warnings(test_better_pull_review_core_refresh_feedback_tests)
+bpr_add_network_isolated_test(NAME core_refresh_feedback COMMAND test_better_pull_review_core_refresh_feedback_tests)
+
 # [[BPR-1374]]. An unsent reply's standing against the server's threads: kept
 # on its thread through a Refresh and a restart, flagged when its thread is
 # resolved or deleted elsewhere, never sent to a thread that is gone.

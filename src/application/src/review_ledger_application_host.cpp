@@ -1092,28 +1092,52 @@ namespace bpr::application {
 
 	void review_ledger_application_host::mark_conversation_read(const core::conversation_observation& aLatest, ledger_completion<void> aDone)
 	{
+		store_conversation_receipt(
+			aLatest.Conversation,
+			[aLatest](const core::conversation_receipt& aReceipt) -> std::optional<core::conversation_receipt> {
+				return core::mark_conversation_read(aReceipt, aLatest);
+			},
+			std::move(aDone));
+	}
+
+	void review_ledger_application_host::mark_conversation_unread(const conversation_thread_observation& aThread, ledger_completion<void> aDone)
+	{
+		// [[BPR-1582]]. The core decides which post is new again; a thread of
+		// only my posts has none, and the store is not written.
+		store_conversation_receipt(
+			aThread.Conversation,
+			[posts = aThread.Posts](const core::conversation_receipt& aReceipt) {
+				return core::mark_conversation_unread(aReceipt, posts);
+			},
+			std::move(aDone));
+	}
+
+	void review_ledger_application_host::store_conversation_receipt(
+		const core::review_conversation_id                                                          aConversation,
+		std::function<std::optional<core::conversation_receipt>(const core::conversation_receipt&)> aDecide,
+		ledger_completion<void>                                                                     aDone)
+	{
 		using impl       = implementation;
 		auto* const self = Implementation.get();
 		auto        fail = [done = aDone](const ledger_store_failure aFailure) {
 			impl::answer(done, std::expected<void, ledger_store_failure>{ std::unexpected(aFailure) });
 		};
 		self->enqueue(impl::operation{
-			.Begin = [self, aLatest, done = std::move(aDone), fail](impl::outcome& aOutcome) mutable {
+			.Begin = [self, aConversation, decide = std::move(aDecide), done = std::move(aDone), fail](impl::outcome& aOutcome) mutable {
 				self->with_conversation_receipts(
 					aOutcome,
-					[self, aLatest, done](impl::outcome& aNext) mutable {
+					[self, aConversation, decide, done](impl::outcome& aNext) mutable {
 						auto&      receipts = *self->ConversationReceipts;
-						const auto existing = std::ranges::lower_bound(receipts, aLatest.Conversation, { }, &core::conversation_receipt::Conversation);
-						const auto found    = existing != receipts.end() && existing->Conversation == aLatest.Conversation;
-						const auto read     = core::mark_conversation_read(
-							found ? *existing : core::conversation_receipt{ .Conversation = aLatest.Conversation },
-							aLatest);
-						if (!valid(read)) {
+						const auto existing = std::ranges::lower_bound(receipts, aConversation, { }, &core::conversation_receipt::Conversation);
+						const auto found    = existing != receipts.end() && existing->Conversation == aConversation;
+						const auto decided  = decide(found ? *existing : core::conversation_receipt{ .Conversation = aConversation });
+						if (!decided.has_value() || decided->Conversation != aConversation || !valid(*decided)) {
 							aNext.Terminal = [done] {
 								impl::answer(done, std::expected<void, ledger_store_failure>{ std::unexpected(ledger_store_failure::invalid_record) });
 							};
 							return;
 						}
+						const auto read = *decided;
 						if (found && *existing == read) {
 							++self->Statistics.Unchanged;
 							aNext.Terminal = [done] { impl::answer(done, std::expected<void, ledger_store_failure>{ }); };

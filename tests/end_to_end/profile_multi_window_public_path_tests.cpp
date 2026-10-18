@@ -5,6 +5,7 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -37,6 +38,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QPlainTextEdit>
@@ -715,6 +717,34 @@ try {
 	expect(unreadBefore > 0U && cardsB->unread_post_count() == unreadBefore, "same-review conversation course begins with accepted unread posts");
 	mark_conversation_read(*cardsB, threadIdentity);
 	wait_for([&] { return cardsC->unread_post_count() < unreadBefore && cardsC->unread_post_count() == cardsB->unread_post_count(); }, "conversation read receipt refreshes sibling unread presentation");
+	// [[BPR-1582]]. Threads' row menu, through the composition and the
+	// ledger: Mark as Unread makes the thread new again in both windows, and
+	// Mark as Read reads it again. Window B counts in Discuss, as C does.
+	{
+		const auto readCount = cardsC->unread_post_count();
+		const auto rowMenu   = [&](const QString& aExpected) {
+			windowB->show_threads_action()->trigger();
+			QApplication::processEvents();
+			auto* const finder = windowB->finder();
+			finder->refresh();
+			const auto keys = finder->shown_keys();
+			const auto row  = std::ranges::find_if(keys, [&threadIdentity](const std::string& aKey) { return aKey.starts_with("row:" + threadIdentity + "/"); });
+			expect(row != keys.end(), "Threads lists the conversation");
+			const auto box = finder->row_rect(*row);
+			finder->popup_row_menu(*row, QPoint{ box.left() + 80, box.center().y() });
+			expect(finder->read_action() != nullptr && finder->read_action()->text() == aExpected && finder->read_action()->isEnabled(),
+				   "the row menu offers " + aExpected.toStdString());
+			finder->row_menu()->hide();
+			finder->read_action()->trigger();
+			windowB->modality()->action(qt::review_modality::discuss)->trigger();
+			QApplication::processEvents();
+		};
+		rowMenu(QStringLiteral("Mark as Unread"));
+		wait_for([&] { return cardsC->unread_post_count() > readCount && cardsB->unread_post_count() == cardsC->unread_post_count(); },
+				 "Mark as Unread's receipt makes the conversation new again in both windows");
+		rowMenu(QStringLiteral("Mark as Read"));
+		wait_for([&] { return cardsC->unread_post_count() == readCount && cardsB->unread_post_count() == readCount; }, "Mark as Read reads it again in both windows");
+	}
 	expect(windowB->comparison_surface()->current_result() == receiptComparisonB
 			   && windowC->comparison_surface()->current_result() == receiptComparisonC
 			   && windowB->comparison_surface()->selection() == receiptSelectionB

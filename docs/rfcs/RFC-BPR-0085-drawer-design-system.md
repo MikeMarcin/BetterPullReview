@@ -31,6 +31,10 @@ groups the cards:
 | [[BPR-1594]] | Agent as a drawer tab (AC07) |
 | [[BPR-1595]] | Closeout (AC08, AC09) |
 
+Milestone 1 ([[BPR-1587]], [[BPR-1588]]) landed on 2026-10-17 after the
+owner's Accept (session `e471b4b8…`). Its settings step was renumbered from
+schema 22 to 23 at landing, because [[BPR-1584]]'s reading width took 22 first.
+
 The design round, its audit and the before renders are in
 [`docs/design/BPR-1574-drawers-and-agent-v1/`](../design/BPR-1574-drawers-and-agent-v1/index.html)
 and on [[BPR-1574]].

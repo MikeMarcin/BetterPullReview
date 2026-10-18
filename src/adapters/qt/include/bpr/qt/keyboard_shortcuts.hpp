@@ -98,6 +98,9 @@ namespace bpr::qt {
 		discuss,
 		threads,
 		find_thread,
+		show_in_discuss,
+		show_in_review,
+		show_in_threads,
 
 		whole_pr,
 		previous_upload,

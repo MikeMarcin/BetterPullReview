@@ -1268,6 +1268,20 @@ foreach(bpr_shortcuts_scale IN ITEMS 100 125 200)
         PASS_REGULAR_EXPRESSION "keyboard-shortcuts:pass" TIMEOUT 120)
 endforeach()
 
+# [[BPR-1581]] [[BPR-1582]] [[BPR-1584]]. A thread moves between Review and
+# Discuss through one core route (menus, keys, outdated, pull request comment,
+# focus, arrival, negative controls), frames of the jump in Light and Dark,
+# and the reading width, which never touches the code comparison.
+foreach(bpr_moves_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_moves_whole "${bpr_moves_scale} / 100")
+    math(EXPR bpr_moves_fraction "${bpr_moves_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_thread_moves_scale_${bpr_moves_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --thread-moves)
+    set_tests_properties(qt_thread_moves_scale_${bpr_moves_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_moves_whole}.${bpr_moves_fraction};BPR_EXPECTED_QT_SCALE=${bpr_moves_whole}.${bpr_moves_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/thread-moves-${bpr_moves_scale}.png"
+        PASS_REGULAR_EXPRESSION "thread-moves:pass" TIMEOUT 180)
+endforeach()
+
 # [[BPR-1331]]. The review bar's progress button shows the selected file's
 # decided mark: glyph, name and tooltip, through a change, a file switch and a
 # palette refresh.
@@ -2236,6 +2250,30 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
         TIMEOUT 120
     )
 endforeach()
+
+# [[BPR-1576]]. The application's one loading-state pattern and the panes that
+# use it, driven by real facts and an injected clock.
+bpr_add_executable(test_better_pull_review_qt_pending_veil_tests pending_veil_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_pending_veil_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_pending_veil_tests)
+bpr_enable_warnings(test_better_pull_review_qt_pending_veil_tests)
+bpr_add_network_isolated_test(NAME qt_pending_veil COMMAND test_better_pull_review_qt_pending_veil_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/pending-veil")
+set_tests_properties(qt_pending_veil PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "pending-veil-tests:pass"
+    TIMEOUT 120)
+
+# [[BPR-1575]]. Refresh made visible on the pull request and on Home, from the
+# core's read stages, with a negative control that has none.
+bpr_add_executable(test_better_pull_review_qt_refresh_feedback_window_tests refresh_feedback_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_refresh_feedback_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_refresh_feedback_window_tests)
+bpr_add_network_isolated_test(NAME qt_refresh_feedback_window COMMAND test_better_pull_review_qt_refresh_feedback_window_tests --render-directory "${CMAKE_CURRENT_BINARY_DIR}/refresh-feedback")
+set_tests_properties(qt_refresh_feedback_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
+    TIMEOUT 120)
 
 # [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
 # 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,

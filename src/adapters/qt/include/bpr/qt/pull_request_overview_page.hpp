@@ -389,6 +389,20 @@ namespace bpr::qt {
 	/// "Not counted".
 	[[nodiscard]] auto overview_count_name(const core::feedback_count_target& aTarget, bool aAnyColumns) -> QString;
 
+	class pending_veil;
+
+	/// \brief [[BPR-1576]]. The Overview's sections as they wait on the read.
+	struct overview_pending_veils
+	{
+		/// The title and its summary line.
+		pending_veil* Header      = nullptr;
+		pending_veil* Description = nullptr;
+		/// The files table: the catalogue, then its comment counts.
+		pending_veil* Files = nullptr;
+		/// Merge, waiting on, participants, since my last review, checks.
+		pending_veil* Side = nullptr;
+	};
+
 	/// \brief RFC-BPR-0028's overview: what changed and who has signed off.
 	///
 	/// \details [[BPR-0647]]. The Overview modality's content, drawn from
@@ -484,6 +498,14 @@ namespace bpr::qt {
 		void               show_label_key();
 		[[nodiscard]] auto label_key() const noexcept -> QWidget*;
 
+		/// \brief [[BPR-1576]]. The sections' veils, for courses.
+		[[nodiscard]] auto pending_veils() const noexcept -> overview_pending_veils;
+		/// \brief [[BPR-1576]]. What the read still waits on, said by a section
+		/// whose wait has become slow: "the changed files, page 3".
+		void set_read_waiting(const QString& aWaiting);
+		/// \brief [[BPR-1576]]. Motion, contrast and failure ink for the veils.
+		void set_pending_appearance(bool aFullMotion, bool aHighContrast, const QColor& aFailureInk);
+
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
@@ -512,6 +534,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	private:
+		/// [[BPR-1576]]. Puts every section's veil in the look its facts give.
+		void apply_pending();
 		void set_description_expanded(bool aExpanded);
 		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
@@ -613,6 +637,14 @@ namespace bpr::qt {
 		/// [[BPR-1363]]. The Files table's widths, from the whole tree.
 		steady_columns*                    FileColumns = nullptr;
 		std::optional<overview_chip_focus> ChipFocus;
+		/// [[BPR-1576]]. A first read is under way: nothing accepted yet.
+		bool Loading = false;
+		/// [[BPR-1576]]. The read's provisional metadata is shown.
+		bool                   Observed      = false;
+		bool                   Observing     = false;
+		std::size_t            ReportedFiles = 0U;
+		QString                ReadWaiting;
+		overview_pending_veils Veils;
 	};
 } // namespace bpr::qt
 

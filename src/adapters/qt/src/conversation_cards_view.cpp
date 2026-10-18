@@ -1,4 +1,5 @@
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -37,6 +38,7 @@
 #include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
+#include <QVariantAnimation>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -461,8 +463,35 @@ namespace bpr::qt {
 	auto conversation_cards_view::thread_menu(const std::string& aIdentity) -> QMenu*
 	{
 		const auto at = std::ranges::find(Cards, aIdentity, &thread_card::Id);
-		if (at == Cards.end() || at->Draft) {
+		if (at == Cards.end() || (at->Draft && at->UnsentReply.has_value())) {
 			return nullptr;
+		}
+		if (at->Draft) {
+			// [[BPR-1581]]. My draft's menu: Discuss shows it in its composer.
+			auto* menu = new QMenu{ this };
+			menu->setObjectName(QStringLiteral("draftContextMenu"));
+			menu->setToolTipsVisible(true);
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			auto* const show = menu->addAction(QStringLiteral("Show in Discuss"));
+			show->setObjectName(QStringLiteral("draftShowInDiscussAction"));
+			show->setEnabled(static_cast<bool>(ActionDispatch));
+			show->setToolTip(QStringLiteral("Open this draft in Discuss's composer, with room to write"));
+			connect(show, &QAction::triggered, menu, [this, identity = at->Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::show_in_discuss, identity);
+				}
+			});
+			// [[BPR-1586]]. My draft's own row in Threads.
+			auto* const threads = menu->addAction(QStringLiteral("Show in Threads"));
+			threads->setObjectName(QStringLiteral("draftShowInThreadsAction"));
+			threads->setEnabled(static_cast<bool>(ActionDispatch));
+			threads->setToolTip(QStringLiteral("Show this draft's row in Threads"));
+			connect(threads, &QAction::triggered, menu, [this, identity = at->Id] {
+				if (ActionDispatch) {
+					ActionDispatch(card_action::show_in_threads, identity);
+				}
+			});
+			return menu;
 		}
 		// Selection can rebuild Cards; retain this exact card across the dispatch.
 		const auto card = *at; // NOLINT(performance-unnecessary-copy-initialization)
@@ -481,8 +510,35 @@ namespace bpr::qt {
 		add(card_action::mark_read, QStringLiteral("Mark read"), card.UnreadCount > 0U, tr("This thread has no unread posts."));
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
 			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Resolution is not available for this thread."));
-		add(Feed ? card_action::open_in_code : card_action::show_line, Feed ? QStringLiteral("Open in Review") : QStringLiteral("Show line"),
-			has_code_anchor(card), tr("This thread's code anchor is unavailable."));
+		if (Feed) {
+			// [[BPR-1581]]. The core's route decides where Open in Review
+			// can go: any thread on a file, an outdated one among its file's
+			// threads without a line.
+			const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
+				.Destination = core::workbench_thread_destination::review,
+				.Origin      = core::workbench_thread_origin::discuss,
+				.OnFile      = !card.Path.isEmpty(),
+				.Placed      = has_code_anchor(card),
+			});
+			add(card_action::open_in_code, QStringLiteral("Open in Review"), route.Available, tr("This comment is not on a file; Review shows a file's threads beside its code."));
+			menu->actions().back()->setObjectName(QStringLiteral("threadOpenInReviewAction"));
+		} else {
+			add(card_action::show_line, QStringLiteral("Show line"), has_code_anchor(card), tr("This thread's code anchor is unavailable."));
+			// [[BPR-1581]]. The same thread with the rest of the conversation;
+			// at its open card's picked post when it has one.
+			const auto post = card.Id == Open && !Picked.empty() ? Picked : card.Id;
+			auto*      show = menu->addAction(QStringLiteral("Show in Discuss"));
+			show->setObjectName(QStringLiteral("threadShowInDiscussAction"));
+			show->setEnabled(static_cast<bool>(ActionDispatch));
+			show->setToolTip(QStringLiteral("Show this thread in Discuss, with the rest of the conversation"));
+			connect(show, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_discuss, post); } });
+			// [[BPR-1586]]. The same thread's row in Threads.
+			auto* threads = menu->addAction(QStringLiteral("Show in Threads"));
+			threads->setObjectName(QStringLiteral("threadShowInThreadsAction"));
+			threads->setEnabled(static_cast<bool>(ActionDispatch));
+			threads->setToolTip(QStringLiteral("Show this thread's row in Threads"));
+			connect(threads, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_threads, post); } });
+		}
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));
 			copy->setObjectName(QStringLiteral("threadCopySource"));
@@ -1731,6 +1787,7 @@ namespace bpr::qt {
 			.ResolutionOffered = ResolutionOffered,
 			.Feed              = Feed,
 			.HasCodeAnchor     = has_code_anchor(card),
+			.OnFile            = !card.Path.isEmpty(),
 			.Picked            = Picked,
 		};
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
@@ -1853,6 +1910,26 @@ namespace bpr::qt {
 				dispatch(card_action::open_in_code, aPost);
 			}
 		};
+		OpenCard->ShowInDiscussRequested = [this](const std::string& aPost) {
+			const auto dispatch = ActionDispatch;
+			if (dispatch) {
+				dispatch(card_action::show_in_discuss, aPost);
+			}
+		};
+		OpenCard->ShowInThreadsRequested = [this](const std::string& aPost) {
+			const auto dispatch = ActionDispatch;
+			if (dispatch) {
+				dispatch(card_action::show_in_threads, aPost);
+			}
+		};
+		// [[BPR-1581]]. A card rebuilt while an arrival is marked carries it.
+		if (ArrivalAnimation != nullptr && !ArrivalPost.empty()) {
+			for (auto* const post : OpenCard->posts()) {
+				if (post->post().Id == ArrivalPost) {
+					post->set_arrival(ArrivalAnimation->currentValue().toReal());
+				}
+			}
+		}
 		OpenCard->present_reply(Reply);
 		if (card.Writing) {
 			OpenCard->present_draft(Composer);
@@ -2646,6 +2723,53 @@ namespace bpr::qt {
 	auto conversation_cards_view::picked_post() const noexcept -> const std::string&
 	{
 		return Picked;
+	}
+
+	void conversation_cards_view::mark_arrival()
+	{
+		if (Picked.empty()) {
+			return;
+		}
+		if (ArrivalAnimation != nullptr) {
+			ArrivalAnimation->stop();
+			ArrivalAnimation->deleteLater();
+		}
+		ArrivalPost = Picked;
+		// Held, then dissolving to the resting wash: 0.7 s full, 0.65 s out.
+		auto* const animation = new QVariantAnimation{ this };
+		animation->setDuration(1'350);
+		animation->setStartValue(1.0);
+		animation->setKeyValueAt(0.52, 1.0);
+		animation->setEndValue(0.0);
+		const auto apply = [this](const qreal aStrength) {
+			if (OpenCard == nullptr) {
+				return;
+			}
+			for (auto* const post : OpenCard->posts()) {
+				post->set_arrival(post->post().Id == ArrivalPost ? aStrength : 0.0);
+			}
+		};
+		connect(animation, &QVariantAnimation::valueChanged, this, [apply](const QVariant& aValue) { apply(aValue.toReal()); });
+		connect(animation, &QVariantAnimation::finished, this, [this, apply, animation] {
+			apply(0.0);
+			if (ArrivalAnimation == animation) {
+				ArrivalPost.clear();
+			}
+			animation->deleteLater();
+		});
+		ArrivalAnimation = animation;
+		apply(1.0);
+		animation->start();
+	}
+
+	auto conversation_cards_view::arrival_post() const -> std::string
+	{
+		return ArrivalAnimation != nullptr && ArrivalAnimation->state() == QAbstractAnimation::Running ? ArrivalPost : std::string{ };
+	}
+
+	auto conversation_cards_view::arrival_strength() const noexcept -> qreal
+	{
+		return ArrivalAnimation != nullptr && ArrivalAnimation->state() == QAbstractAnimation::Running ? ArrivalAnimation->currentValue().toReal() : 0.0;
 	}
 
 	void conversation_cards_view::toggle_thread(const std::string& aId)

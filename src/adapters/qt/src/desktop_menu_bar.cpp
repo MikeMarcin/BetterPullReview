@@ -192,6 +192,18 @@ namespace bpr::qt {
 		threads->setObjectName(QStringLiteral("desktopShowThreadsAction"));
 		threads->setShortcuts(shortcut_keys(shortcut_command::find_thread));
 		threads->setEnabled(false);
+		// [[BPR-1581]]. Show Thread in Discuss and in Review, after Threads as
+		// in the window's menu, with the window's keys.
+		for (const auto& [text, name, command] : {
+				 std::tuple{ QStringLiteral("Show Thread in Discuss"), QStringLiteral("desktopShowThreadInDiscussAction"), shortcut_command::show_in_discuss },
+				 std::tuple{ QStringLiteral("Show Thread in Review"), QStringLiteral("desktopShowThreadInReviewAction"), shortcut_command::show_in_review },
+				 std::tuple{ QStringLiteral("Show Thread in Threads"), QStringLiteral("desktopShowThreadInThreadsAction"), shortcut_command::show_in_threads },
+			 }) {
+			auto* const show = ViewMenu->addAction(text);
+			show->setObjectName(name);
+			show->setShortcuts(shortcut_keys(command));
+			show->setEnabled(false);
+		}
 		auto* const updatesLine = ViewMenu->addAction(QStringLiteral("&Updates Line"));
 		updatesLine->setObjectName(QStringLiteral("desktopToggleUpdatesLineAction"));
 		updatesLine->setCheckable(true);

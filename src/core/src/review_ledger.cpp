@@ -313,6 +313,28 @@ namespace bpr::core {
 		return read;
 	}
 
+	auto mark_conversation_unread(
+		const conversation_receipt&                          aReceipt,
+		const std::span<const conversation_post_observation> aPosts)
+		-> std::optional<conversation_receipt>
+	{
+		for (auto index = aPosts.size(); index-- > 0U;) {
+			if (aPosts[index].Mine) {
+				continue;
+			}
+			auto unread = aReceipt;
+			if (index == 0U) {
+				unread.SeenComment = review_comment_id{ };
+				unread.SeenEdit    = comment_edit_version{ };
+			} else {
+				unread.SeenComment = aPosts[index - 1U].Comment;
+				unread.SeenEdit    = aPosts[index - 1U].Edit;
+			}
+			return unread;
+		}
+		return std::nullopt;
+	}
+
 	auto acceptance_outdated(
 		const conversation_receipt&     aReceipt,
 		const conversation_observation& aObservation) noexcept -> bool

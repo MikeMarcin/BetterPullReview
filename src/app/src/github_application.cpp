@@ -7930,6 +7930,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			Window->set_conversation_read_dispatch(
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
+			Window->set_conversation_unread_dispatch(
+				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -12378,7 +12380,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The thread's new state comes back from the server the way every
 			// other fact does.
 			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-				refresh->trigger();
+				// [[BPR-1575]]. A read the window makes by itself, said as such.
+				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
 			}
 		}
 
@@ -13952,6 +13955,43 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}));
 		}
 
+		/// \brief [[BPR-1582]]. Mark as unread: the core moves the seen cursor
+		/// back so the latest post by someone else is new again, and the
+		/// thread is presented unread once that is durable.
+		void mark_conversation_unread(const std::string& aThread)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return;
+			}
+			auto observation = application::conversation_thread_observation{
+				.Conversation = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+			};
+			for (const auto& comment : thread->Comments) {
+				if (!comment.Deleted) {
+					observation.Posts.push_back(post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login));
+				}
+			}
+			ReviewLedgerHost->mark_conversation_unread(
+				observation,
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+		}
+
 		/// \brief [[BPR-1211]]. Loads the conversation receipts off the
 		/// decision lane, once, and presents the read state when they arrive.
 		/// \details A failed load is not retried here; the next change that
@@ -15258,7 +15298,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// link waiting on sign-in, a restoration, the status line) is
 			// retired by a read the window makes for itself.
 			if (WindowRead->accepted_snapshot()) {
-				WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } });
+				// [[BPR-1575]]. Presented as the application's own update, not the
+				// reviewer's Refresh.
+				Window->run_automatic_refresh([this] { WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } }); });
 			}
 		}
 		void schedule_link_location()
@@ -17696,6 +17738,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// without the file's name. The name is only needed to choose a
 				// definition, and that choice has already been made here.
 				retain_definition(*blob, definition);
+				// [[BPR-1576]]. Said as coming before it is asked for: a cached
+				// answer is adopted inside `classify` and settles it at once.
+				if (Window != nullptr && Window->comparison_surface() != nullptr) {
+					Window->comparison_surface()->await_syntax(side);
+				}
 				AppearanceHost->classify(application::token_span_cache_key{
 					.Blob       = *blob,
 					.Definition = definition,
@@ -18049,6 +18096,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			// [[BPR-1576]]. A classification that failed brings no colours:
+			// the panes stop saying they are coming.
+			if (const auto failure = aFailure.Failure; (failure == application::appearance_host_failure::classification_unavailable
+														|| failure == application::appearance_host_failure::classification_limit
+														|| failure == application::appearance_host_failure::invalid_classification_key)
+				&& Window->comparison_surface() != nullptr) {
+				Window->comparison_surface()->settle_syntax();
+			}
 			if (auto* const panel = Window->appearance_settings();
 				panel != nullptr) {
 				switch (aFailure.Failure) {
@@ -18128,6 +18183,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			// [[BPR-1357]]. Home's status band marks a problem in the theme's failure ink.
 			Window->set_home_failure_ink(AppearanceProfile->color(core::appearance_role::state_defect));
+			// [[BPR-1576]]. A high-contrast theme draws waits without a wash.
+			Window->set_pending_high_contrast(AppearanceProfile->variant() == core::appearance_variant::high_contrast_light
+											  || AppearanceProfile->variant() == core::appearance_variant::high_contrast_dark);
 			// [[BPR-1083]]. The label tints of the theme on screen, for every
 			// surface that draws a Conventional Comments mark.
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));

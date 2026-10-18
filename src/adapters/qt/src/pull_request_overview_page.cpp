@@ -10,6 +10,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/steady_columns.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
@@ -2819,12 +2820,26 @@ namespace bpr::qt {
 		Colours.Marks  = default_feedback_mark_theme(palette());
 		Colours.States = default_feedback_state_colours(palette());
 		refresh_feedback_icons();
+		// [[BPR-1576]]. Each section says its own wait, over its own place, so
+		// a section that is ready shows while the others still load.
+		Veils.Header      = new pending_veil{ *this, pending_shape::text, QStringLiteral("Pull request"), Header };
+		Veils.Description = new pending_veil{ *this, pending_shape::text, QStringLiteral("Description"), SummaryPane };
+		// Over the rows only: the column names stay readable above them.
+		Veils.Files = new pending_veil{ *this, pending_shape::rows, QStringLiteral("Files"), Files->viewport() };
+		Veils.Side  = new pending_veil{ *this, pending_shape::pairs, QStringLiteral("Review summary"), sideScroll };
+		Veils.Side->set_placeholder_count(overview_value_count + 3);
+		// One voice for the page: the files say when the Overview is ready.
+		Veils.Header->set_announces(false);
+		Veils.Description->set_announces(false);
+		Veils.Side->set_announces(false);
 		clear();
 	}
 
 	void pull_request_overview_page::present(const application::pull_request_overview_projection& aProjection)
 	{
-		Cached = false;
+		Cached   = false;
+		Loading  = false;
+		Observed = false;
 		CachedBase.clear();
 		CachedHead.clear();
 		CachedSource->clear();
@@ -2939,6 +2954,8 @@ namespace bpr::qt {
 							 : QStringLiteral("%1 unpublished").arg(count_text(*aProjection.Progress.DraftedComments)))
 					  : QStringLiteral("not available"),
 				  false);
+
+		apply_pending();
 	}
 
 	void pull_request_overview_page::set_check_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)
@@ -3150,6 +3167,14 @@ namespace bpr::qt {
 				value->setForegroundRole(QPalette::PlaceholderText);
 			}
 		}
+		// An observation clears the page and goes on loading: its waits keep
+		// their clocks rather than starting again.
+		if (!Observing) {
+			Loading       = false;
+			Observed      = false;
+			ReportedFiles = 0U;
+			apply_pending();
+		}
 	}
 
 	void pull_request_overview_page::present_loading()
@@ -3160,11 +3185,87 @@ namespace bpr::qt {
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
+		// [[BPR-1576]]. The description's place is held while it is unknown,
+		// so the placeholders stand where it will.
+		SummaryPane->setVisible(true);
+		SummarySplit->queue_layout();
+		Loading  = true;
+		Observed = false;
+		apply_pending();
+	}
+
+	auto pull_request_overview_page::pending_veils() const noexcept -> overview_pending_veils
+	{
+		return Veils;
+	}
+
+	void pull_request_overview_page::set_read_waiting(const QString& aWaiting)
+	{
+		if (ReadWaiting == aWaiting) {
+			return;
+		}
+		ReadWaiting = aWaiting;
+		apply_pending();
+	}
+
+	void pull_request_overview_page::set_pending_appearance(const bool aFullMotion, const bool aHighContrast, const QColor& aFailureInk)
+	{
+		for (auto* const veil : { Veils.Header, Veils.Description, Veils.Files, Veils.Side }) {
+			if (veil != nullptr) {
+				veil->set_full_motion(aFullMotion);
+				veil->set_high_contrast(aHighContrast);
+				veil->set_failure_ink(aFailureInk);
+			}
+		}
+	}
+
+	void pull_request_overview_page::apply_pending()
+	{
+		if (Veils.Header == nullptr) {
+			return;
+		}
+		const auto waiting = ReadWaiting.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(ReadWaiting);
+		const auto section = [&waiting](pending_veil& aVeil, const bool aPending, QString aLoading, QString aDone = { }) {
+			if (!aPending) {
+				aVeil.present_ready();
+				return;
+			}
+			aVeil.present(core::pending_activity::loading, false, false, { .Loading = std::move(aLoading), .Waiting = waiting, .Done = std::move(aDone) });
+		};
+		// The read's provisional answer brings the title and the description
+		// first; the catalogue and the side column come with the accepted review.
+		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
+		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
+		section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+		// As many placeholder rows as GitHub reported files, once it has.
+		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
+		if (Loading) {
+			section(*Veils.Files, true,
+					Observed ? QStringLiteral("Loading the file list: %1 reported…").arg(ReportedFiles == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count_text(ReportedFiles)))
+							 : QStringLiteral("Loading the file list…"),
+					QStringLiteral("Overview ready: files, reviewers and checks are shown."));
+			return;
+		}
+		// The counts by file are the files' last part to arrive: said, not
+		// dimmed, while the rows themselves are already there to read.
+		const auto& feedback = Model->feedback();
+		const auto  counting = Projection.has_value() && !Cached && FeedbackDispatch && AskedFeedback.has_value()
+			&& (!feedback.has_value() || feedback->Request != *AskedFeedback);
+		if (counting) {
+			Veils.Files->present(core::pending_activity::loading, true, true, { .Coming = QStringLiteral("Counting comments by file…") });
+		} else {
+			Veils.Files->present_ready();
+		}
 	}
 
 	void pull_request_overview_page::present_observation(const application::github_loading_overview_projection& aObservation)
 	{
+		Observing = true;
 		clear();
+		Observing     = false;
+		Loading       = true;
+		Observed      = true;
+		ReportedFiles = aObservation.ReportedFiles;
 		Title->setText(text(aObservation.Title));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
@@ -3189,11 +3290,14 @@ namespace bpr::qt {
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
+		apply_pending();
 	}
 
 	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)
 	{
 		present_observation(aOverview.Overview);
+		// A cached overview is all there is: nothing more is on its way.
+		Loading    = false;
 		Cached     = true;
 		CachedBase = aOverview.BaseOid;
 		CachedHead = aOverview.HeadOid;
@@ -3226,6 +3330,7 @@ namespace bpr::qt {
 			none->setWordWrap(true);
 			none->setText(QStringLiteral("Participants unavailable offline"));
 		}
+		apply_pending();
 	}
 
 	void pull_request_overview_page::show_cached_source(bool aShow)
@@ -3445,6 +3550,7 @@ namespace bpr::qt {
 		}
 		AskedFeedback = request;
 		FeedbackDispatch(request);
+		apply_pending();
 	}
 
 	void pull_request_overview_page::present_feedback(const application::overview_feedback_projection& aFeedback)
@@ -3459,6 +3565,7 @@ namespace bpr::qt {
 			apply_rows();
 		}
 		present_feedback_controls();
+		apply_pending();
 	}
 
 	auto pull_request_overview_page::ordered_rows() const -> std::vector<application::overview_file_row>

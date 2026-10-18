@@ -302,6 +302,12 @@ namespace bpr::application {
 		/// \details The receipt the core builds is stored before it is kept,
 		/// so a refused write changes nothing the next observation reports.
 		void mark_conversation_read(const core::conversation_observation& aLatest, ledger_completion<void> aDone);
+		/// \brief [[BPR-1582]]. Makes the latest post someone else wrote in one
+		/// conversation new again, through `core::mark_conversation_unread`.
+		///
+		/// \details Answers `invalid_record` without writing when every post
+		/// is mine, since nothing could become new.
+		void mark_conversation_unread(const conversation_thread_observation& aThread, ledger_completion<void> aDone);
 
 		/// \brief The bounded private-state observation last loaded or committed.
 		/// \details Never reads the store; `unavailable` until `load_private` succeeds.
@@ -348,6 +354,13 @@ namespace bpr::application {
 			-> review_ledger_host_statistics;
 
 	private:
+		/// \brief Writes the receipt `aDecide` makes of one conversation's
+		/// current receipt, or answers `invalid_record` when it makes none.
+		void store_conversation_receipt(
+			core::review_conversation_id                                                                aConversation,
+			std::function<std::optional<core::conversation_receipt>(const core::conversation_receipt&)> aDecide,
+			ledger_completion<void>                                                                     aDone);
+
 		struct implementation;
 		std::shared_ptr<implementation> Implementation;
 	};

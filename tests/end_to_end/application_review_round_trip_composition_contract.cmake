@@ -1,3 +1,12 @@
+# BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
+# production-app change is 2a789264e in github_application.cpp, the Threads
+# row menu's Mark as Unread: the window's new unread dispatch and
+# mark_conversation_unread, which builds the accepted thread's post
+# observation as Mark read does and hands it to the review ledger host, whose
+# core decision moves the private seen cursor. No provider, grant, credential,
+# publication or mutation-branch change; the mutation digest is unchanged.
+# Reviewed by its implementer; the composed course is
+# application_profile_multi_window_public_path's Mark as Unread section.
 # BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
 # a confirmed kept-reply action can arrive while a reread reopens private storage.
 # Retain its core-admitted command/CAS with the exact shared owner and consumer;
@@ -1532,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"9e62c3a73e4f145644e4ef6ec07b62357df7bbcc7270849eb2d51645eecd96c2"
+		"414baa2c11dbab168f60b7e6e24b0d3800d8660f1e2333fb7f52fc7ce6853e2b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "68ec956a72e7899ed9bd8126c3ca47b44bdc84286c29e02cf5fbc55043ba48c0"
+        "ca94a8966d31e923f4ddea042e8be7a0e8d568ed872ab08df14c7943354d9661"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2721,3 +2730,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # grant, target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1573.
+
+# [[BPR-1575]], [[BPR-1576]] reseal over main at 83a58c893, recomputed on the tree
+# that merges these cards onto it. github_application.cpp marks the window's
+# own rereads (after publishing, after resolving a thread) as automatic through
+# workbench_window::run_automatic_refresh, which runs the same dispatch it ran
+# before; tells the comparison surface when a syntax classification is awaited
+# or failed; and passes whether the theme is high contrast. main.cpp and the
+# public-path fixture add test-only delays and a refresh outcome script for
+# courses and frozen looks. No grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path changes; the production
+# mutation-branch pin is unchanged.
