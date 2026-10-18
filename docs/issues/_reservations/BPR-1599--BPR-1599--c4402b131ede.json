@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1599"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_private_review_native stalls entering Review on main",
+  "created": "2026-10-18T01:00:17.932359+00:00",
+  "base": "272f8304a8b48ae3709210b1d5ec2ebfb339b95c"
+}
