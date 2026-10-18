@@ -77,7 +77,7 @@ hour remain pending/unmeasured.
 - State: `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-window-v002-20261018`.
 - Shared registry: `/Users/jaeger/.mask/attended-review-resources`.
 - Script: `/Users/jaeger/.codex/worktrees/3996/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py`.
-- Session: `e51e8b870c12f3d41b3f243b2891758a`; consumed preparation cursor: **5**.
+- Session: `e51e8b870c12f3d41b3f243b2891758a`; consumed preparation cursor: **9**.
 - Candidate: `BPR-1606-insights-shell-v002`, revision `ae0a40211-v002`.
 - Fingerprint: `649ab6f1674c77749d04c5695c2a1b2f3ce864869977ba766afd4619cf561d69`.
 - Ready, protected, no verdict at handoff. One Accept/Reject criterion: accept
@@ -137,3 +137,7 @@ Manual intake command (coordinator owns the next fresh engineering round):
 ```sh
 /opt/homebrew/opt/python@3.14/bin/python3.14 /Users/jaeger/.codex/worktrees/3996/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/.codex/worktrees/3996/BetterPullReview --state /Users/jaeger/.mask/attended-review-sessions/bpr-insights-window-v002-20261018 --registry /Users/jaeger/.mask/attended-review-resources status --after 5
 ```
+
+## Accepted shell intake 2026-10-18
+
+Coordinator verified session e51e8b870c12f3d41b3f243b2891758a, candidate ae0a40211-v002 and fingerprint match. Events 6–9 consumed; event8 is explicit owner Accept with empty note, event9 handback. Consumed cursor9. This satisfies only recorded shell judgment; engineering owner must reconcile all remaining milestone obligations and bookkeeping before later scope. Source writers and task builds are quiescent; review host PID48248 remains.
