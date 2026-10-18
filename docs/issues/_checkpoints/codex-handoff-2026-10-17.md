@@ -157,8 +157,13 @@ for each item.
   one opens in place; "Back to threads at their lines" returns; opened = read (BPR-1601); Show in Discuss; review
   summaries show verdict + links to their file comments. Start from the top-edge count chip in `private_notes_panel.cpp`,
   applied in `conversation_cards_view.cpp`. RFC D8 already matches A (no amendment).
-- REPLY: do NOT add a new GitHub write path for replying unless the owner confirms (see the card); offer
-  "Reply in Discuss" instead.
+- REPLY: owner CONFIRMED (2026-10-18) — add replying from the drawer. A reply posts a new pull-request
+  (issue) comment that quotes the one it answers (GitHub's conversation is flat). Reuse the existing publication
+  path (`staged_review_publication.cpp` can create a PR comment; check it) — core decides, host performs; draft first,
+  explicit Send, never auto-post; drafts survive restart; failures shown with retry; respect the BPR-1560/1572
+  publication safety rules (re-read the PR before the POST, refuse on change). Record the owner's scope extension on
+  the card and in RFC-BPR-0085 D8. Test with stubs (contract) plus one live course on MikeMarcin/BPR-Test only
+  (create a PR comment reply, then delete it; watch X-RateLimit-Remaining).
 - Tests (focused), composition contracts, docs gate. Then freeze a build and present ONE Accept/Reject owner review in a
   fresh short session with Light/Dark renders against the A mockup — this is a look-and-judge criterion; do not land
   before the owner accepts. On Accept: land, finish BPR-1603, update RFC-BPR-0085 status, push. On Reject: stop and leave
