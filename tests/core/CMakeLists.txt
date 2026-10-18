@@ -1098,6 +1098,14 @@ bpr_enable_warnings(test_reply_draft_standing)
 bpr_add_network_isolated_test(NAME core_reply_draft_standing COMMAND test_reply_draft_standing)
 set_tests_properties(core_reply_draft_standing PROPERTIES PASS_REGULAR_EXPRESSION "REPLY_DRAFT_STANDING_OK")
 
+# [[BPR-1591]]. A private note's line keeps or is outdated, never moved.
+bpr_add_executable(test_note_placement note_placement_tests.cpp)
+target_link_libraries(test_note_placement PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_note_placement)
+bpr_enable_warnings(test_note_placement)
+bpr_add_network_isolated_test(NAME core_note_placement COMMAND test_note_placement)
+set_tests_properties(core_note_placement PROPERTIES PASS_REGULAR_EXPRESSION "NOTE_PLACEMENT_OK")
+
 bpr_add_executable(test_remembered_connection_policy remembered_connection_tests.cpp)
 target_link_libraries(test_remembered_connection_policy PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_remembered_connection_policy)

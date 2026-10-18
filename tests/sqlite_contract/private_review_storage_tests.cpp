@@ -519,22 +519,16 @@ namespace {
 		{
 			auto raw = detail::review_ledger_database::open(ledger_path(config), { });
 			expect(raw.has_value(), "test-owned schema9 ledger opens for canonical schema8 fixture");
-			std::string_view old;
-			for (const auto& table : detail::PrivateSchemaTables) {
-				if (table.Name == "private_scope_state") {
-					old = table.Sql;
-				}
-			}
-			for (const auto sql : { std::string_view{ "BEGIN IMMEDIATE" }, std::string_view{ "ALTER TABLE private_scope_state RENAME TO private_scope_state_v9" }, old, std::string_view{ "INSERT INTO private_scope_state SELECT * FROM private_scope_state_v9" }, std::string_view{ "DROP TABLE private_scope_state_v9" }, std::string_view{ "UPDATE ledger_meta SET schema_format=8" }, std::string_view{ "PRAGMA user_version=8" }, std::string_view{ "COMMIT" } }) {
-				expect(detail::execute(raw->handle(), sql, { }).has_value(), "canonical old constraint fixture is restored without touching draft bytes");
-			}
+			// [[BPR-1591]]. The shared fixture: schema 10's note line table
+			// goes first, then schema 8's counter definition.
+			tests::sqlite_contract::restore_v8_fixture(raw->handle());
 		}
 		store            = open(config);
 		const auto after = store->list_drafts()->front();
 		expect(after.Binding == before.Binding && after.Draft == before.Draft && store->frontier()->Scope == frontier.Scope && store->frontier()->NextIdentity == frontier.NextIdentity, "schema8 to9 preserves authored bytes, linkage, authority, incarnation and allocation frontier");
 		auto       raw     = detail::review_ledger_database::open(ledger_path(config), { });
 		const auto version = detail::scalar_integer(raw->handle(), "PRAGMA user_version");
-		expect(raw && version && *version == 9, "retention migration publishes exact schema9");
+		expect(raw && version && *version == detail::review_ledger_schema_version, "retention migration publishes the current schema");
 	}
 	void quota_boundaries()
 	{

@@ -265,7 +265,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			std::optional<local_note_record> note(std::uint64_t aId)
 			{
-				auto q = sql("SELECT n.revision,t.file_identity,t.comparison_id,c.body,p.path FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id JOIN private_turn u ON u.scope_id=t.scope_id AND u.thread_id=t.id JOIN private_content c ON c.scope_id=u.scope_id AND c.id=u.latest_revision LEFT JOIN private_note_path p ON p.scope_id=t.scope_id AND p.thread_id=t.id WHERE n.scope_id=?1 AND n.note_id=?2 ORDER BY u.id LIMIT 1", Scope, aId);
+				auto q = sql("SELECT n.revision,t.file_identity,t.comparison_id,c.body,p.path,l.side,l.line,l.blob FROM private_legacy_note n JOIN private_thread t ON t.scope_id=n.scope_id AND t.id=n.thread_id JOIN private_turn u ON u.scope_id=t.scope_id AND u.thread_id=t.id JOIN private_content c ON c.scope_id=u.scope_id AND c.id=u.latest_revision LEFT JOIN private_note_path p ON p.scope_id=t.scope_id AND p.thread_id=t.id LEFT JOIN private_note_line l ON l.scope_id=t.scope_id AND l.thread_id=t.id WHERE n.scope_id=?1 AND n.note_id=?2 ORDER BY u.id LIMIT 1", Scope, aId);
 				if (!q.row()) {
 					return { };
 				}
@@ -275,6 +275,21 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				if (!q.null(4)) {
 					result.FilePath = q.text(4);
+				}
+				// [[BPR-1591]]. A line only ever with its file.
+				if (!q.null(5)) {
+					require(result.Attachment.has_value(), error::integrity);
+					auto line = core::note_line_anchor{ };
+					line.Side = q.integer(5) == 0U ? core::diff_side::left : core::diff_side::right;
+					line.Line = static_cast<std::uint32_t>(q.integer(6));
+					if (!q.null(7)) {
+						const auto kept = q.bytes(7);
+						require(kept.size() == 20U || kept.size() == 32U, error::integrity);
+						std::array<std::uint8_t, 32> data{ };
+						std::ranges::copy(kept, data.begin());
+						line.Blob = core::git_blob_oid{ kept.size() == 20U ? core::git_hash_algorithm::sha1 : core::git_hash_algorithm::sha256, data };
+					}
+					result.Attachment->Line = line;
 				}
 				require(application::valid(result), error::integrity);
 				q.done();
@@ -406,6 +421,7 @@ namespace bpr::adapters::sqlite::detail {
 				write("DELETE FROM private_legacy_note WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_turn WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_note_path WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
+				write("DELETE FROM private_note_line WHERE scope_id=?1 AND thread_id=?2", Scope, aId);
 				write("DELETE FROM private_thread WHERE scope_id=?1 AND id=?2", Scope, aId);
 				write("DELETE FROM private_content WHERE scope_id=?1 AND kind=0 AND owner_id=?2", Scope, aId);
 			}
@@ -460,6 +476,17 @@ namespace bpr::adapters::sqlite::detail {
 				aDb.write("INSERT INTO private_note_path(scope_id,thread_id,path) VALUES(?1,?2,?3) ON CONFLICT(scope_id,thread_id) DO UPDATE SET path=excluded.path", aDb.Scope, header.Id.value(), *aNote.FilePath);
 			} else if (aCurrent && aCurrent->FilePath) {
 				accepted.FilePath = aCurrent->FilePath;
+			}
+			// [[BPR-1591]]. The line is written once, with a new note; an edit
+			// keeps the attachment, and so its line, exactly.
+			if (!aCurrent && !aMigrating && aNote.Attachment && aNote.Attachment->Line) {
+				const auto& line = *aNote.Attachment->Line;
+				auto        blob = std::optional<std::vector<std::uint8_t>>{ };
+				if (line.Blob) {
+					blob = std::vector<std::uint8_t>(line.Blob->bytes().begin(), line.Blob->bytes().begin() + static_cast<std::ptrdiff_t>(line.Blob->byte_count()));
+				}
+				aDb.write("INSERT INTO private_note_line(scope_id,thread_id,side,line,blob) VALUES(?1,?2,?3,?4,?5)", aDb.Scope, header.Id.value(), line.Side == core::diff_side::left ? 0 : 1,
+						  static_cast<std::int64_t>(line.Line), blob);
 			}
 			return accepted;
 		}
@@ -520,6 +547,15 @@ namespace bpr::adapters::sqlite::detail {
 		// Notes written before schema 8 keep no path: they stay honestly
 		// unnamed rather than being given a guessed one.
 		if (!execute(aHandle, PrivateNotePathTable.Sql).has_value()) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		return { };
+	}
+	auto migrate_private_note_lines(sqlite3* aHandle) -> std::expected<void, failure>
+	{
+		// Notes written before schema 10 keep no line: they stay on their
+		// file or the pull request, as they were written.
+		if (!execute(aHandle, PrivateNoteLineTable.Sql).has_value()) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		return { };
@@ -1455,7 +1491,7 @@ namespace bpr::adapters::sqlite::detail {
 					auto        db = database();
 					auto        s  = db.read_state();
 					// Explicit dependency order preserves the connection's zero trigger-depth policy.
-					for (auto table : { "private_publication", "private_run_source", "private_draft", "private_composition_source", "private_composition", "private_edge", "private_turn", "private_legacy_note", "private_thread", "private_content", "private_run" }) {
+					for (auto table : { "private_publication", "private_run_source", "private_draft", "private_composition_source", "private_composition", "private_edge", "private_turn", "private_legacy_note", "private_note_path", "private_note_line", "private_thread", "private_content", "private_run" }) {
 						db.write("DELETE FROM " + std::string{ table } + " WHERE scope_id=?1", Scope);
 					}
 					s.Counts.fill(0);

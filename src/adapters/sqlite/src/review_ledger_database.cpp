@@ -411,6 +411,15 @@ namespace bpr::adapters::sqlite::detail {
 			return tables;
 		}();
 
+		/// [[BPR-1591]]. Schema 10 adds the note line table to schema 9.
+		constexpr auto SchemaVersion10Tables = [] {
+			std::array<schema_table, SchemaVersion9Tables.size() + 1U> tables{ };
+			std::ranges::copy(SchemaVersion9Tables, tables.begin());
+			tables.back() = { PrivateNoteLineTable.Name, PrivateNoteLineTable.Sql };
+			std::ranges::sort(tables, { }, &schema_table::Name);
+			return tables;
+		}();
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -572,6 +581,14 @@ namespace bpr::adapters::sqlite::detail {
 				version = 9;
 			}
 
+			if (version == 9) {
+				if (auto migrated = migrate_private_note_lines(aDatabase); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 10;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -676,7 +693,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion9Tables);
+				SchemaVersion10Tables);
 		}
 
 		struct preflight_file_image
@@ -1118,6 +1135,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion8Tables;
 					} else if (*version == 9) {
 						expected = SchemaVersion9Tables;
+					} else if (*version == 10) {
+						expected = SchemaVersion10Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}
