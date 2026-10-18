@@ -316,3 +316,108 @@ tidy and docs passed. Live BPR-Test PR 108 reply course passed and cleaned
 all its objects; minimum rate header 4970. RFC-BPR-0085 status updated;
 BPR-1595 stays open for Claude. Finishing through board tool and plain push.
 Final integrated suite has not yet run after this landing.
+
+
+## Final integrated verification after BPR-1603 — 2026-10-18
+
+Tested product landing: `6ca8aaccc` (Finish BPR-1603); BPR-1594
+was already finished/pushed at `f9ad0ffc4`. BPR-1603's owner Accept was
+session `d28b9f71…`, decision 6, handback 7, no note. Both cards finished
+through the board helper, with plain pushes. RFC-BPR-0085 execution status
+is updated; BPR-1595 stays open for Claude.
+
+Ran exactly one uninterrupted integrated suite after the final landing:
+`cmake --preset dev`, `cmake --build --preset dev`, then
+`CTEST_PARALLEL_LEVEL=4 ctest --preset dev --output-on-failure`.
+Configure/build passed. Machine was quiet at launch and checked again during
+the run: no other build/test processes; CTest's own nested production build
+and serial GUI rows were retained. Own CTest PID 998 was never paused.
+Result: **789 passed, 8 failed, 1 skipped, 798 total**, 3748.64 seconds
+(62 min 28.64 s). All eight failures were rerun individually with exact-name
+filters and `-j 1`; each reproduced the same deterministic assertion. No
+narrow timing failures remained. Diagnostic-context age and live-mutation
+isolation, which the earlier interrupted run affected, both passed.
+
+### Every remaining suite failure and cause
+
+| Test | Cause |
+| --- | --- |
+| `contained_temporary_usage_contract` | A: direct tempfile call bypasses the required contained-temporary helper. |
+| `qt_composed_github_scale_100` | B: legacy Agent tools stack assertion. |
+| `qt_composed_github_scale_125` | B: same legacy Agent tools stack assertion. |
+| `qt_composed_github_scale_200` | B: same legacy Agent tools stack assertion. |
+| `application_review_submission_composition_public_path` | C: legacy Agent purpose/tab visibility assertion. |
+| `application_review_submission_composition_scale_125` | C: same legacy Agent purpose/tab visibility assertion. |
+| `application_review_submission_composition_scale_200` | C: same legacy Agent purpose/tab visibility assertion. |
+| `application_thread_words_public_path` | D: review-thread wording scan also rejects legitimate Agent chat text. |
+
+A. `tests/end_to_end/profile_recovery_course.py:92` calls
+`tempfile.mkdtemp`; the policy course requires
+`scripts/contained_temporary_support`. Introduced by `08d50fe93`, before
+BPR-1603. The helper preserves usable inherited permissions for contained
+Windows tests; this is a portability-policy violation in the fixture.
+
+B. `tests/adapters_qt/composed_github_tests.cpp:116` still selects
+`privateConversationTabs`' old Agent-tools page. Its assertion at 5970
+requires the original launcher, side-chat and finding-queue widgets to be
+visible in their old vertical order. BPR-1594 intentionally leaves that
+legacy column hidden and presents the new `agent_tab_view`, borrowing its
+controls. `workbench_window.cpp:3023-3027` constructs the new tab and hides
+the old tabs. The three tests are out of sync with the accepted presentation;
+the current Agent-tab/window tests pass at all three scales.
+
+C. `tests/end_to_end/review_submission_composition_public_path.cpp:380`
+requires `workbenchNotesPurpose` to be visible and compares its dimensions
+with `privateConversationTabs`. BPR-1594 deliberately hides both legacy
+widgets (`workbench_window.cpp:3026-3027`) in favor of the accepted Agent
+tab. All three course variants abort at this stale UI assertion, before the
+remaining publication checks. Existing focused submission/safety checks pass.
+
+D. `tests/end_to_end/setup_destination_public_path_tests.cpp:1295-1308`
+exempts only the literal `AI conversations`, then rejects any remaining
+`conversation` anywhere in the collected UI/accessibility strings. The
+accepted Agent UI now says `Agent conversations, findings and private
+history` in its action/tab tooltips and `Back to the conversation` in
+`agentHistoryBack`. These refer to Agent chat, not a review thread. The
+scan's Agent-context exemption is stale; its own comment explicitly keeps
+agent conversations distinct from review threads.
+
+### Deliberate skip and gates
+
+`application_large_review_cache_bytes` skipped with code 77 because the dev
+build is Debug. `large_review_benchmark.cpp:2263` explicitly restricts that
+byte-pressure benchmark to optimized builds. This is not a passing benchmark.
+
+`cmake --build --preset dev --target coding-format-check coding-tidy`
+completed: format22 passed all 1652 files; full tidy checked 914 translation
+units with six analyzers and failed on the following three findings. Each
+unit was rerun individually with warnings-as-errors and reproduced exactly.
+
+| Location | Diagnostic and cause |
+| --- | --- |
+| `src/adapters/qt/src/private_notes_panel.cpp:793` | `performance-no-automatic-move`: `const auto label` (line 789) is returned by value; constness prevents the automatic move. From c2487b2585 (BPR-1592). |
+| `src/adapters/qt/src/review_tour_editor.cpp:289` | `performance-unnecessary-copy-initialization`: local `doc` copies `excerpt` and is never modified before use. From eb4990c98d (BPR-1593). |
+| `tests/end_to_end/review_submission_composition_public_path.cpp:323` | `bugprone-optional-value-conversion`: dereferences `Attachment->Line` only to wrap it back into an optional. From c2487b2585 (BPR-1592). |
+
+The isolated tidy logs are `/tmp/bpr-final1603-tidy-rerun-{1,2,3}.log`;
+`/tmp/bpr-final1603-tidy-reruns.json` maps each to its source path. These
+remaining findings and suite failures are reported rather than folded into
+an unrelated repair/card. The new conversation read/reply public path and
+round-trip composition contract passed in the full suite (4.35/2.65 s).
+
+Concurrent main commits 0378ab977 (issue allocations) and 6a7073240
+(Insights RFC pack) changed documentation only. Checked the diff from the
+tested product: no src, tests or build-configuration change. Final documentation
+gate and all 67 documentation tests passed on this report and current main.
+
+Evidence retained outside Git: `/tmp/bpr-final1603-configure.log`,
+`/tmp/bpr-final1603-build.log`, `/tmp/bpr-final1603-full.log`,
+`/tmp/bpr-final1603-reruns.json`, each exact-name rerun log and
+`/tmp/bpr-final1603-gates.log`. No raw test output or build artifacts committed.
+
+Cleanup completed: stopped the BPR-1603 review host, released protection,
+removed its frozen root with the freeze helper, removed its worktree/build
+and merged local branch, and pruned worktrees. BPR-1594's server/root/worktree
+were already cleaned after landing. Removed the final main `build/dev`
+tree after all tests/analyzers exited. The shared dependency cache is
+preserved. The explicitly retained BPR-1593 worktree remains for Claude.
