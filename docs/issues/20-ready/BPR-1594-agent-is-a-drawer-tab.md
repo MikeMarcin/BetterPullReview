@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1594"
 title: "Agent is a drawer tab"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1592"]
 priority: "P2"
