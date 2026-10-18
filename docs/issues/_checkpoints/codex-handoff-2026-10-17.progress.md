@@ -69,17 +69,21 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    documentation and diff checks. Composition pins match BPR-1598.
    The new regression also covers cached arrival and a later load.
    Finished/pushed in `2e37e282e`; worktree, branch and 1.1 GB build removed.
-8. Task-owned housekeeping: complete. All handed-off branches/worktrees and
+7b. BPR-1601: added by the coordinator’s updated handoff at `ede68f51c`,
+   received through origin/main `7836cd9fb` before the final run began.
+   BPR-1589 is landed; conversation-comment/review-summary read state is next.
+8. Task-owned housekeeping: complete for items 1–7; repeat for 7b after landing. All handed-off branches/worktrees and
    frozen roots are absent. The audited BPR-1568, BPR-1577, BPR-1578 and
    BPR-1597 candidates are unprotected; all recorded host PIDs are absent.
    Historical decisions and session files are retained. The older BPR-1568
    mockup session was already unprotected and has no host or frozen build.
    `git worktree prune` completes; unrelated and paused work is retained.
-9. One final integrated configure/build/full ctest and format/tidy: starting
-   after cleanup on main (product source `2e37e282e`). No other build/test/
-   analyzer process was active at the start; 155 GiB is free. Debug uses `-g0`
-   to limit disk use, with assertions and test behavior unchanged. Build and
-   CTest concurrency will be bounded, respecting the registered serial rows.
+9. One final integrated configure/build/full ctest and format/tidy: not
+   started. The preflight cleanup push met a newer origin/main and was merged
+   normally. Its amended handoff adds item 7b before this run. The earlier
+   155 GiB/no-other-build preflight will be repeated after that landing. Debug
+   will use `-g0` for disk use, with assertions and test behavior unchanged.
    Every full-suite failure will be rerun alone and its cause recorded.
 
-Do not touch paused RFC-BPR-0085 work BPR-1589–1595 or its worktree.
+Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.
+BPR-1589 landed separately; the amended handoff assigns BPR-1601 here.
