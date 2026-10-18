@@ -2007,8 +2007,8 @@ namespace {
 	auto test_glaze_anonymous_comment_normalization() -> void
 	{
 		auto recording = load_recording("github-com", server_contract::github_com);
-		std::erase_if(recording.Responses, [](const auto& response) {
-			return response.Operation == read_operation::get_viewer_identity || response.Operation == read_operation::list_review_threads;
+		std::erase_if(recording.Responses, [](const auto& aResponse) {
+			return aResponse.Operation == read_operation::get_viewer_identity || aResponse.Operation == read_operation::list_review_threads;
 		});
 		const auto inlineResponse = recording.Responses.size();
 		recording.Responses.push_back({ .Operation = read_operation::list_review_comments,

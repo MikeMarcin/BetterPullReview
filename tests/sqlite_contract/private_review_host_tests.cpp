@@ -676,7 +676,7 @@ namespace {
 		shared_draft_authority        authority{ .BprProfile = f.Binding.Scope.Profile, .ProfileAuthority = { .Profile = host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = f.Binding.Scope.Host, .Hostname = github_canonical_hostname{ "github.com" }, .ProbeContractRevision = github_probe_contract_revision{ 1 } }, .HostAuthority = f.Binding.HostAuthority, .Session = application_session_id{ 1 }, .Generation = github_identity_generation{ 1 }, .Account = f.Binding.Scope.Account, .Mode = github_access_mode::authenticated, .Target = { f.Binding.Scope.Host, f.Binding.Scope.Repository, f.Binding.Scope.PullRequest, f.Binding.Revision.HeadOid } };
 		shared_draft_application_host shared(authority, review_draft_scope_id{ 9 }, current);
 		std::size_t                   publications = 0;
-		auto                          consumer     = *shared.attach(authority, { f.Binding.Scope.Profile, bpr_window_id{ 1 }, bpr_window_generation{ 1 } }, [&](const auto& d) { ++publications; expect(reopened->load_draft(d.Draft.Id)->Draft.Revision == d.Revision, "persistence precedes shared draft projection"); });
+		auto                          consumer     = *shared.attach(authority, { f.Binding.Scope.Profile, bpr_window_id{ 1 }, bpr_window_generation{ 1 } }, [&](const auto& aDraft) { ++publications; expect(reopened->load_draft(aDraft.Draft.Id)->Draft.Revision == aDraft.Revision, "persistence precedes shared draft projection"); });
 		expect(shared.adopt(authority, *restored).has_value() && publications == 1, "existing draft owner reattaches and fans out durable value");
 		auto command = revisioned_review_draft_command{ { draft.Draft.Id, review_draft_command_kind::edit, "Final reviewer edit" }, draft.Revision, false, { }, review_draft_scope_id{ 9 } };
 		expect(shared.apply(consumer, command).Failure == shared_draft_failure::durable_required, "volatile path cannot overwrite durable draft");
@@ -705,7 +705,7 @@ namespace {
 		auto request               = f.request("");
 		request.Context.EntryPoint = agent_entry_point::workshop_comment;
 		request.PrivateRun         = *compositions.agent_intent(workspace->State.Id, workspace->Version);
-		f.Process.OnStart          = [&](const auto& launch) { expect(launch.DeferredContext.find("SELECTED_CANARY") != std::string::npos && launch.DeferredContext.find("UNSELECTED_PRIVATE") == std::string::npos, "squash uses exact selected input through existing invocation"); };
+		f.Process.OnStart          = [&](const auto& aLaunch) { expect(aLaunch.DeferredContext.find("SELECTED_CANARY") != std::string::npos && aLaunch.DeferredContext.find("UNSELECTED_PRIVATE") == std::string::npos, "squash uses exact selected input through existing invocation"); };
 		f.send(request);
 		auto saved = f.Store->load_composition(workspace->State.Id);
 		expect(f.Process.Starts == 1 && saved && saved->State.Candidate && saved->State.Lifecycle == review_composition_lifecycle::editing && f.Store->list_drafts()->empty(), "one explicit run produces only an unaccepted proposal");
@@ -840,7 +840,7 @@ namespace {
 		auto invocation               = f.request("");
 		invocation.Context.EntryPoint = agent_entry_point::workshop_comment;
 		invocation.PrivateRun         = *host.agent_intent(agent->State.Id, agent->Version);
-		f.Process.OnStart             = [&](const auto& launch) { launch.PrivateInputClaim->release(); expect(f.edit(local).has_value(), "source advances after input delivery"); };
+		f.Process.OnStart             = [&](const auto& aLaunch) { aLaunch.PrivateInputClaim->release(); expect(f.edit(local).has_value(), "source advances after input delivery"); };
 		f.send(invocation);
 		expect(!f.Store->load_composition(agent->State.Id)->State.Candidate && f.Store->load_run_details(std::array{ f.Process.Last.Run })->front().Outcome == private_run_outcome::succeeded, "late source edit retains terminal run but refuses candidate");
 	}

@@ -666,13 +666,13 @@ namespace {
 		dirty.close();
 		const auto oldDirectory = QDir::currentPath();
 		require(QDir::setCurrent(QString::fromStdString(worktree.string())), "enter dirty worktree for source check");
-		auto read = [&](const std::string& commit, std::string path, core::diff_side side, std::uint32_t last = 0) {
-			const auto                        oid = commit_oid(commit);
-			const core::tour_code_destination destination{ .Commit = oid, .Path = path, .Side = side, .LastLine = last };
+		auto read = [&](const std::string& aCommit, std::string aPath, core::diff_side aSide, std::uint32_t aLast = 0) {
+			const auto                        oid = commit_oid(aCommit);
+			const core::tour_code_destination destination{ .Commit = oid, .Path = aPath, .Side = aSide, .LastLine = aLast };
 			const auto                        context = application::review_tour_source_context(*value.Host, value.Authority, destination);
 			require(context.has_value(), "pinned source context is admitted by the shared service");
-			const std::u8string                                native{ reinterpret_cast<const char8_t*>(path.data()), path.size() };
-			const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, value.Authority.ApplicationSession, core::request_generation{ 1 } }, .WorkbenchAuthority = value.Authority, .Diff = *context, .File = { .File = core::file_identity_of(path), .PresentationPath = path, .CurrentPath = std::filesystem::path{ native }, .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
+			const std::u8string                                native{ reinterpret_cast<const char8_t*>(aPath.data()), aPath.size() };
+			const application::workbench_selected_diff_request request{ .Context = { core::request_id{ 1 }, value.Authority.ApplicationSession, core::request_generation{ 1 } }, .WorkbenchAuthority = value.Authority, .Diff = *context, .File = { .File = core::file_identity_of(aPath), .PresentationPath = aPath, .CurrentPath = std::filesystem::path{ native }, .Change = application::workbench_file_change_kind::unchanged, .ContentKind = application::workbench_file_content_kind::text } };
 			auto                                               result = std::async(std::launch::async, [&] { return application::materialize_review_tour_source(*value.Host, *value.Host, request, destination, { }); });
 			while (result.wait_for(std::chrono::milliseconds{ 0 }) != std::future_status::ready) {
 				if (!value.Effects.empty()) {

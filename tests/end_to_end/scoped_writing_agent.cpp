@@ -13,7 +13,7 @@ namespace {
 #if defined(_MSC_VER)
 		char*       value = nullptr;
 		std::size_t size  = 0;
-		const auto  error = _dupenv_s(&value, &size, name);
+		const auto  error = _dupenv_s(&value, &size, aName);
 		std::free(value);
 		return error != 0 || size != 0;
 #else
