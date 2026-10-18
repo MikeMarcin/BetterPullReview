@@ -86,7 +86,10 @@ namespace bpr::adapters::sqlite::detail {
 	/// bit. Older window rows retain the four original bits and start it expanded.
 	/// Twenty since [[BPR-1512]]: the profile's center ribbon width, defaulting
 	/// to 28 logical pixels, with all previous profile and window choices retained.
-	inline constexpr std::int64_t workbench_settings_schema_version = 21;
+	/// Twenty-one since RFC-BPR-0084: whether body images load. Twenty-two since
+	/// [[BPR-1584]]: the reading width of Threads and Discuss, Wide for a
+	/// migrated row.
+	inline constexpr std::int64_t workbench_settings_schema_version = 22;
 
 	/// \brief Owns the durable workbench layout database.
 	///

@@ -1,3 +1,12 @@
+# BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
+# production-app change is 2a789264e in github_application.cpp, the Threads
+# row menu's Mark as Unread: the window's new unread dispatch and
+# mark_conversation_unread, which builds the accepted thread's post
+# observation as Mark read does and hands it to the review ledger host, whose
+# core decision moves the private seen cursor. No provider, grant, credential,
+# publication or mutation-branch change; the mutation digest is unchanged.
+# Reviewed by its implementer; the composed course is
+# application_profile_multi_window_public_path's Mark as Unread section.
 # BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
 # a confirmed kept-reply action can arrive while a reread reopens private storage.
 # Retain its core-admitted command/CAS with the exact shared owner and consumer;
@@ -1532,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"01b7b600c057a67fd3c5cc8f15a59d2f06c135330eb52dbd0e4e3559b49df5c2"
+		"1c9ac5ffbd9c1a122273449ddb4f302d3c8b1ea52b52f9ffbc71902047ed78fd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f1de76d8ad129d115fa75d8843e44ab54fdd13f992f23e2f7f1c8f3e3153a414"
+        "447a3f9d4c0731460cef046a2a5078909f9c7fb6a15a27cdbc6b64085138573e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2709,3 +2718,15 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # stood, so the title row holds sixteen actions. No grant, target, provider,
 # credential, transport, GitHub write, mutation or publication path changes;
 # the production mutation-branch pin is unchanged. Self-review on BPR-1580.
+
+# [[BPR-1573]] reseal over main at 83ed4d8fd, recomputed on the tree that
+# merges this card onto it (branch 647fbc653..the BPR-1573 product commits
+# 86d655c1c, 58ee21f56 and 6ae61c231). github_application.cpp adds Close
+# review: the window's close dispatch cancels a reading restoration, sends
+# close_pull_request_intent to this window's read lane, whose host invalidates
+# the epoch authority (the composition's existing invalidate path, as opening
+# another pull request takes), then starts the document tabs again as BPR-1539
+# does. A test-build accessor reports what the window holds of its review. No
+# grant, target, provider, credential, transport, GitHub write, mutation or
+# publication path changes; the production mutation-branch pin is unchanged.
+# Self-review on BPR-1573.

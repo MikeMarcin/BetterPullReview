@@ -448,6 +448,39 @@ namespace bpr::core {
 				true);
 		}
 
+		/// [[BPR-1573]]. Close review. The session is kept; the pull request
+		/// scope is cleared and the request generation moves on, so nothing
+		/// the closed read answers can be accepted afterwards.
+		[[nodiscard]] auto close_pull_request(github_state& aState)
+			-> github_transition_output
+		{
+			if (!aState.ActiveLocator.has_value() && !aState.PendingPullRequest.has_value()
+				&& !aState.PullRequest.has_value()) {
+				return reject(github_reason_code::no_active_pull_request);
+			}
+			const auto abandoned = aState.PendingPullRequest;
+			aState.PendingPullRequest.reset();
+			aState.ActiveLocator.reset();
+			aState.ActiveNumber.reset();
+			aState.Repository.reset();
+			aState.PullRequest.reset();
+			aState.AcceptedSnapshot.reset();
+			aState.PullRequestGeneration = request_generation{
+				aState.PullRequestGeneration.value() + 1U
+			};
+
+			github_transition_output output;
+			output.Changed = github_changed_domain::pull_request
+				| github_changed_domain::status;
+			output.PullRequest = pull_request_summary_delta{ .Summary = std::nullopt };
+			output.Status      = github_status_delta{ .Status = github_status::session_ready };
+			if (abandoned.has_value()) {
+				output.Read = read_delta(*abandoned, pull_request_read_stage::cancelled, github_reason_code::cancelled);
+			}
+			publish_commands(aState, output);
+			return output;
+		}
+
 		[[nodiscard]] auto pull_request_loaded(
 			github_state&                    aState,
 			const pull_request_loaded_event& aEvent) -> github_transition_output
@@ -641,6 +674,8 @@ namespace bpr::core {
 				} else if constexpr (
 					std::is_same_v<event_type, refresh_pull_request_intent>) {
 					return refresh_pull_request(aState);
+				} else if constexpr (std::is_same_v<event_type, close_pull_request_intent>) {
+					return close_pull_request(aState);
 				} else if constexpr (
 					std::is_same_v<event_type, github_session_ready_event>) {
 					return session_ready(aState, aTypedEvent);

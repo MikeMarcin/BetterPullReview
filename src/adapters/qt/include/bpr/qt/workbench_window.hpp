@@ -496,7 +496,7 @@ namespace bpr::qt {
 		/// it last had, the Comments drawer if it is closed (a manual open),
 		/// and the thread in place at \p aPost, once the file's comparison
 		/// shows it. False when the window has no such conversation.
-		auto open_conversation_in_review(const std::string& aThread, const std::string& aPost) -> bool;
+		auto open_conversation_in_review(const std::string& aThread, const std::string& aPost, bool aFocus = false) -> bool;
 		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review, named
 		/// by its root or any of its posts; false for one that is not on a file.
 		auto reveal_conversation_in_review(const std::string& aIdentity) -> bool;
@@ -506,6 +506,23 @@ namespace bpr::qt {
 		/// `core::route_workbench_thread`, and the window performs the route.
 		/// False when the window has no such thread.
 		auto open_thread_from_threads(const std::string& aThread, const std::string& aPost, core::workbench_thread_destination aDestination) -> bool;
+		/// \brief [[BPR-1581]]. Moves one thread, named by its root or one of
+		/// its posts, to Review or Discuss where the core routes it, from a
+		/// gesture made in \p aOrigin. The window observes the facts (a draft,
+		/// on a file, at a current line, which of Discuss's filters hide it),
+		/// `core::route_workbench_thread` decides, and the window performs:
+		/// the thread opens at the post, selected, in view and focused, and
+		/// the post's arrival is marked briefly. False when nothing moved; the
+		/// status bar says why.
+		auto move_thread(const std::string& aIdentity, core::workbench_thread_origin aOrigin, core::workbench_thread_destination aDestination) -> bool;
+		/// \brief [[BPR-1581]]. Show in Discuss (⌥⌘3) or Show in Review (⌥⌘2)
+		/// for what the window holds selected, as
+		/// `core::choose_workbench_thread_target` chooses it.
+		auto               show_selected_thread(core::workbench_thread_destination aDestination) -> bool;
+		[[nodiscard]] auto show_thread_in_discuss_action() const noexcept -> QAction*;
+		[[nodiscard]] auto show_thread_in_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1586]]. Show Thread in Threads (⌥⌘4), from Review.
+		[[nodiscard]] auto show_thread_in_threads_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.
 		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
@@ -654,6 +671,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_repository_onboarding_button() const noexcept -> QPushButton*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
+		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
+		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-0661]]. Adopts the sink the Reviews & queue preference rows dispatch to.
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
 		/// \brief The review-behaviour preferences the host last published.
@@ -1164,6 +1183,15 @@ namespace bpr::qt {
 		void               present(const application::home_open_projection& aProjection);
 		[[nodiscard]] auto home_open() const noexcept -> const std::optional<application::home_open_projection>&;
 		void               set_home_open_dispatch(application::home_open_dispatch aDispatch);
+		/// \brief [[BPR-1573]]. Close review on Home: the composition releases
+		/// this window's review, as the core decides.
+		void set_close_review_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1573]]. Close review's gesture, as the button gives it.
+		///
+		/// \details Only over an open review. Once the review is gone, Home has
+		/// nothing to return to: the status bar says what was closed and the bar
+		/// takes focus, since the button that had it is gone.
+		void close_review();
 		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
 		void set_home_failure_ink(const QColor& aInk);
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
@@ -1717,6 +1745,17 @@ namespace bpr::qt {
 		void apply_line_details();
 		/// RFC-BPR-0084 Q3. Shows or hides images in descriptions and comments.
 		void apply_markdown_images();
+		/// [[BPR-1584]]. Threads' and Discuss's reading width; never the code.
+		void apply_reading_width();
+		/// [[BPR-1581]]. My draft in Discuss's composer, as Maximize opens it.
+		auto show_draft_in_discuss(const std::string& aCard) -> bool;
+		/// [[BPR-1581]]. The thread the drawer holds on a line, without
+		/// opening the drawer.
+		[[nodiscard]] auto thread_card_on_line(core::diff_side aSide, std::uint32_t aLine) const -> std::optional<std::string>;
+		/// [[BPR-1581]]. Updates Show in Discuss and Show in Review.
+		void update_show_thread_actions();
+		/// [[BPR-1586]]. Threads with the thread's row the cursor's, at its post.
+		auto show_thread_in_threads(const std::string& aThread, const std::string& aPost) -> bool;
 		void apply_line_numbers();
 		void dispatch_one_pane_toggle();
 		void apply_one_pane();
@@ -2102,6 +2141,10 @@ namespace bpr::qt {
 		QWidget*             ThreadsPage       = nullptr;
 		conversation_finder* Finder            = nullptr;
 		QAction*             ShowThreadsAction = nullptr;
+		/// [[BPR-1581]]. ⌥⌘3 and ⌥⌘2.
+		QAction* ShowInDiscussAction = nullptr;
+		QAction* ShowInReviewAction  = nullptr;
+		QAction* ShowInThreadsAction = nullptr;
 		/// The modality Threads was entered from, and where focus was.
 		std::optional<review_modality> ThreadsReturn;
 		QPointer<QWidget>              ThreadsReturnFocus;
@@ -2112,6 +2155,8 @@ namespace bpr::qt {
 			std::string                                 Post;
 			core::file_identity                         File{ };
 			std::optional<core::file_comparison_digest> Before;
+			/// [[BPR-1581]]. The notes take the keyboard once it opens.
+			bool Focus = false;
 		};
 		std::optional<conversation_pick> PendingPick;
 		/// [[BPR-1345]] v002. A pending comment waiting for its file's
@@ -2172,6 +2217,7 @@ namespace bpr::qt {
 		std::array<navigation_entry, 2> ChangeEnds{ };
 		QAction*                        NextNewCommentAction = nullptr;
 		conversation_read_dispatch      ConversationReadDispatch;
+		conversation_read_dispatch      ConversationUnreadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
 		files_tree_view*                FilesTree                = nullptr;
@@ -2295,6 +2341,7 @@ namespace bpr::qt {
 		QPushButton*                                     HomeOpenRetry      = nullptr;
 		std::optional<application::home_open_projection> HomeOpen;
 		application::home_open_dispatch                  HomeOpenDispatch;
+		std::function<void()>                            CloseReviewDispatch;
 		/// Whether a shown Home row carries the opening, so the band does not.
 		bool                                                         HomeOpenOnRow = false;
 		QString                                                      LastHomeOpenAnnouncement;
@@ -2334,7 +2381,7 @@ namespace bpr::qt {
 		review_behaviour_dispatch                 BehaviourDispatch;
 		application::review_behaviour_settings    Behaviour;
 		QWidget*                                  BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 10> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 11> BehaviourOptions{ };
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.

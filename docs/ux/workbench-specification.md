@@ -121,8 +121,10 @@ file, with its line, its first post's label mark, its first words, an avatar
 per post in posting order and its new count, resolved tick or draft lock; a
 row branches only where a post has two or more replies that have replies of
 their own. Search takes words, a person, a file or a line number; the filters
-are Only new, Hide resolved and one label. Picking a row or an avatar enters
-Review on that file, opens the Comments drawer if it is closed, and opens the
+are Only new, Hide resolved and one label. A click on a row or an avatar
+selects it and opens nothing, as everywhere else ([[BPR-1582]]); a double
+click, Return or the row's Review button picks it. Picking a row or an avatar
+enters Review on that file, opens the Comments drawer if it is closed, and opens the
 thread in place at its line with the picked post washed amber and scrolled
 into view. ⌘J again, or Esc on an empty search, returns to where it was
 entered from. Pull request comments and review summaries that are not on a
@@ -143,11 +145,22 @@ buttons: the whole pull request name, title included, fits at 1280 on every
 platform.
 
 **Open in Discuss from Threads** ([[BPR-1356]], the owner, 2026-10-09: "Do
-it"). A click or Return still opens a thread in Review. Each thread row also
-offers Discuss: a small **Discuss** button shows at the end of its words on
-the row under the pointer and on the cursor's row, never on a file's header
-or on my draft, and takes the words' room so the people never move. Its
-tooltip, anchored right below it, reads "Open in Discuss (⇧↩)". Shift+Return
+it"). A double click or Return opens a thread in Review ([[BPR-1582]]: a
+single click only selects). Each thread row also offers Discuss: a small
+**Discuss** button shows at the end of its words on the row under the pointer
+and on the cursor's row, never on a file's header or on my draft, and takes
+the words' room so the people never move. Its tooltip, anchored right below
+it, reads "Open in Discuss (⇧↩)". [[BPR-1582]] (owner decision, 2026-10-17):
+a **Review** button, the same quiet pill, stands just left of it, one pair in
+the menu's order; my draft shows Review alone. Its tooltip reads "Open in
+Review (↩)". A press on either button opens at once; Shift with a double click
+opens in Discuss. The row menu adds, after the two destinations, **Mark as
+Read** for a thread with new posts or **Mark as Unread** for a read one: Mark
+as Read is the card's Mark read, and Mark as Unread is the core's
+`mark_conversation_unread`, which moves the seen cursor back so the latest
+post someone else wrote is new again (a thread whose every post is mine
+offers it disabled). No per-thread Copy link or Open on GitHub exists
+elsewhere, so the menu has none; the list selects one row at a time. Shift+Return
 (keypad Enter too) opens the cursor's thread, or the post under the cursor,
 in Discuss. A right click on a row, or the menu key or Shift+F10 on the
 cursor's row, opens the row menu: **Open in Review** (the default, drawn
@@ -201,14 +214,66 @@ It enters Review on the thread's file, opens the Comments
 drawer and selects its Comments tab. The exact thread opens at its first post
 beside the source line once that file's comparison is ready, using the same
 pending pick as Threads. This also works when the Comments drawer was closed,
-Notes was selected, or a different file was shown. The menu keeps unavailable
-anchors and PR-wide comments disabled with their existing explanation.
+Notes was selected, or a different file was shown. The menu keeps PR-wide
+comments disabled with their explanation; since [[BPR-1581]] a thread on a
+file with no current line opens among its file's unplaced threads.
 Right-clicking an individual comment or reply body, or opening its keyboard
 context menu, also offers **Open in Review** in rendered and source view.
 That gesture selects the exact post that was clicked, including a reply,
 rather than the first post. Its disabled action explains a missing current
 code anchor; draft bodies do not offer it. Review's own body menu stays the
 native reader menu.
+
+**Show in Discuss, and back** ([[BPR-1581]], the owner, 2026-10-17: "Why
+can't I go from a selected comment in Review to see it in Discuss easily?").
+Beside the code a thread's menu (More, a right click on its note or open card,
+the menu key, Shift+F10) offers **Show in Discuss** after Show line; a post's
+own body menu offers it for that post (the native menu, extended); the code's
+menu on a line with a thread offers it after Open thread, showing its key; and
+my draft's note offers it too. **Show Thread in Discuss** (`Ctrl+Alt+3`, ⌥⌘3,
+beside ⌘3) and **Show Thread in Review** (`Ctrl+Alt+2`, ⌥⌘2, beside ⌘2) are
+View menu items for the selected thread: with the keyboard in the code, the
+selected line's thread; otherwise the open thread at its picked post, then
+the drawer's current thread at its selected post, then the selected line's
+(`core::choose_workbench_thread_target`). Both step aside while the keyboard
+types, since Ctrl+Alt is AltGr on Windows. Every move between Threads, Review
+and Discuss goes through the one route (`core::route_workbench_thread`, with
+the gesture's origin): the thread opens at the post, selected, in view and
+holding the keyboard, Discuss's hiding filters turned off and said as above.
+On arrival the post's amber wash is drawn stronger with an amber ring, held
+for 0.7 seconds, then dissolves over 0.65 seconds to the pick's resting wash:
+a dissolve, not motion. An outdated thread is listed in Discuss, and Open in
+Review now opens it among its file's threads without a line, as a Threads
+pick does, saying so in the status bar. A pull request comment or review
+summary is not on a file: Review has no place for it, so its Open in Review
+is disabled with that reason and ⌥⌘2 leaves Discuss where it is. Discuss lists
+no draft: Show in Discuss on my draft, written or pending, opens it in
+Discuss's composer as Maximize does, and the status bar says so. **Show in
+Threads** ([[BPR-1586]], the owner accepting [[BPR-1581]]: "We should also be
+able to go from rview to show in threads because why not") stands beside
+Show in Discuss in each of those menus, my draft's note included, and **Show
+Thread in Threads** (`Ctrl+Alt+4`, ⌥⌘4, beside ⌘4) does it for the selection:
+Threads opens with the thread's row as the cursor's, at the named post's
+avatar, scrolled into view and holding the keyboard; a search, filter or
+folded file that hides the row is cleared and the status bar says so. A
+comment not on a file has no row, so nothing moves and the status bar says
+why.
+
+**Reading width** ([[BPR-1584]], the owner, 2026-10-17: "is it weird that
+threads is seemingly fixed-width"; "We can make that capped width a
+setting"). Threads' rows had been held to 880 pixels, the prototype's measure
+for its drawer-sized frame, where its window-filling frame had none. Threads'
+rows and Discuss's notes now fill the page from its left edge up to the
+reading width, the people, counts and state at the row's right end and the
+words taking every pixel before them. Settings › Reviews & queue › Reading has
+**Reading width**: Narrow (960 pixels), Medium (1600), **Wide** (2560, the
+default) and Full width, applied at once, with its own reset; its note reads
+"Threads and Discuss stop at this width on a wide screen. The code comparison
+always uses the whole window." The core holds the vocabulary and the rule
+(`core::reading_column_width`); the profile stores it (workbench settings
+schema 22, a migrated profile reads Wide). It never applies to the code
+comparison, the Comments drawer's own bounds, the search field or the
+composer's list.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
@@ -527,6 +592,17 @@ expanded. Exact authority invalidation clears that local state. The native tree
 exposes each folder's path, file count and expansion state to accessibility.
 [[BPR-0934]] recorded the earlier nested hierarchy, which the owner's
 clarification on [[BPR-1213]] replaced with these flat rows.
+
+The table is wide, so file rows alternate between the ground and a quiet band
+to keep the eye on its row across it ([[BPR-1585]]). The band is the theme's
+`Base` moved toward its `Text` until the two stand 1.08:1 apart: neutral, one
+step in every theme, high contrast included. Each folder header starts its
+group on the ground and the files under it take turns, the first on the band,
+counted over the rows shown, so closing a folder, a sort or a hidden row moves
+no other group's turns. Folder headers and Not on a file stay on the ground.
+On a banded row the band is the ground a mark mixes with or cuts its letter
+to, and a selected row is the selection's. Not on a file draws its name and
+its chips only, never an operation, change or read mark.
 
 ## Home
 
@@ -880,12 +956,28 @@ No list, no panels, no filters.
 
 Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
 the filled button at the bar's right on the bar's own line, its description
-naming what is being reviewed and how far through it. Home beneath it is
+naming what is being reviewed and how far through it. Its key is said in its
+tooltip and description, not beside it ([[BPR-1573]], the owner, 2026-10-17:
+"Move this hotkey into the tooltip"). Home beneath it is
 unchanged, and whatever had focus in the review has it again when the review
 returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
 and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
+
+**Close review** follows the way back on the same line
+([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
+to back to review"). It is bordered, so Back to the review stays the page's
+one filled control and Return's default, and it has no key of its own; Tab
+reaches it after Back to the review. Its description names the review and
+says that its drafts are kept. Closing lets go of the review in this window
+only: the window's read forgets the pull request (a read in flight is
+cancelled), and the review is released exactly as opening another pull
+request releases it, so a comment being written is saved and is there when
+the same pull request is opened again; nothing asks first. The document tabs
+start again. Home is left with nothing to return to, the bar takes focus,
+the status bar says "Closed the review of owner/name#123.", and Refresh has
+nothing to reread. Another window showing the same pull request keeps it.
 
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic
@@ -1322,7 +1414,10 @@ never invents enabled state.
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 | Threads ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+4` (⌘4) |
 | Find a thread: go to Threads, or back ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+J` (⌘J) |
-| In Threads, open the cursor's thread in Review, or in Discuss ([[BPR-1356]]) | `Return`; `Shift+Return` (⇧↩) |
+| In Threads, open the cursor's thread in Review, or in Discuss ([[BPR-1356]]); a double click, with Shift for Discuss ([[BPR-1582]]) | `Return`; `Shift+Return` (⇧↩) |
+| Show the selected thread in Discuss, from Review ([[BPR-1581]]) | `Ctrl+Alt+3` (⌥⌘3) |
+| Show the selected thread in Review, from Discuss ([[BPR-1581]]) | `Ctrl+Alt+2` (⌥⌘2) |
+| Show the selected thread's row in Threads, from Review ([[BPR-1586]]) | `Ctrl+Alt+4` (⌥⌘4) |
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |

@@ -6994,6 +6994,34 @@ namespace bpr::app {
 			}
 			TabDestination = aDestination;
 		}
+		/// \brief [[BPR-1573]]. Close review on Home.
+		///
+		/// \details The core forgets this window's pull request; the read host
+		/// stops its read and invalidates the epoch authority, which releases
+		/// the review through `invalidate`, as opening another pull request
+		/// does, so its drafts are kept where that keeps them. The tabs were
+		/// the closed review's and start again, as for another pull request
+		/// ([[BPR-1539]]). Other windows keep their own reads.
+		void close_review()
+		{
+			if (Closing || !WindowRead || !Profile->current_window(DraftWindow)) {
+				return;
+			}
+			cancel_restoration(false, true);
+			WindowRead->dispatch(core::github_window_read_event{ core::close_pull_request_intent{ } });
+			const auto& state = WindowRead->state();
+			if (state.ActiveLocator || state.PendingPullRequest || state.PullRequest) {
+				return;
+			}
+			if (TabHost != nullptr) {
+				cancel_review_navigation();
+				abandon_tab_load();
+				TabPresented.reset();
+				ObservedTabFile.reset();
+				TabHost->reset();
+			}
+			TabDestination.reset();
+		}
 		/// \brief One file/change press bound to the PR and exact active tab that entered Review.
 		struct pending_review_navigation
 		{
@@ -7718,6 +7746,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
 			Window->set_header_source_dispatch([this] { dispatch_header_source(); });
 			Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });
+			Window->set_close_review_dispatch([this] { close_review(); });
 			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 				if (!Closing && TourHost && current(DraftWindow)) {
 					aCommand.Attention = current_tour_attention();
@@ -7900,6 +7929,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			Window->set_conversation_read_dispatch(
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
+			Window->set_conversation_unread_dispatch(
+				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -13900,6 +13931,43 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.LatestComment = latest->Comment,
 					.LatestEdit    = latest->Edit,
 				},
+				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
+					if (!aMarked.has_value()) {
+						return;
+					}
+					const auto cached = cached_thread(aThread);
+					auto       unseen = cached.has_value() ? publish_thread_read_state(*cached) : std::nullopt;
+					if (!unseen.has_value()) {
+						unseen = publish_read_state();
+					}
+					if (unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+				}));
+		}
+
+		/// \brief [[BPR-1582]]. Mark as unread: the core moves the seen cursor
+		/// back so the latest post by someone else is new again, and the
+		/// thread is presented unread once that is durable.
+		void mark_conversation_unread(const std::string& aThread)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return;
+			}
+			auto observation = application::conversation_thread_observation{
+				.Conversation = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+			};
+			for (const auto& comment : thread->Comments) {
+				if (!comment.Deleted) {
+					observation.Posts.push_back(post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login));
+				}
+			}
+			ReviewLedgerHost->mark_conversation_unread(
+				observation,
 				ledger_answer([this, aThread](const std::expected<void, application::ledger_store_failure>& aMarked) {
 					if (!aMarked.has_value()) {
 						return;
@@ -21629,6 +21697,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto* surface         = implementation->Window->comparison_surface();
 			result.PublicationDisplayed = surface->current_result() && surface->current_context()
 				&& surface->current_context()->Key == publication->Key;
+		}
+		return result;
+	}
+
+	auto detail::github_application_fixture_access::close_review(
+		const github_application& aApplication) -> close_review_evidence
+	{
+		auto        result         = close_review_evidence{ };
+		const auto* implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->WindowRead) {
+			return result;
+		}
+		const auto& state           = implementation->WindowRead->state();
+		result.ReadHoldsPullRequest = state.ActiveLocator.has_value() || state.PendingPullRequest.has_value()
+			|| state.PullRequest.has_value() || state.AcceptedSnapshot.has_value();
+		result.SnapshotHeld       = implementation->WindowRead->accepted_snapshot().has_value();
+		result.ReadingDestination = implementation->ReadingDestination.has_value();
+		result.TabDestination     = implementation->TabDestination.has_value();
+		result.LedgerComposed     = implementation->SharedDrafts != nullptr;
+		if (implementation->TabHost != nullptr) {
+			result.Tabs      = implementation->TabHost->state().Tabs.size();
+			result.TabChosen = implementation->TabHost->state().Chosen.has_value();
+		}
+		for (const auto& draft : implementation->saved_draft_values()) {
+			result.SavedDraftBodies.push_back(draft.Body);
 		}
 		return result;
 	}
