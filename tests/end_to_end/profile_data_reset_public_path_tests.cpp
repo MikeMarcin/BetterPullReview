@@ -84,10 +84,22 @@ namespace {
 		return found;
 	}
 
-	const std::set<std::string> cache_stores{ "epoch-catalog", "markdown-images", "review-overviews" };
-	const std::set<std::string> settings_stores{ "appearance-settings", "workbench-settings", "diagnostic-preferences", "window-restoration" };
-	const std::set<std::string> review_stores{ "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" };
-	const std::set<std::string> kept_stores{ "review-queue", "remembered-connections", "device-bindings", "profile-registry" };
+	auto cache_stores() -> std::set<std::string>
+	{
+		return { "epoch-catalog", "markdown-images", "review-overviews" };
+	}
+	auto settings_stores() -> std::set<std::string>
+	{
+		return { "appearance-settings", "workbench-settings", "diagnostic-preferences", "window-restoration" };
+	}
+	auto review_stores() -> std::set<std::string>
+	{
+		return { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" };
+	}
+	auto kept_stores() -> std::set<std::string>
+	{
+		return { "review-queue", "remembered-connections", "device-bindings", "profile-registry" };
+	}
 
 	struct course
 	{
@@ -181,7 +193,7 @@ try {
 
 	const auto logs = log_files(root);
 	expect(!logs.empty(), "the profile has diagnostic logs");
-	const auto check_kept_logs = [&] {
+	const auto checkKeptLogs = [&] {
 		for (const auto& path : logs) {
 			expect(fs::exists(root / path), "no reset removes a diagnostic log");
 		}
@@ -189,8 +201,8 @@ try {
 
 	// Reset settings: its stores go; review data, caches, saved sources and sign-in stay the same files.
 	{
-		const auto settings = inodes(root, settings_stores);
-		const auto other    = inodes(root, [] { auto all = review_stores; all.insert(cache_stores.begin(), cache_stores.end()); all.insert(kept_stores.begin(), kept_stores.end()); return all; }());
+		const auto settings = inodes(root, settings_stores());
+		const auto other    = inodes(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
 		run.reset_from_settings(reset::settings, QStringLiteral("Settings reset"));
 		for (const auto& [store, before] : settings) {
 			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) != before, "Reset settings removed each settings store");
@@ -198,12 +210,12 @@ try {
 		for (const auto& [store, before] : other) {
 			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Reset settings keeps every other store as the same file");
 		}
-		check_kept_logs();
+		checkKeptLogs();
 	}
 	// Clear caches: the comparison history goes; review data and settings stay.
 	{
-		const auto caches = inodes(root, cache_stores);
-		const auto other  = inodes(root, [] { auto all = review_stores; all.insert(kept_stores.begin(), kept_stores.end()); return all; }());
+		const auto caches = inodes(root, cache_stores());
+		const auto other  = inodes(root, [] { auto all = review_stores(); all.merge(kept_stores()); return all; }());
 		run.reset_from_settings(reset::caches, QStringLiteral("Caches cleared"));
 		for (const auto& [store, before] : caches) {
 			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) != before, "Clear caches removed each cache store");
@@ -211,12 +223,12 @@ try {
 		for (const auto& [store, before] : other) {
 			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Clear caches keeps review data and saved sources");
 		}
-		check_kept_logs();
+		checkKeptLogs();
 	}
 	// Reset review data: the review stores go; saved sources and sign-in stay.
 	{
-		const auto review = inodes(root, review_stores);
-		const auto kept   = inodes(root, kept_stores);
+		const auto review = inodes(root, review_stores());
+		const auto kept   = inodes(root, kept_stores());
 		expect(review.at("review-cycles") != 0U, "a review store exists before its reset");
 		run.reset_from_settings(reset::review_data, QStringLiteral("Review data reset"));
 		for (const auto& [store, before] : review) {
@@ -225,7 +237,7 @@ try {
 		for (const auto& [store, before] : kept) {
 			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Reset review data keeps saved sources and sign-in");
 		}
-		check_kept_logs();
+		checkKeptLogs();
 	}
 
 	run.Desktop->quit();

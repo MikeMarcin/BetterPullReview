@@ -83,39 +83,54 @@ namespace {
 		return files;
 	}
 
-	const std::set<std::string> cache_files{
-		"state/v1/epoch-catalog.sqlite3", "state/v1/epoch-catalog.sqlite3-wal", "state/v1/epoch-catalog.lock",
-		"state/v1/markdown-images.sqlite3", "state/v1/review-overviews.sqlite3",
-		std::string{ "repositories/v1/" } + cache_hash + ".git/HEAD",
-		std::string{ "repositories/v1/" } + cache_hash + ".git/betterpullreview-cache-manifest-v1",
-		std::string{ "repositories/v1/" } + cache_hash + ".git/objects/pack/tmp_pack_unfinished",
-		std::string{ "locks/v1/" } + cache_hash + ".lock",
-		"incoming/v1/partial-spool", "quarantine/v1/left-by-a-crash.deleted", "mcp-snapshot/stale/context.json"
-	};
-	const std::set<std::string> settings_files{
-		"state/v1/appearance-settings.sqlite3", "state/v1/workbench-settings.sqlite3", "state/v1/workbench-settings.sqlite3-shm",
-		"state/v1/diagnostic-preferences.sqlite3", "state/v1/window-restoration.sqlite3"
-	};
-	const std::set<std::string> review_files{
-		"state/v1/review-ledger.sqlite3", "state/v1/review-ledger.sqlite3-wal", "state/v1/review-tours.sqlite3",
-		"state/v1/review-cycles.sqlite3", "state/v1/review-mutation-recovery.sqlite3",
-		"publication-git-v1/publication/v1/sha1.git/HEAD"
-	};
-	const std::set<std::string> saved_source_files{ "state/v1/review-queue.sqlite3", "state/v1/review-queue.sqlite3-wal" };
+	auto cache_files() -> std::set<std::string>
+	{
+		return {
+			"state/v1/epoch-catalog.sqlite3", "state/v1/epoch-catalog.sqlite3-wal", "state/v1/epoch-catalog.lock",
+			"state/v1/markdown-images.sqlite3", "state/v1/review-overviews.sqlite3",
+			std::string{ "repositories/v1/" } + cache_hash + ".git/HEAD",
+			std::string{ "repositories/v1/" } + cache_hash + ".git/betterpullreview-cache-manifest-v1",
+			std::string{ "repositories/v1/" } + cache_hash + ".git/objects/pack/tmp_pack_unfinished",
+			std::string{ "locks/v1/" } + cache_hash + ".lock",
+			"incoming/v1/partial-spool", "quarantine/v1/left-by-a-crash.deleted", "mcp-snapshot/stale/context.json"
+		};
+	}
+	auto settings_files() -> std::set<std::string>
+	{
+		return {
+			"state/v1/appearance-settings.sqlite3", "state/v1/workbench-settings.sqlite3", "state/v1/workbench-settings.sqlite3-shm",
+			"state/v1/diagnostic-preferences.sqlite3", "state/v1/window-restoration.sqlite3"
+		};
+	}
+	auto review_files() -> std::set<std::string>
+	{
+		return {
+			"state/v1/review-ledger.sqlite3", "state/v1/review-ledger.sqlite3-wal", "state/v1/review-tours.sqlite3",
+			"state/v1/review-cycles.sqlite3", "state/v1/review-mutation-recovery.sqlite3",
+			"publication-git-v1/publication/v1/sha1.git/HEAD"
+		};
+	}
+	auto saved_source_files() -> std::set<std::string>
+	{
+		return { "state/v1/review-queue.sqlite3", "state/v1/review-queue.sqlite3-wal" };
+	}
 	/// Never part of any reset: sign-in, logs, shared stores, agent work,
 	/// Git isolation, sibling profiles and anything the policy does not name.
-	const std::set<std::string> kept_files{
-		"state/v1/device-bindings.sqlite3", "state/v1/remembered-connections.sqlite3", "state/v1/profile-registry.sqlite3",
-		"state/v1/release-update.sqlite3", "state/v1/update-draft-recovery.sqlite3", "state/v1/a-store-added-later.sqlite3",
-		"logs/session-0123456789abcdef0123456789abcdef-00000001.jsonl", "logs/not-a-log-name",
-		"agent-workspace-ownership-v1/claim", "config-global", "home/.gitconfig", "profiles/other/state/v1/review-ledger.sqlite3",
-		"updates/pending", "an-unknown-top-level-file"
-	};
+	auto kept_files() -> std::set<std::string>
+	{
+		return {
+			"state/v1/device-bindings.sqlite3", "state/v1/remembered-connections.sqlite3", "state/v1/profile-registry.sqlite3",
+			"state/v1/release-update.sqlite3", "state/v1/update-draft-recovery.sqlite3", "state/v1/a-store-added-later.sqlite3",
+			"logs/session-0123456789abcdef0123456789abcdef-00000001.jsonl", "logs/not-a-log-name",
+			"agent-workspace-ownership-v1/claim", "config-global", "home/.gitconfig", "profiles/other/state/v1/review-ledger.sqlite3",
+			"updates/pending", "an-unknown-top-level-file"
+		};
+	}
 
 	void populate(const fs::path& aRoot)
 	{
-		for (const auto* set : { &cache_files, &settings_files, &review_files, &saved_source_files, &kept_files }) {
-			for (const auto& file : *set) {
+		for (const auto& set : { cache_files(), settings_files(), review_files(), saved_source_files(), kept_files() }) {
+			for (const auto& file : set) {
 				write(aRoot, file);
 			}
 		}
@@ -126,16 +141,16 @@ namespace {
 		std::set<std::string> removed;
 		const auto            add = [&removed](const std::set<std::string>& aFiles) { removed.insert(aFiles.begin(), aFiles.end()); };
 		if (aReset == reset::caches || aReset == reset::everything) {
-			add(cache_files);
+			add(cache_files());
 		}
 		if (aReset == reset::settings || aReset == reset::everything) {
-			add(settings_files);
+			add(settings_files());
 		}
 		if (aReset == reset::review_data || aReset == reset::everything) {
-			add(review_files);
+			add(review_files());
 		}
 		if (aReset == reset::everything) {
-			add(saved_source_files);
+			add(saved_source_files());
 		}
 		return removed;
 	}
@@ -227,13 +242,13 @@ namespace {
 			adapters::sqlite::release_maintenance_files files{ root.Path, lease(root.Path), core::bpr_profile_id{ 7U }, core::application_session_id{ 9U } };
 			expect(files.reset(reset::settings, std::nullopt, { }).has_value(), "settings reset completes");
 		}
-		for (const auto& file : cache_files) {
+		for (const auto& file : cache_files()) {
 			expect(fs::exists(root.Path / file), "Reset settings keeps every cache");
 		}
-		for (const auto& file : saved_source_files) {
+		for (const auto& file : saved_source_files()) {
 			expect(fs::exists(root.Path / file), "Reset settings keeps saved repositories and observer rules");
 		}
-		expect_exact(before, root.Path, settings_files, "only settings went");
+		expect_exact(before, root.Path, settings_files(), "only settings went");
 	}
 
 	void test_refusal_removes_nothing()

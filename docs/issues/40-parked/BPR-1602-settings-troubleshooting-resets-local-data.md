@@ -41,13 +41,34 @@ a recovery path when the profile cannot open at all (a startup dialog or a
 - Whole files only: a store is removed with its sidecars or not at all, so a
   damaged database is never opened to be reset.
 
-## Design
+## Owner decision (design)
 
-Pending the owner's pick in a fresh attended session (mockups in Light and
-Dark): A, four rows (Clear caches, Reset settings, Reset review data, Reset
-everything), or B, one Reset local data… with a choice of scopes. Both share
-the scopes, the Removes/Keeps confirmation, the optional copy of removed data,
-and the startup recovery dialog.
+Session `ea1ed38316a18d2afe3b1fe067c699d7`, decision
+`47b87fa1-986d-4927-ac58-07d11d81c8af` (2026-10-18): **A, four rows**, with the
+note "A is fantastic just a little less verbosity on the settings page. the
+confirmation dialog looks great." Through the coordinator the same day: trim
+each row to a short label and one short line; keep the confirmation exactly as
+designed; Reset settings **keeps** saved repositories, servers and observer
+rules and restores only the queue display choices inside `review-queue`;
+Reset everything is the one that clears them, said in its Removes list.
+
+## Design as built
+
+- Settings › Storage & privacy ends with **Troubleshooting**: one lead line
+  ("Each reset keeps you signed in and reopens this profile's windows.") and
+  four rows, each a name, one short line and a button.
+- Each button asks the accepted confirmation: title naming the profile, lead,
+  Removes and Keeps side by side, Cancel the default and Escape. Reset review
+  data and Reset everything add "Save a copy of the removed data in Downloads
+  first" (on) and the acknowledgement, which enables the red button.
+- A confirmed reset closes the profile's windows, runs at the profile's next
+  start under its lease after maintenance recovery and before any store opens,
+  and reopens the profile on Home with a status-bar notice.
+- A profile that cannot open offers Clear caches and try again (default),
+  Reset everything… and Quit, and starts again in the same process.
+  `--reset-profile-data` opens that dialog first;
+  `--reset-profile-data-scope` and `--reset-profile-data-copy` run a reset
+  directly.
 
 ## Acceptance
 
@@ -87,8 +108,9 @@ Proposed scopes, by whole store file with its sidecars:
 | Scope | Files |
 |---|---|
 | Caches | `repositories/`, `incoming/`, `locks/`, `epoch-catalog.sqlite3`, `markdown-images.sqlite3`, `review-overviews.sqlite3`, `mcp-snapshot/` |
-| Settings | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `review-queue` (saved repositories and servers, observer rules, Home's queue), `window-restoration` |
+| Settings | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `window-restoration`; Home's queue display choices restored inside `review-queue` |
 | Review data | `review-ledger`, `review-tours`, `review-cycles` with `publication-git-v1/`, `review-mutation-recovery` |
+| Everything | all three and `review-queue` (saved repositories and servers, observer rules, Home's queue) |
 | Never | `device-bindings`, `remembered-connections`, the vault, `logs/`, `profile-registry`, `release-update`, `update-draft-recovery`, `profiles/`, `updates/`, agent workspaces, exported files |
 
 Review data and Everything need an explicit acknowledgement and offer a copy
