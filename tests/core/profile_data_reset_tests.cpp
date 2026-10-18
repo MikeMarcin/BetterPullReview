@@ -32,6 +32,7 @@ namespace {
 		for (const auto store : { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" }) {
 			expect(profile_data_store_area(store) == area::review_data, "review stores are review data");
 		}
+		expect(profile_data_store_area("insights") == area::statistics, "Insights has its own lifetime statistics area");
 		expect(profile_data_store_area("review-queue") == area::saved_sources, "saved repositories and rules are their own area");
 		for (const auto store : { "device-bindings", "remembered-connections", "profile-registry", "release-update", "update-draft-recovery", "a-store-added-later", "", "review-ledger.sqlite3" }) {
 			expect(profile_data_store_area(store) == area::kept, "sign-in, shared and unknown stores are kept");
@@ -59,7 +60,10 @@ namespace {
 		expect(!profile_data_reset_removes(reset::review_data, area::caches) && !profile_data_reset_removes(reset::review_data, area::settings)
 				   && !profile_data_reset_removes(reset::review_data, area::saved_sources),
 			   "Reset review data removes nothing else");
-		for (const auto removed : { area::caches, area::settings, area::review_data, area::saved_sources }) {
+		for (const auto narrower : { reset::caches, reset::settings, reset::review_data }) {
+			expect(!profile_data_reset_removes(narrower, area::statistics), "narrower resets keep Insights");
+		}
+		for (const auto removed : { area::caches, area::settings, area::review_data, area::saved_sources, area::statistics }) {
 			expect(profile_data_reset_removes(reset::everything, removed), "Reset everything removes every resettable area");
 		}
 		for (const auto each : resets) {

@@ -491,3 +491,9 @@ foreach(
         target_link_libraries(${bpr_git_source_target} PRIVATE BetterPullReview::ProcessSupport)
     endif()
 endforeach()
+
+bpr_add_executable(test_git_insights_storage insights_storage_tests.cpp)
+target_link_libraries(test_git_insights_storage PRIVATE BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite)
+bpr_enable_hardening(test_git_insights_storage)
+bpr_enable_warnings(test_git_insights_storage)
+bpr_add_network_isolated_test(NAME git_insights_storage COMMAND test_git_insights_storage)

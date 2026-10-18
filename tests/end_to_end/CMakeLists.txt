@@ -4606,3 +4606,12 @@ bpr_add_network_isolated_test(NAME application_conversation_read_public_path WIN
 set_tests_properties(application_conversation_read_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CONVERSATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/conversation-renders" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "CONVERSATION_READ_PUBLIC_PATH_OK")
+
+# RFC-BPR-0086: the menu, profile host, local inventory and fixed native window.
+bpr_add_executable(test_insights_public_path insights_public_path_tests.cpp)
+target_link_libraries(test_insights_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_insights_public_path PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_insights_public_path)
+bpr_enable_warnings(test_insights_public_path)
+bpr_add_network_isolated_test(NAME application_insights_public_path WINDOWS_UNCONTAINED COMMAND test_insights_public_path)
+set_tests_properties(application_insights_public_path PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120 PASS_REGULAR_EXPRESSION "insights-public-path:pass")

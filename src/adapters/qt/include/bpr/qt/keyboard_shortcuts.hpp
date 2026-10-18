@@ -151,6 +151,7 @@ namespace bpr::qt {
 
 		keyboard_shortcuts,
 		settings,
+		insights,
 		settings_find,
 		new_window,
 		quit,

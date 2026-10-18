@@ -1198,6 +1198,107 @@ namespace bpr::adapters::git {
 			std::uint32_t                                      PrivateRefs     = 0U;
 		};
 
+		// Shared with Insights: exactly the cache inventory file-byte walk, without a Git command.
+		[[nodiscard]] auto repository_file_inventory(const std::filesystem::path& aRepository, const exact_artifact_identity& aIdentity, std::stop_token aStop) -> application::git_cache_result<inventory_snapshot>
+		{
+			auto            snapshot = inventory_snapshot{ };
+			std::error_code error;
+			auto            entryCount = std::size_t{ 0U };
+			for (
+				auto iterator = std::filesystem::recursive_directory_iterator{
+					aRepository,
+					std::filesystem::directory_options::none,
+					error };
+				iterator != std::filesystem::recursive_directory_iterator{ }; iterator.increment(error)) {
+				if (aStop.stop_requested()) {
+					return std::unexpected{
+						application::git_cache_failure::cancelled
+					};
+				}
+				if (error || ++entryCount > maximum_repository_entries) {
+					return std::unexpected{
+						application::git_cache_failure::
+							invalid_repository
+					};
+				}
+				const auto path   = iterator->path();
+				const auto status = std::filesystem::symlink_status(path, error);
+				if (error || std::filesystem::is_symlink(status)) {
+					return std::unexpected{
+						application::git_cache_failure::
+							invalid_repository
+					};
+				}
+				if (
+					status.type()
+					== std::filesystem::file_type::directory) {
+					const auto identity = exact_identity(
+						path,
+						exact_artifact_kind::directory);
+					if (
+						!identity.has_value()
+						|| identity->Volume
+							!= aIdentity.Volume
+						|| !private_directory(path)) {
+						return std::unexpected{
+							application::git_cache_failure::
+								invalid_repository
+						};
+					}
+					continue;
+				}
+				if (
+					status.type()
+						!= std::filesystem::file_type::regular
+					|| !private_regular_file(path)) {
+					return std::unexpected{
+						application::git_cache_failure::
+							invalid_repository
+					};
+				}
+				const auto identity = exact_identity(
+					path,
+					exact_artifact_kind::regular_file);
+				if (
+					!identity.has_value()
+					|| identity->Volume
+						!= aIdentity.Volume) {
+					return std::unexpected{
+						application::git_cache_failure::
+							invalid_repository
+					};
+				}
+				const auto size = std::filesystem::file_size(path, error);
+				if (
+					error
+					|| size
+						> std::numeric_limits<std::uint64_t>::max()
+							- snapshot.RepositoryBytes) {
+					return std::unexpected{
+						application::git_cache_failure::
+							quota_exceeded
+					};
+				}
+				snapshot.RepositoryBytes += size;
+				const auto relative = path.lexically_relative(aRepository).generic_string();
+				if (relative.starts_with("refs/betterpullreview/")) {
+					if (
+						snapshot.PrivateRefs
+						== std::numeric_limits<std::uint32_t>::max()) {
+						return std::unexpected{
+							application::git_cache_failure::
+								quota_exceeded
+						};
+					}
+					++snapshot.PrivateRefs;
+				}
+			}
+			if (error) {
+				return std::unexpected{ application::git_cache_failure::invalid_repository };
+			}
+			return snapshot;
+		}
+
 		[[nodiscard]] auto same_inventory(
 			const inventory_snapshot& aLeft,
 			const inventory_snapshot& aRight) noexcept -> bool
@@ -1419,99 +1520,12 @@ namespace bpr::adapters::git {
 							invalid_repository
 					};
 				}
-				const auto      repositoryIdentity = *RepositoryIdentity;
-				auto            snapshot           = inventory_snapshot{ };
-				std::error_code error;
-				auto            entryCount = std::size_t{ 0U };
-				for (
-					auto iterator = std::filesystem::recursive_directory_iterator{
-						Repository,
-						std::filesystem::directory_options::none,
-						error };
-					iterator != std::filesystem::recursive_directory_iterator{ }; iterator.increment(error)) {
-					if (aStop.stop_requested()) {
-						return std::unexpected{
-							application::git_cache_failure::cancelled
-						};
-					}
-					if (error || ++entryCount > maximum_repository_entries) {
-						return std::unexpected{
-							application::git_cache_failure::
-								invalid_repository
-						};
-					}
-					const auto path   = iterator->path();
-					const auto status = std::filesystem::symlink_status(path, error);
-					if (error || std::filesystem::is_symlink(status)) {
-						return std::unexpected{
-							application::git_cache_failure::
-								invalid_repository
-						};
-					}
-					if (
-						status.type()
-						== std::filesystem::file_type::directory) {
-						const auto identity = exact_identity(
-							path,
-							exact_artifact_kind::directory);
-						if (
-							!identity.has_value()
-							|| identity->Volume
-								!= repositoryIdentity.Volume
-							|| !private_directory(path)) {
-							return std::unexpected{
-								application::git_cache_failure::
-									invalid_repository
-							};
-						}
-						continue;
-					}
-					if (
-						status.type()
-							!= std::filesystem::file_type::regular
-						|| !private_regular_file(path)) {
-						return std::unexpected{
-							application::git_cache_failure::
-								invalid_repository
-						};
-					}
-					const auto identity = exact_identity(
-						path,
-						exact_artifact_kind::regular_file);
-					if (
-						!identity.has_value()
-						|| identity->Volume
-							!= repositoryIdentity.Volume) {
-						return std::unexpected{
-							application::git_cache_failure::
-								invalid_repository
-						};
-					}
-					const auto size = std::filesystem::file_size(path, error);
-					if (
-						error
-						|| size
-							> std::numeric_limits<std::uint64_t>::max()
-								- snapshot.RepositoryBytes) {
-						return std::unexpected{
-							application::git_cache_failure::
-								quota_exceeded
-						};
-					}
-					snapshot.RepositoryBytes += size;
-					const auto relative = path.lexically_relative(Repository).generic_string();
-					if (relative.starts_with("refs/betterpullreview/")) {
-						if (
-							snapshot.PrivateRefs
-							== std::numeric_limits<std::uint32_t>::max()) {
-							return std::unexpected{
-								application::git_cache_failure::
-									quota_exceeded
-							};
-						}
-						++snapshot.PrivateRefs;
-					}
+				auto measured = repository_file_inventory(Repository, *RepositoryIdentity, aStop);
+				if (!measured) {
+					return std::unexpected{ measured.error() };
 				}
+				auto            snapshot = std::move(*measured);
+				std::error_code error;
 #if defined(BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION)
 				std::error_code recursiveScanInjectionError;
 				if (
@@ -6767,4 +6781,39 @@ namespace bpr::adapters::git {
 			std::make_unique<installed_git_cache>(aConfiguration)
 		};
 	}
+	auto measure_installed_git_storage(const std::filesystem::path& aRoot) -> std::vector<application::insights_storage_row>
+	{
+		std::vector<application::insights_storage_row> result;
+		const auto                                     folder = aRoot / "repositories" / "v1";
+		std::error_code                                error;
+		const auto                                     status = std::filesystem::symlink_status(folder, error);
+		if (status.type() == std::filesystem::file_type::not_found) {
+			return result;
+		}
+		if (error || !private_directory(folder)) {
+			return { { "Repositories", std::nullopt, std::nullopt, true } };
+		}
+		std::size_t count = 0;
+		for (auto it = std::filesystem::directory_iterator{ folder, error }; !error && it != std::filesystem::directory_iterator{ }; it.increment(error)) {
+			if (++count > 4096) {
+				return { { "Repositories", std::nullopt, std::nullopt, true } };
+			}
+			const auto repository = it->path();
+			const auto identity   = exact_identity(repository, exact_artifact_kind::directory);
+			const auto name       = repository.stem().string();
+			if (!identity || !private_directory(repository)) {
+				result.push_back({ name, std::nullopt, std::nullopt, true });
+				continue;
+			}
+			const auto measured = repository_file_inventory(repository, *identity, { });
+			const auto sameRoot = exact_identity(repository, exact_artifact_kind::directory) == identity;
+			result.push_back({ name, measured && sameRoot ? std::optional{ measured->RepositoryBytes } : std::nullopt, application::maximum_git_repository_cache_bytes, true });
+		}
+		if (error) {
+			return { { "Repositories", std::nullopt, std::nullopt, true } };
+		}
+		std::ranges::sort(result, { }, &application::insights_storage_row::Name);
+		return result;
+	}
+
 } // namespace bpr::adapters::git

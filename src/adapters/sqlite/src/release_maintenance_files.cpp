@@ -1,5 +1,6 @@
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "../../native/windows_private_storage.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/application/diagnostic_log_files.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/hex.hpp"
@@ -75,7 +76,7 @@ namespace bpr::adapters::sqlite {
 		auto store_name(std::string_view aName) -> bool
 		{
 			constexpr std::array        names{ "appearance-settings.sqlite3", "diagnostic-preferences.sqlite3", "workbench-settings.sqlite3", "review-queue.sqlite3",
-											   "review-ledger.sqlite3", "review-tours.sqlite3", "review-cycles.sqlite3", "review-overviews.sqlite3", "window-restoration.sqlite3", "remembered-connections.sqlite3", "device-bindings.sqlite3", "review-mutation-recovery.sqlite3", "epoch-catalog.sqlite3", "markdown-images.sqlite3" };
+											   "review-ledger.sqlite3", "review-tours.sqlite3", "review-cycles.sqlite3", "review-overviews.sqlite3", "window-restoration.sqlite3", "remembered-connections.sqlite3", "device-bindings.sqlite3", "review-mutation-recovery.sqlite3", "epoch-catalog.sqlite3", "markdown-images.sqlite3", "insights.sqlite3" };
 			static constexpr std::array suffixes{ "", "-wal", "-shm", "-journal", "-super-journal" };
 			return std::ranges::any_of(names, [aName](std::string_view aBase) {
 				return aName.starts_with(aBase) && std::ranges::find(suffixes, aName.substr(aBase.size())) != suffixes.end();
@@ -1674,6 +1675,14 @@ namespace bpr::adapters::sqlite {
 					: application::prepare_diagnostic_export(bytes, revision, aContext.ExportOptions, capture, export_namespace());
 				if (!document) {
 					fail(document.error());
+				}
+				if (aContext.ExportOptions.Policy == core::diagnostic_export_policy::anonymized) {
+					document->Bytes += insights_storage_export(self.Root);
+					if (document->Bytes.size() > core::release_diagnostic_byte_limit) {
+						fail(reason::unavailable);
+					}
+					document->Descriptor.Bytes  = document->Bytes.size();
+					document->Descriptor.Digest = digest(document->Bytes);
 				}
 				candidate->Descriptor = document->Descriptor;
 				candidate->Bytes      = std::move(document->Bytes);

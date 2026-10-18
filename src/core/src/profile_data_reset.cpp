@@ -20,6 +20,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "review-cycles" }, area::review_data },
 			std::pair{ std::string_view{ "review-mutation-recovery" }, area::review_data },
 			std::pair{ std::string_view{ "review-queue" }, area::saved_sources },
+			std::pair{ std::string_view{ "insights" }, area::statistics },
 			// Named to make the boundary explicit; an unnamed store is kept too.
 			std::pair{ std::string_view{ "device-bindings" }, area::kept },
 			std::pair{ std::string_view{ "remembered-connections" }, area::kept },
@@ -82,6 +83,7 @@ namespace bpr::core {
 		case area::review_data:
 			return aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything;
 		case area::saved_sources:
+		case area::statistics:
 			return aReset == profile_data_reset::everything;
 		case area::kept:
 			return false;

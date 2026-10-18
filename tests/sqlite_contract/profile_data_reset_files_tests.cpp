@@ -112,7 +112,7 @@ namespace {
 	}
 	auto saved_source_files() -> std::set<std::string>
 	{
-		return { "state/v1/review-queue.sqlite3", "state/v1/review-queue.sqlite3-wal" };
+		return { "state/v1/review-queue.sqlite3", "state/v1/review-queue.sqlite3-wal", "state/v1/insights.sqlite3", "state/v1/insights.sqlite3-wal", "state/v1/insights.sqlite3-shm" };
 	}
 	/// Never part of any reset: sign-in, logs, shared stores, agent work,
 	/// Git isolation, sibling profiles and anything the policy does not name.

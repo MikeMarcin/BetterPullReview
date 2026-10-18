@@ -525,3 +525,11 @@ store, keeping saved repositories, servers and observer rules.
 ## Remembered connection metadata (RFC-BPR-0071)
 
 The profile-private `state/v1/remembered-connections.sqlite3` snapshot and its recognized SQLite sidecars are state-store inventory/purge targets. They carry connection selection and disable facts, never CLI credentials. Profile purge removes them through the existing exact inventory; it neither changes gh authentication/configuration nor removes shared updater/registry state. Storage/policy and composed restart/refusal evidence are mapped in the [RFC-BPR-0071 ledger](../verification/RFC-BPR-0071.md); they add no uninstall or shared-state purge claim.
+
+RFC-BPR-0086 adds `insights.sqlite3` and its sidecars to the existing profile
+state inventory. Full profile purge and Troubleshooting’s Reset everything
+remove this lifetime statistics store; Clear caches, Reset settings, Reset review
+data and Clear local diagnostics keep it. An anonymized frozen export appends
+only previously measured byte aggregates, never repository labels or a new disk
+scan, and binds those extra bytes into the existing preview descriptor’s size
+and digest. The identifying export includes no Insights section.

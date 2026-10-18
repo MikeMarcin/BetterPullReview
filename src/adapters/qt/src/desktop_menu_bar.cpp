@@ -259,6 +259,13 @@ namespace bpr::qt {
 		keyboardShortcuts->setShortcuts(shortcut_keys(shortcut_command::keyboard_shortcuts));
 		keyboardShortcuts->setEnabled(false);
 		HelpMenu->addSeparator();
+		auto* const insights = HelpMenu->addAction(QStringLiteral("Insights…"));
+		insights->setObjectName(QStringLiteral("desktopOpenInsightsAction"));
+#if defined(Q_OS_MACOS)
+		insights->setMenuRole(QAction::ApplicationSpecificRole);
+#endif
+		insights->setShortcuts(shortcut_keys(shortcut_command::insights));
+		insights->setEnabled(false);
 		auto* const diagnostics = HelpMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("desktopOpenDiagnosticsAction"));
 		diagnostics->setEnabled(false);

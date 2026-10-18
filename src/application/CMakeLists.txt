@@ -13,6 +13,7 @@ configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
 add_library(
     better_pull_review_application
     STATIC
+        src/insights_host.cpp
         src/source_search_host.cpp
         src/markdown_image_service.cpp
         src/markdown_image_window.cpp

@@ -4,7 +4,7 @@ title: "Insights: what BetterPullReview costs, and what you've reviewed"
 status: "In Progress"
 area: "BPR"
 depends_on: []
-metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r1","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"}}
+metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r1","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"},"implementation_support_paths":["scripts/verify_test_network_isolation.py"]}
 ---
 
 # Insights: what BetterPullReview costs, and what you've reviewed

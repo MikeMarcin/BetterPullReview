@@ -142,7 +142,7 @@ namespace bpr::qt {
 		return { QStringLiteral("Reset everything for %1?").arg(name),
 				 QStringLiteral("This profile starts again as on first launch. You stay signed in, and nothing on GitHub changes."),
 				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories, observer rules"),
-				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles") },
+				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history") },
 				 { QStringLiteral("Sign-in to your accounts and hosts"), QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"),
 				   QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
 				 { },

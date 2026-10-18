@@ -2003,3 +2003,30 @@ recorded rendering and images and never the network. Whether images load at all 
 preference `review_markdown_images` (schema 21, Load by default): the Qt window
 applies a published change to its readers, and Don't load sends no image
 intent, so the host resolves and fetches nothing.
+
+## Insights window and storage allocation (RFC-BPR-0086, first milestone)
+
+One `qt::insights_window` belongs to each `github_profile_runtime`, alongside
+Settings. Its menu action and central shortcut registry dispatch to composition;
+Qt receives only `application::insights_snapshot` and semantic callbacks.
+The window owns visibility and presentation timers. `application::insights_host`
+permits one pending snapshot, performs measurements on the profile’s dedicated
+effect lane, throttles storage to sixty seconds, and posts exactly one terminal
+to the decision lane. Shutdown stops the window’s timers and drains initialization,
+measurement and completion before closing that lane.
+
+The SQLite adapter initializes owner-private `state/v1/insights.sqlite3` at the
+profile’s first launch. Schema 1 stores the start time, last measured aggregate
+bytes and local repository display labels; lifetime counts and history remain
+later milestones. Storage sums file lengths and SQLite sidecars without reading
+other stores’ contents. Git repository bytes use the same bounded file inventory
+helper as the existing cache adapter; no cache session or Git process is opened.
+A changing or refused entry can make an observation unavailable. This is a local
+snapshot, not a transactional filesystem-wide snapshot across active writers.
+
+The existing maintenance inventory recognizes Insights as profile state. Core
+classifies it as statistics, removed only by Reset everything among the four
+Troubleshooting scopes. Full profile purge also removes it. An anonymized frozen
+export reads only its last byte aggregates and recomputes the frozen descriptor’s
+size and digest; identifying and metadata exports add nothing from Insights.
+The [window contract](../ux/insights.md) records the currently delivered surface.

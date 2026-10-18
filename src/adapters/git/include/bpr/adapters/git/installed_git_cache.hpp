@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_CACHE_HPP
 
 #include "bpr/application/git_cache_port.hpp"
+#include "bpr/application/insights_projection.hpp"
 
 #include <expected>
 #include <filesystem>
@@ -18,6 +19,9 @@ namespace bpr::adapters::git {
 		/// Opt-in durable workspace ownership; absent for legacy/native callers.
 		std::optional<std::filesystem::path> WorkspaceOwnershipRegistry;
 	};
+
+	/// \brief File-byte view of the existing cache inventory; reads only, and never opens a Git process.
+	[[nodiscard]] auto measure_installed_git_storage(const std::filesystem::path& aRoot) -> std::vector<application::insights_storage_row>;
 
 	/// \brief Creates the installed git cache.
 	[[nodiscard]] auto make_installed_git_cache(

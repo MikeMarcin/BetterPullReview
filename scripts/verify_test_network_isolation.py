@@ -136,6 +136,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # containment has not yet been measured for these courses.
     "sqlite_profile_data_reset_files": "unmeasured (registered on macOS)",
     "application_profile_data_reset_public_path": "unmeasured (registered on macOS)",
+    "application_insights_public_path": "unmeasured (registered on macOS)",
     "application_profile_recovery_public_path": "unmeasured (registered on macOS)",
     # BPR-0810: measured on JaegAW 2026-09-17. Contained, both fixtures stop at
     # "FAILED: private desktop test root under the canonical storage policy",

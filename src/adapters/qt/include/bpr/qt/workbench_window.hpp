@@ -1392,6 +1392,7 @@ namespace bpr::qt {
 		/// \brief The appearance surface, composed beside the review it governs.
 		/// \brief Shows the Settings window on a page; a no-op before composition.
 		/// \brief Lets the profile owner route every Settings gesture to its single shell.
+		void set_insights_presenter(std::function<void()> aPresenter);
 		void set_settings_presenter(std::function<void(settings_page)> aPresenter);
 		/// \brief Routes direct Help exports to the profile-owned maintenance host.
 		void set_diagnostic_exporter(std::function<void(core::diagnostic_export_policy)> aExporter);
@@ -2694,6 +2695,7 @@ namespace bpr::qt {
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
+		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;
 		QWidget*                                           AccountsPanel  = nullptr;

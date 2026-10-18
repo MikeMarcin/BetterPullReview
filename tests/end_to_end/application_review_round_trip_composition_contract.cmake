@@ -1,3 +1,9 @@
+# RFC-BPR-0086 first milestone reseal over 0378ab977..the window-and-storage
+# candidate. Scoped engineering self-review: one profile-owned local Insights
+# lane/window, initialization and shutdown drain, existing Settings/export
+# gestures, and accepted cache-label persistence. No provider or mutation
+# admission changes; the production mutation-branch digest is unchanged.
+# Evidence and pending owner acceptance: docs/verification/RFC-BPR-0086.md.
 # BPR-1603 reseal 2026-10-18 over d163c9109 (origin/main 937f96880).
 # Self-reviewed the full src/app delta: the reply workflow persists bounded
 # quoted drafts through the existing serialized submission host and journal,
@@ -1605,7 +1611,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8f91fcb256b3ed253e54535326de4ff2a7e735ecc53118a2e7ff5fc4b7819265"
+		"c82a23b5058af0226bb5cc0ca514bd99c07168680e34b714fe44d86ebefb1863"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1825,7 +1831,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "729bd235edce8e857b2c48edca04a5bbead9abf9cd98b3ebdafd71a3a94c6da1"
+        "b89880c31481efdd4395b95aff9bd1dd1ce72fdd889843cb15772c0e528d8454"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

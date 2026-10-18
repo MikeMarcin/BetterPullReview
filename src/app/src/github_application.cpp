@@ -1,18 +1,22 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/insights_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/insights_window.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -183,6 +187,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
@@ -225,6 +230,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
+#include <QUrl>
 #include <QVariant>
 
 #include <algorithm>
@@ -4110,6 +4116,7 @@ namespace bpr::app {
 #endif
 		worker_executor ConnectionEffects;
 		worker_executor WorkbenchEffects;
+		worker_executor InsightsEffects;
 		worker_executor AppearanceEffects;
 		worker_executor QueueEffects;
 		worker_executor ReviewMutationEffects;
@@ -4237,6 +4244,36 @@ namespace bpr::app {
 					});
 				});
 			};
+		}
+		std::unique_ptr<qt::insights_window>        Insights;
+		std::shared_ptr<application::insights_host> InsightsHost;
+		std::optional<core::bpr_window_context>     InsightsOwner;
+		bool                                        InsightsInitializing = true;
+		std::map<std::string, std::string>          InsightsRepositoryLabels;
+		void                                        present_insights(core::bpr_window_context aContext, QWidget* aOpener)
+		{
+			if (!current_window(aContext)) {
+				return;
+			}
+			if (!Insights) {
+				Insights = std::make_unique<qt::insights_window>();
+			}
+			InsightsOwner = aContext;
+			Insights->set_profile_label(QString::fromStdString(Admission.Label));
+			Insights->setPalette(aOpener->palette());
+			Insights->setFont(aOpener->font());
+			const auto weak = weak_from_this();
+			Insights->set_dispatch({
+				.Refresh      = [weak](bool aStorage) {
+					if (auto self = weak.lock(); self && !self->Closing && self->InsightsHost) {
+						const auto work = !self->ProviderEffects.idle() ? "GitHub requests" : !self->EpochEffects.idle() ? "Git cache work" : !self->DiffEffects.idle() ? "Computing diffs" : !self->SearchEffects.idle() ? "Searching source" : "Idle";
+						self->InsightsHost->refresh(aStorage, std::string{ work } + "\nNext inbox refresh: on activation");
+					} },
+				.RevealData   = [weak] { if (auto self = weak.lock(); self && !self->Closing) { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdU16String(self->ApplicationDataRoot.u16string()))); } },
+				.Export       = [weak, aContext] { if (auto self = weak.lock()) { self->present_diagnostic_export(aContext, core::diagnostic_export_policy::anonymized); } },
+				.ManageCaches = [weak, aContext] { if (auto self = weak.lock()) { self->present_settings(aContext, qt::settings_page::storage_and_privacy); } },
+			});
+			Insights->present(aOpener);
 		}
 		std::unique_ptr<qt::settings_window>          Settings;
 		std::unique_ptr<release_maintenance_controls> Maintenance;
@@ -4627,6 +4664,13 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			if (Insights) {
+				Insights->hide();
+				Insights->set_dispatch({ });
+			}
+			if (InsightsHost) {
+				InsightsHost->shutdown();
+			}
 			cli_account_users().set(this, std::nullopt);
 #if defined(BPR_LOCAL_AUTOMATION)
 			// A forwarded cycle command stops waiting and cancels its store work.
@@ -4698,7 +4742,7 @@ namespace bpr::app {
 			if (!ServicesClosing || ShutdownComplete) {
 				return;
 			}
-			if ((Diagnostics && !Diagnostics->quiescent()) || (Maintenance && !Maintenance->quiescent())) {
+			if (InsightsInitializing || !InsightsEffects.idle() || (InsightsHost && !InsightsHost->quiescent()) || (Diagnostics && !Diagnostics->quiescent()) || (Maintenance && !Maintenance->quiescent())) {
 				return;
 			}
 			if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
@@ -4780,6 +4824,7 @@ namespace bpr::app {
 			AgentEffects.close_and_drain();
 			McpEffects.close_and_drain();
 #endif
+			InsightsEffects.close_and_drain();
 			ConnectionEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			AppearanceEffects.close_and_drain();
@@ -5073,8 +5118,33 @@ namespace bpr::app {
 				};
 			}
 			ApplicationDataRoot = applicationDataRoot;
-			ConnectionStore     = std::move(aConnectionStore);
-			Connections         = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
+			InsightsEffects.post([this, root = applicationDataRoot] {
+				std::shared_ptr<application::insights_storage_port> storage;
+				try {
+					storage = adapters::sqlite::make_insights_storage(root, [root] { return adapters::git::measure_installed_git_storage(root); });
+				} catch (...) { }
+				DecisionLane.post([this, admittedStorage = std::shared_ptr<application::insights_storage_port>{ std::move(storage) }] {
+					InsightsInitializing = false;
+					if (!admittedStorage) {
+						if (Insights) {
+							Insights->apply({ });
+						}
+						return;
+					}
+					InsightsHost = std::make_shared<application::insights_host>(admittedStorage, InsightsEffects, DecisionLane, [this](const auto& aSnapshot) {
+						if (!Closing && Insights && Insights->isVisible()) {
+							Insights->apply(aSnapshot);
+						}
+					});
+					if (Closing) {
+						InsightsHost->shutdown();
+					} else if (Insights) {
+						Insights->refresh();
+					}
+				});
+			});
+			ConnectionStore = std::move(aConnectionStore);
+			Connections     = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
 			if (!Connections->available()) {
 				RestorationGlobalNotice = QStringLiteral("Saved connections could not be read. Sign in explicitly to continue; the saved data has been preserved.");
 			}
@@ -7688,6 +7758,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Profile->present_diagnostic_export(DraftWindow, aPolicy);
 				}
 			});
+			Window->set_insights_presenter([this, weak] { if (!weak.expired() && !Closing) { Profile->present_insights(DraftWindow, Window.get()); } });
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
 } });
 			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
@@ -17365,6 +17436,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			if (EpochHost && EpochHost->state().Authority && LastAcceptedHandoff) {
+				const auto& authority = *EpochHost->state().Authority;
+				if (authority.Repository == LastAcceptedHandoff->Repository && authority.Account == LastAcceptedHandoff->Account) {
+					const auto key   = core::lower_hex(authority.Cache.bytes());
+					const auto label = LastAcceptedHandoff->Locator.Owner + "/" + LastAcceptedHandoff->Locator.Name;
+					if (Profile->InsightsRepositoryLabels[key] != label) {
+						Profile->InsightsRepositoryLabels[key] = label;
+						Profile->InsightsEffects.post([root = ApplicationDataRoot, key, label] { static_cast<void>(adapters::sqlite::store_insights_repository_label(root, key, label)); });
+					}
+				}
+			}
+
 			if (DiffHost != nullptr && aUpdate.Catalog.has_value()
 				&& aUpdate.Catalog->AvailabilityChangedTo == core::anchor_availability::pruned) {
 				const auto& state          = DiffHost->state();
@@ -18319,6 +18402,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
 			// contrast and which, until now, nothing applied.
 			AppearanceProfile->apply_to(*Window);
+			if (Profile->Insights && Profile->InsightsOwner == DraftWindow) {
+				AppearanceProfile->apply_to(*Profile->Insights);
+			}
 			// QPalette carries no role for "an added line", so the comparison
 			// surface is given the semantic palette directly. Without this the
 			// panes paint no line backgrounds at all, which is visibly wrong
@@ -18435,6 +18521,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Profile->Settings->hide();
 				}
 				Profile->SettingsOwner.reset();
+			}
+			if (Profile->InsightsOwner == DraftWindow) {
+				if (Profile->Insights) {
+					Profile->Insights->hide();
+				}
+				Profile->InsightsOwner.reset();
 			}
 			Profile->Observers.erase(DraftWindow);
 			Profile->RestorationNotices.erase(DraftWindow);

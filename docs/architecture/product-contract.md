@@ -336,3 +336,11 @@ and the GitHub.com-only owner amendment; native GHES is unobserved.
 ## Remembered CLI connection contract (RFC-BPR-0071)
 
 The implementation remembers a successful explicitly chosen CLI connection per BPR profile and canonical server, together with observed numeric identity, stable connection identity/revision and selected order. Read trust explains reuse until sign out or replacement. Durable metadata carries no token, live lease or publication grant. Startup and exact-host navigation may validate only that saved host/login, with current checks and an exact numeric-account comparison before private content. No inventory or fallback authority is permitted. Sign out disables reuse including older device resume; Forget removes the choice. Failed replacement preserves the old choice. Save failures are session-only, disable failures are reported, and unreadable/malformed/newer metadata cannot authorize CLI execution. Manual tokens remain session-only. The [RFC-BPR-0071 qualification ledger](../verification/RFC-BPR-0071.md) binds composed macOS restart and refusal evidence to the implemented source; native package and vault qualification retain their existing scope.
+
+## Insights (RFC-BPR-0086)
+
+A profile’s Insights window reports local observations without spending GitHub
+budget or starting Git work. Its fixed content size survives tab, range and
+snapshot changes. The first milestone supplies storage accounting and explicit
+empty states for subsequent statistics views. The [Insights contract](../ux/insights.md)
+records commands, measurement scope, budgets and profile data lifetime.

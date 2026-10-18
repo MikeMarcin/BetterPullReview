@@ -1,6 +1,7 @@
 #include "../../src/adapters/native/windows_private_storage.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
@@ -173,6 +174,8 @@ namespace {
 		write(aRoot / "state/v1/release-update.sqlite3", "shared updater");
 		write(aRoot / "profiles/profile-2/keep", "sibling fixture");
 		write(aRoot / "updates/transaction-1/keep", "shared transaction");
+		auto insights = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		expect(insights->measure().TotalBytes.has_value(), "Insights has a measured local summary");
 	}
 	void test_host_native_public_path()
 	{
@@ -214,6 +217,14 @@ namespace {
 		expect(canonical && security && adapters::native_storage::open_private_object(*canonical / L"diagnostics.txt", adapters::native_storage::windows_object_kind::regular_file, *security).has_value(), "output exact owner-only DACL and single native link");
 #endif
 		expect(!adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.txt"), "existing output not overwritten");
+		auto anonymized                 = context(files, command::preview_diagnostics);
+		anonymized.ExportOptions.Policy = core::diagnostic_export_policy::anonymized;
+		const auto anonymousPreview     = files.prepare(anonymized, { });
+		expect(anonymousPreview && (*anonymousPreview)->preview().find("\"section\":\"insights\"") != std::string_view::npos, "actual frozen anonymized preview carries the Insights section");
+		expect((*anonymousPreview)->preview().find("CANARY") == std::string_view::npos && (*anonymousPreview)->preview().find("appearance-settings") == std::string_view::npos, "Insights cannot add identity or store names to the export");
+		anonymized.ExportOptions.Policy = core::diagnostic_export_policy::identifying;
+		const auto identifyingPreview   = files.prepare(anonymized, { });
+		expect(identifyingPreview && (*identifyingPreview)->preview().find("\"section\":\"insights\"") == std::string_view::npos, "identifying export gains nothing from Insights");
 		host.dispatch({ files.authority(), command::prepare_clear, { } });
 		drain();
 		expect(host.state().Prepared.has_value(), "clear diagnostics inventory prepared");
@@ -232,6 +243,7 @@ namespace {
 		expect(!fs::exists(root.Path / "state/v1/review-overviews.sqlite3") && !fs::exists(root.Path / "state/v1/review-overviews.sqlite3-wal"), "profile purge removes cached overview and sidecar");
 		expect(!fs::exists(root.Path / "state/v1/markdown-images.sqlite3") && !fs::exists(root.Path / "state/v1/markdown-images.sqlite3-wal"), "profile purge removes the image cache and sidecar");
 		expect(!fs::exists(root.Path / "state/v1/review-tours.sqlite3") && !fs::exists(root.Path / "state/v1/review-tours.sqlite3-wal"), "profile purge removes tour prose and baselines");
+		expect(!fs::exists(root.Path / "state/v1/insights.sqlite3"), "profile purge removes the Insights lifetime store");
 		expect(!fs::exists(root.Path / "state/v1/review-cycles.sqlite3") && !fs::exists(root.Path / "state/v1/review-cycles.sqlite3-wal"), "profile purge removes local review cycles");
 		expect(!fs::exists(root.Path / "state/v1/remembered-connections.sqlite3") && !fs::exists(root.Path / "state/v1/remembered-connections.sqlite3-wal"), "profile purge removes remembered connection metadata and sidecar");
 		expect(read(root.Path / "profiles/profile-2/keep") == "sibling fixture" && read(root.Path / "state/v1/profile-registry.sqlite3") == "shared registry", "sibling and registry preserved");

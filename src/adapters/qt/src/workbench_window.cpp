@@ -17012,6 +17012,14 @@ namespace bpr::qt {
 		diagnosticMenu->addAction(KeyboardShortcutsAction);
 		diagnosticMenu->addSeparator();
 		connect(KeyboardShortcutsAction, &QAction::triggered, this, [this] { show_keyboard_shortcuts(); });
+		auto* insights = diagnosticMenu->addAction(QStringLiteral("Insights…"));
+		insights->setObjectName(QStringLiteral("openInsightsAction"));
+#if defined(Q_OS_MACOS)
+		insights->setMenuRole(QAction::ApplicationSpecificRole);
+#endif
+		insights->setShortcuts(shortcut_keys(shortcut_command::insights));
+		addAction(insights);
+		connect(insights, &QAction::triggered, this, [this] { if (InsightsPresenter) { InsightsPresenter(); } });
 		auto* diagnostics = diagnosticMenu->addAction(QStringLiteral("Diagnostics…"));
 		diagnostics->setObjectName(QStringLiteral("openDiagnosticsAction"));
 		connect(diagnostics, &QAction::triggered, this, [this] { open_settings(settings_page::storage_and_privacy); });
@@ -17123,6 +17131,8 @@ namespace bpr::qt {
 	{
 		DiagnosticExporter = std::move(aExporter);
 	}
+
+	void workbench_window::set_insights_presenter(std::function<void()> aPresenter) { InsightsPresenter = std::move(aPresenter); }
 
 	void workbench_window::set_settings_presenter(std::function<void(settings_page)> aPresenter)
 	{

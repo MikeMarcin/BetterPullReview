@@ -1078,3 +1078,9 @@ bpr_add_network_isolated_test(
     NAME application_markdown_code_syntax_host
     COMMAND test_better_pull_review_application_markdown_code_syntax_host_tests
 )
+
+bpr_add_executable(test_insights_host insights_host_tests.cpp)
+target_link_libraries(test_insights_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_insights_host)
+bpr_enable_warnings(test_insights_host)
+bpr_add_network_isolated_test(NAME application_insights_host COMMAND test_insights_host)

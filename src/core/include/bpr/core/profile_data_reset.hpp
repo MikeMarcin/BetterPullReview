@@ -37,6 +37,8 @@ namespace bpr::core {
 		/// Only Reset everything removes this store; Reset settings restores
 		/// its queue display choices inside it instead.
 		saved_sources,
+		/// Lifetime Insights statistics and history, removed only by Reset everything.
+		statistics,
 		/// Never removed by a reset: sign-in, logs, shared and unknown data.
 		kept,
 	};

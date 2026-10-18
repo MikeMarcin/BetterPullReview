@@ -24,3 +24,11 @@ lifetime", AC05, and AC11's store classification.
   or Storage is visible.
 - Manage cached repositories opens the existing epoch and cache controls (D8).
 - The anonymized export gains an Insights section of byte sizes only.
+
+## Joint first-milestone candidate
+
+Implemented and verified with BPR-1606 under the authored `window-and-storage`
+assignment. The shell’s owner verdict is still pending, so this card keeps its
+Backlog dependency state. No acceptance is inferred. See the first-milestone
+[verification ledger](../../verification/RFC-BPR-0086.md) and
+[continuation](../_checkpoints/insights-window-v1/continuation.md).
