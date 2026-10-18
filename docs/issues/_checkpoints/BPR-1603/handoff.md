@@ -176,3 +176,17 @@ finish card through board tool with owner verdict + mechanical evidence,
 update RFC status, merge to main, plain push origin main. Then item 9 on final
 main: one integrated full suite, rerun failures alone, report causes, format
 and tidy, stop own review host and remove own frozen/build trees.
+
+
+### Manual resume fallback — cursor remains 3
+
+Extended waiter cell 370 repeatedly yielded to the model before handback;
+the short synthetic probe does not qualify that longer outer wait. Per the
+attended-review driver-wait rule, treat this runtime as unqualified for idle
+waiting rather than continue model-driven polling. Terminated the own waiter
+cell, verified its remaining exact-state child PID 92959 and stopped that PID.
+The actual review host PID 92865 remains available, candidate protected and
+ready, no verdict/handback at final status sequence 3. No automation created.
+User was instructed: save Accept/Reject, hand back, then send “continue” here.
+On resume read status --after 3 and consume its exact events before proceeding.
+No built review acceptance, card finish, landing or final full suite is claimed.
