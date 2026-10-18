@@ -64,7 +64,9 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    BPR-1588 is absent from the original failing base. The current-main negative
    control fails the deterministic Qt assertion at the lost Review choice;
    the native course passes on that timing (7.09 s). Exact source restoration
-   is verified by SHA-256. Positive rebuild and focused checks are next.
+   is verified by SHA-256. Positive rebuild passes; all seven focused rows
+   pass on `69a477a05` (96.21 s), as do focused tidy22, format22,
+   documentation and diff checks. Composition pins match BPR-1598.
    The new regression also covers cached arrival and a later load.
 8. Task-owned housekeeping: pending.
 9. One final integrated configure/build/full ctest and format/tidy: pending.

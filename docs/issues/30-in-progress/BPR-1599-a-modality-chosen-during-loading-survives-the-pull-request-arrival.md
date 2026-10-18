@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner-approved ordered handoff, 2026-10-17","reservation":"docs/issues/_reservations/BPR-1599--BPR-1599--c4402b131ede.json","related_cards":["BPR-0651","BPR-0661","BPR-0863","BPR-1588"]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"69a477a05","evidence":{"kind":"observation","detail":"Composed Qt checks at 100%, 125% and 200% preserve Review through arrival, Discuss through cached/final arrival, reset the choice for a later load, and keep the no-choice Overview control."}},{"criterion":"AC2","outcome":"pass","revision":"69a477a05","evidence":{"kind":"observation","detail":"Replacing only the two product files with main 4305b7210 fails qt_composed_github_scale_100 at the lost Review-choice assertion. Native private-review baseline passes in 7.09 s on that timing. Exact fixed source restored and SHA-256 verified; all positive rows pass."}},{"criterion":"AC3","outcome":"pass","revision":"69a477a05","evidence":{"kind":"observation","detail":"All seven focused rows pass in 96.21 s: composed Qt at three scales, first-Review contract, portable occurrence two-catalogue course, private-review native/file. Affected targets build; format22 for all three changed C++ files, tidy22 for both changed translation units, documentation and diff checks pass."}},{"criterion":"AC4","outcome":"pass","revision":"69a477a05","evidence":{"kind":"observation","detail":"Inherited fix preserved at 5721c7061; current main merged at 68c701ea5. Card records source-history attribution to the older arrival reset and loading flow 9c670d886, with its historical-bisect limitation. No unique src/app delta; all three composition pins match passing BPR-1598 evidence."}}]
 ---
 
 # BPR-1599: A modality chosen during loading survives the pull request's arrival
@@ -85,5 +85,10 @@ stall did not recur with that arrival timing. The deterministic test establishes
 the product failure independently of that timing. Both source files are restored
 from exact saved bytes and verified by SHA-256 before the positive rebuild.
 
-Positive tests and focused lint are in progress. The documentation gate passes.
+All seven focused rows pass on `69a477a05` in 96.21 seconds: the composed
+Qt tests at three scales, the first-Review contract, the portable-epoch
+two-catalogue course, and both private-review representations. Both changed
+translation units pass clang-tidy 22; the three C++ files pass clang-format 22.
+The documentation and diff gates pass. All three composition fingerprints
+match the previously passing BPR-1598 tree.
 The full integrated suite remains assigned to item 9 of the ordered handoff.
