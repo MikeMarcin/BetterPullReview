@@ -2,6 +2,7 @@
 
 #include "bpr/core/revisioned_review_draft.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
@@ -262,7 +263,7 @@ namespace bpr::qt {
 			return result;
 		};
 		NewLineAction = action(tr("New note on the selected line"), QStringLiteral("newLineNoteAction"));
-		NewLineAction->setShortcut(QKeySequence{ Qt::Key_N });
+		NewLineAction->setShortcuts(shortcut_keys(shortcut_command::new_note));
 		NewLineAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 		NewLineAction->setToolTip(tr("New note on the selected line (N)"));
 		addAction(NewLineAction);

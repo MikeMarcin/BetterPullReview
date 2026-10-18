@@ -275,3 +275,31 @@ The owner then amended the mandate: ignore quiet-machine eligibility and
 accept narrow timing misses until later release preparation. The same full
 CTest process resumed; no second full suite was started. Final results and
 lint gate are pending.
+
+## BPR-1594 amended queue — 2026-10-18
+
+The owner added accepted Agent tab item 7d while the pre-Agent integrated
+suite was running. That partial suite was stopped by SIGINT to its own
+CTest PID 63778 after 442 completed checks; it is not a completed final
+suite. Its log is /tmp/bpr-pre1594-partial-20261018.log. It found two
+scheduler-pause-induced timeouts and contained_temporary_usage_contract's
+profile_recovery_course.py:92 direct tempfile.mkdtemp use. The final suite
+below will decide the integrated result after the new landing.
+
+BPR-1594 merged origin/main 3b68c4394 after BPR-1593. The app delta is only
+the tests-on attended Agent fixture course; three printed pins matched and
+a dated merged-tree reseal records the reviewed scope. All 16 prescribed
+focused rows pass serially (235.57 s), plus the touched dif-context public
+course (8.90 s). Format22/docs/diff pass. Owner Accept at sequence 4 and
+handback at 5 consumed; protection released at 6. The inherited accepted
+visuals were landed unchanged; frontend-design is unavailable in this
+harness. RFC execution status records Tours and Agent without RFC closeout.
+The main checkout's board tool finished the card (avoiding the worktree's
+.agents symlink), and plain push landed f9ad0ffc4. Session stop succeeded,
+PID 49516 exited, frozen root removed through the freeze helper, worktree
+and its build removed, merged local branch deleted, and worktrees pruned.
+The Tours worktree remains as explicitly requested.
+
+Final integrated configure passes on f9ad0ffc4; full build is in progress.
+The prior quiet-machine/timing amendment remains recorded above. No new
+live GitHub course or owner design work was performed.

@@ -147,6 +147,23 @@ for each item.
   review server PID 49516, remove frozen root `/Users/jaeger/bpr1594-agent-tab-v001.87u4icdl`.
   Note: the `.agents` symlink in that worktree must be set aside when running board commands.
 
+### 7e. BPR-1603 — PR comments at the Comments drawer's edge: BUILD direction A (owner picked 2026-10-18, no note)
+- Design: branch `bpr-1603-conversation-chips` (pushed), worktree `/Users/jaeger/.codex/worktrees/bpr1603-conversation-chips/BetterPullReview`,
+  design note + mockups `docs/design/BPR-1603-conversation-chips-v1/` (A = "One chip, a list in place"), checkpoint
+  `docs/issues/_checkpoints/BPR-1603/handoff.md`. Owner's pick is recorded in session `537cac7b…`
+  (`/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1603-conversation-chips-design-v001`); its server is stopped.
+- Build A exactly as mocked: top-edge chip "N on the pull request" + blue new count, beside the Notes chip (same shape);
+  pressing it turns the drawer into the list of PR-level comments/review summaries oldest-first with a "New" divider;
+  one opens in place; "Back to threads at their lines" returns; opened = read (BPR-1601); Show in Discuss; review
+  summaries show verdict + links to their file comments. Start from the top-edge count chip in `private_notes_panel.cpp`,
+  applied in `conversation_cards_view.cpp`. RFC D8 already matches A (no amendment).
+- REPLY: do NOT add a new GitHub write path for replying unless the owner confirms (see the card); offer
+  "Reply in Discuss" instead.
+- Tests (focused), composition contracts, docs gate. Then freeze a build and present ONE Accept/Reject owner review in a
+  fresh short session with Light/Dark renders against the A mockup — this is a look-and-judge criterion; do not land
+  before the owner accepts. On Accept: land, finish BPR-1603, update RFC-BPR-0085 status, push. On Reject: stop and leave
+  the note for Claude.
+
 ### 8. Housekeeping
 - Stop any leftover attended-review servers from landed cards and remove their frozen roots.
 - `git worktree prune`; delete merged branches.
@@ -158,7 +175,7 @@ for each item.
 
 ## Not for Codex (taste/design — stays with Claude)
 
-- As of 2026-10-18: RFC-BPR-0085 milestones through BPR-1592 are landed; BPR-1593 is item 7c above. Claude keeps **BPR-1603 (PR comments as drawer-edge chips; design note + review first)**, then the RFC closeout.
+- As of 2026-10-18: RFC-BPR-0085 milestones through BPR-1592 are landed; BPR-1593 is item 7c above. Claude keeps (only if 7e is rejected) **BPR-1603 (PR comments as drawer-edge chips; design note + review first)**, then the RFC closeout.
 
 - **RFC-BPR-0085 drawer redesign resumed with Claude.** Milestones 1 and 2 (BPR-1587, BPR-1588,
   BPR-1589) are landed. Do not touch BPR-1590–BPR-1595 or the worktree

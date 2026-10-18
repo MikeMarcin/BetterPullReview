@@ -31,6 +31,7 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
+	#include "bpr/qt/agent_tab_view.hpp"
 	#include "bpr/qt/finding_queue_view.hpp"
 	#include "bpr/qt/workshop_candidate_line.hpp"
 	#include "bpr/qt/writing_hooks_panel.hpp"
@@ -249,6 +250,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
+		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5503,6 +5505,9 @@ namespace {
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	#endif
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5591,6 +5596,10 @@ namespace {
 						schedule_attended_notes_look(aApplication);
 					} else if (look == "tour") {
 						schedule_attended_tour_look(aApplication);
+	#if defined(BPR_AGENT_INTEGRATIONS)
+					} else if (look == "agent") {
+						schedule_attended_agent_look(aApplication);
+	#endif
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
@@ -6013,6 +6022,71 @@ namespace {
 		});
 		timer->start();
 	}
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-1594]]. `--attended-agent-look PATH`: on conventional-comments-v1,
+	// once the file shows, ⌥⇧A opens the Agent tab and its review runs once
+	// with the fixture agent named here, so the person sees its finding cards.
+	// Nothing reaches GitHub.
+	void schedule_attended_agent_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(80);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 2'000) {
+				done(QStringLiteral("ATTENDED_AGENT_FAILED:timeout:step=%1").arg(*step));
+				return;
+			}
+			auto* const tab = window.agent_tab();
+			if (*step == 0) {
+				if (window.agent_panel()->profile_selector()->count() == 0) {
+					return;
+				}
+				// The fixture agent speaks Codex's JSON lines.
+				if (const auto codex = window.agent_panel()->profile_selector()->findData(QVariant::fromValue<qulonglong>(bpr::core::codex_jsonl_profile_id.value())); codex >= 0) {
+					window.agent_panel()->profile_selector()->setCurrentIndex(codex);
+				}
+				window.open_agent_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (!window.agent_panel()->start_action()->isEnabled()) {
+					return;
+				}
+				window.agent_panel()->start_action()->trigger();
+				*step = 2;
+				return;
+			}
+			if (window.finding_queue()->finding_count() == 0U && tab->state() != bpr::qt::agent_tab_state::stopped) {
+				return;
+			}
+			tab->refresh();
+			QCoreApplication::processEvents();
+			if (const auto root = qEnvironmentVariable("BPR_ATTENDED_AGENT_RENDER"); !root.isEmpty()) {
+				if (qEnvironmentVariable("BPR_ATTENDED_AGENT_THEME") == QStringLiteral("dark")) {
+					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+				}
+				QCoreApplication::processEvents();
+				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
+			}
+			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+		});
+		timer->start();
+	}
+	#endif
 
 	// [[BPR-1084]] and [[BPR-1085]]. `--attended-preflight-look`: on
 	// conventional-comments-v1, once the file is shown, a new blocking comment
@@ -10076,6 +10150,12 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1091]]. After the file, a workshop proposal from the fixture
 		// agent named here, with its candidate line.
 		const auto attendedWorkshopAgent = launch.value("--attended-workshop-agent");
+		// [[BPR-1594]]. After the file, the Agent tab and one review by the
+		// fixture agent named here.
+		const auto attendedAgentLook = launch.value("--attended-agent-look");
+		if (attendedAgentLook.has_value()) {
+			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
+		}
 		if (attendedWorkshopAgent.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
 			fixtureOptions.LabelHelper          = true;
@@ -10626,6 +10706,9 @@ auto main(int argc, char** argv) -> int
 					auto look = std::optional<std::string>{ };
 					if (attendedWorkshopAgent.has_value()) {
 						look = std::string{ "workshop" };
+					}
+					if (attendedAgentLook.has_value()) {
+						look = std::string{ "agent" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };

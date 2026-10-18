@@ -47,6 +47,7 @@ add_library(
         src/home_refusal.cpp
         src/defect_card_view.cpp
         src/private_notes_panel.cpp
+        src/agent_tab_view.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

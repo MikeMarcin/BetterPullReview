@@ -21,6 +21,7 @@
 
 #include "bpr/core/file_progress_mark.hpp"
 
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -1928,6 +1929,22 @@ namespace bpr::qt {
 		SuggestChangeAction->setObjectName(QStringLiteral("suggestChangeAction"));
 		SuggestChangeAction->setIcon(conversation_icon(conversation_glyph::suggest, palette()));
 		connect(SuggestChangeAction, &QAction::triggered, this, [this] { static_cast<void>(comment_on_selected_lines(true)); });
+		// [[BPR-1594]]. The Agent tab is one key away (⌥⇧A); ⌘I asks it about
+		// the selected lines, as the code's menu does.
+		OpenAgentAction = new QAction{ tr("Agent"), this };
+		OpenAgentAction->setObjectName(QStringLiteral("openAgentTabAction"));
+		OpenAgentAction->setShortcuts(shortcut_keys(shortcut_command::open_agent));
+		OpenAgentAction->setShortcutContext(Qt::WindowShortcut);
+		OpenAgentAction->setToolTip(tr("Open the Agent tab"));
+		addAction(OpenAgentAction);
+		connect(OpenAgentAction, &QAction::triggered, this, [this] { show_agent(false); });
+		AskAgentAction = new QAction{ tr("Ask about these lines"), this };
+		AskAgentAction->setObjectName(QStringLiteral("askAgentAboutLinesAction"));
+		AskAgentAction->setShortcuts(shortcut_keys(shortcut_command::ask_agent));
+		AskAgentAction->setShortcutContext(Qt::WindowShortcut);
+		AskAgentAction->setToolTip(tr("Ask the agent about the lines selected in the code"));
+		addAction(AskAgentAction);
+		connect(AskAgentAction, &QAction::triggered, this, [this] { show_agent(true); });
 		update_compose_mark();
 		update_strip_positions();
 		update_strip_identity();
@@ -2988,6 +3005,14 @@ namespace bpr::qt {
 		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
 		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
 		agentPageLayout->addWidget(privateTabs, 1);
+		// [[BPR-1594]]. RFC-BPR-0085 D5: the Agent tab presents the agent's
+		// panels, moved into one layout; the private history is its History.
+		// The panels' own column stays, unseen, for every control not moved.
+		AgentTab = new agent_tab_view{ *AgentPanel, *SideChat, *FindingQueue, *privateTabs->widget(0), agentPage };
+		AgentTab->set_setup_dispatch([this] { open_settings(settings_page::agents_and_context); });
+		agentPageLayout->addWidget(AgentTab, 1);
+		notesPurpose->hide();
+		privateTabs->hide();
 
 		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
 		// and Tour. The drawer still
@@ -3009,7 +3034,7 @@ namespace bpr::qt {
 		TrayTabs->addTab(tr("Tour"));
 		// [[BPR-1592]]. Provisional until [[BPR-1594]]: its spark alone, so
 		// four tabs and the Comments tools share one row.
-		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), QString{ });
+		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), tr("Agent"));
 		TrayTabs->setAccessibleTabName(3, tr("Agent"));
 		TrayTabs->setAccessibleTabName(2, tr("Tour"));
 		TrayTabs->setAccessibleTabName(1, tr("Notes"));
@@ -7957,19 +7982,43 @@ namespace bpr::qt {
 		PrivateNotes->open_note(aId);
 	}
 
+	void workbench_window::show_agent(const bool aAsk)
+	{
+		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+		} else if (!Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			conversations_drawer_toggle_action()->trigger();
+		}
+		if (TrayTabs != nullptr) {
+			TrayTabs->setCurrentIndex(tray_findings_tab);
+		}
+		if (AgentTab == nullptr) {
+			return;
+		}
+		// The selected lines go with the question, through the chat's own
+		// Add context, which the core decides; nothing is sent.
+		if (aAsk && SideChat != nullptr && SideChat->add_context_action()->isEnabled()) {
+			SideChat->add_context_action()->trigger();
+		}
+		AgentTab->refresh();
+		AgentTab->focus_question();
+	}
+
 	void workbench_window::fit_tray_tabs(const bool aRepaint)
 	{
 		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() < 3) {
 			return;
 		}
-		const auto    narrow  = TrayHeader->width() > 0 && TrayHeader->width() < 340;
-		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour") };
-		const QIcon   icons[] = { conversation_icon(conversation_glyph::comment, palette()), conversation_icon(conversation_glyph::lock, palette()), drawer_icon(drawer_glyph::tour, palette()) };
-		for (auto index = 0; index < 3; ++index) {
+		const auto narrow = TrayHeader->width() > 0 && TrayHeader->width() < 340;
+		// [[BPR-1594]]. Four tabs; the Agent keeps its spark beside its name.
+		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
+		const QIcon   icons[] = { conversation_icon(conversation_glyph::comment, palette()), conversation_icon(conversation_glyph::lock, palette()), drawer_icon(drawer_glyph::tour, palette()),
+								  drawer_icon(drawer_glyph::agent, palette()) };
+		for (auto index = 0; index < std::min(4, TrayTabs->count()); ++index) {
 			const auto text = narrow ? QString{ } : names[index];
 			if (aRepaint || TrayTabs->tabText(index) != text) {
 				TrayTabs->setTabText(index, text);
-				TrayTabs->setTabIcon(index, narrow ? icons[index] : QIcon{ });
+				TrayTabs->setTabIcon(index, narrow || index == 3 ? icons[index] : QIcon{ });
 			}
 		}
 	}
@@ -9576,6 +9625,16 @@ namespace bpr::qt {
 			item->setStatusTip(action->statusTip());
 			connect(item, &QAction::triggered, action, &QAction::trigger);
 			menu->addAction(item);
+		}
+		// [[BPR-1594]]. Ask the agent about these lines, in the Agent tab.
+		if (AskAgentAction != nullptr) {
+			auto* const ask = new QAction{ AskAgentAction->text(), menu };
+			ask->setObjectName(AskAgentAction->objectName());
+			ask->setShortcuts(AskAgentAction->shortcuts());
+			ask->setShortcutContext(Qt::WidgetShortcut);
+			ask->setToolTip(AskAgentAction->toolTip());
+			connect(ask, &QAction::triggered, AskAgentAction, &QAction::trigger);
+			menu->addAction(ask);
 		}
 		// The reason in words under the items, not only in a tooltip.
 		if (const auto& shown = !words.isEmpty() ? words : suggestWords; !shown.isEmpty()) {

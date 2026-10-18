@@ -211,6 +211,12 @@ namespace bpr::qt {
 		/// \brief Details the finding at one ordinal, and emits nothing.
 		void select(std::size_t aOrdinal);
 
+		/// \brief [[BPR-1594]]. The delivery shown, which the Agent tab draws
+		/// as cards; none before the first.
+		[[nodiscard]] auto shown_delivery() const noexcept -> const application::agent_finding_delivery*
+		{
+			return Members.Shown ? &*Members.Shown : nullptr;
+		}
 		[[nodiscard]] auto selected_ordinal() const noexcept
 			-> std::optional<std::size_t>;
 		[[nodiscard]] auto finding_count() const noexcept -> std::size_t;

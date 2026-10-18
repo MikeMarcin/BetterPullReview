@@ -7,6 +7,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
@@ -157,14 +158,6 @@ namespace {
 	/// [[BPR-1242]]. RFC-BPR-0023 gave the Notes tab two pages, Private
 	/// history first and Agent tools second; the agent surfaces are on the
 	/// second, so a course that inspects them opens it as a reviewer would.
-	void show_agent_tools(qt::workbench_window& aWindow)
-	{
-		auto* const pages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		expect(pages != nullptr && pages->indexOf(aWindow.findings_tab_scroll()) >= 0,
-			   "the Notes tab offers its Agent tools page");
-		pages->setCurrentWidget(aWindow.findings_tab_scroll());
-		QApplication::processEvents();
-	}
 
 	void test_settings_collection_limit_keeps_accepted_models_and_recovery_actions()
 	{
@@ -2921,7 +2914,7 @@ namespace {
 		// and hold every control inside the drawer; the two pages are the
 		// Agent tab's.
 		auto* const notesPages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		if (aWindow.tray_tabs()->currentIndex() == 1) {
+		if (aWindow.tray_tabs()->currentIndex() == 1 || aWindow.tray_tabs()->currentIndex() == 3) {
 			for (auto* const child : drawer->findChildren<QWidget*>()) {
 				if (!child->isVisible() || child->width() == 0) {
 					continue;
@@ -3016,15 +3009,11 @@ namespace {
 			   "no Notes tab control is clipped at 280 pixels");
 		window.tray_tabs()->setCurrentIndex(3);
 		process_events();
-		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		expect(notesPages != nullptr && notesPages->count() == 2 && notesPages->isVisible(),
-			   "[[BPR-1592]] the Agent tab has the Private history and Agent tools pages");
-		notesPages->setCurrentWidget(window.findings_tab_scroll());
-		process_events();
-		expect(every_control_is_reachable(window),
-			   "no Agent tools control is clipped at 280 pixels; the column scrolls");
-		notesPages->setCurrentIndex(0);
-		process_events();
+		// [[BPR-1594]]. The Agent tab is the agent's one layout; its private
+		// history is in History.
+		expect(window.agent_tab() != nullptr && window.agent_tab()->isVisible() && !window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->isVisible(),
+			   "the Agent tab shows the agent's one layout, with no nested pages");
+		expect(every_control_is_reachable(window), "no Agent tab control is clipped at 280 pixels");
 		window.ai_tools_action()->setChecked(false);
 		process_events();
 
@@ -11924,6 +11913,102 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1594]]. RFC-BPR-0085 D5 and AC07: the Agent tab is one key
+	/// away (⌥⇧A); ⌘I and the code's menu ask about the selected lines; the
+	/// context row, the state callout, the finding cards whose actions are
+	/// the queue's own, and the question field.
+	void test_the_agent_is_a_drawer_tab()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		expect(window.open_agent_action() != nullptr && window.open_agent_action()->shortcut() == QKeySequence{ Qt::ALT | Qt::SHIFT | Qt::Key_A }
+				   && window.ask_agent_action()->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_I },
+			   "⌥⇧A opens the Agent tab and ⌘I asks about the selected lines");
+		window.open_agent_action()->trigger();
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 3 && agent->isVisible() && agent->state() == qt::agent_tab_state::not_set_up && agent->empty_state()->isVisible(),
+			   "⌥⇧A opens the drawer on the Agent tab, which says how to set an agent up");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-not-set-up.png"), "PNG"), "render saved");
+		}
+
+		// Set up: the conversation, its question field, and finding cards.
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		expect(agent->state() == qt::agent_tab_state::idle && !agent->empty_state()->isVisible() && agent->ask_button()->isVisible() && window.side_chat()->composer()->isVisible()
+				   && agent->isAncestorOf(window.side_chat()->composer()) && agent->isAncestorOf(window.agent_panel()->profile_selector()),
+			   "with an agent set up, the tab is the conversation with the question field, its agent in the context row");
+		auto finding       = core::agent_finding{ };
+		finding.Provider   = core::agent_profile_id{ 1U };
+		finding.Severity   = core::defect_severity::major;
+		finding.Confidence = core::agent_finding_confidence::high;
+		finding.Category   = core::defect_category::correctness;
+		finding.Path       = "src/engine/renderer.cpp";
+		finding.Lines      = { .Begin = 440U, .End = 447U };
+		finding.Claim      = "The retry budget resets every frame, so an exhausted budget never stops a retry loop.";
+		finding.Evidence   = "Retry_.reset() runs at the start of begin_frame.";
+		auto delivery      = application::agent_finding_delivery{ };
+		delivery.Session   = core::agent_session_id{ 7U };
+		delivery.Findings  = { application::agent_delivered_finding{ .Finding = finding, .Verdict = { } } };
+		auto actions       = std::vector<qt::finding_queue_action>{ };
+		window.finding_queue()->set_dispatch([&actions](qt::finding_action_intent aIntent) { actions.push_back(aIntent.Action); });
+		window.finding_queue()->present(delivery);
+		process_events();
+		const auto cards = agent->finding_cards();
+		expect(cards.size() == 1U, "a finding is a card");
+		auto* const draft = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
+		expect(draft != nullptr && draft->text() == QStringLiteral("Draft a comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp")) != nullptr
+				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingAddToNotes")) != nullptr && cards.front()->findChild<QToolButton*>(QStringLiteral("agentFindingMore")) != nullptr,
+			   "its card offers Draft a comment, Ask follow-up, Add to notes and More");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-findings.png"), "PNG"), "render saved");
+		}
+		draft->click();
+		process_events();
+		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Draft a comment asks the queue's own promotion, nothing more");
+
+		// Working: what it reads, and Stop.
+		window.agent_panel()->set_running(true);
+		process_events();
+		agent->refresh();
+		expect(agent->state() == qt::agent_tab_state::working && agent->banner()->isVisible(), "while it works the tab says so, with Stop");
+		window.agent_panel()->set_running(false);
+		process_events();
+		agent->refresh();
+
+		// The code's menu asks about the lines.
+		const auto diff = computed_comparison("int a = 1;\nint b = 2;\n", "int a = 1;\nint b = 20;\n", 0U);
+		static_cast<void>(publish_fixture(window, diff));
+		window.tray_tabs()->setCurrentIndex(0);
+		process_events();
+		window.ask_agent_action()->trigger();
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 3 && window.side_chat()->composer()->hasFocus(), "⌘I opens the Agent tab with the keyboard in the question");
+		// The conversation, its context row and its question keep the
+		// principles; the private history behind History is RFC-BPR-0023's
+		// own page, unchanged.
+		auto violations = QStringList{ };
+		for (const auto* name : { "agentContextRow", "agentConversationScroll", "agentQuestion" }) {
+			violations += qt::drawer_principle_violations(*agent->findChild<QWidget*>(QString::fromLatin1(name)));
+		}
+		expect(violations.isEmpty(), "the Agent tab keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
+		window.hide();
+	}
+
 	/// \brief [[BPR-1328]]. The arrows are a bounded previous and next.
 	///
 	/// \details The owner, 2026-10-08: "It doesn't feel good for next change
@@ -12264,7 +12349,7 @@ namespace {
 		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
 				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
 				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
-				   && tabs->tabText(3).isEmpty() && !tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
+				   && tabs->tabText(3) == QStringLiteral("Agent") && !tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
 			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
 		const auto privateHeader = [&] {
@@ -12338,32 +12423,21 @@ namespace {
 				   && !window.ai_tools_action()->isChecked(),
 			   "the Notes tab shows the notes with New note and the notes on the pull request on the tab row, and no agent tools");
 		save(QStringLiteral("tray-notes"));
+		// [[BPR-1594]]. The Agent tab: no agent set up, it says how to set one
+		// up, in one sentence and one action, with no nested pages.
 		tabs->setCurrentIndex(3);
 		process_events();
-		show_agent_tools(window);
-		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
-				   && window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible() && below(window.agent_panel())
-				   && !window.conversation_panel()->isVisible(),
-			   "the Agent tab shows only its own tools, beneath the tabs, and checks the AI tools action");
-		// [[BPR-1242]]. The purpose sits above the Notes pages' tab widget, whose
-		// frame is wider than the Agent tools column inside it.
-		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		expect(purpose->isVisible() && notesPages != nullptr && purpose->width() <= notesPages->width()
-				   && purpose->height() >= purpose->heightForWidth(purpose->width()),
-			   "the private purpose wraps within the visible Agent page");
+		auto* const agent = window.agent_tab();
+		expect(agent != nullptr && agent->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked() && !window.conversation_panel()->isVisible()
+				   && below(agent) && agent->state() == qt::agent_tab_state::not_set_up && agent->empty_state()->isVisible()
+				   && agent->empty_state()->action_button() != nullptr && agent->empty_state()->action_button()->text() == QStringLiteral("Set up an agent")
+				   && !window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->isVisible(),
+			   "the Agent tab shows only its own layout, beneath the tabs, says how to set an agent up, and checks the AI tools action");
 		save(QStringLiteral("tray-agent"));
-		auto* const findingsBar = findings->verticalScrollBar();
-		expect(findingsBar->maximum() > 0, "fixture: the Agent column is taller than the drawer");
-		findingsBar->setValue(findingsBar->maximum() / 2);
-		const auto findingsScrolled = findingsBar->value();
 		tabs->setCurrentIndex(0);
 		process_events();
 		expect(view->currentIndex() == selected && comments->isVisible(),
 			   "returning to Comments keeps the selected conversation");
-		tabs->setCurrentIndex(3);
-		process_events();
-		expect(findingsBar->value() == findingsScrolled && findingsScrolled > 0,
-			   "returning to Agent keeps its scroll position");
 
 		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
@@ -19048,6 +19122,7 @@ auto main(int argc, char** argv) -> int
 	test_composition_keys_open_the_pages_and_esc_returns();
 	test_finish_review_is_a_sheet_beside_the_code();
 	test_the_tour_is_a_route_expanding_to_its_page();
+	test_the_agent_is_a_drawer_tab();
 	test_pending_rows_open_their_comments_like_threads();
 	test_tour_retarget_key_reaches_only_the_outline();
 	test_compose_review_marks_a_kept_draft();
