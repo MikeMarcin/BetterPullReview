@@ -81,3 +81,56 @@ and `application_review_round_trip_composition_contract` (11.21 seconds total).
 Unchanged passing evidence above is reused. The earlier frozen root was removed
 with the freeze tool; the replacement and its own launcher check are recorded in
 [the continuation](../issues/_checkpoints/insights-window-v1/continuation.md).
+
+## Owner rejection and correction, round 2
+
+The owner rejected source `5a02177b30250494811033052b673c20a9b5a7b0` in
+session `a25204cd201da1ca5dbff4439c52bda4`, events 6–7: “that looks almost
+nothing like the mockups /Users/jaeger/Downloads/bpr_insights_window_fixed_size_mockup.html”.
+That verdict remains rejected. Only its affected protection was released by
+`resume-development` (event 8). The later milestones remain ineligible.
+
+The correction is source `ae0a40211`. The exact HTML was read and rendered in
+disposable headless Chrome with remote resources blocked. No owner browser
+profile or desktop was read or captured. The `frontend-design` skill named
+above was loaded before design work. Its plan follows the supplied reference:
+900 × 542 content, a 52 px centered tab/action strip, a fixed title/status
+header, 16 px margins, 8 px card gaps, a 90 px budget card and 78 px tiles.
+Native profile font and palette supply the colors and typography; the HTML's
+example data is replaced with real storage values and explicit empty states.
+There are no invented counts, charts or acceptance of later milestones.
+
+The Qt correction replaces stretched group boxes with compact rounded cards,
+keeps the header above the page stack, uses native keyboard-addressable tab
+bars for tabs and ranges, and presents Storage as thin byte/budget rows with
+meters. The two icon actions retain their full accessible names and existing
+host callbacks. The Storage actions retain the existing cache controls and
+Reveal data folder. No new effect, store, process, network, deletion or export
+policy is introduced; architecture and lifetime semantics are unchanged.
+
+Focused checks pass: `application_insights_public_path`,
+`application_review_round_trip_composition_contract` and
+`architecture_boundaries` (20.58 seconds together). The public course checks
+all tabs and ranges through three refreshes, an unchanged title/status header,
+the clamped smaller layout, real bytes, export preview, cache controls,
+Escape, hidden timers and shutdown. All six pages were rendered in Light and
+Dark at the exact reference content size and inspected. The first added test
+assertion incorrectly expected an unclamped width on the offscreen screen;
+it was corrected to check both the reference size and the actual screen clamp.
+LLVM 22 tidy and the documentation gate pass. Public courses also pass at
+1.25× and 2×, with inspected rasters and recorded platform context. Prior
+unaffected storage, reset, lifecycle, privacy,
+network manifest and architecture negative-control evidence is reused.
+
+The corrected shell needs a new owner Accept/Reject verdict. The continuation
+binds its frozen build, short session, fingerprint, commands and cursor. No
+owner acceptance, native Windows/Linux evidence or whole-pack closeout is
+claimed by these offscreen checks.
+
+The required freeze completed for `ae0a40211`; its own launcher check passes.
+The exact frozen public executable also passes via the registered isolation
+wrapper. CTest's initial attempt was refused because it writes its temporary
+log inside the deliberately read-only tree; the equivalent wrapper invocation
+from writable evidence passed without changing that tree. Frozen captures,
+source/executable identities and the new short-session handoff are recorded
+in the continuation. The original rejection remains preserved.
