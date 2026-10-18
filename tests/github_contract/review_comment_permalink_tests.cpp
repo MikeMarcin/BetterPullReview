@@ -1261,8 +1261,8 @@ namespace {
 		explicit lineage_fault(application::private_publication_application_host& aReal)
 			: Real(aReal)
 		{ }
-		auto prepare(const application::review_mutation_request& r, std::string_view key, std::string_view body) -> bool override { return !FailPrepare && Real.prepare(r, key, body); }
-		auto complete(const application::review_mutation_request& r, std::string_view key, std::string_view body, const application::review_mutation_receipt& receipt) -> bool override { return Real.complete(r, key, body, receipt); }
+		auto prepare(const application::review_mutation_request& aR, std::string_view aKey, std::string_view aBody) -> bool override { return !FailPrepare && Real.prepare(aR, aKey, aBody); }
+		auto complete(const application::review_mutation_request& aR, std::string_view aKey, std::string_view aBody, const application::review_mutation_receipt& aReceipt) -> bool override { return Real.complete(aR, aKey, aBody, aReceipt); }
 	};
 	struct session_adapter final : application::review_mutation_port
 	{
@@ -1271,8 +1271,8 @@ namespace {
 			: Session(aSession)
 		{ }
 		auto observe_target() -> std::expected<core::review_mutation_target, application::review_mutation_failure> override { return Session.observe_target(); }
-		auto submit(const application::review_mutation_request& r) -> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override { return Session.submit(r); }
-		auto submit_and_reconcile(const application::review_mutation_request& r, std::stop_token stop) -> application::review_mutation_submission override { return Session.submit_and_reconcile(r, stop); }
+		auto submit(const application::review_mutation_request& aR) -> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override { return Session.submit(aR); }
+		auto submit_and_reconcile(const application::review_mutation_request& aR, std::stop_token aStop) -> application::review_mutation_submission override { return Session.submit_and_reconcile(aR, aStop); }
 		auto capabilities() const -> application::review_provider_capabilities override { return { }; }
 	};
 	auto lineage_writer(const std::filesystem::path& aRoot) -> sqlite3*

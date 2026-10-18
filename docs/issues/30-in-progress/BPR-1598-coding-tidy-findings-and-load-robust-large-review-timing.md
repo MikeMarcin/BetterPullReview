@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner-approved cleanup, 2026-10-17","related_cards":["BPR-1373","BPR-0967","BPR-1247","BPR-1495","BPR-1580","BPR-1583","BPR-1560","BPR-1557"],"reservation":"docs/issues/_reservations/BPR-1598--BPR-1598--95fbc5d6a30d.json"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9252502e4","evidence":{"kind":"command","command":"cmake --build build/dev --target coding-format-check; PATH=llvm@22 tidy.py --build-dir build/dev --warnings-as-errors over the touched translation units; clang-tidy 22 over all 885 gate translation units","detail":"The two findings are fixed (home_panel.cpp summary flags made int explicitly; server_card.cpp using_ renamed usedHere) with four more trivial ones in the same adapters (device-authorization Glaze option names marked as the sibling contracts mark them, noteLimit, the merged get_merge_base/timeline case, process_supervision.hpp include guard). Format check passes over 1,608 files; tidy passes on every changed translation unit (the benchmark's own findings are pre-existing, none on a changed line). The repo-wide gate is not green: 361 other findings in 109 files remain, listed below as AC1 allows; qt_home_list, qt_workbench_home_discovery, qt_composed_github and _home_sign_in, qt_anonymous_public_preview, qt_disclosure_button, application_saved_server_contract, github_read_contract, github_device_authorization_contract, github_paged_read, architecture_boundaries, architecture_boundary_contract and test_network_isolation_manifest pass (20/20)."}},{"criterion":"AC2","outcome":"pass","revision":"9252502e4","evidence":{"kind":"command","command":"ctest -R large-review rows, load average 68-117","detail":"Before: at load 75-78 responsiveness, launch, active_work, pathological, history and large_review_replay_contract (timeout at 33 s) failed. After: timed figures are attributed (GUI-thread intervals less that thread's own sampled wait, floored by its processor time; completions less every thread's wait, floored by the busiest thread's processor time); all rows pass at load 68-117, limits unchanged, wall readings kept in each report. Residual misses come from the GUI thread blocking on malloc's fork lock while a preempted worker starts Git (sampled: _xzm_fork_lock_wait under github_application::status), so a timing miss while the GUI thread measurably waited is run once more by large_review_course.py, keeping the first report. The replay contract's budget is now 30 s of processor time (RLIMIT_CPU); it used 16.6 s CPU in 67 s wall at load 111."}},{"criterion":"AC3","outcome":"pass","revision":"9252502e4","evidence":{"kind":"command","command":"application_large_review_timing_control; temporary 150 ms stall in workbench_drawer_panel::apply_visibility (not committed); replay --processor-seconds=5","detail":"Timing control with 28 spinning threads: 120 ms of GUI work reads 120.2 ms (wall 732.9), 40 ms reads 40.1 (wall 178.7), a 120 ms sleep reads 125.2 with zero thread wait (process-wide wait was 51.7, which is why the GUI wait is sampled per thread). Injected 150 ms sleep and 150 ms spin on drawer open at load 67-69: responsiveness fails, is retried once, fails again (files_drawer_open 195.7 and 202.9 ms against 100; drawers_show 338.5 and 368.1). Replay with a 5 s processor budget stops with LARGE_REVIEW_REPLAY_CPU_LIMIT."}},{"criterion":"AC4","outcome":"pass","revision":"9252502e4","evidence":{"kind":"command","command":"ctest --preset dev -j6 with twelve processor burners, stopped at 725/775 under the owner's one-card-at-a-time policy; python3 scripts/verify_documentation.py --root .","detail":"Load average 43-120 through the run. Every large-review row, the replay contract and the timing control passed; application_large_review_pathological passed on its retry (first attempt: paged_review_and_git_load gap 108.7 ms with the GUI thread waiting 40% of the course). The run's other failures (live_mutation_isolation and application_composition_contract timeouts, release_update_native_https, qt_composed_long_thread_scale_125, application_threaded_reply_contract, application_epoch_portable_occurrence_two_catalogues) are rows this card does not touch. The owner's policy moved the complete full-suite proof to the final integrated suite. DOCUMENTATION_OK."}}]
+acceptance: []
 ---
 
 # BPR-1598: The coding-tidy gate passes, and the large-review timing rows hold on a loaded machine
@@ -31,8 +31,8 @@ running its own rows beside them but cannot hold back another agent's build.
 
 - AC1: The two findings are fixed without changing behaviour, and the full
   `coding-format-check` and `coding-tidy` gate (clang-format 22, clang-tidy
-  22) passes over every translation unit; any other finding it reports is
-  fixed when trivial and behaviour-neutral, or listed here.
+  22) passes over every translation unit. The ordered handoff requires the
+  complete gate to be green, superseding the earlier inventory-only plan.
 - AC2: Every timed figure a large-review limit reads leaves out the time the
   course was kept off a processor by another process, so a loaded machine no
   longer fails the rows; the limits themselves are unchanged and the wall
@@ -40,10 +40,9 @@ running its own rows beside them but cannot hold back another agent's build.
 - AC3: A genuine regression still fails: the timing control proves that GUI
   work and a blocked GUI thread still count in full while the processors are
   saturated, and an injected stall in the product fails its row under load.
-- AC4: Under a loaded `ctest --preset dev -j6` none of these rows fails; the
-  documentation gate passes. (The owner's 2026-10-17 landing policy moved the
-  complete full-suite proof to the final integrated suite; this card records
-  a run stopped at 725 of 775 rows.)
+- AC4: Under external load the focused large-review rows pass, as do the
+  affected code’s focused tests and documentation gate. The owner’s ordered
+  handoff assigns the one full integrated suite to item 9, after BPR-1599.
 
 ## What changed
 
@@ -70,34 +69,49 @@ running its own rows beside them but cannot hold back another agent's build.
 - `RUN_SERIAL`, which the rows already had, stays: it keeps CTest's own rows
   away, which no attribution can, while attribution handles other processes.
 
-## Repo-wide clang-tidy 22 findings left in place
+## Completion of the full gate
 
-The gate run over all 885 translation units reports 361 findings in 109 files
-besides those fixed here, far more than the two this card was opened for; most
-rows land through tidy runs over touched files only. By check:
-readability-identifier-naming 216, performance-avoid-endl 20,
-modernize-use-emplace 18, readability-static-accessed-through-instance 12,
-bugprone-throwing-static-initialization 12,
-performance-inefficient-string-concatenation 11,
-bugprone-optional-value-conversion 9, clang-diagnostic-error 8 (clang-tidy
-22 cannot parse Glaze's `decay_keep_volatile_t` in
-`installed_git_process.cpp` and `syntax_refinement_cancellation_tests.cpp`),
-performance-unnecessary-copy-initialization 7, float loop counters 10,
-portability-avoid-pragma-once 4, and 31 more across 20 checks. By area:
-tests/end_to_end 63, tests/github_contract 46, tests/adapters_qt 41,
-tests/sqlite_contract 37, tests/application 34, src/application 23, src/app
-27, src/adapters/sqlite 18, tests/core 16, src/core 11, src/adapters/qt 10.
-Not behaviour-neutral as a sweep (`std::endl` flushes markers; several are
-possible bugs), and touching 109 files would collide with the worktrees in
-flight, so they are listed rather than fixed. Worth a look first:
-`src/app/main.cpp:10218` (use after move of `fixtureName`),
-`tests/sqlite_contract/private_review_storage_tests.cpp:407` (a length of 14
-over a 13-byte literal), `tests/sqlite_contract/appearance_settings_storage_tests.cpp:805`
-(two statements joined by a missing comma, perhaps on purpose). The gate also
-runs whichever `clang-tidy` is first on `PATH`; on this Mac that is LLVM 23,
-whose new checks add many more.
+The handoff inventory covered 885 translation units. After merging main
+`57f335411` at `e569d67aa`, the fresh LLVM 22 inventory covered 899 units;
+121 runs reported findings, including findings in shared headers. The cleanup
+covers naming, explicit static calls, fixed-size constant schema tables,
+integer loop counters, direct optional conversions and fewer temporary
+allocations. Copies that must survive an erase or UI update retain narrow,
+explained suppressions; Glaze option names and reflected fixture keys keep
+their required spelling. Output markers retain explicit flushing.
 
-## Next
+The migration payload now derives its length from its array bounds and keeps
+both NUL bytes. Its two-statement malformed-value mutation remains one SQL
+call. The app retains the fixture name for the later attended read. Benchmark
+arguments use checked integer conversion. These details receive their existing
+focused storage, app and benchmark coverage.
 
-Land after "Finish BPR-1572" is on main. The full-suite proof under load runs
-with the final integrated suite.
+The tidy helper now discovers LLVM 22 by default and supports bounded parallel
+read-only analysis with `CODING_STANDARD_TIDY_JOBS` or `--jobs`. Parallel
+`--fix` is refused because translation units share headers. Four Python cases
+cover tool selection, failure aggregation, concurrency and option validation;
+the registered `coding_standard_tidy_contract` passes.
+
+The `src/app` changes have been reviewed directly for this ordered handoff.
+The dated composition reseal covers the fixture name, optional assignment,
+fixture lambda names, baseline reservation and unknown-stage refusal. The
+application and production mutation pins remain unchanged; only the app
+manifest pin changes. The frontend-design skill was loaded for the Qt surface
+work; accepted visual designs are preserved.
+
+## Verification
+
+The full format gate passes across 1,628 files. All 73 changed test targets
+and focused consumers build. The full tidy gate and focused rows are running.
+The fresh timing control records 120.19 ms of GUI work despite 585.28 ms wall
+time, 40.22 ms of GUI work despite 152.15 ms wall time, and a blocked GUI
+interval of 125.10 ms. The fresh replay negative control
+with `--processor-seconds=5` fails with `LARGE_REVIEW_REPLAY_CPU_LIMIT` as
+required. The inherited product-stall negative controls at `9252502e4` remain
+applicable: temporary 150 ms sleep and spin delays on drawer opening failed
+responsiveness on both attempts under load; neither delay was committed.
+The timing budget logic and injected product path have not changed since that
+evidence. No new full-suite run is made for this card; item 9 owns it.
+
+The diff benchmark accepts `3 0` and refuses a non-integer repetition count
+and negative unsigned line count. The documentation gate passes.

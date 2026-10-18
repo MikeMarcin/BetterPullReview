@@ -279,7 +279,7 @@ try {
 	wait_for([&] { return desktop->management_window() != nullptr; }, "desktop management composed");
 	auto& resident = *desktop->management_window();
 	wait_for([&] { return resident.rename_button()->isEnabled(); }, "the registry is ready for management");
-	const auto closed_the_last_window = [&] {
+	const auto closedTheLastWindow = [&] {
 		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; },
 				 "the last window closes and its profile retires");
 		expect(!resident.isVisible(), "closing the last window presents no chooser");
@@ -287,7 +287,7 @@ try {
 			   "the injected policy decided to stay resident");
 		expect(!desktop->is_quiescent(), "so the application is still running with no window");
 	};
-	const auto reopened_exactly_once = [&](const char* aMessage) {
+	const auto reopenedExactlyOnce = [&](const char* aMessage) {
 		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) != nullptr; }, aMessage);
 		auto* const runtime = desktop->runtime(core::default_bpr_profile_id);
 		QApplication::processEvents();
@@ -305,7 +305,7 @@ try {
 	};
 	// Fetched again after each close rather than held, because the desktop builds it
 	// when it empties and retires it when a window becomes active.
-	const auto resident_menu_bar = [&] {
+	const auto residentMenuBar = [&] {
 		auto* const menu = desktop->desktop_menu();
 		expect(menu != nullptr && menu->parentWidget() == nullptr,
 			   "the resident desktop keeps the application's own menu bar");
@@ -313,7 +313,7 @@ try {
 	};
 	// [[BPR-1304]]. The window's View, read before the close rather than counted
 	// here: [[BPR-1295]] and [[BPR-1293]] each added an item to it.
-	const auto view_items = [](const QMenu* const aMenu) {
+	const auto viewItems = [](const QMenu* const aMenu) {
 		auto items = QStringList{ };
 		for (const auto* const action : aMenu->actions()) {
 			items.push_back(action->isSeparator() ? QStringLiteral("-") : action->text());
@@ -321,13 +321,13 @@ try {
 		return items;
 	};
 	expect(initial->window().view_menu() != nullptr, "the window has its View menu");
-	const auto windowView = view_items(initial->window().view_menu());
+	const auto windowView = viewItems(initial->window().view_menu());
 	initial->window().close();
-	closed_the_last_window();
-	auto* desktopMenu = resident_menu_bar();
+	closedTheLastWindow();
+	auto* desktopMenu = residentMenuBar();
 	expect(desktopMenu->profiles_menu()->actions().size() == 5,
 		   "which lists the three profiles, New Window and management");
-	expect(desktopMenu->view_menu() != nullptr && view_items(desktopMenu->view_menu()) == windowView
+	expect(desktopMenu->view_menu() != nullptr && viewItems(desktopMenu->view_menu()) == windowView
 			   && std::ranges::all_of(desktopMenu->view_menu()->actions(), [](const auto* aAction) {
 					  return aAction->isSeparator() || !aAction->isEnabled();
 				  }),
@@ -345,7 +345,7 @@ try {
 	resident.hide();
 
 	desktopMenu->new_window_action()->trigger();
-	auto* const byMenuBar = reopened_exactly_once("New Window on the application's menu bar reopens the most recently used profile");
+	auto* const byMenuBar = reopenedExactlyOnce("New Window on the application's menu bar reopens the most recently used profile");
 
 	// B3 with a live window: the refusal is reported there and the chooser stays away.
 	resident.rename_button()->click();
@@ -361,20 +361,20 @@ try {
 	resident.hide();
 
 	byMenuBar->window().close();
-	closed_the_last_window();
-	desktopMenu = resident_menu_bar();
+	closedTheLastWindow();
+	static_cast<void>(residentMenuBar());
 	expect(QMetaObject::invokeMethod(qApp, "applicationStateChanged", Qt::DirectConnection,
 									 Q_ARG(Qt::ApplicationState, Qt::ApplicationActive)),
 		   "the platform's own activation signal is deliverable");
-	auto* const byActivation = reopened_exactly_once("activating the resident application reopens the most recently used profile");
+	auto* const byActivation = reopenedExactlyOnce("activating the resident application reopens the most recently used profile");
 
 	byActivation->window().close();
-	closed_the_last_window();
-	desktopMenu            = resident_menu_bar();
+	closedTheLastWindow();
+	desktopMenu            = residentMenuBar();
 	auto* const defaultRow = desktopMenu->findChild<QAction*>(QStringLiteral("desktopOpenBprProfile_1"));
 	expect(defaultRow != nullptr && defaultRow->isEnabled(), "the Profiles menu offers the profile by name");
 	defaultRow->trigger();
-	static_cast<void>(reopened_exactly_once("choosing the profile from the Profiles menu reopens it"));
+	static_cast<void>(reopenedExactlyOnce("choosing the profile from the Profiles menu reopens it"));
 	desktop->quit(0);
 	wait_for([&] { return desktop->is_quiescent(); }, "the resident desktop still quits when asked");
 	desktop.reset();

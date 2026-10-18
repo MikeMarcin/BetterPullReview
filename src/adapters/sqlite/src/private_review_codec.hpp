@@ -151,7 +151,7 @@ namespace bpr::adapters::sqlite::detail {
 			if (Reading) {
 				alternative(aValue, index);
 			} else {
-				std::visit([&](auto& item) { value(item); }, aValue);
+				std::visit([&](auto& aItem) { value(aItem); }, aValue);
 			}
 		}
 		template <typename... T>

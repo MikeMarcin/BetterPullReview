@@ -103,14 +103,16 @@ namespace {
 		if (aProtocol2) {
 			environment.insert("GIT_PROTOCOL", "version=2");
 		}
-		auto arguments = aArguments;
+		QProcess process;
 #if defined(Q_OS_WIN)
+		auto arguments = aArguments;
 		arguments.prepend(QStringLiteral("core.longpaths=true"));
 		arguments.prepend(QStringLiteral("-c"));
-#endif
-		QProcess process;
-		process.setProgram(QString::fromStdString(git_executable().string()));
 		process.setArguments(arguments);
+#else
+		process.setArguments(aArguments);
+#endif
+		process.setProgram(QString::fromStdString(git_executable().string()));
 		process.setWorkingDirectory(QString::fromStdString(aRoot.string()));
 		process.setProcessEnvironment(environment);
 		process.start();

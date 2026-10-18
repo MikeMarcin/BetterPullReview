@@ -377,21 +377,21 @@ namespace {
 	{
 		for (unsigned mode = 0; mode < 5; ++mode) {
 			fixture f;
-			f.Process.ChangeResult = [mode](agent_run_result& r) {
+			f.Process.ChangeResult = [mode](agent_run_result& aR) {
 				if (mode == 0) {
-					r.AssistantItems.resize(257, "x");
+					aR.AssistantItems.resize(257, "x");
 				}
 				if (mode == 1) {
-					r.AssistantItems = { std::string(maximum_private_assistant_body_bytes + 1, 'x') };
+					aR.AssistantItems = { std::string(maximum_private_assistant_body_bytes + 1, 'x') };
 				}
 				if (mode == 2) {
-					r.Findings = agent_finding_payload{ agent_session_id{ 999 }, { } };
+					aR.Findings = agent_finding_payload{ agent_session_id{ 999 }, { } };
 				}
 				if (mode == 3) {
-					r.Findings = agent_finding_payload{ r.Session, { agent_finding{ } } };
+					aR.Findings = agent_finding_payload{ aR.Session, { agent_finding{ } } };
 				}
 				if (mode == 4) {
-					r.Metadata.Requested.Model = "wrong";
+					aR.Metadata.Requested.Model = "wrong";
 				}
 			};
 			f.send(f.request());
@@ -400,7 +400,7 @@ namespace {
 			expect(turns && (turns->Revisions.size() == 1 || !eligible_private_revision(turns->Revisions.back().Revision)), "invalid terminal cannot retain eligible complete response");
 		}
 		fixture f;
-		f.Process.ChangeResult = [](agent_run_result& r) { r.AssistantItems.clear(); };
+		f.Process.ChangeResult = [](agent_run_result& aR) { aR.AssistantItems.clear(); };
 		f.send(f.request());
 		expect(f.Store->list_revisions(*f.Projection.Deltas.front().Thread)->Revisions.size() == 2, "empty validated response retains exact empty assistant turn");
 	}
@@ -525,7 +525,7 @@ namespace {
 		f.Fault.FailCommit                           = false;
 		auto                                reopened = std::move(*make_private_review_store(f.Config));
 		review_composition_application_host restarted(*reopened);
-		auto                                hidden = restarted.restore(*parse_git_commit_oid("9999999999999999999999999999999999999999"));
+		auto                                hidden = restarted.restore(parse_git_commit_oid("9999999999999999999999999999999999999999"));
 		expect(hidden && hidden->records().empty() && hidden->held_reviews().size() == 1 && hidden->held_reviews().front() == "original-held-review", "restart discovers earlier-head held keys independently of the current editable projection");
 		auto confirmed = restarted.settle_review("original-held-review", true, proposal);
 		expect(confirmed && confirmed->records().size() == 1 && confirmed->records().front().Draft.Draft.State == review_draft_state::published && confirmed->records().front().Draft.Draft.Body == body && confirmed->records().front().Binding == f.Binding, "stored original authority settles without requiring a current-head cache entry");

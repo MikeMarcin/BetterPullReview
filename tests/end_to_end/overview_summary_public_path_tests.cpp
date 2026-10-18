@@ -260,10 +260,10 @@ int main(int aArgc, char** aArgv)
 	auto* side = page->findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
 	side->ensureWidgetVisible(checkExplanation);
 	render(*application, QStringLiteral("check-details"));
-	const auto originalFont = qtApplication.font();
+	const auto originalFont = QApplication::font();
 	auto       enlarged     = originalFont;
 	enlarged.setPointSizeF(originalFont.pointSizeF() * 1.35);
-	qtApplication.setFont(enlarged);
+	QApplication::setFont(enlarged);
 	window.resize(900, 600);
 	settle();
 	side->ensureWidgetVisible(checkExplanation);
@@ -278,7 +278,7 @@ int main(int aArgc, char** aArgv)
 				  << " entry_path=" << page->entry_path().has_value()
 				  << " side_width=" << side->widget()->width()
 				  << " viewport_width=" << side->viewport()->width()
-				  << " font_points=" << qtApplication.font().pointSizeF() << '\n';
+				  << " font_points=" << QApplication::font().pointSizeF() << '\n';
 		render(*application, QStringLiteral("check-details-enlarged-failed"));
 	}
 	expect(checksUsable, "narrow enlarged check explanation and action remain usable with review entry available");
@@ -287,7 +287,7 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(std::ranges::all_of(page->request_rows(), [&](const auto* aRow) { return aRow->width() <= side->viewport()->width() && aRow->height() >= aRow->heightForWidth(aRow->width()) && aRow->toolTip() == aRow->accessibleName(); }) && mergeText->wordWrap() && mergeText->height() >= mergeText->heightForWidth(mergeText->width()) && requirementDisclosure->minimumSizeHint().width() <= requirementDisclosure->width(), "narrow enlarged roster rows fit, keep long qualified team names whole in tooltip and accessible name, and keep native detail control usable");
 	render(*application, QStringLiteral("review-blockers-enlarged"));
-	qtApplication.setFont(originalFont);
+	QApplication::setFont(originalFont);
 	window.resize(1280, 900);
 	settle();
 	side->verticalScrollBar()->setValue(0);

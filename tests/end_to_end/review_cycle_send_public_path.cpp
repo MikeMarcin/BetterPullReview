@@ -317,11 +317,11 @@ namespace {
 		// the onward observations in the appearance's role colours, each with
 		// words; the caption whole behind the info glyph.
 		{
-			const auto role_colour = [&roles](const core::appearance_role aRole) { return roles.at(static_cast<std::size_t>(aRole)); };
-			expect(sheet->round_chip()->text() == QStringLiteral("Shared") && sheet->round_chip()->colour() == role_colour(core::appearance_role::state_accepted), "the shared round's chip in the accepted role");
+			const auto roleColour = [&roles](const core::appearance_role aRole) { return roles.at(static_cast<std::size_t>(aRole)); };
+			expect(sheet->round_chip()->text() == QStringLiteral("Shared") && sheet->round_chip()->colour() == roleColour(core::appearance_role::state_accepted), "the shared round's chip in the accepted role");
 			auto onward = sheet->deliveries()->count() > 0;
 			for (auto row = 0; row < sheet->deliveries()->count(); ++row) {
-				onward = onward && sheet->deliveries()->item(row)->data(qt::review_cycle_share_sheet::delivery_colour_role).value<QColor>() == role_colour(core::appearance_role::state_verified);
+				onward = onward && sheet->deliveries()->item(row)->data(qt::review_cycle_share_sheet::delivery_colour_role).value<QColor>() == roleColour(core::appearance_role::state_verified);
 			}
 			expect(onward, "accepted by the adapter and acknowledged, each in the verified role, beside its words");
 			expect(sheet->meaning()->consequence() == QStringLiteral("These say only what happened to the bytes. None of them means the round was received, read, acted on or accepted."), "and what none of them means, whole");

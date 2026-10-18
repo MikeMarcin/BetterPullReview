@@ -119,7 +119,12 @@ namespace bpr::core {
 		}
 		auto read_link(std::string_view aText, std::size_t& aAt) -> std::optional<tour_markdown_link>
 		{
-			if (aAt >= aText.size() || aText[aAt++] != '[') {
+			if (aAt >= aText.size()) {
+				return { };
+			}
+			const auto opening = aText[aAt];
+			++aAt;
+			if (opening != '[') {
 				return { };
 			}
 			std::string label;

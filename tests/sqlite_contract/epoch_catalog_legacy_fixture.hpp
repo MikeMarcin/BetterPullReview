@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_TESTS_SQLITE_CONTRACT_EPOCH_CATALOG_LEGACY_FIXTURE_HPP
+#define BPR_TESTS_SQLITE_CONTRACT_EPOCH_CATALOG_LEGACY_FIXTURE_HPP
 
 namespace bpr::tests::sqlite_contract {
 	template <typename Database>
@@ -87,3 +88,5 @@ namespace bpr::tests::sqlite_contract {
 		return true;
 	}
 } // namespace bpr::tests::sqlite_contract
+
+#endif

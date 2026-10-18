@@ -380,14 +380,14 @@ namespace {
 			core::application_session_id{ 2U },
 			provider,
 			lane,
-			[&](const auto& update) { updates.push_back(update); },
+			[&](const auto& aUpdate) { updates.push_back(aUpdate); },
 			&epochs
 		};
 		expect(host.adopt(session()), "progressive fixture accepts exact account session");
-		const auto observation = [](const reads::call& call) {
-			auto data                            = snapshot(call.Request);
+		const auto observation = [](const reads::call& aCall) {
+			auto data                            = snapshot(aCall.Request);
 			data.PullRequest.ReportedCommitCount = 5U;
-			return application::github_pull_request_overview_observation{ call.Request.Context, data.Repository, data.PullRequest, 1523U };
+			return application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 1523U };
 		};
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
 		const auto first           = provider.Calls.back();

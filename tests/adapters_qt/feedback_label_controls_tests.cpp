@@ -232,8 +232,8 @@ namespace {
 
 	void test_decorations_and_plain()
 	{
-		using W = qt::feedback_mark_weight;
-		auto f  = fixture{ "Fix it." };
+		using mark_weight = qt::feedback_mark_weight;
+		auto f            = fixture{ "Fix it." };
 		f.controls()->chip()->click();
 		settle();
 		f.menu()->label_button(core::feedback_label::issue)->click();
@@ -245,7 +245,7 @@ namespace {
 			   "with a label the three decorations sit beside the chip as toggles");
 		blocking->click();
 		settle();
-		expect(f.text() == "issue (blocking): Fix it." && blocking->isChecked() && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = W::blocking },
+		expect(f.text() == "issue (blocking): Fix it." && blocking->isChecked() && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::blocking },
 			   "blocking adds (blocking)");
 		nonBlocking->click();
 		settle();
@@ -256,7 +256,7 @@ namespace {
 		ifMinor->click();
 		settle();
 		expect(f.text() == "issue (non-blocking, if-minor): Fix it." && nonBlocking->isChecked() && ifMinor->isChecked()
-				   && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = W::non_blocking, .IfMinor = true },
+				   && f.controls()->state().Emphasis == qt::feedback_mark_emphasis{ .Weight = mark_weight::non_blocking, .IfMinor = true },
 			   "if-minor combines with the weight");
 		nonBlocking->click();
 		settle();
@@ -342,7 +342,7 @@ namespace {
 	/// strangely far away.").
 	void test_control_tooltips_sit_next_to_their_marks()
 	{
-		const auto expect_anchored = [](QWidget& aOwner, const QRect& aAnchor, const QString& aText, const char* const aWhat) {
+		const auto expectAnchored = [](QWidget& aOwner, const QRect& aAnchor, const QString& aText, const char* const aWhat) {
 			qt::hide_anchored_tooltip();
 			QHelpEvent help{ QEvent::ToolTip, aAnchor.center(), aOwner.mapToGlobal(aAnchor.center()) };
 			QApplication::sendEvent(&aOwner, &help);
@@ -358,11 +358,11 @@ namespace {
 			qt::hide_anchored_tooltip();
 		};
 		auto f = fixture{ "issue: Fix it." };
-		expect_anchored(*f.controls()->chip(), f.controls()->chip()->rect(), f.controls()->chip()->toolTip(), "chip");
+		expectAnchored(*f.controls()->chip(), f.controls()->chip()->rect(), f.controls()->chip()->toolTip(), "chip");
 		f.controls()->open_menu();
 		settle();
 		auto* const praise = f.menu()->label_button(core::feedback_label::praise);
-		expect_anchored(*praise, praise->rect(), qt::feedback_label_description(core::feedback_label::praise), "menu entry");
+		expectAnchored(*praise, praise->rect(), qt::feedback_label_description(core::feedback_label::praise), "menu entry");
 		f.menu()->close();
 		settle();
 	}

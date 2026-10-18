@@ -145,7 +145,7 @@ namespace bpr::application {
 			std::set<core::review_draft_id>       drafts;
 			for (const auto& request : aRequests) {
 				auto record = take(Store.load_composition(request.Composition));
-				auto target = std::ranges::find_if(aTargets, [&](const auto& t) { return t.Binding == record.State.Binding; });
+				auto target = std::ranges::find_if(aTargets, [&](const auto& aT) { return aT.Binding == record.State.Binding; });
 				require(target != aTargets.end() && target->Binding.Scope == f.Scope, core::private_review_refusal::invalid_binding);
 				const auto& aCurrent = target->Binding;
 				const auto& aIndex   = target->Index;
@@ -245,7 +245,7 @@ namespace bpr::application {
 					}
 				}
 			}
-			std::erase_if(result.Records, [&](const auto& record) { return (aHead && record.Binding.Revision.HeadOid != *aHead) || (aDraft && record.Draft.Draft.Id != *aDraft); });
+			std::erase_if(result.Records, [&](const auto& aRecord) { return (aHead && aRecord.Binding.Revision.HeadOid != *aHead) || (aDraft && aRecord.Draft.Draft.Id != *aDraft); });
 			return result;
 		});
 	}
@@ -264,7 +264,7 @@ namespace bpr::application {
 			return std::unexpected(reopened.error());
 		}
 		if (*reopened) {
-			return restore(aBinding.Revision.HeadOid, **reopened);
+			return restore(aBinding.Revision.HeadOid, *reopened);
 		}
 		if (aReplyThread) {
 			return allocate_reply(aBinding, aLine, aIndex, std::move(*aReplyThread));

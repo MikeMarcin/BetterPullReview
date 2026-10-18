@@ -1333,10 +1333,10 @@ namespace bpr::adapters::sqlite {
 			});
 			aCodec.number(aRecord.PossiblyTransmitted);
 			if (version >= 2) {
-				aCodec.optional(aRecord.Index, [&](auto& index) { staged_comment_codec(aCodec, index); });
+				aCodec.optional(aRecord.Index, [&](auto& aIndex) { staged_comment_codec(aCodec, aIndex); });
 			}
 			if (version >= 3) {
-				aCodec.optional(aRecord.Plan.Update, [&](auto& value) { aCodec.tour(value); });
+				aCodec.optional(aRecord.Plan.Update, [&](auto& aValue) { aCodec.tour(aValue); });
 				aCodec.number(aRecord.Updated);
 				aCodec.number(aRecord.DestinationsPublished);
 			}
@@ -1705,7 +1705,7 @@ namespace bpr::adapters::sqlite {
 				if (::sqlite3_column_int(query->Value, 2) != (complete ? 1 : 0) || ::sqlite3_step(query->Value) != SQLITE_DONE) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				return std::optional{ *record };
+				return record;
 			}
 
 			auto load_locked(const std::string& aKey) -> std::expected<std::optional<record>, failure>

@@ -15,6 +15,7 @@ int main(int aArgc, char** aArgv)
 		if (aArgc == 2 && std::string_view{ aArgv[1] } == "--stress") {
 			const auto                record = std::string{ "TERMINAL_RECORD:" } + std::string(1000U, 'x') + '\n';
 			std::vector<std::jthread> writers;
+			writers.reserve(8U);
 			for (unsigned writer = 0U; writer < 8U; ++writer) {
 				writers.emplace_back([&] { for (unsigned index = 0U; index < 10000U; ++index) { record_terminal_diagnostic(record); } });
 			}

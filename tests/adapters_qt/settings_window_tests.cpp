@@ -723,7 +723,7 @@ auto main(int argc, char** argv) -> int
 		auto*                       text  = panel->findChild<QPlainTextEdit*>("writingHookInstructions");
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
-		panel->set_dispatch([&](core::writing_hook selected, std::string instructions) { ++saves;settings.Overrides[static_cast<std::size_t>(selected)]=std::move(instructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
+		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
 		expect(hook->count() == 6 && hook->itemText(4).isEmpty() && hook->itemText(5) == "Review feedback" && !text->toPlainText().isEmpty(), "four tour hooks, a separator and review feedback preview without inference");
 		for (int i = 0; i < 4; ++i) {
 			hook->setCurrentIndex(i);

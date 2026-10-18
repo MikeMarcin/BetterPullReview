@@ -316,6 +316,9 @@ namespace bpr::app::detail {
 				aApp.request_quit(EXIT_SUCCESS);
 				return;
 			}
+			default:
+				fail("unknown_stage");
+				return;
 			}
 			QTimer::singleShot(20, &window, [&aApp, aCourse] { tick(aApp, aCourse); });
 		}

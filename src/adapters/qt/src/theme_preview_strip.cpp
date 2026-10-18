@@ -458,7 +458,7 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		if (!high_contrast_mode(mode)) {
-			return *System;
+			return System;
 		}
 		// The supplied variant carries the desktop's light-or-dark family, which is
 		// the only part of it a high-contrast tile needs.

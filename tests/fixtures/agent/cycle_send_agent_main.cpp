@@ -136,8 +136,7 @@ namespace {
 			const auto line     = after(aDocument.substr(at), "\n## ", "\n");
 			const auto id       = line.substr(0U, line.find(' '));
 			const auto revision = line.substr(line.rfind(' ') + 1U);
-			items += std::string{ items.empty() ? "" : "," } + R"({"item_id":")" + id + R"(","item_revision":")" + revision
-				+ R"(","disposition":"addressed","body":"Done as asked.","evidence":[{"kind":"text","value":"Fixture reply; nothing was run."}]})";
+			items.append(items.empty() ? "" : ",").append(R"({"item_id":")").append(id).append(R"(","item_revision":")").append(revision).append(R"(","disposition":"addressed","body":"Done as asked.","evidence":[{"kind":"text","value":"Fixture reply; nothing was run."}]})");
 		}
 		return R"({"schema":"bpr.cycle.response.v1","response_id":"FIXTURE-)" + round + R"(","cycle_id":")" + cycle + R"(","round_id":")" + round + R"(","round_payload_sha256":")" + digest
 			+ R"(","claimed_author":{"display_name":"Fixture agent","kind":"agent","provider":null,"model":null,"effort":null},"result_source_revision_id":null,"items":[)" + items + "]}";

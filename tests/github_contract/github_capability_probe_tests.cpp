@@ -236,7 +236,7 @@ namespace {
 				&& operation == "replace_return_type") {
 				field.insert_or_assign("type", descriptor.at("replacement"));
 			}
-			changed.push_back(field);
+			changed.emplace_back(field);
 		}
 		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}
@@ -1370,7 +1370,7 @@ namespace {
 				arguments.push_back(arguments.at(0));
 				field.insert_or_assign("args", arguments);
 			}
-			changed.push_back(field);
+			changed.emplace_back(field);
 		}
 		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}
@@ -1415,7 +1415,7 @@ namespace {
 				arguments.push_back(futureArgument);
 				field.insert_or_assign("args", arguments);
 			}
-			changed.push_back(field);
+			changed.emplace_back(field);
 		}
 		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}

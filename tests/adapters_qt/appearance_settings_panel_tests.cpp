@@ -1139,7 +1139,7 @@ namespace {
 		auto panel   = qt::appearance_settings_panel{ intents.sink() };
 		panel.adopt(qt::default_appearance_settings());
 
-		const auto expect_scope
+		const auto expectScope
 			= [&panel, &intents](
 				  const QString&                            aName,
 				  const application::appearance_reset_scope aScope) {
@@ -1156,13 +1156,13 @@ namespace {
 							  == aScope,
 					  "and dispatches its own existing scope");
 			  };
-		expect_scope(
+		expectScope(
 			QStringLiteral("Reset appearance mode"),
 			application::appearance_reset_scope::mode);
-		expect_scope(
+		expectScope(
 			QStringLiteral("Reset all colours"),
 			application::appearance_reset_scope::palette);
-		expect_scope(
+		expectScope(
 			QStringLiteral("Reset Dif preferences"),
 			application::appearance_reset_scope::dif);
 

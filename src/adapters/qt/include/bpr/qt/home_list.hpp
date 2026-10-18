@@ -171,6 +171,11 @@ namespace bpr::qt {
 		int Fitted = -1;
 	};
 
+	// Instantiate every virtual override for both supported Qt bases in
+	// home_list.cpp, independent of which methods a caller happens to use.
+	extern template class home_fitted_view<QListView>;
+	extern template class home_fitted_view<QListWidget>;
+
 	using home_row_view    = home_fitted_view<QListView>;
 	using home_recent_view = home_fitted_view<QListWidget>;
 

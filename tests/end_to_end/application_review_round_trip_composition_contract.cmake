@@ -1,3 +1,9 @@
+# BPR-1598 landing 2026-10-17 over main 57f335411: strict-tidy cleanup in
+# src/app preserves the fixture name used after startup, returns an optional
+# without dereferencing/re-wrapping it, names fixture lambdas consistently,
+# reserves fixture baseline storage and rejects an unknown fixture stage.
+# Reviewed directly for the ordered handoff. The full application and mutation
+# branch pins remain exact; only the production app manifest pin changes.
 # BPR-1572 landing 2026-10-17: resealed over main ca55c0a71 on the merged
 # tree. Main's recorded composition reviews cover refresh feedback and the
 # accepted progress track. This branch adds only the reviewed stacked fixture
@@ -1770,7 +1776,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8dda56db8660d13cd456bb901b8f59eb446364618d8004941c756580194bf781"
+        "ac4620b3c472c6a8a99f55706717d6b4d07c2a98f557859ac6319f81b749b783"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

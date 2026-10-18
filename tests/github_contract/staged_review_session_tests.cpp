@@ -731,7 +731,7 @@ namespace {
 		for (int fault = 0; fault < 5; ++fault) {
 			scratch root;
 			server  remote;
-			remote.AfterWrite   = [fault](auto& r) {if(r.Writes==1){r.Extra=fault==0;r.Duplicate=fault==1;r.EarlySubmit=fault==2;r.WrongHead=fault==3;r.WrongActor=fault==4;} };
+			remote.AfterWrite   = [fault](auto& aR) {if(aR.Writes==1){aR.Extra=fault==0;aR.Duplicate=fault==1;aR.EarlySubmit=fault==2;aR.WrongHead=fault==3;aR.WrongActor=fault==4;} };
 			auto       provider = session(remote, root.Path);
 			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
 			expect(result.State == publication_state::conflict || result.State == publication_state::outcome_unknown, "contamination, ambiguity, premature submit, head and actor movement stop");
@@ -1425,7 +1425,7 @@ try {
 			expect(baseline && *baseline, "original durable publication is retained");
 			const auto update = maintenance_plan(**baseline);
 			if (phase.starts_with("--update-kill-")) {
-				remote.Boundary = [&](std::size_t i, std::string_view boundary) {if(phase=="--update-kill-"+std::to_string(i)+"-"+std::string{boundary}){checkpoint(root,phase);} };
+				remote.Boundary = [&](std::size_t aI, std::string_view aBoundary) {if(phase=="--update-kill-"+std::to_string(aI)+"-"+std::string{aBoundary}){checkpoint(root,phase);} };
 				static_cast<void>(provider->publish_tour(update, { }, [](const auto&) { return true; }));
 				expect(false, "maintenance kill boundary reached");
 			} else if (phase == "--update-recover") {
@@ -1434,7 +1434,7 @@ try {
 				expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published, "maintenance cold Resume completes remaining operations");
 			}
 		} else if (phase.starts_with("--kill-")) {
-			remote.Boundary = [&](std::size_t i, std::string_view boundary) {if(phase=="--kill-"+std::to_string(i)+"-"+std::string{boundary}){checkpoint(root,phase);
+			remote.Boundary = [&](std::size_t aI, std::string_view aBoundary) {if(phase=="--kill-"+std::to_string(aI)+"-"+std::string{aBoundary}){checkpoint(root,phase);
 } };
 			static_cast<void>(provider->publish_tour(plan(), { }, [](const auto&) { return true; }));
 			expect(false, "kill boundary reached");

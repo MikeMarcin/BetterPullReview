@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 namespace {
-	auto environment_present(const char* name) -> bool
+	auto environment_present(const char* aName) -> bool
 	{
 #if defined(_MSC_VER)
 		char*       value = nullptr;
@@ -17,13 +17,13 @@ namespace {
 		std::free(value);
 		return error != 0 || size != 0;
 #else
-		return std::getenv(name) != nullptr;
+		return std::getenv(aName) != nullptr;
 #endif
 	}
-	auto escape(const std::string& s) -> std::string
+	auto escape(const std::string& aS) -> std::string
 	{
 		std::string r;
-		for (char c : s) {
+		for (char c : aS) {
 			if (c == '"' || c == '\\') {
 				r += '\\';
 			}

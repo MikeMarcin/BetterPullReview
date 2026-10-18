@@ -466,7 +466,8 @@ namespace bpr::application {
 			if (found == Proposals.end()) {
 				return refused_assist(std::move(out), "unknown_proposal", "No such outline proposal: it was used, cancelled or expired.");
 			}
-			auto proposal = *found;
+			// Expiry erases the source before its timestamp explains the refusal.
+			const auto proposal = *found; // NOLINT(performance-unnecessary-copy-initialization)
 			if (aCompletion.Now >= proposal.Expires || proposal.DraftRevision != State.Draft->Revision) {
 				Proposals.erase(found);
 				++JournalGeneration;

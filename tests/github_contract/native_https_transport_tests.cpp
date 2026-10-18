@@ -2133,8 +2133,8 @@ namespace {
 		expect(base && *base && **base == parent, "publication-base-head");
 		const auto absent = session.observe_branch(target, "bpr/harden", { });
 		expect(absent && !*absent, "publication-new-branch-absent-404-admitted");
-		const auto hello_bytes = std::string_view{ "hello\n" };
-		expect(session.create_blob(target, { reinterpret_cast<const std::uint8_t*>(hello_bytes.data()), hello_bytes.size() }, hello, { }).has_value(), "publication-blob-created-as-computed");
+		const auto helloBytes = std::string_view{ "hello\n" };
+		expect(session.create_blob(target, { reinterpret_cast<const std::uint8_t*>(helloBytes.data()), helloBytes.size() }, hello, { }).has_value(), "publication-blob-created-as-computed");
 		expect(session.create_tree(target, (*observed)->Tree, { { .Path = "README", .Mode = core::git_mode_regular, .Object = hello } }, { }, tree, { }).has_value(), "publication-tree-created-as-computed");
 		const auto content = core::git_commit_content{
 			.Tree      = tree,

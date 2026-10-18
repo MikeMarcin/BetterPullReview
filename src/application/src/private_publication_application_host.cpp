@@ -141,7 +141,7 @@ namespace bpr::application {
 		return attempt([&] {
 			require(core::valid_private_id(aDraft));
 			auto page = take(Store.find_publication({ }, aCursor));
-			std::erase_if(page.Records, [&](const auto& row) { return row.Draft != aDraft; });
+			std::erase_if(page.Records, [&](const auto& aRow) { return aRow.Draft != aDraft; });
 			return page;
 		});
 	}
@@ -152,12 +152,12 @@ namespace bpr::application {
 			require(composition.State.Candidate.has_value());
 			auto candidate = take(Store.load_candidate(*composition.State.Candidate));
 			auto page      = take(Store.find_publication({ }, aCursor));
-			std::erase_if(page.Records, [&](const auto& row) {
-				if (!row.ServerComment || !row.Composition) {
+			std::erase_if(page.Records, [&](const auto& aRow) {
+				if (!aRow.ServerComment || !aRow.Composition) {
 					return true;
 				}
-				auto       prior = take(Store.load_composition(row.Composition->Composition));
-				std::array observed{ core::composition_publication_observation{ row.Target.Binding.Scope, prior.State.SourceSetDigest, row.ApprovedProseDigest, row.Target } };
+				auto       prior = take(Store.load_composition(aRow.Composition->Composition));
+				std::array observed{ core::composition_publication_observation{ aRow.Target.Binding.Scope, prior.State.SourceSetDigest, aRow.ApprovedProseDigest, aRow.Target } };
 				return !core::duplicate_composition_publication(composition.State, candidate, observed);
 			});
 			return page;

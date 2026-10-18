@@ -881,8 +881,8 @@ namespace {
 			const auto word   = std::string_view{ marker }.substr(0, std::string_view{ marker }.find(' '));
 			const auto line   = line_of(text, marker);
 			const auto column = row_of(text, line).find(word);
-			expect(std::none_of(spans.begin(), spans.end(), [&](const auto& span) {
-					   return span.Line == line && span.Column < column + word.size() && span.Column + span.Length > column;
+			expect(std::none_of(spans.begin(), spans.end(), [&](const auto& aSpan) {
+					   return aSpan.Line == line && aSpan.Column < column + word.size() && aSpan.Column + aSpan.Length > column;
 				   }),
 				   "ordinary mixed-case resource identifiers have no styled overlap");
 		}
@@ -896,7 +896,7 @@ namespace {
 		expect(word_has_role(spans, text, line_of(text, "#if MENU"), "MENU", role::syntax_macro)
 				   && word_has_role(spans, text, 6U, "MENU", role::syntax_macro, 1U),
 			   "resource keywords in directives remain macro operands");
-		expect(std::none_of(spans.begin(), spans.end(), [](const auto& span) { return span.Role == role::syntax_type; }),
+		expect(std::none_of(spans.begin(), spans.end(), [](const auto& aSpan) { return aSpan.Role == role::syntax_type; }),
 			   "resource identifiers do not acquire blanket type roles");
 		const auto commentLine = line_of(text, "LANGUAGE POPUP */");
 		const auto hunk        = classifier.classify_hunk(request(oid, definition), { .First = commentLine, .Count = 1U }, { });

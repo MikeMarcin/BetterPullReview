@@ -280,9 +280,9 @@ namespace {
 		expect(opened.has_value(), "open durable child course");
 		auto& store   = **opened;
 		binding.Scope = store.frontier()->Scope;
-		auto seed     = [&](std::string body) {
+		auto seed     = [&](std::string aBody) {
 			auto next     = store.frontier()->NextIdentity;
-			auto revision = *create_private_thread(private_review_thread_id{ next }, { binding, private_pr_subject{ } }, { private_review_turn_id{ next + 1 }, private_review_turn_revision_id{ next + 2 }, private_vertex_order{ next + 2 }, private_reviewer_actor{ }, std::move(body) });
+			auto revision = *create_private_thread(private_review_thread_id{ next }, { binding, private_pr_subject{ } }, { private_review_turn_id{ next + 1 }, private_review_turn_revision_id{ next + 2 }, private_vertex_order{ next + 2 }, private_reviewer_actor{ }, std::move(aBody) });
 			expect(store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision } }).has_value(), "commit child input fixture source");
 			return source_of(revision.Revision);
 		};
@@ -294,7 +294,7 @@ namespace {
 		expect(admitted.has_value(), "atomic private run admission");
 		auto supplementValue = build_agent_context_supplement(context, current);
 		expect(supplementValue.has_value(), "build admitted context");
-		auto launched = build_agent_launch(profile, *supplementValue, [](const std::string& name) -> std::optional<std::string> { return name == "BPR_CANARY_AGENT_IDENTITY" ? std::optional<std::string>{ "allowed" } : std::nullopt; }, admitted->Launch);
+		auto launched = build_agent_launch(profile, *supplementValue, [](const std::string& aName) -> std::optional<std::string> { return aName == "BPR_CANARY_AGENT_IDENTITY" ? std::optional<std::string>{ "allowed" } : std::nullopt; }, admitted->Launch);
 		expect(launched.has_value(), "exact admitted private launch");
 		launched->WorkingDirectory = scratch.path().string();
 		auto claim                 = host.claim(*admitted, { });

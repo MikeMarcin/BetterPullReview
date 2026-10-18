@@ -149,6 +149,8 @@ namespace bpr::e2e::large_review {
 		return std::ranges::find(PlatformKnownInputMisses, aPhase) != PlatformKnownInputMisses.end();
 	}
 
+	// Glaze reflects these recorded fixture field names verbatim.
+	// NOLINTBEGIN(readability-identifier-naming)
 	struct fixture_blob
 	{
 		std::string   oid;
@@ -167,6 +169,7 @@ namespace bpr::e2e::large_review {
 		std::uint64_t             pack_bytes = 0;
 		std::vector<fixture_file> files;
 	};
+	// NOLINTEND(readability-identifier-naming)
 	struct phase_measurement
 	{
 		std::string Name;
@@ -816,7 +819,8 @@ namespace bpr::e2e::large_review {
 		if (aReport.Phases.back().VisibleMs >= 0) {
 			std::cerr << " visible_ms=" << aReport.Phases.back().VisibleMs;
 		}
-		std::cerr << std::endl;
+		std::cerr << '\n'
+				  << std::flush;
 		if (!ready) {
 			const auto evidence = access::evidence(aApplication);
 			const auto work     = access::diff_work_evidence(aApplication);
@@ -1048,14 +1052,14 @@ namespace bpr::e2e::large_review {
 		const auto initialResets = history->statistics().ModelResets;
 		// [[BPR-1344]]. Every phase settles on the reviewer's epoch jobs; the
 		// preparation tail after it is measured on its own.
-		const auto settled        = [&] { return reviewer_settled(aApplication); };
-		const auto source_matches = [&](int aFile, std::int64_t aEpoch, int aValue) {
+		const auto settled       = [&] { return reviewer_settled(aApplication); };
+		const auto sourceMatches = [&](int aFile, std::int64_t aEpoch, int aValue) {
 			return selected(surface, source_path(aFile)) && surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == aEpoch
 				&& surface.left_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = 0;").arg(aFile, 4, 10, QChar{ '0' })
 				&& surface.right_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = %2;").arg(aFile, 4, 10, QChar{ '0' }).arg(aValue);
 		};
 		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
-			const auto ordinal = static_cast<std::int64_t>(index + 1U);
+			const auto ordinal = static_cast<std::int64_t>(index) + 1;
 			if (index != 0U) {
 				const auto expectedHead = QString::fromStdString(aManifest.heads[index]);
 				require(window.github_refresh_action()->isEnabled(), "public refresh unavailable");
@@ -1072,7 +1076,7 @@ namespace bpr::e2e::large_review {
 			const auto file           = index == 0U ? 0 : static_cast<int>(index - 1U);
 			const auto value          = static_cast<int>(ordinal);
 			const auto selectionPhase = "epoch_source_selection_" + std::to_string(ordinal);
-			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return source_matches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
+			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return sourceMatches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
 			wait_preparation_tail(aApplication, aBudget, aReport, selectionPhase);
 			if (index == 0U) {
 				const auto& selectedAnchor = surface.current_result()->Alignment.Key.RightAnchor;
@@ -1097,7 +1101,7 @@ namespace bpr::e2e::large_review {
 		const auto anchor = history->anchor_at(history->index(controls.right_selector()->currentIndex(), 0));
 		require(anchor.has_value(), "selected epoch has no typed public anchor");
 		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
-			const auto stored = access::maintenance_evidence(aApplication, core::review_epoch_id{ anchor->Identity.Authority, anchor->Identity.Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } });
+			const auto stored = access::maintenance_evidence(aApplication, core::review_epoch_id{ anchor->Identity.Authority, anchor->Identity.Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index) + 1 } });
 			std::cerr << "retained-epoch:" << index + 1U << ':' << *glz::write_json(stored) << '\n';
 			require(stored.TargetBaseRefPresent && stored.TargetHeadRefPresent
 						&& stored.TargetBaseRefOid == aManifest.base && stored.TargetHeadRefOid == aManifest.heads[index]
@@ -1106,11 +1110,11 @@ namespace bpr::e2e::large_review {
 			++aReport.RetainedEpochsVerified;
 		}
 		const auto historicalBaseReady = [&] {
-			return source_matches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
+			return sourceMatches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
 		};
 		require(measure_wait(aApplication, aBudget, aReport, "historical_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, historicalBaseReady), "historical base selection did not settle");
 		wait_preparation_tail(aApplication, aBudget, aReport, "historical_base_selection");
-		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return source_matches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
+		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return sourceMatches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
 		wait_preparation_tail(aApplication, aBudget, aReport, "historical_first_head");
 		require(window.grab().save(QString::fromLocal8Bit(aImage) + QStringLiteral(".historical.png")), "historical window render failed");
 		QTimer selections;
@@ -1129,7 +1133,7 @@ namespace bpr::e2e::large_review {
 			select_epoch(controls, next++, core::comparison_side::right);
 			++aReport.EpochSelections;
 		});
-		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && source_matches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
+		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && sourceMatches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
 		wait_preparation_tail(aApplication, aBudget, aReport, "epoch_selection_supersession");
 		require(aReport.EpochSelections == 31U && aReport.EpochSelectionsWithOutstandingWork != 0U,
 				"epoch selection did not exercise supersession during active work");
@@ -1404,12 +1408,12 @@ namespace bpr::e2e::large_review {
 		require(access::diff_work_evidence(aApplication).PreparedHits == 0U, "an unprepared open was answered by preparation");
 		access::set_preparation_enabled(aApplication, true);
 		aReport.Extended.PreparedOpen.PreparedFirstVisibleMs = open(400, "prepared_first_open", true);
-		const auto window_prepared                           = access::diff_work_evidence(aApplication);
-		std::cerr << "prepared-open window: rounds=" << window_prepared.PreparationRounds << " resolutions=" << window_prepared.PreparedResolutions
-				  << " entries=" << window_prepared.PreparedEntries << " preparing=" << window_prepared.Preparing
-				  << " in_flight=" << window_prepared.PreparationsInFlight << " cache=" << window_prepared.CacheEntries << '\n';
-		require(window_prepared.PreparationRounds != 0U && window_prepared.PreparedEntries != 0U
-					&& window_prepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
+		const auto windowPrepared                            = access::diff_work_evidence(aApplication);
+		std::cerr << "prepared-open window: rounds=" << windowPrepared.PreparationRounds << " resolutions=" << windowPrepared.PreparedResolutions
+				  << " entries=" << windowPrepared.PreparedEntries << " preparing=" << windowPrepared.Preparing
+				  << " in_flight=" << windowPrepared.PreparationsInFlight << " cache=" << windowPrepared.CacheEntries << '\n';
+		require(windowPrepared.PreparationRounds != 0U && windowPrepared.PreparedEntries != 0U
+					&& windowPrepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
 				"the window after the first file was not prepared within its share");
 		for (int index = 1; index < 6; ++index) {
 			const auto phase  = "prepared_open_" + std::to_string(index);
@@ -1714,7 +1718,7 @@ namespace bpr::e2e::large_review {
 		const auto record    = [&](const std::string& aName, double aMeasured, double aLimit, bool aEnforced = true) {
 			aReport.CompletionBudgets.push_back({ aName, aMeasured, aLimit, aMeasured <= aLimit, aEnforced && aReport.Extended.BudgetsEnforced });
 		};
-		const auto optimized_record = [&](const std::string& aName, double aMeasured, double aLimit) {
+		const auto optimizedRecord = [&](const std::string& aName, double aMeasured, double aLimit) {
 			record(aName, aMeasured, aLimit, optimized);
 		};
 		const auto phase = [&](const char* aName, double aLimit, bool aEnforced = true) {
@@ -1730,11 +1734,11 @@ namespace bpr::e2e::large_review {
 			record(aName, found->ThreadElapsedMs, aReport.InputIntervalLimitMs, !known_input_miss(aName));
 		};
 		record("composition_startup_render", aReport.CompositionStartupMs, 1'000.0);
-		optimized_record("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
-		optimized_record("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
-		optimized_record("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
-		optimized_record("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
-		optimized_record("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
+		optimizedRecord("qapplication_startup", aReport.Extended.QApplicationStartupMs, 50.0);
+		optimizedRecord("main_to_home_render", aReport.Extended.MainToHomeRenderMs, 1'000.0);
+		optimizedRecord("provisional_metadata_render", aReport.Extended.ProvisionalMetadataRenderMs, 100.0);
+		optimizedRecord("accepted_metadata_render", aReport.Extended.AcceptedMetadataRenderMs, 250.0);
+		optimizedRecord("main_to_first_source_render", aReport.Extended.MainToFirstSourceRenderMs, 15'000.0);
 		phase("paged_review_and_git_load", 12'000.0);
 		phase("large_file_selection", 2'500.0);
 		phase("binary_fallback_render", 1'250.0);
@@ -1837,7 +1841,7 @@ namespace bpr::e2e::large_review {
 			++aReport.InteractionFrames;
 			return true;
 		};
-		const auto save_frame = [&](const char* aPhase) {
+		const auto saveFrame = [&](const char* aPhase) {
 			require(frame.save(QString::fromLocal8Bit(aImage) + QLatin1Char('.') + QString::fromLatin1(aPhase) + QStringLiteral(".png")), "interaction frame write failed");
 		};
 		const auto toggle = [&](QAction* aAction, qt::workbench_drawer_panel* aDrawer, const char* aPhase) {
@@ -1847,7 +1851,7 @@ namespace bpr::e2e::large_review {
 																												&& aDrawer->state() == (expanded ? core::workbench_drawer_state::expanded : core::workbench_drawer_state::collapsed)
 																												&& (!expanded || (aDrawer->isVisible() && aDrawer->width() >= 100))
 																												&& quiet(aApplication) && rendered(); }), "drawer did not reach its rendered state");
-			save_frame(aPhase);
+			saveFrame(aPhase);
 		};
 		// [[BPR-1295]]. The window's first entry to Review applies its preset.
 		require(window.files_drawer_toggle_action()->isChecked() && window.conversations_drawer_toggle_action()->isChecked(),
@@ -1864,12 +1868,12 @@ namespace bpr::e2e::large_review {
 		require(measure_wait(aApplication, aBudget, aReport, "drawers_hide", [&] { hideDrawers->trigger(); }, [&] { return hideDrawers->isChecked()
 																														&& !window.files_drawer()->isVisible() && !window.conversations_drawer()->isVisible()
 																														&& quiet(aApplication) && rendered(); }), "Hide Drawers did not reach its rendered state");
-		save_frame("drawers_hide");
+		saveFrame("drawers_hide");
 		require(measure_wait(aApplication, aBudget, aReport, "drawers_show", [&] { hideDrawers->trigger(); }, [&] { return !hideDrawers->isChecked()
 																														&& window.files_drawer()->isVisible() && window.conversations_drawer()->isVisible()
 																														&& std::pair{ window.files_drawer()->width(), window.conversations_drawer()->width() } == widths
 																														&& quiet(aApplication) && rendered(); }), "Show Drawers did not restore both drawers at their widths");
-		save_frame("drawers_show");
+		saveFrame("drawers_show");
 		require(measure_wait(aApplication, aBudget, aReport, "appearance_settings_open", [&] { window.open_settings(qt::settings_page::appearance); }, [&] { return window.settings() && window.settings()->isVisible() && window.appearance_settings()->isVisible()
 																																								 && !window.settings()->grab().isNull(); }), "Appearance settings did not render");
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
@@ -1877,7 +1881,7 @@ namespace bpr::e2e::large_review {
 			const auto  writes = aApplication.status().AppearanceDurableWrites;
 			require(measure_wait(aApplication, aBudget, aReport, phase, [&] { window.appearance_settings()->choose_mode(mode); }, [&] { return aApplication.status().ProfileMode == mode && aApplication.status().AppearanceDurableWrites > writes
 																																			&& quiet(aApplication) && rendered(); }), "theme did not persist and render");
-			save_frame(phase);
+			saveFrame(phase);
 		}
 		window.settings()->close();
 		require(surface.current_result()->Alignment.Key == comparison
@@ -1903,7 +1907,7 @@ namespace bpr::e2e::large_review {
 			};
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_enter", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::threads && finder->isVisible()
 																															 && rows() == 1000 && !window.files_drawer()->isVisible() && page(); }), "Threads did not render every thread");
-			save_frame("conversations_enter");
+			saveFrame("conversations_enter");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search", [&] { finder->search_field()->setText(QStringLiteral("observation 0042")); }, [&] { return rows() == 1 && page(); }), "the search did not find its one conversation");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_search_clear", [&] { finder->search_field()->clear(); }, [&] { return rows() == 1000 && page(); }), "clearing the search did not show every conversation");
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_leave", [&] { enter->trigger(); }, [&] { return window.current_modality() == qt::review_modality::review && !finder->isVisible()
@@ -1922,22 +1926,22 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(aApplication, aBudget, aReport, "conversations_pick_open", [] { }, [&] { return selected(surface, source_path(42)) && cards->open_thread_id() == thread
 																											  && cards->picked_post() == "review-comment:SYNTHETIC_COMMENT_900042" && cards->open_card() != nullptr
 																											  && quiet(aApplication) && rendered(); }), "the picked conversation did not open in place on its file");
-			save_frame("conversations_pick_open");
+			saveFrame("conversations_pick_open");
 			finder->search_field()->clear();
 		}
 		require(measure_wait(aApplication, aBudget, aReport, "generated_source_render", [&] { select_file(window, QStringLiteral("generated/table.inc")); }, [&] { return selected(surface, QStringLiteral("generated/table.inc")) && quiet(aApplication) && rendered(); }), "generated source timed out");
 		verify_generated(surface, aManifest);
 		aReport.Extended.ExactGeneratedSource = true;
-		save_frame("generated_source");
+		saveFrame("generated_source");
 		require(measure_wait(aApplication, aBudget, aReport, "binary_fallback_render", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(aApplication) && rendered(); }), "binary fallback timed out");
-		save_frame("binary_fallback");
+		saveFrame("binary_fallback");
 		require(surface.current_result()->Alignment.Content == core::diff_content_state::binary
 					&& surface.status_text() == QStringLiteral("Binary file comparison")
 					&& surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty(),
 				"binary fallback retained stale source or hid its reason");
 		aReport.BinaryStatusVerified = true;
 		require(measure_wait(aApplication, aBudget, aReport, "large_source_revisit_render", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(aApplication) && rendered(); }), "source recovery timed out");
-		save_frame("large_source_revisit");
+		saveFrame("large_source_revisit");
 		verify_large(surface, aManifest);
 		require(surface.current_result()->Alignment.Key == comparison, "fallback recovery changed exact anchors");
 		// [[BPR-1212]]. The keyboard line cursor on the large source: one
@@ -1961,7 +1965,7 @@ namespace bpr::e2e::large_review {
 			const auto far = surface.current_result()->Alignment.RightLineCount / 2U;
 			require(surface.select_conversation_line(core::diff_side::right, far) && !surface.source_line_visible(core::diff_side::right, far + 1U), "a line out of view is selected");
 			require(measure_wait(aApplication, aBudget, aReport, "keyboard_line_reveal", [&] { key(Qt::Key_Down, Qt::NoModifier); }, [&] { return line() == far + 1U && surface.source_line_visible(core::diff_side::right, far + 1U) && quiet(aApplication) && rendered(); }), "Down from a line out of view did not reveal the next");
-			save_frame("keyboard_line_reveal");
+			saveFrame("keyboard_line_reveal");
 		}
 		// [[BPR-1336]]. Zoom In, Zoom Out and Actual Size on the 20,000-line
 		// comparison, each one public command through the profile's appearance
@@ -1989,7 +1993,7 @@ namespace bpr::e2e::large_review {
 				require(measure_wait(aApplication, aBudget, aReport, name, [&] { command->trigger(); }, [&] { return std::abs(right->font().pointSizeF() - baseSize * factor) < 0.01
 																												  && aApplication.status().AppearanceDurableWrites > writes
 																												  && quiet(aApplication) && rendered(); }), "zoom did not persist, apply and remeasure");
-				save_frame(name);
+				saveFrame(name);
 			}
 			verify_large(surface, aManifest);
 			require(surface.current_result()->Alignment.Key == comparison && aApplication.status().ClassificationSubmissions == classified,
@@ -2164,7 +2168,8 @@ namespace bpr::e2e::large_review {
 		note_wall(aReport, "supersession_final_drain", drain.wall_ms());
 		wait_preparation_tail(aApplication, aBudget, aReport, "active_queued_selection_supersession");
 		std::cerr << "large-review preparation: active_shown_ms=" << shownMs << " reviewer_drain_ms=" << aReport.SupersessionDrainMs
-				  << " tail_ms=" << aReport.Extended.PreparationTail.Tails.back().Ms << " known_cost=" << aReport.Extended.PreparationTail.KnownCost << std::endl;
+				  << " tail_ms=" << aReport.Extended.PreparationTail.Tails.back().Ms << " known_cost=" << aReport.Extended.PreparationTail.KnownCost << '\n'
+				  << std::flush;
 		require(!stale && aReport.ActiveSourceObservations != 0U && surface.current_result()->Alignment.Key == expected,
 				"stale source or authority adopted while final keyboard target was held");
 		for (int line = 0; line < 8; ++line) {
@@ -2236,17 +2241,17 @@ namespace bpr::e2e::large_review {
 		aReport.ShutdownComplete = true;
 	}
 
-	auto run_benchmark(QApplication& qtApplication, int argc, char** argv,
+	auto run_benchmark(QApplication& aQtApplication, int aArgc, char** aArgv,
 					   const attributed_clock& aMainClock, double aQApplicationStartupMs) -> int
 	{
-		if (argc == 5 && std::string_view{ argv[4] } == "--history-session-race") {
+		if (aArgc == 5 && std::string_view{ aArgv[4] } == "--history-session-race") {
 			if (!app::detail::verify_large_review_history_session_interleaving()) {
 				return EXIT_FAILURE;
 			}
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--approximate" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes" && std::string_view{ argv[4] } != "--first-tab" && std::string_view{ argv[4] } != "--prepared-open" && std::string_view{ argv[4] } != "--timing-control" && std::string_view{ argv[4] } != "--responsiveness" && std::string_view{ argv[4] } != "--active-work" && std::string_view{ argv[4] } != "--pathological" && std::string_view{ argv[4] } != "--provider-cancel" && std::string_view{ argv[4] } != "--allocation-profile"))) {
+		if (aArgc != 4 && (aArgc != 5 || (std::string_view{ aArgv[4] } != "--unavailable" && std::string_view{ aArgv[4] } != "--approximate" && std::string_view{ aArgv[4] } != "--resources" && std::string_view{ aArgv[4] } != "--history" && std::string_view{ aArgv[4] } != "--loaded-close" && std::string_view{ aArgv[4] } != "--cache-entries" && std::string_view{ aArgv[4] } != "--cache-bytes" && std::string_view{ aArgv[4] } != "--first-tab" && std::string_view{ aArgv[4] } != "--prepared-open" && std::string_view{ aArgv[4] } != "--timing-control" && std::string_view{ aArgv[4] } != "--responsiveness" && std::string_view{ aArgv[4] } != "--active-work" && std::string_view{ aArgv[4] } != "--pathological" && std::string_view{ aArgv[4] } != "--provider-cancel" && std::string_view{ aArgv[4] } != "--allocation-profile"))) {
 			return EXIT_FAILURE;
 		}
 		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
@@ -2255,7 +2260,7 @@ namespace bpr::e2e::large_review {
 		// [[BPR-1297]]'s bounded heap sampler (before it, the sampler's lock
 		// made a Windows Debug selection take 135-372 s). The row reports
 		// Skipped, with this reason, not a pass.
-		if (!OptimizedBuild && argc == 5 && std::string_view{ argv[4] } == "--cache-bytes") {
+		if (!OptimizedBuild && aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes") {
 			std::cout << "LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course runs only in an optimized build; "
 					  << "a " << BPR_BENCH_BUILD_CONFIGURATION << " build is diagnostic only\n";
 			return cache_bytes_debug_skip_exit_code;
@@ -2292,22 +2297,22 @@ namespace bpr::e2e::large_review {
 			report.Extended.Schedule.CourseThreadWaitMs  = milliseconds(static_cast<std::int64_t>(increase(courseBegan.Mark.ThreadWaitNs, now.ThreadWaitNs)));
 			report.Extended.Schedule.CourseProcessWaitMs = milliseconds(static_cast<std::int64_t>(increase(courseBegan.ProcessWaitNs, native_process_wait_ns())));
 		};
-		report.Extended.AllocationProfile                                  = argc == 5 && std::string_view{ argv[4] } == "--allocation-profile";
+		report.Extended.AllocationProfile                                  = aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile";
 		report.Extended.QApplicationStartupMs                              = aQApplicationStartupMs;
-		report.Extended.ProviderCancelCourse                               = argc == 5 && std::string_view{ argv[4] } == "--provider-cancel";
+		report.Extended.ProviderCancelCourse                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--provider-cancel";
 		auto heldRead                                                      = std::make_shared<held_provider_read>();
-		report.ActiveWorkCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--active-work";
-		report.ResponsivenessCourse                                        = argc == 5 && std::string_view{ argv[4] } == "--responsiveness";
-		report.Extended.PathologicalCourse                                 = argc == 5 && std::string_view{ argv[4] } == "--pathological";
-		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (argc == 5 && std::string_view{ argv[4] } == "--unavailable");
-		report.ApproximateCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--approximate";
-		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (argc == 5 && std::string_view{ argv[4] } == "--loaded-close");
-		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
-		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
-		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
-		report.FirstTabCourse                                              = argc == 5 && std::string_view{ argv[4] } == "--first-tab";
-		report.Extended.PreparedOpen.Course                                = argc == 5 && std::string_view{ argv[4] } == "--prepared-open";
-		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
+		report.ActiveWorkCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--active-work";
+		report.ResponsivenessCourse                                        = aArgc == 5 && std::string_view{ aArgv[4] } == "--responsiveness";
+		report.Extended.PathologicalCourse                                 = aArgc == 5 && std::string_view{ aArgv[4] } == "--pathological";
+		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--unavailable");
+		report.ApproximateCourse                                           = aArgc == 5 && std::string_view{ aArgv[4] } == "--approximate";
+		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (aArgc == 5 && std::string_view{ aArgv[4] } == "--loaded-close");
+		report.ResourceCourse                                              = report.LoadedCloseCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--resources");
+		report.HistoryCourse                                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--history";
+		report.CacheByteCourse                                             = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes";
+		report.FirstTabCourse                                              = aArgc == 5 && std::string_view{ aArgv[4] } == "--first-tab";
+		report.Extended.PreparedOpen.Course                                = aArgc == 5 && std::string_view{ aArgv[4] } == "--prepared-open";
+		report.CacheEntryCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-entries";
 		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
@@ -2329,10 +2334,10 @@ namespace bpr::e2e::large_review {
 			report.Platform                   = QSysInfo::prettyProductName().toStdString();
 			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
 			report.QtVersion                  = qVersion();
-			report.Style                      = qtApplication.style()->objectName().toStdString();
+			report.Style                      = QApplication::style()->objectName().toStdString();
 			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors          = QThread::idealThreadCount();
-			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ argv[1] } };
+			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ aArgv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
 			if (report.Extended.ProviderCancelCourse) {
 				fixtureOptions.BeforeFilesPage = [heldRead](std::stop_token aStop) { heldRead->wait(aStop); };
@@ -2381,7 +2386,7 @@ namespace bpr::e2e::large_review {
 				std::cerr << "LARGE_REVIEW_STARTUP_SOURCE:" << app::startup_failure_source() << '\n';
 			}
 			require(application != nullptr, "application startup succeeds");
-			if (argc == 5 && std::string_view{ argv[4] } == "--timing-control") {
+			if (aArgc == 5 && std::string_view{ aArgv[4] } == "--timing-control") {
 				QElapsedTimer controlBudget;
 				controlBudget.start();
 				require(measure_wait(*application, controlBudget, report, "synchronous_timing_control", [] { QThread::msleep(120); }, [] { return true; }), "synchronous timing control failed");
@@ -2454,7 +2459,7 @@ namespace bpr::e2e::large_review {
 				note_wall(report, "composition_startup_render", compositionStartup.wall_ms());
 				note_wall(report, "main_to_home_render", aMainClock.wall_ms());
 				print_launch_marker("LARGE_REVIEW_HOME_RENDERED", "home");
-				require(report.StartupRendered && startupFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".startup.png")), "composition startup did not render Home");
+				require(report.StartupRendered && startupFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".startup.png")), "composition startup did not render Home");
 			}
 			auto&         surface = *window.comparison_surface();
 			QElapsedTimer budget;
@@ -2469,7 +2474,7 @@ namespace bpr::e2e::large_review {
 				closeSchedule();
 				const auto encoded = glz::write_json(report);
 				require(encoded.has_value(), "provider cancellation report encoding");
-				std::ofstream output{ argv[2], std::ios::binary };
+				std::ofstream output{ aArgv[2], std::ios::binary };
 				output << *encoded << '\n';
 				output.close();
 				require(output.good(), "provider cancellation report write");
@@ -2521,22 +2526,22 @@ namespace bpr::e2e::large_review {
 				require(report.Extended.ProvisionalMetadataObserved && report.Extended.AcceptedMetadataObserved
 							&& report.Extended.ProvisionalMetadataRenderMs < report.Extended.AcceptedMetadataRenderMs,
 						"distinct provisional and accepted metadata did not render");
-				require(provisionalFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".provisional.png"))
-							&& acceptedFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".accepted.png")),
+				require(provisionalFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".provisional.png"))
+							&& acceptedFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".accepted.png")),
 						"metadata frame write failed");
 			}
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
 			if (report.FirstTabCourse) {
-				run_first_tab(*application, manifest, report, budget, argv[3]);
+				run_first_tab(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.Extended.PreparedOpen.Course) {
-				run_prepared_open(*application, manifest, report, budget, argv[3]);
+				run_prepared_open(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.CacheByteCourse) {
-				run_cache_bytes(*application, manifest, report, budget, argv[3]);
+				run_cache_bytes(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.CacheEntryCourse) {
-				run_cache_entries(*application, manifest, report, budget, argv[3]);
+				run_cache_entries(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.HistoryCourse) {
-				run_history(*application, manifest, report, budget, argv[3]);
+				run_history(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.UnavailableCourse) {
 				enter_review(*application, report, budget);
 				const auto limitedPath = report.Extended.PathologicalCourse ? QStringLiteral("generated/table.inc") : QStringLiteral("large/comparison.cpp");
@@ -2571,7 +2576,7 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth               = window.width();
 				report.WindowHeight              = window.height();
 				report.DevicePixelRatio          = window.devicePixelRatioF();
-				report.Rendered                  = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered                  = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "unavailable full-window capture failed");
 				require(measure_wait(*application, budget, report, "binary_file_selection", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(*application); }), "binary selection timed out");
 				require(surface.current_result()->Alignment.Content == core::diff_content_state::binary && surface.status_text() == QStringLiteral("Binary file comparison"), "binary status must be distinct");
@@ -2617,7 +2622,7 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth                  = window.width();
 				report.WindowHeight                 = window.height();
 				report.DevicePixelRatio             = window.devicePixelRatioF();
-				report.Rendered                     = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered                     = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "approximate full-window capture failed");
 				require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "approximate course bypassed the real diff host");
 			} else {
@@ -2661,7 +2666,7 @@ namespace bpr::e2e::large_review {
 						aChange();
 						perChange.push_back(publications() - before);
 					};
-					const auto settle_columns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+					const auto settleColumns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
 						counted([&] {
 							tick(aLabel, aOn);
 							QElapsedTimer waited;
@@ -2672,7 +2677,7 @@ namespace bpr::e2e::large_review {
 							require(columns(aCount), "a chip change in Settings reaches the Overview");
 						});
 					};
-					const auto measure_columns = [&](const char* aPhase, const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+					const auto measureColumns = [&](const char* aPhase, const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
 						counted([&] {
 							require(measure_wait(*application, budget, report, aPhase, [&] { tick(aLabel, aOn); }, [&] { return columns(aCount); }), "a measured chip change timed out");
 						});
@@ -2686,18 +2691,18 @@ namespace bpr::e2e::large_review {
 					}
 					// Twelve ticks up to all twelve chips, then twelve unticks
 					// back to none: 24 changes.
-					settle_columns(labels[0], true, 1U);
-					settle_columns(labels[1], true, 2U);
-					measure_columns("overview_columns_3", labels[2], true, 3U);
+					settleColumns(labels[0], true, 1U);
+					settleColumns(labels[1], true, 2U);
+					measureColumns("overview_columns_3", labels[2], true, 3U);
 					for (std::size_t label = 3U; label + 1U < labels.size(); ++label) {
-						settle_columns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
+						settleColumns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
 					}
-					measure_columns("overview_columns_12", labels.back(), true, 12U);
+					measureColumns("overview_columns_12", labels.back(), true, 12U);
 					for (std::size_t label = labels.size() - 1U; label > 1U; --label) {
-						settle_columns(labels[label], false, static_cast<std::uint8_t>(label));
+						settleColumns(labels[label], false, static_cast<std::uint8_t>(label));
 					}
-					settle_columns(labels[1], false, 1U);
-					measure_columns("overview_columns_0", labels[0], false, 0U);
+					settleColumns(labels[1], false, 1U);
+					measureColumns("overview_columns_0", labels[0], false, 0U);
 					// A late echo of the last change would land after its wait.
 					counted([&] {
 						QElapsedTimer drained;
@@ -2721,7 +2726,8 @@ namespace bpr::e2e::large_review {
 							  << " scopes_tallied_on_request=" << after.ScopesTalliedOnRequest - before.ScopesTalliedOnRequest
 							  << " units_tallied=" << after.UnitsTallied - before.UnitsTallied
 							  << " publications=" << workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications
-							  << " per_change=" << perChangeText << " trailing=" << trailing << std::endl;
+							  << " per_change=" << perChangeText << " trailing=" << trailing << '\n'
+							  << std::flush;
 					require(access::evidence(*application).AccountReadCount == readsBefore && workAfter.FeedbackObservations == workBefore.FeedbackObservations
 								&& workAfter.FeedbackBodiesParsed == workBefore.FeedbackBodiesParsed && after.Observations == before.Observations && after.BodiesParsed == before.BodiesParsed
 								&& after.ScopesRetallied == before.ScopesRetallied && after.UnitsTallied == before.UnitsTallied,
@@ -2771,7 +2777,7 @@ namespace bpr::e2e::large_review {
 					return true; }), "large selection timed out");
 				inputDuringMeasurement.stop();
 				if (report.ResponsivenessCourse) {
-					require(firstSourceFrame.save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".first-source.png")), "first source frame write failed");
+					require(firstSourceFrame.save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".first-source.png")), "first source frame write failed");
 				}
 				if (!measurementInputIntervals.empty()) {
 					std::ranges::sort(measurementInputIntervals);
@@ -2845,14 +2851,14 @@ namespace bpr::e2e::large_review {
 				report.WindowWidth      = window.width();
 				report.WindowHeight     = window.height();
 				report.DevicePixelRatio = window.devicePixelRatioF();
-				report.Rendered         = window.grab().save(QString::fromLocal8Bit(argv[3]));
+				report.Rendered         = window.grab().save(QString::fromLocal8Bit(aArgv[3]));
 				require(report.Rendered, "full-window capture failed");
 
 				if (report.ResponsivenessCourse) {
-					run_responsiveness_interactions(*application, manifest, report, budget, argv[3]);
+					run_responsiveness_interactions(*application, manifest, report, budget, aArgv[3]);
 				}
 				if (report.ActiveWorkCourse) {
-					run_active_work(*application, manifest, report, budget, argv[3]);
+					run_active_work(*application, manifest, report, budget, aArgv[3]);
 				} else if (!report.ResourceCourse) {
 					auto* conversationModel = window.conversation_model();
 					QObject::connect(conversationModel, &QAbstractItemModel::rowsInserted, &window,
@@ -2916,7 +2922,7 @@ namespace bpr::e2e::large_review {
 				report.PruneReleasedIndex     = resourceIndex.expired();
 				report.PruneClearedProjection = !surface.current_result() && surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty();
 				sample_resources(report, application.get(), "after_prune");
-				require(window.grab().save(QString::fromLocal8Bit(argv[3]) + QStringLiteral(".pruned.png")), "pruned window render failed");
+				require(window.grab().save(QString::fromLocal8Bit(aArgv[3]) + QStringLiteral(".pruned.png")), "pruned window render failed");
 				std::cerr << "prune-ownership: diff=" << report.PruneReleasedDiff << " index=" << report.PruneReleasedIndex << " projection=" << report.PruneClearedProjection << '\n';
 				require(measure_wait(*application, budget, report, "public_cache_delete", [&] { confirm_fixture_maintenance(*window.epoch_selectors()->delete_cache_action(), QStringLiteral("deleteRepositoryCacheConfirmationDialog")); }, maintenanceReady), "public cache deletion timed out");
 				const auto deleted = access::maintenance_evidence(*application, target);
@@ -2953,7 +2959,7 @@ namespace bpr::e2e::large_review {
 			if (observeResources) {
 				// Match main's last-window-close -> application shutdown handoff;
 				// measure_wait drives the existing shutdown poll to completion.
-				QObject::connect(&qtApplication, &QGuiApplication::lastWindowClosed, &window, [&] {
+				QObject::connect(&aQtApplication, &QGuiApplication::lastWindowClosed, &window, [&] {
 					report.WindowCloseObserved = true;
 					application->begin_shutdown();
 				});
@@ -2976,7 +2982,7 @@ namespace bpr::e2e::large_review {
 				}
 				if (report.CacheByteCourse) {
 					for (std::size_t index = 0; index < manifest.heads.size(); ++index) {
-						const auto target   = core::review_epoch_id{ closeTarget->Authority, closeTarget->Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } };
+						const auto target   = core::review_epoch_id{ closeTarget->Authority, closeTarget->Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index) + 1 } };
 						const auto retained = access::maintenance_evidence(*application, target, closeComparison);
 						require(retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
 									&& retained.TargetBaseRefOid == manifest.base && retained.TargetBaseCatalogOid == manifest.base
@@ -3045,7 +3051,7 @@ namespace bpr::e2e::large_review {
 			closeSchedule();
 			auto encoded = glz::write_json(report);
 			require(encoded.has_value(), "measurement serialization");
-			std::ofstream output{ argv[2], std::ios::binary };
+			std::ofstream output{ aArgv[2], std::ios::binary };
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
@@ -3100,7 +3106,7 @@ namespace bpr::e2e::large_review {
 				std::cerr << "large-review-partial:" << *partial << '\n';
 				// [[BPR-0967]]. A failed course leaves its partial report, not a
 				// stale earlier success, at the report path.
-				std::ofstream output{ argv[2], std::ios::binary };
+				std::ofstream output{ aArgv[2], std::ios::binary };
 				output << *partial << '\n';
 			}
 			// [[BPR-1598]]. A timing miss while the GUI thread waited for a
@@ -3133,7 +3139,7 @@ int main(int argc, char** argv)
 	// Native last-window-close delivery needs QApplication's main event loop,
 	// even though individual measurement phases use nested event loops.
 	QTimer::singleShot(0, &qtApplication, [&] {
-		qtApplication.exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv, mainClock, qtStartupMs));
+		QApplication::exit(bpr::e2e::large_review::run_benchmark(qtApplication, argc, argv, mainClock, qtStartupMs));
 	});
-	return qtApplication.exec();
+	return QApplication::exec();
 }

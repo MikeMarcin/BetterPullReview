@@ -70,10 +70,10 @@ namespace {
 	// it after the drain, and BPR-0827 moved it back in front.
 	void test_a_tick_armed_before_destruction_reaches_nothing()
 	{
-		with_fixtureless_application([](auto& application) {
+		with_fixtureless_application([](auto& aPplication) {
 			// A token born expired would make every production poller a permanent
 			// no-op and every assertion below vacuously true.
-			expect(!application->liveness().expired(),
+			expect(!aPplication->liveness().expired(),
 				   "a usable application reports itself usable");
 
 			auto delivered         = false;
@@ -85,9 +85,9 @@ namespace {
 			// BPR-0217 traces name as the faulting frame.
 			QTimer::singleShot(
 				0,
-				&application->window(),
-				[&delivered, &expiredAtDelivery, &reentered, &app = *application,
-				 alive = application->liveness()] {
+				&aPplication->window(),
+				[&delivered, &expiredAtDelivery, &reentered, &app = *aPplication,
+				 alive = aPplication->liveness()] {
 					delivered         = true;
 					expiredAtDelivery = alive.expired();
 					if (alive.expired()) {
@@ -98,7 +98,7 @@ namespace {
 					(void)app.window();
 				});
 
-			application.reset();
+			aPplication.reset();
 
 			// Anti-vacuity anchor. The guard is only load-bearing while something
 			// still delivers the tick, so a refactor that removes the pump inside
@@ -128,8 +128,8 @@ namespace {
 	// process would not be.
 	void test_an_in_process_composition_is_inside_the_boundary()
 	{
-		with_fixtureless_application([](auto& application) {
-			const auto status = application->status();
+		with_fixtureless_application([](auto& aPplication) {
+			const auto status = aPplication->status();
 			expect(status.InsideAutomatedTestBoundary,
 				   "a fixture-less in-process composition inside the marker "
 				   "reports that it is inside the boundary");
@@ -140,7 +140,7 @@ namespace {
 			expect(!status.ComposedCliReadAvailable,
 				   "a fixture-less in-process composition inside the marker "
 				   "offers no GitHub CLI read");
-			application.reset();
+			aPplication.reset();
 		});
 	}
 }

@@ -107,7 +107,7 @@ namespace bpr::core {
 			|| aTarget->Draft.State != review_draft_state::drafting) {
 			return std::nullopt;
 		}
-		const auto command = revisioned_review_draft_command{
+		auto command = revisioned_review_draft_command{
 			.Command          = { .Id = aTarget->Draft.Id, .Kind = review_draft_command_kind::edit, .Body = std::string{ aText } },
 			.ExpectedRevision = aTarget->Revision,
 			.Scope            = aTarget->Scope

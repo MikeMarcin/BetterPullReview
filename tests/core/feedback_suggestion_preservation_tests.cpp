@@ -153,7 +153,7 @@ namespace {
 	}
 
 	// Subjects and suggested changes, each the first block after a header.
-	const std::array<std::string_view, 9> patches{
+	constexpr std::array<std::string_view, 9> patches{
 		// A multiline replacement.
 		"Clamp the width.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```\n",
 		// An empty fence deletes the line.
@@ -173,7 +173,7 @@ namespace {
 		// Prose only: a suggestion label with no patch stays prose.
 		"Consider clamping the width to one pixel.",
 	};
-	const std::array<std::string_view, 6> headers{ "", "issue: ", "issue (blocking): ", "**suggestion (non-blocking, if-minor):** ", "question (security): ", "Nitpick (if-minor): " };
+	constexpr std::array<std::string_view, 6> headers{ "", "issue: ", "issue (blocking): ", "**suggestion (non-blocking, if-minor):** ", "question (security): ", "Nitpick (if-minor): " };
 
 	auto line_anchor() -> source_line_ref
 	{

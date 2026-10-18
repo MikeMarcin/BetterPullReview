@@ -149,8 +149,11 @@ namespace bpr::core {
 				labelLength = 0U;
 			} else {
 				if (!((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
-					  || (character == '-' && labelLength != 0U))
-					|| ++labelLength > 63U) {
+					  || (character == '-' && labelLength != 0U))) {
+					return std::nullopt;
+				}
+				++labelLength;
+				if (labelLength > 63U) {
 					return std::nullopt;
 				}
 			}

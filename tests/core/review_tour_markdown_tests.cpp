@@ -24,13 +24,13 @@ namespace {
 			for (char byte : std::string{ prefix }) {
 				raw += byte == '\n' ? nl : std::string{ byte };
 			}
-			raw += "## Problem" + nl + "A & B" + nl + nl + "## Solution" + nl + "Use snapshots" + nl + "## Checks" + nl + "- [ ] later" + nl;
+			raw.append("## Problem").append(nl).append("A & B").append(nl).append(nl).append("## Solution").append(nl).append("Use snapshots").append(nl).append("## Checks").append(nl).append("- [ ] later").append(nl);
 			const auto mapped = map_tour_markdown(raw);
 			expect(mapped.Bounded && mapped.Sections.size() == 2 && mapped.Lists.empty(), "code/quote/disclosure cannot map fields or lists");
 			expect(edit_tour_markdown(raw, { }).value() == raw, "unchanged source byte round trip");
 			const auto       span = mapped.Sections[0].Content;
 			const auto       text = slice(raw, span);
-			const std::array edits{ tour_text_edit{ span, text, "Changed" + nl + nl } };
+			const std::array edits{ tour_text_edit{ span, text, std::string{ "Changed" }.append(nl).append(nl) } };
 			const auto       changed = edit_tour_markdown(raw, edits);
 			expect(changed && *changed == raw.substr(0, span.Begin) + edits[0].Replacement + raw.substr(span.End), "only chosen source bytes replaced");
 			auto stale        = edits;

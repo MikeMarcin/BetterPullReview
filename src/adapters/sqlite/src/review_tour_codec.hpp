@@ -161,7 +161,7 @@ namespace bpr::adapters::sqlite::detail {
 			optional(aValue.SourceSpan, [&](auto& aSpan) {number(aSpan.first);number(aSpan.second); });
 			number(aValue.LocalGeneration);
 			if (Version >= 5) {
-				optional(aValue.DraftText, [&](auto& value) { text(value); });
+				optional(aValue.DraftText, [&](auto& aDraftText) { text(aDraftText); });
 			}
 		}
 		void remote(core::tour_remote_binding& aValue)
@@ -204,10 +204,10 @@ namespace bpr::adapters::sqlite::detail {
 				optional(aStop.Destination, [this](auto& aValue) { destination(aValue); });
 			}
 			if (Version >= 6) {
-				optional(aStop.ReaffirmedHead, [&](auto& value) { oid(value); });
+				optional(aStop.ReaffirmedHead, [&](auto& aValue) { oid(aValue); });
 			}
 			if (Version >= 7) {
-				optional(aStop.Suggestion, [&](auto& value) { text(value.AnchorRef, 128); text(value.Reason, 240); text(value.Question, 240); number(value.Visited); });
+				optional(aStop.Suggestion, [&](auto& aValue) { text(aValue.AnchorRef, 128); text(aValue.Reason, 240); text(aValue.Question, 240); number(aValue.Visited); });
 			}
 			if (Version >= 8) {
 				enumeration(aStop.CompletionOrigin);
@@ -238,17 +238,17 @@ namespace bpr::adapters::sqlite::detail {
 				number(aTour.ReadOnly);
 			}
 			if (Version >= 4) {
-				list(aTour.Retired, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+				list(aTour.Retired, core::maximum_tour_stops, [&](auto& aValue) { stop(aValue); });
 			}
 			if (Version >= 5) {
-				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& conflict) {enumeration(conflict.Field);id(conflict.Stop);text(conflict.Baseline);text(conflict.Local);text(conflict.Remote);baseline(conflict.Observation); });
-				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& value) { stop(value); });
+				list(aTour.Conflicts, core::maximum_tour_stops + 3, [&](auto& aConflict) {enumeration(aConflict.Field);id(aConflict.Stop);text(aConflict.Baseline);text(aConflict.Local);text(aConflict.Remote);baseline(aConflict.Observation); });
+				list(aTour.IncomingRoute, core::maximum_tour_stops, [&](auto& aValue) { stop(aValue); });
 				number(aTour.RemoteStale);
 			}
 			if (Version >= 6) {
-				optional(aTour.ObservedHead, [&](auto& value) { oid(value); });
+				optional(aTour.ObservedHead, [&](auto& aValue) { oid(aValue); });
 				number(aTour.HasPriorObservation);
-				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& value) {enumeration(value.Kind);id(value.Stop);text(value.Title); });
+				list(aTour.ObservedChanges, core::maximum_tour_stops * 4 + 2, [&](auto& aValue) {enumeration(aValue.Kind);id(aValue.Stop);text(aValue.Title); });
 			}
 		}
 	};

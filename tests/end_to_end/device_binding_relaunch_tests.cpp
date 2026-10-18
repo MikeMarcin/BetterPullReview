@@ -102,7 +102,8 @@ auto main(int aArgc, char** aArgv) -> int
 	// profile refusal that actually fired is named beside it, so a seed that
 	// cannot start says why in its own output.
 	if (application == nullptr) {
-		std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << std::endl;
+		std::cerr << "SEED_STARTUP_PROFILE_REFUSAL:" << bpr::app::profile_startup_refusal_name() << '\n'
+				  << std::flush;
 		// [[BPR-0882]]. And which composition arm refused, with what it caught.
 		std::cerr << "SEED_STARTUP_FAILURE_SOURCE:" << bpr::app::startup_failure_source() << '\n';
 	}
@@ -140,7 +141,8 @@ auto main(int aArgc, char** aArgv) -> int
 		// read the vault line and the readiness line. No shutdown runs, which
 		// is the case the card's observation records.
 		write_vault(options);
-		std::cout << "device-binding-relaunch:terminate:ready" << std::endl;
+		std::cout << "device-binding-relaunch:terminate:ready" << '\n'
+				  << std::flush;
 		wait_for([] { return false; }, "the driver terminates this process", 120000);
 		return EXIT_FAILURE;
 	}

@@ -116,7 +116,7 @@ namespace {
 			} else if (scope != "text-shell-session" && scope != "text-adblock") {
 				// Every other language GitHub colours is in the table; the two
 				// above have no packaged definition and stay plain on purpose.
-				expect(language.Kind == markdown_code_kind::language, "GitHub colours " + info + " (" + scope + ")");
+				expect(language.Kind == markdown_code_kind::language, std::string{ "GitHub colours " }.append(info).append(" (").append(scope).append(")"));
 			}
 		}
 		expect(seen == 147, "the fixture's info strings were read: " + std::to_string(seen));

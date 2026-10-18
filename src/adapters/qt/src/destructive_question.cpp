@@ -163,8 +163,7 @@ namespace bpr::qt {
 			: colours.Dark                         ? blend(window, text, 0.07)
 												   : base;
 		const auto& surface = colours.Surface;
-		colours.Edge        = blend(surface, text, colours.HighContrast ? 0.85 : colours.Dark ? 0.16
-																							  : 0.16);
+		colours.Edge        = blend(surface, text, colours.HighContrast ? 0.85 : 0.16);
 		colours.Ink         = text;
 		colours.Muted       = reading(blend(text, surface, 0.42), surface, text, ratio);
 		colours.Recess      = colours.HighContrast ? surface : window;

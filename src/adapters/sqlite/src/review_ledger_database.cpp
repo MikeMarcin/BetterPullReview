@@ -380,29 +380,28 @@ namespace bpr::adapters::sqlite::detail {
 			schema_table{ "review_scope", SchemaVersion1[1] },
 		};
 
-		const auto SchemaVersion7Tables = [] {
-			auto tables = std::vector<schema_table>{ };
-			for (const auto& table : SchemaVersion6Tables) {
-				if (table.Name != "local_note" && table.Name != "local_note_sequence") {
-					tables.push_back(table);
-				}
-			}
+		constexpr auto SchemaVersion7Tables = [] {
+			std::array<schema_table, SchemaVersion6Tables.size() - 2U + PrivateSchemaTables.size()> tables{ };
+			auto                                                                                    next = std::ranges::copy_if(SchemaVersion6Tables, tables.begin(), [](const auto& aTable) {
+							return aTable.Name != "local_note" && aTable.Name != "local_note_sequence";
+																										   }).out;
 			for (const auto& table : PrivateSchemaTables) {
-				tables.push_back({ table.Name, table.Sql });
+				*next++ = { table.Name, table.Sql };
 			}
 			std::ranges::sort(tables, { }, &schema_table::Name);
 			return tables;
 		}();
 
 		/// [[BPR-1210]]. Schema 8 adds the note path table to schema 7.
-		const auto SchemaVersion8Tables = [] {
-			auto tables = SchemaVersion7Tables;
-			tables.push_back({ PrivateNotePathTable.Name, PrivateNotePathTable.Sql });
+		constexpr auto SchemaVersion8Tables = [] {
+			std::array<schema_table, SchemaVersion7Tables.size() + 1U> tables{ };
+			std::ranges::copy(SchemaVersion7Tables, tables.begin());
+			tables.back() = { PrivateNotePathTable.Name, PrivateNotePathTable.Sql };
 			std::ranges::sort(tables, { }, &schema_table::Name);
 			return tables;
 		}();
 
-		const auto SchemaVersion9Tables = [] {
+		constexpr auto SchemaVersion9Tables = [] {
 			auto tables = SchemaVersion8Tables;
 			for (auto& table : tables) {
 				if (table.Name == "private_scope_state") {

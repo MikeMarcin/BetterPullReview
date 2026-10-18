@@ -19,8 +19,9 @@ namespace bpr::tests {
 		while (!aBytes.empty()) {
 			const auto end = aBytes.find('\n');
 			expect(end != std::string_view::npos && end < 16U * 1024U, "complete bounded JSONL record");
+			const auto      line = aBytes.substr(0, end);
 			QJsonParseError error;
-			const auto      document = QJsonDocument::fromJson(QByteArray{ aBytes.data(), static_cast<qsizetype>(end) }, &error);
+			const auto      document = QJsonDocument::fromJson(QByteArray{ line.data(), static_cast<qsizetype>(line.size()) }, &error);
 			expect(error.error == QJsonParseError::NoError && document.isObject(), "independent JSON parser accepts a complete object");
 			const auto record = document.object();
 			expect(record.size() == 30 && record.value("v").toInteger() == 3, "explicit complete version-three schema");

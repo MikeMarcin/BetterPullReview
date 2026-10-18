@@ -201,17 +201,17 @@ namespace bpr::application {
 				run.Outcome    = core::private_run_outcome::protocol_failure;
 				run.Completion = core::private_revision_completion::incomplete;
 			}
-			auto invalid_output = [&] {
+			auto invalidOutput = [&] {
 				run.Outcome    = core::private_run_outcome::protocol_failure;
 				run.Completion = core::private_revision_completion::incomplete;
 			};
 			std::string body;
 			if (aResult.AssistantItems.size() > 256) {
-				invalid_output();
+				invalidOutput();
 			} else if (correlated) {
 				for (const auto& item : aResult.AssistantItems) {
 					if (item.size() > core::maximum_private_assistant_body_bytes - body.size()) {
-						invalid_output();
+						invalidOutput();
 						body.clear();
 						run.OutputItemBytes.clear();
 						break;
@@ -231,12 +231,12 @@ namespace bpr::application {
 			auto                delta = private_review_delta{ .Scope = run.Binding.Scope, .Run = run.Run };
 			if (run.Outcome == core::private_run_outcome::succeeded && aResult.Findings) {
 				if (aResult.Findings->Session != run.Session || aResult.Findings->Findings.size() > maximum_agent_findings_per_turn) {
-					invalid_output();
+					invalidOutput();
 				} else {
 					for (std::size_t i = 0; i < aResult.Findings->Findings.size(); ++i) {
 						auto finding = core::retain_agent_finding(run, static_cast<std::uint32_t>(i), core::private_vertex_order{ next++ }, aResult.Findings->Findings[i], aSnapshot);
 						if (!finding) {
-							invalid_output();
+							invalidOutput();
 							break;
 						}
 						delta.Findings.push_back(finding->Source);

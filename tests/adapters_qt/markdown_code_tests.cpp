@@ -471,7 +471,7 @@ namespace {
 													   : "```suggestion\n";
 			for (auto line = 0; line < 8; ++line) {
 				const auto text = "auto value" + n + "_" + std::to_string(line) + " = compute(first, second, third) + offset; // note " + n;
-				body += (kind == 1 ? (line % 2 == 0 ? "-" : "+") : "") + text + "\n";
+				body.append(kind == 1 ? (line % 2 == 0 ? "-" : "+") : "").append(text).append("\n");
 			}
 			body += "```\n\n";
 			++blocks;

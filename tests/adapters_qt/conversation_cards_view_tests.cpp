@@ -1750,7 +1750,7 @@ namespace {
 			expect(!mark->isVisibleTo(view.open_card()) && mark->decision() == core::suggestion_applicability_decision{ }, identity + ": prose, even a suggestion label, shows no mark");
 			editor->setPlainText(patch);
 			QApplication::processEvents();
-			expect(mark->isVisibleTo(view.open_card()) && mark->property("suggestionApplicability").toString().toStdString() == state, identity + ": the mark says " + state);
+			expect(mark->isVisibleTo(view.open_card()) && mark->property("suggestionApplicability").toString().toStdString() == state, std::string{ identity }.append(": the mark says ").append(state));
 			expect(!mark->toolTip().isEmpty() && mark->accessibleDescription() == mark->toolTip() && mark->accessibleName().startsWith(QStringLiteral("Suggested change, ")),
 				   identity + ": named, and its tooltip says what GitHub will do");
 			expect(editor->toPlainText() == patch, identity + ": the mark leaves every byte of the text as written");
@@ -1760,8 +1760,10 @@ namespace {
 		}
 		view.open_thread("t-outdated");
 		view.begin_reply("t-outdated");
+		expect(view.reply_editor() != nullptr && view.open_card() != nullptr, "the outdated reply opens in place");
 		view.reply_editor()->setPlainText(patch);
 		auto* const mark = dynamic_cast<qt::suggestion_mark*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadReplySuggestionMark")));
+		expect(mark != nullptr, "the outdated reply has its suggestion mark");
 		expect(mark->decision().Reason == core::suggestion_text_reason::outdated_line && mark->toolTip().contains(QStringLiteral("outdated"))
 				   && mark->toolTip().contains(QStringLiteral("nothing moves to another line")),
 			   "text only says why, and that nothing is moved");

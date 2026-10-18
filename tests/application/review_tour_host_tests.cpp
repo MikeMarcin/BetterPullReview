@@ -182,9 +182,9 @@ int main()
 		deduplicating.start();
 		effects.drain();
 		decisions.drain();
-		auto request = [&](std::string text, std::string id, std::uint8_t digest) {
-			application::tour_service_request result{ .Command = tests::tour_edit(*deduplicating.presentation().Draft, std::move(text)), .RequestId = std::move(id) };
-			result.Digest.fill(digest);
+		auto request = [&](std::string aText, std::string aId, std::uint8_t aDigest) {
+			application::tour_service_request result{ .Command = tests::tour_edit(*deduplicating.presentation().Draft, std::move(aText)), .RequestId = std::move(aId) };
+			result.Digest.fill(aDigest);
 			return result;
 		};
 		const auto first               = deduplicating.execute(request("deduplicated", "same-id", 1));
@@ -210,17 +210,17 @@ int main()
 			effects.drain();
 			decisions.drain();
 		};
-		const auto request = [&](std::string id, std::uint8_t digest, application::tour_assist_completion completion) {
+		const auto request = [&](std::string aId, std::uint8_t aDigest, application::tour_assist_completion aCompletion) {
 			const auto                        draft = assisted.presentation().Draft;
-			application::tour_service_request result{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = std::move(id), .Assist = std::move(completion) };
-			result.Digest.fill(digest);
+			application::tour_service_request result{ .Command = { .Draft = draft->Id, .Owner = draft->Owner }, .Operation = application::tour_service_operation::assist_complete, .Origin = application::tour_presentation_origin::command_client, .RequestId = std::move(aId), .Assist = std::move(aCompletion) };
+			result.Digest.fill(aDigest);
 			return result;
 		};
-		const auto rewrite = [](std::string text) { return "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"" + text + "\",\"notes\":[]}"; };
-		const auto ticket  = [&](core::writing_hook hook, std::size_t begin, std::size_t end, core::writing_scope scope, std::vector<application::writing_source> sources = { }) {
+		const auto rewrite = [](std::string aText) { return "{\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":\"" + aText + "\",\"notes\":[]}"; };
+		const auto ticket  = [&](core::writing_hook aHook, std::size_t aBegin, std::size_t aEnd, core::writing_scope aScope, std::vector<application::writing_source> aSources = { }) {
 			const auto                      draft = assisted.presentation().Draft;
-			application::tour_assist_ticket t{ .Hook = hook, .Scope = scope, .Begin = begin, .End = end, .DraftRevision = draft->Revision, .HookRevision = 7, .Sources = std::move(sources), .Session = "trace" };
-			t.RawDigest = core::writing_digest(hook == core::writing_hook::solution ? draft->Solution : draft->Problem);
+			application::tour_assist_ticket t{ .Hook = aHook, .Scope = aScope, .Begin = aBegin, .End = aEnd, .DraftRevision = draft->Revision, .HookRevision = 7, .Sources = std::move(aSources), .Session = "trace" };
+			t.RawDigest = core::writing_digest(aHook == core::writing_hook::solution ? draft->Solution : draft->Problem);
 			return t;
 		};
 		const std::string raw = "A caf\xc3\xa9 \xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb\r\nsecond caf\xc3\xa9 line, second caf\xc3\xa9.\n";

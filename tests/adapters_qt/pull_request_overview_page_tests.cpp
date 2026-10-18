@@ -1522,10 +1522,14 @@ namespace {
 		return result;
 	}
 
-	const auto lighting  = std::string{ "Engine/Renderer/HairStrandsLighting.cpp" };
-	const auto voxel     = std::string{ "Engine/Renderer/HairStrandsVoxelization.cpp" };
-	const auto deep      = std::string{ "Engine/Shaders/HairStrandsDeepShadow.usf" };
-	const auto all_files = std::vector<std::string>{ lighting, voxel, deep };
+	constexpr auto lighting = "Engine/Renderer/HairStrandsLighting.cpp";
+	constexpr auto voxel    = "Engine/Renderer/HairStrandsVoxelization.cpp";
+	constexpr auto deep     = "Engine/Shaders/HairStrandsDeepShadow.usf";
+	auto           all_files() -> const std::vector<std::string>&
+	{
+		static const auto paths = std::vector<std::string>{ lighting, voxel, deep };
+		return paths;
+	}
 
 	[[nodiscard]] auto mixed_review() -> core::feedback_population
 	{
@@ -1572,8 +1576,10 @@ namespace {
 		const auto count  = QRectF{ aChip.Box.left() + 16.0 + 3.0, aChip.Box.top(), aChip.Box.width() - 19.0, aChip.Box.height() };
 		auto       amber  = 0;
 		auto       pixels = 0;
-		for (auto y = count.top(); y < count.bottom(); y += 0.5) {
-			for (auto x = count.left(); x < count.right(); x += 0.5) {
+		for (auto row = 0; row * 0.5 < count.height(); ++row) {
+			const auto y = count.top() + row * 0.5;
+			for (auto column = 0; column * 0.5 < count.width(); ++column) {
+				const auto x = count.left() + column * 0.5;
 				amber += amberish(image.pixelColor(QPoint{ static_cast<int>(x * scale), static_cast<int>(y * scale) })) ? 1 : 0;
 				++pixels;
 			}
@@ -1744,7 +1750,7 @@ namespace {
 		const auto review = mixed_review();
 
 		// No chips: the speech bubble counts every open conversation.
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		expect(page.open_counts_button()->isVisible() && page.open_counts_button()->isChecked() && page.all_counts_button()->isVisible()
 				   && page.label_key_button()->isVisible() && !page.open_counts_button()->icon().isNull(),
@@ -1759,7 +1765,7 @@ namespace {
 		// A typical subset: issue and question, Other once.
 		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue, core::feedback_label::question }));
 		expect(asked.size() == 2U && asked.back().Columns.Count == 2U, "choosing chips asks again");
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips.size() == 3U && chips[0].Label == core::feedback_label::issue && chips[0].Count == 1U && chips[1].Label == core::feedback_label::question
@@ -1810,7 +1816,7 @@ namespace {
 		// Only a conversation of unknown state: Open counts none, and the cell
 		// still is not blank.
 		page.present_feedback(feedback_for(population({ { .Id = "review-thread:u", .Label = core::feedback_label::issue, .State = core::feedback_resolution::unknown, .Path = lighting } }),
-										   asked.back(), all_files));
+										   asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips.size() == 1U && chips[0].Kind == qt::overview_comment_chip::kind::uncertain && cell(page, lighting).data().toString() == QStringLiteral("? 1"),
@@ -1825,7 +1831,7 @@ namespace {
 		}
 		many.push_back({ .Id = "review-thread:plain", .Label = std::nullopt, .State = core::feedback_resolution::unresolved, .Path = lighting });
 		page.set_label_columns(*core::make_feedback_label_columns(twelve));
-		page.present_feedback(feedback_for(population(many), asked.back(), all_files));
+		page.present_feedback(feedback_for(population(many), asked.back(), all_files()));
 		settle();
 		chips           = chips_of(page, cell(page, lighting));
 		const auto more = std::ranges::find(chips, qt::overview_comment_chip::kind::more, &qt::overview_comment_chip::Kind);
@@ -1842,7 +1848,7 @@ namespace {
 		page.set_label_columns(*core::make_feedback_label_columns(std::vector{ core::feedback_label::issue }));
 		page.all_counts_button()->click();
 		expect(asked.back().Mode == core::feedback_resolution_mode::all && page.all_counts_button()->isChecked(), "All asks for every conversation");
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips[0].Label == core::feedback_label::issue && chips[0].Count == 2U && chips[0].States == core::feedback_state_counts{ 1U, 1U, 0U, 0U },
@@ -1851,7 +1857,7 @@ namespace {
 			   "and each count says its breakdown");
 
 		// A stale answer, for a request no longer current, is dropped.
-		page.present_feedback(feedback_for(review, request_for({ }, core::feedback_resolution_mode::unresolved), all_files));
+		page.present_feedback(feedback_for(review, request_for({ }, core::feedback_resolution_mode::unresolved), all_files()));
 		expect(model->feedback()->Request.Mode == core::feedback_resolution_mode::all, "an answer to an earlier request is dropped");
 		expect(resets == 0, "no count, chip or mode change resets the model");
 		expect(page.body_view()->geometry() == bodyBefore, "the description keeps its geometry");
@@ -1901,7 +1907,7 @@ namespace {
 		page.show();
 		settle();
 		const auto review = mixed_review();
-		page.present_feedback(feedback_for(review, asked.back(), all_files));
+		page.present_feedback(feedback_for(review, asked.back(), all_files()));
 		settle();
 		auto* const view  = page.files_view();
 		auto* const model = page.file_model();
@@ -2003,7 +2009,7 @@ namespace {
 		QObject::connect(model, &QAbstractItemModel::rowsMoved, [&] { ++moves; });
 		auto refreshed = review;
 		refreshed.Units.pop_back();
-		page.present_feedback(feedback_for(refreshed, asked.back(), all_files));
+		page.present_feedback(feedback_for(refreshed, asked.back(), all_files()));
 		settle();
 		expect(view->currentIndex() == cell(page, lighting) && resets == 0 && moves == 0, "a refresh keeps the current Comments cell and resets nothing");
 		expect(page.focused_chip() && page.focused_chip()->Label == core::feedback_label::issue, "and the keyboard stays on the issue chip");
@@ -2018,7 +2024,7 @@ namespace {
 		delete sort;
 		expect(asked.back().Sort == core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = core::feedback_label::question },
 			   "choosing a label asks for that sort");
-		auto sorted  = feedback_for(refreshed, asked.back(), all_files);
+		auto sorted  = feedback_for(refreshed, asked.back(), all_files());
 		sorted.Order = { deep, voxel, lighting };
 		page.present_feedback(sorted);
 		settle();
@@ -2134,7 +2140,7 @@ namespace {
 			page.present(projection());
 			page.show();
 			settle();
-			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files));
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
 			settle();
 			auto* const open   = page.open_counts_button();
 			auto* const all    = page.all_counts_button();
@@ -2189,7 +2195,7 @@ namespace {
 			QApplication::sendEvent(all, &tab);
 			settle();
 			expect(!open->hasFocus() && !all->hasFocus(), theme + ": Tab leaves the switch");
-			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files));
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
 			if (auto* const focused = QApplication::focusWidget(); focused != nullptr) {
 				focused->clearFocus();
 			}
@@ -2270,7 +2276,7 @@ namespace {
 			page.present(projection());
 			page.show();
 			settle();
-			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files));
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
 			settle();
 			auto* const open = page.open_counts_button();
 			auto* const all  = page.all_counts_button();
@@ -2278,7 +2284,7 @@ namespace {
 			const auto  row  = QRect{ QPoint{ open->mapTo(&page, QPoint{ 0, 0 }).x() - 12, key.y() - 6 }, QPoint{ key.x() + 12, key.y() + open->height() + 6 } };
 			static_cast<void>(page.grab(row).save(QStringLiteral("%1/%2-open.png").arg(aRoot, theme), "PNG"));
 			all->click();
-			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files));
+			page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
 			settle();
 			static_cast<void>(page.grab(row).save(QStringLiteral("%1/%2-all.png").arg(aRoot, theme), "PNG"));
 			std::cout << "switch-render " << theme.toStdString() << " style=" << page.style()->name().toStdString() << '\n';
@@ -2646,9 +2652,11 @@ namespace {
 			const auto green  = page.colours().Progress.Accepted;
 			const auto middle = QPointF{ 13.0, std::floor(((static_cast<qreal>(aCell.height()) / ratio) - 1.0) / 2.0) };
 			auto       cut    = false;
-			for (auto y = middle.y() - 3.0; y <= middle.y() + 3.0; y += 0.5) {
-				for (auto x = middle.x() - 3.0; x <= middle.x() + 3.0; x += 0.5) {
-					cut = cut || !near(aCell.pixelColor(QPointF{ x * ratio, y * ratio }.toPoint()), green, 80);
+			for (auto row = -6; row <= 6; ++row) {
+				const auto y = middle.y() + row * 0.5;
+				for (auto column = -6; column <= 6; ++column) {
+					const auto x = middle.x() + column * 0.5;
+					cut          = cut || !near(aCell.pixelColor(QPointF{ x * ratio, y * ratio }.toPoint()), green, 80);
 				}
 			}
 			return paints(aCell, green) && cut;

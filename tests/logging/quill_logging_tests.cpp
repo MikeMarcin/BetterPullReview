@@ -94,7 +94,7 @@ namespace {
 		expect(records[1].value("dropped").toInteger() == 2 && records[2].value("sequence").toInteger() == 3, "invalid records are counted without entering session sequence");
 		expect(records[0].value("session") != records[3].value("session") && records[3].value("sequence").toInteger() == 1, "a new session cannot alias appended history");
 		const auto exported = application::prepare_release_diagnostics(bytes, core::release_maintenance_revision{ 1U });
-		expect(exported && exported->Descriptor.Records == 4U && exported->Descriptor.OmittedRecords == 0U && exported->Bytes.find("\\") == std::string::npos, "JSONL export reconstructs metadata without escaped prose");
+		expect(exported && exported->Descriptor.Records == 4U && exported->Descriptor.OmittedRecords == 0U && exported->Bytes.find('\\') == std::string::npos, "JSONL export reconstructs metadata without escaped prose");
 		const auto       first = bytes.substr(0U, bytes.find('\n') + 1U);
 		const std::array corruptions{
 			std::pair{ std::string{ "\"v\":3" }, std::string{ "\"v\":99" } },

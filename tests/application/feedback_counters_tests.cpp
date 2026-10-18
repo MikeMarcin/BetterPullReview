@@ -355,7 +355,7 @@ namespace {
 	/// no port, so nothing it reads can act.
 	void test_adversarial_provider_snapshots()
 	{
-		const auto pr_issue_unresolved = [](const feedback_counter_model& aModel) {
+		const auto prIssueUnresolved = [](const feedback_counter_model& aModel) {
 			return count(*aModel.tally(pr()), feedback_label::issue, feedback_resolution::unresolved);
 		};
 
@@ -368,7 +368,7 @@ namespace {
 		auto       repeated       = base_snapshot();
 		repeated.ReviewThreads.push_back(repeated.ReviewThreads[0]);
 		const auto collapsed = model.observe(review_key(), repeated);
-		expect(collapsed.Admitted && model.population().Units.size() == keptUnits && same_counts(*model.tally(pr()), keptTally) && pr_issue_unresolved(model) == 1U,
+		expect(collapsed.Admitted && model.population().Units.size() == keptUnits && same_counts(*model.tally(pr()), keptTally) && prIssueUnresolved(model) == 1U,
 			   "a thread an overlapping page repeats exactly is one conversation, counted once");
 
 		// A page that disagrees with another about the same thread refuses the
@@ -400,7 +400,7 @@ namespace {
 		auto       orphaned   = feedback_counter_model{ };
 		const auto withOrphan = orphaned.observe(review_key(), orphan);
 		const auto openAll    = orphaned.project(file("src/a/x.cpp"), std::vector{ feedback_label::issue }, core::feedback_resolution_mode::all);
-		expect(withOrphan.Admitted && pr_issue_unresolved(orphaned) == 1U && orphaned.tally(file("src/a/x.cpp"))->Unclassified[static_cast<std::size_t>(feedback_resolution::unresolved)] == 1U,
+		expect(withOrphan.Admitted && prIssueUnresolved(orphaned) == 1U && orphaned.tally(file("src/a/x.cpp"))->Unclassified[static_cast<std::size_t>(feedback_resolution::unresolved)] == 1U,
 			   "a thread with no observed root is unclassified and its labelled reply is not promoted");
 		expect(openAll && !openAll->Exact && std::ranges::find(openAll->Limits, core::feedback_count_limit::classification_partial) != openAll->Limits.end(),
 			   "and its file's counts say they are not exact, never a clean count");
@@ -410,7 +410,7 @@ namespace {
 		deleted.ReviewThreads[0].Comments[0].Deleted = true;
 		auto       afterDelete                       = feedback_counter_model{ };
 		const auto deletedRoot                       = afterDelete.observe(review_key(), deleted);
-		expect(deletedRoot.Admitted && pr_issue_unresolved(afterDelete) == 0U && afterDelete.tally(pr())->Unclassified[static_cast<std::size_t>(feedback_resolution::unresolved)] == 1U,
+		expect(deletedRoot.Admitted && prIssueUnresolved(afterDelete) == 0U && afterDelete.tally(pr())->Unclassified[static_cast<std::size_t>(feedback_resolution::unresolved)] == 1U,
 			   "a deleted root leaves its issue bucket for the unclassified catch-all, still unresolved");
 
 		// An account swap on the same pull request reads every body again and
@@ -431,7 +431,7 @@ namespace {
 		auto aged                          = feedback_counter_model{ };
 		static_cast<void>(aged.observe(review_key(), base_snapshot()));
 		const auto outdatedUpdate = aged.observe(review_key(), outdated);
-		expect(outdatedUpdate.Admitted && outdatedUpdate.Reparsed == 0U && pr_issue_unresolved(aged) == 1U
+		expect(outdatedUpdate.Admitted && outdatedUpdate.Reparsed == 0U && prIssueUnresolved(aged) == 1U
 				   && count(*aged.tally(file("src/a/x.cpp")), feedback_label::issue, feedback_resolution::unresolved) == 1U,
 			   "an outdated thread is still unresolved, in the same bucket and file");
 
@@ -486,7 +486,7 @@ namespace {
 	/// what was recognized, reused, hashed, removed and changed.
 	auto same_refresh(const core::feedback_annotation_refresh& aLeft, const core::feedback_annotation_refresh& aRight) -> bool
 	{
-		const auto same_post = [](const core::feedback_post& aA, const core::feedback_post& aB) {
+		const auto samePost = [](const core::feedback_post& aA, const core::feedback_post& aB) {
 			const auto sameBody       = (aA.Body == nullptr) == (aB.Body == nullptr) && (aA.Body == nullptr || *aA.Body == *aB.Body);
 			const auto sameAnnotation = aA.Annotation.has_value() == aB.Annotation.has_value()
 				&& (!aA.Annotation
@@ -496,7 +496,7 @@ namespace {
 			return aA.Conversation == aB.Conversation && aA.Id == aB.Id && aA.ReplyTo == aB.ReplyTo && aA.Deleted == aB.Deleted && aA.Segment == aB.Segment && sameBody && sameAnnotation;
 		};
 		return aLeft.Refusal == aRight.Refusal && aLeft.Next.Scope == aRight.Next.Scope && aLeft.Next.Epoch == aRight.Next.Epoch
-			&& std::ranges::equal(aLeft.Next.Posts, aRight.Next.Posts, same_post) && aLeft.Next.Conversations == aRight.Next.Conversations
+			&& std::ranges::equal(aLeft.Next.Posts, aRight.Next.Posts, samePost) && aLeft.Next.Conversations == aRight.Next.Conversations
 			&& aLeft.Recognized == aRight.Recognized && aLeft.Removed == aRight.Removed && aLeft.ChangedConversations == aRight.ChangedConversations
 			&& aLeft.Reused == aRight.Reused && aLeft.Hashed == aRight.Hashed;
 	}
@@ -507,7 +507,8 @@ namespace {
 	/// refresh's carried path gives exactly what its general path gives.
 	void test_random_changes_match_the_core()
 	{
-		auto       random   = std::mt19937{ 1087U };
+		// Keep failing edit sequences reproducible across runs.
+		auto       random   = std::mt19937{ 1087U }; // NOLINT(bugprone-random-generator-seed)
 		const auto labels   = std::vector<std::string>{ "issue: a", "suggestion: b", "praise: c", "nitpick: d", "question: e", "plain words", "custom(x): f" };
 		const auto paths    = std::vector<std::string>{ "", "a.cpp", "src/a/x.cpp", "src/a/y.cpp", "src/b/z.cpp", "src/b/deep/w.cpp", "docs/readme.md" };
 		auto       pick     = [&](std::size_t aSize) { return std::uniform_int_distribution<std::size_t>{ 0U, aSize - 1U }(random); };
@@ -541,9 +542,9 @@ namespace {
 				break;
 			case 2:
 				if (!threads.empty()) {
-					auto&      chosen = threads[pick(threads.size())];
-					const auto path   = paths[pick(paths.size())];
-					chosen.Path       = path;
+					auto&       chosen = threads[pick(threads.size())];
+					const auto& path   = paths[pick(paths.size())];
+					chosen.Path        = path;
 					for (auto& comment : chosen.Comments) {
 						comment.Path = path;
 					}

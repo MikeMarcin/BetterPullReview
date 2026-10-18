@@ -118,7 +118,7 @@ namespace {
 		auto body = fixture_object{ };
 		for (const auto& field :
 			 projection.at("observed_fields").get_array()) {
-			const auto name = field.get_string();
+			const auto& name = field.get_string();
 			if (values.contains(name)) {
 				body.insert_or_assign(name, values.at(name));
 				continue;
@@ -674,8 +674,8 @@ namespace {
 			= manifest.at("artifacts").get_array();
 		expect(artifacts.size() == 2, "two documented artifacts are pinned");
 		for (const auto& entry : artifacts) {
-			const auto artifact = entry.get_object();
-			const auto relative
+			const auto& artifact = entry.get_object();
+			const auto  relative
 				= artifact.at("path").get_string();
 			expect(
 				artifact.at("source_kind").get_string()
