@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1604"
 title: "The quiet grey and the attention amber reach their contrast floors"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
