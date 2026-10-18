@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1601"
 title: "Pull request comments get read state"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-1589"]
 priority: "P2"
