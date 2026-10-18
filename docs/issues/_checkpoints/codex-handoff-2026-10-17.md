@@ -133,7 +133,7 @@ for each item.
   `/Users/jaeger/bpr1593-tours-route-v001.fmh3hj33` with `scripts/freeze_attended_build.py remove`.
 - Leave the worktree in place afterwards (Claude resumes BPR-1594 in it); delete only its build tree if disk is tight.
 
-### 7d. BPR-1594 — Agent drawer tab (land ONLY if the owner accepted it)
+### 7d. BPR-1594 — Agent drawer tab (ACCEPTED by owner 2026-10-18, no note — land it)
 - Owner review: session `5547b2341ac4b1228c7f89e5ed5110c1`,
   state `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1594-agent-tab-v001`, candidate
   `BPR-1594-agent-tab-v001`. Read the session (`attended_review.py … status --after 3`). If there is no decision
@@ -158,7 +158,7 @@ for each item.
 
 ## Not for Codex (taste/design — stays with Claude)
 
-- As of 2026-10-18: RFC-BPR-0085 milestones through BPR-1592 are landed; BPR-1593 is item 7c above. Claude keeps **BPR-1594 v002 if rejected** and **BPR-1603 (PR comments as drawer-edge chips; design note + review first)**, then the RFC closeout.
+- As of 2026-10-18: RFC-BPR-0085 milestones through BPR-1592 are landed; BPR-1593 is item 7c above. Claude keeps **BPR-1603 (PR comments as drawer-edge chips; design note + review first)**, then the RFC closeout.
 
 - **RFC-BPR-0085 drawer redesign resumed with Claude.** Milestones 1 and 2 (BPR-1587, BPR-1588,
   BPR-1589) are landed. Do not touch BPR-1590–BPR-1595 or the worktree
