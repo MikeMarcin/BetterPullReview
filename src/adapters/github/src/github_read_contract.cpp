@@ -596,7 +596,6 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1589]]. Bound to the pull request's repository for its
 			// correlation; the query names only the team and the login.
 			case read_operation::get_team_membership:
-				return false;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_commit_statuses:

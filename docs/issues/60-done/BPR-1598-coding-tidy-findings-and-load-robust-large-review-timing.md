@@ -136,3 +136,17 @@ fixes. All six affected translation units pass their direct recheck, including
 a caller of the explicitly instantiated Home list types. The final full gate
 passes; the verified app-manifest pin is
 `235e94e1a255863ab4e3ebdf4150ca3e5ff7191776b51df00634a26cc57bdef1`.
+
+## Integrated follow-up — 2026-10-18
+
+Handoff item 9 checks 902 native translation units. Two later BPR-1589 changes
+at `39afb7162` introduce a local naming violation (`most_teams`) and an identical
+`return false` switch branch for team membership. The local is renamed and the
+cases grouped without changing behavior. Both units pass the focused tidy22
+recheck, reusing the other 900 passing units from the full pass. Full format22
+passes 1,632 files; the two repaired files pass again. Both affected targets and
+the final application relink pass; `github_read_contract` and `github_provider`
+pass in 3.96 seconds. The full command's initial exit 1 and the focused recheck's
+exit 0 are retained in the handoff progress report; no second full pass is
+claimed. The 91 units absent from this Mac's compilation database remain outside
+this native result.

@@ -125,6 +125,9 @@ int main(int aArgc, char** aArgv)
 	expect(unread("issue-comment:my-comment") == 0U, "my own PR comment is not new");
 	const auto threads = cards->unread_threads_in_file_order();
 	expect(!threads.empty(), "fixture has unread file threads before singleton navigation");
+	expect(window.next_new_comment_action()->toolTip().contains(QString::number(threads.size()) + QStringLiteral(" threads"))
+			   && window.next_new_comment_action()->toolTip().contains(QStringLiteral("2 comments not on a file")),
+		   "next-new names the unread threads and standalone comments separately");
 	window.conversation_panel()->scope_this_file_button()->click();
 	expect(window.conversation_panel()->discuss_view().Scope == qt::cards_scope::this_file, "navigation starts in Discuss's file scope");
 	cards->set_current_thread(threads.back());
@@ -146,6 +149,9 @@ int main(int aArgc, char** aArgv)
 	mark(summary, true);
 	mark(comment, true);
 	wait_for([&] { return count() == QStringLiteral("0 new comments in the conversation"); }, "reading clears the Status count");
+	expect(!window.next_new_comment_action()->toolTip().contains(QStringLiteral("not on a file"))
+			   && window.next_new_comment_action()->toolTip().contains(QStringLiteral("threads")),
+		   "reading the standalone comments restores the thread-only navigation count");
 	expect(window.overview_page()->findChild<QWidget*>(QStringLiteral("overviewNewConversation"))->isHidden(), "Status hides the empty conversation line");
 	expect(std::ranges::none_of(cards->cards(), [&](const qt::thread_card& aCard) { return (aCard.Id == comment || aCard.Id == summary) && aCard.UnreadCount != 0U; }), "reading clears both Discuss markers");
 	mark(comment, false);

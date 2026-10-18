@@ -2654,8 +2654,8 @@ namespace bpr::adapters::github::detail {
 						// stops asking, and lost authentication fails the read as
 						// every optional read does.
 						if (state->ReadAuthority == github_provider_read_authority::authenticated && !result->Viewer.Login.empty()) {
-							constexpr auto most_teams = std::size_t{ 8U };
-							const auto     lower      = [](std::string aText) {
+							constexpr auto mostTeams = std::size_t{ 8U };
+							const auto     lower     = [](std::string aText) {
 								std::ranges::transform(aText, aText.begin(), [](const char aChar) { return aChar >= 'A' && aChar <= 'Z' ? static_cast<char>(aChar - 'A' + 'a') : aChar; });
 								return aText;
 							};
@@ -2668,7 +2668,7 @@ namespace bpr::adapters::github::detail {
 								if (std::ranges::contains(result->ViewerTeamMemberships, record.Team, &application::github_team_membership_record::Team)) {
 									continue;
 								}
-								if (result->ViewerTeamMemberships.size() == most_teams) {
+								if (result->ViewerTeamMemberships.size() == mostTeams) {
 									break;
 								}
 								const auto key = std::tuple{ aRequest.Context.Host.value(), aRequest.Context.Profile.value(), lower(record.Team), lower(result->Viewer.Login) };

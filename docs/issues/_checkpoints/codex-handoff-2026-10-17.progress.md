@@ -87,13 +87,90 @@ owner’s ordered Markdown handoff remains the execution and exit contract.
    Historical decisions and session files are retained. The older BPR-1568
    mockup session was already unprotected and has no host or frozen build.
    `git worktree prune` completes; unrelated and paused work is retained.
-9. One final integrated configure/build/full ctest and format/tidy: ready
-   to start on main after all queued cards landed. The quiet-machine preflight
-   found another project's Release build and ThreadSanitizer run active; wait
-   for that work to finish and recheck process load before starting. Debug will
-   use `-g0` for disk use, retaining assertions and test behavior. Build
-   concurrency is six and CTest concurrency four, respecting serial rows.
-   Every full-suite failure will be rerun alone and its cause recorded.
+9. The single final integrated configure/build/full CTest ran on main
+   `e9b1cee35` after the other project's Release build and ThreadSanitizer run
+   ended and a second process preflight found the machine quiet. Configure and
+   the full build pass. Debug uses `-g0` for disk use, retaining assertions and
+   test behavior; build concurrency is six and CTest concurrency four, with
+   serial rows respected. CTest ran from 05:20:27 to 06:30:01 UTC on
+   2026-10-18: 778 passed, 12 failed and one skipped, 4,174.18 seconds. No
+   second full suite was run. The documentation-only BPR-1602 allocation
+   `4d6b63e86` arrived during the run; it changes no tested source.
+
+   All twelve failed rows were rerun in separate CTest invocations. Nine now
+   pass after the BPR-1601 integration follow-up described below; three
+   out-of-queue inventory failures remain with their causes recorded. The
+   strengthened conversation-read public path also passes. The affected
+   targets and final application relink pass, as do documentation and its
+   67 regression tests. Full format22 passes all 1,632 files. The full tidy22
+   pass checks 902 native translation units with four workers: 900 pass and
+   two report the mechanical findings below. Both repaired units pass their
+   focused tidy22 recheck. All native units are covered; 91 platform/configuration
+   units absent from this Mac's compilation database are explicitly skipped,
+   not claimed passing. Validation and task-owned cleanup are complete.
+
+   The BPR-1601 integration follow-up is `1c4ffbee0`; the final BPR-1598 lint
+   repair is `5095c91f4`. These commits contain the tested source changes.
+   The final documentation gate passes on their combined tree and this report.
+
+## Integrated follow-up and residual failures
+
+The broader workbench courses still expected file-only Threads rows. They now
+verify that a PR comment moves to its Not on a file row with selection and
+focus, retaining the unknown-identity and pathless-to-Review refusals. The
+next-new tooltip had also renamed every file thread a conversation. It now
+counts threads and standalone comments separately, preserving the unchanged
+current-file badge test. The terminology scan allows the PR-conversation
+phrase only on the two named Status controls. The new public course verifies
+mixed navigation counts and their return to threads only after marking the
+standalone comments read. BPR-1601's required Windows registration is added as
+`unmeasured (registered on macOS)`; no native Windows result is claimed.
+
+These nine formerly failing rows pass individually: `qt_thread_moves_scale_100`,
+`qt_thread_moves_scale_125`, `qt_thread_moves_scale_200`,
+`qt_workbench_conversation_reveal`, `qt_workbench_window_scale_100`,
+`qt_workbench_window_scale_125`, `qt_workbench_window_scale_200`,
+`qt_current_file_unread_badge` and `application_thread_words_public_path`.
+`application_conversation_read_public_path` passes again with the added count
+assertions. The thirteen isolated invocations took 143.00 seconds in total.
+
+The remaining failures reproduce alone:
+
+- `github_contract_fixture_security` (1.47 s): the expected fixture inventory
+  omits the eleven committed `status-attention-v1` files added separately by
+  BPR-1589 in `2e86be6e5`. The exact-tree assertion reports those extra files.
+- `test_network_isolation_structure_contract` (8.60 s): `cmake_sources` walks
+  unrelated nested checkouts under `.claude/worktrees`, so the raw-registration
+  check counts their CMake registration owners as duplicates. No unrelated
+  checkout was removed or changed to conceal this result.
+- `test_network_isolation_manifest` (10.36 s): the same nested-checkout scan
+  duplicates the designated-live and Windows registration counts. It also
+  reports BPR-1589's separate `application_status_attention_public_path` row
+  missing from `WINDOWS_UNCONTAINED_TESTS`. BPR-1601's registration omission is
+  fixed and absent from this rerun.
+
+The sole skipped row is the documented Debug-only
+`application_large_review_cache_bytes` case. All other large-review rows,
+including history, timing control and replay, pass. Both composition contracts,
+the native and file-backed private-review courses and the portable two-catalogue
+epoch course pass. The previously flaky `release_update_native_https` passes
+this run (9.33 s); this does not establish that its intermittency is fixed.
+
+The full lint command exits 1 for two findings introduced by separately landed
+BPR-1589 commit `39afb7162`: local `most_teams` violates the naming rule in
+`github_provider.cpp`, and `get_team_membership` duplicates the following
+`return false` switch branch in `github_read_contract.cpp`. Renaming the local
+and grouping the identical cases preserve behavior. Both affected targets and
+the final application relink pass; `github_read_contract` and `github_provider`
+pass in 3.96 seconds. Format22 on the two files and their focused tidy22 command
+both exit 0. The unchanged 900 passing units are reused; a second complete lint
+pass was not run or claimed. No lint findings remain on the checked native
+compilation graph.
+
+Raw full-suite, isolated rerun, build and lint evidence is outside Git at
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-codex-handoff-20261017-vwyr19ur`.
+`full-LastTest.log` and `full-LastTestsFailed.log` preserve the original suite
+before the individual reruns; `final-run.json` records timestamps and exits.
 
 
 Do not touch RFC-BPR-0085 work BPR-1590–1595 or the drawer-redesign worktree.
