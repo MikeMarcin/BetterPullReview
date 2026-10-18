@@ -29,6 +29,7 @@ groups the cards:
 | [[BPR-1592]] | Notes as margin notes, and the promote label (AC05) |
 | [[BPR-1593]] | Tours as the route, expanding to the tour page (AC06) |
 | [[BPR-1594]] | Agent as a drawer tab (AC07) |
+| [[BPR-1603]] | Pull-request comments wait at the Comments drawer's edge (AC10, amendment) |
 | [[BPR-1595]] | Closeout (AC08, AC09) |
 
 Milestone 1 ([[BPR-1587]], [[BPR-1588]]) landed on 2026-10-17 after the
@@ -41,6 +42,20 @@ v002 (session `82f52ad4…`); v001 was rejected for a verbose role line and a
 viewer is in. The owner then decided that pull-request comments get read
 state; that is [[BPR-1601]], outside this RFC, and the Status drawer's
 conversation line waits for it.
+
+Milestone 3 ([[BPR-1590]]) landed on 2026-10-18 after the owner's Accept of
+v003, with the hover words removed as the owner's note asked; v001 and v002
+were rejected (dead space; rows larger than the mockup's one line, no way to
+the real comment, and a summary that read as the last comment).
+
+Milestone 4 ([[BPR-1591]], [[BPR-1592]]) landed on 2026-10-18 after the
+owner's Accept of v001 with no note. The agent's material moved unchanged to a
+provisional Agent tab until [[BPR-1594]].
+
+**Amendment, 2026-10-18 ([[BPR-1603]]).** The owner, while [[BPR-1593]] was
+under way: "The notes-on-the-pull-request thing might actually be a good UX
+for comments on the pull request too." D8 below adds it as a milestone after
+the Agent tab, with its own design note and owner review.
 
 The design round, its audit and the before renders are in
 [`docs/design/BPR-1574-drawers-and-agent-v1/`](../design/BPR-1574-drawers-and-agent-v1/index.html)
@@ -232,6 +247,16 @@ exists in the current comparison follows the placed ones with a sentence
 saying so, as an outdated thread does. Notes' agent material moves to the
 Agent tab ([[BPR-1594]]); Notes never shows agent tools.
 
+### Pull-request comments at the edge (D8, amendment)
+
+Conversation comments and review summaries on no file wait as one chip at the
+Comments drawer's top edge ("3 on the pull request", its unread count in the
+new blue once any is unread), as Notes' notes on the pull request do. The chip
+lists them in the drawer, newest last; each opens in place as a thread does,
+reads as read once seen ([[BPR-1601]]), and offers Show in Discuss. Discuss
+keeps every comment as today. A short design note with a Light and Dark
+mockup precedes the build ([[BPR-1603]]).
+
 ### Tours (D4)
 
 The Tour tab is the route: the brief (Problem, Solution) as one compact card
@@ -316,3 +341,8 @@ parked card is changing lands after that card or merges with it.
   the four themes at 100, 125 and 200 percent and at its narrowest and widest
   width.
 - **AC09 Owner looks:** the owner accepts each milestone's frozen build.
+- **AC10 Pull-request comments at the edge (amendment):** conversation comments
+  and review summaries on no file wait as a chip at the Comments drawer's top
+  edge, open in place with their unread marks, and offer Show in Discuss;
+  Discuss is unchanged; the owner accepts the design note's mockup and the
+  frozen build.

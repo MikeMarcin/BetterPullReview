@@ -5,7 +5,7 @@ title: "Verify and close RFC-BPR-0085"
 status: "Backlog"
 rfcs: ["RFC-BPR-0085"]
 closeout_for: ["RFC-BPR-0085"]
-depends_on: ["BPR-1589", "BPR-1590", "BPR-1593", "BPR-1594"]
+depends_on: ["BPR-1589", "BPR-1590", "BPR-1593", "BPR-1594", "BPR-1603"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "Owner decisions in attended session 9b6359b5e66fa4d761e1acb025c4697b (BPR-1574), 2026-10-17", "reservation": "docs/issues/_reservations/BPR-1587--BPR-1595--796d1dde48eb.json", "milestone": "drawer-closeout", "milestone_plan": {"id": "drawer-design-system-v1", "path": "docs/rfcs/plans/drawer-design-system-v1/milestone-plan.json"}}
@@ -31,3 +31,4 @@ RFC base: `4317330bad446c4c1577b6d6bf09d458cf8edb9a`.
 | **AC07 Agent:** ⌥⇧A, ⌘I and the context menu reach the Agent tab; the four states render; a finding becomes a local draft only on a person's press; sessions, earlier heads and private runs are reachable from History. | Pending. |
 | **AC08 Themes and sizes:** every rebuilt surface renders without clipping in the four themes at 100, 125 and 200 percent and at its narrowest and widest width. | Pending. |
 | **AC09 Owner looks:** the owner accepts each milestone's frozen build. | Pending. |
+| **AC10 Pull-request comments at the edge (amendment):** conversation comments and review summaries on no file wait as a chip at the Comments drawer's top edge, open in place with their unread marks, and offer Show in Discuss; Discuss is unchanged; the owner accepts the design note's mockup and the frozen build. | Pending. |
