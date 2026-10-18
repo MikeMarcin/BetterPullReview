@@ -1268,6 +1268,20 @@ foreach(bpr_shortcuts_scale IN ITEMS 100 125 200)
         PASS_REGULAR_EXPRESSION "keyboard-shortcuts:pass" TIMEOUT 120)
 endforeach()
 
+# [[BPR-1581]] [[BPR-1582]] [[BPR-1584]]. A thread moves between Review and
+# Discuss through one core route (menus, keys, outdated, pull request comment,
+# focus, arrival, negative controls), frames of the jump in Light and Dark,
+# and the reading width, which never touches the code comparison.
+foreach(bpr_moves_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_moves_whole "${bpr_moves_scale} / 100")
+    math(EXPR bpr_moves_fraction "${bpr_moves_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_thread_moves_scale_${bpr_moves_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --thread-moves)
+    set_tests_properties(qt_thread_moves_scale_${bpr_moves_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_moves_whole}.${bpr_moves_fraction};BPR_EXPECTED_QT_SCALE=${bpr_moves_whole}.${bpr_moves_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/thread-moves-${bpr_moves_scale}.png"
+        PASS_REGULAR_EXPRESSION "thread-moves:pass" TIMEOUT 180)
+endforeach()
+
 # [[BPR-1331]]. The review bar's progress button shows the selected file's
 # decided mark: glyph, name and tooltip, through a change, a file switch and a
 # palette refresh.

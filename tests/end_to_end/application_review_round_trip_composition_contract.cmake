@@ -1,3 +1,12 @@
+# BPR-1582 reseal over main 1e72d4d60 (whose pins main matched): the only
+# production-app change is 2a789264e in github_application.cpp, the Threads
+# row menu's Mark as Unread: the window's new unread dispatch and
+# mark_conversation_unread, which builds the accepted thread's post
+# observation as Mark read does and hands it to the review ledger host, whose
+# core decision moves the private seen cursor. No provider, grant, credential,
+# publication or mutation-branch change; the mutation digest is unchanged.
+# Reviewed by its implementer; the composed course is
+# application_profile_multi_window_public_path's Mark as Unread section.
 # BPR-1527 scoped Windows0.2.2/WSL follow-up over7aaf (Mac6747/c233 unchanged):
 # a confirmed kept-reply action can arrive while a reread reopens private storage.
 # Retain its core-admitted command/CAS with the exact shared owner and consumer;
@@ -1532,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"1711b060864ac2d26923a4755ad2ec08da51b8da36f45d25a25d12b74b310553"
+		"1c9ac5ffbd9c1a122273449ddb4f302d3c8b1ea52b52f9ffbc71902047ed78fd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1748,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "9c3bc10723c9493f2ed654acb0ee6e569af4c0395734d3010f67642c7a2bae00"
+        "447a3f9d4c0731460cef046a2a5078909f9c7fb6a15a27cdbc6b64085138573e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2722,7 +2731,7 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1573.
 
-# [[BPR-1575]], [[BPR-1576]] reseal over main at c77419079, recomputed on the tree
+# [[BPR-1575]], [[BPR-1576]] reseal over main at 83a58c893, recomputed on the tree
 # that merges these cards onto it. github_application.cpp marks the window's
 # own rereads (after publishing, after resolving a thread) as automatic through
 # workbench_window::run_automatic_refresh, which runs the same dispatch it ran

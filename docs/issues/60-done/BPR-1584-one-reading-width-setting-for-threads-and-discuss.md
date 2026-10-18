@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1584"
 title: "One reading width for Threads and Discuss, as a setting, never for the code"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"owner notes 2026-10-17, relayed by the coordinator","owner_note":"is it weird that threads is seemingly fixed-width ... I don't necessarily hate it for ultra-wide monitors ... Discuss should probably have the same behaviour. We can make that capped width a setting.","governing_rfc":"RFC-BPR-0028","related_rfcs":["RFC-BPR-0052"],"related_cards":["BPR-1290","BPR-1293","BPR-1512","BPR-1556","BPR-1581","BPR-1582"],"reservation":"docs/issues/_reservations/BPR-1584--BPR-1584--5ffb2022a4ca.json"}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1584:core","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"core_workbench_interaction: test_the_reading_width (each choice at narrow, ordinary and ultra-wide pages; Full width never caps; closed vocabulary)."}},{"criterion":"BPR-1584:storage","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"sqlite_workbench_settings_storage: test_reading_width_migration_and_round_trip (version 21 migrates to Wide keeping every choice; each choice round-trips; an unknown value is refused written and stored)."}},{"criterion":"BPR-1584:surfaces","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_conversation_finder_scale_*: test_rows_fill_the_reading_width at 1280, 1900 and 3440 for each choice, trailing people and counts at the column's right edge; qt_thread_moves_scale_*: Discuss's notes at the reading width at 1900 and 3440 for each choice, Threads following the same setting live."}},{"criterion":"BPR-1584:code","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"qt_thread_moves_scale_*: test_reading_width_is_never_the_code: at 3440 px with the drawers open the comparison panes keep their width at every choice."}},{"criterion":"BPR-1584:negative","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"Negative controls: Full width leaves Discuss uncapped; a 1900 px window's rows run past the old 880 px cap."}},{"criterion":"BPR-1584:gates","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"command","detail":"clang-format 22 clean on touched files; clang-tidy 22 (llvm@22) reports nothing in the touched sources; scripts/verify_documentation.py DOCUMENTATION_OK; Full scripts/run_test_suite.py --preset dev on the merged tree 30f016602 (main 1afb7a6f9 merged): 767 of 777 passed, 1 skipped (application_large_review_cache_bytes, exit 77), 10 failed with the machine at load average 33-39 (13 agents building). Rerun alone: composed_application_hosts, application_private_review_native and application_private_review_retry pass; seven still miss time budgets or condition timeouts under that load, none in a path these cards change: application_large_review_{responsiveness,launch,active_work,pathological,history} (measured platform budgets, e.g. MainToFirstSourceRender 21 s), application_epoch_portable_occurrence_two_catalogues (composed read budget) and application_private_review_file (publish condition_timeout); BPR-1598 owns load-robust large-review rows. The earlier full run on 45cc87c97 passed 766 of 775 with only environment and load failures, each passing alone or after its test update. Final merge 74de8b4dd (main 1e72d4d60): the focused landing set passes."}},{"criterion":"BPR-1584:owner-look","outcome":"pass","revision":"74de8b4dd","evidence":{"kind":"observation","detail":"Owner verdict in session c1a9372af55350e3cb63fe7d8377eafa: Accept, no note; candidate BPR-1584-reading-width-v001, fingerprint cd4c2a71db92..., decision 6df00d7f-5562-4715-a97d-8f11f87dc1eb, frozen build frozen-c6644bad7-v001; handed back at event 13, cursor consumed 13, candidates released at event 14."}}]
 ---
 
 # BPR-1584: One reading width for Threads and Discuss
@@ -120,3 +120,31 @@ question per card; frozen root
 `python3 /Users/jaeger/bpr1581-thread-moves-v001.x7yze1z4/launch.py`.
 
 This card's candidate: `BPR-1584-reading-width-v001 (fingerprint `cd4c2a71db92…`)`, criterion `BPR-1584:owner-look`, Pending.
+
+## Closeout, 2026-10-17
+
+**Owner decision: Accept** (Accept, no note), decision `6df00d7f-5562-4715-a97d-8f11f87dc1eb` at event 12 of
+session `c1a9372af55350e3cb63fe7d8377eafa`, on candidate `BPR-1584-reading-width-v001`
+(fingerprint `cd4c2a71db92…`, revision `frozen-c6644bad7-v001`). Handed back at
+event 13; cursor consumed 13. The review host was stopped, every candidate
+released (event 14), and the frozen root removed.
+
+Landed on main as `9e27c40c5` (branch `bpr-1581-thread-navigation` at
+`74de8b4dd`, main `1e72d4d60` merged), together with [[BPR-1586]]'s Show in
+Threads. The round-trip composition contract is resealed over main
+`1e72d4d60` for [[BPR-1582]]'s Mark as Unread wiring (the only
+production-app change; mutation digest unchanged).
+
+Verification: the full `dev` suite on the merged tree `30f016602` passed 767
+of 777 (1 skipped). Of its 10 failures, three pass when rerun alone, and
+seven (five large-review budget rows, the two-catalogue epoch read budget and
+the private-review file course's publish timeout) still miss time budgets at
+load average 33–39 with 13 agents building. None of the seven is in a path
+these cards change; [[BPR-1598]] owns load-robust large-review rows. An
+earlier full run on `45cc87c97` passed 766 of 775, with its failures
+environmental or fixed by updating two tests that asserted the old behaviour
+(`qt_github_conversation_panel`, `qt_profile_management_window`). On the
+final merge `74de8b4dd` the 18 focused rows pass, including the thread-moves,
+finder, cards, panel, resident menu, shortcuts, window, multi-window
+composed and composition-contract rows. clang-format 22 clean, clang-tidy 22
+reports nothing in the touched sources, `DOCUMENTATION_OK`.
