@@ -97,6 +97,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = "Alt+Shift+1", .Objects = "toggleWorkbenchFilesDrawerAction" },
 			shortcut_entry{ .Command = command::comments_drawer, .Group = views, .Binding = bound, .Title = "Comments drawer", .Keys = "Alt+Shift+2", .Objects = "toggleWorkbenchConversationsDrawerAction" },
 			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = "Alt+Shift+R", .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
+			shortcut_entry{ .Command = command::open_agent, .Group = views, .Binding = bound, .Title = "The Agent tab", .Keys = "Alt+Shift+A", .Objects = "openAgentTabAction" },
+			shortcut_entry{ .Command = command::ask_agent, .Group = views, .Binding = bound, .Title = "Ask the agent about the selected lines", .Keys = "Ctrl+I", .Objects = "askAgentAboutLinesAction" },
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
 			shortcut_entry{ .Command = command::hide_drawers, .Group = views, .Binding = bound, .Title = "Hide or show every drawer", .Keys = "Ctrl+B", .StepsAsideWhileTyping = true, .Objects = "toggleWorkbenchDrawersAction;desktopToggleDrawersAction" },

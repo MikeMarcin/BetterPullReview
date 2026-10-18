@@ -88,6 +88,10 @@ namespace bpr::qt {
 		files_drawer,
 		comments_drawer,
 		repositories_drawer,
+		/// [[BPR-1594]]. The Agent tab, opening its drawer.
+		open_agent,
+		/// [[BPR-1594]]. Ask the agent about the selected lines.
+		ask_agent,
 		review_details,
 		line_numbers,
 		hide_drawers,

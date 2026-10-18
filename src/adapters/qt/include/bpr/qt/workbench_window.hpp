@@ -139,6 +139,7 @@ namespace bpr::qt {
 	class side_chat_panel;
 	class private_review_panel;
 	class private_notes_panel;
+	class agent_tab_view;
 	struct private_note_item;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
@@ -803,6 +804,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1593]]. Back to the code: the route in the drawer.
 		void               close_tour_page();
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
+		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
+		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
+		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
+		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
 		void               open_review_tour();
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
 		///
@@ -2188,6 +2193,13 @@ namespace bpr::qt {
 		QWidget* TourPageBody = nullptr;
 		bool     TourPageOpen = false;
 		void     wire_tour_page();
+		/// [[BPR-1594]]. The Agent tab, and its keys.
+		agent_tab_view* AgentTab              = nullptr;
+		QAction*        OpenAgentAction       = nullptr;
+		QAction*        AskAgentAction        = nullptr;
+		/// [[BPR-1594]]. Opens the drawer on the Agent tab; with \p aAsk, the
+		/// selected lines go with the question and the keyboard goes to it.
+		void show_agent(bool aAsk);
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
