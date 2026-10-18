@@ -22,6 +22,15 @@ With no explicit paths, the scripts scan:
 The scripts skip build outputs, vendored dependencies, generated directories,
 CMake `_deps`, and hidden VCS directories.
 
+The tidy gate discovers clang-tidy 22 from its versioned command, the pinned
+LLVM directories used by the format gate, or `PATH`, checking its version.
+An explicit `--clang-tidy` can select another tool for a separate analysis.
+The tidy gate can run read-only analysis concurrently: set
+`CODING_STANDARD_TIDY_JOBS` for `coding-tidy`, or pass `--jobs` to `tidy.py`.
+The default is one process. Diagnostics stay grouped by translation unit and
+every failed unit fails the gate. `--fix` requires one process because units
+can share headers.
+
 ## BetterPullReview Style
 
 - The repository `.clang-format` is the formatting source of truth. It
