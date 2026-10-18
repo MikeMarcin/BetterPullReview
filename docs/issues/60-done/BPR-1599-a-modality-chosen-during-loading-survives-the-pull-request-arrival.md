@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1599"
 title: "A modality chosen during loading survives the pull request's arrival"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
