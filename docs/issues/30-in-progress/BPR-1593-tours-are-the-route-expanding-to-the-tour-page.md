@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1593"
 title: "Tours are the route, expanding to the tour page"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1587"]
 priority: "P2"
