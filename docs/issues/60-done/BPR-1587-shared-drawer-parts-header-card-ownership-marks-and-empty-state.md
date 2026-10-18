@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1587"
 title: "Shared drawer parts: header, card, ownership marks and empty state"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0085"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin": "Owner decisions in attended session 9b6359b5e66fa4d761e1acb025c4697b (BPR-1574), 2026-10-17", "reservation": "docs/issues/_reservations/BPR-1587--BPR-1595--796d1dde48eb.json", "milestone": "drawer-foundation", "criteria": ["AC01"], "milestone_plan": {"id": "drawer-design-system-v1", "path": "docs/rfcs/plans/drawer-design-system-v1/milestone-plan.json"}, "requested_skill": "frontend-design"}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"6464b4fc3","evidence":{"kind":"command","detail":"qt_drawer_parts_scale_{100,125,200}: the shared parts render in Light, Dark and both high-contrast themes with no principle violation; one negative control per rule (nested tab, stacked buttons, style sheet, empty-value rows) fails the audit; the Comments drawer's courses (qt_workbench_window_scale_*, qt_composed_github_scale_*, qt_composed_long_thread_scale_*) pass with the extracted header. Full dev suite on the tree merged with main (6464b4fc3's parent dc692295b, -j 4, load 60-76): 773 of 777 pass; qt_composed_long_thread_scale_{125,200} and designated_live_public_observer_fixture pass rerun alone; live_mutation_isolation times out at 300 s and application_large_review_history misses its epoch-refresh budget under load 35-40, both load-bound (BPR-1598 owns load-robust large-review timing; the change adds no network, mutation or per-refresh work)."}}]
 ---
 # BPR-1587: Shared drawer parts: header, card, ownership marks and empty state
 
