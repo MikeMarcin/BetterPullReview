@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1602"
 title: "Settings › Storage & privacy › Troubleshooting resets this profile's local data"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"owner-request","origin":"Owner request relayed by the coordinator, 2026-10-18","governing_rfc":"RFC-BPR-0014","related_rfcs":["RFC-BPR-0048","RFC-BPR-0084"],"related_cards":["BPR-0953","BPR-0954","BPR-0955","BPR-0956","BPR-1217","BPR-1555","BPR-1597"],"reservation":"docs/issues/_reservations/BPR-1602--BPR-1602--48cdf9547216.json","acceptance":["BPR-1602:design","BPR-1602:scopes","BPR-1602:credentials","BPR-1602:lifecycle","BPR-1602:recovery","BPR-1602:copy","BPR-1602:gates","BPR-1602:owner"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1602:design","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"observation","detail":"Owner selected A (four rows) in session ea1ed383, decision 47b87fa1, with the note asking for less wording on the page; coordinator relayed the Reset settings scope."}},{"criterion":"BPR-1602:scopes","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"command","detail":"sqlite_profile_data_reset_files and core_profile_data_reset pass: each scope removes exactly its files, every other file byte-identical; negative control (review-queue misfiled as settings) fails."}},{"criterion":"BPR-1602:credentials","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"command","detail":"Counting credential port receives no call for any reset; application_profile_data_reset_public_path keeps remembered-connections, device-bindings and profile-registry as the same files."}},{"criterion":"BPR-1602:lifecycle","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"command","detail":"application_profile_data_reset_public_path: Settings, Clear caches and Review data resets close, remove exactly their stores, keep logs and reopen with a notice; unacknowledged reset does nothing; negative control (startup reset skipped) fails. Interrupted reset finished by recovery; refusals remove nothing."}},{"criterion":"BPR-1602:recovery","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"command","detail":"application_profile_recovery_public_path on the shipped entry point and the frozen executable: healthy profile offered nothing; damaged epoch-catalog offered the dialog; Quit removes nothing; Clear caches opens the PR; --reset-profile-data with Reset everything works; copy without scope refused."}},{"criterion":"BPR-1602:copy","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"command","detail":"Adapter course copies exactly the removed review stores into a new private folder and refuses an existing folder, removing nothing."}},{"criterion":"BPR-1602:gates","outcome":"pass","revision":"744c28c06","evidence":{"kind":"observation","detail":"21 focused rows pass on merged main cd80d1ab3 incl. architecture boundaries and both composition contracts (rerun at landing); clang-format 22 on 20 touched files; clang-tidy clean on new sources; documentation gate passes."}},{"criterion":"BPR-1602:owner","outcome":"pass","revision":"234bdee3e","evidence":{"kind":"observation","detail":"Human Accept a492cfed-db6b-4188-8946-697156c28ecf for frozen-234bdee3e-v001 in session 534aa242, consumed through event 9."}}]
 ---
 # BPR-1602: Settings › Storage & privacy › Troubleshooting resets this profile's local data
 
@@ -185,3 +185,12 @@ Frozen build `/Users/jaeger/bpr-1602-reset-v001.6t1zlk_c` from `234bdee3e`
 `BPR-1602-reset-built-v001`, revision `frozen-234bdee3e-v001`, one Accept or
 Reject. On Accept: finish the card, merge main, land after BPR-1597 (already on
 main), remove the frozen root and profile folder.
+
+## Owner verdict and landing (2026-10-18)
+
+Owner **Accept**, no note, decision `a492cfed-db6b-4188-8946-697156c28ecf`
+for `BPR-1602-reset-built-v001` (revision `frozen-234bdee3e-v001`) in session
+`534aa242…`; handback consumed through event 9. Main had not moved since the
+merge at `cd80d1ab3`, so no `src/app` change needed a reseal; both composition
+contracts pass again on the landing tree (`744c28c06`).
+
