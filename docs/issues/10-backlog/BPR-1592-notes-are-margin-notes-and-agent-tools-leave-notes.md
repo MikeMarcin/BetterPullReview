@@ -13,7 +13,8 @@ metadata: {"origin": "Owner decisions in attended session 9b6359b5e66fa4d761e1ac
 
 RFC-BPR-0085 D3 in Qt: notes hang at their lines like threads, dashed with a
 lock; edge chips for pull-request and other-file notes; N for a new note; the
-promote action with the owner's label. The agent panels move unchanged into a
+promote action, labelled **Draft comment** (the owner's choice at
+[[BPR-1588]]'s review, 2026-10-17). The agent panels move unchanged into a
 provisional Agent tab until [[BPR-1594]] rebuilds it.
 
 ## Acceptance

@@ -143,12 +143,13 @@ Each is the owner's, from session `9b6359b5`, verbatim notes quoted.
 ### Promoting private material
 
 A private note and an agent finding become a local draft through one shared
-action whose label the owner chooses at [[BPR-1588]]'s review (one option
-question): **To comment**, **Draft comment** or **Use as draft**. "Post as
-comment" and "Share" are not offered: promotion publishes nothing and shares
-nothing; it copies the text to a local draft at the same line or file, the
-source stays, and only the draft's own Publish or review submission sends it.
-Until the owner answers, the label is "To comment".
+action labelled **Draft comment**: the owner's choice at [[BPR-1588]]'s review
+(session `e471b4b8…`, decision `bcb5d520`, 2026-10-17, from To comment, Draft
+comment and Use as draft). It copies the text to a local draft at the same line
+or file, the source stays, and only the draft's own Publish or review
+submission sends it; "Post as comment" and "Share" were left out because the
+action publishes and shares nothing. [[BPR-1592]] (Notes) and [[BPR-1594]]
+(Agent findings) use this label.
 
 ### The Overview's Status drawer (D1, D7)
 
@@ -207,7 +208,7 @@ submission, refusal and unknown-answer behaviour of [[BPR-1345]] and
 
 ### Notes (D3)
 
-Notes holds only private notes. Each note hangs from its line beside the code
+Notes holds only private notes; the promote action reads Draft comment. Each note hangs from its line beside the code
 and opens in place, exactly as a thread does, drawn dashed with a lock; notes
 on the whole file or the pull request, and on other files, wait in the edge
 chips. Writing a note uses the blue edge (where you write). The tab's tools:

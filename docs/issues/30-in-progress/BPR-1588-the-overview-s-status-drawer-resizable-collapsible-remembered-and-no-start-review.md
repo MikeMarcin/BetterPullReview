@@ -117,3 +117,16 @@ ready at sequence 6:
 Next: read `status --after 6`; on Accept, finish BPR-1587 and BPR-1588 and
 land the milestone on `main`; record the label in RFC-BPR-0085 for
 [[BPR-1592]] and [[BPR-1594]].
+
+## Owner verdicts, session v002 (hand-back 2026-10-17T20:31:28Z, event 9)
+
+Read with `status --after 6`; both decisions `actor: human` with the prepared
+fingerprints. The host (PID 93486) was stopped, the session released and the
+frozen root removed.
+
+| Candidate | Decision | Note |
+|---|---|---|
+| `BPR-1588-status-drawer-v002` (`9253b89d…`) | **Accept** (`6897d336`, 20:31:26Z) | — |
+| `BPR-1588-promote-label-v001` (`e5bce5f5…`) | **B. Draft comment** (`bcb5d520`, 20:23:41Z) | — |
+
+The label is recorded in RFC-BPR-0085 for [[BPR-1592]] and [[BPR-1594]].
