@@ -2917,8 +2917,23 @@ namespace {
 		// [[BPR-1134]]. The column of the tray's tab that is showing. [[BPR-1242]]:
 		// RFC-BPR-0023 gave Notes two pages, Private history and Agent tools, each
 		// its own column; the one showing is the Notes tab's column.
+		// [[BPR-1592]]: Notes is the margin notes, which never scroll sideways
+		// and hold every control inside the drawer; the two pages are the
+		// Agent tab's.
 		auto* const notesPages = aWindow.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		auto* const scroll     = aWindow.tray_tabs()->currentIndex() == 0
+		if (aWindow.tray_tabs()->currentIndex() == 1) {
+			for (auto* const child : drawer->findChildren<QWidget*>()) {
+				if (!child->isVisible() || child->width() == 0) {
+					continue;
+				}
+				if (child->mapTo(drawer, child->rect().topRight()).x() >= drawer->width()) {
+					std::cerr << "unreachable Notes control: " << child->metaObject()->className() << " '" << child->objectName().toStdString() << "'\n";
+					return false;
+				}
+			}
+			return true;
+		}
+		auto* const scroll = aWindow.tray_tabs()->currentIndex() == 0
 			? aWindow.comments_tab_scroll()
 			: (notesPages == nullptr ? nullptr : qobject_cast<QScrollArea*>(notesPages->currentWidget()));
 		if (scroll == nullptr || scroll->widget() == nullptr) {
@@ -2998,10 +3013,12 @@ namespace {
 		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		expect(every_control_is_reachable(window),
-			   "no Notes tab control is clipped at 280 pixels; the column scrolls");
+			   "no Notes tab control is clipped at 280 pixels");
+		window.tray_tabs()->setCurrentIndex(3);
+		process_events();
 		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-		expect(notesPages != nullptr && notesPages->count() == 2,
-			   "the Notes tab has its Private history and Agent tools pages");
+		expect(notesPages != nullptr && notesPages->count() == 2 && notesPages->isVisible(),
+			   "[[BPR-1592]] the Agent tab has the Private history and Agent tools pages");
 		notesPages->setCurrentWidget(window.findings_tab_scroll());
 		process_events();
 		expect(every_control_is_reachable(window),
@@ -11491,8 +11508,8 @@ namespace {
 		process_events();
 
 		// In a note being written they stay the editor's.
-		window.ai_tools_action()->setChecked(true);
-		window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+		// [[BPR-1592]]. Notes is the tray's second tab.
+		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		window.private_notes()->present({ .Scope = 1U, .Available = true });
 		window.private_notes()->new_review_action()->trigger();
@@ -11555,7 +11572,7 @@ namespace {
 		expect(log.Change.size() == gestures.first + 1U && log.Change.back().Direction == core::change_navigation_direction::next,
 			   "a read-only view lets Option-Down through to Next change");
 		note->setReadOnly(false);
-		window.ai_tools_action()->setChecked(false);
+		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
 		// The Updates control's history commands held Option-Command-Down and
@@ -11751,8 +11768,8 @@ namespace {
 		filter->setReadOnly(false);
 
 		// A note being written keeps them for its own selection.
-		window.ai_tools_action()->setChecked(true);
-		window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+		// [[BPR-1592]]. Notes is the tray's second tab.
+		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		window.private_notes()->present({ .Scope = 1U, .Available = true });
 		window.private_notes()->new_review_action()->trigger();
@@ -11765,7 +11782,7 @@ namespace {
 		deliver_key(window, Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
 		deliver_key(window, Qt::Key_Up, Qt::AltModifier | Qt::ShiftModifier);
 		expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && note->hasFocus(), "in a note the keys take no gesture");
-		window.ai_tools_action()->setChecked(false);
+		window.tray_tabs()->setCurrentIndex(0);
 		process_events();
 
 		// The suggestion editor's box gesture is the same keys; it keeps them
@@ -12171,30 +12188,32 @@ namespace {
 		auto* const comments = window.comments_tab_scroll();
 		auto* const findings = window.findings_tab_scroll();
 		auto* const drawer   = window.conversations_drawer();
-		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 3
+		// [[BPR-1592]]. The agent's provisional tab follows Tour.
+		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
 				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
 				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
+				   && tabs->tabText(3).isEmpty() && !tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
-			   "the tray's header is Comments, Notes and Tour, and it opens on Comments");
+			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
 		const auto privateHeader = [&] {
 			return tabs->tabText(1) == QStringLiteral("Notes") && tabs->accessibleTabName(1) == QStringLiteral("Notes")
-				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it.")
+				&& tabs->tabToolTip(1) == QStringLiteral("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft.")
 				&& tabs->accessibleDescription().contains(QStringLiteral("Notes"))
-				&& window.ai_tools_action()->text() == QStringLiteral("Notes");
+				&& window.ai_tools_action()->text() == QStringLiteral("Agent");
 		};
 		expect(privateHeader(), "Notes labels, tooltip and accessible name state its private purpose");
 		tabs->setTabText(1, QStringLiteral("Findings"));
 		expect(!privateHeader(), "negative control: the obsolete Findings heading fails the Notes contract");
 		tabs->setTabText(1, QStringLiteral("Notes"));
 		auto* purpose = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
-		expect(purpose != nullptr && purpose->text() == QStringLiteral("Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."), "empty Notes explains privacy and promotion");
+		expect(purpose != nullptr && purpose->text() == QStringLiteral("Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."), "the Agent tab explains privacy and promotion");
 		window.agent_panel()->offer_profiles({ });
 		window.private_notes()->present({ .Scope = 1U, .Available = true });
 		expect(window.agent_panel()->profile_selector()->count() == 0
 				   && window.agent_panel()->profile_selector()->placeholderText() == QStringLiteral("No agent configured")
 				   && window.private_notes()->new_review_action()->isEnabled(),
 			   "private notes stay usable when no agent is configured");
-		expect(findings->isAncestorOf(window.private_notes()), "the private note editor belongs to Notes");
+		expect(!findings->isAncestorOf(window.private_notes()), "[[BPR-1592]] the private notes are not among the agent's tools");
 		expect(window.comments_count_text() == QStringLiteral("2")
 				   && tabs->accessibleTabName(0).contains(QStringLiteral("2 threads with new comments")),
 			   "the Comments tab carries the new-comment count and says it");
@@ -12236,37 +12255,50 @@ namespace {
 		view->setCurrentIndex(window.conversation_model()->index_for_id("review-thread:b"));
 		process_events();
 		const auto selected = view->currentIndex();
+		// [[BPR-1592]]. Notes shows the notes and its two tools, and nothing
+		// of the agent.
 		tabs->setCurrentIndex(1);
+		process_events();
+		auto* const notesTools = window.findChild<QWidget*>(QStringLiteral("workbenchNotesTools"));
+		expect(window.private_notes()->isVisible() && !findings->isVisible() && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
+				   && !window.finding_queue()->isVisible() && !window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->isVisible()
+				   && notesTools != nullptr && notesTools->isVisible() && onTabRow(notesTools) && !window.next_new_comment_button()->isVisible()
+				   && !window.ai_tools_action()->isChecked(),
+			   "the Notes tab shows the notes with New note and the notes on the pull request on the tab row, and no agent tools");
+		save(QStringLiteral("tray-notes"));
+		tabs->setCurrentIndex(3);
 		process_events();
 		show_agent_tools(window);
 		expect(findings->isVisible() && !comments->isVisible() && window.ai_tools_action()->isChecked()
 				   && window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible() && below(window.agent_panel())
 				   && !window.conversation_panel()->isVisible(),
-			   "the Notes tab shows only its own tools, beneath the tabs, and checks the AI tools action");
+			   "the Agent tab shows only its own tools, beneath the tabs, and checks the AI tools action");
 		// [[BPR-1242]]. The purpose sits above the Notes pages' tab widget, whose
 		// frame is wider than the Agent tools column inside it.
 		auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
 		expect(purpose->isVisible() && notesPages != nullptr && purpose->width() <= notesPages->width()
 				   && purpose->height() >= purpose->heightForWidth(purpose->width()),
-			   "the private purpose wraps within the visible Notes page");
-		save(QStringLiteral("tray-notes"));
+			   "the private purpose wraps within the visible Agent page");
+		save(QStringLiteral("tray-agent"));
 		auto* const findingsBar = findings->verticalScrollBar();
-		expect(findingsBar->maximum() > 0, "fixture: the Notes column is taller than the drawer");
+		expect(findingsBar->maximum() > 0, "fixture: the Agent column is taller than the drawer");
 		findingsBar->setValue(findingsBar->maximum() / 2);
 		const auto findingsScrolled = findingsBar->value();
 		tabs->setCurrentIndex(0);
 		process_events();
 		expect(view->currentIndex() == selected && comments->isVisible(),
 			   "returning to Comments keeps the selected conversation");
-		tabs->setCurrentIndex(1);
+		tabs->setCurrentIndex(3);
 		process_events();
 		expect(findingsBar->value() == findingsScrolled && findingsScrolled > 0,
-			   "returning to Notes keeps its scroll position");
+			   "returning to Agent keeps its scroll position");
 
 		// Keyboard: the tabs are a focus stop, and the arrow keys move between them.
 		expect(tabs->focusPolicy() == Qt::StrongFocus && window.focus_order().contains(tabs)
 				   && window.focus_order().contains(window.next_new_comment_button()),
 			   "the tray's tabs and the Comments tab's tool are declared focus stops");
+		tabs->setCurrentIndex(1);
+		process_events();
 		tabs->setFocus(Qt::OtherFocusReason);
 		for (const auto& [key, expected] : { std::pair{ Qt::Key_Left, 0 }, std::pair{ Qt::Key_Right, 1 } }) {
 			auto press = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
@@ -12280,7 +12312,10 @@ namespace {
 				   && accessible->child(1)->text(QAccessible::Name) == QStringLiteral("Notes"),
 			   "accessibility reaches each tab by name");
 
-		// The AI tools action and the tab are one choice.
+		// The AI tools action and the Agent tab are one choice.
+		tabs->setCurrentIndex(3);
+		process_events();
+		expect(window.ai_tools_action()->isChecked(), "the Agent tab checks the AI tools action");
 		window.ai_tools_action()->setChecked(false);
 		process_events();
 		expect(tabs->currentIndex() == 0 && comments->isVisible(), "unchecking the AI tools action returns to Comments");
@@ -14503,8 +14538,8 @@ namespace {
 		expect(toggles == 6 && open(files) && open(comments), "and it shows them again");
 
 		// An editable multi-line editor keeps the key and does nothing with it.
-		window.ai_tools_action()->setChecked(true);
-		window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+		// [[BPR-1592]]. Notes is the tray's second tab.
+		window.tray_tabs()->setCurrentIndex(1);
 		process_events();
 		window.private_notes()->present({ .Scope = 1U, .Available = true });
 		window.private_notes()->new_review_action()->trigger();
@@ -14532,7 +14567,7 @@ namespace {
 		expect(toggles == 7 && !open(comments), "a read-only multi-line view lets the key through");
 		deliver_key(window, Qt::Key_B, Qt::ControlModifier);
 		note->setReadOnly(false);
-		window.ai_tools_action()->setChecked(false);
+		window.tray_tabs()->setCurrentIndex(0);
 
 		// A hand toggle while hidden drops the memory: Comments opens alone,
 		// and the next press hides what is open now.
@@ -17748,17 +17783,18 @@ namespace {
 		expect(!window.showing_home() && inCorner(),
 			   "opening a review rests the same Dif in the status corner even with the drawer collapsed");
 
-		// [[BPR-1134]]. The explicit named selector is the tray's Notes tab.
+		// [[BPR-1134]]. The explicit named selector is the tray's Agent tab
+		// ([[BPR-1592]]: the agent's tools left Notes).
 		auto* const action = window.ai_tools_action();
 		auto* const tabs   = window.tray_tabs();
 		expect(action != nullptr && action->isCheckable() && !action->isChecked()
-				   && action->text() == QStringLiteral("Notes") && tabs != nullptr
-				   && tabs->tabText(1) == QStringLiteral("Notes") && tabs->currentIndex() == 0,
+				   && action->text() == QStringLiteral("Agent") && tabs != nullptr
+				   && tabs->accessibleTabName(3) == QStringLiteral("Agent") && tabs->currentIndex() == 0,
 			   "the existing AI area has an explicit named selector");
 		window.adopt_dif(core::resolve_dif(
 			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
 			core::motion_observation::full));
-		tabs->setCurrentIndex(1);
+		tabs->setCurrentIndex(3);
 		process_events();
 		expect(dif->current_frame().Clip != qt::dif_index(qt::dif_clip_id::compare_glance),
 			   "selecting a hidden private tab does not replay the explicit-content cue in the corner");

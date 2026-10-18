@@ -120,7 +120,9 @@ namespace bpr::application {
 		}
 		return !aNote.Attachment
 			|| (aNote.Attachment->File.valid()
-				&& aNote.Attachment->Comparison.valid());
+				&& aNote.Attachment->Comparison.valid()
+				// [[BPR-1591]]. A kept blob is a real one.
+				&& (!aNote.Attachment->Line || !aNote.Attachment->Line->Blob || aNote.Attachment->Line->Blob->valid()));
 	}
 
 	auto valid(const durable_defect_record& aDefect) noexcept -> bool

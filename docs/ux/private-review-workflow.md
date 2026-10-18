@@ -1,6 +1,7 @@
 # Private review history and publication
 
-In an authenticated pull request, open **Review → Notes → Private history**.
+In an authenticated pull request, open **Review → Agent → Private history**
+(the Notes tab holds only private notes since [[BPR-1592]]).
 The **History**, **Sources**, and **Write** tabs keep local conversation separate
 from GitHub review threads. Create a PR or code thread in Write; code subjects
 retain their exact revision and line. History shows each immutable revision,

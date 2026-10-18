@@ -2643,6 +2643,90 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1591]]. A note written on a line keeps its side, line
+	/// and blob from schema 10; notes from schema 9 migrate unchanged with no
+	/// line; an edit keeps the line; restart and a new head place it by
+	/// `core::place_note`; deleting the note deletes its line.
+	void test_note_lines_migrate_and_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("note-lines.db");
+		std::int64_t            scope = 0;
+		auto                    old   = application::local_note_record{ };
+		const auto              blob  = [] {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
+				bytes[index] = static_cast<std::uint8_t>(0x40U + index);
+			}
+			return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+		}();
+		{
+			auto database = review_ledger_database::open(path, { });
+			expect(database.has_value(), "the note-line fixture opens");
+			const auto id = database->scope_id(scope_of("github.com", "octo", "app", 11));
+			expect(id.has_value(), "the note-line scope resolves");
+			scope        = *id;
+			auto pre     = note(1U, 80U, "a whole-file note from schema 9");
+			pre.FilePath = "src/engine/renderer.cpp";
+			auto stored  = database->store_note(scope, pre);
+			expect(stored.has_value(), "a schema 9 file note");
+			old = *stored;
+			bpr::tests::sqlite_contract::restore_v9_fixture(database->handle());
+		}
+		auto written = note(2U, 82U, "the budget resets here");
+		{
+			auto migrated = review_ledger_database::open(path, { });
+			expect(migrated.has_value(), "a schema 9 ledger migrates");
+			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_line");
+			expect(version && *version == review_ledger_schema_version && *version == 10 && rows && *rows == 0, "schema 9 migrates to 10 with an empty note line table");
+			const auto state = migrated->load_private(scope);
+			expect(state && state->Notes == std::vector{ old } && !state->Notes.front().Attachment->Line, "a schema 9 note keeps text, revision, attachment and path, with no line");
+
+			written.Attachment->Line = core::note_line_anchor{ .Side = core::diff_side::right, .Line = 41U, .Blob = blob };
+			const auto kept          = migrated->store_note(scope, written);
+			expect(kept.has_value() && kept->Attachment == written.Attachment, "a note is written with its line");
+			auto base             = note(3U, 84U, "base side, no blob kept");
+			base.Attachment->Line = core::note_line_anchor{ .Side = core::diff_side::left, .Line = 0U, .Blob = std::nullopt };
+			expect(migrated->store_note(scope, base).has_value(), "a line without a blob is kept as it is");
+			auto edited      = *kept;
+			edited.Note.Text = "edited later";
+			const auto edit  = migrated->store_note(scope, edited, kept->Revision);
+			expect(edit.has_value() && edit->Attachment->Line == written.Attachment->Line, "an edit keeps the line");
+			auto moved             = *edit;
+			moved.Attachment->Line = core::note_line_anchor{ .Side = core::diff_side::right, .Line = 42U, .Blob = blob };
+			const auto refused     = migrated->store_note(scope, moved, edit->Revision);
+			expect(!refused && refused.error().Reason == application::ledger_store_failure::conflict, "a note never moves to another line");
+			auto bad             = note(4U, 86U, "an invalid blob");
+			bad.Attachment->Line = core::note_line_anchor{ .Side = core::diff_side::right, .Line = 1U, .Blob = core::git_blob_oid{ } };
+			expect(!migrated->store_note(scope, bad), "an invalid blob is refused");
+		}
+		{
+			auto reopened = review_ledger_database::open(path, { });
+			expect(reopened.has_value(), "the schema 10 ledger reopens");
+			const auto state = reopened->load_private(scope);
+			const auto found = state ? std::ranges::find(state->Notes, application::local_note_id{ 2U }, &application::local_note_record::Id) : state->Notes.end();
+			expect(state && found != state->Notes.end() && found->Attachment->Line == written.Attachment->Line && found->Note.Text == "edited later", "the line and its blob survive restart");
+			// The comparison it was written on, and a new head whose head side is
+			// the same blob, place it at its line; a changed head outdates it.
+			auto shown           = core::file_alignment{ };
+			shown.Key.File       = found->Attachment->File;
+			shown.Key.RightBlob  = blob;
+			shown.Digest         = found->Attachment->Comparison;
+			shown.RightLineCount = 120U;
+			const auto anchor    = application::note_anchor_of(*found);
+			expect(core::place_note(anchor, &shown).Kind == core::note_placement_kind::placed, "after restart the note hangs at its line");
+			shown.Digest    = opaque<core::file_comparison_digest>(99U);
+			const auto same = core::place_note(anchor, &shown);
+			expect(same.Kind == core::note_placement_kind::placed && same.At->Line == 41U, "a new head with the same head text keeps the line");
+			shown.Key.RightBlob = core::git_blob_oid{ core::git_hash_algorithm::sha256, opaque<core::file_comparison_digest>(5U).bytes() };
+			expect(core::place_note(anchor, &shown).Reason == core::note_outdated_reason::content_changed, "a new head that changed the file outdates the note");
+			expect(reopened->erase_note(scope, found->Id, found->Revision).has_value(), "the line note is deleted");
+			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_note_line");
+			expect(rows && *rows == 1, "deleting a note deletes its line, and only its line");
+		}
+	}
+
 	void test_version_five_note_migration_is_atomic_and_repeatable()
 	{
 		const scratch_directory directory;
@@ -2757,6 +2841,7 @@ try {
 	test_simultaneous_note_edits_have_one_winner();
 	test_version_five_note_migration_is_atomic_and_repeatable();
 	test_note_paths_migrate_and_round_trip();
+	test_note_lines_migrate_and_round_trip();
 	test_two_connections_compare_note_revisions_without_aba();
 	test_a_directory_in_the_ledgers_place_is_a_typed_refusal();
 	test_the_schema_stores_no_presentation_coordinate();

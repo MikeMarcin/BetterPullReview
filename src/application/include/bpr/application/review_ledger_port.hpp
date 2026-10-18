@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/defect_workflow.hpp"
+#include "bpr/core/note_placement.hpp"
 #include "bpr/core/review_ledger.hpp"
 
 #include <compare>
@@ -63,10 +64,15 @@ namespace bpr::application {
 	using local_note_revision = core::strong_id<struct local_note_revision_tag>;
 
 	/// \brief Binds a private note to exact compared material.
+	///
+	/// \details [[BPR-1591]]. A note written on a selected line also keeps
+	/// that line (RFC-BPR-0085 D3); `core::place_note` decides where it shows.
+	/// A note written before ledger schema 10, or on the whole file, has none.
 	struct local_note_attachment
 	{
-		core::file_identity          File;
-		core::file_comparison_digest Comparison;
+		core::file_identity                   File;
+		core::file_comparison_digest          Comparison;
+		std::optional<core::note_line_anchor> Line = std::nullopt;
 
 		auto operator<=>(const local_note_attachment&) const = default;
 	};
@@ -95,6 +101,18 @@ namespace bpr::application {
 
 		auto operator<=>(const local_note_record&) const = default;
 	};
+
+	/// \brief [[BPR-1591]]. What `core::place_note` decides a note's place from.
+	[[nodiscard]] inline auto note_anchor_of(const local_note_record& aNote) -> core::note_anchor
+	{
+		auto anchor = core::note_anchor{ };
+		if (aNote.Attachment) {
+			anchor.File       = aNote.Attachment->File;
+			anchor.Comparison = aNote.Attachment->Comparison;
+			anchor.Line       = aNote.Attachment->Line;
+		}
+		return anchor;
+	}
 
 	/// \brief A refused note mutation and its current durable competitor.
 	struct local_note_failure

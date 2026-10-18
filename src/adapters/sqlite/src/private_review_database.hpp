@@ -33,10 +33,19 @@ namespace bpr::adapters::sqlite::detail {
 	/// side table rather than a column on `private_thread`, so the migration
 	/// creates one table instead of rebuilding a table other tables reference.
 	inline constexpr private_schema_table PrivateNotePathTable{ "private_note_path", "CREATE TABLE private_note_path(scope_id INTEGER NOT NULL,thread_id INTEGER NOT NULL,path TEXT NOT NULL CHECK(length(CAST(path AS BLOB)) BETWEEN 1 AND 4096),PRIMARY KEY(scope_id,thread_id),FOREIGN KEY(scope_id,thread_id) REFERENCES private_thread(scope_id,id)) STRICT" };
+	/// \brief [[BPR-1591]]. A note's line (schema 10): its side, zero-based
+	/// line and the blob that side showed when it was written.
+	///
+	/// \details One row per note thread written on a line; no row is a note
+	/// on the whole file or the pull request, or one written before schema 10.
+	/// A side table, as the path is, so the migration creates one table.
+	inline constexpr private_schema_table PrivateNoteLineTable{ "private_note_line", "CREATE TABLE private_note_line(scope_id INTEGER NOT NULL,thread_id INTEGER NOT NULL,side INTEGER NOT NULL CHECK(side IN(0,1)),line INTEGER NOT NULL CHECK(line BETWEEN 0 AND 4294967295),blob BLOB CHECK(blob IS NULL OR length(blob) IN(20,32)),PRIMARY KEY(scope_id,thread_id),FOREIGN KEY(scope_id,thread_id) REFERENCES private_thread(scope_id,id)) STRICT" };
 	/// \brief Called within the ledger's existing all-version migration transaction.
 	[[nodiscard]] auto migrate_private_review(::sqlite3*) -> std::expected<void, failure>;
 	/// \brief [[BPR-1210]]. Schema 7 to 8: the note path table, empty.
 	[[nodiscard]] auto migrate_private_note_paths(::sqlite3*) -> std::expected<void, failure>;
+	/// \brief [[BPR-1591]]. Schema 9 to 10: the note line table, empty.
+	[[nodiscard]] auto migrate_private_note_lines(::sqlite3*) -> std::expected<void, failure>;
 	[[nodiscard]] auto private_store_note(::sqlite3*, std::int64_t, const application::local_note_record&, std::optional<application::local_note_revision>) -> std::expected<application::local_note_record, application::local_note_failure>;
 	[[nodiscard]] auto private_erase_note(::sqlite3*, std::int64_t, application::local_note_id, application::local_note_revision) -> std::expected<void, application::local_note_failure>;
 	[[nodiscard]] auto private_load_notes(::sqlite3*, std::int64_t) -> std::expected<std::vector<application::local_note_record>, failure>;

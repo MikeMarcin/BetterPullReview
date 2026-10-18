@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1603"
+  ],
+  "reserve_for": "rfc-bpr-0085-conversation-chips",
+  "purpose": "Pull-request comments wait at the Comments drawer's edge",
+  "created": "2026-10-18T17:13:31.621331+00:00",
+  "base": "7866d902b4b60c007758ca6c9173681e9d82da82"
+}

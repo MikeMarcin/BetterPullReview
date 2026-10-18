@@ -139,6 +139,25 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
+		/// \brief [[BPR-1592]]. The tray's tabs: a tab that is its icon alone
+		/// is as narrow as its icon, so the provisional Agent tab leaves the
+		/// Comments tools their place on the row.
+		class tray_tab_bar final : public QTabBar
+		{
+		public:
+			using QTabBar::QTabBar;
+
+		protected:
+			[[nodiscard]] auto tabSizeHint(const int aIndex) const -> QSize override
+			{
+				auto size = QTabBar::tabSizeHint(aIndex);
+				if (tabText(aIndex).isEmpty() && !tabIcon(aIndex).isNull()) {
+					size.setWidth(iconSize().width() + 20);
+				}
+				return size;
+			}
+		};
+
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
 			// Native glyph advances can be fractional. Rounding down makes
@@ -423,7 +442,10 @@ namespace bpr::qt {
 		constexpr int tray_comments_tab = 0;
 		/// [[BPR-1212]]. The conversations narrow to a list beside Discuss's composer.
 		constexpr int discuss_composer_list_width = 340;
-		constexpr int tray_findings_tab           = 1;
+		/// [[BPR-1592]]. Notes holds only private notes; the agent's material
+		/// is the provisional Agent tab's, after Tour, until [[BPR-1594]].
+		constexpr int tray_notes_tab    = 1;
+		constexpr int tray_findings_tab = 3;
 
 		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
 		///
@@ -2866,19 +2888,26 @@ namespace bpr::qt {
 			close_review_composition();
 			static_cast<void>(reveal_conversation(aIdentity));
 		});
+		// [[BPR-1592]]. RFC-BPR-0085 D3: Notes is the private notes at their
+		// lines, and nothing else. The agent's panels move, unchanged, to the
+		// provisional Agent tab with the private history and its purpose.
 		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
 		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
 		notesPageLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const notesPurpose = new QLabel{ tr("Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."), notesPage };
+		PrivateNotes = new private_notes_panel{ notesPage };
+		notesPageLayout->addWidget(PrivateNotes, 1);
+		wire_private_notes();
+		auto* const agentPage       = new QWidget{ Drawers[1].Panel };
+		auto* const agentPageLayout = new QVBoxLayout{ agentPage };
+		agentPageLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const notesPurpose = new QLabel{ tr("Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."), agentPage };
 		notesPurpose->setObjectName(QStringLiteral("workbenchNotesPurpose"));
 		notesPurpose->setTextFormat(Qt::PlainText);
 		notesPurpose->setWordWrap(true);
-		notesPurpose->setAccessibleName(tr("About Notes"));
+		notesPurpose->setAccessibleName(tr("About Agent"));
 		notesPurpose->setAccessibleDescription(notesPurpose->text());
 		notesPurpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		notesPageLayout->addWidget(notesPurpose);
-		PrivateNotes = new private_notes_panel{ conversationContents };
-		findingsLayout->addWidget(PrivateNotes);
+		agentPageLayout->addWidget(notesPurpose);
 		AgentPanel = new agent_launch_panel{ { }, conversationContents };
 		AgentPanel->setMaximumHeight(300);
 		findingsLayout->addWidget(AgentPanel);
@@ -2950,14 +2979,14 @@ namespace bpr::qt {
 		CommentsScroll     = makeTabColumn(commentsContents, QStringLiteral("workbenchCommentsScroll"));
 		ConversationScroll = makeTabColumn(conversationContents, QStringLiteral("workbenchNotesScroll"));
 		// Keep the purpose within the visible page even when tools scroll sideways.
-		auto* privateTabs = new QTabWidget{ notesPage };
+		auto* privateTabs = new QTabWidget{ agentPage };
 		privateTabs->setObjectName(QStringLiteral("privateConversationTabs"));
 		privateTabs->setAccessibleName(tr("Private history and agent tools"));
-		PrivateReview = new private_review_panel{ notesPage };
+		PrivateReview = new private_review_panel{ agentPage };
 		ReviewSubmissionEditor->set_saved_comments_reveal([this] { PrivateReview->show_saved_comments(); });
 		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
 		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
-		notesPageLayout->addWidget(privateTabs, 1);
+		agentPageLayout->addWidget(privateTabs, 1);
 
 		// [[BPR-1134]]. The tray's header is its tabs: Comments, then Notes
 		// and Tour. The drawer still
@@ -2968,7 +2997,7 @@ namespace bpr::qt {
 		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
 		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
 		conversationShellLayout->setSpacing(0);
-		TrayTabs = new QTabBar{ conversationShell };
+		TrayTabs = new tray_tab_bar{ conversationShell };
 		TrayTabs->setObjectName(QStringLiteral("workbenchTrayTabs"));
 		TrayTabs->setAccessibleName(QStringLiteral("Right tray"));
 		TrayTabs->setAccessibleDescription(QStringLiteral(
@@ -2977,10 +3006,15 @@ namespace bpr::qt {
 		TrayTabs->addTab(tr("Comments"));
 		TrayTabs->addTab(tr("Notes"));
 		TrayTabs->addTab(tr("Tour"));
+		// [[BPR-1592]]. Provisional until [[BPR-1594]]: its spark alone, so
+		// four tabs and the Comments tools share one row.
+		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), QString{ });
+		TrayTabs->setAccessibleTabName(3, tr("Agent"));
 		TrayTabs->setAccessibleTabName(2, tr("Tour"));
 		TrayTabs->setAccessibleTabName(1, tr("Notes"));
 		TrayTabs->setTabToolTip(0, tr("The pull request's threads, with their scope and filters"));
-		TrayTabs->setTabToolTip(1, tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
+		TrayTabs->setTabToolTip(1, tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."));
+		TrayTabs->setTabToolTip(3, tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
 		TrayCommentsCount->hide();
@@ -2991,6 +3025,7 @@ namespace bpr::qt {
 		TrayPages->addWidget(notesPage);
 		TourEditor = new review_tour_editor{ conversationShell };
 		TrayPages->addWidget(makeTabColumn(TourEditor, QStringLiteral("workbenchTourScroll")));
+		TrayPages->addWidget(agentPage);
 		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
 		// right: Only new, Hide resolved and Next new reply.
 		auto* const trayHeader = new drawer_header{ conversationShell };
@@ -3003,17 +3038,52 @@ namespace bpr::qt {
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);
-		trayHeader->set_parts(TrayTabs, CommentsTools);
+		// [[BPR-1592]]. The Notes tab's tools: a new note on the selected line
+		// (N), and the notes on the pull request.
+		NotesTools = new QWidget{ CommentsTools->parentWidget() };
+		NotesTools->setObjectName(QStringLiteral("workbenchNotesTools"));
+		auto* const notesToolsRow = new QHBoxLayout{ NotesTools };
+		notesToolsRow->setContentsMargins(0, 0, 0, 0);
+		notesToolsRow->setSpacing(1);
+		PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
+		PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
+		auto* const newNote = make_drawer_tool(NotesTools, PrivateNotes->new_line_action()->icon(), PrivateNotes->new_line_action()->toolTip(), QStringLiteral("workbenchNewNoteTool"));
+		newNote->setDefaultAction(PrivateNotes->new_line_action());
+		newNote->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		notesToolsRow->addWidget(newNote);
+		auto* const elsewhere = make_drawer_tool(NotesTools, drawer_icon(drawer_glyph::pull_request, palette()), PrivateNotes->elsewhere_action()->text(), QStringLiteral("workbenchNotesElsewhereTool"));
+		elsewhere->setDefaultAction(PrivateNotes->elsewhere_action());
+		elsewhere->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		notesToolsRow->addWidget(elsewhere);
+		NotesTools->hide();
+		auto* const trayTools    = new QWidget{ trayHeader };
+		auto* const trayToolsRow = new QHBoxLayout{ trayTools };
+		trayToolsRow->setContentsMargins(0, 0, 0, 0);
+		trayToolsRow->setSpacing(0);
+		CommentsTools->setParent(trayTools);
+		NotesTools->setParent(trayTools);
+		trayToolsRow->addWidget(CommentsTools);
+		trayToolsRow->addWidget(NotesTools);
+		trayHeader->set_parts(TrayTabs, trayTools);
+		// [[BPR-1592]]. RFC-BPR-0085 D5: below 340 pixels the tray's tabs show
+		// their icons only, so four tabs never scroll.
+		trayHeader->installEventFilter(this);
+		TrayHeader = trayHeader;
 		conversationShellLayout->addWidget(trayHeader);
 		conversationShellLayout->addWidget(TrayPages, 1);
-		AiToolsAction = new QAction{ tr("Notes"), this };
+		AiToolsAction = new QAction{ tr("Agent"), this };
 		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
 		AiToolsAction->setCheckable(true);
 		AiToolsAction->setToolTip(
-			tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
+			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
+			NotesTools->setVisible(aIndex == tray_notes_tab);
+			if (aIndex == tray_notes_tab && PrivateNotes != nullptr) {
+				PrivateNotes->refresh_geometry();
+			}
+			apply_thread_marks();
 			const auto blocker = QSignalBlocker{ AiToolsAction };
 			AiToolsSelected    = aIndex == tray_findings_tab;
 			AiToolsAction->setChecked(AiToolsSelected);
@@ -7722,6 +7792,13 @@ namespace bpr::qt {
 		}
 		resume_conversation_pick();
 		resume_pending_comment_pick();
+		// [[BPR-1592]]. The notes follow the code as the threads do.
+		if (PrivateNotes != nullptr) {
+			if (PrivateNotes->isVisible()) {
+				PrivateNotes->refresh_geometry();
+			}
+			resume_private_note_open();
+		}
 	}
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
@@ -7761,19 +7838,38 @@ namespace bpr::qt {
 		auto* const cards = ConversationPanel->cards();
 		ComparisonSurface->set_mark_colours(cards->marker(), cards->accent());
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
-			auto marks = std::vector<diff_line_mark>{ };
+			auto       marks      = std::vector<diff_line_mark>{ };
+			const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
 			for (const auto& mark : cards->line_marks(side)) {
 				marks.push_back(diff_line_mark{
 					.Line        = mark.Line,
 					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,
 					.Resolved    = mark.Resolved,
 					.Draft       = mark.Draft,
-					.Open        = mark.Open,
-					.Hovered     = mark.Hovered,
-					.Writing     = mark.Writing,
+					.Open        = mark.Open && !onNotesTab,
+					.Hovered     = mark.Hovered && !onNotesTab,
+					.Writing     = mark.Writing && !onNotesTab,
 					.FirstLine   = mark.FirstLine,
 					.Description = mark.Description,
 				});
+			}
+			// [[BPR-1592]]. A noted line's number is a dashed cell, as my
+			// draft's is; a line that has a thread keeps the thread's mark.
+			// The open note washes its line in the writing blue.
+			if (PrivateNotes != nullptr) {
+				for (const auto& note : PrivateNotes->line_marks(side)) {
+					const auto taken = std::ranges::find(marks, note.Line, &diff_line_mark::Line);
+					if (taken != marks.end()) {
+						taken->Writing = taken->Writing || (note.Open && onNotesTab);
+						continue;
+					}
+					auto mark        = diff_line_mark{ };
+					mark.Line        = note.Line;
+					mark.Draft       = true;
+					mark.Writing     = note.Open && onNotesTab;
+					mark.Description = note.Description;
+					marks.push_back(std::move(mark));
+				}
 			}
 			ComparisonSurface->set_line_marks(side, std::move(marks));
 		}
@@ -7807,9 +7903,122 @@ namespace bpr::qt {
 
 	void workbench_window::toggle_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
 	{
-		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value()) {
+		// [[BPR-1592]]. On the Notes tab a noted line's mark opens its note;
+		// elsewhere, a line with no thread but a note opens the note too.
+		const auto note       = PrivateNotes != nullptr ? PrivateNotes->note_on_line(aSide, aLine) : std::nullopt;
+		const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
+		if (const auto identity = thread_on_line(aSide, aLine); identity.has_value() && !(note && onNotesTab)) {
 			ConversationPanel->cards()->toggle_thread(*identity);
+			return;
 		}
+		if (note) {
+			show_private_note(*note);
+		}
+	}
+
+	void workbench_window::show_private_note(const std::uint64_t aId)
+	{
+		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+		}
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
+			TrayTabs->setCurrentIndex(tray_notes_tab);
+		}
+		if (PrivateNotes->open_note_id() == aId) {
+			PrivateNotes->close_note();
+			return;
+		}
+		PrivateNotes->open_note(aId);
+	}
+
+	void workbench_window::fit_tray_tabs(const bool aRepaint)
+	{
+		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() < 3) {
+			return;
+		}
+		const auto    narrow  = TrayHeader->width() > 0 && TrayHeader->width() < 340;
+		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour") };
+		const QIcon   icons[] = { conversation_icon(conversation_glyph::comment, palette()), conversation_icon(conversation_glyph::lock, palette()), drawer_icon(drawer_glyph::tour, palette()) };
+		for (auto index = 0; index < 3; ++index) {
+			const auto text = narrow ? QString{ } : names[index];
+			if (aRepaint || TrayTabs->tabText(index) != text) {
+				TrayTabs->setTabText(index, text);
+				TrayTabs->setTabIcon(index, narrow ? icons[index] : QIcon{ });
+			}
+		}
+	}
+
+	void workbench_window::wire_private_notes()
+	{
+		// [[BPR-1592]]. The notes hang at the code's lines: where a line is,
+		// which comparison is shown and which line is selected are the
+		// surface's; a note elsewhere is reached through the files drawer.
+		PrivateNotes->set_line_locator([this](const core::diff_side aSide, const std::uint32_t aLine) -> std::optional<int> {
+			if (ComparisonSurface == nullptr || PrivateNotes == nullptr) {
+				return std::nullopt;
+			}
+			const auto rect = ComparisonSurface->line_rect(aSide, aLine);
+			if (rect.isEmpty()) {
+				return std::nullopt;
+			}
+			const auto inWindow = ComparisonSurface->mapTo(this, rect.topLeft());
+			return PrivateNotes->mapFrom(this, inWindow).y();
+		});
+		PrivateNotes->set_comparison_source([this]() -> const core::file_alignment* {
+			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr) {
+				return nullptr;
+			}
+			return &ComparisonSurface->current_result()->Alignment;
+		});
+		PrivateNotes->set_selected_line_source([this]() -> std::optional<private_note_line> {
+			if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->selection()) {
+				return std::nullopt;
+			}
+			const auto& chosen = *ComparisonSurface->selection();
+			if (chosen.PreferredLine.Comparison != ComparisonSurface->current_result()->Alignment.Digest) {
+				return std::nullopt;
+			}
+			return private_note_line{ .Side = chosen.PreferredLine.Side, .Line = chosen.PreferredLine.Line };
+		});
+		PrivateNotes->set_line_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) {
+			if (ComparisonSurface != nullptr) {
+				static_cast<void>(ComparisonSurface->select_conversation_line(aSide, aLine));
+			}
+		});
+		PrivateNotes->set_elsewhere_dispatch([this](const private_note_item& aNote) { open_private_note_elsewhere(aNote); });
+		PrivateNotes->set_marks_observer([this] { apply_thread_marks(); });
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			PrivateNotes->set_colours(ConversationPanel->cards()->accent(), ConversationPanel->cards()->marker());
+		}
+	}
+
+	void workbench_window::open_private_note_elsewhere(const private_note_item& aNote)
+	{
+		const auto file = file_for_path(QString::fromStdString(aNote.Label));
+		if (!file) {
+			statusBar()->showMessage(tr("That note's file is not in this pull request now."));
+			return;
+		}
+		PendingNoteOpen = aNote.Id;
+		choose_home(false);
+		choose_modality(review_modality::review);
+		if (Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+	}
+
+	void workbench_window::resume_private_note_open()
+	{
+		if (!PendingNoteOpen || PrivateNotes == nullptr) {
+			return;
+		}
+		const auto place = PrivateNotes->placement(*PendingNoteOpen);
+		if (place.Kind == core::note_placement_kind::other_file) {
+			return;
+		}
+		const auto id = *PendingNoteOpen;
+		PendingNoteOpen.reset();
+		show_private_note(id);
 	}
 
 	void workbench_window::go_to_thread_at(const core::diff_side aSide, const std::uint32_t aLine)
@@ -13743,6 +13952,9 @@ namespace bpr::qt {
 		if (aEvent != nullptr && aEvent->type() == QEvent::Paint && aWatched == statusBar() && home_status_echoes_bar()) {
 			return true;
 		}
+		if (TrayHeader != nullptr && aWatched == TrayHeader && aEvent != nullptr && aEvent->type() == QEvent::Resize) {
+			fit_tray_tabs();
+		}
 		// [[BPR-1590]] v002. The expanded review stays centred as the page resizes.
 		if (ComposeReviewPage != nullptr && aWatched == ComposeReviewPage->viewport() && aEvent != nullptr && aEvent->type() == QEvent::Resize) {
 			centre_review_page();
@@ -15605,22 +15817,9 @@ namespace bpr::qt {
 		append(NextDefectButton);
 		append(Drawers[1].Panel->focus_stop());
 		if (PrivateNotes != nullptr) {
-			append(PrivateNotes->notes_list());
-			const auto noteButton = [this](QAction* aAction) -> QToolButton* {
-				for (auto* button : PrivateNotes->findChildren<QToolButton*>()) {
-					if (button->defaultAction() == aAction) {
-						return button;
-					}
-				}
-				return nullptr;
-			};
-			append(noteButton(PrivateNotes->new_review_action()));
-			append(noteButton(PrivateNotes->new_file_action()));
+			// [[BPR-1592]]. The notes, then the open note's field.
+			append(PrivateNotes);
 			append(PrivateNotes->body_editor());
-			append(noteButton(PrivateNotes->save_action()));
-			append(noteButton(PrivateNotes->promote_action()));
-			append(noteButton(PrivateNotes->erase_action()));
-			append(noteButton(PrivateNotes->discard_action()));
 		}
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
@@ -16039,6 +16238,16 @@ namespace bpr::qt {
 		case QEvent::ThemeChange:
 		case QEvent::DevicePixelRatioChange:
 			refresh_toolbar_icons();
+			// [[BPR-1592]]. The Agent tab's spark and the Notes tools follow
+			// the theme.
+			if (TrayTabs != nullptr && TrayTabs->count() > tray_findings_tab) {
+				TrayTabs->setTabIcon(tray_findings_tab, drawer_icon(drawer_glyph::agent, palette()));
+				fit_tray_tabs(true);
+			}
+			if (PrivateNotes != nullptr) {
+				PrivateNotes->new_line_action()->setIcon(conversation_icon(conversation_glyph::comment, palette()));
+				PrivateNotes->elsewhere_action()->setIcon(drawer_icon(drawer_glyph::pull_request, palette()));
+			}
 			// [[BPR-1255]]. A font, style or theme can move the review bar's
 			// yielded width, and with it the window's floor.
 			apply_strip_width();

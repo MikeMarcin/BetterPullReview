@@ -11883,6 +11883,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			refresh_agent_private_context_choices();
 			publish_preflight_selection();
+			// [[BPR-1592]]. A note waiting to become this line's draft.
+			resume_note_promotion();
 		}
 
 		/// [[BPR-1085]]. My unsent comment, as the review preflight's selected
@@ -15757,8 +15759,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		std::uint64_t                                             PrivateNoteScope = 0U;
-		std::vector<application::local_note_record>               AcceptedPrivateNotes;
+		std::uint64_t                               PrivateNoteScope = 0U;
+		std::vector<application::local_note_record> AcceptedPrivateNotes;
+		/// [[BPR-1592]]. Draft comment on a note at its line, waiting for that
+		/// line's draft to be the selected one.
+		struct pending_note_promotion
+		{
+			std::string           Text;
+			core::source_line_ref At;
+			std::function<void()> Refused;
+		};
+		std::optional<pending_note_promotion>                     PendingNotePromotion;
 		std::optional<std::map<core::file_identity, std::string>> NotePaths;
 
 		/// \brief The name a file note shows: its file's current or previous path,
@@ -15833,6 +15844,43 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 		}
 
+		/// \brief [[BPR-1592]]. Draft comment on a note at its line: the line is
+		/// chosen, and once its draft is the one selected the note's words
+		/// become that draft, exactly as Comment's own target would. Nothing
+		/// is published.
+		void promote_line_note(const application::local_note_record& aNote, std::function<void()> aRefused)
+		{
+			const auto* const surface = Window != nullptr ? Window->comparison_surface() : nullptr;
+			const auto* const shown   = surface != nullptr && surface->current_result() != nullptr ? &surface->current_result()->Alignment : nullptr;
+			const auto        place   = core::place_note(application::note_anchor_of(aNote), shown);
+			if (place.Kind != core::note_placement_kind::placed || !place.At) {
+				aRefused();
+				return;
+			}
+			const auto at = *place.At;
+			if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
+				promote_private_item(aNote.Note.Text, std::move(aRefused));
+				return;
+			}
+			PendingNotePromotion = pending_note_promotion{ .Text = aNote.Note.Text, .At = at, .Refused = std::move(aRefused) };
+			static_cast<void>(Window->comparison_surface()->select_conversation_line(at.Side, at.Line));
+		}
+
+		/// \brief [[BPR-1592]]. A note's promotion waiting for its line's draft.
+		void resume_note_promotion()
+		{
+			if (!PendingNotePromotion || !ReviewDraft) {
+				return;
+			}
+			const auto& at = PendingNotePromotion->At;
+			if (ReviewDraft->Anchor.Comparison != at.Comparison || ReviewDraft->Anchor.Side != at.Side || ReviewDraft->Anchor.Line != at.Line) {
+				return;
+			}
+			auto pending = std::move(*PendingNotePromotion);
+			PendingNotePromotion.reset();
+			promote_private_item(std::move(pending.Text), std::move(pending.Refused));
+		}
+
 		void dispatch_private_note(const qt::private_note_intent& aIntent)
 		{
 			if (Window == nullptr) {
@@ -15862,6 +15910,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				};
 				if (found == AcceptedPrivateNotes.end()) {
 					refuse();
+				} else if (found->Attachment && found->Attachment->Line) {
+					promote_line_note(*found, refuse);
 				} else {
 					promote_private_item(found->Note.Text, refuse);
 				}
@@ -15904,10 +15954,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				note.Id = application::local_note_id{ next };
 				if (aIntent.Attachment) {
-					const auto offered = application::local_note_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
+					auto offered = application::local_note_attachment{ aIntent.Attachment->File, aIntent.Attachment->Comparison };
 					if (current_note_attachment() != std::optional{ offered }) {
 						panel->refuse(QStringLiteral("The selected file changed. Your text is kept; return to that comparison before saving."));
 						return;
+					}
+					// [[BPR-1591]]. A note on a line keeps exactly the line the
+					// shown comparison has there, and its blob.
+					if (aIntent.Attachment->Line) {
+						const auto* const surface = Window->comparison_surface();
+						const auto        shown   = surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == offered.Comparison
+							? core::note_line_anchor_at(surface->current_result()->Alignment, aIntent.Attachment->Line->Side, aIntent.Attachment->Line->Line)
+							: std::nullopt;
+						if (shown != aIntent.Attachment->Line) {
+							panel->refuse(QStringLiteral("That line is not in the shown comparison now. Your text is kept; return to it before saving."));
+							return;
+						}
+						offered.Line = shown;
 					}
 					note.Attachment = offered;
 					// [[BPR-1210]]. Kept with the note, so it can still name the
@@ -15951,7 +16014,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					notes.reserve(AcceptedPrivateNotes.size());
 					for (const auto& note : AcceptedPrivateNotes) {
 						notes.push_back(note.Id);
-						projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Note.Text });
+						projection.Notes.push_back({ .Id = note.Id.value(), .Revision = note.Revision.value(), .Attachment = note.Attachment ? std::optional{ qt::private_note_target{ note.Attachment->File, note.Attachment->Comparison, note.Attachment->Line } } : std::nullopt, .Label = note.Attachment ? private_note_file_label(note) : "Pull request", .Text = note.Note.Text });
 					}
 					std::ranges::sort(projection.Notes, std::greater{ }, &qt::private_note_item::Id);
 				}

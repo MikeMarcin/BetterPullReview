@@ -59,6 +59,20 @@ note could no longer name it. The owner accepted keeping the path:
 - Deleting a note deletes its path, and profile purge removes the ledger file
   as before.
 
+**Owner decision, 2026-10-17 ([[BPR-1591]], RFC-BPR-0085 D3).** Private notes
+may hang at a line, as threads do:
+
+- A note written on a selected line keeps its side, zero-based line and the
+  blob that side showed, in ledger schema 10's `private_note_line`, one row
+  per note thread. Notes on the whole file or the pull request, and notes
+  written before schema 10, have no row and keep their anchors.
+- `core::place_note` decides where a note shows: at its line in the
+  comparison it was written on, or in any other whose side shows the same
+  blob; otherwise outdated with its reason (the side changed, the side is
+  absent, or no blob was kept). A note is never moved to a nearby line, and an
+  edit cannot move it.
+- Deleting a note deletes its line.
+
 ## Receipt semantics
 
 File receipts attach to `FileMaterialId`. A new epoch preserves a receipt only when the compared material identity remains equivalent. Conversation receipts record the latest seen/accepted comment identity and edit version. New or edited comments reopen unread state.
