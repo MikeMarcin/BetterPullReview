@@ -135,10 +135,53 @@ root (its WAL and SHM removed) and the app started again offscreen:
 So the Settings resets are the main path, and the startup dialog's Clear
 caches covers the observed exit; the shared registry is outside these resets.
 
-## Next
+## Verification (candidate `234bdee3e`, main `cd80d1ab3` merged)
 
-On the owner's pick: core reset scopes beside the purge categories (never
-`credential_bindings`), the inventory filtered by scope in
-`release_maintenance_files`, a reset lifecycle that reopens the profile, the
-Qt group and confirmations, the startup recovery dialog and flag, the copy,
-then tests for every acceptance row and a frozen build for the final look.
+- **scopes:** `sqlite_profile_data_reset_files` resets a populated private
+  root for each scope and compares every file byte for byte: exactly the
+  scope's files go, the rest (sign-in stores, logs, shared stores, agent and
+  Git isolation, sibling profiles, unknown files) are identical. Negative
+  control: classifying `review-queue` as settings fails the course.
+  `core_profile_data_reset` covers the policy table, admission and names.
+- **credentials:** the same course gives the adapter a credential port that
+  counts calls; no reset calls it. `application_profile_data_reset_public_path`
+  keeps `remembered-connections`, `device-bindings` and `profile-registry` as
+  the same files through every reset.
+- **lifecycle:** `application_profile_data_reset_public_path` confirms Reset
+  settings, Clear caches and Reset review data in the real Settings; each
+  closes the windows, removes its stores, keeps every other store and the
+  logs, and reopens on a new runtime with its notice; an unacknowledged Reset
+  everything does nothing. Negative control: skipping the startup reset step
+  fails it. The adapter course stops a deletion part-way (an unwritable pack
+  folder): the journal stays, another reset refuses, and recovery finishes
+  exactly the scope; a folder where a store belongs and a link inside a cache
+  folder each refuse and remove nothing.
+- **recovery:** `application_profile_recovery_public_path` runs the shipped
+  entry point: a healthy profile is offered nothing; a damaged
+  `epoch-catalog` fails start-up and is offered the dialog; Quit removes
+  nothing; Clear caches and try again opens the pull request; with
+  `--reset-profile-data`, Reset everything replaces review data and keeps
+  remembered connections; `--reset-profile-data-copy` alone is refused. The
+  same course passes against the frozen executable.
+- **copy:** the adapter course copies exactly the removed review stores into
+  a new private folder and refuses an existing one, removing nothing.
+- **gates:** 21 focused rows pass on the merged tree, including both
+  architecture boundary tests, `application_composition_contract`,
+  `application_review_round_trip_composition_contract` (resealed),
+  `qt_profile_data_reset_views`, `qt_settings_window`,
+  `qt_workbench_window_scale_100`, the release-maintenance, diagnostic,
+  profile management, empty-desktop and multi-window public paths.
+  clang-format 22 passes on all 20 touched C++ files; clang-tidy (LLVM 22,
+  warnings as errors) is clean on the new sources, the adapter and
+  `profile_desktop.cpp`; the documentation gate passes.
+
+## Final review
+
+Frozen build `/Users/jaeger/bpr-1602-reset-v001.6t1zlk_c` from `234bdee3e`
+(executable sha256 `f3032408eff8…`), throwaway profile
+`/Users/jaeger/bpr-1602-reset-v001-profile.d`. Session
+`534aa242d644f5ab110f86fa14257fd6` (state
+`~/.mask/attended-review-sessions/bpr-1602-final-v001-20261018`), candidate
+`BPR-1602-reset-built-v001`, revision `frozen-234bdee3e-v001`, one Accept or
+Reject. On Accept: finish the card, merge main, land after BPR-1597 (already on
+main), remove the frozen root and profile folder.
