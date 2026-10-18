@@ -148,8 +148,8 @@ int main(int argc, char** argv)
 	expect(open(), "Review's preset opens Files and Comments");
 
 	// A note being written in the Conversations drawer keeps Command-B.
-	window.ai_tools_action()->setChecked(true);
-	window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"))->setCurrentIndex(1);
+	// [[BPR-1592]]. Notes is the tray's second tab.
+	window.tray_tabs()->setCurrentIndex(1);
 	window.private_notes()->present({ .Scope = 1U, .Available = true });
 	window.private_notes()->new_review_action()->trigger();
 	auto* const body = window.private_notes()->body_editor();
@@ -167,7 +167,7 @@ int main(int argc, char** argv)
 
 	// The same key from a list goes to the command, by AppKit's menu or Qt's
 	// shortcut, whichever takes it first.
-	window.ai_tools_action()->setChecked(false);
+	window.tray_tabs()->setCurrentIndex(0);
 	window.files_tree()->setFocus(Qt::OtherFocusReason);
 	expect(wait_quietly([&window] { return QApplication::focusWidget() == window.files_tree(); }, 2000),
 		   "the files list has the keyboard");

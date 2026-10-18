@@ -101,6 +101,10 @@ namespace bpr::qt {
 		page,
 		/// [[BPR-1590]]. A cross: close a sheet.
 		close,
+		/// [[BPR-1592]]. A four-pointed spark: the agent's provisional tab.
+		agent,
+		/// [[BPR-1592]]. Two commits joined into a third: the pull request.
+		pull_request,
 	};
 	[[nodiscard]] auto drawer_icon(drawer_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 

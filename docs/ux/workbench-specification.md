@@ -2169,11 +2169,25 @@ this pill and the title-row badge are absent without a selected file or when
 that file has no unread threads, even if another file does ([[BPR-1511]]). The
 count follows the accepted unread policy regardless of the drawer's filters.
 Next new comment continues through unread threads across the pull request.
-The Notes tab holds private ledger notes, AI tools, side chat replies and the
-finding queue. It stays available with no agent configured. Its introductory
-sentence says: "Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."
-One note or selected reply is copied to a local draft at Comment's target; the
-source stays, and nothing is published until the existing explicit Publish.
+[[BPR-1592]] (RFC-BPR-0085 D3). The Notes tab holds only private notes, as
+margin notes: each note hangs from its line beside the code and opens in place
+to write, drawn dashed with a lock, as a thread is; Up, Down, Return and Esc
+move, open and close, and N writes a note on the selected line (its tool sits
+on the tab row with the notes on the pull request). Notes on the pull request
+lead the top edge as a chip; notes on whole files and other files close the
+bottom edge; notes whose lines are above or below the code in view wait as line
+chips. A note whose line is not in the comparison shown follows the placed
+ones and says why. The gutter marks a noted line with a dashed cell, washed in
+the writing blue while its note is open. A note's main action is Save (⌘↩);
+its other is **Draft comment**, which copies it to a local draft at its own line
+(or, for a note without a line, at Comment's target); the note stays, and
+nothing is published until the existing explicit Publish. Esc on unsaved
+changes says so once and discards on the second press. Notes stays available
+with no agent configured. The agent's panels, the private history and the
+finding queue moved unchanged to the provisional **Agent** tab after Tour
+(its spark alone), until [[BPR-1594]] rebuilds it; its introductory sentence
+says: "Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."
+Below 340 pixels the tray's tabs show their icons only.
 Finding conversions retain RFC-BPR-0012's existing actions. [[BPR-1208]] puts thread
 defects on their own cards: right-click, the context-menu key or Shift+F10
 opens the thread's actions. A classified thread also has a text badge with its
@@ -2182,7 +2196,7 @@ the state and retained context. Reclassify opens the existing severity and
 category controls. Previous defect, Next defect and Defects N/M sit beside
 Next new comment under Comments; a defect's thread the drawer does not hold
 opens in Review on its file, in place, when it is on a file, and in Discuss
-when it is not ([[BPR-1293]]). The private tab contains none of them. Choosing Notes is RFC-BPR-0031's explicit
+when it is not ([[BPR-1293]]). The private tabs contain none of them. Choosing Agent is RFC-BPR-0031's explicit
 move into the AI tools: when its content is shown, it permits the existing
 compare_glance cue, dispatches no agent or review action, and never opens a
 collapsed drawer. Under [[BPR-1209]], the single Dif rests at 28 logical pixels in the

@@ -139,6 +139,7 @@ namespace bpr::qt {
 	class side_chat_panel;
 	class private_review_panel;
 	class private_notes_panel;
+	struct private_note_item;
 	// RFC-BPR-0016's second way into a profile, declared for the same reason:
 	// the window places it and hands it out, and a consumer of the shell does
 	// not need the panel's shape to ask for it.
@@ -2172,7 +2173,24 @@ namespace bpr::qt {
 		QToolButton*    NextNewCommentButton = nullptr;
 		QWidget*        DefectRow            = nullptr;
 		QWidget*        CommentsTools        = nullptr;
-		QWidget*        TrayCommentsCount    = nullptr;
+		/// [[BPR-1592]]. The Notes tab's tools in the tray's header.
+		QWidget* NotesTools = nullptr;
+		/// [[BPR-1592]]. A note on another file, opened once its file shows.
+		std::optional<std::uint64_t> PendingNoteOpen;
+		/// [[BPR-1592]]. The tray's header, whose width decides whether its
+		/// tabs show words or icons only.
+		QWidget* TrayHeader = nullptr;
+		/// [[BPR-1592]]. Words above 340 pixels, icons only below.
+		void fit_tray_tabs(bool aRepaint = false);
+		/// [[BPR-1592]]. Connects Notes to the code it hangs beside.
+		void wire_private_notes();
+		/// [[BPR-1592]]. Opens one private note in the Notes tab.
+		void show_private_note(std::uint64_t aId);
+		/// [[BPR-1592]]. Goes to another file's note: its file, then its line.
+		void open_private_note_elsewhere(const private_note_item& aNote);
+		/// [[BPR-1592]]. Opens a note waiting for its file once it shows.
+		void     resume_private_note_open();
+		QWidget* TrayCommentsCount = nullptr;
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
 		QPointer<QWidget>                        FocusBeforeHome;
 		QAction*                                 HomeAction           = nullptr;

@@ -250,6 +250,41 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 10.5 * unit, 12.0 * unit }, QPointF{ 8.0 * unit, 14.5 * unit });
 			},
 									  ink, disabled);
+		case drawer_glyph::agent:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit  = aSide / 24.0;
+				const auto spark = [&aPainter, unit](const qreal aX, const qreal aY, const qreal aReach) {
+					auto path = QPainterPath{ QPointF{ aX * unit, (aY - aReach) * unit } };
+					path.quadTo(QPointF{ aX * unit, aY * unit }, QPointF{ (aX + aReach) * unit, aY * unit });
+					path.quadTo(QPointF{ aX * unit, aY * unit }, QPointF{ aX * unit, (aY + aReach) * unit });
+					path.quadTo(QPointF{ aX * unit, aY * unit }, QPointF{ (aX - aReach) * unit, aY * unit });
+					path.quadTo(QPointF{ aX * unit, aY * unit }, QPointF{ aX * unit, (aY - aReach) * unit });
+					aPainter.drawPath(path);
+				};
+				spark(10.5, 13.5, 7.5);
+				spark(18.0, 6.0, 3.0);
+			},
+									  ink, disabled);
+		case drawer_glyph::pull_request:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawEllipse(QPointF{ 6.5 * unit, 5.5 * unit }, 2.2 * unit, 2.2 * unit);
+				aPainter.drawEllipse(QPointF{ 6.5 * unit, 18.5 * unit }, 2.2 * unit, 2.2 * unit);
+				aPainter.drawEllipse(QPointF{ 17.5 * unit, 18.5 * unit }, 2.2 * unit, 2.2 * unit);
+				aPainter.drawLine(QPointF{ 6.5 * unit, 7.7 * unit }, QPointF{ 6.5 * unit, 16.3 * unit });
+				auto path = QPainterPath{ QPointF{ 17.5 * unit, 16.3 * unit } };
+				path.lineTo(17.5 * unit, 10.0 * unit);
+				path.quadTo(QPointF{ 17.5 * unit, 6.0 * unit }, QPointF{ 13.5 * unit, 6.0 * unit });
+				path.lineTo(11.0 * unit, 6.0 * unit);
+				aPainter.drawPath(path);
+				aPainter.drawLine(QPointF{ 11.0 * unit, 6.0 * unit }, QPointF{ 13.0 * unit, 4.0 * unit });
+				aPainter.drawLine(QPointF{ 11.0 * unit, 6.0 * unit }, QPointF{ 13.0 * unit, 8.0 * unit });
+			},
+									  ink, disabled);
 		case drawer_glyph::page:
 			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
 				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
@@ -309,7 +344,9 @@ namespace bpr::qt {
 		aPainter.setPen(dashed ? QPen{ mixed(base, ink_of(aPalette), 0.32), 1.5, Qt::DashLine } : QPen{ mixed(base, edge, 0.45), 1.0 });
 		aPainter.drawRoundedRect(box, card_radius, card_radius);
 		aPainter.setPen(Qt::NoPen);
-		aPainter.setBrush(aOwnership == drawer_ownership::private_note ? mixed(base, ink_of(aPalette), 0.5) : edge);
+		// A private note read is edged in its quiet ink; written, in the
+		// writing blue, as anything written is ([[BPR-1592]], RFC-BPR-0085 D3).
+		aPainter.setBrush(aOwnership == drawer_ownership::private_note && aState != drawer_card_state::writing ? mixed(base, ink_of(aPalette), 0.5) : edge);
 		aPainter.drawRoundedRect(QRectF{ box.left() - 0.5, box.top() + 6.0, card_edge, box.height() - 12.0 }, 1.5, 1.5);
 		if (aNotchY) {
 			auto notch = QPainterPath{ QPointF{ box.left() - 0.5, *aNotchY - notch_size } };

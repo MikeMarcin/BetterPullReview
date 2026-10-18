@@ -291,23 +291,45 @@ auto main(int argc, char** argv) -> int
 				if (window.conversations_drawer()->state() != core::workbench_drawer_state::expanded) {
 					window.conversations_drawer_toggle_action()->trigger();
 				}
-				window.ai_tools_action()->trigger();
-				expect(window.tray_tabs()->tabText(1) == QStringLiteral("Notes") && window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Notes"), "the composed private editor is reached under Notes");
-				auto* notes = window.private_notes();
+				// [[BPR-1592]]. Notes is the private notes at their lines; the
+				// agent's tools are the Agent tab's.
+				window.tray_tabs()->setCurrentIndex(1);
+				QApplication::processEvents();
+				// Below 340 pixels the tab is its icon; its name is always said.
+				expect(window.tray_tabs()->accessibleTabName(1) == QStringLiteral("Notes") && (window.tray_tabs()->tabText(1) == QStringLiteral("Notes") || !window.tray_tabs()->tabIcon(1).isNull()),
+					   "the composed private editor is reached under Notes");
+				auto*      notes  = window.private_notes();
+				const auto newest = [notes](const std::string& aText) -> const qt::private_note_item* {
+					const auto& all   = notes->notes();
+					const auto  found = std::ranges::find(all, aText, &qt::private_note_item::Text);
+					return found == all.end() ? nullptr : &*found;
+				};
 				wait([&] { return notes->new_review_action()->isEnabled(); }, "private ledger available without any agent opt-in");
 				notes->new_review_action()->trigger();
+				notes->body_editor()->setPlainText(QStringLiteral("Private pull request note"));
+				notes->save_action()->trigger();
+				wait([&] { return notes->notes().size() == 1U && !notes->save_action()->isEnabled(); }, "PR note is committed through the existing ledger");
+				const auto prNote = notes->notes().front().Id;
+				expect(!notes->notes().front().Attachment, "the pull request's note has no file");
+				// N: a note on the line Comment was written on.
+				notes->show_elsewhere(false);
+				notes->new_line_action()->trigger();
+				wait([&] { return notes->writing() && notes->body_editor()->hasFocus(); }, "N opens a new note at the selected line");
 				notes->body_editor()->setPlainText(QStringLiteral("A private note, copied literally."));
 				notes->save_action()->trigger();
-				wait([&] { return notes->notes_list()->count() == 1 && !notes->save_action()->isEnabled(); }, "PR note is committed through the existing ledger");
-				const auto noteId = notes->notes_list()->item(0)->data(Qt::UserRole);
-				notes->new_file_action()->trigger();
-				notes->body_editor()->setPlainText(QStringLiteral("Private file note"));
-				notes->save_action()->trigger();
-				wait([&] { return notes->notes_list()->count() == 2; }, "file note commits");
-				expect(notes->notes_list()->item(0)->data(Qt::UserRole) != noteId && !notes->notes_list()->item(0)->text().contains(QStringLiteral("Pull request")), "newest note names its file");
+				wait([&] { return notes->notes().size() == 2U && newest("A private note, copied literally.") != nullptr; }, "line note commits");
+				const auto* const lineNote = newest("A private note, copied literally.");
+				const auto        noteId   = lineNote->Id;
+				const auto        noteLine = lineNote->Attachment && lineNote->Attachment->Line ? std::optional{ *lineNote->Attachment->Line } : std::nullopt;
+				expect(noteId != prNote && noteLine.has_value() && noteLine->Blob.has_value() && lineNote->Label != "Pull request"
+						   && notes->placement(noteId).Kind == core::note_placement_kind::placed
+						   && (!notes->note_rect(noteId).isEmpty() || std::ranges::any_of(notes->edge_chips(), [&noteLine](const QAbstractButton* aChip) { return aChip->text() == QString::number(noteLine->Line + 1U); })),
+					   "the new note keeps its line and blob, names its file, and hangs at its line (or, its line scrolled away, waits in a chip)");
+				expect(window.comparison_surface()->selection()->PreferredLine.Line == noteLine->Line, "it is on the line that was selected");
 				{
-					// [[BPR-1210]]. The note was written with its file's path, so it can
-					// still name the file after a later update drops it.
+					// [[BPR-1210]], [[BPR-1591]]. The note was written with its file's
+					// path and its line, so it can still name the file after a later
+					// update drops it, and hang at its line again.
 					auto ledger = std::filesystem::path{ };
 					for (const auto& entry : std::filesystem::recursive_directory_iterator{ *dataRoot }) {
 						if (entry.path().filename() == "review-ledger.sqlite3") {
@@ -324,10 +346,19 @@ auto main(int argc, char** argv) -> int
 						paths.push_back(QString::fromUtf8(reinterpret_cast<const char*>(::sqlite3_column_text(query, 0))));
 					}
 					::sqlite3_finalize(query);
+					expect(::sqlite3_prepare_v2(database, "SELECT side,line FROM private_note_line", -1, &query, nullptr) == SQLITE_OK, "the note line table is read");
+					auto lines = std::vector<std::pair<int, int>>{ };
+					while (::sqlite3_step(query) == SQLITE_ROW) {
+						lines.emplace_back(::sqlite3_column_int(query, 0), ::sqlite3_column_int(query, 1));
+					}
+					::sqlite3_finalize(query);
 					::sqlite3_close(database);
-					expect(paths.size() == 1 && !paths.front().isEmpty() && notes->notes_list()->item(0)->text().contains(paths.front()),
+					expect(paths.size() == 1 && !paths.front().isEmpty() && QString::fromStdString(lineNote->Label).contains(paths.front()),
 						   "the file note's path is kept with it, and only the file note has one");
+					expect(lines.size() == 1U && lines.front().second == static_cast<int>(noteLine->Line) && lines.front().first == (noteLine->Side == core::diff_side::left ? 0 : 1),
+						   "the line note's side and line are kept in the ledger");
 				}
+				notes->open_note(noteId);
 				notes->body_editor()->setPlainText(QString(static_cast<qsizetype>(core::maximum_note_bytes) + 1, QLatin1Char{ 'x' }));
 				notes->save_action()->trigger();
 				// [[BPR-1246]]. The ledger answers on its own lane ([[BPR-1211]]),
@@ -336,48 +367,47 @@ auto main(int argc, char** argv) -> int
 							   && notes->findChild<QLabel*>(QStringLiteral("privateNoteStatus"))->text().contains(QStringLiteral("invalid_record")); },
 					 "refused write retains the full local candidate and says why");
 				notes->discard_action()->trigger();
-				expect(notes->body_editor()->toPlainText() == QStringLiteral("Private file note"), "explicit discard restores the accepted note");
-				notes->body_editor()->setPlainText(QStringLiteral("Edited file note"));
-				notes->save_action()->trigger();
-				wait([&] { return !notes->save_action()->isEnabled(); }, "revision-checked note edit commits");
+				expect(notes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally."), "explicit discard restores the accepted note");
+				notes->close_note();
+				notes->open_note(prNote);
 				notes->erase_action()->trigger();
-				wait([&] { return notes->notes_list()->count() == 1; }, "revision-checked note delete commits");
-				notes->notes_list()->setCurrentRow(0);
+				wait([&] { return notes->notes().size() == 1U && notes->notes().front().Id == noteId; }, "revision-checked note delete commits");
+				// [[BPR-1592]]. The agent's purpose and tools are the Agent tab's.
+				window.tray_tabs()->setCurrentIndex(3);
 				QApplication::processEvents();
-				// [[BPR-1246]]. The purpose sits above the Notes pages' tab widget
-				// ([[BPR-1242]]), not inside the Agent tools column.
 				auto* const purpose    = window.findChild<QLabel*>(QStringLiteral("workbenchNotesPurpose"));
 				auto* const notesPages = window.findChild<QTabWidget*>(QStringLiteral("privateConversationTabs"));
-				expect(purpose != nullptr && purpose->isVisible() && notesPages != nullptr
+				expect(window.tray_tabs()->accessibleTabName(3) == QStringLiteral("Agent") && purpose != nullptr && purpose->isVisible() && notesPages != nullptr
 						   && purpose->width() <= notesPages->width()
-						   && purpose->height() >= purpose->heightForWidth(purpose->width()),
-					   "the Notes privacy explanation wraps within the composed tray");
+						   && purpose->height() >= purpose->heightForWidth(purpose->width()) && !notes->isVisible(),
+					   "the Agent tab holds the agent's purpose and tools, and Notes holds none");
+				window.tray_tabs()->setCurrentIndex(1);
+				QApplication::processEvents();
 				if (argc > 1) {
 					QApplication::processEvents();
 					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-private-notes.png")), "private notes controls render");
 				}
+				// Draft comment: the note's words become a draft at its line.
 				const auto beforePromotion = access::review_mutation_evidence(*application);
-				wait([&] { return notes->promote_action()->isEnabled(); }, "saved private note shares Comment's target");
+				notes->open_note(noteId);
+				wait([&] { return notes->promote_action()->isEnabled(); }, "a note at its line offers Draft comment");
 				notes->promote_action()->trigger();
 				wait([&] { return inlineDraft->shown_draft() && inlineDraft->shown_draft()->Body == "A private note, copied literally."
+							   && inlineDraft->shown_draft()->Anchor.Line == noteLine->Line && inlineDraft->shown_draft()->Anchor.Side == noteLine->Side
 							   && cards->writing_draft() && cards->draft_editor() != nullptr && cards->draft_editor()->isVisible()
 							   && cards->draft_editor()->toPlainText() == QStringLiteral("A private note, copied literally."); },
-					 "promotion opens its exact local draft in the drawer");
+					 "Draft comment opens its exact local draft at the note's line, in the drawer");
 				const auto afterPromotion   = access::review_mutation_evidence(*application);
-				const auto privatePromotion = [&](const auto& aEvidence) {
-					return notes->notes_list()->count() == 1 && notes->notes_list()->item(0)->data(Qt::UserRole) == noteId
-						&& notes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally.")
+				const auto privatePromotion = [&](const auto& aEvidence, const std::vector<qt::private_note_item>& aNotes) {
+					return aNotes.size() == 1U && aNotes.front().Id == noteId && aNotes.front().Text == "A private note, copied literally."
 						&& aEvidence.Submissions == beforePromotion.Submissions && aEvidence.StoredComments == beforePromotion.StoredComments
 						&& aEvidence.Replies == beforePromotion.Replies;
 				};
-				expect(privatePromotion(afterPromotion) && window.tray_tabs()->currentIndex() == 0, "one item is copied to Comments while its private source stays and no GitHub mutation occurs");
+				expect(privatePromotion(afterPromotion, notes->notes()) && window.tray_tabs()->currentIndex() == 0, "one item is copied to Comments while its private source stays and no GitHub mutation occurs");
 				auto publishedPromotion = afterPromotion;
 				++publishedPromotion.StoredComments;
-				expect(!privatePromotion(publishedPromotion), "negative control rejects implicit publication evidence");
-				auto* removedSource = notes->notes_list()->takeItem(0);
-				expect(!privatePromotion(afterPromotion), "negative control rejects a removed source row");
-				notes->notes_list()->addItem(removedSource);
-				notes->notes_list()->setCurrentRow(0);
+				expect(!privatePromotion(publishedPromotion, notes->notes()), "negative control rejects implicit publication evidence");
+				expect(!privatePromotion(afterPromotion, { }), "negative control rejects a removed source note");
 				if (argc > 1) {
 					expect(window.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-note-promoted.png")), "promoted private note render");
 				}
@@ -439,9 +469,9 @@ auto main(int argc, char** argv) -> int
 		application = make(app::detail::github_epoch_fixture_phase::reuse);
 		open(*application, cli);
 		auto* restoredNotes = application->window().private_notes();
-		wait([&] { return restoredNotes->notes_list()->count() == 1; }, "private note survives application reconstruction through SQLite");
-		restoredNotes->notes_list()->setCurrentRow(0);
-		expect(restoredNotes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally."), "promotion retained the durable private source");
+		wait([&] { return restoredNotes->notes().size() == 1U; }, "private note survives application reconstruction through SQLite");
+		expect(restoredNotes->notes().front().Text == "A private note, copied literally." && restoredNotes->notes().front().Attachment && restoredNotes->notes().front().Attachment->Line,
+			   "promotion retained the durable private source, with its line");
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
 		expect(restored.last_submitted()->Id == pending.Id && restored.last_submitted()->Attempt == pending.Attempt
