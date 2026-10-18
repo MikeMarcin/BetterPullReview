@@ -93,6 +93,9 @@ namespace bpr::application {
 		std::vector<core::github_diagnostic>            Diagnostics{ };
 		/// [[BPR-1200]]. The first read the core refused, and on which connection.
 		std::optional<core::pull_request_refusal> Refusal = std::nullopt;
+		/// [[BPR-1575]]. The read this transition started or ended, as the core
+		/// named it: a refresh's own lifecycle, which its control presents.
+		std::optional<core::pull_request_read_delta> Read = std::nullopt;
 
 		auto operator<=>(const github_transition_projection&) const = default;
 	};

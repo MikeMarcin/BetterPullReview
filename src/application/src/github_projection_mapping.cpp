@@ -239,6 +239,7 @@ namespace bpr::application {
 			.PullRequest  = aOutput.PullRequest,
 			.Diagnostics  = aOutput.Diagnostics,
 			.Refusal      = aOutput.Refusal,
+			.Read         = aOutput.Read,
 		};
 	}
 

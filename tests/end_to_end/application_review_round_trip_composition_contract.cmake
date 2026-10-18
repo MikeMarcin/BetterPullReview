@@ -1541,7 +1541,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"1c9ac5ffbd9c1a122273449ddb4f302d3c8b1ea52b52f9ffbc71902047ed78fd"
+		"8a58d671f2507cfc458e341b03b7d75fd70b2ebbec2010a880267069492ba581"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1757,7 +1757,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "447a3f9d4c0731460cef046a2a5078909f9c7fb6a15a27cdbc6b64085138573e"
+        "3b47365c0fb49019d23a8a410a539e3bfa6017a9a83d9bf3e4a27e5ed2816797"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2730,3 +2730,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # grant, target, provider, credential, transport, GitHub write, mutation or
 # publication path changes; the production mutation-branch pin is unchanged.
 # Self-review on BPR-1573.
+
+# [[BPR-1575]], [[BPR-1576]] reseal over main at 83a58c893, recomputed on the tree
+# that merges these cards onto it. github_application.cpp marks the window's
+# own rereads (after publishing, after resolving a thread) as automatic through
+# workbench_window::run_automatic_refresh, which runs the same dispatch it ran
+# before; tells the comparison surface when a syntax classification is awaited
+# or failed; and passes whether the theme is high contrast. main.cpp and the
+# public-path fixture add test-only delays and a refresh outcome script for
+# courses and frozen looks. No grant, target, provider, credential, transport,
+# GitHub write, mutation or publication path changes; the production
+# mutation-branch pin is unchanged.

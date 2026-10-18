@@ -68,6 +68,24 @@ namespace bpr::qt {
 	[[nodiscard]] auto strip_icon(strip_glyph aGlyph, const QPalette& aPalette)
 		-> QIcon;
 
+	/// \brief [[BPR-1575]]. What the refresh glyph says about its read.
+	enum class strip_refresh_look : std::uint8_t {
+		/// The arrow, at rest.
+		idle,
+		/// The arrow turning, one step a frame: a read is under way.
+		turning,
+		/// The arrow with a dot at its heart, still: a read is under way and
+		/// motion is reduced.
+		waiting,
+		/// A tick, briefly, once a read has answered.
+		settled,
+	};
+
+	/// \brief [[BPR-1575]]. The refresh glyph in one of its looks, at turn
+	/// `aFrame` of twelve. A look other than idle keeps full ink when the
+	/// button is disabled, because a read under way is not unavailable.
+	[[nodiscard]] auto strip_refresh_icon(strip_refresh_look aLook, int aFrame, const QPalette& aPalette) -> QIcon;
+
 	/// \brief Draws strip buttons as the accepted design draws them.
 	///
 	/// \details A bordered 22-pixel button in full ink, a soft accent fill
@@ -93,6 +111,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1129]]. The dynamic property that marks a button's icon
 		/// with the amber of my last review's tick.
 		static constexpr const char* mark_property = "stripMark";
+		/// \brief [[BPR-1575]]. The dynamic property that marks a button as
+		/// working: drawn engaged, in the accent, however its action is enabled.
+		static constexpr const char* busy_property = "stripBusy";
+		/// \brief [[BPR-1575]]. The dynamic property holding the colour of a
+		/// dot on the icon's upper right that says the last attempt failed.
+		static constexpr const char* alert_property = "stripAlert";
 
 		void drawComplexControl(
 			ComplexControl             aControl,

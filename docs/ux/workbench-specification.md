@@ -478,6 +478,50 @@ the drawers show and outlined and checked while they are hidden; its tooltip
 names what it hides or brings back with the key ("Show Files and Comments
 (⌘B)").
 
+### Refresh
+
+[[BPR-1575]] (the owner, 2026-10-17: "I wish that refresh on both Home and PR
+was more visible as an action. It's kind of hard to tell it's doing
+anything."). The title row's refresh glyph, the open pull request's and on
+Home personal discovery's ([[BPR-0990]]), says its whole lifecycle, decided
+in the core (`bpr/core/refresh_feedback.hpp`) from the read's own stages: the
+pull request read the core names in its transition, and discovery's state.
+
+- **Pressed.** In the same turn as the gesture the button reads as engaged,
+  in the accent, and its arrow turns; under reduced motion it holds a still
+  arrow with a dot at its heart. It keeps full ink while the core refuses a
+  second press. A note under the button says "Refreshing the pull request…"
+  or "Finding my pull requests…", and a screen reader hears it start.
+- **Under way.** After the pattern's reveal the review (or Home's list) is
+  veiled with its rule ([[BPR-1576]]); after six seconds the note says what
+  the read still waits on. The status bar's right end says "Refreshing…".
+- **Finished.** A tick stands in the button for a moment and the note says
+  what the read brought, compared between the two accepted reads: "Updated:
+  2 new comments and 1 new push.", a new review, commits, a state change, or
+  on Home new pull requests; with nothing new, "Up to date: nothing new." The
+  note puts itself away after a few seconds or on a press. The status bar then
+  says how old the content is, "Updated just now", "Updated 2 min ago", aging
+  by itself exactly when its words change; an opened pull request starts
+  "Updated just now".
+- **Failed.** The note says why in the failure ink, offline, rate limited with
+  how long GitHub asked to wait, signed out or otherwise, says how old what is
+  still shown is, and offers Retry. The button keeps a dot in the failure ink
+  and the status bar says "Not refreshed · Retry" until the next refresh
+  answers. The review stays.
+- **By itself.** A read the window makes after publishing or resolving a
+  thread, Home catching up on arrival, or an answer another window read and
+  handed over, turns the button and says "Updating…" in the status bar, but
+  shows a note and is announced only when it brought news ("Updated
+  automatically: 1 new comment.", "Updated from another window: …") or failed.
+- **Keys.** Refresh is the platform's Refresh key (⌘R on macOS, F5 or Ctrl+R
+  elsewhere), listed in Keyboard Shortcuts as "Refresh the pull request";
+  Home's refresh has no key of its own.
+
+Every result and failure is announced once, politely, from the button; the
+button's description carries the state and the age. The note is laid over
+the content right-aligned under its button and the status bar's words keep
+their own width, so nothing moves.
+
 ## Overview summary
 
 RFC-BPR-0063 replaces the four-line preview with a resizable description above
@@ -626,7 +670,8 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   runs and says so, and is its own action, so the review strip's refresh
   and its shortcut stay the open pull request's. Arriving at Home, or
   activating a window that shows it, asks discovery to catch up; discovery
-  reads only when its list is more than five minutes old.
+  reads only when its list is more than five minutes old. While it runs it is
+  presented as [Refresh](#refresh) describes ([[BPR-1575]]).
 - **What discovery last did** is one sentence under the bar, where Home
   already reports what the queue refused: "Found at 14:05 in 2 saved
   repositories.", "Finding my pull requests in 1 saved repository…", a
@@ -2447,6 +2492,73 @@ still shown as before. The review details still open below on request.
 Owner hand-back 49 amends the review bar's last width yield: when compact
 positions still cannot fit, their numbers yield into the tooltips. File and
 Changes remain before their arrows, joined by a separate accent rail.
+
+### The loading-state pattern
+
+[[BPR-1576]] (the owner, 2026-10-17: "We need a clearer visual signal in panes
+when data is not yet ready. Be that dimming what's there or showing loading
+spinners or whatever you think the base visual UX design is", and "This is
+especially true of the overview page when opening a PR"). This is the
+application's one way for a pane to say it waits on data. New panes and the
+redesigns that follow reuse it rather than inventing a spinner of their own.
+
+The core decides the look (`core::decide_pending_look`) from a pane's real
+facts only: whether its own read, preparation or decode is loading or failed,
+whether accepted content is already on screen, whether that content is only
+part of what is coming, and how long the wait has lasted by the presenter's
+monotonic clock. Nothing is shown from a timer that fakes progress. Qt draws
+the look with `qt::pending_veil`, laid over the pane rather than placed in its
+layout, so nothing under it moves.
+
+| Look | When | What the pane shows |
+|---|---|---|
+| Placeholder | A first load, before 400 ms | Faint bars in the content's own shape (rows, prose, code beside a gutter, name and value pairs), with the words line held empty above them. A load faster than this never flashes a spinner. |
+| Loading | A first load, from 400 ms | The turning mark and one line naming what loads ("Loading the file list: 2 files reported…") above the placeholders. |
+| Slow | Any wait, from 6 s | A second line saying what the read still waits on, from its own progress ("Still waiting for GitHub: the changed files, 3 pages so far."). |
+| Quiet | Content on screen and more coming, before 400 ms | The content exactly as it is. A refresh's own control has already answered the gesture ([[BPR-1575]]). |
+| Refreshing | Retained content being replaced, from 400 ms | The content kept readable under a light wash of the pane's own ground, and a two-pixel rule along the pane's top edge in the accent that sweeps; slow, a plate at the top right says what it waits on. Nothing is blocked. |
+| Partial | Part of the content shown, the rest coming | The arrived part at full strength, never dimmed, and a plate at the pane's foot with the turning mark: "Counting comments by file…", "Colouring syntax…". |
+| Failed | Nothing to show and the read failed | One sentence in place of the content, with the theme's failure ink on its ringed exclamation, and Retry under it. |
+| Failed, retained | A refresh failed over retained content | The content at full strength under a strip in the failure ink with the sentence and Retry; only the strip takes the pointer. |
+
+Placeholders, the plate and the wash are mixed from the pane's palette and
+ground; the failure mark is the theme's failure ink, so the pattern follows
+Light, Dark and both high-contrast themes. High contrast draws no wash and
+stronger placeholders. When the system asks for reduced motion the turning
+mark stands still and the rule is dashed rather than swept; a platform with no
+such setting turns. A waiting pane is busy to assistive technology from its
+first moment, before anything is drawn, and names what it waits on; its
+revealed start, its slow wait, its end and any failure are each announced
+once, politely, by the pane that the reader is on. A wait that never showed is
+not announced. A line that already says its wait in words, such as the
+Updates line's readiness, carries the turning mark alone
+(`qt::pending_mark`) in a place its words always keep.
+
+Where it applies:
+
+- **Overview**, section by section. Opening a pull request (and opening
+  another in the same window), the title and its summary line, the
+  description, the file table and the side column (merge, waiting on,
+  participants, since my last review, checks) each wait on their own. The
+  title and description show as soon as GitHub names them; the file table
+  shows one placeholder row per file GitHub reported and says how many; the
+  side column waits for the accepted review; the comment counts by file are
+  the last part and are said as partial. The files say once, politely, when
+  the Overview is ready.
+- **The comparison panes**: code placeholders while a file comparison loads,
+  then "Colouring syntax…" as partial until its classification is adopted or
+  fails. The status above the panes still says the outcome.
+- **The Files drawer, the Comments drawer and Threads**: rows while the first read runs.
+- **The repositories drawer and Home's list**: rows while the queue restores;
+  on Home, "Finding my pull requests in 2 saved repositories…" while personal
+  discovery runs with nothing listed yet, refreshing over the rows already
+  listed, and a failure with Retry when it failed with nothing listed.
+- **The review under a refresh**: one veil and one rule across the drawers and
+  the centre, under the review bar.
+- **The Updates line**: the turning mark before its loading and preparation
+  words.
+- **Markdown images**: the reserved plate holds the still turning mark before
+  the alternative text while the image loads.
 
 ## Comments on several lines
 

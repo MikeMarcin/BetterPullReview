@@ -6,6 +6,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/type_preview.hpp"
 
 #include "line_details_splitter.hpp"
@@ -3143,6 +3144,10 @@ namespace bpr::qt {
 		PanesSlot->setContentsMargins(0, 0, 0, 0);
 		PanesSlot->addWidget(top);
 		PanesTop = top;
+		// [[BPR-1576]]. The comparison's wait is said over the panes in the
+		// shape of code; the status line above keeps saying the outcome.
+		Veil = new pending_veil{ *this, pending_shape::code, QStringLiteral("Comparison"), top };
+		Veil->set_announces(false);
 		Vertical->addWidget(slot);
 		Vertical->addWidget(Detail);
 		// The comparison takes every change in the window's height; the strip
@@ -3415,6 +3420,8 @@ namespace bpr::qt {
 		schedule_geometry_rebuild(
 			measured_geometry_change::accepted_diff,
 			diff_geometry_rebuild_trigger::accepted_diff);
+		ComparisonLoading = false;
+		apply_pending();
 		if (Interaction.Selection != previousSelection) {
 			emit_selection();
 		}
@@ -3431,6 +3438,8 @@ namespace bpr::qt {
 		set_idle(false);
 		clear_projection(reason_text(aFailure.Reason));
 		CurrentContext.reset();
+		ComparisonLoading = false;
+		apply_pending();
 	}
 
 	void diff_workbench::invalidate(
@@ -3460,6 +3469,8 @@ namespace bpr::qt {
 		CurrentContext          = aContext;
 		set_idle(false);
 		clear_projection(QStringLiteral("Loading selected file comparison…"));
+		ComparisonLoading = true;
+		apply_pending();
 		if (!hadSelection) {
 			emit_selection_observer(false);
 		}
@@ -5703,7 +5714,45 @@ namespace bpr::qt {
 		// [[BPR-1334]]. Line details colours its rows from the same spans.
 		Detail->set_token_spans(LeftSpans, RightSpans);
 		update_diff_paint();
+		SyntaxAwaited[aSide == core::diff_side::left ? 0U : 1U] = false;
+		apply_pending();
 		return true;
+	}
+
+	void diff_workbench::await_syntax(const core::diff_side aSide)
+	{
+		SyntaxAwaited[aSide == core::diff_side::left ? 0U : 1U] = true;
+		apply_pending();
+	}
+
+	void diff_workbench::settle_syntax()
+	{
+		SyntaxAwaited = { };
+		apply_pending();
+	}
+
+	auto diff_workbench::comparison_veil() const noexcept -> pending_veil*
+	{
+		return Veil;
+	}
+
+	void diff_workbench::apply_pending()
+	{
+		if (Veil == nullptr) {
+			return;
+		}
+		if (ComparisonLoading && CurrentContext.has_value()) {
+			Veil->present(core::pending_activity::loading, false, false,
+						  { .Loading = QStringLiteral("Loading the comparison…"),
+							.Waiting = QStringLiteral("Still preparing the comparison: a large file takes longer.") });
+			return;
+		}
+		// The text is there to read; only its colours are still coming.
+		if (CurrentResult && (SyntaxAwaited[0U] || SyntaxAwaited[1U])) {
+			Veil->present(core::pending_activity::loading, true, true, { .Coming = QStringLiteral("Colouring syntax…") });
+			return;
+		}
+		Veil->present_ready();
 	}
 
 	auto diff_workbench::token_spans(const core::diff_side aSide) const noexcept
@@ -6314,6 +6363,9 @@ namespace bpr::qt {
 		// bug. The composition re-adopts once the new blobs are classified.
 		LeftSpans.reset();
 		RightSpans.reset();
+		SyntaxAwaited     = { };
+		ComparisonLoading = false;
+		apply_pending();
 		Detail->set_token_spans(nullptr, nullptr);
 		MovedSegments.clear();
 		Interaction.Selection.reset();

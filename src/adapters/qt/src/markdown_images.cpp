@@ -1,5 +1,7 @@
 #include "markdown_images.hpp"
 
+#include "bpr/qt/home_row_delegate.hpp"
+
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetricsF>
 #include <QPainter>
@@ -367,14 +369,25 @@ namespace bpr::qt::detail {
 			aPainter->drawRoundedRect(aRect.adjusted(0.5, 0.5, -0.5, -0.5), attachment_radius, attachment_radius);
 			auto font = Owner ? Owner->font() : QFont{ };
 			aPainter->setFont(font);
-			aPainter->setPen(mixed(base, ink, 0.55));
 			const auto label   = slot->Alt.isEmpty() ? QStringLiteral("Image") : slot->Alt;
 			const auto metrics = QFontMetricsF{ font };
-			const auto inner   = aRect.adjusted(8.0, 0.0, -8.0, 0.0);
-			const auto shown   = metrics.elidedText(label, Qt::ElideRight, std::max(0.0, inner.width()));
-			const auto tall    = aRect.height() > metrics.height() * 2.5;
-			const auto flags   = tall ? Qt::AlignCenter : (Qt::AlignLeft | Qt::AlignVCenter);
-			auto       option  = QTextOption{ flags };
+			auto       inner   = aRect.adjusted(8.0, 0.0, -8.0, 0.0);
+			// [[BPR-1576]]. A loading image is the pattern's placeholder: its
+			// reserved plate, the still turning mark and its words.
+			if (slot->State == core::markdown_image_state::loading) {
+				const auto side = static_cast<int>(std::ceil(metrics.height()));
+				const auto tall = aRect.height() > metrics.height() * 2.5;
+				const auto top  = tall ? aRect.center().y() - (side / 2.0) : aRect.top() + ((aRect.height() - side) / 2.0);
+				auto       ring = mixed(base, ink, 0.55);
+				ring.setAlphaF(0.35F);
+				draw_home_open_mark(*aPainter, QRect{ static_cast<int>(inner.left()), static_cast<int>(top), side, side }, 0, mixed(base, ink, 0.55), ring);
+				inner.setLeft(inner.left() + side + 6.0);
+			}
+			aPainter->setPen(mixed(base, ink, 0.55));
+			const auto shown  = metrics.elidedText(label, Qt::ElideRight, std::max(0.0, inner.width()));
+			const auto tall   = aRect.height() > metrics.height() * 2.5;
+			const auto flags  = tall ? Qt::AlignCenter : (Qt::AlignLeft | Qt::AlignVCenter);
+			auto       option = QTextOption{ flags };
 			option.setWrapMode(QTextOption::NoWrap);
 			aPainter->drawText(inner, shown, option);
 		}
