@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1592"
 title: "Notes are margin notes, and agent tools leave Notes"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0085"]
 depends_on: ["BPR-1591"]
 priority: "P2"
