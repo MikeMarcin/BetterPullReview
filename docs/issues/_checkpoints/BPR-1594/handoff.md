@@ -40,26 +40,30 @@
     expands the review sheet. Round-trip contract resealed.
   - `docs/ux/workbench-specification.md` describes the tab. Card claimed
     (`docs/issues/30-in-progress/`).
-- Verified: qt_workbench_window scales 100/125/200, qt_keyboard_shortcuts,
-  qt_side_chat_panel pass. Composition contracts, agent Qt tests, format and
-  architecture checks: see the latest commit message or rerun
-  `ctest -R "composition_contract|agent_finding_composition|qt_agent|qt_finding_queue|qt_side_chat|qt_private_notes|qt_keyboard_shortcuts|architecture_boundaries|coding_format_check"`
-  in `build/dev`.
+- Verified (candidate `cd19a8988`, then the reseal `tests/end_to_end/application_review_round_trip_composition_contract.cmake`):
+  qt_workbench_window scales 100/125/200, qt_keyboard_shortcuts, qt_side_chat_panel,
+  qt_agent_*, qt_finding_queue_view, qt_private_notes_panel, agent finding
+  composition public path, application_composition_contract,
+  application_review_round_trip_composition_contract (resealed),
+  architecture_boundaries and coding_format_check pass.
 - Known gaps in v001 (said in the review): finding lines are not washed amber
   and have no gutter mark; History's private history page keeps its legacy
   layout; the head-moved banner has no test.
-- Next: freeze `bpr1594-agent-tab-v001` (`scripts/freeze_attended_build.py
-  freeze --name bpr1594-agent-tab-v001 --fixture conventional-comments-v1
-  --open-file src/engine/renderer.cpp --commit <sha> --target
-  better_pull_review_agent_finding_canary --argument=--attended-agent-look
-  "--argument={build}/tests/end_to_end/better_pull_review_agent_finding_canary"
-  --ready ATTENDED_AGENT_SHOWN --wait 300 --generate "mkdir -p build && ln -s
-  /Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache
-  build/.cpm-cache"`), then a new attended session in
-  `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1594-agent-tab-v001`
-  with one Accept/Reject: "The agent has its own tab and is one key away."
-  On Accept: merge `origin/main` (after BPR-1593 lands), focused tests and
-  composition contracts, reseal, docs gate, `issue_board.py finish`, update
-  RFC-BPR-0085's status, push; then BPR-1603's design note and review.
+- Frozen build: `/Users/jaeger/bpr1594-agent-tab-v001.87u4icdl` from
+  `cd19a8988`, launch `python3 /Users/jaeger/bpr1594-agent-tab-v001.87u4icdl/launch.py`,
+  executable SHA-256 `12fcd8f0e5761f0c17ca896600ec50cd3503dcdb4587120044f9edac5cd2394a`.
+- Review: session `5547b2341ac4b1228c7f89e5ed5110c1`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261018-bpr1594-agent-tab-v001`,
+  server PID 49516 on port 58477 (URL with token given to the coordinator),
+  event cursor 3, candidate `BPR-1594-agent-tab-v001`, one Accept/Reject:
+  "The agent has its own tab and is one key away." Read the decision with
+  `python3 /Users/jaeger/Documents/GitHub/BetterPullReview/.claude/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state <state> status --after 3`.
+- Next: on Accept, merge `origin/main` (after BPR-1593 lands), focused tests
+  and composition contracts, reseal, docs gate, `issue_board.py finish`
+  (set `.agents` aside first; it is a symlink the board refuses), update
+  RFC-BPR-0085's status, push to main; stop PID 49516 (`stop`), remove the
+  frozen build with `scripts/freeze_attended_build.py remove <root>`. Then
+  BPR-1603's design note with Light and Dark mockups and its own review. On
+  Reject, read the note and make v002.
 - Open design questions: none.
-- Running PIDs: none recorded yet. Review session: none yet.
+- Running PIDs: 49516 (the review server, handed off).
