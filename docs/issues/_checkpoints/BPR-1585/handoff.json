@@ -41,25 +41,33 @@
     "fixture": "nested-folders-v1",
     "opens": "pull request Overview (--open-pull-request)",
     "check": "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED",
-    "executable_sha256": "14851c6419782db9576d1d7c5b445058985d17a066e759545ba40aa5ccefbf18"
+    "executable_sha256": "14851c6419782db9576d1d7c5b445058985d17a066e759545ba40aa5ccefbf18",
+    "removed": true
   },
   "review": {
     "state": "/Users/jaeger/.codex/attended-review/bpr1585-v001-WV5Dqk",
     "registry": "/Users/jaeger/.mask/attended-review-resources",
     "session": "f1a8896a19f1fb037abd90b45bd11512",
-    "event_cursor": 3,
+    "event_cursor": 6,
     "candidates": {
       "BPR-1585-files-band-v001": "925175e7ec374f006baf08f8281a1b3ef9fc080e100723633119c7ccb14b7bdd"
     },
-    "phase": "ready",
-    "protected": true,
-    "server_pid": 48155,
+    "phase": "decided",
+    "protected": false,
+    "server_pid": null,
     "server_port": 56460,
-    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token."
+    "complete_url": "Obtain from the session state's serve.log; never commit the loopback bearer token.",
+    "decision": "accept (no note), decision 545cba0f-a1e9-41b1-9a63-074b1d45d6e9, event 4"
   },
-  "pending": [
-    "AC5 owner Accept/Reject on BPR-1585-files-band-v001",
-    "AC4 full ctest --preset dev on the merged tree after acceptance"
-  ],
-  "next_action": "On Accept: merge bpr-1585-files-band into main, rebuild dev, run focused rows and one full ctest --preset dev on the merged tree, docs gate, finish BPR-1585, stop server 48155, resume-development, remove the frozen root and the worktree's build and .agents link. On Reject: read the note, revise as v002 in a new short session."
+  "pending": [],
+  "next_action": "None: accepted, landed on main and finished Done; server stopped, protection released, frozen root removed, worktree build removed.",
+  "merged_tree": {
+    "merges": [
+      "c401a1378",
+      "e786531c9",
+      "5a580a955"
+    ],
+    "landed": "5a580a955",
+    "verification": "full ctest on c401a1378 and e786531c9: every non-timing failure passed on rerun; large-review budgets failed only under load and passed at load 20 (A/B shows no gap change); documentation_structure fails only on the branch NEXT_ID lag; 30 focused rows pass at 5a580a955; DOCUMENTATION_OK on main"
+  }
 }

@@ -542,6 +542,17 @@ exposes each folder's path, file count and expansion state to accessibility.
 [[BPR-0934]] recorded the earlier nested hierarchy, which the owner's
 clarification on [[BPR-1213]] replaced with these flat rows.
 
+The table is wide, so file rows alternate between the ground and a quiet band
+to keep the eye on its row across it ([[BPR-1585]]). The band is the theme's
+`Base` moved toward its `Text` until the two stand 1.08:1 apart: neutral, one
+step in every theme, high contrast included. Each folder header starts its
+group on the ground and the files under it take turns, the first on the band,
+counted over the rows shown, so closing a folder, a sort or a hidden row moves
+no other group's turns. Folder headers and Not on a file stay on the ground.
+On a banded row the band is the ground a mark mixes with or cuts its letter
+to, and a selected row is the selection's. Not on a file draws its name and
+its chips only, never an operation, change or read mark.
+
 ## Home
 
 Home is the window's other page, shown whenever no pull request is open and
@@ -894,12 +905,28 @@ No list, no panels, no filters.
 
 Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
 the filled button at the bar's right on the bar's own line, its description
-naming what is being reviewed and how far through it. Home beneath it is
+naming what is being reviewed and how far through it. Its key is said in its
+tooltip and description, not beside it ([[BPR-1573]], the owner, 2026-10-17:
+"Move this hotkey into the tooltip"). Home beneath it is
 unchanged, and whatever had focus in the review has it again when the review
 returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
 and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
+
+**Close review** follows the way back on the same line
+([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
+to back to review"). It is bordered, so Back to the review stays the page's
+one filled control and Return's default, and it has no key of its own; Tab
+reaches it after Back to the review. Its description names the review and
+says that its drafts are kept. Closing lets go of the review in this window
+only: the window's read forgets the pull request (a read in flight is
+cancelled), and the review is released exactly as opening another pull
+request releases it, so a comment being written is saved and is there when
+the same pull request is opened again; nothing asks first. The document tabs
+start again. Home is left with nothing to return to, the bar takes focus,
+the status bar says "Closed the review of owner/name#123.", and Refresh has
+nothing to reread. Another window showing the same pull request keeps it.
 
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic

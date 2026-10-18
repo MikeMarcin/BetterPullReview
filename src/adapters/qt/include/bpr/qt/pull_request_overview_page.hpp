@@ -133,6 +133,19 @@ namespace bpr::qt {
 	[[nodiscard]] auto overview_operation_mark_colours(application::overview_file_operation aOperation, const QPalette& aPalette, const overview_colours& aColours,
 													   bool aSelected, QPalette::ColorGroup aGroup = QPalette::Active) -> overview_operation_mark;
 
+	/// \brief [[BPR-1585]]. How far the Files table's band stands from its
+	/// ground, as a luminance contrast ratio: a step the eye follows across a
+	/// wide row and nothing reads as a mark.
+	inline constexpr double overview_row_band_contrast = 1.08;
+
+	/// \brief [[BPR-1585]]. The quiet band that alternate file rows of the
+	/// Files table lie on: the palette's `Base` moved toward its `Text` until
+	/// the two stand `overview_row_band_contrast` apart. One step in every
+	/// theme, and neutral: it carries no hue of its own, so it never reads as
+	/// a selection or a state. A palette whose text is that close to its
+	/// ground has no band, and gets its `Base`.
+	[[nodiscard]] auto overview_row_band(const QPalette& aPalette, QPalette::ColorGroup aGroup = QPalette::Active) -> QColor;
+
 	/// \brief [[BPR-1089]]. The fixed width of the Comments column.
 	inline constexpr int overview_comments_width = 216;
 
@@ -277,6 +290,20 @@ namespace bpr::qt {
 
 		/// \brief [[BPR-1089]]. The chip to ring while the view has focus.
 		void set_chip_focus(std::optional<overview_chip_focus> aFocus);
+
+		/// \brief [[BPR-1585]]. Whether the row of `aIndex` lies on the band in
+		/// `aView`. A folder header and the Not on a file row never do; each
+		/// header starts its group on the ground, and the files under it take
+		/// turns from there, the first on the band. Turns are counted over the
+		/// rows the view shows: a hidden row takes none, and a collapsed
+		/// folder or a sort elsewhere moves no other group's turns.
+		[[nodiscard]] static auto banded(const QModelIndex& aIndex, const QWidget* aView) -> bool;
+
+	protected:
+		/// \brief [[BPR-1585]]. On a banded row, the cell's background is the
+		/// band and the band is the cell's `Base`, the ground its marks mix
+		/// with and cut their letters to. A selected row is the selection's.
+		void initStyleOption(QStyleOptionViewItem* aOption, const QModelIndex& aIndex) const override;
 
 	private:
 		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;

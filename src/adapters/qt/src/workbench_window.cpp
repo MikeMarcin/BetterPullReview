@@ -1989,6 +1989,7 @@ namespace bpr::qt {
 				begin_enterprise_server_from_home();
 			}
 		});
+		HomeLanding->set_close_dispatch([this] { close_review(); });
 		home->addWidget(HomeLanding);
 		// [[BPR-0647]]. The centre is a stack: the
 		// overview for the Overview modality, the comparison for the rest.
@@ -13588,6 +13589,32 @@ namespace bpr::qt {
 		HomeOpenDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_close_review_dispatch(std::function<void()> aDispatch)
+	{
+		CloseReviewDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::close_review()
+	{
+		if (HomeLanding == nullptr || HomeLanding->state() != landing_state::back_to_review || !CloseReviewDispatch) {
+			return;
+		}
+		// The pull request's short name, as a link names it, not the strip's
+		// identity with its title.
+		const auto closing = IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
+			? QString{ }
+			: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber);
+		CloseReviewDispatch();
+		if (HomeLanding->state() == landing_state::back_to_review) {
+			return;
+		}
+		statusBar()->showMessage(
+			closing.isEmpty() ? QStringLiteral("Closed the review.") : QStringLiteral("Closed the review of %1.").arg(closing), 8000);
+		if (showing_home() && HomeOpenBar != nullptr) {
+			HomeOpenBar->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
 	void workbench_window::set_home_failure_ink(const QColor& aInk)
 	{
 		if (HomeStatus != nullptr) {
@@ -13975,6 +14002,7 @@ namespace bpr::qt {
 			append(HomeOnboardingButton);
 			append(HomeAddRepositoryButton);
 			append(HomeLanding->primary_button());
+			append(HomeLanding->close_button());
 			append(HomeLanding->secondary_button());
 			append(HomeLanding->tertiary_button());
 		}
