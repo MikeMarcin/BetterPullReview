@@ -76,7 +76,7 @@ coverage defect BPR-1655. Native R3 passes the actual MCP positive plus 23
 hostile controls, preserving all original image/map bytes and complete symbol
 scans. These observations do not constitute a complete package audit pass.
 
-AC1/AC2 and the narrow changed-verifier controls have evidence. AC3's complete
+The preserved-failure, metadata and narrow changed-verifier criteria have evidence. The complete
 native package/security acceptance remains pending coordinator-owned fresh
 common-source production after BPR-1655; its packaging change intentionally
 makes old-source build-drift checks refuse. Administrative card closeout follows

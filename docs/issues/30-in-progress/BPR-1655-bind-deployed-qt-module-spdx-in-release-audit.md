@@ -42,7 +42,7 @@ the assessment helper's first PREPARE_ONLY branch. The fixture now selects the
 unique main ASSET_BASE branch, preserving no-notary/no-security/no-identity-sign,
 ad-hoc-sign and exit assertions. Product release.sh bytes remain unchanged.
 
-AC3's final complete native public audit remains pending fresh coordinator
+The final complete native public audit remains pending fresh coordinator
 production. A packaging-source change must retain package-build-source-drift
 on old b914 artifacts. No guard is relaxed to obtain an old-candidate pass.
 
