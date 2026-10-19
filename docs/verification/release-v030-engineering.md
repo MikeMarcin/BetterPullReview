@@ -299,7 +299,7 @@ after its current suite; the failed serializer candidate is not accepted.
 
 
 The remaining Ubuntu failures are tracked as
-[BPR-1638](../issues/30-in-progress/BPR-1638-diagnose-ubuntu-folder-ink-raster-failure.md)
+[BPR-1638](../issues/60-done/BPR-1638-diagnose-ubuntu-folder-ink-raster-failure.md)
 and [BPR-1639](../issues/60-done/BPR-1639-diagnose-ubuntu-shortcut-column-overflow.md).
 Their original raster/column predicates remain intact; failure-only diagnostics
 record the missing palette/pixel or geometry/font observations. Neither a

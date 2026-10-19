@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1638"
 title: "Diagnose Ubuntu folder ink raster failure"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e40cd802676d1cc0bc10287b865aa23acce326f1","evidence":{"kind":"observation","detail":"Native root slash is visible at correct palette/layout but DPR1 lacks literal foreground pixels; unchanged original predicate passes the complete course at appDPR2. Native row/font/geometry/RGB failures retained, with no inferred product color defect.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r6/ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"e40cd802676d1cc0bc10287b865aa23acce326f1","evidence":{"kind":"observation","detail":"Approved assessment-only minimumDPR2 repaint preserves font/logicalgeometry/appDPR and original folderPixels>8/filePixels==0 predicate. Actual wrong-folder paint in both palettegroups yields21file pixels and must fail the identical reader; palette restoration must pass. A blended pixel in Dark is retained in control diagnostics, with no currentpaint tolerance change.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r6/ctest.xml"}},{"criterion":"AC3","outcome":"pass","revision":"e40cd802676d1cc0bc10287b865aa23acce326f1","evidence":{"kind":"observation","detail":"Complete nativeLinux e40cd8026 folder course passes after source-bound build; Mac e40 course passes1.18s including wrongpaint/restoration in4variants. Updatedfile focusedtidy22Werror passes inmacos-focused-r6; all7changedTUs passedr5. Format22/architecture/docs/diff pass. HigherassessmentDPR does not qualify userDPR1legibility.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r6/ctest.xml"}}]
 ---
 
 # BPR-1638: Diagnose Ubuntu folder ink raster failure
@@ -72,3 +73,11 @@ wrong-paint precondition was unsupported. The precondition requires the21
 literal file-ink pixels; the separate unchanged original predicate still
 rejects that image, and the restored actual folder still must pass with zero
 file pixels. Original positive thresholds and tolerances remain unchanged.
+
+## Verified repair result
+
+Native root slash is visible at correct palette/layout but DPR1 lacks literal foreground pixels; unchanged original predicate passes the complete course at appDPR2. Native row/font/geometry/RGB failures retained, with no inferred product color defect.
+
+Approved assessment-only minimumDPR2 repaint preserves font/logicalgeometry/appDPR and original folderPixels>8/filePixels==0 predicate. Actual wrong-folder paint in both palettegroups yields21file pixels and must fail the identical reader; palette restoration must pass. A blended pixel in Dark is retained in control diagnostics, with no currentpaint tolerance change.
+
+Complete nativeLinux e40cd8026 folder course passes after source-bound build; Mac e40 course passes1.18s including wrongpaint/restoration in4variants. Updatedfile focusedtidy22Werror passes inmacos-focused-r6; all7changedTUs passedr5. Format22/architecture/docs/diff pass. HigherassessmentDPR does not qualify userDPR1legibility.
