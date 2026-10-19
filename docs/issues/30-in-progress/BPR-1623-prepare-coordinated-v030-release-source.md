@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1623"
 title: "Prepare the coordinated v0.3.0 release source"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
