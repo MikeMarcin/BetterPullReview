@@ -18,7 +18,8 @@ Background work tiles, and Storage. The GitHub budget milestone adds the Summary
 budget bar and Problems tile and the GitHub tab. Reviews supplies lifetime and
 ranged activity, its local-day calendar and both Summary activity tiles. Energy
 now supplies native process measurements and the idle-cost tile, with the child
-measurement limit below. Work retains its explicit empty states.
+measurement limit below. Work shows event-loop stalls and latency, diff work
+limits and slow paths, syntax cache figures, and source-search timings.
 
 The Core budget bar uses the lowest remaining response in the current reset
 window, subtracting this profile’s persisted BPR requests to estimate other
@@ -124,3 +125,12 @@ five-minute buckets through48hours and daily buckets through93days, preserving
 weighted duration distributions for percentiles and medians. The snapshot reads
 only the retained facts on the Insights worker lane. With no observations, it
 names what will populate each figure rather than displaying a measured zero.
+
+
+The available macOS implementation is verified under owner amendments r2 and r3.
+Official pinned Qt binaries remain in use; unsupported exact child CPU stays
+“Not reported”. The full signed-in, no-window macOS idle hour is deferred until
+later release qualification by explicit owner allowance. No measured pass of
+its 2 CPU seconds per background hour / 6 wakeups per minute budgets is claimed.
+Windows and Linux native UI, containment and metrics qualification remain
+unmeasured. See the [verification ledger](../verification/RFC-BPR-0086.md).

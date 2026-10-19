@@ -621,6 +621,6 @@ Mandate `drawer-design-system-r1` adopts RFC-DRAFT-0023 as decided by the owner 
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0086](RFC-BPR-0086-insights-window.md) | Insights: what BetterPullReview costs, and what you've reviewed | In Progress | None |
+| [RFC-BPR-0086](RFC-BPR-0086-insights-window.md) | Insights: what BetterPullReview costs, and what you've reviewed | Auto-Verified | None |
 
-Mandate `insights-window-v1-r1` adopts RFC-DRAFT-0024. [Import and provenance](assets/insights-window-v1.LIVE_IMPORT.md); [plan](plans/insights-window-v1/milestone-plan.json).
+Mandate `insights-window-v1-r3` closes the available implementation: r2 retains official Qt and defers unsupported exact child CPU; r3 explicitly bypasses the full idle hour for this pack and preserves it for later release qualification. No measured idle-budget or Windows/Linux native pass is implied. [Verification and release obligation](../verification/RFC-BPR-0086.md); [import and provenance](assets/insights-window-v1.LIVE_IMPORT.md); [plan](plans/insights-window-v1/milestone-plan.json).

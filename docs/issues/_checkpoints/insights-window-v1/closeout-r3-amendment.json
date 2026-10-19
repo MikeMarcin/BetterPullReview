@@ -1,0 +1,10 @@
+{
+  "schema": "bpr.insights.owner-amendment.v1",
+  "mandate_revision": "insights-window-v1-r3",
+  "date": "2026-10-18",
+  "source": "Direct owner instruction forwarded by coordinator to closeout owner",
+  "quote": "dont run the full 3600 seconds test, save long tests for a later release, this is a bypass allowance",
+  "scope": "Bypass AC12 full-hour run for this pack closeout. Release-deferred; never measured pass. Keep r2 official Qt and Not reported. AC01\u2013AC11 remain.",
+  "command_state": "No idle course, build, background measurement or server started; source tree had no product edits at amendment intake.",
+  "release_obligation": "docs/verification/RFC-BPR-0086.md#release-deferred-ac12-idle-hour"
+}

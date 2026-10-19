@@ -1,6 +1,6 @@
 # RFC-BPR-0086 verification
 
-Mandate `insights-window-v1-r2` (owner official-Qt amendment below). Immutable RFC_BASE_SHA:
+Mandate `insights-window-v1-r3` (official-Qt r2 and idle-hour r3 owner amendments). Immutable RFC_BASE_SHA:
 `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
 
 The authored plan’s first milestone is `window-and-storage` (BPR-1606 and
@@ -13,15 +13,17 @@ count/lifetime and range/calendar/record evidence. Work is accepted (BPR-1614).
 Energy is accepted: BPR-1612/BPR-1613 are Done under owner amendment r2;
 the supported-API candidate passes official-runtime native and public checks. The owner explicitly deferred unsupported exact child CPU, so
 that limitation no longer blocks Energy or pack closeout. BPR-1612/BPR-1613
-completion and final delivery are recorded in the continuation. Full export
-privacy and the macOS idle hour remain BPR-1615 obligations; no full-RFC
-acceptance is claimed.
+completion and final delivery are recorded in the continuation. BPR-1615 now
+verifies full export privacy and reconciles AC01–AC12. The owner explicitly
+bypassed the full idle hour for pack closeout and deferred it to a later release
+under r3; this is an acceptance amendment, never measured idle-budget evidence.
+The pack is accepted under that amended scope; native qualification limits remain.
 
 | Criterion | Evidence and current result |
 |---|---|
 | AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
-| AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
+| AC11 Privacy and export | The final composed maintenance course seeds Reviews identities, repository labels, numeric GitHub/account history, Work paths and Energy values, verifies the private snapshots, then checks both frozen anonymized previews, both identifying previews and the actual saved bytes. Every export section excludes repository/account/PR/path/body canaries. Anonymized Insights admits exactly its two numeric byte fields; identifying adds no Insights section. The public Insights header separately reaches this flow. See final closeout below. |
 | AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Reviews and Energy calendars have rendered evidence. These owner verdicts retain their exact prior-candidate scope. |
 | AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
 | AC06 review statistics | Durable once-only event counts, confirmed recovery, no load/carry backfill, and actual prune/delete/Clear/restart/purge courses pass. |
@@ -29,7 +31,33 @@ acceptance is claimed.
 | AC08 sampling | Native Mac CPU calibrated against getrusage, macOS wakeups, transition splitting, invalid-delta rejection, launch-state retention and2h/48h/93d persistence pass. Owner amendment r2 defers unsupported exact child CPU; it remains absent and shows “Not reported”, with no estimates, process-wide deltas or Qt fork. The official Qt native course passes. Windows/Linux native qualification is unmeasured. |
 | AC09 Energy | All independent presentation criteria pass on source263f45ca9: background-only tiles, paired facts, hour/day stacks/wakeups,93-day calendar, matched budget reference and over-budget marking. The official-Qt r2 public course additionally verifies “Not reported” in the child tile and both family facts, including mixed measured/unmeasured totals. |
 | AC10 Work | BPR-1614 is accepted; its stall, diff-limit, slow-path, syntax and search evidence remains recorded below. |
-| AC12 idle hour | The macOS idle-hour measurement remains BPR-1615 closeout work. |
+| AC12 idle hour | RELEASE-DEFERRED / BYPASSED by explicit owner amendment r3. No hour was started or measured and no idle budget pass is claimed. The unchanged full-hour course and cause-card requirement for a measured miss remain in the release obligation below. |
+
+## Release-deferred AC12 idle hour
+
+Owner amendment r3, 2026-10-18, verbatim:
+
+> dont run the full 3600 seconds test, save long tests for a later release, this is a bypass allowance
+
+The owner bypasses the full AC12 run for this pack closeout. **Not run; no
+measured CPU/wakeup pass.** No full-hour process was started, and no long-test
+mode was added. The later release qualification owner must run the actual
+macOS app with one genuinely signed-in profile, no window and a recorded full
+3600-second background interval. Bind the source and executable identities,
+official Qt image, machine/OS, accepted account state, foreground/background
+observations, elapsed background wall time, native own-process CPU and macOS
+package-idle plus interrupt wakeups. The budgets remain **at most 2 CPU seconds
+per background hour and 6 wakeups per minute**. A measured miss requires a
+card naming the operation responsible. Neither a fixture sign-in nor a short
+native sampler check substitutes for that course. The current absence of a run
+is not a measured miss, so it does not invent a cause card.
+
+This explicit release-ledger obligation carries the deferred work without a new
+approval gate or issue allocation. Amendment r2 remains unchanged: official Qt
+only, unsupported exact child CPU absent and displayed as “Not reported”, with
+no estimates, process-wide deltas or fork. Windows/Linux native UI, metrics and
+containment remain unmeasured; existing fixture and Mac evidence do not qualify
+those platforms or a release.
 
 ## Engineering review
 
@@ -721,3 +749,52 @@ It is not claimed as passing evidence or required Energy acceptance. Runtime
 `verification-r2.json` retains the exact disposition. All owned commands are
 collected. Full export privacy and the macOS idle hour stay on BPR-1615; the
 unsupported-child capability limit does not block that milestone.
+
+
+## Final closeout under mandate r3
+
+BPR-1615 closes the pack under both explicit owner amendments. Verification
+source **4e343f3e6c695d966c97b7ed0ee0fc118ac8f960** adds only the existing public maintenance course;
+product source is byte-identical to accepted Energy delivery **28c52c9d1**.
+The prior complete, accepted milestone evidence remains applicable. The scoped
+final product/test diff against immutable RFC_BASE_SHA is retained separately
+from merged unrelated crypto/RE2/other work; no unrelated change was reverted.
+
+`application_release_maintenance_public_path` now seeds Reviews identities and
+records, private cache labels, numeric GitHub/account budget history, Work paths
+and Energy durations/wakeups. It verifies the private snapshots and the actual
+persisted text canaries before export. Both anonymized frozen previews exclude
+all repository/account/PR/path/body canaries across the whole export and include
+exactly one Insights section with exactly its two numeric byte fields. Both
+identifying previews add no Insights section and leak no canary. Existing saves
+prove byte-for-byte equality with the confirmed frozen previews despite later
+log appends; both modes retain their existing cancellation and refusal courses.
+The final course passes **8.93 seconds**. This is a real SQLite/native file/Qt
+composition fixture; it is not a live signed-in GitHub course.
+
+The focused integration pass also passed native metrics **0.35s**, composed
+review round-trip contract **2.86s**, and public Insights **1.56s**. Its initial
+privacy fixture used a short cache identity where the adapter requires64bytes;
+the fixture was corrected to a valid64-byte identity, and the final privacy
+course above passes. That failure is retained, not called a product pass.
+Native metrics were additionally observed loading the official Qt6.11.2
+QtCore image on **macOS26.6.2 (25G83), arm64**; SHA-256
+`979f07e9ae430a2da6a00f16bc8ca4ebdf31ba2aa1b9aa20f81eca169572ffef`.
+This short own-process counter check supplies no signed-in idle-hour evidence.
+
+LLVM22 formatting and warnings-as-errors compilation pass the changed test.
+The local code-simplifier pass retains one snapshot per assertion group and
+uses the existing JSON parser to enforce the exact numeric export schema.
+No UX or visual implementation changed; prior frontend-design and accepted
+native titlebar/chart evidence are reused. Both documentation gates, final board
+validation and local delivery are recorded in the continuation and runtime.
+
+Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-closeout-r2-xmv_wncg`**
+retains the r2 initial/r3 renewed bindings, native loaded-image receipt,
+source-equivalence/scoped-diff receipt, the fixture failure and final passing
+privacy logs, documentation results, acceptance and final quiescent observation.
+No full-hour run, long/exhaustive matrix, live API request, remote mutation,
+review server, owner desktop/browser access, push, stash or recurring automation
+was performed. All earlier exact owner accepts remain historical evidence;
+no new human or independent acceptance is inferred. The release-deferred AC12
+and native Windows/Linux limits above remain explicit.

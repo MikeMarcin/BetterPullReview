@@ -1,3 +1,102 @@
+# Insights pack closeout accepted under owner amendments r2 and r3
+
+Mandate **insights-window-v1-r3**, assignment **closeout** (BPR-1615), segment
+**closeout-r3**, owner `/root/insights_closeout`; coordinator-implementer r2.
+Source/tracker root `/Users/jaeger/.codex/worktrees/3996/BetterPullReview`, branch
+`codex/insights-window-v1`; immutable RFC_BASE_SHA
+**0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66**.
+Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-closeout-r2-xmv_wncg`**.
+
+**All ten pack cards BPR-1606–BPR-1615 are Done; all six milestones are accepted.
+RFC-BPR-0086 is Auto-Verified under the amended scope.** The prior five complete
+milestones, source **28c52c9d1**, remain accepted. Current verification source
+**4e343f3e6c695d966c97b7ed0ee0fc118ac8f960** changes only the existing public privacy test;
+product source is byte-identical to28c52c9d1. No unrelated work was reverted.
+The canonical Done closeout table reconciles every AC with actual earlier or
+current evidence; the ledger and live RFC/index agree.
+
+## Owner amendments and remaining release qualification
+
+Amendment r2 remains in force: official pinned Qt binaries only; no Qt fork,
+launch wrapper, estimate or process-wide CPU delta. Unsupported exact child CPU
+stays absent and reads **Not reported**, including mixed totals. Windows/Linux
+native UI, metrics and course containment remain unmeasured.
+
+Amendment r3 is the owner's explicit instruction:
+
+> dont run the full 3600 seconds test, save long tests for a later release, this is a bypass allowance
+
+**AC12 is RELEASE-DEFERRED / BYPASSED for this pack; not run, not measured,
+no idle-budget pass.** No idle process was ever started, no live GitHub course
+was issued after the bypass, and no long-course code was added. The concrete
+[later-release obligation](../../../verification/RFC-BPR-0086.md#release-deferred-ac12-idle-hour)
+retains the genuine signed-in macOS/no-window/full3600s background course,
+2CPU s/background hour,6wakeups/min and a filed operation-cause card for a
+measured miss. No measured miss occurred, so no fabricated cause card or new
+approval gate was created. [Amendment receipt](closeout-r3-amendment.json).
+
+## Verification and exact evidence
+
+The extended `application_release_maintenance_public_path` passes **8.93s** on
+4e343f3e6: private Reviews, repository labels, numeric GitHub/account history,
+Work paths and Energy families are populated. Each text canary is positively
+present in the selected persisted store. All actual anonymized/identifying
+export sections exclude repository/account/PR/path/body canaries; anonymized
+Insights admits exactly its two numeric byte fields; identifying adds none.
+The existing actual saves match their confirmed frozen previews byte for byte,
+including cancellation, later appends and refusal of an existing destination.
+This is fixture-composed native SQLite/file/Qt evidence, not actual live sign-in.
+
+One short focused integration pass also passes native own-process metrics0.35s,
+composed round-trip contract2.86s and public Insights1.56s. Its first privacy
+fixture incorrectly supplied a short cache ID; that test setup was corrected to
+64bytes, and the final privacy course above passes. Failure and narrow rechecks
+are retained. Unchanged predecessor accounting, retention, transition, limits,
+scale and owner native titlebar/ATT chart verdicts are reused. No new human
+judgment, independent acceptance or Windows/Linux qualification is inferred.
+
+Actual dyld observation again loads official Qt6.11.2 QtCore on macOS26.6.2
+(25G83), arm64; SHA-256
+`979f07e9ae430a2da6a00f16bc8ca4ebdf31ba2aa1b9aa20f81eca169572ffef`.
+The short native check supplies no idle-hour qualification. Warnings-as-errors
+build and LLVM22 format pass. Code-simplifier was applied to the touched helpers;
+no UX code changed, so prior frontend-design evidence is reused. The final
+structure gate reports **DOCUMENTATION_OK**; all **67** documentation regressions
+pass in2.211s. Board validation passes. The scoped final diff against RFC_BASE_SHA
+is retained separately from merged unrelated work.
+
+## Ownership, command state and delivery
+
+This owner claimed BPR-1615 at **0e97caeae** after ready promotion **294fc0429**.
+Privacy source commit is **4e343f3e6**. The finish commit carries the canonical
+Done card, RFC/index, amended live plan/generated view, ledger, UX limits and
+this checkpoint. Runtime acceptance and final binding/observation/check retain
+its exact subsequent revision and local main-delivery receipt.
+
+All task-owned build/test/documentation/native commands are collected. No
+server, waiter, protection, detached writer, idle measurement, automation,
+subagent, live API request, remote mutation, desktop capture/drive, browser-data
+read, push or stash is handed off. Only this scoped writer is active until the
+final guarded local delivery and return. Previous writers were released by the
+coordinator, and source/main started clean/equal28c52c9d1.
+
+Local main delivery uses the shared primary-board lock, exact expected-main
+**28c52c9d10bdf698131eb327d3dbddeb25d69c22**, clean trees, branch/ancestry guards
+and fast-forward only. A changed frontier refuses; runtime `main-delivery.json`
+and the final quiescent observation record what actually happened. No push.
+
+## Continuation
+
+The amended Insights pack is complete. No current-pack criterion, owner decision
+or engineer command remains. The next action belongs to later release
+qualification: perform the explicit release-deferred AC12 course and preserve
+native Windows/Linux limits until those observations are supplied. Historical
+milestone records below retain their original evidence and pending-state dates;
+they do not override the current r3 closeout or reinstate the superseded child
+CPU blocker.
+
+# Prior milestone record
+
 # Energy accepted under owner amendment r2; closeout is next
 
 Mandate **insights-window-v1-r2**, assignment **energy** (BPR-1612/BPR-1613),

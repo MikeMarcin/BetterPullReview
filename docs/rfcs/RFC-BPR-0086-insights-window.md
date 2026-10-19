@@ -1,10 +1,10 @@
 ---
 id: "RFC-BPR-0086"
 title: "Insights: what BetterPullReview costs, and what you've reviewed"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
-metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r2","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"},"implementation_support_paths":["scripts/verify_test_network_isolation.py"]}
+metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r3","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"},"implementation_support_paths":["scripts/verify_test_network_isolation.py"]}
 ---
 
 # Insights: what BetterPullReview costs, and what you've reviewed
@@ -28,6 +28,21 @@ estimate fills that gap. Ordinary Windows children retain the existing exact
 handle implementation; native Windows/Linux qualification is still unmeasured.
 This documented capability limitation does not block Energy or pack closeout.
 Historical r1 failures and evidence retain their original meaning.
+
+## Owner amendment r3: defer the idle hour until release qualification
+
+On 2026-10-18 the owner directed:
+
+> dont run the full 3600 seconds test, save long tests for a later release, this is a bypass allowance
+
+This is mandate `insights-window-v1-r3`. Amendment r2 remains in force.
+AC12's full macOS signed-in, no-window background hour is bypassed for this
+pack closeout and deferred to a later release. No hour was started or measured;
+no CPU or wakeup budget pass is claimed. The original course and its exact
+2 CPU seconds per background hour / 6 wakeups per minute budgets remain a
+[release qualification obligation](../verification/RFC-BPR-0086.md#release-deferred-ac12-idle-hour).
+A later measured miss still requires a card naming the responsible operation.
+This allowance adds no new human gate and does not waive AC01–AC11.
 
 ## Problem and grounded current behavior
 
@@ -532,6 +547,8 @@ sections above; the [design record](assets/insights-window-v1/DECISIONS.md) quot
     fixture profile whose names are unique strings.
   - The identifying export adds nothing from Insights.
 - **AC12 Idle cost.**
+  - **Release-deferred by owner amendment r3:** the following full-hour course
+    is bypassed for pack closeout; it remains required for later release qualification.
   - On macOS, with one signed-in profile and no window, one hour in the
     background stays within the idle budget for background CPU and wakeups.
     The run is recorded with the build and the measured figures.

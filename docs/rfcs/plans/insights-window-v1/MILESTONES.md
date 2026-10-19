@@ -83,7 +83,7 @@ The Work tab shows main-thread stalls against the 100 ms target, diff work limit
 
 ## closeout
 
-RFC-DRAFT-0024 is closed with evidence for every criterion, including export privacy and a measured idle hour on macOS.
+RFC-BPR-0086 is closed with evidence for every current criterion; the full macOS idle hour is release-deferred by owner amendment r3.
 
 **Work:** `BPR-1615`
 
@@ -91,6 +91,6 @@ RFC-DRAFT-0024 is closed with evidence for every criterion, including export pri
 
 **Completion:**
 
-- Every acceptance criterion has evidence, and the idle hour meets the idle budget or has a filed card naming the cause.
+- Every current acceptance criterion has evidence. Owner amendment r3 bypasses the full macOS idle hour for pack closeout and preserves it, with its unchanged budgets and cause-card requirement for a measured miss, as a later release qualification obligation.
 
 **Boundary:** RFC closeout.

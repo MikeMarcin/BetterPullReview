@@ -1,0 +1,11 @@
+docs/issues/30-in-progress/BPR-1615-close-rfc-0086.md
+docs/issues/60-done/BPR-1615-close-rfc-0086.md
+docs/issues/_checkpoints/insights-window-v1/closeout-r3-amendment.json
+docs/issues/_checkpoints/insights-window-v1/continuation.md
+docs/rfcs/README.md
+docs/rfcs/RFC-BPR-0086-insights-window.md
+docs/rfcs/plans/insights-window-v1/MILESTONES.md
+docs/rfcs/plans/insights-window-v1/milestone-plan.json
+docs/ux/insights.md
+docs/verification/RFC-BPR-0086.md
+tests/end_to_end/release_maintenance_public_path_tests.cpp
