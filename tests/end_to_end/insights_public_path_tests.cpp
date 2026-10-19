@@ -336,17 +336,23 @@ try {
 	reviews_contract(*shell, root);
 	const auto beforeRefresh = app::detail::github_application_fixture_access::evidence(*runtime);
 
+	const auto initialContent   = shell->size();
+	auto*      tabs             = shell->findChild<QTabBar*>(QStringLiteral("insightsTabs"));
+	auto*      pages            = shell->findChild<QStackedWidget*>(QStringLiteral("insightsPages"));
+	auto*      toolbar          = shell->findChild<QWidget*>(QStringLiteral("insightsToolbar"));
+	auto*      header           = shell->findChild<QWidget*>(QStringLiteral("insightsHeader"));
+	const auto initialHeaderBox = header->geometry();
+	expect(toolbar->geometry().top() == 0 && toolbar->height() == 40 && shell->windowFlags().testFlag(Qt::ExpandedClientAreaHint) && shell->windowFlags().testFlag(Qt::NoTitleBarBackgroundHint) && !shell->testAttribute(Qt::WA_ContentsMarginsRespectsSafeArea), "tabs and actions occupy the expanded native title row without an extra safe-area row");
+	expect(toolbar->geometry().bottom() < initialHeaderBox.top() && initialHeaderBox.bottom() < pages->geometry().top(), "the unified title row precedes a fixed title/status header and page body");
+	expect(qt::insights_window::content_size({ 1280, 1000 }) == QSize{ 900, 542 } && initialContent == qt::insights_window::content_size(shell->screen()->availableGeometry().size()), "the mockup dimensions clamp to the opening screen");
+	expect(tabs->count() == 6 && shell->minimumSize() == shell->maximumSize(), "six pages share one non-resizable size");
+	// The offscreen screen can be only 400 logical pixels at 2x. First prove
+	// real-screen clamping above, then judge the preferred canvas at each DPI.
+	shell->setFixedSize(qt::insights_window::content_size({ 1280, 1000 }));
+	QApplication::processEvents();
 	const auto frame     = shell->frameGeometry();
 	const auto content   = shell->size();
-	auto*      tabs      = shell->findChild<QTabBar*>(QStringLiteral("insightsTabs"));
-	auto*      pages     = shell->findChild<QStackedWidget*>(QStringLiteral("insightsPages"));
-	auto*      toolbar   = shell->findChild<QWidget*>(QStringLiteral("insightsToolbar"));
-	auto*      header    = shell->findChild<QWidget*>(QStringLiteral("insightsHeader"));
 	const auto headerBox = header->geometry();
-	expect(toolbar->geometry().top() == 0 && toolbar->height() == 40 && shell->windowFlags().testFlag(Qt::ExpandedClientAreaHint) && shell->windowFlags().testFlag(Qt::NoTitleBarBackgroundHint) && !shell->testAttribute(Qt::WA_ContentsMarginsRespectsSafeArea), "tabs and actions occupy the expanded native title row without an extra safe-area row");
-	expect(toolbar->geometry().bottom() < headerBox.top() && headerBox.bottom() < pages->geometry().top(), "the unified title row precedes a fixed title/status header and page body");
-	expect(qt::insights_window::content_size({ 1280, 1000 }) == QSize{ 900, 542 } && content == qt::insights_window::content_size(shell->screen()->availableGeometry().size()), "the mockup dimensions clamp to the opening screen");
-	expect(tabs->count() == 6 && shell->minimumSize() == shell->maximumSize(), "six pages share one non-resizable size");
 	for (int page = 0; page < tabs->count(); ++page) {
 		tabs->setCurrentIndex(page);
 		if (page == 2) {
