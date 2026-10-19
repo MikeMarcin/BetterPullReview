@@ -51,6 +51,15 @@ Choose focused commands from the affected RFC ledger for ordinary slices. At pac
 Generated screenshots, logs, build trees, credentials, private repository
 content, and secret-bearing evidence must not be committed.
 
+## Optional local secret scanning
+
+Run `python3 scripts/betterleaks.py setup` to install the pinned, verified
+BetterLeaks binary, then `python3 scripts/betterleaks.py hook-install` to opt
+this checkout into index scanning before commits. The `staged`, `tracked` and
+`history` commands scan local inputs without network access or credential
+validation. See [setup, policy, troubleshooting and hook removal](docs/development/betterleaks.md).
+This tooling and its explicit integration course are outside all CI entrypoints.
+
 ## Documentation impact
 
 Review public APIs, provider/authentication behavior, identity, persistence,

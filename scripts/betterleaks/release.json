@@ -1,0 +1,36 @@
+{
+  "version": "1.9.0",
+  "release": "https://github.com/betterleaks/betterleaks/releases/tag/v1.9.0",
+  "platforms": {
+    "darwin_arm64": {
+      "asset": "betterleaks_1.9.0_darwin_arm64.tar.gz",
+      "sha256": "83dd7eaab13d44a1e8e347a17064cdef153a1478db473276d41b38d55613d3f2",
+      "binary_sha256": "70d2103c2915aababa0e1eea121bd3db0ff0da86bee40ddc6f5982181acaf6d0"
+    },
+    "darwin_x64": {
+      "asset": "betterleaks_1.9.0_darwin_x64.tar.gz",
+      "sha256": "68dfd83458d9e7f90663daa7a81c7f944083b170dae82e4f5f8d0581ed519ef1",
+      "binary_sha256": "1581b1ad0d7d640459c728344c9d431339c8855cd2b5ccd35a9a56a7260b071a"
+    },
+    "linux_arm64": {
+      "asset": "betterleaks_1.9.0_linux_arm64.tar.gz",
+      "sha256": "1d39116e0a58dc94574715e2aa12a2dbd5062f193eee3fec011fef6ba06bd13b",
+      "binary_sha256": "488e0aa9f34e4144c70ba58ab83f1cda11fb4a5f84897b513e55b2afe71b7e8a"
+    },
+    "linux_x64": {
+      "asset": "betterleaks_1.9.0_linux_x64.tar.gz",
+      "sha256": "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7",
+      "binary_sha256": "0ace40b41652344608f89967fe93c6caf4faae9a4df20423632c7efb02a4d4e1"
+    },
+    "windows_arm64": {
+      "asset": "betterleaks_1.9.0_windows_arm64.zip",
+      "sha256": "3e5b9b6cdbfe8d486ae2dd2fa137473dc9ab42bf50317f051b73561121861816",
+      "binary_sha256": "e0f6c8cac0dabf271b499abdfe43c3b5794db1f36d80f7af2a963d69fac97f89"
+    },
+    "windows_x64": {
+      "asset": "betterleaks_1.9.0_windows_x64.zip",
+      "sha256": "b765daec9fda475b031b5a5159798cbe4294a3f2a50683cbc0471226e376d3da",
+      "binary_sha256": "41a3dc5e75712d52d25aa7203b0b6bc2fa9c796fe5109d3835c60226a9a69352"
+    }
+  }
+}

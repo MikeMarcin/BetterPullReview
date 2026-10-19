@@ -1,0 +1,262 @@
+# Only this explicit policy is loaded. Keep upstream detectors and content
+# filters, but override the default path prefilter: tests, docs, lockfiles and
+# text in otherwise excluded extensions must remain eligible.
+title = "BetterPullReview local secret scanning"
+prefilter = "false"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Documented SHA-256 prefix of the synthetic registered-device grant."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/10\\-backlog/BPR\\-0285\\-anchor\\-rfc\\-0016\\-verification\\.md$"]
+regexes = ["^\\x665505a4b89c07e21$"]
+
+[[rules.allowlists]]
+description = "Documented SHA-256 prefix of the synthetic registered-device grant."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/60\\-done/BPR\\-0285\\-anchor\\-rfc\\-0016\\-verification\\.md$"]
+regexes = ["^\\x665505a4b89c07e21$"]
+
+[[rules.allowlists]]
+description = "Documented SHA-256 prefix of the synthetic registered-device grant."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/60\\-done/BPR\\-0539\\-make\\-the\\-registered\\-device\\-course\\-enroll\\-the\\-grant\\.md$"]
+regexes = ["^\\x665505a4b89c07e21$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-diagnostic\\-live\\-attempt\\.json$"]
+regexes = ["^\\x30d0f6b7d7c6cc5b473522f145a0a6b4414ed0769fcbc3e1bad5b0fd92759f9a3$", "^\\x3251659241baaf9cb53c968a41880368d12d5d2871ccbc6c552c73ff038e1516b$", "^\\x6304684ddea4729cf449aef001b731448a3f983d8cfaf91b88c872e302149d358$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-profile\\-live\\-attempt\\.json$"]
+regexes = ["^\\x301412045accfc4df6d988e33fe6f3bbff5aa7c0c3c0cc0538b056bc94eeec807$", "^\\x61f45f954739e36c344115dc885c8854ef15d77d948967fb9c7fe8648ebd4435b$", "^\\x65eb6560757ae3ba93e15d7808990e22439476df9981a266bf94c43c5f83b17a2$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-r3\\-get\\-recovery\\-success\\.json$"]
+regexes = ["^\\x34276c09c34e6daa5b8f73f726dc45143b30db10b67301a4d550939450cce8418$", "^\\x362116502a98ba267dcba7bfd09b166a3dfe3aa5acc898a6204330db86f60eb68$", "^\\x6534ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653$", "^\\x6646794511727dbebee946e2b3529a9e9447e00bbb7c5a48fca2857607d40b714$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-r3\\-live\\-fallback\\-observation\\.json$"]
+regexes = ["^\\x34276c09c34e6daa5b8f73f726dc45143b30db10b67301a4d550939450cce8418$", "^\\x362116502a98ba267dcba7bfd09b166a3dfe3aa5acc898a6204330db86f60eb68$", "^\\x6534ba1d12d309504c6f736b75fd25c9558edf2807c0662600a9f92be44536653$", "^\\x6646794511727dbebee946e2b3529a9e9447e00bbb7c5a48fca2857607d40b714$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-resolution\\-live\\-attempt\\.json$"]
+regexes = ["^\\x368dd3f1c98653cec1a599d525ce02f872075550a1d6950a0e21067eb03f8f2b2$", "^\\x3763bf0757016b3097c36f9e0b8f2a358ad76e267446c53a4021301782a41dafc$", "^\\x64acdd2641d4e863818e8f544fc6b424bfa05f0f23b3be5053dbfbe5d68bc12ab$"]
+
+[[rules.allowlists]]
+description = "Publication-journal identity digests, not authentication credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-0575/m4\\-shape\\-live\\-attempt\\.json$"]
+regexes = ["^\\x3153e63b16b40201cfdbda0a19e9ee7d0fc2ec6d184200c6ef6cdb893dc2eca47$", "^\\x371681ef682346ef01b96bac5c7f96250b4d22943507cf01bb1fe89034a754a30$", "^\\x3999f0f6d1b5c8a536b7cfbbea8424ed0600114a6e5e3fb2a23efd6ee3baa231a$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-1535/handoff\\.json$"]
+regexes = ["^\\x36067f20c636ed95a975dd3facad403ece3c8757871e065210eccd34dbe009611$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/BPR\\-1536/handoff\\.json$"]
+regexes = ["^\\x3883a941bfeac305f57f5d2ed7ba4b171c1869ae518ae2c773adbb6e5e1325fd6$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/cpp\\-identifier\\-context\\-v1/m2\\-verification\\.json$"]
+regexes = ["^\\x3865a9911d512ea7962b26f8dd4ce02066926b53ed8832eb6f345cd25bb1054a5$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/find\\-and\\-find\\-in\\-files\\-v1/m4\\-command\\-state\\.json$"]
+regexes = ["^\\x31913957c524cdfa834f5d3637389f0096ad87f1b837a7023bf7994e1b4a817c3$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/find\\-and\\-find\\-in\\-files\\-v1/m4\\-self\\-review\\.json$"]
+regexes = ["^\\x31913957c524cdfa834f5d3637389f0096ad87f1b837a7023bf7994e1b4a817c3$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/header\\-source\\-navigation\\-v1/m2\\-baseline\\-review\\.json$"]
+regexes = ["^\\x36f40ba9462f35baca63b020a106360d48ee5a864a9626f6e977851e9408c4952$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/issues/_checkpoints/header\\-source\\-navigation\\-v1/m2\\-verification\\.json$"]
+regexes = ["^\\x36f40ba9462f35baca63b020a106360d48ee5a864a9626f6e977851e9408c4952$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/rfcs/plans/bpr0968\\-rate\\-limit/evidence\\.json$"]
+regexes = ["^\\x32d272634ae8cf607f89adcb748a9c8b38405912eeeb9a2377cacfe13800f59d1$", "^\\x37c59bc3dc48f4b67e026a15f324868675d648d2e3cdc95a183398c2e63fc7255$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/rfcs/plans/bpr0969\\-offline\\-inventory/handoff\\.json$"]
+regexes = ["^\\x63e0e4a8939a6e2ffdb5b26f7025413f785c13ac90035fa1cd6ae41993f5e1318$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/rfcs/plans/bpr0969\\-offline\\-inventory/recent\\-identity\\-handoff\\.json$"]
+regexes = ["^\\x662688a6f137759b397273a33857cdfd7296d290e0a39c1f63a319a7942935653$"]
+
+[[rules.allowlists]]
+description = "Documented SHA-256 prefix of the synthetic registered-device grant."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/verification/RFC\\-BPR\\-0016\\.md$"]
+regexes = ["^\\x665505a4b89c07e21$"]
+
+[[rules.allowlists]]
+description = "Recorded source or frozen-candidate SHA-256 checksums in immutable evidence."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__docs/verification/reviews/owner\\-review\\-20260925\\-fresh\\-v001/source\\-manifest\\.txt$"]
+regexes = ["^\\x3442fa00b6fd1e7332d3b83b10b1639a9cc395b4e656e4f2c729bfc5257294f10$", "^\\x39c00813873c7092578bafdff84e2c767bbda779674defdc5e18e6c02068a9ee7$", "^\\x61c158256e9065f4ffc6e889b940e2904266fd248299321f3604ce081ab32167e$", "^\\x61e0dfb9a4f6d5c8e5500a9063c96be49e5ccb9d9c0bab28f33d29f348fe63e01$"]
+
+[[rules.allowlists]]
+description = "Synthetic punctuation credential used in the redaction contract."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/github_capability_probe_tests\\.cpp$"]
+regexes = ["^\\x61bcd\\+efgh/ijkl$"]
+
+[[rules.allowlists]]
+description = "Deterministic synthetic idempotency identifier; no authentication authority."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/github_mutation_contract_tests\\.cpp$"]
+regexes = ["^\\x35871cf205188372ebc5fbfffcccda1351bef269f18041abe642b2f36fd03766c$"]
+
+[[rules.allowlists]]
+description = "Deterministic synthetic idempotency identifier; no authentication authority."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/staged_review_session_tests\\.cpp$"]
+regexes = ["^\\x62pr\\-1368\\-live\\-tour$"]
+
+[[rules]]
+id = "generic-credential-uri"
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/adapters_qt/composed_markdown_tests\\.cpp$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/application/github_window_read_host_tests\\.cpp$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/end_to_end/system_browser_opener_tests\\.cpp$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/fixtures/markdown/github\\-parity\\-v1/hostile\\-html\\.github\\.html$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/fixtures/markdown/github\\-parity\\-v1/hostile\\-html\\.md$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/fuzz/corpora/markdown_view/github\\-hostile\\-html$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/git_contract/git_process_contract_tests\\.cpp$"]
+regexes = ["^\\x62pr\\-canary$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/gh_cli_transport_tests\\.cpp$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/github_device_authorization_contract_tests\\.cpp$"]
+regexes = ["^\\x73ecret$"]
+
+[[rules.allowlists]]
+description = "Synthetic URI userinfo used to verify rejection or redaction; exact password only."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/scripts/record_rfc0017_anonymous_contracts_tests\\.py$"]
+regexes = ["^\\x66ixture\\-pass$", "^\\x73ecret$"]
+
+[[rules]]
+id = "github-oauth"
+
+[[rules.allowlists]]
+description = "BPR-1373 synthetic named-account canaries; no provider credentials."
+condition = "AND"
+regexTarget = "secret"
+paths = ["^__BPR_PATH_PREFIX__tests/github_contract/gh_cli_git_smart_transport_tests\\.cpp$"]
+regexes = ["^\\x67ho_bpr1373CanaryOther000000000000000000$", "^\\x67ho_bpr1373CanaryOwner000000000000000000$", "^\\x67ho_bpr1373CanaryTester00000000000000000$"]
