@@ -307,3 +307,90 @@ allocation/card/receipt/claim were adopted (`2ef366b6e`/`25fec4e97`) to preserve
 counter validity. No RE2 source or primary checkout was touched. Main delivery
 remains a later guarded integration step; the already-tested completed-main
 merge and exact frozen chart candidate remain unchanged.
+
+
+## GitHub chart correction round (2026-10-18)
+
+Mandate `insights-window-v1-r1`, assignment `github-budget`, segment
+`github-budget-r2`; engineering owner `/root/insights_chart_revision`.
+Owner Reject event5 and handback6 in session
+`12f141ab8f2268fd7a22c6973bfd0921` bind the original v001 fingerprint
+`3d608c3246f118f3937254653d3603021f4d03e80cead3f5f024ee4d1623c656`.
+Both supplied screenshots were inspected. Scoped release event7 preserves the
+verdict, and the exact old host was stopped. The accepted fixed-size milestone
+is retained; this correction's native placement and chart judgment remain open.
+
+`frontend-design` was loaded from the recorded installed path before UX work.
+AllTheThings' controller and `InsightsEnergyChartView.swift` were read directly.
+Its transparent full-size native title bar, quarter-height event bars, framed
+plots, three main grid rules, strong outline, swatch legend and dated hover card
+are the reference. The correction uses Qt's expanded title row and the existing
+macOS title-suppression helper, keeping tabs/actions in a 40 px row. GitHub's
+chart now occupies the left three fifths of the lower surface, with bounded
+request/process ledgers beside it and the range centered above the graph.
+Profile palette/state roles remain the color authority. `code-simplifier` was
+applied to separate event bars from quantity-stack painting.
+
+Production correction `d07af7f8d` retains maxima, stacks, gaps/reset rules,
+midpoint hover, accessible description and passive local snapshots. Hover now
+has date/time and label/value rows and flips on both axes. `c8cac034a` adds an
+absence negative control for event bars. The original area negative control
+also remains. Initial test compilation used a typed `findChild` requiring a
+`Q_OBJECT` macro; lookup through QWidget plus a checked RTTI cast corrected it.
+The larger hover initially covered a pixel in the existing area check; clearing
+hover before inspecting the plotted layer corrected that test. Fractional-DPI
+verification exposed physical/logical sampling in the old stack check;
+`fe82a531e` corrects the raster sampler, with no production change.
+
+Completed main `4bae9df70` was clean and its BPR-1618 handoff released writers
+and commands. Merge `318c3f5aa` has no conflicts. `6566d86f8` removes only the
+obsolete adopted claim beside the authoritative Done card and renews combined
+composition pins after reviewing the regex adapter-to-core factory change.
+Mutation admission remains byte-identical. No main checkout mutation or push.
+
+Focused final integration: **4/4 pass in 22.21 s**, architecture boundaries,
+review-round-trip composition contract, binary dependency surface and the public
+Insights course. The public course proves the real Summary split, no-effect
+refresh, all tabs/ranges, fixed/clamped layout, taller plot/sidebar composition,
+both rendered series and their absence controls, hover edges, export/manage,
+hidden timers and shutdown. Light/Dark Summary, both GitHub ranges and hover
+renders were inspected. The 1.25× public course passes in **2.74 s** after the
+sampler fix. LLVM22 format and tidy of both UI units pass. Documentation gate
+and **67 regression tests** pass. Accounting, SQLite retention/privacy, native
+transport and process-supervision evidence is unchanged and reused.
+
+Offscreen flags and layout do not establish native title-bar appearance or
+human chart quality. The replacement attended session asks those two decisions
+separately. Final self-review corrected the selected pill focus outline to use contrasting
+HighlightedText in `11a0ecb1f`; its affected public course passes in 2.75 s.
+Required frozen renders exposed an isolated-sample brush leak in that source:
+a solid marker brush could fill later open outline paths. `173e69f7a` explicitly
+resets the brush before drawing outlines. The differential regression fails at
+the intended assertion with the reset removed and passes when restored. All
+22 developer capture variants, including isolated-to-continuous data, were
+inspected without further state leakage. Earlier frozen images/logs remain
+in the runtime under `before-brush-fix-*`. The exact corrected frozen source is
+`173e69f7afaaaa21b233ee56347bd3621d63b2f4`; the continuation holds its current
+freeze/review identity and command state. Runtime evidence is under
+`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-chart-r2-qytjtsca`.
+An initial uncompleted freeze was stopped by exact owned PIDs and its root was
+removed before restarting with the corrected test. No acceptance is inferred
+from a build, offscreen render or prepared session.
+
+
+### Corrected frozen review readiness
+
+Final source `173e69f7afaaaa21b233ee56347bd3621d63b2f4` freezes at `/Users/jaeger/bpr-insights-github-v002.x48bp45b`. Its launcher check and exact
+frozen public course pass; the latter includes the isolated-to-continuous
+painter regression. Required hour/day/hover renders were inspected after the
+fix. Executable SHA-256 `946124875e4fe1c4cae6a051ef0f072488968c6355b62f158969fc5c5ddb7ba7`.
+Fresh session `1b7f1eff8b9c5b203d35ae30890884f8`, preparation cursor 6, has two separate
+ready/protected Accept/Reject candidates: `BPR-1609-insights-titlebar-v002` and `BPR-1609-insights-charts-v002`.
+Their exact fingerprints and manual continuation are in the current checkpoint.
+No owner verdict is consumed here. BPR-1609 stays human-pending. All engineering
+commands are finished; only its named loopback review server is handed off.
+
+Final tracker reconciliation adopts only main BPR-1619 allocation/receipt/plan/card
+and claim `a69668185`/`30515b8b7`. Main is an active unrelated source writer;
+its uncommitted work is preserved. No frozen product input or review fingerprint
+changed, so the passing candidate evidence is reused.

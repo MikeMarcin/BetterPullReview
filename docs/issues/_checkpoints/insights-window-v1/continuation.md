@@ -1,3 +1,111 @@
+# Current chart correction handoff
+
+Mandate **insights-window-v1-r1**, assignment **github-budget**, owner
+`/root/insights_chart_revision`, coordinator-implementer recipe r2, segment
+`github-budget-r2`. Source/tracker root is this checkout, branch
+`codex/insights-window-v1`. RFC_BASE_SHA remains
+`0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
+
+**BPR-1608 is Done; BPR-1609 is human-pending.** Both replacement owner
+criteria remain pending. No later milestone is eligible, and RFC-BPR-0086
+stays In Progress. Engineering writer ownership is released at this handoff.
+
+## Correction and integration
+
+Owner Reject event5 and handback6 in session
+`12f141ab8f2268fd7a22c6973bfd0921` were consumed before this fresh round.
+Both supplied screenshots and ATT's controller/Energy chart source were read.
+Scoped release event7 preserved the exact rejected v001 verdict; consumed
+cursor **7**. Its exact host was stopped. Rejection/history below is retained.
+
+`frontend-design` was loaded from the recorded installed SKILL.md before UX
+work; `code-simplifier` separated event and quantity painters. Production
+correction **d07af7f8d** places the six tabs/actions in the expanded native
+caption row and reuses macOS title suppression. The 40 px row shares the fixed
+900 × 542 canvas with the existing title/status header. ATT's framed lane
+proportions, interval event bars, stronger stack outline, swatch legend,
+centered range, bounded side ledgers and dated label/value hover guide the
+rendering. Palette/state roles remain the color authority; gaps, resets,
+maxima, stacks, midpoint selection and both edge flips remain explicit.
+
+Completed main **4bae9df70** was clean and its BPR-1618 handoff released its
+writer/commands. Merge **318c3f5aa** preserves it without conflicts.
+**6566d86f8** removes only the obsolete adopted claim beside its Done card and
+renews the reviewed combined composition pins; mutation admission is unchanged.
+No main checkout mutation or push. **c8cac034a** adds the event absence control;
+**fe82a531e** fixes logical raster coordinates at fractional DPI; **11a0ecb1f**
+keeps focus contrasting on the selected pill.
+
+Required frozen inspection exposed a real solid-brush leak after isolated
+samples. Final correction **173e69f7a** resets the outline brush. Its differential
+regression fails at the intended assertion without the reset, then passes on
+restoration. All 22 developer capture variants were inspected; the exact final
+frozen hour/day/hover renders were inspected again. No further state leak was
+observed. Earlier defective renders/logs remain under `before-brush-fix-*` in
+the runtime. Uncompleted freeze roots were stopped by exact owned PIDs and
+removed; the superseded completed root was removed with the freeze helper.
+
+Current main has since advanced to **30515b8b7** and is an active unrelated
+BPR-1619 source writer. Its exact committed allocation/card/receipt/plan and
+claim (`a69668185`/`30515b8b7`) were adopted together to preserve the global
+high-water gate. No uncommitted main source was adopted or changed. The frozen
+product source and both candidate fingerprints remain unchanged. Final main
+delivery waits for fresh reconciliation after owner acceptance.
+
+## Exact review handoff
+
+- State: `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-github-v002-20261018`.
+- Registry: `/Users/jaeger/.mask/attended-review-resources`.
+- Session: **`1b7f1eff8b9c5b203d35ae30890884f8`**; consumed preparation cursor **6**.
+- Native title-row candidate: `BPR-1609-insights-titlebar-v002, revision 173e69f7a-v002, fingerprint 9ac52a892f6f30e32310b5482a24d9ec316de1a2cb92bfcd205871f9d0f027a5`.
+- ATT chart candidate: `BPR-1609-insights-charts-v002, revision 173e69f7a-v002, fingerprint 9e8f16d1ead05319b19107c71c124b608493628ba838608a1fac09fa06a1a069`.
+- Both are ready/protected, share one immutable build resource, and ask one
+  Accept/Reject criterion each. No later verdict is consumed by this round.
+- Complete token-bearing URL is retained only in external
+  `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-chart-r2-qytjtsca/review-handoff.json`.
+- Review host PID **23452**, foreground tool session **91594**,
+  HTTP 200 at `127.0.0.1:61733`. This is the only running command
+  intentionally handed off. No waiter, daemon or automation exists.
+- Manual continuation: decisions save immediately; automatic continuation is
+  unavailable. After **Finish and hand back**, send **Resume the attended review**
+  in the same chat. Read this exact state with `status --after 6`, verify
+  both fingerprints/session, persist the consumed cursor, and interpret new
+  events in a fresh engineering round. Preserve protection until scoped release.
+- Offline fallback: `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-chart-r2-qytjtsca/review.html`. Import exported decisions before
+  they count. The native placement criterion requires launching the build;
+  offscreen content images do not show native traffic lights.
+
+## Frozen source, evidence and command state
+
+Exact source **`173e69f7afaaaa21b233ee56347bd3621d63b2f4`**, root `/Users/jaeger/bpr-insights-github-v002.x48bp45b`. Source and build are inside that
+root and read-only. Fixture trees are committed. Freeze and the launcher's own
+`--check` pass `ATTENDED_PULL_REQUEST_OPENED`. Executable SHA-256:
+`946124875e4fe1c4cae6a051ef0f072488968c6355b62f158969fc5c5ddb7ba7`.
+Launch: `/opt/homebrew/opt/python@3.14/bin/python3.14 /Users/jaeger/bpr-insights-github-v002.x48bp45b/launch.py`.
+
+The exact frozen public executable passes through its registered network-denying
+wrapper from writable runtime evidence. The new painter regression also runs
+there. Light/Dark Summary, both GitHub ranges and hover are generated from this
+build; source equivalence covers the changed UI, app composition and public
+course. Focused integration passed **4/4 in 22.21 s** (architecture, composition
+contract, binary surface, public Insights); fractional DPI passed after the
+sampler correction. The final painter fix has passing developer and exact-frozen
+public checks plus its failing negative control. LLVM22 format/tidy, the earlier
+67 documentation regressions and unchanged accounting/privacy/transport evidence
+are reused as applicable; the final documentation gate is run after bookkeeping.
+
+Runtime `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-chart-r2-qytjtsca` contains logs, images, manifest, offline HTML, acceptance,
+renewed binding/observation/check and full host metadata. All build/freeze/test
+and engineering commands finish before handoff; only the named review server
+remains. No delegation, live GitHub API test or remote mutation, push, stash, desktop capture/drive,
+personal browser-data access or recurring waiter. Native Windows/Linux UI,
+later Reviews/Energy/Work/calendar, export privacy closeout and idle-hour evidence
+remain with their existing obligations. Offscreen layout is not native or human
+acceptance. Next action is the exact two-criterion owner review; source delivery
+to main requires fresh writer/revision reconciliation after acceptance.
+
+# Prior engineering record
+
 # Insights window continuation
 
 Mandate `insights-window-v1-r1`; assignment **github-budget**, BPR-1608/BPR-1609,
