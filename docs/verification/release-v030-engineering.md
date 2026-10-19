@@ -518,3 +518,103 @@ The private clone remains an assessment dependency, with native Cocoa launch
 and four foreground courses separately pending. Root owns any later
 source/platform/artifact reconciliation and security disposition; no blanket
 qualification transfers to later candidates.
+
+## Measured Windows repairs and cross-platform closeout
+
+BPR-1646 through BPR-1652 are Done after native focused verification. The
+original 780-row Windows gate remains 767 pass, 12 fail and one configured
+Debug Skip at 93897; its complete evidence and each original refusal remain
+retained. A later focused 16-row native course passes at 1cdaf43b3, repairing
+all 12 failed rows without a full normal rerun claim. Final metrics and the
+reviewed composition-seal follow-ups pass at f164d6214. Changes after that
+source are tracker/ledger upkeep and require explicit producer source binding.
+
+The native metrics fixture forwards only unused standard channels, allowing
+its canonical self child to run under the existing AppContainer. CPU work,
+exact retained process handle, lifetime and reap predicates remain. The
+contained final course passes in 0.240959s. HTTPS is the sole additional finite
+uncontained registration: the exact MSYS OpenSSL runtime refuses
+NtCreateDirectoryObject under BaseNamedObjects with 0xC0000022 and exit
+3221225794, while the full 26-scenario direct course passes. Its existing
+90-second timeout, loopback port count one and assertions remain. The actual
+registered course passes in 8.44005s and mandatory native manifest in 1.41546s;
+all 72 verifier unit checks pass. No shared object ACL or product launch policy
+changes. The measured tools are Git's openssl.exe SHA-256
+`78340fb01dea2df5caab73dcf28833b31329226a4c9e02f717f1d399592265b9`
+and msys-2.0.dll SHA-256
+`2ea49553e4c03055dcf1c4a2bef54668081a07663fba283f4b34cf70f2157191`.
+
+The epoch fixture applies its existing owner-private helper to both Git and
+catalog roots. The complete Windows maintenance course passes in 8.86113s;
+its two recovery consumers pass in 23.6378/36.5195s. The label-bearing tray
+fixture explicitly supplies the wide host layout; compact product behavior
+and all label/focus/privacy/accessibility predicates remain. Full Windows
+workbench scales 100/125/200 pass in 187.012/196.604/216.219s under their
+original budgets, and the unread-badge course passes in 4.89385s. Timed thread
+frames buffer raw pixmaps and serialize PNG after the original animation
+course; event boundaries always pump. The 1350ms animation, all capture times
+and final settled predicate remain. All three thread scales pass; the six
+retained 200% light frames contain five distinct hashes, with arrival/held
+equal and dissolve/settled distinct. Original stalled frames remain retained.
+
+The footnote fixture clicks inside the full selected reference span, retaining
+real press/release, keyboard/back-reference and authored-link negative controls.
+All three complete Markdown scale courses pass. The Windows-only tests-on
+UIforETW observation now reads the caption action it already asserted at
+lead+16, preserving the complete row, rendered public composition and wire-cut
+control. The full native course passes in 50.0452s. Both bounded synthetic
+fatal/RVA diagnostic sources are restored exactly and the original privacy
+source rebuilt before acceptance; no diagnostic binary becomes a candidate.
+The exact app-source review since 7697 contains only that guarded index change.
+The stale composition seal first refuses, then its two full-scope pins are
+renewed for the reviewed bytes while the production mutation digest remains
+`16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1`.
+The complete native round-trip composition contract passes in 8.44589s.
+
+Cross-platform offscreen checks cover every changed shared fixture. Mac passes
+13 selected rows plus final rebuilt metrics and both recovery consumers;
+Ubuntu passes all 15 corresponding rows at f164d6214. The four shared fixture
+translation units pass focused clang-tidy 22 with warnings-as-errors against
+the actual Mac compilation database; its original two static-query warnings
+are retained and corrected without changing their calls. All five changed C++
+files pass clang-format 22. The canonical frontend-design skill guided the
+bounded Qt fixture work, preserving the established product style and layout.
+These offscreen checks provide no native desktop or Cocoa launch qualification.
+
+Separate tests-on optimized cache-bytes supplements preserve the configured
+normal Debug Skip: Mac passes in 102.44s at e40cd8026 and Windows Release in
+262.874s at f164d6214 under its original Windows 3420-second timeout. The
+first Ubuntu wrapper preserves a successful 350.403s optimized build but exits
+before cache execution on its incorrect timeout assumption. The original
+Linux registration is TIMEOUT900, RUN_SERIAL true and SKIP_RETURN_CODE77;
+its corrected operational wrapper builds only the existing network-namespace
+launcher omitted by the fresh target-only build, then runs that unrun course.
+The actual first Ubuntu Release course fails in49.6288s at its unchanged
+216MiB footprint-growth limit (229601280 measured bytes versus226492416).
+The exact-binary bounded counter observation reproduces it in49.9305s, with
+zero swap; both raw reports, full sample series and process provenance remain.
+BPR-1653 owns grounded allocator/live/mapped-page diagnosis before any repair
+or final source freeze. No passing supplement or unchanged-budget acceptance
+is claimed. No unsigned Linux
+distribution, credential operation or package publication is performed here.
+
+Frozen Mac source input equality remains false for github_application.cpp.
+The exact sole index replacement is under both BPR_BUILD_TESTING and _WIN32;
+transparent excluded-branch source projections match for distributions and
+Mac, rather than claiming compiled identity. All other required/governing
+inputs, the fixture tree and all four frozen executable hashes are unchanged.
+The coordinator's bounded adoption at 1cdaf43 does not automatically transfer
+to the final closeout source; fresh comparison and explicit adoption are
+required. Likewise the prior 7697 signed assets/security dispositions require
+final source/platform/artifact reconciliation and reproduction by the release
+coordinator.
+
+BPR-1632's original 142.3115ms Mac history input-gap cause remains unproved;
+later unchanged passes do not close it. BPR-1633 and the four session-bound Mac
+native courses remain pending: menu/status-item Cocoa, native notification,
+empty-desktop native menu bar and hide-drawers native menu key. The supported
+Linux signing unlock recheck still stops at missing credential 1168 before
+secret retrieval or signing. Existing M8/M9, vulnerability coverage and
+corresponding-source access limitations remain explicit. The new BPR-1653 memory failure remains an agent-owned obligation. Together,
+these obligations keep the overall milestone/release open despite the seven
+completed Windows repair cards.
