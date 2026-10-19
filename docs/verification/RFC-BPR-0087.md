@@ -160,3 +160,113 @@ host loading. The worktree's standalone registration is absent, so the
 registered main consumer supplies role readiness while all edits/builds stay
 in this isolated lane. No task-owned command remains running at this milestone
 boundary.
+
+## App rollout — BPR-1660
+
+Source candidate `81a132674` on `codex/shared-action-buttons` completes the
+`app-rollout` implementation milestone. The fresh non-delegating implementer
+used the shared engineering contract, coordinator-implementer leaf procedure
+and frontend-design skill; BPR-1577 v002 remains the design authority. Native
+host loading was not observed. Ready move `db3eee5a7` and claim `e5de4d357`
+preceded product edits. `milestone_checkpoint.py bind` bound `app-rollout` with
+`shared-settings` accepted, run `shared-action-buttons-r1`, segment `app-rollout`.
+
+`quiet_push_button` now shares the existing surface painter beneath
+QPushButton. It preserves push/dialog input, defaults, mnemonics, accessibility,
+icons and translated sizing. Default, menu and icon-only buttons retain native
+painting; deliberately flat secondary actions remain bare at rest. The
+[inventory](../ux/shared-action-buttons.md) resolves all 46 initial translation
+units, including products of mixed factories. It records the precise controls
+migrated and why primary/default, destructive, navigation, menu, hyperlink,
+icon-only, drawer and other semantic variants remain. No migration is deferred.
+There are no core, host, settings-schema or command-authority changes.
+
+### Actual verification
+
+All commands used this worktree's existing offline `build/dev` with `-O0 -g0`,
+the existing main CPM cache and at most two compiler jobs. Final build size is
+about 1.2 GiB and the Data volume has about 53 GiB available. No dependencies
+were downloaded or duplicated. The Qt adapter and 21 selected test executables
+built and linked with warnings as errors. The first build invocation named a
+nonexistent composed-target alias and stopped before compilation; it was
+corrected to `test_better_pull_review_qt_github_tests`.
+
+- `python3 /Users/jaeger/Documents/Codex/2026-10-19/task-4/run-app-button-courses.py`
+  passes **23/23** focused tests in **87.07 s**. It invokes CTest serially with
+  the registered macOS network-deny wrappers. Exact CTest arguments, selected
+  names and results are retained in `button-verification/app-rollout/` as
+  `focused-command.json`, `focused.log` and `focused-results.xml` (all local,
+  outside the source tree). The courses cover composed GitHub, workbench,
+  Home refusal/list, inline drawers/resident filters, device authorization,
+  conversation finder, epoch comparison, agent launch, Profiles, Markdown,
+  private review/composition, suggestions, review cycles, Settings, source
+  search, pending/refresh feedback, drawer parts and profile reset views.
+- The new `qt_quiet_buttons` course checks Space activation, dialog Return and
+  primary default behavior, accessibility name/description/role, disabled
+  input, translated/font sizing and text/icon space. Exact rasters match a
+  native QPushButton for default/menu/icon-only variants. Actual diagnostic
+  choice dispatch remains exclusive and retains the accepted value until the
+  host publishes its replacement; busy controls refuse dispatch. Profiles
+  retain primary Open/Save and working Rename/Cancel behavior.
+- Two initial assertions in that new test were corrected, with no corresponding
+  product defect: macOS native QPushButton does not expose the assumed Alt+C
+  shortcut in this environment, so the test now checks platform-native mnemonic
+  parity; diagnostics intentionally restore the accepted selection before
+  dispatch, so the test now observes publication before expecting a new check.
+- `python3 /Users/jaeger/Documents/Codex/2026-10-19/task-4/run-app-button-matrix.py`
+  passes **6/6** four-theme courses: Fusion and Windows styles at scale factors
+  **1, 1.25 and 2**. Measured on macOS arm64; facts in each `quiet-buttons.log` verify
+  Qt **6.11.2**, `platform=offscreen`, actual style and DPR. These are style
+  variants on this Mac, not native Windows or Linux measurements.
+- The same matrix runner's extra Windows-style 1x `qt_review_cycle_view_1_0`
+  course passes. `ctest --preset dev --output-on-failure -j 1 -R
+  '^qt_scoped_prose_editor$' --output-junit
+  /Users/jaeger/Documents/Codex/2026-10-19/task-4/button-verification/app-rollout/tour-writing-results.xml`
+  also passes (0.67 s), exercising real tour writing buttons, captured selection,
+  dispatch and cancellation.
+- clang-format **22.1.8** passes on all 39 touched C++ files. clang-tidy **22**
+  passes on `quiet_push_button.cpp` using the real dev compilation database.
+  `VerifyArchitectureBoundaries.cmake`, `git diff --check` and
+  `python3 scripts/verify_documentation.py --root .` pass.
+
+### Render inspection and limits
+
+Render root:
+`/Users/jaeger/Documents/Codex/2026-10-19/task-4/button-verification/app-rollout/`.
+The six `fusion-*`/`windows-*` directories hold **192 PNGs**: all four themes,
+Diagnostics rest/pressed/focus/disabled, Profiles and full Settings Home & queue,
+Notifications and Agents & context windows. Settings filenames use sidebar
+indices 3, 7 and 8 respectively. `matrix-results.json` records exact wrapper
+commands, exit codes, style/scale facts and render counts. The additional
+`cycle-windows-100` directory has **27 PNGs** of the real review-cycle window,
+share sheet, compact sheet, code/detail views and focus states.
+
+Inspected Light Diagnostics and Dark Profiles at Fusion 1x; High Contrast Dark
+Diagnostics keyboard focus at Windows 1.25x; Dark Notifications at Fusion 1.25x;
+High Contrast Light Home & queue at Windows 2x; Dark disabled Diagnostics at
+Fusion 2x; and the Windows 1x share sheet. Labels fit and remain readable,
+selected/action controls use the quiet shared surface, unselected choices stay
+bare, focus is visible and disabled controls are muted. The share sheet keeps
+its primary Copy/Save and specialized note-code tools distinct. This is actual
+widget/window layout evidence, not live desktop capture or human acceptance.
+
+The earlier full Appearance Fusion-2x tooltip-placement failure and its
+byte-identical native-choice control reproduction remain unchanged and recorded
+above. No new focused test failed on the final candidate. Native macOS
+appearance integration, native Windows/Linux desktop behavior and human visual
+judgment remain unobserved. No merge, push, release, live-service mutation,
+owner desktop control/capture, credential work or root README edit occurred.
+
+### Durable handoff
+
+BPR-1660's three acceptance bullets are satisfied by the completed inventory,
+shared push/tool adoption, preserved variants, 23 focused checks, tour check,
+6 style/scale courses and inspected composed renders. This accepts
+`app-rollout` only. A fresh implementer must take `verification-closeout`
+(BPR-1661/BPR-1662), reconcile RFC AC01–AC05 and the inherited platform limits,
+and prepare the closeout proposal. The existing closeout cards' earlier
+checkpoint text is historical and belongs to that successor's reconciliation.
+Separate integration authorization is required; none is inferred here.
+All task-owned builds/tests have exited and writer ownership returns to the
+coordinator at this boundary. The source tree, build and local evidence remain
+available for the successor.
