@@ -40,3 +40,18 @@ checked plain QToolButton. The style's actual checked-button painting and any
 host stylesheet interaction must be established before choosing a repair; no
 blanket style switch, assertion removal or readability threshold change is made.
 Evidence: ignored ubuntu-gate-r5.partial4 raw/normalized logs, rows564–565.
+
+
+## Native control and bounded fixture correction
+
+The isolated native Windows-style probe at395ae2393 paints#1c2026 when Button
+is#e3e3e3 but Window is#1c2026. Giving only the old button a Window role of
+#e3e3e3 paints exactly#e3e3e3 while the host Window remains#1c2026. The retained
+probe uses the same checked plain QToolButton, style and palette inputs.
+
+The old-native-bezel fixture now sets that role only on its old button. New
+preconditions require the actual fixed-grey fill and unchanged theme host
+surface. Every original old-reading rejection, Dark less-than4.5 control,
+shared-bar fill/contrast assertion, theme and scale remains. No product widget,
+style, palette or threshold changes. The coordinator approves this measured
+fixture correction; native focused verification and tidy remain pending.

@@ -327,11 +327,21 @@ namespace {
 			host.setPalette(under_native_bezel(host.palette()));
 			host.resize(276, 84);
 			auto* const bar = old_disclosure(host, title);
+			// A checked Windows-style tool button takes its fill from Window,
+			// while Cocoa supplies its native bezel. Keep the fixed-grey input
+			// on this old-bar control without changing the host's theme surface.
+			auto bezel = bar->palette();
+			for (const auto group : { QPalette::Active, QPalette::Inactive }) {
+				bezel.setColor(group, QPalette::Window, bezel.color(group, QPalette::Button));
+			}
+			bar->setPalette(bezel);
 			host.show();
 			settle();
 			const auto before = read_bar(*bar);
 			const auto label  = "the old bar on the native bezel in " + colours.Name;
 			std::cout << label << ": fill " << hex(before.Fill) << ", title " << before.Text << ":1\n";
+			expect(colour_near(before.Fill, bezel.color(QPalette::Active, QPalette::Button)), "the old-bar control actually paints the fixed native bezel");
+			expect(host.palette().color(QPalette::Active, QPalette::Window) == colours.Surface, "the bezel control leaves the host's theme surface unchanged");
 			expect(!passes(before, colours), label + " fails the disclosure reading");
 			if (colours.Mode == core::appearance_mode::dark) {
 				expect(before.Text < 4.5, "the owner's report: Dark's title on the bezel is below 4.5:1 (" + std::to_string(before.Text) + ")");
