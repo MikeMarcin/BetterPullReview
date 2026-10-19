@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1625"
 title: "Make the MCP terminal audit environment exact on macOS"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
