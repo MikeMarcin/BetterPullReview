@@ -237,3 +237,14 @@ The coordinator's two 100,000-run ASan/UBSan fuzz courses pass after the direct
 diagnostic link also includes the production `release_maintenance.cpp` option
 validator; the policy recipe now records that concrete input. These are focused
 results, not final release qualification or signing approval.
+
+
+[BPR-1634](../issues/60-done/BPR-1634-bind-workbench-command-loop-entries-by-reference.md)
+repairs the two actual GCC15 copied-range-binding warnings. Both loops now
+bind entry/id pairs by const reference while callbacks still capture id by
+value. The coordinator's native Ubuntu r3 and complete r5 builds compile the
+workbench with all warnings as errors. Mac focused `qt_change_end_keys` passes
+(0.52 seconds), and focused clang-tidy22 with warnings as errors passes on the
+workbench's exact compilation database. No command behavior or warning flag
+changes. BPR1635 and BPR1636 separately retain the later native test compile
+failures and their verification obligations.
