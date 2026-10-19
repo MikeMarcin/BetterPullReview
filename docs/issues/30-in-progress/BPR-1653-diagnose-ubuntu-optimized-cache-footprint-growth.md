@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
-metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"f164d6214664111c27eb4e89a33d68fce293925e","reservation":"docs/issues/_reservations/BPR-1653--BPR-1653--c646fbf2f786.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["tests/end_to_end/large_review_benchmark.cpp","tests/end_to_end/large_review_native_memory.cpp","tests/end_to_end/large_review_observers.hpp"],"boundary":"Named memory-course diagnosis and subsequently grounded bounded repair; report product-input impact before candidate mutation, no budget/predicate relaxation or platform skip"}
+metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"f164d6214664111c27eb4e89a33d68fce293925e","reservation":"docs/issues/_reservations/BPR-1653--BPR-1653--c646fbf2f786.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["tests/end_to_end/large_review_benchmark.cpp","tests/end_to_end/large_review_native_memory.cpp","tests/end_to_end/large_review_observers.hpp","src/app/src/large_review_fixture.hpp","tests/end_to_end/application_review_round_trip_composition_contract.cmake"],"boundary":"Named memory-course diagnosis and subsequently grounded bounded repair; report product-input impact before candidate mutation, no budget/predicate relaxation or platform skip"}
 ---
 
 # BPR-1653: Diagnose Ubuntu optimized cache footprint growth
@@ -23,6 +23,8 @@ benchmark build itself passed in 350.403 seconds.
 - AC1: Preserve the exact original sample series, before-application baseline, lifetime high-water, unchanged 216 MiB Linux limit/formula, registered 900-second serial course, Release flags and process provenance. Ground the cause in actual fixture, retained/cache allocation or environmental observations; another platform passing is not a diagnosis.
 - AC2: Implement only a justified bounded correction after reporting exact product/frozen-input impact to the coordinator. Preserve original footprint/live-heap/cache/eviction/cleanup/input predicates, platform limits, course configuration and deadlines. No platform skip, allocator tuning or measurement bypass supplies acceptance.
 - AC3: Run the actual optimized native course on the exact candidate, retain the original failure and meaningful causal counterexample evidence, and complete appropriate focused verification. Any temporary diagnostics are restored and original binary rebuilt before acceptance; final source freeze follows all card/ledger upkeep.
+
+- AC4: Preserve exact encoded request/response output for all 32 heads with an altered-field negative control. Review only the fixture-header source change, reseal full/app-manifest composition pins with unchanged production mutation digest, and run the actual complete composition contract. Record tests-OFF exclusion separately; the Mac frozen tests-on input is invalid until explicit rebuild/reconciliation.
 
 ## Preserved first failure
 
@@ -60,3 +62,19 @@ the original benchmark is rebuilt to identical SHA-256
 `67f292c90c8ccb089cc70893360597a11dd6ce2cdb8b5cd55a3b9435f623d777`.
 No diagnostic binary supplies acceptance. BPR-1371's existing separate Mac
 allocator/assertion proposal remains unapplied and is not adopted here.
+
+## Approved bounded repair
+
+The pinned Glaze8.3 object initializer-list constructor explicitly copies its
+const entries, including moved arrays. The connection and GraphQL envelope
+currently nest each100-thread page through several of those lists on every
+refresh. The approved candidate moves the same arrays/objects into the same
+ordered envelope instead. There is no cache, skipped refresh, changed payload,
+baseline shift or allocator tuning. Exact32-head output equivalence and a
+changed-field control precede native acceptance; the original header supplies
+a causal memory control. All original workload and limits remain.
+
+This header is an app/helper input in tests-on Mac builds, invalidating the
+previous frozen-input adoption until fresh rebuild or rigorous reconciliation.
+The tests-OFF distribution fixture exclusion and unchanged production mutation
+digest require separate evidence. No automatic guard-based adoption applies.
