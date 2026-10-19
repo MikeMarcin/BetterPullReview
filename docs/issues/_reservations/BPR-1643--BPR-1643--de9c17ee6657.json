@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1643"
+  ],
+  "reserve_for": "release-v030-coordinated-r1",
+  "purpose": "Diagnose actual Ubuntu C++ identifier foreground raster failure preserving all required contrast and paint assertions",
+  "created": "2026-10-19T06:10:17.694043+00:00",
+  "base": "30db47224c43a8df23f66234a1859b7c42b7643d"
+}
