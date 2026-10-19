@@ -45,8 +45,12 @@ namespace bpr::qt {
 		update();
 	}
 	auto insights_chart::hovered_index() const noexcept -> std::optional<std::size_t> { return Hovered; }
-	auto insights_chart::main_plot() const -> QRectF { return QRectF{ 10.0, 48.0, std::max(1.0, static_cast<double>(width()) - 20.0), std::max(1.0, static_cast<double>(height()) - 74.0) }; }
-	auto insights_chart::event_plot() const -> QRectF { return { 10.0, 16.0, std::max(1.0, static_cast<double>(width()) - 20.0), 14.0 }; }
+	auto insights_chart::main_plot() const -> QRectF
+	{
+		const auto top = event_plot().bottom() + 26.0;
+		return { 10.0, top, std::max(1.0, static_cast<double>(width()) - 20.0), std::max(1.0, static_cast<double>(height()) - top - 32.0) };
+	}
+	auto insights_chart::event_plot() const -> QRectF { return { 10.0, 26.0, std::max(1.0, static_cast<double>(width()) - 20.0), std::max(18.0, std::floor((static_cast<double>(height()) - 84.0) * 0.24)) }; }
 	auto insights_chart::x_for(const std::int64_t aAt) const -> double
 	{
 		const auto plot     = main_plot();
@@ -63,59 +67,84 @@ namespace bpr::qt {
 		}
 		return std::max(1.0, maximum);
 	}
-	void insights_chart::paint_series(QPainter& aPainter, const QRectF& aPlot, const double aMaximum, const bool aEvents)
+	void insights_chart::paint_events(QPainter& aPainter, const QRectF& aPlot, const double aMaximum)
+	{
+		const auto ink = ForegroundColor.isValid() ? ForegroundColor : palette().color(QPalette::PlaceholderText);
+		const auto y   = [&](const double aValue) { return aPlot.bottom() - nonnegative(aValue) / aMaximum * aPlot.height(); };
+		// ATT's event lane uses interval bars. Bound every slot by its
+		// neighbours and the gap threshold, so missing time stays empty.
+		for (std::size_t index = 0; index < Data.Points.size(); ++index) {
+			const auto& point = Data.Points[index];
+			if (!point.Events || *point.Events <= 0.0) {
+				continue;
+			}
+			auto interval = Data.GapSeconds;
+			if (index > 0) {
+				interval = std::min(interval, point.UnixSeconds - Data.Points[index - 1].UnixSeconds);
+			}
+			if (index + 1 < Data.Points.size()) {
+				interval = std::min(interval, Data.Points[index + 1].UnixSeconds - point.UnixSeconds);
+			}
+			const auto duration = static_cast<double>(std::max<std::int64_t>(1, Data.EndUnixSeconds - Data.StartUnixSeconds));
+			const auto slot     = std::max(1.0, aPlot.width() * static_cast<double>(std::max<std::int64_t>(1, interval)) / duration * 0.8);
+			const auto bar      = QRectF{ x_for(point.UnixSeconds) - slot / 2.0, y(*point.Events), slot, aPlot.bottom() - y(*point.Events) }.intersected(aPlot);
+			aPainter.setPen(QPen{ ink, 1.0 });
+			aPainter.setBrush(tint(ink, 0.65));
+			aPainter.drawRect(bar);
+		}
+	}
+	void insights_chart::paint_quantity(QPainter& aPainter, const QRectF& aPlot, const double aMaximum)
 	{
 		const auto  ink           = BackgroundColor.isValid() ? BackgroundColor : palette().color(QPalette::Highlight);
 		const auto  foregroundInk = ForegroundColor.isValid() ? ForegroundColor : palette().color(QPalette::PlaceholderText);
-		const auto  value         = [aEvents](const insights_chart_point& aPoint) { return aEvents ? aPoint.Events : aPoint.Background; };
 		const auto  y             = [&](const double aValue) { return aPlot.bottom() - nonnegative(aValue) / aMaximum * aPlot.height(); };
 		std::size_t first         = 0;
 		while (first < Data.Points.size()) {
-			if (!value(Data.Points[first])) {
+			if (!Data.Points[first].Background) {
 				++first;
 				continue;
 			}
 			std::size_t end = first + 1;
-			while (end < Data.Points.size() && value(Data.Points[end]) && Data.Points[end].UnixSeconds - Data.Points[end - 1].UnixSeconds <= Data.GapSeconds && !Data.Points[end].Reset) {
+			while (end < Data.Points.size() && Data.Points[end].Background && Data.Points[end].UnixSeconds - Data.Points[end - 1].UnixSeconds <= Data.GapSeconds && !Data.Points[end].Reset) {
 				++end;
 			}
 			QPainterPath lower, upper, lowerFill, upperFill;
 			const auto   firstX = x_for(Data.Points[first].UnixSeconds);
-			lower.moveTo(firstX, y(*value(Data.Points[first])));
+			lower.moveTo(firstX, y(*Data.Points[first].Background));
 			lowerFill.moveTo(firstX, aPlot.bottom());
 			lowerFill.lineTo(lower.currentPosition());
-			upper.moveTo(firstX, y(*value(Data.Points[first]) + (aEvents ? 0.0 : Data.Points[first].Foreground)));
+			upper.moveTo(firstX, y(*Data.Points[first].Background + Data.Points[first].Foreground));
 			upperFill.moveTo(lower.currentPosition());
 			upperFill.lineTo(upper.currentPosition());
 			for (std::size_t index = first + 1; index < end; ++index) {
 				const auto& point = Data.Points[index];
-				lower.lineTo(x_for(point.UnixSeconds), y(*value(point)));
+				lower.lineTo(x_for(point.UnixSeconds), y(*point.Background));
 				lowerFill.lineTo(lower.currentPosition());
-				upper.lineTo(x_for(point.UnixSeconds), y(*value(point) + (aEvents ? 0.0 : point.Foreground)));
+				upper.lineTo(x_for(point.UnixSeconds), y(*point.Background + point.Foreground));
 				upperFill.lineTo(upper.currentPosition());
 			}
 			lowerFill.lineTo(x_for(Data.Points[end - 1].UnixSeconds), aPlot.bottom());
 			lowerFill.closeSubpath();
 			for (std::size_t index = end; index > first; --index) {
 				const auto& point = Data.Points[index - 1];
-				upperFill.lineTo(x_for(point.UnixSeconds), y(*value(point)));
+				upperFill.lineTo(x_for(point.UnixSeconds), y(*point.Background));
 			}
 			upperFill.closeSubpath();
-			aPainter.fillPath(lowerFill, tint(ink, 0.20));
-			aPainter.setPen(QPen{ ink, 1.5 });
+			aPainter.fillPath(lowerFill, tint(ink, 0.26));
+			aPainter.setPen(QPen{ ink, 1.8 });
 			aPainter.drawPath(lower);
-			if (!aEvents && !Data.ForegroundName.isEmpty()) {
-				aPainter.fillPath(upperFill, tint(foregroundInk, 0.20));
-				aPainter.setPen(QPen{ foregroundInk, 1.5 });
+			if (!Data.ForegroundName.isEmpty()) {
+				aPainter.fillPath(upperFill, tint(foregroundInk, 0.26));
+				aPainter.setPen(QPen{ foregroundInk, 1.8 });
 				aPainter.drawPath(upper);
 			}
-			aPainter.setPen(QPen{ ink, 1.5 });
+			aPainter.setPen(QPen{ ink, 1.8 });
 			aPainter.drawPath(lower);
 			if (end == first + 1) {
 				aPainter.setBrush(ink);
 				aPainter.setPen(Qt::NoPen);
 				aPainter.drawEllipse(lower.currentPosition(), 2.0, 2.0);
-				if (!aEvents && !Data.ForegroundName.isEmpty()) {
+				if (!Data.ForegroundName.isEmpty()) {
 					aPainter.setBrush(foregroundInk);
 					aPainter.drawEllipse(upper.currentPosition(), 2.0, 2.0);
 				}
@@ -134,14 +163,19 @@ namespace bpr::qt {
 		const auto mainPlot   = main_plot();
 		const auto eventsPlot = event_plot();
 		const auto maximum    = quantity_maximum();
-		aPainter.setPen(tint(palette().color(QPalette::WindowText), 0.12));
-		for (int line = 0; line <= 3; ++line) {
-			const auto y = mainPlot.top() + mainPlot.height() * static_cast<double>(line) / 3.0;
-			aPainter.drawLine(QPointF{ mainPlot.left(), y }, QPointF{ mainPlot.right(), y });
+		for (const auto& plot : { eventsPlot, mainPlot }) {
+			aPainter.fillRect(plot, palette().color(QPalette::Base));
+			aPainter.setPen(tint(palette().color(QPalette::WindowText), 0.24));
+			aPainter.drawRect(plot);
+			aPainter.setPen(tint(palette().color(QPalette::WindowText), 0.12));
+			const auto divisions = plot == eventsPlot ? 2 : 4;
+			for (int line = 1; line < divisions; ++line) {
+				const auto y = plot.top() + plot.height() * static_cast<double>(line) / static_cast<double>(divisions);
+				aPainter.drawLine(QPointF{ plot.left(), y }, QPointF{ plot.right(), y });
+			}
 		}
-		aPainter.drawLine(eventsPlot.bottomLeft(), eventsPlot.bottomRight());
-		paint_series(aPainter, mainPlot, maximum, false);
-		paint_series(aPainter, eventsPlot, eventsMaximum, true);
+		paint_quantity(aPainter, mainPlot, maximum);
+		paint_events(aPainter, eventsPlot, eventsMaximum);
 		if (Data.Reference) {
 			const auto y = mainPlot.bottom() - *Data.Reference / maximum * mainPlot.height();
 			aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.0, Qt::DashLine });
@@ -154,27 +188,35 @@ namespace bpr::qt {
 			}
 		}
 		aPainter.setPen(palette().color(QPalette::PlaceholderText));
-		aPainter.drawText(QRectF{ 10.0, 0.0, mainPlot.width(), 15.0 }, Qt::AlignLeft | Qt::AlignVCenter, Data.EventsName);
-		aPainter.drawText(QRectF{ 10.0, 0.0, mainPlot.width(), 15.0 }, Qt::AlignRight | Qt::AlignVCenter, tr("max %1").arg(number(eventsMaximum)));
-		aPainter.drawText(QRectF{ 10.0, 32.0, mainPlot.width(), 15.0 }, Qt::AlignLeft | Qt::AlignVCenter, Data.Quantity);
-		aPainter.drawText(QRectF{ 10.0, 32.0, mainPlot.width(), 15.0 }, Qt::AlignRight | Qt::AlignVCenter, tr("max %1").arg(number(maximum)));
-		QString legend = Data.BackgroundName;
+		aPainter.drawText(QRectF{ 10.0, 5.0, mainPlot.width(), 17.0 }, Qt::AlignLeft | Qt::AlignVCenter, Data.EventsName);
+		aPainter.drawText(QRectF{ 10.0, 5.0, mainPlot.width(), 17.0 }, Qt::AlignRight | Qt::AlignVCenter, tr("max %1").arg(number(eventsMaximum)));
+		aPainter.drawText(QRectF{ 10.0, mainPlot.top() - 22.0, mainPlot.width(), 17.0 }, Qt::AlignLeft | Qt::AlignVCenter, Data.Quantity);
+		aPainter.drawText(QRectF{ 10.0, mainPlot.top() - 22.0, mainPlot.width(), 17.0 }, Qt::AlignRight | Qt::AlignVCenter, tr("max %1").arg(number(maximum)));
+		double     legendX = 10.0;
+		const auto legend  = [&](const QString& aName, const QColor& aColor) {
+			aPainter.setPen(QPen{ aColor, 2.0, Qt::SolidLine, Qt::RoundCap });
+			aPainter.drawLine(QPointF{ legendX, mainPlot.bottom() + 17.0 }, QPointF{ legendX + 10.0, mainPlot.bottom() + 17.0 });
+			aPainter.setPen(palette().color(QPalette::PlaceholderText));
+			aPainter.drawText(QRectF{ legendX + 15.0, mainPlot.bottom() + 7.0, mainPlot.width(), 20.0 }, Qt::AlignLeft | Qt::AlignVCenter, aName);
+			legendX += 30.0 + aPainter.fontMetrics().horizontalAdvance(aName);
+		};
+		legend(Data.EventsName, ForegroundColor.isValid() ? ForegroundColor : palette().color(QPalette::PlaceholderText));
+		legend(Data.BackgroundName, BackgroundColor.isValid() ? BackgroundColor : palette().color(QPalette::Highlight));
 		if (!Data.ForegroundName.isEmpty()) {
-			legend += QStringLiteral("  +  ") + Data.ForegroundName;
+			legend(Data.ForegroundName, ForegroundColor.isValid() ? ForegroundColor : palette().color(QPalette::PlaceholderText));
 		}
-		legend += QStringLiteral("    ·    ") + Data.EventsName;
-		aPainter.drawText(QRectF{ 10.0, mainPlot.bottom() + 5.0, mainPlot.width(), 18.0 }, Qt::AlignLeft | Qt::AlignVCenter, legend);
 	}
 	auto insights_chart::hover_card_rect() const -> QRectF
 	{
 		if (!Hovered || *Hovered >= Data.Points.size()) {
 			return { };
 		}
-		const auto cardWidth  = std::min(250.0, static_cast<double>(width()) - 16.0);
-		const auto cardHeight = std::min(Data.ForegroundName.isEmpty() ? 70.0 : 88.0, static_cast<double>(height()) - 16.0);
+		const auto cardWidth  = std::min(280.0, static_cast<double>(width()) - 16.0);
+		const auto cardHeight = std::min(Data.ForegroundName.isEmpty() ? 90.0 : 110.0, static_cast<double>(height()) - 16.0);
 		const auto x          = x_for(Data.Points[*Hovered].UnixSeconds);
 		const auto left       = x + 12.0 + cardWidth <= static_cast<double>(width()) - 8.0 ? x + 12.0 : x - 12.0 - cardWidth;
-		return { std::clamp(left, 8.0, std::max(8.0, static_cast<double>(width()) - 8.0 - cardWidth)), 8.0, cardWidth, cardHeight };
+		const auto top        = HoverY + 12.0 + cardHeight <= static_cast<double>(height()) - 8.0 ? HoverY + 12.0 : HoverY - 12.0 - cardHeight;
+		return { std::clamp(left, 8.0, std::max(8.0, static_cast<double>(width()) - 8.0 - cardWidth)), std::clamp(top, 8.0, std::max(8.0, static_cast<double>(height()) - 8.0 - cardHeight)), cardWidth, cardHeight };
 	}
 	void insights_chart::paint_hover(QPainter& aPainter)
 	{
@@ -184,42 +226,45 @@ namespace bpr::qt {
 		const auto& point = Data.Points[*Hovered];
 		const auto  x     = x_for(point.UnixSeconds);
 		const auto  plot  = main_plot();
-		aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.0, Qt::DotLine });
+		aPainter.setPen(QPen{ tint(palette().color(QPalette::WindowText), 0.20), 1.0 });
 		aPainter.drawLine(QPointF{ x, event_plot().top() }, QPointF{ x, plot.bottom() });
 		if (point.Background) {
 			aPainter.setBrush(BackgroundColor.isValid() ? BackgroundColor : palette().color(QPalette::Highlight));
-			aPainter.setPen(QPen{ palette().color(QPalette::Base), 1.5 });
+			aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.5 });
 			aPainter.drawEllipse(QPointF{ x, plot.bottom() - (*point.Background + point.Foreground) / quantity_maximum() * plot.height() }, 3.5, 3.5);
 		}
 		const auto box = hover_card_rect();
 		aPainter.setBrush(palette().color(QPalette::Base));
-		aPainter.setPen(QPen{ tint(palette().color(QPalette::WindowText), 0.25), 1.0 });
-		aPainter.drawRoundedRect(box, 5.0, 5.0);
-		auto textBox = box.adjusted(9.0, 5.0, -9.0, -5.0);
+		aPainter.setPen(QPen{ tint(palette().color(QPalette::WindowText), 0.55), 1.0 });
+		aPainter.drawRoundedRect(box, 7.0, 7.0);
+		auto textBox = box.adjusted(10.0, 8.0, -10.0, -8.0);
 		aPainter.setPen(palette().color(QPalette::WindowText));
-		const auto  time = QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(point.UnixSeconds).time(), QLocale::ShortFormat);
-		QStringList lines{ time, Data.BackgroundName + QStringLiteral(": ") + (point.Background ? number(*point.Background) : tr("No reading")) };
+		const auto time      = QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(point.UnixSeconds), QLocale::ShortFormat);
+		const auto bodyFont  = aPainter.font();
+		auto       titleFont = bodyFont;
+		titleFont.setWeight(QFont::DemiBold);
+		aPainter.setFont(titleFont);
+		aPainter.drawText(QRectF{ textBox.left(), textBox.top(), textBox.width(), 20.0 }, Qt::AlignLeft | Qt::AlignVCenter, time);
+		textBox.setTop(textBox.top() + 25.0);
+		aPainter.setFont(bodyFont);
+		const auto row = [&](const QString& aLabel, const QString& aValue) {
+			aPainter.setPen(palette().color(QPalette::PlaceholderText));
+			aPainter.drawText(QRectF{ textBox.left(), textBox.top(), textBox.width(), 20.0 }, Qt::AlignLeft | Qt::AlignVCenter, aLabel);
+			aPainter.setPen(palette().color(QPalette::WindowText));
+			aPainter.drawText(QRectF{ textBox.left(), textBox.top(), textBox.width(), 20.0 }, Qt::AlignRight | Qt::AlignVCenter, aValue);
+			textBox.setTop(textBox.top() + 20.0);
+		};
+		row(Data.BackgroundName, point.Background ? number(*point.Background) : tr("No reading"));
 		if (!Data.ForegroundName.isEmpty()) {
-			lines.push_back(Data.ForegroundName + QStringLiteral(": ") + number(point.Foreground));
+			row(Data.ForegroundName, number(point.Foreground));
 		}
-		lines.push_back(Data.EventsName + QStringLiteral(": ") + (point.Events ? number(*point.Events) : tr("No sample")));
-		bool       title    = true;
-		const auto bodyFont = aPainter.font();
-		for (const auto& line : lines) {
-			auto rowFont = bodyFont;
-			if (title) {
-				rowFont.setWeight(QFont::DemiBold);
-			}
-			aPainter.setFont(rowFont);
-			title = false;
-			aPainter.drawText(QRectF{ textBox.left(), textBox.top(), textBox.width(), 17.0 }, Qt::AlignLeft | Qt::AlignVCenter, line);
-			textBox.setTop(textBox.top() + 17.0);
-		}
+		row(Data.EventsName, point.Events ? number(*point.Events) : tr("No sample"));
 	}
 	void insights_chart::paintEvent(QPaintEvent*)
 	{
 		QPainter painter{ this };
 		painter.setRenderHint(QPainter::Antialiasing);
+		painter.fillRect(rect(), palette().color(QPalette::Window));
 		auto textFont = font();
 		textFont.setPointSizeF(textFont.pointSizeF() * 11.0 / 13.0);
 		painter.setFont(textFont);
@@ -246,6 +291,7 @@ namespace bpr::qt {
 			}
 		}
 		Hovered = nearest;
+		HoverY  = aEvent->position().y();
 		update();
 	}
 	void insights_chart::leaveEvent(QEvent*)

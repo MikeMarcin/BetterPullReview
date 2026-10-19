@@ -53,12 +53,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto         main_plot() const -> QRectF;
 		[[nodiscard]] auto         event_plot() const -> QRectF;
 		void                       paint_lanes(QPainter& aPainter);
-		void                       paint_series(QPainter& aPainter, const QRectF& aPlot, double aMaximum, bool aEvents);
+		void                       paint_quantity(QPainter& aPainter, const QRectF& aPlot, double aMaximum);
+		void                       paint_events(QPainter& aPainter, const QRectF& aPlot, double aMaximum);
 		void                       paint_hover(QPainter& aPainter);
 		insights_chart_data        Data;
 		QColor                     BackgroundColor;
 		QColor                     ForegroundColor;
 		std::optional<std::size_t> Hovered;
+		double                     HoverY = 0.0;
 	};
 }
 #endif

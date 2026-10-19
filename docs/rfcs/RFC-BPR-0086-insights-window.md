@@ -87,6 +87,14 @@ Storage, Work, Energy**. It has two header actions: **Reveal data folder**,
 and **Export anonymized diagnostics…**. The export action opens the existing
 frozen-preview export flow, which gains an Insights section (see Privacy).
 
+Owner clarification, 2026-10-18, rejecting the first GitHub chart candidate:
+the tabs belong in the actual header title-bar row, as in AllTheThings, to
+avoid spending a separate row. The ATT Energy screenshot and source remain
+the chart reference. Its event bars, framed lane proportions and taller graph
+guide this correction; quantity series retain the area stack, maxima and gap
+rules below. Native title-bar placement and chart quality receive separate
+Accept/Reject questions in the replacement attended session.
+
 **Fixed size.** The owner: "We had explicit rules in ATT to make sure all
 tabs were the same window size so we didn't get that disconcerting resizing
 motion."

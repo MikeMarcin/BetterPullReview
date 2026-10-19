@@ -80,9 +80,11 @@ namespace {
 		move(69.0);
 		expect(chart.hovered_index() == 1, "hover advances after crossing the midpoint");
 		move(590.0);
-		expect(chart.hovered_index() == 2 && chart.hover_card_rect().left() >= 8.0 && chart.hover_card_rect().right() <= 592.0, "hover flips at the trailing edge with an eight-pixel inset");
+		expect(chart.hovered_index() == 2 && chart.hover_card_rect().left() >= 8.0 && chart.hover_card_rect().right() <= 592.0 && chart.hover_card_rect().bottom() <= 152.0, "hover flips at the trailing and bottom edges with an eight-pixel inset");
 		move(10.0);
 		expect(chart.hover_card_rect().left() >= 8.0, "leading hover respects the inset");
+		QEvent leave{ QEvent::Leave };
+		QApplication::sendEvent(&chart, &leave);
 		chart.hide();
 		const auto raster = chart.grab().toImage();
 		expect(raster.pixelColor(60, 115) != raster.pixelColor(300, 115), "foreground is filled above background, and the unsampled interval is a gap");
@@ -128,6 +130,13 @@ namespace {
 						range->setCurrentIndex(selected);
 						QApplication::processEvents();
 						expect(aShell.grab().save(folder + QStringLiteral("/insights-github-%1-%2.png").arg(selected).arg(suffix)), "both real GitHub ranges render");
+						auto*       chart = dynamic_cast<qt::insights_chart*>(aShell.findChild<QWidget*>(QStringLiteral("insightsGithubChart")));
+						const auto  local = QPointF{ static_cast<double>(chart->width()) * 0.8, static_cast<double>(chart->height()) * 0.65 };
+						QMouseEvent hover{ QEvent::MouseMove, local, chart->mapToGlobal(local.toPoint()), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+						QApplication::sendEvent(chart, &hover);
+						expect(aShell.grab().save(folder + QStringLiteral("/insights-github-hover-%1-%2.png").arg(selected).arg(suffix)), "ATT-style hover renders on the real GitHub chart");
+						QEvent leave{ QEvent::Leave };
+						QApplication::sendEvent(chart, &leave);
 					}
 				}
 			}
@@ -184,11 +193,17 @@ try {
 	auto*      toolbar   = shell->findChild<QWidget*>(QStringLiteral("insightsToolbar"));
 	auto*      header    = shell->findChild<QWidget*>(QStringLiteral("insightsHeader"));
 	const auto headerBox = header->geometry();
-	expect(toolbar->geometry().bottom() < headerBox.top() && headerBox.bottom() < pages->geometry().top(), "centered toolbar precedes a fixed title/status header and page body");
+	expect(toolbar->geometry().top() == 0 && toolbar->height() == 40 && shell->windowFlags().testFlag(Qt::ExpandedClientAreaHint) && shell->windowFlags().testFlag(Qt::NoTitleBarBackgroundHint) && !shell->testAttribute(Qt::WA_ContentsMarginsRespectsSafeArea), "tabs and actions occupy the expanded native title row without an extra safe-area row");
+	expect(toolbar->geometry().bottom() < headerBox.top() && headerBox.bottom() < pages->geometry().top(), "the unified title row precedes a fixed title/status header and page body");
 	expect(qt::insights_window::content_size({ 1280, 1000 }) == QSize{ 900, 542 } && content == qt::insights_window::content_size(shell->screen()->availableGeometry().size()), "the mockup dimensions clamp to the opening screen");
 	expect(tabs->count() == 6 && shell->minimumSize() == shell->maximumSize(), "six pages share one non-resizable size");
 	for (int page = 0; page < tabs->count(); ++page) {
 		tabs->setCurrentIndex(page);
+		if (page == 2) {
+			auto* chart      = dynamic_cast<qt::insights_chart*>(shell->findChild<QWidget*>(QStringLiteral("insightsGithubChart")));
+			auto* categories = shell->findChild<QTableWidget*>(QStringLiteral("insightsRequestCategories"));
+			expect(chart->height() > 200 && categories->mapTo(shell, QPoint{ }).x() > chart->mapTo(shell, QPoint{ }).x() + chart->width(), "ATT composition gives the chart height and keeps bounded facts beside it");
+		}
 		for (auto* range : pages->currentWidget()->findChildren<QTabBar*>()) {
 			for (int index = 0; index < range->count(); ++index) {
 				range->setCurrentIndex(index);

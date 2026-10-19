@@ -1,5 +1,6 @@
 #include "bpr/qt/insights_window.hpp"
 #include "bpr/qt/insights_chart.hpp"
+#include "bpr/qt/native_window_chrome.hpp"
 
 #include <QApplication>
 #include <QDateTime>
@@ -98,15 +99,18 @@ namespace bpr::qt {
 			{
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(palette().color(QPalette::Button));
+				painter.drawRoundedRect(QRectF{ rect() }, 7.0, 7.0);
 				for (int index = 0; index < count(); ++index) {
 					const auto box      = QRectF{ tabRect(index) }.adjusted(1.0, 1.0, -1.0, -1.0);
 					const bool selected = index == currentIndex();
 					if (selected) {
-						painter.setPen(QPen{ outline(palette()), 1.0 });
-						painter.setBrush(palette().color(QPalette::Base));
+						painter.setPen(Qt::NoPen);
+						painter.setBrush(palette().color(QPalette::Highlight));
 						painter.drawRoundedRect(box, 7.0, 7.0);
 					}
-					painter.setPen(palette().color(QPalette::WindowText));
+					painter.setPen(palette().color(selected ? QPalette::HighlightedText : QPalette::ButtonText));
 					painter.drawText(box, Qt::AlignCenter, tabText(index));
 					if (selected && hasFocus()) {
 						painter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
@@ -412,14 +416,22 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("insightsWindow"));
 		setWindowTitle(tr("Insights"));
 		setAccessibleName(tr("Insights"));
+		// Share the native caption row, as the workbench does. The left inset
+		// belongs to macOS traffic lights; Windows keeps its caption controls right.
+		setWindowFlag(Qt::ExpandedClientAreaHint, true);
+		setWindowFlag(Qt::NoTitleBarBackgroundHint, true);
+		setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
 		auto* column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 16);
 		column->setSpacing(0);
 		auto* toolbar = new QWidget{ this };
 		toolbar->setObjectName(QStringLiteral("insightsToolbar"));
-		toolbar->setFixedHeight(52);
+		toolbar->setFixedHeight(40);
 		auto* bar = new QHBoxLayout{ toolbar };
-		bar->setContentsMargins(16, 8, 16, 8);
+		bar->setContentsMargins(16, 4, 16, 4);
+#if defined(Q_OS_WIN)
+		bar->setContentsMargins(16, 4, 154, 4);
+#endif
 		bar->setSpacing(4);
 		bar->addSpacing(64);
 		bar->addStretch();
@@ -546,18 +558,25 @@ namespace bpr::qt {
 			result.Value->setObjectName(QStringLiteral("insightsGithubBudget%1").arg(index));
 			++index;
 		}
-		GithubRange = ranges(aColumn, { tr("1h"), tr("1d") }, tr("GitHub range"));
-		GithubChart = new insights_chart{ aColumn.parentWidget() };
+		auto* timeline = new QHBoxLayout;
+		timeline->setSpacing(14);
+		auto* plot        = new QWidget{ aColumn.parentWidget() };
+		auto* chartColumn = new QVBoxLayout{ plot };
+		chartColumn->setContentsMargins(0, 0, 0, 0);
+		chartColumn->setSpacing(8);
+		GithubRange = ranges(*chartColumn, { tr("1h"), tr("1d") }, tr("GitHub range"));
+		chartColumn->setAlignment(GithubRange, Qt::AlignHCenter);
+		GithubChart = new insights_chart{ plot };
 		GithubChart->setObjectName(QStringLiteral("insightsGithubChart"));
-		GithubChart->setMinimumHeight(80);
-		GithubChart->setMaximumHeight(138);
-		aColumn.addWidget(GithubChart, 1);
-		auto* facts = new QHBoxLayout;
-		facts->setSpacing(16);
+		chartColumn->addWidget(GithubChart, 1);
+		timeline->addWidget(plot, 3);
+		auto* facts = new QVBoxLayout;
+		facts->setContentsMargins(0, 40, 0, 0);
+		facts->setSpacing(10);
 		for (int side = 0; side < 2; ++side) {
 			auto* column = new QVBoxLayout;
 			column->setSpacing(2);
-			column->addWidget(label(side == 0 ? tr("Where BPR’s requests went") : tr("gh processes and secondary limits"), aColumn.parentWidget(), "heading"));
+			column->addWidget(label(side == 0 ? tr("Where BPR’s requests went") : tr("gh processes and limits"), aColumn.parentWidget(), "heading"));
 			auto* table = fact_table(aColumn.parentWidget(), side == 0 ? QStringLiteral("insightsRequestCategories") : QStringLiteral("insightsProcessFacts"));
 			if (side == 0) {
 				RequestCategories = table;
@@ -567,7 +586,8 @@ namespace bpr::qt {
 			column->addWidget(table, 1);
 			facts->addLayout(column, 1);
 		}
-		aColumn.addLayout(facts, 1);
+		timeline->addLayout(facts, 2);
+		aColumn.addLayout(timeline, 1);
 		connect(GithubRange, &QTabBar::currentChanged, this, [this] { update_github(); });
 	}
 	void insights_window::set_chart_colors(QColor aPrimary, QColor aSecondary)
@@ -790,6 +810,7 @@ namespace bpr::qt {
 	void insights_window::showEvent(QShowEvent* aEvent)
 	{
 		QWidget::showEvent(aEvent);
+		hide_native_title_text(*this);
 		set_refresh_interval();
 		RefreshTimer->start();
 		AgeTimer->start();

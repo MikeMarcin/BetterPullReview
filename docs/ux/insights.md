@@ -7,8 +7,9 @@ Ctrl–Alt–Shift–I elsewhere. Each profile has one window. Escape closes it.
 The content is fixed at 900 × 542 logical pixels and clamped to the opening
 screen’s available geometry with an 18 px margin. All six tabs keep that size.
 Only bounded ledgers inside a page scroll. The window follows the profile’s font
-and appearance. Centered tabs and two icon actions share the compact top
-strip; the title/status header beneath keeps its own height. Summary uses
+and appearance. Centered tabs and two icon actions share the native title-bar
+row, using Qt's expanded client area and the workbench's macOS title suppression;
+the title/status header beneath keeps its own height. Summary uses
 compact cards with space below them, rather than stretching them to fill
 the page. Storage uses thin rows with budget meters.
 
@@ -25,8 +26,11 @@ GraphQL and Search show their own remaining budget, reset and BPR request count;
 GraphQL has no other-client split because its quota charges query cost.
 
 GitHub’s hour/day chart puts BPR requests per minute above Core remaining, with
-separate scales and maxima, area fills, gaps and reset rules. Hover picks the
-nearest sample across midpoints and flips its card inside the edges. Changing
+separate scales and maxima, interval event bars, a filled budget area, gaps and
+reset rules. The tall framed chart sits beside the bounded detail tables, with
+its range control centered above it and color swatches below. Hover picks the
+nearest sample across midpoints and shows a dated label/value card near the
+pointer, flipping horizontally and vertically inside the edges. Changing
 range clears hover. The chart follows the profile’s accepted/unread color roles
 and exposes its name and range description. Bounded tables show requests by the
 closed operation categories, gh launches and observed failures, quarantines,
