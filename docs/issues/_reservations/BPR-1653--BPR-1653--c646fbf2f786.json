@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1653"
+  ],
+  "reserve_for": "release-repairs-recovered",
+  "purpose": "Diagnose actual Ubuntu optimized cache-byte footprint failure under unchanged measurement and limits",
+  "created": "2026-10-19T11:30:04.474771+00:00",
+  "base": "3817f7230ac98c7075410729ced81d71efe04015"
+}
