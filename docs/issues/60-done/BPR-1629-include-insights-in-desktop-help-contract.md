@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1629"
 title: "Include approved Insights in the desktop Help contract"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"aaff2f11419257be2c4c4de5646e3465cf4bbf8c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9b901a0a83d1016d5e2da3795b1e7fa5249c4b85","evidence":{"kind":"observation","detail":"Exact seven-entry resident Help order matches approved window Help including Insights; all commands disabled windowless, window labels/key parity and both disabled export gestures asserted. No product UX changed."}},{"criterion":"AC2","outcome":"pass","revision":"9b901a0a83d1016d5e2da3795b1e7fa5249c4b85","evidence":{"kind":"command","detail":"clang-format22 passes; native Windows focused qt_profile_management_window passes5.43s at exact9b901. Documentation gate and67 documentation tests passed during milestone; final documentation/diff validation before finish; Mac/Linux full normal reruns retained coordinator-owned."}}]
 ---
 
 # BPR-1629: Include approved Insights in the desktop Help contract

@@ -152,7 +152,7 @@ and enables `/bigobj` only on the oversized MSVC target. Quiet-CRT behavior,
 scratch security, CNG stub logic and workbench assertions are unchanged.
 Matching native compilation and focused contracts are pending.
 
-[BPR-1629](../issues/30-in-progress/BPR-1629-include-insights-in-desktop-help-contract.md)
+[BPR-1629](../issues/60-done/BPR-1629-include-insights-in-desktop-help-contract.md)
 repairs the resident Help test's stale six-action expectation. The accepted
 Insights implementation puts seven entries in both Help menus: Keyboard
 Shortcuts, separator, Insights, Diagnostics, separator and the two exports.
@@ -161,4 +161,7 @@ a window, and parity with the window's actual command labels and keys.
 Its disabled-gesture course includes both exports. Product UI, callbacks and
 shortcuts are unchanged; this is a test correction with no new visual or
 human acceptance. The touched C++ is formatted with clang-format 22. Matching
-native Qt verification remains pending.
+native Windows `qt_profile_management_window` passes at committed candidate
+`9b901a0a83d1016d5e2da3795b1e7fa5249c4b85` (5.43 seconds), including the
+complete-order, disabled-state and actual-window parity checks. The coordinator
+retains the macOS/Linux normal integration reruns.
