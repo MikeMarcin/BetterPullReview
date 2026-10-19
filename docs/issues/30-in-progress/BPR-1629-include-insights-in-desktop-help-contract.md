@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1629"
 title: "Include approved Insights in the desktop Help contract"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
