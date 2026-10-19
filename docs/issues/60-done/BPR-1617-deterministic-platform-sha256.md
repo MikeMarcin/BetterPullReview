@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1617"
 title: "Use deterministic platform SHA-256 in core"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P1"
 metadata: {"mandate_revision":"hashing-replacement-r5","reservation":"docs/issues/_reservations/BPR-1617--BPR-1617--8031beb5bea5.json","milestone_plan":{"id":"deterministic-platform-sha256-v1","path":"docs/rfcs/plans/deterministic-platform-sha256-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"45b0d3528fdf159ad9050debe3bd0f9f28d59bcf","evidence":{"kind":"artifact","path":"docs/issues/_checkpoints/BPR-1617/verification.md","detail":"Architecture, RFC amendment and exact crypto owners reconciled; core/architecture gates and contracts pass."}},{"criterion":"AC2","outcome":"pass","revision":"45b0d3528fdf159ad9050debe3bd0f9f28d59bcf","evidence":{"kind":"artifact","path":"docs/issues/_checkpoints/BPR-1617/verification.md","detail":"Public vectors/chunking/copy/move tests pass on macOS and Windows; CNG init fallback and terminal-failure contracts pass."}},{"criterion":"AC3","outcome":"pass","revision":"45b0d3528fdf159ad9050debe3bd0f9f28d59bcf","evidence":{"kind":"artifact","path":"docs/issues/_checkpoints/BPR-1617/verification.md","detail":"LLDB proves CommonCrypto dispatch; forced portable CMake path passes 3/3; focused composition 11/11 and format/docs gates pass."}},{"criterion":"AC4","outcome":"pass","revision":"45b0d3528fdf159ad9050debe3bd0f9f28d59bcf","evidence":{"kind":"artifact","path":"docs/issues/_checkpoints/BPR-1617/verification.md","detail":"Real MSVC CNG and HACL courses pass against identical source hashes; stub branches pass; full station gaps retained on BPR-1448."}},{"criterion":"AC5","outcome":"pass","revision":"45b0d3528fdf159ad9050debe3bd0f9f28d59bcf","evidence":{"kind":"artifact","path":"docs/issues/_checkpoints/BPR-1617/verification.md","detail":"Chrono arithmetic and explicit seeded state permitted, clock/random_device/global RNG calls refused; 8 boundary contracts pass."}}]
 ---
 
 # BPR-1617: Use deterministic platform SHA-256 in core
