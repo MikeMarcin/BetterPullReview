@@ -8,17 +8,21 @@ BPR-1607). Its corrected shell has explicit owner acceptance, and its storage
 and public-path obligations have passing evidence.
 The GitHub budget milestone has passing automated evidence and explicit owner
 Accept verdicts for the corrected charts and native title row. BPR-1608 and
-BPR-1609 are Done; review-stats is next plan-eligible on the Insights branch.
-Main delivery awaits its active unrelated writer. No full-RFC acceptance is claimed.
+BPR-1609 are Done. Review-stats is accepted: BPR-1610/BPR-1611 have passing
+count/lifetime and range/calendar/record evidence. Energy is next in authored
+order. Completed main through BPR-1621 is merged; local delivery is recorded
+in the current continuation/runtime. No full-RFC acceptance is claimed.
 
 | Criterion | Evidence and current result |
 |---|---|
 | AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
 | AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
-| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Calendar remains assigned to the later Reviews/Energy milestone. |
+| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Reviews calendar behavior now has rendered evidence; Energy calendar remains later. These owner verdicts retain their exact prior-candidate scope. |
 | AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
-| AC06–10, AC12 | Pending their authored milestones. |
+| AC06 review statistics | Durable once-only event counts, confirmed recovery, no load/carry backfill, and actual prune/delete/Clear/restart/purge courses pass. |
+| AC07 Reviews | Three seeded ranges,26-week Monday calendar, since-date, endings/records and both Summary tiles pass; host/SQLite cover DST and Monday boundaries. No streak. |
+| AC08–10, AC12 | Energy, Work and idle-hour evidence remain with their authored milestones. |
 
 ## Engineering review
 
@@ -472,3 +476,53 @@ The explicit-command correction passes the final 8/8 focused course in7.57s;
 core-only core and architecture pass2/2 in16.55s. No completed Reviews UI or whole-milestone acceptance
 is claimed yet. Runtime evidence:
 `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`.
+
+
+## Accepted review statistics milestone
+
+Mandate `insights-window-v1-r1`, assignment `review-stats`, segment
+`review-stats-r1`, owner `/root/insights_review_stats`. Capture source `00e0eb7dc`,
+BPR-1610 finish `6222c3159`, Reviews source `c94d3b59e`, integrated production
+`23c134030`; final test-only DPI course correction `f57e77c41`.
+Both whole-card obligations and both authored exits pass. The original and
+integrated milestone bindings are identical. No additional human criterion is
+introduced by this milestone. Prior native title-row/ATT accepts retain their
+exact candidates; RFC0086 remains In Progress.
+
+Core owns deltas, dedup/ranges/calendar/records; host supplies local days and
+captures exact accepted PR/head/path/changed-line facts. SQLite schema3 retains
+lifetime event identities apart from93-day history, without importing existing
+ledger state. Creation/resolution operation identities permit note-ID reuse and
+a later resolve after unresolve. Validated recovery counts the published review
+identity; duplicate mutation receipts are ignored. Shared SQLite freeze covers
+desktop and CLI replay/reuse. Suggestions use the existing block parser. Qt
+presents snapshots; no grant/provider/publication admission changes.
+
+`frontend-design` guided the preserved profile palette/type/header and compact
+Reviews layout. `code-simplifier` separated record and Summary updates. A sparse
+calendar with zero p90 uses its positive peak, preserving visible amount variation;
+the minimum-size regression and plotted-dot absence control pass. Real Light/Dark
+Reviews, Summary, hover and clamped renders were inspected.
+
+Focused capture8/8 in7.57s; real prune/delete and cycle replay/reuse2/2 in6.89s;
+core-only core/architecture2/2 in16.55s, negative contract183.69s. Merged
+integration **7/7 in23.37s**: architecture, core stats/core factories, seeded
+SQLite/DST, review round-trip, binary surface and public app. Final public
+**1x2.59s,1.25x0.85s,2x0.84s**. The test-only2x correction checks initial screen
+clamping before preferred-canvas assertions and renews its geometry/header baseline
+after the deliberate resize. LLVM22 format and focused tidy pass; unchanged
+prior/native/accounting and main acceptance evidence is reused.
+
+Clean/released main `a7e99406c` merges at `23c134030`, preserving BPR-1619 core
+wiring, BPR-1377 pinned reads, BPR-1378 cancellation and external-determinism rules.
+Both additive CMake tests survive; obsolete adopted claims are removed beside
+main's Done cards. Reviewed pins bind the combined tree. The mutation-branch pin
+changes only for the optional passive capture constructor argument: authority,
+actor, target, provider and admission are unchanged. No push.
+
+Runtime `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`
+and the existing continuation retain corrected failures, commands, renders,
+acceptance, binding/check and local-delivery receipt. All owned commands finish
+before handoff; no review server, waiter or owner question remains. Windows/Linux
+native qualification, Energy/Work, full export privacy and macOS idle-hour evidence
+stay on their existing obligations. Stop at this milestone; Energy is next.
