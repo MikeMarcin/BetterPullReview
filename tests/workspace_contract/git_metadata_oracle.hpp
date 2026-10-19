@@ -271,7 +271,7 @@ namespace bpr::tests::workspace_contract {
 			if (aPaths.empty()) {
 				return std::vector<bool>{ };
 			}
-			const auto [status, text] = ask(aRoot, { "check-ignore", "--no-index", "-v", "-n", "--stdin", "-z" }, joined(aPaths));
+			const auto [status, text] = ask(aRoot, { "check-ignore", "--no-index", "-v", "-n", "--stdin", "-z" }, joined(aPaths, true));
 			if (status != 0 && status != 1) {
 				return std::unexpected("check-ignore exit " + std::to_string(status));
 			}
@@ -323,11 +323,16 @@ namespace bpr::tests::workspace_contract {
 			return aText;
 		}
 
-		static auto joined(const std::vector<path_question>& aPaths) -> std::string
+		static auto joined(const std::vector<path_question>& aPaths, bool aDirectoryMarkers = false) -> std::string
 		{
 			auto input = std::string{ };
 			for (const auto& question : aPaths) {
 				input += question.Path;
+				// A missing path's type cannot be inferred from the filesystem.
+				// Ask Git the same explicit directory question as the candidate.
+				if (aDirectoryMarkers && question.Directory && !question.Path.ends_with('/')) {
+					input += '/';
+				}
 				input += '\0';
 			}
 			return input;
