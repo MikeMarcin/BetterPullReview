@@ -120,3 +120,21 @@ The notes explain saving, checking, importing and verifying every detached
 signature before use, including the DEB's separate verification requirement.
 No package asset, manifest, publisher guard, private material or signing
 configuration changes; final signatures and actual publication remain pending.
+
+[BPR-1627](../issues/30-in-progress/BPR-1627-isolate-agent-canary-from-product-libraries.md)
+removes the agent canary fixture's inherited product-diff link. The frozen
+fixture unexpectedly links xdiff and CoreFoundation; with exactly its two
+synthetic profile names supplied, it reports those two plus
+`__CF_USER_TEXT_ENCODING`. This is the test directory's inherited application
+dependency, not an extra launcher grant. The canary source uses standard and
+platform APIs only. Its target now clears inherited links before adding the
+existing Windows `winmm`/`ntdll` probe libraries. Production environment policy
+and the exact two-name assertion are unchanged.
+
+A disposable native compile of the unchanged fixture source has no xdiff or
+CoreFoundation loader dependency, completes its protocol and reports exactly
+the two supplied names. Supplying a third synthetic name produces a set that
+fails the unchanged exact comparison. The disposable binary/tree is removed.
+This verifies the fixture's actual dependency requirement; the matching real
+CMake target rebuild and `qt_agent_launch_canary` integration rerun remain
+coordinator-owned after the frozen baseline gate finishes.

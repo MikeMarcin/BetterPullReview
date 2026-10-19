@@ -1015,6 +1015,10 @@ bpr_add_executable(
     test_better_pull_review_agent_canary
     "${PROJECT_SOURCE_DIR}/tests/fixtures/agent/agent_canary_main.cpp"
 )
+# This fixture uses no product code. The directory's inherited product-diff
+# link adds CoreFoundation on macOS, whose startup inserts an environment
+# variable before the canary can report the launcher's exact environment.
+set_property(TARGET test_better_pull_review_agent_canary PROPERTY LINK_LIBRARIES "")
 target_compile_features(test_better_pull_review_agent_canary PRIVATE cxx_std_23)
 if(WIN32)
     # timeBeginPeriod, so the fixture's millisecond pacing is millisecond
