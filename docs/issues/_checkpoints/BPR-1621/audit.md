@@ -23,6 +23,9 @@ the callable still scans for effects and must obey the explicit-state contract.
 Default, async and mixed policies remain rejected. Simple namespace, `using`
 and `typedef` aliases are normalized for the named capabilities, along with
 scope-operator spacing. No general alias/dataflow parser was added.
+Opening `<ctime>` also retains checks on local timezone/locale-dependent
+conversion (`localtime`, `mktime`, `ctime`, `strftime`) rather than treating those
+as computation over the supplied calendar value alone.
 
 Core boundary contracts supply positive and negative cases for every revised
 class, retaining entropy/environment, filesystem, network/process, vault,

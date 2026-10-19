@@ -48,6 +48,7 @@ set(
     "std::(j?thread)::hardware_concurrency[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])(std::)?random_device([^A-Za-z0-9_]|$)"
     "(^|[^A-Za-z0-9_.>:])(std::|::)?(time|clock|clock_gettime|gettimeofday|timespec_get|GetSystemTime|QueryPerformanceCounter|GetTickCount(64)?)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?(localtime(_[rs])?|mktime|ctime(_[rs])?|strftime|_?tzset)[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_.>:])(std::|::)?(rand|srand|random|srandom)[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_.>:])(std::|::)?getenv[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_.>:])(std::|::)?system[ \t\r\n]*\\("
