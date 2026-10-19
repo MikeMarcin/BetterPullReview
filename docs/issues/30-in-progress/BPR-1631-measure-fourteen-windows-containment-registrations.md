@@ -61,3 +61,21 @@ actual SQLite store/lease and Python registry courses reach that shared
 ancestor check. Original raw outcomes are retained rather than generalized to
 unrun rows. Thirteen exact finite reasons replace unmeasured entries; final
 recovery, manifest and cleanup verification remain pending.
+
+## Completed native observations
+
+At `613f33524f92e844e8996126f86c5f64e54b1103`, the actual recovery course
+passes (10.08 seconds) and the mandatory native manifest passes (1.24 seconds).
+The earlier eleven direct passes, the two corrected reset passes and this
+recovery pass supply all fourteen direct observations; all fourteen original
+contained observations remain retained. The markdown row is now contained,
+and thirteen exact measured finite pins replace the unmeasured entries.
+All 72 verifier tests pass. The process-cleanup correction waits on its retained
+child handle after native PID-tree termination; independent normal/exception
+controls retain an unrelated sentinel process and reap every owned child.
+
+The nine completed native repair tasks, five disposable probe/overlay trees and
+nineteen exact task-owned fixture roots are removed after receipts and process
+absence checks. No native build/test producer remains. Full suites are handed
+to the coordinator. Focused warnings-as-errors clang-tidy on the changed test
+C++ units remains pending in the released Mac slot before this card closes.

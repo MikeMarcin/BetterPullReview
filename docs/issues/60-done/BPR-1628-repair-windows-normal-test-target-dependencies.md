@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1628"
 title: "Repair Windows normal-test target dependencies"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"aaff2f11419257be2c4c4de5646e3465cf4bbf8c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"Target-only CNG object stub scope, explicit Platform/advapi32 and MSVC bigobj dependencies compile all seven affected actual native targets at9b901; no product policy changes."}},{"criterion":"AC2","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"All focused CNG modes,Git Insights,Help,canary and workbench pass; SQLite actual direct and measured ancestor denial retained; corrected row18dff passes0.34s and mandatory native manifest613f passes1.24s. Raw failures preserved."}},{"criterion":"AC3","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"Explicit commits and self-review complete; documentation/diff checks pass; owned native processes/tasks/probes and exact fixture roots reconciled, PC slot returned to coordinator. Full gates remain pending outside this card."}}]
 ---
 
 # BPR-1628: Repair Windows normal-test target dependencies

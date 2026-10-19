@@ -139,7 +139,7 @@ This verifies the fixture's actual dependency requirement; the matching real
 CMake target rebuild and `qt_agent_launch_canary` integration rerun remain
 coordinator-owned after the frozen baseline gate finishes.
 
-[BPR-1628](../issues/30-in-progress/BPR-1628-repair-windows-normal-test-target-dependencies.md)
+[BPR-1628](../issues/60-done/BPR-1628-repair-windows-normal-test-target-dependencies.md)
 owns four failures from the captured Windows incremental build at frozen
 `f6ba8f43`: CNG stub `windows.h` shadows the SDK for the injected quiet-CRT
 unit; SQLite/Git Insights tests lack the platform include and `advapi32`
@@ -161,7 +161,9 @@ receives Win32 5 only inside the AppContainer and the retained chain reports
 Only this row receives the established Windows-uncontained registration and
 exact `ancestor-control-denied` verifier pin. The Git row remains contained;
 all SQLite assertions and macOS/Linux containment remain unchanged. The
-corrected native row and mandatory manifest validation are pending.
+corrected native row passes (0.34 seconds); the mandatory manifest subsequently
+passes on `613f33524f92e844e8996126f86c5f64e54b1103` after BPR-1631 supplies
+the previously missing measurements. The original failures remain retained.
 
 [BPR-1629](../issues/60-done/BPR-1629-include-insights-in-desktop-help-contract.md)
 repairs the resident Help test's stale six-action expectation. The accepted
@@ -197,7 +199,20 @@ owns the fourteen earlier Windows exemptions still marked unmeasured. The
 native mandatory manifest failure at `18dff0d1` is retained. The exact current
 direct and contained commands must be measured before any finite cause is
 recorded or an unnecessary exemption retired; no shared-helper assumption
-replaces an actual row. Those observations and the final manifest remain pending.
+replaces an actual row. The actual fourteen direct and fourteen contained observations are now retained.
+The markdown fixture passes contained and loses its exemption; thirteen finite
+pins describe the measured admission failures. Three direct fixture defects
+are repaired without changing product policy: initial Windows lifetime-lock
+setup before exact inventory, native file identity for reset replacement, and
+private-DACL plus owned process-tree cleanup for recovery. Eleven original
+direct passes, two corrected reset passes and the actual recovery pass supply
+the complete direct set. At `613f33524f92e844e8996126f86c5f64e54b1103`,
+recovery passes in 10.08 seconds and the mandatory native manifest passes in
+1.24 seconds. All 72 verifier tests pass. All owned native commands are complete;
+nine completed repair tasks, five probes/overlays and nineteen exact owned
+fixture roots are removed after receipts and process-absence checks. The shared
+PC slot returns to the coordinator. Required focused tidy on changed C++ remains
+part of the pending repair milestone.
 
 [BPR-1632](../issues/30-in-progress/BPR-1632-diagnose-large-review-history-input-gap.md)
 owns the frozen Mac history failure. The sole violating refresh is
@@ -210,3 +225,13 @@ retained non-CPU interval, not proof of a particular lock, I/O operation,
 unobserved scheduler wait or transient load. The report lacks a call stack for that interval. Read-only
 source/report diagnosis continues; no timing formula, threshold or application
 code changes, and native reproduction awaits baseline completion.
+
+
+The initial frozen Mac baseline finishes with 800 passes, nine failures and one
+configured skip. Its additional native-menu failure retains two Insights items
+in the Apple menu after the window closes; agent diagnosis will use source and
+offscreen or isolated evidence without operating the owner's live desktop.
+The coordinator's two 100,000-run ASan/UBSan fuzz courses pass after the direct
+diagnostic link also includes the production `release_maintenance.cpp` option
+validator; the policy recipe now records that concrete input. These are focused
+results, not final release qualification or signing approval.

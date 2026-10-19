@@ -76,7 +76,9 @@ evidence may be reused only with its original scope and identity.
   ASan and UBSan, no sanitizer recovery and frame pointers. The maintenance
   harness links `src/core/src/release_maintenance.cpp`; the diagnostic harness
   links `src/application/src/release_diagnostic_snapshot.cpp` and
-  `src/core/src/review_submission_unknown.cpp`, with core/application include
+  `src/core/src/review_submission_unknown.cpp` and
+  `src/core/src/release_maintenance.cpp` (the diagnostic export option validator),
+  with core/application include
   roots. Its digest uses the production SHA-256 composition from
   `src/core/CMakeLists.txt`: `sha256_hacl.cpp`, the selected platform backend
   (`sha256_commoncrypto.cpp` on macOS), and the pinned HACL* SHA-2 dependency
