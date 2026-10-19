@@ -1,3 +1,82 @@
+# Accepted review statistics milestone
+
+Mandate **insights-window-v1-r1**, assignment **review-stats**, segment
+**review-stats-r1**, owner `/root/insights_review_stats`, coordinator-implementer
+recipe r2. Same source/tracker checkout and branch `codex/insights-window-v1`;
+RFC_BASE_SHA `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`. Preserved selection is
+`execution-selection.json` beside this checkpoint.
+
+**BPR-1610/BPR-1611 are Done; review-stats is accepted.** Both whole-card
+obligations and both authored exits pass. No required decision or engineering
+obligation remains. RFC0086 stays In Progress. **Energy (BPR-1612/BPR-1613)
+is next** in authored order. No successor claimed; this writer releases ownership.
+
+## Candidates, commands and evidence
+
+Capture `00e0eb7dc`, BPR-1610 finish `6222c3159`, Reviews claim `08df4a07d`,
+Reviews UI `c94d3b59e`, merged production **`23c134030`**, final test-only
+DPI course correction **`f57e77c41`**, BPR-1611 finish **`f44627bc0`**. Runtime:
+**`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`**.
+
+Focused capture8/8 in7.57s; real prune/delete and cycle replay/reuse2/2 in6.89s;
+core-only core/architecture2/2 in16.55s; architecture negative contract183.69s.
+Merged integration **7/7 in23.37s** covers architecture, core stats/factories,
+seeded SQLite/DST, composed review round-trip, binary surface and public Insights.
+Final public **1x2.59s,1.25x0.85s,2x0.84s**. LLVM22 format/focused tidy pass.
+Light/Dark Reviews/Summary, hover and clamped renders inspected; calendar absence
+control passes. Failure diagnoses remain in `failure-notes.json`. The2x course
+fix checks initial screen clamping, then preferred canvas, with baselines captured
+after its deliberate resize; production unchanged. Prior relevant evidence reused.
+
+Original/integrated bindings compare equal, including both whole cards and exits.
+Final runtime `milestone-checkpoint.json`, `milestone-observation.json` and
+`milestone-check.json` bind the final revision and must report `fresh-context`
+for Energy with `required_pending: []`. Final documentation gate reports
+`DOCUMENTATION_OK`; scoped board validation is valid with no errors.
+`board-validation.json` and `documentation-final.log` retain these results.
+
+## Changed behavior and paths
+
+Core `insights.hpp/.cpp`: typed event deltas, durable dedup, local-day ranges,
+calendar scaling and lifetime records. Application recorder/review hosts observe
+successful terminals; app composition/workflows supply exact PR/head/file facts.
+SQLite Insights schema3 retains lifetime identities independently of history;
+shared cycle freeze covers desktop/CLI. Existing ledger rows are never backfilled.
+New local creation/resolution identities permit ID reuse and later resolution.
+Qt `insights_calendar` and the existing window complete Reviews and both Summary
+activity tiles. Focused core/host/SQLite/lifecycle/public tests and CMake supply
+direct evidence. `frontend-design` and `code-simplifier` were used for the UI.
+Sparse zero-p90 activity uses its positive peak and keeps the minimum dot size.
+
+## Integration, ownership and continuation
+
+Clean, explicitly released main **`a7e99406c2a8b68cae8caccf138d3902abd6e6fa`**
+merges at **`23c134030`**, preserving BPR-1619 core wiring, BPR-1377 pinned reads,
+BPR-1378 cancellation and new core rules. Conflicts were additive CMake tests and
+pins; both tests survive, pins were reviewed, obsolete adopted claims removed
+beside authoritative Done cards. Allocation adoption `10445f000`/`70cf9abc9`
+preserved the counter without main source mutation. Mutation-branch change is
+only its optional passive capture constructor argument, with no admission change.
+
+Final local delivery uses main's board lock, clean source/main, exact main
+`a7e99406c` and ancestry guards, then fast-forward only. Durable final receipt:
+runtime **`main-delivery.json`**. Handoff requires that receipt to confirm source
+HEAD equals clean main HEAD, and the final runtime binding/check against that
+same source HEAD. No push. No other writer or protected candidate introduced.
+
+All owned commands finish before handoff; no build/test/tidy/check/server/waiter
+is handed off. Previous chart session remains at consumed cursor11, unprotected,
+host stopped; no new attended session or owner question is required. Retained
+frozen evidence is untouched/read-only. Existing build trees reused; disposable
+course roots cleaned themselves.
+
+Coordinator starts a fresh Energy owner from this checkpoint and exact runtime
+receipt/check. Native Windows/Linux, Energy/Work, complete export privacy and
+macOS idle-hour evidence remain on their original obligations. No whole-RFC or
+release acceptance is inferred.
+
+# Earlier review-stats checkpoint (superseded)
+
 # Reviews presentation candidate ready for combined integration
 
 Mandate **insights-window-v1-r1**, assignment **review-stats**, segment
