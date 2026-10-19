@@ -121,7 +121,7 @@ signature before use, including the DEB's separate verification requirement.
 No package asset, manifest, publisher guard, private material or signing
 configuration changes; final signatures and actual publication remain pending.
 
-[BPR-1627](../issues/30-in-progress/BPR-1627-isolate-agent-canary-from-product-libraries.md)
+[BPR-1627](../issues/60-done/BPR-1627-isolate-agent-canary-from-product-libraries.md)
 removes the agent canary fixture's inherited product-diff link. The frozen
 fixture unexpectedly links xdiff and CoreFoundation; with exactly its two
 synthetic profile names supplied, it reports those two plus

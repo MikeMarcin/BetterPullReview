@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1627"
 title: "Keep the agent canary linked only to its actual dependencies"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"ead4e081d323b6e4864767ff2e68a147f0a5e03c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d8dd8a7eebbb50caacc3be671cbc2d5e27dcef50","evidence":{"kind":"observation","detail":"Frozen canary reports exactly the supplied two synthetic names plus CoreFoundation startup __CF_USER_TEXT_ENCODING. otool shows inherited product xdiff/CoreFoundation; target now clears inherited links immediately after creation, preserving subsequent explicit winmm/ntdll."}},{"criterion":"AC2","outcome":"pass","revision":"d8dd8a7eebbb50caacc3be671cbc2d5e27dcef50","evidence":{"kind":"artifact","detail":"canary-link-verification.json: unchanged fixture source compiles with actual standard-library dependencies, no xdiff/CoreFoundation loader entries; protocol succeeds and exact two-name environment matches. Injected third synthetic name still violates exact set. Temp build removed; profile/assertions/launcher untouched."}},{"criterion":"AC3","outcome":"pass","revision":"d8dd8a7eebbb50caacc3be671cbc2d5e27dcef50","evidence":{"kind":"command","detail":"DOCUMENTATION_OK and git diff --check pass; bounded CMake diff self-reviewed. Real CMake target rebuild and qt_agent_launch_canary integration remain explicit coordinator-owned obligations after frozen baseline; not claimed passed."}}]
 ---
 
 # BPR-1627: Keep the agent canary linked only to its actual dependencies
