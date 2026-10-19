@@ -35,3 +35,28 @@ versus limit226492416. Live heap growth is156655760; cache accounting is
 series and JSON/JUnit/logs are retained under ignored release-session evidence.
 No timeout or input-budget miss occurred. Both wrapper tasks are retired and
 the shared producer is quiescent before the next bounded diagnostic.
+
+## Bounded diagnostic checkpoint
+
+The exact unchanged binary reproduces the failure in49.9305s, with195
+external status/smaps-rollup samples from only its own descendant process.
+No swap is observed. Temporary existing-observer integer summaries reproduce
+it in47.9282s: near failure glibc holds189018112 arena bytes, of which42189280
+are free, alongside11550720 mapped allocation bytes. This shows substantial
+allocator retention, not yet a complete causal attribution or permission to
+change the limit.
+
+Two approved additional calls to the same resource observer separate setup
+from large selection, with the original predicate at both points. Initial
+review live heap is64942912 bytes; after31 refreshes it is73522592 (including
+4487224 cache bytes) with30152320 arena free. Before first file it is77045376,
+then first large selection98407264 with42425488 arena free. The course still
+fails in47.4685s. The replay replaces the completed script on refresh rather
+than retaining all scripts; it recompiles the1000 synthetic comments for each
+head. Further ownership/lifetime attribution remains pending.
+
+Both temporary test sources are restored exactly after each diagnostic and
+the original benchmark is rebuilt to identical SHA-256
+`67f292c90c8ccb089cc70893360597a11dd6ce2cdb8b5cd55a3b9435f623d777`.
+No diagnostic binary supplies acceptance. BPR-1371's existing separate Mac
+allocator/assertion proposal remains unapplied and is not adopted here.
