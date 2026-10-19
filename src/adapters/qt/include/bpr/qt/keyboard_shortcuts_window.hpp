@@ -48,6 +48,7 @@ namespace bpr::qt {
 		void populate();
 		void apply_search(const QString& aText);
 		void refresh_layout();
+		void update_minimum_size();
 
 		QLineEdit*   Search        = nullptr;
 		QTreeWidget* List          = nullptr;

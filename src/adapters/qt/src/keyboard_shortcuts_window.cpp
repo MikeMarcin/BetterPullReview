@@ -129,6 +129,20 @@ namespace bpr::qt {
 			{
 			}
 
+			[[nodiscard]] auto minimum_width() const -> int
+			{
+				const auto metrics = row_metrics{ View->font() };
+				auto       keys    = 0;
+				for (int group = 0; group < View->topLevelItemCount(); ++group) {
+					const auto* const heading = View->topLevelItem(group);
+					for (int row = 0; row < heading->childCount(); ++row) {
+						keys = std::max(keys, keys_width(metrics, heading->child(row)->data(1, keys_role).toStringList()));
+					}
+				}
+				return metrics.Line * 8 + keys + 2 * metrics.Margin + 2 * View->frameWidth()
+					+ View->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, View->verticalScrollBar());
+			}
+
 			void paint(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
 			{
 				auto option = aOption;
@@ -352,7 +366,7 @@ namespace bpr::qt {
 		// rows tall, within the screen it opens on.
 		const auto metrics = QFontMetrics{ font() };
 		const auto em      = metrics.horizontalAdvance(QLatin1Char{ 'M' });
-		setMinimumSize(em * 24, metrics.height() * 16);
+		update_minimum_size();
 		auto wanted = QSize{ em * 42, metrics.height() * 44 };
 		if (const auto* const screen = aParent != nullptr ? aParent->screen() : QGuiApplication::primaryScreen(); screen != nullptr) {
 			wanted = wanted.boundedTo(screen->availableSize() * 9 / 10).expandedTo(minimumSize());
@@ -473,8 +487,17 @@ namespace bpr::qt {
 		LayoutPending = true;
 		QTimer::singleShot(0, this, [this] {
 			LayoutPending = false;
+			update_minimum_size();
 			List->doItemsLayout();
 		});
+	}
+
+	void keyboard_shortcuts_window::update_minimum_size()
+	{
+		const auto  metrics  = QFontMetrics{ font() };
+		const auto  margins  = layout()->contentsMargins();
+		const auto* delegate = static_cast<shortcut_delegate*>(List->itemDelegate());
+		setMinimumSize(std::max(metrics.horizontalAdvance(QLatin1Char{ 'M' }) * 24, margins.left() + margins.right() + delegate->minimum_width()), metrics.height() * 16);
 	}
 
 	void keyboard_shortcuts_window::resizeEvent(QResizeEvent* const aEvent)

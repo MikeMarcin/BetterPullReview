@@ -34,3 +34,22 @@ retain dialog/minimum sizes, title/key column and viewport widths, title floor,
 DPR and font. The complete original fit predicate and subsequent widest-key
 assertion remain unchanged. No layout or minimum-size repair is made; native
 measurements and compilation of these diagnostics remain pending.
+
+
+## Native measurement and bounded layout repair
+
+Actual f8b8f3383 fails all three scales with a240x224 minimum, title column30
+versus required native title width73, key column195 and viewport198. The
+fixed24-em floor permits the contents to exceed the viewport. Initial size
+passes; all failures are at the minimum. The coordinator authorizes a bounded
+minimum-width repair based on these observed dimensions.
+
+The existing delegate now measures its actual stored native key-cap strings
+and combines their width with the same eight-line title floor used by its
+sizeHint, row margins, list frame and reserved vertical scrollbar. The dialog
+adds its layout margins and retains the existing24-em floor, preferred42-em
+size, screen clamp, resizability and no horizontal scrollbar. Font/style refresh
+recomputes that minimum through the existing coalesced layout pass. Labels,
+keys, search, accessibility, paint and assertions are unchanged. The canonical
+frontend-design skill remains applied to this established layout; no redesign.
+Native focused scale verification and scoped tidy are pending on this candidate.
