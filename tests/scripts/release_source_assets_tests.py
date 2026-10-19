@@ -227,6 +227,51 @@ class RelocatedLaunchCommandTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.bundle = self.root / "relocated app" / "BetterPullReview.app"
+        self.build = self.root / "release build"
+        self.build.mkdir()
+        self.qt = self.root / "producer Qt"
+        config = self.qt / "lib/cmake/Qt6"
+        config.mkdir(parents=True)
+        (config / "Qt6Config.cmake").write_text("fixture configuration")
+        self.cache = self.build / "CMakeCache.txt"
+        self.cache.write_text("Qt6_DIR:PATH=" + str(config) + "\n")
+        self.plugin = self.qt / "plugins/platforms/libqoffscreen.dylib"
+        self.plugin.parent.mkdir(parents=True)
+        self.plugin.write_bytes(b"pinned fixture plugin")
+        for framework in ("QtCore", "QtGui"):
+            image = self.bundle / ("Contents/Frameworks/" + framework + ".framework/Versions/A/" + framework)
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"packaged fixture framework")
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.calls = self.root / "tool-calls.jsonl"
+        for name in ("lipo", "otool", "install_name_tool", "codesign"):
+            tool = self.bin / name
+            tool.write_text("""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+name, args = Path(sys.argv[0]).name, sys.argv[1:]
+with Path(os.environ['STUB_CALLS']).open('a') as output:
+    output.write(json.dumps([name, *args]) + '\\n')
+if name == 'lipo':
+    sys.exit(int(os.environ.get('STUB_ARCH_STATUS', '0')))
+if name == 'otool' and '-L' in args:
+    print(args[-1] + ':')
+    for dependency in os.environ.get('STUB_DEPENDENCIES', '@rpath/QtCore.framework/Versions/A/QtCore;@rpath/QtGui.framework/Versions/A/QtGui;/usr/lib/libSystem.B.dylib').split(';'):
+        print('    ' + dependency + ' (compatibility version 6.0.0, current version 6.11.2)')
+elif name == 'otool':
+    added = Path(args[-1] + '.rpath')
+    rpath = os.environ.get('STUB_FINAL_RPATH', added.read_text()) if added.exists() else '/unrelated/producer/lib'
+    print('cmd LC_RPATH\\ncmdsize 80\\npath ' + rpath + ' (offset 12)')
+elif name == 'install_name_tool' and '-add_rpath' in args:
+    Path(args[-1] + '.rpath').write_text(args[1])
+elif name == 'codesign' and '--force' in args:
+    with Path(args[-1]).open('ab') as output:
+        output.write(b'signed fixture copy')
+elif name == 'codesign' and '-d' in args:
+    print('TeamIdentifier=' + os.environ.get('STUB_TEAM', 'YTQKP2V2A8'), file=sys.stderr)
+""")
+            tool.chmod(0o700)
         executable = self.bundle / "Contents" / "MacOS" / "BetterPullReview"
         executable.parent.mkdir(parents=True)
         executable.write_text("""#!/usr/bin/env python3
@@ -234,6 +279,8 @@ import json, os, sys
 from pathlib import Path
 Path(os.environ['STUB_CAPTURE']).write_text(json.dumps({
     'platform': os.environ.get('QT_QPA_PLATFORM'),
+    'platform_path': os.environ.get('QT_QPA_PLATFORM_PLUGIN_PATH'),
+    'plugin_path': os.environ.get('QT_PLUGIN_PATH'),
     'style': os.environ.get('QT_STYLE_OVERRIDE'),
     'home': os.environ.get('HOME'), 'argv': sys.argv[1:]}))
 print(os.environ['STUB_MARKERS'])
@@ -241,7 +288,8 @@ sys.exit(int(os.environ['STUB_STATUS']))
 """)
         executable.chmod(0o700)
 
-    def launch(self, *, status=0, private=True, identity="com.gamecoretech.betterpullreview"):
+    def launch(self, *, status=0, private=True, identity="com.gamecoretech.betterpullreview",
+               prepare_only=False, overrides=None):
         script = (ROOT / "tools/release.sh").read_text()
         prefix, _ = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)
         prefix = "\n".join(
@@ -252,11 +300,16 @@ sys.exit(int(os.environ['STUB_STATUS']))
         markers = ("AUTOMATED_PROFILE_PRIVATE_OK\n" if private else "")
         markers += "NOTIFICATION_BUNDLE_IDENTITY:" + identity
         environment = dict(os.environ, QT_QPA_PLATFORM="cocoa", QT_STYLE_OVERRIDE="ambient-style",
+                           QT_QPA_PLATFORM_PLUGIN_PATH="/ambient/platforms", QT_PLUGIN_PATH="/ambient/plugins",
+                           PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STUB_CALLS=str(self.calls),
                            STUB_CAPTURE=str(capture), STUB_MARKERS=markers, STUB_STATUS=str(status))
-        harness = prefix + "\nverify_relocated_launch " + shlex.quote(str(self.bundle)) + " " + shlex.quote(str(profile)) + "\n"
+        environment.update(overrides or {})
+        harness = prefix + "\nBUILD_DIR=" + shlex.quote(str(self.build))
+        harness += "\nPREPARE_ONLY=" + ("1" if prepare_only else "0")
+        harness += "\nverify_relocated_launch " + shlex.quote(str(self.bundle)) + " " + shlex.quote(str(profile)) + "\n"
         result = subprocess.run(["bash", "-s"], input=harness, env=environment,
                                 text=True, capture_output=True)
-        return result, json.loads(capture.read_text()), profile
+        return result, json.loads(capture.read_text()) if capture.exists() else None, profile
 
     def test_actual_child_is_offscreen_with_isolated_home_and_unchanged_arguments(self):
         for status in (0, 1):
@@ -264,9 +317,69 @@ sys.exit(int(os.environ['STUB_STATUS']))
                 result, observed, profile = self.launch(status=status)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(observed, {"platform": "offscreen", "style": None, "home": str(profile),
+                                           "platform_path": str(profile / "assessment-platforms"), "plugin_path": None,
                                            "argv": ["--self-test", "--automated-run-budget-ms", "8000"]})
                 self.assertTrue(profile.is_dir())
                 self.assertIn("Relocated offscreen launch verified", result.stdout)
+                copied = profile / "assessment-platforms/libqoffscreen.dylib"
+                self.assertEqual(self.plugin.read_bytes(), b"pinned fixture plugin")
+                self.assertEqual(copied.read_bytes(), b"pinned fixture pluginsigned fixture copy")
+                self.assertFalse((self.bundle / "Contents/PlugIns/platforms/libqoffscreen.dylib").exists())
+                self.assertIn("source_sha256=" + hashlib.sha256(self.plugin.read_bytes()).hexdigest(), result.stdout)
+                self.assertIn("signed_sha256=" + hashlib.sha256(copied.read_bytes()).hexdigest(), result.stdout)
+                self.assertIn("architectures=arm64,x86_64; team=YTQKP2V2A8", result.stdout)
+                calls = list(map(json.loads, self.calls.read_text().splitlines()))
+                self.assertIn(["lipo", str(self.plugin.resolve()), "-verify_arch", "arm64", "x86_64"], calls)
+                self.assertIn(["install_name_tool", "-delete_rpath", "/unrelated/producer/lib", str(copied)], calls)
+                self.assertIn(["install_name_tool", "-add_rpath", str(self.bundle / "Contents/Frameworks"), str(copied)], calls)
+                self.assertIn(["codesign", "--force", "--timestamp", "--options", "runtime", "--sign",
+                               "Developer ID Application: Michael Marcin (YTQKP2V2A8)", str(copied)], calls)
+
+    def test_missing_or_unbound_producer_qt_refuses_before_child_launch(self):
+        for cache in (None, "Qt6_DIR:PATH=relative/Qt6\n", "Qt6_DIR:PATH=/missing/Qt6\n"):
+            with self.subTest(cache=cache):
+                if cache is None:
+                    self.cache.unlink()
+                else:
+                    self.cache.write_text(cache)
+                result, observed, _ = self.launch()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIsNone(observed)
+                self.assertFalse(self.calls.exists())
+
+    def test_missing_producer_plugin_refuses_before_child_launch(self):
+        self.plugin.unlink()
+        result, observed, _ = self.launch()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("assessment plugin is absent", result.stderr)
+        self.assertIsNone(observed)
+
+    def test_incompatible_architecture_external_dependency_and_wrong_team_refuse(self):
+        for overrides, diagnostic in (({"STUB_ARCH_STATUS": "1"}, "not universal"),
+                                      ({"STUB_DEPENDENCIES": "/external/QtGui"}, "External assessment dependency"),
+                                      ({"STUB_FINAL_RPATH": "/external/frameworks"}, "RPATH escapes"),
+                                      ({"STUB_TEAM": "OTHER"}, "signer does not match")):
+            with self.subTest(overrides=overrides):
+                result, observed, _ = self.launch(overrides=overrides)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(diagnostic, result.stderr)
+                self.assertIsNone(observed)
+
+    def test_missing_packaged_framework_refuses_before_child_launch(self):
+        (self.bundle / "Contents/Frameworks/QtGui.framework/Versions/A/QtGui").unlink()
+        result, observed, _ = self.launch()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("dependency is absent from the package", result.stderr)
+        self.assertIsNone(observed)
+
+    def test_prepare_only_uses_ad_hoc_assessment_copy(self):
+        result, observed, profile = self.launch(prepare_only=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIsNotNone(observed)
+        calls = list(map(json.loads, self.calls.read_text().splitlines()))
+        self.assertIn(["codesign", "--force", "--sign", "-", "--timestamp=none",
+                       str(profile / "assessment-platforms/libqoffscreen.dylib")], calls)
+        self.assertNotIn("Developer ID Application", self.calls.read_text())
 
     def test_private_profile_marker_remains_required(self):
         result, _, _ = self.launch(private=False)

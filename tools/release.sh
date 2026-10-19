@@ -288,17 +288,96 @@ verify_signature_policy() {
     fi
 }
 
+prepare_assessment_platform() {
+    local bundle="$1"
+    local platform_dir="$2"
+    local qt6_dir
+    local qt_root
+    local source_plugin
+    local plugin="${platform_dir}/libqoffscreen.dylib"
+    local source_hash
+    local architecture
+    local dependencies
+    local dependency
+    local rpath
+    local details
+    local team="ad-hoc"
+
+    [[ -f "${BUILD_DIR}/CMakeCache.txt" ]] || fail "Release CMake cache is absent"
+    qt6_dir="$(sed -n 's/^Qt6_DIR:PATH=//p' "${BUILD_DIR}/CMakeCache.txt" | head -n 1)"
+    [[ "${qt6_dir}" == /* && -f "${qt6_dir}/Qt6Config.cmake" ]] || \
+        fail "Release Qt6_DIR is not an absolute Qt configuration"
+    qt_root="$(cd "${qt6_dir}/../../.." && pwd -P)"
+    source_plugin="${qt_root}/plugins/platforms/libqoffscreen.dylib"
+    [[ -f "${source_plugin}" ]] || fail "Release Qt offscreen assessment plugin is absent: ${source_plugin}"
+    lipo "${source_plugin}" -verify_arch arm64 x86_64 >/dev/null || \
+        fail "Release Qt offscreen assessment plugin is not universal"
+
+    # The package intentionally ships Cocoa only. Keep this test dependency
+    # outside the bundle and leave the producer's pinned Qt cache untouched.
+    source_hash="$(shasum -a 256 "${source_plugin}" | awk '{print $1}')"
+    mkdir -p "${platform_dir}"
+    cp "${source_plugin}" "${plugin}"
+    [[ "$(shasum -a 256 "${plugin}" | awk '{print $1}')" == "${source_hash}" ]] || \
+        fail "Qt offscreen assessment copy differs from the producer plugin"
+    for architecture in arm64 x86_64; do
+        dependencies="$(otool -arch "${architecture}" -L "${plugin}")" || \
+            fail "Cannot inspect Qt offscreen assessment dependencies"
+        while IFS= read -r dependency; do
+            dependency="${dependency#"${dependency%%[![:space:]]*}"}"
+            dependency="${dependency%% (compatibility version*}"
+            [[ -n "${dependency}" ]] || continue
+            case "${dependency}" in
+                /System/Library/*|/usr/lib/*)
+                    [[ "${dependency}" != *'/../'* ]] || fail "Noncanonical assessment dependency: ${dependency}"
+                    ;;
+                @rpath/QtCore.framework/Versions/A/QtCore|@rpath/QtGui.framework/Versions/A/QtGui)
+                    [[ -f "${bundle}/Contents/Frameworks/${dependency#@rpath/}" ]] || \
+                        fail "Assessment Qt dependency is absent from the package: ${dependency}"
+                    ;;
+                *) fail "External assessment dependency is forbidden: ${dependency}" ;;
+            esac
+        done < <(tail -n +2 <<<"${dependencies}")
+    done
+    dependencies="$(otool -arch arm64 -l "${plugin}")" || fail "Cannot inspect assessment RPATHs"
+    while IFS= read -r rpath; do
+        [[ -n "${rpath}" ]] || continue
+        install_name_tool -delete_rpath "${rpath}" "${plugin}"
+    done < <(awk '$1 == "cmd" && $2 == "LC_RPATH" { getline; getline; sub(/^[[:space:]]*path /, ""); sub(/ \(offset.*$/, ""); print }' <<<"${dependencies}")
+    install_name_tool -add_rpath "${bundle}/Contents/Frameworks" "${plugin}"
+    for architecture in arm64 x86_64; do
+        dependencies="$(otool -arch "${architecture}" -l "${plugin}")" || fail "Cannot inspect assessment RPATHs"
+        rpath="$(awk '$1 == "cmd" && $2 == "LC_RPATH" { getline; getline; sub(/^[[:space:]]*path /, ""); sub(/ \(offset.*$/, ""); print }' <<<"${dependencies}")"
+        [[ "${rpath}" == "${bundle}/Contents/Frameworks" ]] || fail "Assessment RPATH escapes the packaged frameworks"
+    done
+    if [[ "${PREPARE_ONLY}" == "1" ]]; then
+        codesign --force --sign - --timestamp=none "${plugin}"
+    else
+        # Hardened library validation requires the app's team on this copy.
+        sign_mach_file "${plugin}"
+        details="$(codesign -d --verbose=4 "${plugin}" 2>&1)"
+        grep -Fxq "TeamIdentifier=${TEAM_ID}" <<<"${details}" || \
+            fail "Assessment plugin signer does not match the application team"
+        team="${TEAM_ID}"
+    fi
+    codesign --verify --strict "${plugin}"
+    log "Assessment-only Qt offscreen dependency: source=${source_plugin}; source_sha256=${source_hash}; copy=${plugin}; signed_sha256=$(shasum -a 256 "${plugin}" | awk '{print $1}'); architectures=arm64,x86_64; team=${team}"
+}
+
 verify_relocated_launch() {
     local bundle="$1"
     local profile_root="$2"
     local output
     local status
+    local platform_dir="${profile_root}/assessment-platforms"
 
     mkdir -p "${profile_root}"
+    prepare_assessment_platform "${bundle}" "${platform_dir}"
     # This unattended relocation probe must not show a window on the owner's
     # desktop. Native Cocoa launch qualification remains a separate course.
-    if output="$(env -u QT_STYLE_OVERRIDE \
+    if output="$(env -u QT_STYLE_OVERRIDE -u QT_PLUGIN_PATH \
         QT_QPA_PLATFORM=offscreen \
+        QT_QPA_PLATFORM_PLUGIN_PATH="${platform_dir}" \
         HOME="${profile_root}" \
         "${bundle}/Contents/MacOS/${APP_NAME}" \
         --self-test --automated-run-budget-ms 8000 2>&1)"; then

@@ -450,3 +450,20 @@ before compilation: Ninja's -k0 was passed to the VisualStudio/MSBuild preset
 and MSBuild refused that switch. Its logs and failed receipt are preserved;
 this is a wrapper error, not a product compile/test failure. The next wrapper
 uses the existing generator-supported normal build with no trailing -k0.
+
+The actual source93897 signed Mac producer r2 passes bundle signature checks
+but its forced offscreen smoke aborts134 because the package intentionally
+ships Cocoa only. Raw failure and the partial source ZIP remain retained;
+no notarization or completed distribution output is claimed. BPR1645's bounded
+follow-up binds the offscreen dependency to the release cache's exact absolute
+Qt6_DIR. It verifies universal slices, allows only packaged QtCore/QtGui and
+system dependencies, and redirects the staging copy's RPATH to the packaged
+frameworks. Existing selected signing seals only that assessment copy, with
+the app team required under hardened library validation; prepare-only uses
+ad-hoc. Source/copy digests, architecture and team are logged. The copy stays
+outside the bundle/assets, the shared Qt cache stays untouched, and all existing
+package/signature/identity guards remain. All20 script tests, Bash syntax,
+documentation and diff checks pass with synthetic executable/tool fixtures.
+Coordinator actual signed smoke and separate native Cocoa qualification remain
+pending on the resulting clean source. Recovery adopts the already-running
+Windows r3 normal gate at93897 without dispatching competing heavy work.

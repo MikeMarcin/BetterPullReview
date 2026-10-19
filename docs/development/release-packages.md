@@ -68,7 +68,14 @@ notices/source references, applies only an offline ad-hoc signature, and emits
 an app, local ZIP, separate version-bound source ZIP, SPDX SBOM and checksums.
 The relocated self-test explicitly selects `QT_QPA_PLATFORM=offscreen` with an
 isolated `HOME`, retaining the private-profile and production bundle-identity
-checks. This unattended smoke cannot qualify a native Cocoa window or desktop
+checks. The package still ships only the Cocoa platform plugin. The smoke
+uses a staging-only offscreen plugin copied from the release build's exact
+`Qt6_DIR`, checks its universal slices and packaged Qt/system dependencies,
+and redirects its RPATH to the staged frameworks. It seals that copy with the
+app's selected identity (ad-hoc for prepare-only) for hardened library
+validation, verifies it, and logs both plugin hashes and the signing team.
+The dependency never enters the app or release assets; ambient plugin paths
+are excluded from this probe. This unattended smoke cannot qualify a native Cocoa window or desktop
 interaction; those require their separate isolated or attended courses.
 
 It does not read signing identities, change
