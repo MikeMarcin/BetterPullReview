@@ -596,7 +596,7 @@ try {
 	until([&] { return desktop->is_quiescent(); }, "profile drains local Insights effects and completions before retiring");
 	desktop.reset();
 	expect(e2e::remove_course_root(temporary), "course profile removed");
-	std::cout << "insights-public-path:pass menu singleton real-storage all-tabs all-ranges three-refreshes fixed-frame manage-existing-controls escape hidden-timers shutdown\n";
+	std::cout << "insights-public-path:pass locale=" << QLocale{ }.name().toStdString() << " menu singleton real-storage all-tabs all-ranges three-refreshes fixed-frame manage-existing-controls escape hidden-timers shutdown\n";
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();
