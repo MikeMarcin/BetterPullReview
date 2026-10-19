@@ -630,6 +630,26 @@ bpr_add_executable(
 target_link_libraries(test_better_pull_review_core_sha256_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_core_sha256_tests)
 bpr_enable_warnings(test_better_pull_review_core_sha256_tests)
+
+# Compile the exact CNG wrapper with a narrow API stub on every host. Native
+# Windows correctness is a separate station observation, never inferred here.
+bpr_add_executable(test_better_pull_review_sha256_cng_contract
+    sha256_cng_contract_tests.cpp
+    "${PROJECT_SOURCE_DIR}/src/core/src/sha256_hacl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/core/src/sha256_cng.cpp"
+)
+target_include_directories(test_better_pull_review_sha256_cng_contract PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/cng_stub"
+    "${PROJECT_SOURCE_DIR}/src/core/include"
+)
+target_link_libraries(test_better_pull_review_sha256_cng_contract PRIVATE BetterPullReview::HaclSha2)
+target_compile_features(test_better_pull_review_sha256_cng_contract PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_sha256_cng_contract)
+bpr_enable_warnings(test_better_pull_review_sha256_cng_contract)
+foreach(mode IN ITEMS success create duplicate update finish)
+    bpr_add_network_isolated_test(NAME core_sha256_cng_${mode}
+        COMMAND test_better_pull_review_sha256_cng_contract ${mode})
+endforeach()
 bpr_add_network_isolated_test(
     NAME core_sha256
     COMMAND test_better_pull_review_core_sha256_tests

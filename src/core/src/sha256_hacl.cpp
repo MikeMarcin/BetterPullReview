@@ -9,11 +9,13 @@ extern "C" {
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 /// \file
-/// \brief [[BPR-1451]]. The core SHA-256 over HACL*'s generated SHA-2
+/// \brief The SHA-256 stream with a selected native backend and HACL fallback.
+/// \details [[BPR-1451]] supplies the portable state using HACL*'s generated SHA-2
 /// (cmake/BprHaclSha2Provider.cmake). Only the block-level calls are used, so
-/// a stream allocates nothing; HACL*'s streaming API, which allocates, is
+/// the portable path allocates nothing; HACL*'s streaming API, which allocates, is
 /// never called. The first-party SHA-256 it replaces is gone.
 namespace bpr::core {
 	namespace {
@@ -34,10 +36,75 @@ namespace bpr::core {
 	sha256_stream::sha256_stream() noexcept
 	{
 		Hacl_Hash_SHA2_sha256_init(State.data());
+		PlatformActive = start_platform();
+	}
+
+	sha256_stream::sha256_stream(const sha256_stream& aOther) noexcept
+		: State(aOther.State)
+		, Block(aOther.Block)
+		, BlockSize(aOther.BlockSize)
+		, ByteCount(aOther.ByteCount)
+		, PlatformState(aOther.PlatformState)
+		, PlatformActive(aOther.PlatformActive)
+	{
+		if (PlatformActive) {
+			copy_platform(aOther);
+		}
+	}
+
+	auto sha256_stream::operator=(const sha256_stream& aOther) noexcept -> sha256_stream&
+	{
+		if (this != &aOther) {
+			auto copy = aOther;
+			swap(copy);
+		}
+		return *this;
+	}
+
+	sha256_stream::sha256_stream(sha256_stream&& aOther) noexcept
+		: State(aOther.State)
+		, Block(aOther.Block)
+		, BlockSize(aOther.BlockSize)
+		, ByteCount(aOther.ByteCount)
+		, PlatformState(aOther.PlatformState)
+		, PlatformHandle(std::exchange(aOther.PlatformHandle, nullptr))
+		, PlatformActive(std::exchange(aOther.PlatformActive, false))
+	{
+	}
+
+	auto sha256_stream::operator=(sha256_stream&& aOther) noexcept -> sha256_stream&
+	{
+		if (this != &aOther) {
+			auto moved = std::move(aOther);
+			swap(moved);
+		}
+		return *this;
+	}
+
+	sha256_stream::~sha256_stream() noexcept
+	{
+		if (PlatformActive) {
+			destroy_platform();
+		}
+	}
+
+	void sha256_stream::swap(sha256_stream& aOther) noexcept
+	{
+		std::swap(State, aOther.State);
+		std::swap(Block, aOther.Block);
+		std::swap(BlockSize, aOther.BlockSize);
+		std::swap(ByteCount, aOther.ByteCount);
+		std::swap(PlatformState, aOther.PlatformState);
+		std::swap(PlatformHandle, aOther.PlatformHandle);
+		std::swap(PlatformActive, aOther.PlatformActive);
 	}
 
 	void sha256_stream::update(const std::span<const std::uint8_t> aBytes) noexcept
 	{
+		if (PlatformActive) {
+			update_platform(aBytes);
+			return;
+		}
 		ByteCount += aBytes.size();
 		auto rest = aBytes;
 		// Top up a partly filled block first, then hash whole blocks straight
@@ -66,6 +133,9 @@ namespace bpr::core {
 
 	auto sha256_stream::finish() noexcept -> std::array<std::uint8_t, 32>
 	{
+		if (PlatformActive) {
+			return finish_platform();
+		}
 		// The padding and the bit length come from the total byte count and
 		// the fewer-than-64 bytes still held.
 		Hacl_Hash_SHA2_sha256_update_last(ByteCount, static_cast<std::uint32_t>(BlockSize), Block.data(), State.data());

@@ -16,10 +16,11 @@ VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyCoreBoundary.cmake"
 
 
 class CoreBoundaryTests(unittest.TestCase):
-    def run_check(self, source: str, cmake: str | None = None) -> subprocess.CompletedProcess[str]:
+    def run_check(self, source: str, cmake: str | None = None,
+                  source_path: str = "src/core/policy.cpp") -> subprocess.CompletedProcess[str]:
         with contained_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
-            core_source = root / "src/core/policy.cpp"
+            core_source = root / source_path
             core_source.parent.mkdir(parents=True)
             core_source.write_text(source, encoding="utf-8")
             if cmake is not None:
@@ -76,14 +77,15 @@ class CoreBoundaryTests(unittest.TestCase):
     def test_qt_provider_and_effect_headers_are_rejected(self) -> None:
         for header in (
             "QNetworkAccessManager",
+            "windows.h",
+            "bcrypt.h",
+            "CommonCrypto/CommonDigest.h",
             "sqlite3.h",
             "curl/curl.h",
             "thread",
             "future",
             "filesystem",
-            "chrono",
             "ctime",
-            "random",
             "fstream",
             "atomic",
             "mutex",
@@ -115,6 +117,13 @@ class CoreBoundaryTests(unittest.TestCase):
             "time(nullptr)",
             "clock_gettime(0, nullptr)",
             "GetSystemTime()",
+            "clock()",
+            "rand()",
+            "std::chrono::utc_clock::now()",
+            "clock_alias::now()",
+            "std::chrono::steady_clock::now()",
+            "std::chrono::system_clock::now()",
+            "std::random_device{}()",
             "SecItemCopyMatching()",
             "CredRead()",
             "CredWrite()",
@@ -123,6 +132,34 @@ class CoreBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 self.assert_rejected(f"auto value = {expression};\n")
+
+    def test_duration_arithmetic_and_explicit_random_state_are_allowed(self) -> None:
+        result = self.run_check(
+            "#include <chrono>\n#include <random>\n"
+            "auto duration = std::chrono::milliseconds{5} + std::chrono::seconds{1};\n"
+            "auto deadline = std::chrono::time_point<std::chrono::steady_clock>{} + duration;\n"
+            "std::mt19937 engine{1234}; auto value = engine();\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_cng_link_is_owned_by_its_windows_branch(self) -> None:
+        allowed = self.run_check("struct identity {};\n",
+            "if(APPLE)\nelseif(WIN32)\n"
+            "    target_sources(better_pull_review_core PRIVATE src/sha256_cng.cpp)\n"
+            "    target_link_libraries(better_pull_review_core PRIVATE bcrypt)\nendif()\n")
+        self.assertEqual(allowed.returncode, 0, allowed.stdout + allowed.stderr)
+        refused = self.run_check("struct identity {};\n",
+            "target_link_libraries(better_pull_review_core PRIVATE bcrypt)\n")
+        self.assertNotEqual(refused.returncode, 0)
+
+    def test_platform_sha256_exception_does_not_grant_other_capabilities(self) -> None:
+        for path in ("src/core/src/sha256_cng.cpp", "src/core/src/sha256_commoncrypto.cpp"):
+            for source in ("BCryptGenRandom(handle, bytes, count, 0);\n",
+                           "CC_SHA1_Init(context);\n",
+                           "auto stamp = std::chrono::steady_clock::now();\n"):
+                with self.subTest(path=path, source=source):
+                    result = self.run_check(source, source_path=path)
+                    self.assertNotEqual(result.returncode, 0)
 
     def test_embedded_provider_endpoint_is_rejected(self) -> None:
         self.assert_rejected(

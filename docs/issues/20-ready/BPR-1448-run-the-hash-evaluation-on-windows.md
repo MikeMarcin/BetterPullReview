@@ -33,3 +33,14 @@ recorded as missing.
 - **AC3:** If the CNG backend passes, the BPR-1447 port gains it for Windows
   with the window-thread rows re-measured there; otherwise the rejection is
   recorded and Windows keeps core.
+
+## Owner r4 reconciliation — 2026-10-18
+
+[[BPR-1617]] implements the directly selected CNG backend in core. This
+supersedes AC3's choice of whether Windows keeps a portable-only core; the
+host port still delegates to core off the window thread. The original full
+station evaluation, SHA-1/collision sweep, W1-W3 and window-thread rows remain
+pending. A focused real Windows SHA-256/MSVC course for the amendment passed
+with CNG and forced HACL (known answers, empty/chunked updates, copies and
+moves); see the [RFC ledger](../../verification/RFC-BPR-0080.md).
+This is partial native correctness evidence, not completion of AC1-AC3.

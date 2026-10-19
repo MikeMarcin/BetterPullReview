@@ -17,7 +17,10 @@ completed slice before starting the next one.
 
 ## Architecture rules
 
-- Core code is standard/domain C++ only and performs no I/O.
+- Core code performs deterministic computation and no I/O. Its approved
+  libraries and narrow platform SHA-256 exception are listed in `AGENTS.md`;
+  chrono arithmetic and explicit seeded random state are permitted, while
+  clock reads and entropy remain host effects.
 - The host owns effects, authority sessions, jobs, caches, cancellation, and
   lifecycle; it must not duplicate core policy.
 - Qt owns widgets, actions, focus, layout, accessibility, and event

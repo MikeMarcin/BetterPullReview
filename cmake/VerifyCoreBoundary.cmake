@@ -27,18 +27,20 @@ set(
     "#[ \t]*include[ \t]*[<\"]thread[>\"]"
     "#[ \t]*include[ \t]*[<\"]future[>\"]"
     "#[ \t]*include[ \t]*[<\"]filesystem[>\"]"
-    "#[ \t]*include[ \t]*[<\"]chrono[>\"]"
     "#[ \t]*include[ \t]*[<\"]ctime[>\"]"
-    "#[ \t]*include[ \t]*[<\"]random[>\"]"
     "#[ \t]*include[ \t]*[<\"]fstream[>\"]"
     "#[ \t]*include[ \t]*[<\"](atomic|mutex|condition_variable)[>\"]"
     "#[ \t]*include[ \t]*[<\"](asio|boost/asio)"
     "#[ \t]*include[ \t]*[<\"](nlohmann|rapidjson|boost/json)"
     "#[ \t]*include[ \t]*[<\"](sys/socket|winsock)"
+    "#[ \t]*include[ \t]*[<\"](windows\\.h|bcrypt\\.h|CommonCrypto/)"
+    "(^|[^A-Za-z0-9_])(BCrypt[A-Za-z0-9_]*|BCRYPT_[A-Za-z0-9_]*|CC_SHA[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
     "std::filesystem"
-    "std::chrono"
+    "::[ \t\r\n]*now[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_])(std::)?random_device([^A-Za-z0-9_]|$)"
     "std::time[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(time|clock_gettime|GetSystemTime)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(time|clock|clock_gettime|gettimeofday|timespec_get|GetSystemTime|QueryPerformanceCounter|GetTickCount(64)?)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(rand|srand|random|srandom)[ \t]*\\("
     "(^|[^A-Za-z0-9_])(std::|::)?getenv[ \t]*\\("
     "(^|[^A-Za-z0-9_])(std::|::)?system[ \t]*\\("
     "(^|[^A-Za-z0-9_])(fopen|freopen)[ \t]*\\("
@@ -58,6 +60,16 @@ set(
 
 foreach(core_file IN LISTS core_files)
     file(READ "${core_file}" contents)
+    # The owner's deterministic SHA-256 exception has two exact owners;
+    # all ordinary effect patterns still scan those files.
+    if(core_file STREQUAL "${BPR_ROOT}/src/core/src/sha256_commoncrypto.cpp")
+        string(REPLACE "#include <CommonCrypto/CommonDigest.h>" "" contents "${contents}")
+        string(REGEX REPLACE "CC_SHA256_(CTX|DIGEST_LENGTH|Init|Update|Final)" "" contents "${contents}")
+    elseif(core_file STREQUAL "${BPR_ROOT}/src/core/src/sha256_cng.cpp")
+        string(REPLACE "#include <windows.h>" "" contents "${contents}")
+        string(REPLACE "#include <bcrypt.h>" "" contents "${contents}")
+        string(REGEX REPLACE "(BCrypt(CreateHash|DuplicateHash|HashData|FinishHash|DestroyHash)|BCRYPT_SHA256_ALG_HANDLE|BCRYPT_HASH_HANDLE)" "" contents "${contents}")
+    endif()
     foreach(pattern IN LISTS forbidden_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${core_file}")
@@ -86,10 +98,16 @@ set(
     BetterPullReview::HaclSha2
     BetterPullReview::RapidFuzz
     BetterPullReview::Dtl
+    bcrypt
 )
 set(core_cmake "${BPR_ROOT}/src/core/CMakeLists.txt")
 if(EXISTS "${core_cmake}")
     file(READ "${core_cmake}" core_cmake_contents)
+    # RFC-BPR-0080 r4: only the Windows SHA-256 source branch may link CNG.
+    if(core_cmake_contents MATCHES "target_link_libraries\\([^)]*bcrypt"
+       AND NOT core_cmake_contents MATCHES "elseif\\(WIN32\\)[ \t\r\n]+target_sources\\(better_pull_review_core PRIVATE src/sha256_cng.cpp\\)[ \t\r\n]+target_link_libraries\\(better_pull_review_core PRIVATE bcrypt\\)")
+        message(FATAL_ERROR "Functional-core boundary violation: bcrypt must belong to the Windows SHA-256 branch")
+    endif()
     string(REGEX MATCHALL "target_link_libraries[ \t]*\\([^)]*\\)" core_links "${core_cmake_contents}")
     foreach(core_link IN LISTS core_links)
         string(REGEX REPLACE "^target_link_libraries[ \t]*\\(" "" core_items "${core_link}")

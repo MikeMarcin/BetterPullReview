@@ -8,12 +8,19 @@ diagnostics.
   (glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL* SHA-2,
   rapidfuzz-cpp, and dtl only for per-line intraline comparison and the
   Review Cycle suggestion hunks' line edit bounded at 512 changes; owner
-  2026-10-13).
+  2026-10-13), plus the owner-approved deterministic platform SHA-256
+  implementation (CommonCrypto/CNG with HACL fallback; RFC-BPR-0080 r4,
+  2026-10-18). Native APIs and handles stay in its exact private sources.
 - Before hand-writing a major general-purpose system here (parser, codec,
   compressor, hash, regex or diff engine, Unicode tables, protocol), ask the
   owner whether a suitable library should be allowed instead (root `AGENTS.md`).
-- Do not include Qt, filesystem, network, database, process, clock, random,
-  thread, future, timer, provider, or credential APIs.
+- Do not include Qt, filesystem, network, database, process, thread, future,
+  timer, provider or credential APIs. Apart from the scoped SHA-256 backend,
+  OS capabilities remain outside core.
+- Duration/time-point arithmetic and caller-owned explicitly seeded PRNG state
+  are permitted. Do not read clocks or implicit entropy (`random_device`,
+  global C RNGs). Keep the algorithm/mapping specified when random values
+  must match across platforms; standard distributions do not promise that.
 - Keep nondeterministic facts in explicit bounded observations.
 - Reject stale completions by typed identity in constant time.
 - Bind repeated diff semantic queries to one validated immutable result; keep

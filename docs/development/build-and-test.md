@@ -40,6 +40,20 @@ remaining designated live-server readback requirement.
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
+## Core SHA-256 selection
+
+Core uses CommonCrypto on macOS, CNG (`bcrypt`) on Windows 10+ and pinned
+HACL SHA-2 elsewhere. `-DBPR_CORE_SHA256_PORTABLE=ON` selects HACL on every
+platform for a reproducible portable build. This setting does not change
+persisted identities. SHA-1 always keeps collision detection.
+
+All SHA-256 calls remain noexcept and streams remain independently copyable.
+CommonCrypto/HACL allocate nothing; CNG owns a hash handle, may allocate on
+construction/copy and transfers ownership on move. Updates allocate no
+first-party memory. Native initialization failure selects HACL before any
+input; a subsequent native update/finalization/duplication failure terminates
+instead of returning a digest for incomplete input. Native types stay private.
+
 ## Run budgets and row timeouts
 
 A run budget bounds how long an automated application course waits for its

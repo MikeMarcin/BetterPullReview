@@ -6,7 +6,7 @@ status: "In Progress"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P1"
-metadata: {"mandate_revision":"hashing-replacement-r4","reservation":"docs/issues/_reservations/BPR-1617--BPR-1617--8031beb5bea5.json","milestone_plan":{"id":"deterministic-platform-sha256-v1","path":"docs/rfcs/plans/deterministic-platform-sha256-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"hashing-replacement-r5","reservation":"docs/issues/_reservations/BPR-1617--BPR-1617--8031beb5bea5.json","milestone_plan":{"id":"deterministic-platform-sha256-v1","path":"docs/rfcs/plans/deterministic-platform-sha256-v1/milestone-plan.json"}}
 ---
 
 # BPR-1617: Use deterministic platform SHA-256 in core
@@ -36,3 +36,12 @@ core SHA-256 API. Preserve SHA-1 collision detection and every digest identity.
   focused executable contracts. Seek native Windows evidence; unavailable
   native correctness/throughput remain explicitly on BPR-1448 without
   claiming this milestone closes RFC-BPR-0080.
+
+## Expanded owner amendment — 2026-10-18
+
+The owner subsequently removed blanket chrono/random bans. Duration and explicit
+time-point arithmetic and caller-owned explicitly seeded PRNG state are permitted;
+implicit clocks and entropy remain effects. No generator is introduced.
+
+- **AC5:** Architecture and boundary contracts permit chrono arithmetic and
+  explicitly seeded generators, and reject clock reads and random_device.

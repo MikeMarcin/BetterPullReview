@@ -10,7 +10,7 @@
   "milestones": [
     {
       "id": "platform-sha256",
-      "outcome": "Core SHA-256 uses deterministic platform crypto under the owner-authorized architecture, with HACL portable fallback and explicit native evidence limits.",
+      "outcome": "Deterministic core utilities admit scoped platform SHA-256, duration arithmetic and explicit random state under the expanded owner mandate.",
       "work": [
         {
           "issue": "BPR-1617"
@@ -21,7 +21,8 @@
         "BPR-1617 AC1: architecture, RFC amendment and narrow boundary checks agree.",
         "BPR-1617 AC2: one-shot, streaming, independent copies and failure behavior preserve the public digest contract.",
         "BPR-1617 AC3: macOS native selection and portable HACL verified, with focused composition and gates.",
-        "BPR-1617 AC4: CNG contracts verified; native Windows attempted or observed and remaining station obligations retained."
+        "BPR-1617 AC4: CNG contracts verified; native Windows attempted or observed and remaining station obligations retained.",
+        "BPR-1617 AC5: chrono arithmetic and explicit seeded random state allowed; hidden clocks and entropy rejected."
       ],
       "boundary": "One SHA-256 architecture/adoption milestone; no SHA-1, Linux libcrypto, UX or RFC-wide closeout."
     }

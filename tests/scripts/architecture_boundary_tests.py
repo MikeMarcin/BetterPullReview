@@ -1667,13 +1667,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("dtl comparison ownership violation", {**owners, path: expression})
 
-    def test_platform_sha256_has_one_adapter_owner(self) -> None:
-        # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub
-        # adapter's body digest port; core, application, app and every other
-        # adapter file stay free of it.
+    def test_platform_sha256_has_exact_native_and_adapter_owners(self) -> None:
         result = self.run_check({
             "src/adapters/github/src/platform_body_digest.cpp":
                 "#include <CommonCrypto/CommonDigest.h>\nCC_SHA256(data, size, digest);\n",
+            "src/core/src/sha256_commoncrypto.cpp":
+                "#include <CommonCrypto/CommonDigest.h>\nCC_SHA256_Update(&context, data, size);\n",
+            "src/core/src/sha256_cng.cpp":
+                "BCryptCreateHash(BCRYPT_SHA256_ALG_HANDLE, &handle, nullptr, 0, nullptr, 0, 0);\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/sha256_commoncrypto.cpp src/sha256_cng.cpp)\n",
         })
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for path, expression in (
@@ -1685,6 +1688,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("platform crypto (CommonCrypto SHA-2) ownership violation", {path: expression})
+
+        for path in ("src/core/src/other.cpp", "src/application/src/other.cpp",
+                     "src/adapters/github/src/platform_body_digest.cpp"):
+            with self.subTest(path=path):
+                self.assert_failure("platform crypto (CNG SHA-256) ownership violation",
+                                    {path: "BCryptHashData(handle, bytes, size, 0);\n"})
 
     def test_native_release_helper_launch_owner_is_exact(self) -> None:
         source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"
