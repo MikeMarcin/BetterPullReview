@@ -48,3 +48,22 @@ contrast matrix and fresh-process completion checks are unchanged. The nearest
 color is diagnostic context, not a substituted assertion or accepted tolerance.
 Source format22/diff checks pass; native compile, original-predicate measurement
 and focused tidy remain pending until explicit host release.
+
+
+## Native coverage control and assessment repair
+
+Native395ae2393 shows the fully visible Network token in monospace9, correct
+layout foreground#1b5e70 and closest DPR1 RGB#256074 (maximum channel difference10).
+The same complete fresh-process course passes all four variants at appDPR2
+in3.20 seconds with its original predicate unchanged. The coordinator approves
+an assessment-only minimumDPR2 repaint of the actual viewport, leaving widget
+font, logical layout and application DPR intact. The crop scales its original
+logical rectangle into that assessment raster; RGB tolerance remains3.
+
+A real wrong-foreground control changes only Network's layout-format interval
+to the variant's distinct macro ink, preserving neighboring format prefixes
+and suffixes. The identical raster reader must reject it; restoring the exact
+formats must restore the required ink. All710 contrast pairs, every-character
+format checks, both panes, four variants and fresh-process phases remain.
+This is palette/paint evidence, not DPR1 user legibility qualification. Native
+complete-course/negative-control and scoped tidy checks remain pending.

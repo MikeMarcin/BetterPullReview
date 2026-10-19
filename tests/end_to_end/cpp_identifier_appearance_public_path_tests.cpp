@@ -1,5 +1,6 @@
 // RFC-BPR-0072: real Git-backed comparison, palette controls and fresh processes.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/qt_ink_raster.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/core/appearance_contrast.hpp"
@@ -226,7 +227,31 @@ namespace {
 		wait_for([&] { return !window.comparison_surface()->geometry_pending() && window.comparison_surface()->left_pane()->viewport()->width() > 500; }, "public drawer controls give both panes room for qualified names");
 	}
 
-	void check_token(QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const QColor& aColour, const core::appearance_variant aVariant)
+	struct ink_reading
+	{
+		bool   Found             = false;
+		int    ClosestDifference = 256;
+		QColor ClosestColour;
+	};
+
+	[[nodiscard]] auto read_ink(const QImage& aImage, const QColor& aColour) -> ink_reading
+	{
+		auto reading = ink_reading{ };
+		for (int y = 0; y < aImage.height(); ++y) {
+			for (int x = 0; x < aImage.width(); ++x) {
+				const auto pixel      = aImage.pixelColor(x, y);
+				const auto difference = std::max({ std::abs(pixel.red() - aColour.red()), std::abs(pixel.green() - aColour.green()), std::abs(pixel.blue() - aColour.blue()) });
+				if (difference < reading.ClosestDifference) {
+					reading.ClosestDifference = difference;
+					reading.ClosestColour     = pixel;
+				}
+				reading.Found = reading.Found || (std::abs(pixel.red() - aColour.red()) <= 3 && std::abs(pixel.green() - aColour.green()) <= 3 && std::abs(pixel.blue() - aColour.blue()) <= 3);
+			}
+		}
+		return reading;
+	}
+
+	void check_token(QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const QColor& aColour, const core::appearance_variant aVariant, const bool aNegativeControl = false)
 	{
 		auto block = aPane.document()->begin();
 		while (block.isValid() && !block.text().contains(aLine)) {
@@ -249,30 +274,54 @@ namespace {
 			std::cerr << "token-not-visible:" << aLine.toStdString() << ":" << aToken.toStdString() << ":line=" << block.blockNumber() << ":origin=" << start.x() << "," << start.y() << ":viewport=" << aPane.viewport()->width() << "," << aPane.viewport()->height() << '\n';
 		}
 		expect(!area.isEmpty(), "verified token is visible in the offscreen raster");
-		const auto image             = aPane.viewport()->grab(area).toImage();
-		bool       colored           = false;
-		auto       closestDifference = 256;
-		auto       closestColour     = QColor{ };
-		for (int y = 0; y < image.height(); ++y) {
-			for (int x = 0; x < image.width(); ++x) {
-				const auto pixel      = image.pixelColor(x, y);
-				const auto difference = std::max({ std::abs(pixel.red() - aColour.red()), std::abs(pixel.green() - aColour.green()), std::abs(pixel.blue() - aColour.blue()) });
-				if (difference < closestDifference) {
-					closestDifference = difference;
-					closestColour     = pixel;
-				}
-				colored = colored || (std::abs(pixel.red() - aColour.red()) <= 3 && std::abs(pixel.green() - aColour.green()) <= 3 && std::abs(pixel.blue() - aColour.blue()) <= 3);
-			}
-		}
-		if (!colored) {
+		const auto image   = tests::ink_raster(*aPane.viewport(), area);
+		const auto reading = read_ink(image, aColour);
+		if (!reading.Found) {
 			std::cerr << "identifier-ink variant=" << core::stable_name(aVariant)
 					  << " pane=" << aPane.objectName().toStdString() << " line=" << aLine.toStdString() << " token=" << aToken.toStdString()
-					  << " expected=" << aColour.name().toStdString() << " closest=" << closestColour.name().toStdString() << " channel_difference=" << closestDifference
+					  << " expected=" << aColour.name().toStdString() << " closest=" << reading.ClosestColour.name().toStdString() << " channel_difference=" << reading.ClosestDifference
 					  << " area=" << area.x() << ',' << area.y() << ',' << area.width() << ',' << area.height()
 					  << " raster=" << image.width() << ',' << image.height() << " dpr=" << image.devicePixelRatio()
 					  << " font=" << aPane.font().family().toStdString() << " point_size=" << aPane.font().pointSizeF() << '\n';
 		}
-		expect(colored, "token's required foreground appears in its visible painted pixels");
+		expect(reading.Found, "token's required foreground appears in its visible painted pixels");
+		if (aNegativeControl) {
+			const auto original    = block.layout()->formats();
+			auto       wrong       = original;
+			const auto wrongColour = qt::to_presentation_color(qt::builtin_appearance_palette(aVariant)[at(role::syntax_macro)]);
+			const auto first       = static_cast<int>(begin);
+			const auto last        = static_cast<int>(begin + aToken.size());
+			wrong.clear();
+			for (const auto& format : original) {
+				const auto end = format.start + format.length;
+				if (format.start >= last || end <= first) {
+					wrong.push_back(format);
+					continue;
+				}
+				if (format.start < first) {
+					auto prefix   = format;
+					prefix.length = first - format.start;
+					wrong.push_back(prefix);
+				}
+				auto selected   = format;
+				selected.start  = std::max(format.start, first);
+				selected.length = std::min(end, last) - selected.start;
+				selected.format.setForeground(wrongColour);
+				wrong.push_back(selected);
+				if (end > last) {
+					auto suffix   = format;
+					suffix.start  = last;
+					suffix.length = end - last;
+					wrong.push_back(suffix);
+				}
+			}
+			block.layout()->setFormats(wrong);
+			const auto wrongImage = tests::ink_raster(*aPane.viewport(), area);
+			block.layout()->setFormats(original);
+			const auto restoredImage = tests::ink_raster(*aPane.viewport(), area);
+			expect(!read_ink(wrongImage, aColour).Found, "negative control: the token painted with macro ink fails the same raster reading");
+			expect(read_ink(restoredImage, aColour).Found, "restoring the actual token foreground restores its raster ink");
+		}
 	}
 
 	void check_render(app::github_application& aApplication, const core::appearance_variant aVariant)
@@ -300,6 +349,7 @@ namespace {
 			check(*pane, QStringLiteral("colour = MixedCase"), QStringLiteral("Red"), role::syntax_enum_member);
 			check(*pane, QStringLiteral("void verify()"), QStringLiteral("GCT_ASSERT"), role::syntax_macro);
 		}
+		check_token(*surface->left_pane(), QStringLiteral("namespace GCT"), QStringLiteral("Network"), qt::to_presentation_color(colors[at(role::syntax_namespace)]), aVariant, true);
 		expect(colors[at(role::syntax_namespace)] != colors[at(role::syntax_macro)] && colors[at(role::syntax_enum_member)] != colors[at(role::syntax_macro)], "macro pixels cannot satisfy new-category color assertions");
 	}
 
