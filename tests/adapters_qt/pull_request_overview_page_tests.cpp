@@ -2354,6 +2354,9 @@ namespace {
 				open->click();
 				settle();
 				static_cast<void>(page.grab(row).save(QStringLiteral("%1/switch-%2-open.png").arg(root, QString::fromStdString(theme)), "PNG"));
+				page.present_feedback(feedback_for(mixed_review(), asked.back(), all_files()));
+				settle();
+				expect(page.grab().save(QStringLiteral("%1/overview-%2.png").arg(root, QString::fromStdString(theme)), "PNG"), "the full Overview page is saved beside the switch states");
 			}
 
 			// The control: the switch as the style drew it, a checked

@@ -37,6 +37,7 @@
 #include <QRect>
 #include <QScrollArea>
 #include <QStatusBar>
+#include <QStyle>
 #include <QToolButton>
 
 #include <algorithm>
@@ -578,7 +579,9 @@ namespace {
 		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
 			auto profile = qt::appearance_profile{ };
 			static_cast<void>(profile.select_mode(mode));
+			const auto name = std::string{ "shared-buttons-review-" } + std::string{ core::stable_name(profile.variant()) };
 			f.Window.setPalette(profile.derive(original));
+			f.Window.settings()->present(qt::settings_page::review);
 			f.publish({ });
 			selected->clearFocus();
 			other->clearFocus();
@@ -598,14 +601,17 @@ namespace {
 			other->setAttribute(Qt::WA_UnderMouse, true);
 			const auto hovered = imageOf(*other);
 			expect(at(hovered, 3, other->height() / 2) != ground, "an enabled hover has feedback");
+			save_render(*f.Window.settings(), (name + "-hover").c_str());
 			other->setDown(true);
 			expect(at(imageOf(*other), 3, other->height() / 2) != at(hovered, 3, other->height() / 2), "press feedback differs from hover");
+			save_render(*f.Window.settings(), (name + "-pressed").c_str());
 			other->setDown(false);
 			other->setAttribute(Qt::WA_UnderMouse, false);
 			f.Window.settings()->activateWindow();
 			other->setFocus(Qt::TabFocusReason);
 			settle();
 			expect(other->hasFocus() && contrast(at(imageOf(*other), 2, other->height() / 2), ground) >= 3.0, "Tab focus is visible on the unselected choice");
+			save_render(*f.Window.settings(), (name + "-focus").c_str());
 			const auto before  = f.Records.size();
 			auto       press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
 			auto       release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
@@ -620,14 +626,17 @@ namespace {
 			other->setEnabled(false);
 			other->click();
 			expect(f.Records.size() == before + 1U && imageOf(*other) != enabled, "disabled choices change their rendering and cannot dispatch");
+			save_render(*f.Window.settings(), (name + "-disabled").c_str());
 			other->setAttribute(Qt::WA_UnderMouse, true);
 			const auto disabledHover = imageOf(*other);
 			other->setAttribute(Qt::WA_UnderMouse, false);
 			expect(imageOf(*other) == disabledHover, "disabled choices ignore hover feedback");
 			other->setEnabled(true);
 			f.publish({ });
-			const auto name = std::string{ "shared-buttons-review-" } + std::string{ core::stable_name(profile.variant()) };
 			save_render(*f.Window.settings(), name.c_str());
+			f.Window.settings()->present(qt::settings_page::comments);
+			settle();
+			save_render(*f.Window.settings(), (std::string{ "shared-buttons-comments-" } + std::string{ core::stable_name(profile.variant()) }).c_str());
 		}
 		f.Window.setPalette(original);
 	}
@@ -677,6 +686,7 @@ auto main(int argc, char** argv) -> int
 	test_about_conventional_comments_names_the_page();
 	test_the_comment_workshop_group();
 	test_settings_choices_share_the_overview_treatment();
-	std::cout << "feedback-label-settings-tests:pass\n";
+	std::cout << "feedback-label-settings-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
+			  << " style=" << application.style()->name().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }
