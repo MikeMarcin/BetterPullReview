@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1640"
 title: "Diagnose Ubuntu disclosure negative controls"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Native Windows-style probe confirms checked oldbar reads Window, not Button; original Ubuntu theme-colored control is not the stated fixedgrey input.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Only oldbar Window role corrected; actual rendered fixedbezel compared across4themes to support style shading. Hostsurface, originalnegative rejection/Darkcontrast/sharedpositive assertions unchanged.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC3","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"NativeLinuxc3bc disclosure100/200 pass0.15/0.28s; Mac4e0a bothscales pass with actual#D0D0D0 Fusion shading and originalcontrast/readability checks. Scopedclang-tidy22 Werror/format22/architecture/docs/diff pass.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}}]
 ---
 
 # BPR-1640: Diagnose Ubuntu disclosure negative controls
@@ -66,3 +67,14 @@ style shading. It now compares the actual rendered fixed bezel across all
 four themes, preserving the host-surface equality and every original negative
 and positive reading. No tolerance, threshold, style or product change. Mac
 and nativeLinux focused reruns plus tidy22 remain pending.
+
+## Verified repair result
+
+Native Windows-style probe confirms checked oldbar reads Window, not Button; original Ubuntu theme-colored control is not the stated fixedgrey input.
+
+Only oldbar Window role corrected; actual rendered fixedbezel compared across4themes to support style shading. Hostsurface, originalnegative rejection/Darkcontrast/sharedpositive assertions unchanged.
+
+NativeLinuxc3bc disclosure100/200 pass0.15/0.28s; Mac4e0a bothscales pass with actual#D0D0D0 Fusion shading and originalcontrast/readability checks. Scopedclang-tidy22 Werror/format22/architecture/docs/diff pass.
+
+Exact receipts, raw failures, JUnit and source bindings remain under the ignored
+release-v0.3.0 session; other release qualifications are separate obligations.

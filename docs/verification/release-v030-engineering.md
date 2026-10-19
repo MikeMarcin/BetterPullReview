@@ -315,7 +315,7 @@ that selected completeness separately; it is not a complete normal native
 gate. No test skip, selector registration or runner completeness guard changes.
 
 
-[BPR-1640](../issues/30-in-progress/BPR-1640-diagnose-ubuntu-disclosure-negative-controls.md)
+[BPR-1640](../issues/60-done/BPR-1640-diagnose-ubuntu-disclosure-negative-controls.md)
 retains the later two Ubuntu disclosure scale failures. The selected Windows
 style renders the supposed old native-bezel control using theme surface fills,
 not its supplied grey button palette. Dark contrast and both high-contrast
