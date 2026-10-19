@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1622"
 title: "Evaluate vycor-cpp semantic facts and Windows/WSL portability"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0001"]
 depends_on: []
 priority: "P1"
 metadata: {"mandate_revision": "vycor-evaluation-r1", "RFC_BASE_SHA": "ef7fa9cc6b4a8111cdaab4b5765ea425457b26a8", "reservation": "docs/issues/_reservations/BPR-1622--BPR-1622--18d808d153c3.json", "milestone_plan": {"id": "vycor-evaluation-v1", "path": "docs/rfcs/plans/vycor-evaluation-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d2c557f16f48340e34075fbfd717d4703fd1791c","evidence":{"kind":"artifact","path":"docs/verification/BPR-1622-vycor-evaluation.md","detail":"Unmodified upstream 60ef56f; exact fixture/runner candidate exercised on macOS and WSL2:5/5 indexed, four semantic distinctions, negative/unknown/incomplete controls; stock anneal has no effect gate."}},{"criterion":"AC2","outcome":"pass","revision":"d2c557f16f48340e34075fbfd717d4703fd1791c","evidence":{"kind":"artifact","path":"docs/verification/BPR-1622-vycor-evaluation.md","detail":"Mac 136 unique core plus 7 representative TUs and older WSL 107 core plus 6 representative clean; explicit compileDB identities/adaptations and variant limits. Native Windows configure/header failures establish unsupported verdict, not adoption acceptance."}},{"criterion":"AC3","outcome":"pass","revision":"d2c557f16f48340e34075fbfd717d4703fd1791c","evidence":{"kind":"artifact","path":"docs/verification/BPR-1622-vycor-evaluation.md","detail":"Recommendation/report, unchanged product gates, clang-format 22.1.8, Python CLI/compile, documentation gate and 67 contracts; explicit commits, self-review, isolated roots cleaned and all owned commands quiescent."}}]
 ---
 
 # Evaluate vycor-cpp before designing a checker
