@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1611"
 title: "The Reviews tab"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1609", "BPR-1610"]
 platforms: ["mac", "win", "linux"]
