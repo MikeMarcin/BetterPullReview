@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1641"
 title: "Decide excerpt visibility before moving input"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Guarded visibility computed from initialized incomingoptional before move, preserving storedcontent/visibility/updateorder and everycompilerflag; original GCC15 diagnostic retained.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-release-object.json"}},{"criterion":"AC2","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Exact GCC15.2 Release -O3 affectedTU object and complete publiccomposition pass407.88s atf8b8 with original-Werror/hardening. ParentMac1b1316 publictourwriting pass11.88s. ChangedTU scopedtidy22 Werror plusformat/architecture/docs/diff pass; source commits intentional, nativeforeground/releasecriteria separate.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-release-object.json"}}]
 ---
 
 # BPR-1641: Decide excerpt visibility before moving input
@@ -54,3 +55,12 @@ finding is corrected by the repository formatter. Documentation and diff checks
 pass. GCC15 -O3 compilation, focused tour/composition behavior and scoped tidy22
 remain pending until a native slot is explicitly released. This card stays
 In Progress and does not claim the original optimized failure is verified fixed.
+
+## Verified repair result
+
+Guarded visibility computed from initialized incomingoptional before move, preserving storedcontent/visibility/updateorder and everycompilerflag; original GCC15 diagnostic retained.
+
+Exact GCC15.2 Release -O3 affectedTU object and complete publiccomposition pass407.88s atf8b8 with original-Werror/hardening. ParentMac1b1316 publictourwriting pass11.88s. ChangedTU scopedtidy22 Werror plusformat/architecture/docs/diff pass; source commits intentional, nativeforeground/releasecriteria separate.
+
+Exact receipts, raw failures, JUnit and source bindings remain under the ignored
+release-v0.3.0 session; other release qualifications are separate obligations.

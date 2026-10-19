@@ -325,7 +325,7 @@ remain pending. No assertion, palette tolerance, product style or threshold is
 changed before those observations.
 
 
-[BPR-1641](../issues/30-in-progress/BPR-1641-decide-excerpt-visibility-before-moving-input.md)
+[BPR-1641](../issues/60-done/BPR-1641-decide-excerpt-visibility-before-moving-input.md)
 retains the Ubuntu public composition course's nested Release build failure:
 GCC15 at -O3 diagnoses the optional excerpt's stored vector after move
 assignment. The bounded source repair computes the same guarded visibility
