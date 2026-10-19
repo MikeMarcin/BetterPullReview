@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1618"
 title: "Move deterministic RE2 source matching into core"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0077"]
 depends_on: []
 priority: "P1"
