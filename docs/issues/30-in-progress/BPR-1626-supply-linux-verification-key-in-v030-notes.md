@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1626"
 title: "Supply the approved Linux verification key in v0.3.0 notes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
