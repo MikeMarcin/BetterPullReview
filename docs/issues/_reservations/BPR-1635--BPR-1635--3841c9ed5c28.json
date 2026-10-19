@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1635"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Repair actual Linux metadata harness nanosecond stat field",
+  "created": "2026-10-19T05:05:34.464162+00:00",
+  "base": "657f21efa8a74e7e05f452745fde163364d1a594"
+}
