@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P3"
 platforms: []
-metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50, staged_review_session --live-tour-course at 400e6ddc2 on e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1368"],"related_rfcs":["RFC-BPR-0041","RFC-BPR-0042"]}
+metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50, staged_review_session --live-tour-course at 400e6ddc2 on e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1368"],"related_rfcs":["RFC-BPR-0041","RFC-BPR-0042"],"milestone_plan":{"id":"bpr1378-tour-stop","path":"docs/rfcs/plans/bpr1378-tour-stop/milestone-plan.json"}}
 ---
 
 # BPR-1378: a tour publication stopped by its own Stop reports conflict

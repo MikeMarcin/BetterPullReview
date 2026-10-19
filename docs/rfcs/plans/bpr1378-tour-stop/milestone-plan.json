@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1378-tour-stop",
+  "scope": {
+    "issues": [
+      "BPR-1378"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "truthful-stop-progress",
+      "outcome": "Stopped tour publication returns retained partial progress without falsely reporting remote conflict, and resumes without duplicate writes.",
+      "work": [
+        {
+          "issue": "BPR-1378"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A Stop between writes reports a stopped/partial state that names what completed, not conflict; a real remote drift still reports conflict.",
+        "The fixture Stop course asserts the returned state at every stop point."
+      ],
+      "boundary": "Complete BPR-1378 only; preserve all original acceptance and parent live/native/human qualification gaps. Exclude Insights and RFC-BPR-0086."
+    }
+  ],
+  "unplanned_work": []
+}
