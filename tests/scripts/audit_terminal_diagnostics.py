@@ -105,7 +105,10 @@ def main() -> int:
         parser.error("this course requires POSIX pipes; other platforms remain pending")
     helper = args.helper.resolve(strict=True)
     name = CONTENT + "x" * 32768 + "\nmcp-forged-line\r\x1b"
-    hostile_environment = {name: VALUE}
+    # CoreFoundation inserts this name at startup on macOS when it is absent.
+    # Supply a synthetic value so the helper's complete received count is
+    # exactly the environment we constructed on every platform.
+    hostile_environment = {name: VALUE, "__CF_USER_TEXT_ENCODING": "0x0:0:0"}
     hostile_environment.update({f"{CONTENT}_{index}": VALUE for index in range(256)})
     observed = subprocess.run(
         [str(helper)], input=b"", stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -136,9 +139,10 @@ def main() -> int:
             )
         finally:
             os.close(write_fd)
+    expected_counts = f"mcp-environment-counts\t{len(hostile_environment)}\t0\t0\n".encode("ascii")
     checks = {
         "refusal_exit_unchanged": observed.returncode == 1 and observed.stdout == b"",
-        "complete_received_and_retained_counts": b"mcp-environment-counts\t257\t0\t0\n" in observed.stderr,
+        "complete_received_and_retained_counts": expected_counts in observed.stderr,
         "bounded_record": 0 < len(observed.stderr) <= MAXIMUM_STDERR_BYTES,
         "name_content_absent": CONTENT.encode() not in observed.stderr,
         "value_absent": VALUE.encode() not in observed.stderr,

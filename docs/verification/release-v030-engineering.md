@@ -88,3 +88,22 @@ The documentation gate reports `DOCUMENTATION_OK`, all 67 documentation tests
 pass, and `git diff --check` passes. Self-review confirms the only executable
 change is the fixture table entry; existing validators and their assertions
 are intact.
+
+[BPR-1625](../issues/30-in-progress/BPR-1625-make-mcp-terminal-audit-environment-exact.md)
+owns the terminal privacy audit's macOS input correction. The exact frozen
+helper (`f063cfca5159527a9fb1c8e781f5bde0cb0f537d8267b07f6ce9d53288c45205`)
+reports 258 received names and zero retained/unexpected names for 257 supplied
+synthetic names: its linked CoreFoundation inserts `__CF_USER_TEXT_ENCODING`
+before `main`. A disposable CoreFoundation-linked probe confirms 257 becomes
+258, while explicitly supplying a synthetic value for that name keeps 258
+supplied equal to 258 received. The audit now supplies it and derives the exact
+expected count from its constructed input. No minimum-count comparison or
+product environment/diagnostic change is introduced.
+
+All terminal audit checks pass against the unchanged frozen helper, including
+content exclusion, fixed records, blocked/closed pipes, inherited flags and
+protocol output. Three in-memory negative controls independently alter received,
+retained and unexpected-retained totals; each produces exit 1 solely for the
+complete-count check. The disposable probe is removed, and the ignored repair
+handoff binds the diagnostic and control receipts. Native full-suite reruns
+remain with the coordinator.
