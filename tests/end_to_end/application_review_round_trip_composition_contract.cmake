@@ -1,3 +1,7 @@
+# BPR-1609 correction integration over 318c3f5aa: adopted completed BPR-1618
+# removes the regex adapter include and uses the core singleton. Recorded main
+# audit/Find evidence is preserved; Insights UI-only correction adds no app source.
+# Combined full/manifest digests renewed; mutation branch remains unchanged.
 # RFC-BPR-0086 github-budget over 55ea64194, scoped engineering self-review.
 # Profile composition attaches a passive numeric Insights recorder to the existing
 # provider factory and diagnostic stream, drains it on the owned Insights effect
@@ -1630,7 +1634,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3f8aef71be9260c68585920452d6885021a77ed4ec7cfbc38006e15fc2419717"
+		"3ce13916d9c5ee79e9fff685669465fb2ea4b7dc6b52150b5ac87273ab8faea7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1850,7 +1854,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "64c0ddd0b801e5268549128e8d5d5401dd7d4ea9679286c1de9e98e19e03eb4f"
+        "7ae164d2a6fb19cc9768e8ed0c48c69a85f0070864621a23afbc2d9f87e7a3c9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
