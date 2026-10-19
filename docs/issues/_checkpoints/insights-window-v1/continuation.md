@@ -1,26 +1,77 @@
-# Energy recovery under owner amendment r2
+# Energy accepted under owner amendment r2; closeout is next
 
 Mandate **insights-window-v1-r2**, assignment **energy** (BPR-1612/BPR-1613),
 segment **energy-recovery-r2**, owner `/root/insights_energy_recovery`.
 Source/tracker root is this checkout; branch `codex/insights-window-v1`.
-Immutable RFC_BASE_SHA remains `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
+Immutable RFC_BASE_SHA: `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
 Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-recovery-3zsrq2oe`**.
 
-The explicit [r2 amendment](energy-r2-amendment.json) keeps official pinned Qt
-binaries and defers exact child CPU where supported APIs cannot provide it.
-Those counters show “Not reported”, never estimates, process-wide deltas or
-measured zero. That capability limitation no longer blocks this pack's closeout.
-All other original criteria remain. Prior r1 evidence below is historical.
+**BPR-1612 and BPR-1613 are Done; Energy is accepted under r2.** Source
+**ca8f39924**, sampler finish **2446e5223**, presentation finish **a7d5cdc39**.
+The explicit [owner amendment](energy-r2-amendment.json), quoted in the live
+RFC, retains official pinned Qt binaries and defers exact child CPU where
+supported Qt/platform APIs do not provide it. Such counters remain absent and
+show **Not reported**, including mixed measured/unmeasured totals. No estimate,
+process-wide delta, launch wrapper or Qt fork fills the gap. This documented
+capability limitation no longer blocks Energy or pack closeout. All other
+original criteria and prior owner decisions remain. Earlier r1 entries below
+are historical and do not reinstate that superseded blocker.
 
-BPR-1612 was resumed and claimed at `95aecc5de`; BPR-1613 is dependent.
-The attempted Qt source seam and helper-only additions were restored/removed
-before the r2 implementation; no fork change is committed. All own source
-build/probe/configure commands had finished when the amendment arrived.
-The removal inventory is in runtime `fork-removal-inventory.json`.
-Official Qt reconfigure passed; focused build/verification is in progress.
-No Energy acceptance is claimed in this checkpoint. Next: finish focused
-native/public checks, bind passing r2 obligations, finish both cards, clean
-only task-owned fork artifacts and deliver with guarded main reconciliation.
+## Exact candidate and verification
+
+Default official Qt6.11.2 configure and seven focused build targets pass.
+Actual native sampler and bounded app launch both load the official cache's
+QtCore image (path/digest in `official-runtime.json`). Mac own CPU/wakeups pass;
+unsupported Unix child usage remains absent (`child_cpu_reported=0`). Supported
+ordinary Windows handle code is unchanged; Windows/Linux native qualification
+remains unmeasured. Supervised Git cannot substitute helper CPU.
+
+Nine distinct relevant tests pass across focused courses: architecture, core,
+host, native, SQLite, actual gh runner, public Insights, composed review round
+trip and binary surface. The public rendered course passes4.59s; public
+integration rerun1.72s; composition/binary pair2/2 in4.63s. The new Not reported
+render is inspected without clipping. Prior1.25x/2x, transition/retention and
+native titlebar/ATT chart acceptance evidence is reused unchanged.
+`frontend-design` was read for the two wording edits; `code-simplifier` was
+applied. LLVM22 format/focused tidy, documentation and board validation pass.
+
+A generic selector additionally started an optional full Release
+`application_composition_contract` rebuild. The engineer stopped only that
+owned Ninja PID56626 with SIGINT after relevant focused checks passed; CTest
+collected the expected interruption (exit8 overall), then passed the public
+row. No pass is claimed for that optional course. `verification-r2.json` keeps
+this separate from the nine passing relevant tests. All command sessions are
+collected; no background writer, process, server, waiter or protected candidate
+is handed off. No live GitHub mutation, owner desktop/profile access or push.
+
+## Removal, ownership and delivery
+
+All seven tracked Qt-fork/helper/probe-test edits were restored to bd183e50a;
+the new builder, Qt patch and child-report header were removed. None was
+committed. Six exact task-owned source-build/install/probe roots were removed;
+official binary cache, verified upstream archives and unrelated work remain.
+`fork-removal-inventory.json` records each path. Product changes are only the
+two Not reported strings plus focused public regression/render evidence.
+
+Main was clean at **bd183e50ae539c72d8f45ae0dd0f0965652b36b6** and the prior
+coordinator handoff released its writer/commands. Final local delivery uses the
+shared primary-board lock, exact-main, clean-tree and ancestry guards, followed
+by fast-forward only. Runtime `main-delivery.json` and the final binding/check
+record the final source/main revision. If a frontier changes, the guard refuses
+instead of overwriting it. No push. This engineering owner releases its writer
+at final return after that receipt and quiescent checks are complete.
+
+## Continuation
+
+**BPR-1615 / closeout is now dependency-eligible.** The next fresh owner continues
+mandate r2 with all five earlier milestones accepted. Required work remains:
+unique identifying canaries through both actual frozen export previews (AC11),
+and a recorded macOS signed-in, no-window background hour (AC12); a miss needs
+a filed cause card. Preserve existing owner chart/titlebar verdicts, immutable
+baseline, original scope outside the explicit child-CPU amendment and native
+qualification limits. No human gate is added by Energy and no full-pack / RFC
+completion is claimed. The owner quote is in live RFC0086 and the canonical
+AC08 row on BPR-1615 already reflects r2.
 
 # Work milestone accepted; Energy remains unfinished
 

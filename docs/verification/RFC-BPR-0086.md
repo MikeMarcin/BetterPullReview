@@ -10,8 +10,8 @@ The GitHub budget milestone has passing automated evidence and explicit owner
 Accept verdicts for the corrected charts and native title row. BPR-1608 and
 BPR-1609 are Done. Review-stats is accepted: BPR-1610/BPR-1611 have passing
 count/lifetime and range/calendar/record evidence. Work is accepted (BPR-1614).
-Energy's supported-API r2 candidate now passes the official-runtime native and
-public checks. The owner explicitly deferred unsupported exact child CPU, so
+Energy is accepted: BPR-1612/BPR-1613 are Done under owner amendment r2;
+the supported-API candidate passes official-runtime native and public checks. The owner explicitly deferred unsupported exact child CPU, so
 that limitation no longer blocks Energy or pack closeout. BPR-1612/BPR-1613
 completion and final delivery are recorded in the continuation. Full export
 privacy and the macOS idle hour remain BPR-1615 obligations; no full-RFC
@@ -708,3 +708,16 @@ Evidence: `configure-official.log`, `build-official.log`,
 `integration-official.log`, `integration-composition-official.log`,
 `tidy.log`, `format.log`, `documentation-r2-corrected.log` and
 `fork-removal-inventory.json`.
+
+
+R2 completion: source `ca8f39924`, BPR-1612 finish `2446e5223`, BPR-1613 finish
+`a7d5cdc39`. Nine distinct relevant tests pass across the focused courses;
+public rerun1.72s, rendered public4.59s, review-round-trip composition plus binary
+surface2/2 in4.63s. A generic selector also started the optional full Release
+`application_composition_contract` rebuild. The engineer interrupted only its
+owned Ninja PID56626 after the relevant focused courses passed; CTest recorded
+that expected interruption as its one failed row, then passed the public course.
+It is not claimed as passing evidence or required Energy acceptance. Runtime
+`verification-r2.json` retains the exact disposition. All owned commands are
+collected. Full export privacy and the macOS idle hour stay on BPR-1615; the
+unsupported-child capability limit does not block that milestone.
