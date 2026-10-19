@@ -487,6 +487,7 @@ namespace bpr::core {
 			}
 		}
 		std::vector<insights_work_sample> result;
+		result.reserve(buckets.size());
 		for (auto& [identity, sample] : buckets) {
 			result.push_back(std::move(sample));
 		}
