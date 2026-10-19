@@ -1,5 +1,17 @@
 # RFC-BPR-0038 qualification ledger
 
+## Coordinated stable 0.3.0 source preparation, 2026-10-18
+
+The owner selected full macOS, Windows x64 and Ubuntu 26.04 packages at stable
+0.3.0. [BPR-1623](../issues/30-in-progress/BPR-1623-prepare-coordinated-v030-release-source.md)
+and the [engineering ledger](release-v030-engineering.md) bind source
+preparation to entry `a426db419d393895020ab961509df46aba94ee46` under mandate
+`release-v030-coordinated-r1`. The coordinator owns exact-source native normal
+gates, signing, packaging and publication; preparation supplies no new native
+or security qualification. Historical approvals and configured skips retain
+their exact original scope. BPR-0958–0962 and BPR-0973 remain open, including
+native/vault, crash/privacy, vulnerability and distribution obligations below.
+
 ## Unversioned Ubuntu readiness refresh, 2026-10-16
 
 The owner selected readiness for the next coordinated release, with no version
