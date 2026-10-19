@@ -30,6 +30,7 @@ namespace bpr::application {
 		std::string                       BackgroundWork;
 		core::insights_github_snapshot    Github;
 		core::insights_reviews_snapshot   Reviews;
+		core::insights_energy_snapshot    Energy;
 	};
 
 	/// \brief Presentation gestures; none gives Qt access to a storage or process capability.

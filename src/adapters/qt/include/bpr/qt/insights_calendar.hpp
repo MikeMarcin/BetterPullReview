@@ -10,6 +10,7 @@ namespace bpr::qt {
 		explicit insights_calendar(QWidget* aParent = nullptr);
 		void apply(const core::insights_reviews_snapshot& aSnapshot);
 		void set_color(QColor aColor);
+		void apply_energy(const core::insights_energy_snapshot& aSnapshot);
 
 	protected:
 		void paintEvent(QPaintEvent*) override;
@@ -17,10 +18,13 @@ namespace bpr::qt {
 		void leaveEvent(QEvent*) override;
 
 	private:
-		[[nodiscard]] auto              day_box(std::size_t aIndex) const -> QRectF;
-		core::insights_reviews_snapshot Snapshot;
-		QColor                          Ink;
-		std::optional<std::size_t>      Hovered;
+		[[nodiscard]] auto                 day_box(std::size_t aIndex) const -> QRectF;
+		core::insights_reviews_snapshot    Snapshot;
+		QColor                             Ink;
+		bool                               Energy = false;
+		std::vector<std::optional<double>> Intensities;
+		std::vector<bool>                  SampledDays;
+		std::optional<std::size_t>         Hovered;
 	};
 }
 #endif

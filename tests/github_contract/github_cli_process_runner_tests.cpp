@@ -1079,12 +1079,16 @@ namespace {
 		std::stop_source cancellation;
 		std::thread      canceller{ [&] {
 			std::this_thread::sleep_for(50ms);
+			observer->set_foreground(true);
 			cancellation.request_stop();
 		} };
 		const auto cancelled = runner->run(request, cancellation.get_token());
 		canceller.join();
 		expect(!cancelled.has_value() && cancelled.error() == github_cli_process_failure::cancelled,
 			   "opt-in cancellation exposes no partial output");
+
+		const auto childFacts = observer->energy();
+		expect(observer->foreground() && childFacts.size() == 7 && std::ranges::all_of(childFacts, [](const auto& aFact) { return !aFact.Foreground && aFact.Children[0] == 1 && aFact.Samples == 0; }), "real gh runner reaps seven independently attributed children without adding application CPU samples");
 
 		const auto observed = bpr::core::build_insights_github(observer->events(), { 1, 203 }, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 		expect(observed.Processes == 7 && observed.ProcessFailures[static_cast<std::size_t>(bpr::core::insights_process_failure::nonzero_exit)] == 2

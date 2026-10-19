@@ -171,5 +171,52 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto build_insights_reviews(const std::vector<insights_review_bucket>& aBuckets, const std::vector<insights_review_pr>& aPullRequests, std::int64_t aStartedDay, std::int64_t aToday) -> insights_reviews_snapshot;
 
+	/// \brief Cumulative counters supplied by a native adapter. The host supplies both clocks.
+	struct insights_process_counters
+	{
+		std::int64_t                 SteadyMicroseconds = 0, UnixMicroseconds = 0;
+		std::uint64_t                CpuMicroseconds = 0;
+		std::optional<std::uint64_t> Wakeups;
+	};
+	/// \brief A retained interval or rollup. Child facts have no application wall time or samples.
+	struct insights_energy_sample
+	{
+		std::int64_t                 AtMicroseconds = 0, LocalDay = 0, WidthSeconds = 1;
+		bool                         Foreground = false;
+		std::uint64_t                Samples = 0, WallMicroseconds = 0, CpuMicroseconds = 0;
+		std::optional<std::uint64_t> Wakeups;
+		std::uint64_t                WakeupWallMicroseconds = 0;
+		std::array<std::uint64_t, 2> ChildCpuMicroseconds{ }, Children{ }, UnmeasuredChildren{ };
+		double                       PeakLoad = 0;
+	};
+	[[nodiscard]] auto insights_energy_delta(const insights_process_counters& aBefore, const insights_process_counters& aAfter, bool aForeground, std::int64_t aLocalDay) -> std::optional<insights_energy_sample>;
+	[[nodiscard]] auto rollup_insights_energy(const std::vector<insights_energy_sample>& aSamples, std::int64_t aNow) -> std::vector<insights_energy_sample>;
+	[[nodiscard]] auto insights_cpu_per_hour(const insights_energy_sample& aSample) noexcept -> std::optional<double>;
+	[[nodiscard]] auto insights_wakeups_per_minute(const insights_energy_sample& aSample) noexcept -> std::optional<double>;
+	struct insights_energy_point
+	{
+		std::int64_t          UnixSeconds = 0;
+		std::optional<double> Background, Foreground, WakeupsPerMinute, BackgroundBudget;
+		bool                  GapBefore = false;
+	};
+	struct insights_energy_day
+	{
+		std::int64_t          Day             = 0;
+		std::uint64_t         CpuMicroseconds = 0;
+		bool                  HasSamples      = false;
+		double                Size            = 0;
+		std::optional<double> BackgroundIntensity;
+	};
+	struct insights_energy_snapshot
+	{
+		bool         Available = false;
+		std::int64_t Now = 0, Today = 0;
+		// Each range pairs background [0] and foreground [1].
+		std::array<std::array<insights_energy_sample, 2>, 3> Ranges{ };
+		std::vector<insights_energy_point>                   Hour, Day;
+		std::vector<insights_energy_day>                     Calendar;
+	};
+	[[nodiscard]] auto build_insights_energy(const std::vector<insights_energy_sample>& aSamples, std::int64_t aNow, std::int64_t aToday) -> insights_energy_snapshot;
+
 }
 #endif

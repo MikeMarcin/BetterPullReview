@@ -136,6 +136,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterQt
             BetterPullReview::AdapterUpdate
+            BetterPullReview::ProcessSupport
             Threads::Threads
     )
     # [[BPR-1179]]. The agent launch adapter, the MCP context helper and the

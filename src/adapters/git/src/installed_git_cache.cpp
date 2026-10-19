@@ -6134,6 +6134,7 @@ namespace bpr::adapters::git {
 						.IsolationRoot              = *storage,
 						.WindowsSystemRoot          = Configuration.WindowsSystemRoot,
 						.WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
+						.Insights                   = Configuration.Insights,
 					},
 					aStop);
 				if (!process.has_value()) {

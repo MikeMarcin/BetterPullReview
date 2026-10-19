@@ -44,6 +44,9 @@ namespace bpr::qt {
 	class side_chat_panel;
 } // namespace bpr::qt
 
+namespace bpr::application {
+	class process_metrics_port;
+}
 namespace bpr::app::detail {
 	enum class github_public_path_fixture {
 		github_com,
@@ -301,6 +304,7 @@ namespace bpr::app::detail {
 
 	struct github_public_path_fixture_options
 	{
+		std::shared_ptr<application::process_metrics_port> InsightsMetrics;
 		struct github_cli_discovery_account
 		{
 			std::string Hostname;

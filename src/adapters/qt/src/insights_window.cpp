@@ -281,6 +281,38 @@ namespace bpr::qt {
 		}
 		auto category_names() -> QStringList { return { QObject::tr("Inbox and review queue"), QObject::tr("Opening pull requests"), QObject::tr("Comments and threads"), QObject::tr("Publishing"), QObject::tr("Other") }; }
 
+		auto energy_seconds(const std::uint64_t aMicroseconds) -> QString
+		{
+			return QObject::tr("%1 s").arg(QLocale{ }.toString(static_cast<double>(aMicroseconds) / 1000000.0, 'f', 2));
+		}
+		auto energy_child(const core::insights_energy_sample& aSide, const std::size_t aKind) -> QString
+		{
+			if (!aSide.Children[aKind]) {
+				return QObject::tr("No children");
+			}
+			if (aSide.UnmeasuredChildren[aKind]) {
+				return QObject::tr("Unavailable");
+			}
+			return energy_seconds(aSide.ChildCpuMicroseconds[aKind]);
+		}
+		auto energy_fact(const core::insights_energy_sample& aSide, const int aRow) -> QString
+		{
+			if (aRow == 2 || aRow == 3) {
+				return energy_child(aSide, static_cast<std::size_t>(aRow - 2));
+			}
+			if (!aSide.Samples) {
+				return QObject::tr("No samples");
+			}
+			switch (aRow) {
+			case 0:  return energy_seconds(aSide.CpuMicroseconds);
+			case 1:  return aSide.Wakeups ? QLocale{ }.toString(*aSide.Wakeups) : QObject::tr("Not reported");
+			case 4:  return QLocale{ }.toString(aSide.Samples);
+			case 5:  return energy_seconds(aSide.WallMicroseconds);
+			case 6:  return QObject::tr("%1%").arg(QLocale{ }.toString(aSide.PeakLoad * 100.0, 'f', 2));
+			default: return { };
+			}
+		}
+
 		auto label(const QString& aText, QWidget* aParent, const char* aType = "body") -> QLabel*
 		{
 			auto* result = new QLabel{ aText, aParent };
@@ -502,7 +534,10 @@ namespace bpr::qt {
 				SummaryReviewDetails = { reviews.Detail, comments.Detail };
 				SummaryReviewValues[0]->setObjectName(QStringLiteral("insightsSummaryReviews"));
 				SummaryReviewValues[1]->setObjectName(QStringLiteral("insightsSummaryComments"));
-				tile(*tiles, 2, 3, tr("Cost while idle"), tr("No background samples yet"));
+				const auto idle   = tile(*tiles, 2, 3, tr("Cost while idle"), tr("No background samples yet"));
+				SummaryIdle       = idle.Value;
+				SummaryIdleDetail = idle.Detail;
+				SummaryIdle->setObjectName(QStringLiteral("insightsSummaryIdle"));
 				const auto local = tile(*tiles, 3, 3, tr("Local data"), tr("Not measured yet"));
 				LocalData        = local.Value;
 				LocalDataDetail  = local.Detail;
@@ -545,13 +580,146 @@ namespace bpr::qt {
 				column->addLayout(actions);
 				connect(manage, &QPushButton::clicked, this, [this] { if (Dispatch.ManageCaches) { Dispatch.ManageCaches(); } });
 				connect(reveal, &QPushButton::clicked, this, [this] { if (Dispatch.RevealData) { Dispatch.RevealData(); } });
+			} else if (index == 5) {
+				build_energy_page(*column);
 			} else {
 				build_empty_page(index, *column);
 			}
-			if (index != 3 && index != 2 && index != 1) {
+			if (index != 3 && index != 2 && index != 1 && index != 5) {
 				column->addStretch();
 			}
 		}
+	}
+
+	void insights_window::build_energy_page(QVBoxLayout& aColumn)
+	{
+		auto*             tiles = grid(aColumn, 3);
+		const QStringList titles{ tr("Background CPU"), tr("Background wakeups"), tr("Background children") };
+		for (int index = 0; index < 3; ++index) {
+			const auto labels                              = tile(*tiles, index, 3, titles[index], tr("No background samples yet"));
+			EnergyValues[static_cast<std::size_t>(index)]  = labels.Value;
+			EnergyDetails[static_cast<std::size_t>(index)] = labels.Detail;
+			labels.Value->setObjectName(QStringLiteral("insightsEnergy%1").arg(index));
+		}
+		auto* pair = new QHBoxLayout;
+		pair->setSpacing(14);
+		auto* column = new QVBoxLayout;
+		EnergyRange  = ranges(*column, { tr("1h"), tr("1d"), tr("3m") }, tr("Energy range"));
+		EnergyRange->setObjectName(QStringLiteral("insightsEnergyRange"));
+		column->setAlignment(EnergyRange, Qt::AlignHCenter);
+		EnergyPlots = new QStackedWidget{ aColumn.parentWidget() };
+		EnergyChart = new insights_chart{ EnergyPlots };
+		EnergyChart->setObjectName(QStringLiteral("insightsEnergyChart"));
+		EnergyCalendar = new insights_calendar{ EnergyPlots };
+		EnergyCalendar->setObjectName(QStringLiteral("insightsEnergyCalendar"));
+		EnergyCalendar->setMinimumHeight(200);
+		EnergyCalendar->setMaximumHeight(QWIDGETSIZE_MAX);
+		EnergyPlots->addWidget(EnergyChart);
+		EnergyPlots->addWidget(EnergyCalendar);
+		column->addWidget(EnergyPlots, 1);
+		column->addWidget(label(tr("Idle budgets: 2 s CPU / idle h · 6 wakeups / min"), aColumn.parentWidget(), "small"));
+		pair->addLayout(column, 3);
+		auto* facts = new QVBoxLayout;
+		facts->setContentsMargins(0, 40, 0, 0);
+		facts->setSpacing(6);
+		facts->addWidget(label(tr("During the selected range"), aColumn.parentWidget(), "heading"));
+		EnergyFacts = fact_table(aColumn.parentWidget(), QStringLiteral("insightsEnergyFacts"));
+		EnergyFacts->setColumnCount(3);
+		EnergyFacts->setHorizontalHeaderLabels({ tr("Measured"), tr("Foreground"), tr("Background") });
+		EnergyFacts->horizontalHeader()->hide();
+		EnergyFacts->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+		EnergyFacts->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+		EnergyFacts->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+		facts->addWidget(EnergyFacts, 1);
+		pair->addLayout(facts, 2);
+		aColumn.addLayout(pair, 1);
+		connect(EnergyRange, &QTabBar::currentChanged, this, [this] { update_energy(); refresh_typography(); });
+	}
+	void insights_window::update_energy()
+	{
+		const auto  range   = static_cast<std::size_t>(EnergyRange->currentIndex());
+		const auto& bg      = EnergySnapshot.Ranges[range][0];
+		const auto  number  = [](double aValue) { return QLocale{ }.toString(aValue, 'f', 2); };
+		const auto  seconds = [&](std::uint64_t aValue) { return tr("%1 s").arg(number(static_cast<double>(aValue) / 1000000.0)); };
+		const auto  cpu     = core::insights_cpu_per_hour(bg);
+		const auto  wakes   = core::insights_wakeups_per_minute(bg);
+		EnergyValues[0]->setText(cpu ? tr("%1 s / idle h").arg(number(*cpu)) : tr("No background samples yet"));
+		EnergyValues[0]->setProperty("overBudget", cpu && *cpu > 2.0);
+		EnergyDetails[0]->setText(cpu ? (*cpu > 2.0 ? tr("Over budget · at most 2 s / idle h") : tr("Within budget · at most 2 s / idle h")) : tr("Background intervals will fill this"));
+		EnergyValues[1]->setText(wakes ? tr("%1 / min").arg(number(*wakes)) : bg.Samples ? tr("Not reported on this platform")
+																						 : tr("No background samples yet"));
+		EnergyValues[1]->setProperty("overBudget", wakes && *wakes > 6.0);
+		EnergyDetails[1]->setText(wakes ? (*wakes > 6.0 ? tr("Over budget · at most 6 / min") : tr("Within budget · at most 6 / min")) : QString{ });
+		const auto children = bg.Children[0] + bg.Children[1];
+		const auto unknown  = bg.UnmeasuredChildren[0] + bg.UnmeasuredChildren[1];
+		EnergyValues[2]->setText(!children ? tr("No child CPU samples yet") : unknown ? tr("Child CPU unavailable")
+																					  : seconds(bg.ChildCpuMicroseconds[0] + bg.ChildCpuMicroseconds[1]));
+		EnergyDetails[2]->setText(!children ? tr("Completed gh and git processes will fill this") : unknown ? tr("%1 children without final counters").arg(unknown)
+																											: tr("gh %1 · git %2").arg(energy_child(bg, 0), energy_child(bg, 1)));
+		for (std::size_t index = 0; index < 3; ++index) {
+			EnergyValues[index]->setProperty("insightsType", index == 0 ? (cpu ? "value" : "empty") : index == 1 ? (wakes ? "value" : "empty")
+												 : children && !unknown                                          ? "value"
+																												 : "empty");
+			EnergyValues[index]->setToolTip(EnergyDetails[index]->text());
+		}
+		update_energy_facts(range);
+		const auto idle = core::insights_cpu_per_hour(EnergySnapshot.Ranges[0][0]);
+		SummaryIdle->setText(idle ? tr("%1 s / idle h").arg(number(*idle)) : tr("No background samples yet"));
+		SummaryIdle->setProperty("insightsType", idle ? "value" : "empty");
+		SummaryIdle->setProperty("overBudget", idle && *idle > 2.0);
+		SummaryIdleDetail->setText(idle ? (*idle > 2.0 ? tr("Last hour · over the 2 s budget") : tr("Last hour · within the 2 s budget")) : QString{ });
+		EnergyCalendar->apply_energy(EnergySnapshot);
+		EnergyPlots->setCurrentIndex(range == 2 ? 1 : 0);
+		update_energy_chart();
+	}
+	void insights_window::update_energy_facts(const std::size_t aRange)
+	{
+		EnergyFacts->setRowCount(8);
+		const QStringList names{ tr("Measured"), tr("CPU"), tr("Wakeups"), tr("gh CPU"), tr("git CPU"), tr("Samples"), tr("Wall time"), tr("Peak CPU") };
+		for (int row = 0; row < 8; ++row) {
+			for (int column = 0; column < 3; ++column) {
+				auto* item = EnergyFacts->item(row, column);
+				if (!item) {
+					item = new QTableWidgetItem;
+					EnergyFacts->setItem(row, column, item);
+				}
+				if (column == 0) {
+					item->setText(names[row]);
+				} else if (row == 0) {
+					item->setText(column == 1 ? tr("Foreground") : tr("Background"));
+				} else {
+					item->setText(energy_fact(EnergySnapshot.Ranges[aRange][column == 1 ? 1 : 0], row - 1));
+				}
+				item->setToolTip(item->text());
+				item->setTextAlignment((column == 0 ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter);
+				item->setForeground(palette().color(column == 0 ? QPalette::PlaceholderText : QPalette::Text));
+			}
+			EnergyFacts->setRowHeight(row, 25);
+		}
+	}
+
+	void insights_window::update_energy_chart()
+	{
+		const auto          day = EnergyRange->currentIndex() == 1;
+		insights_chart_data chart;
+		chart.Name             = tr("Foreground and background CPU");
+		chart.Empty            = tr("No energy samples yet");
+		chart.Quantity         = tr("CPU seconds / sampled hour");
+		chart.BackgroundName   = tr("Background");
+		chart.ForegroundName   = tr("Foreground");
+		chart.EventsName       = tr("Wakeups / min");
+		chart.StartUnixSeconds = EnergySnapshot.Now - (day ? 86400 : 3600);
+		chart.EndUnixSeconds   = EnergySnapshot.Now;
+		chart.GapSeconds       = day ? 300 : 60;
+		chart.Reference        = 2.0;
+		chart.EventsReference  = 6.0;
+		const auto& sides      = EnergySnapshot.Ranges[day ? 1 : 0];
+		const auto  idle       = core::insights_cpu_per_hour(sides[0]);
+		chart.Description      = idle ? tr("Background CPU cost %1 seconds per background hour over the selected range, %2 the 2-second budget; foreground is stacked above background, gaps have no samples and wakeups have a separate lane.").arg(QLocale{ }.toString(*idle, 'f', 2), *idle > 2.0 ? tr("over") : tr("within")) : tr("No background CPU samples yet; foreground and background intervals will fill this chart.");
+		for (const auto& point : day ? EnergySnapshot.Day : EnergySnapshot.Hour) {
+			chart.Points.push_back({ point.UnixSeconds, point.Background, point.Foreground.value_or(0), point.WakeupsPerMinute, false, point.GapBefore, point.BackgroundBudget });
+		}
+		EnergyChart->apply(std::move(chart));
 	}
 
 	void insights_window::build_reviews_page(QVBoxLayout& aColumn)
@@ -704,6 +872,8 @@ namespace bpr::qt {
 		static_cast<budget_bar*>(BudgetBar)->set_color(PrimaryChartColor);
 		GithubChart->set_colors(PrimaryChartColor, SecondaryChartColor);
 		ReviewCalendar->set_color(PrimaryChartColor);
+		EnergyCalendar->set_color(PrimaryChartColor);
+		EnergyChart->set_colors(PrimaryChartColor, SecondaryChartColor);
 	}
 	void insights_window::update_github()
 	{
@@ -825,26 +995,6 @@ namespace bpr::qt {
 			tile(*tiles, 2, 3, tr("Syntax cache"), tr("No syntax observations yet"));
 			ranges(aColumn, { tr("1h"), tr("1d") }, tr("Work range"));
 			empty_section(aColumn, tr("Slowest files to diff"), tr("Diff work on this computer will fill this view."));
-		} else {
-			auto* tiles = grid(aColumn, 3);
-			tile(*tiles, 0, 3, tr("Background CPU"), tr("No energy samples yet"));
-			tile(*tiles, 1, 3, tr("Background wakeups"), tr("No wakeup samples yet"));
-			tile(*tiles, 2, 3, tr("Background children"), tr("No child CPU samples yet"));
-			ranges(aColumn, { tr("1h"), tr("1d"), tr("3m") }, tr("Energy range"));
-			auto* pair = new QHBoxLayout;
-			pair->setSpacing(14);
-			auto* chart = new QVBoxLayout;
-			empty_section(*chart, tr("CPU over the range"), tr("Foreground and background samples will fill this chart."), 136);
-			pair->addLayout(chart, 2);
-			auto* facts = new QVBoxLayout;
-			facts->setSpacing(6);
-			facts->addWidget(label(tr("Foreground and background"), aColumn.parentWidget(), "heading"));
-			for (const auto& title : { tr("CPU"), tr("Wakeups"), tr("Child CPU"), tr("Samples") }) {
-				facts->addWidget(label(title + tr(": no samples yet"), aColumn.parentWidget(), "secondary"));
-			}
-			facts->addStretch();
-			pair->addLayout(facts, 1);
-			aColumn.addLayout(pair);
 		}
 	}
 
@@ -934,6 +1084,8 @@ namespace bpr::qt {
 		BuiltUnixSeconds = aSnapshot.BuiltUnixSeconds;
 		GithubSnapshot   = aSnapshot.Github;
 		ReviewsSnapshot  = aSnapshot.Reviews;
+		EnergySnapshot   = aSnapshot.Energy;
+		update_energy();
 		update_reviews();
 		update_github();
 		Status->setText(tr("Updated 0 sec. ago"));

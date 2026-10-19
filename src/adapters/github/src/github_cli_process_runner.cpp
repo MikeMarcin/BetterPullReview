@@ -765,6 +765,13 @@ namespace bpr::adapters::github::detail {
 						*processGroupId = processPointer->processId();
 					},
 					Qt::DirectConnection);
+				QObject::connect(process.get(), &QProcess::started, process.get(), [processPointer = process.get(), insights = aRequest.Insights]() noexcept {
+						try {
+							if (insights) {
+								const auto capture = insights->child_started();
+								process_support::observe_reaped_cpu(*processPointer,[capture](auto aCpu) { capture.record(aCpu); });
+							}
+						} catch (...) {} }, Qt::DirectConnection);
 				QObject::connect(
 					process.get(),
 					&QProcess::finished,

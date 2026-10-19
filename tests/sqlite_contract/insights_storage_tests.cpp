@@ -166,5 +166,27 @@ int main()
 	}
 	expect(refused, "a linked store cannot masquerade as an owned measurement");
 #endif
+	constexpr auto                            energyNow = 20000000LL;
+	std::vector<core::insights_energy_sample> energy;
+	for (const auto age : { 60LL, 7200LL, 7201LL, 172800LL, 172801LL, 94 * 86400LL }) {
+		core::insights_energy_sample sample;
+		sample.AtMicroseconds         = (energyNow - age) * 1000000;
+		sample.LocalDay               = application::local_insights_day(energyNow - age);
+		sample.Samples                = 1;
+		sample.WallMicroseconds       = 60000000;
+		sample.CpuMicroseconds        = 100000;
+		sample.Wakeups                = 7;
+		sample.WakeupWallMicroseconds = 60000000;
+		sample.PeakLoad               = 0.1;
+		energy.push_back(sample);
+	}
+	store->record_energy(energy);
+	const auto cost = store->energy(energyNow);
+	expect(cost.Ranges[0][0].CpuMicroseconds == 100000 && cost.Ranges[0][0].Wakeups == 7 && cost.Ranges[2][0].Samples == 5 && cost.Ranges[2][0].PeakLoad == 0.1, "real Energy history preserves measured sums/peaks and drops93-day expired data");
+	store.reset();
+	store                    = adapters::sqlite::make_insights_storage(scratch.path(), [] { return std::vector<application::insights_storage_row>{ }; });
+	const auto restartedCost = store->energy(energyNow);
+	expect(restartedCost.Ranges[2][0].CpuMicroseconds == 500000 && restartedCost.Ranges[2][1].Samples == 0, "restart preserves background totals independently of foreground");
+
 	std::cout << "insights-storage:pass\n";
 }

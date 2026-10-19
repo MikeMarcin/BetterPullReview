@@ -2147,18 +2147,19 @@ namespace bpr::adapters::git {
 
 		struct runner_configuration
 		{
-			std::filesystem::path                Executable;
-			std::filesystem::path                WorkingDirectory;
-			std::filesystem::path                Home;
-			std::filesystem::path                Xdg;
-			std::filesystem::path                Temporary;
-			std::filesystem::path                SystemConfig;
-			std::filesystem::path                GlobalConfig;
-			std::filesystem::path                Attributes;
-			std::filesystem::path                Templates;
-			std::filesystem::path                Hooks;
-			std::optional<std::filesystem::path> ExecPath;
-			std::optional<std::filesystem::path> WindowsSystemRoot;
+			std::filesystem::path                           Executable;
+			std::filesystem::path                           WorkingDirectory;
+			std::filesystem::path                           Home;
+			std::filesystem::path                           Xdg;
+			std::filesystem::path                           Temporary;
+			std::filesystem::path                           SystemConfig;
+			std::filesystem::path                           GlobalConfig;
+			std::filesystem::path                           Attributes;
+			std::filesystem::path                           Templates;
+			std::filesystem::path                           Hooks;
+			std::optional<std::filesystem::path>            ExecPath;
+			std::optional<std::filesystem::path>            WindowsSystemRoot;
+			std::shared_ptr<application::insights_observer> Insights;
 		};
 
 		[[nodiscard]] auto process_environment(
@@ -2410,6 +2411,13 @@ namespace bpr::adapters::git {
 						processGroupId = processPointer->processId();
 					},
 					Qt::DirectConnection);
+				QObject::connect(process.get(), &QProcess::started, process.get(), [processPointer = process.get(), insights = aConfiguration.Insights, supervised = lifetime.Supervised]() noexcept {
+						try {
+							if (insights) {
+								const auto capture = application::capture_insights_child(insights,1);
+								process_support::observe_reaped_cpu(*processPointer,[capture,supervised](auto aCpu) { capture.record(supervised ? std::nullopt : aCpu); });
+							}
+						} catch (...) {} }, Qt::DirectConnection);
 				QObject::connect(
 					process.get(),
 					&QProcess::finished,
@@ -6990,10 +6998,11 @@ namespace bpr::adapters::git {
 		/// own exec path and admits its version: what every installed-Git
 		/// catalog needs before its first command.
 		[[nodiscard]] auto bootstrap_installed_git(
-			const std::filesystem::path&                aGitExecutable,
-			const std::filesystem::path&                aIsolationRoot,
-			const std::optional<std::filesystem::path>& aWindowsSystemRoot,
-			const std::stop_token                       aStop)
+			const std::filesystem::path&                    aGitExecutable,
+			const std::filesystem::path&                    aIsolationRoot,
+			const std::optional<std::filesystem::path>&     aWindowsSystemRoot,
+			const std::stop_token                           aStop,
+			std::shared_ptr<application::insights_observer> aInsights = { })
 			-> std::expected<bootstrapped_git, application::git_process_error>
 		{
 			const auto isolation = canonical_existing(aIsolationRoot);
@@ -7023,13 +7032,13 @@ namespace bpr::adapters::git {
 			const auto systemRoot = std::optional<std::filesystem::path>{ };
 #endif
 
-			auto bootstrap = process_worker{
-				runner_config(
-					*candidate,
-					*isolation,
-					std::nullopt,
-					systemRoot)
-			};
+			auto bootstrapConfig = runner_config(
+				*candidate,
+				*isolation,
+				std::nullopt,
+				systemRoot);
+			bootstrapConfig.Insights  = aInsights;
+			auto       bootstrap      = process_worker{ std::move(bootstrapConfig) };
 			const auto execPathResult = bootstrap.submit(
 				process_request{
 					.Arguments = { "--exec-path" },
@@ -7081,12 +7090,13 @@ namespace bpr::adapters::git {
 				};
 			}
 
-			auto worker = std::make_unique<process_worker>(
-				runner_config(
-					*resolvedGit,
-					*isolation,
-					execPath,
-					systemRoot));
+			auto workerConfig = runner_config(
+				*resolvedGit,
+				*isolation,
+				execPath,
+				systemRoot);
+			workerConfig.Insights       = aInsights;
+			auto       worker           = std::make_unique<process_worker>(std::move(workerConfig));
 			const auto matchingExecPath = worker->submit(
 				process_request{
 					.Arguments = { "--exec-path" },
@@ -7321,7 +7331,7 @@ namespace bpr::adapters::git {
 					application::git_process_failure::cancelled
 				};
 			}
-			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop);
+			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop, aConfiguration.Insights);
 			if (!bootstrapped) {
 				return std::unexpected{ std::move(bootstrapped.error()) };
 			}

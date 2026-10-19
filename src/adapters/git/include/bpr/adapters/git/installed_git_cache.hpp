@@ -4,6 +4,7 @@
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/insights_projection.hpp"
 
+#include "bpr/application/insights_observer.hpp"
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -17,7 +18,8 @@ namespace bpr::adapters::git {
 		std::filesystem::path                StorageRoot;
 		std::optional<std::filesystem::path> WindowsSystemRoot;
 		/// Opt-in durable workspace ownership; absent for legacy/native callers.
-		std::optional<std::filesystem::path> WorkspaceOwnershipRegistry;
+		std::optional<std::filesystem::path>            WorkspaceOwnershipRegistry;
+		std::shared_ptr<application::insights_observer> Insights;
 	};
 
 	/// \brief File-byte view of the existing cache inventory; reads only, and never opens a Git process.

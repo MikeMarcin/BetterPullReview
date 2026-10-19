@@ -123,6 +123,96 @@ namespace {
 		expect(sqlite3_exec(database, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "fixture start date matches its historical activity");
 		sqlite3_close(database);
 	}
+	class recorded_energy_metrics final : public application::process_metrics_port
+	{
+	public:
+		auto read() -> std::optional<core::insights_process_counters> override
+		{
+			// The fixture's Energy history is seeded below. It has no unrecorded native interval.
+			return std::nullopt;
+		}
+	};
+
+	void seed_energy(const std::filesystem::path& aRoot)
+	{
+		auto                                      store = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		const auto                                now   = QDateTime::currentSecsSinceEpoch();
+		std::vector<core::insights_energy_sample> samples;
+		for (int minute = 1; minute < 59; ++minute) {
+			if (minute >= 20 && minute < 25) {
+				continue;
+			}
+			for (const bool foreground : { false, true }) {
+				core::insights_energy_sample sample;
+				sample.AtMicroseconds         = (now - minute * 60 - (foreground ? 0 : 30)) * 1000000;
+				sample.LocalDay               = application::local_insights_day(sample.AtMicroseconds / 1000000);
+				sample.Foreground             = foreground;
+				sample.Samples                = 1;
+				sample.WallMicroseconds       = 30000000;
+				sample.CpuMicroseconds        = foreground ? 1000000 : 33334;
+				sample.Wakeups                = foreground ? 60 : 6;
+				sample.WakeupWallMicroseconds = 30000000;
+				sample.PeakLoad               = static_cast<double>(sample.CpuMicroseconds) / 30000000.0;
+				if (minute == 1) {
+					const auto kind                   = foreground ? 1U : 0U;
+					sample.Children[kind]             = 1;
+					sample.ChildCpuMicroseconds[kind] = foreground ? 1000000 : 250000;
+				}
+				samples.push_back(sample);
+			}
+		}
+		for (int day = 1; day < 75; ++day) {
+			core::insights_energy_sample sample;
+			sample.AtMicroseconds         = (now - day * 86400LL) * 1000000;
+			sample.LocalDay               = application::local_insights_day(sample.AtMicroseconds / 1000000);
+			sample.Samples                = 1;
+			sample.WallMicroseconds       = 1800000000;
+			sample.CpuMicroseconds        = static_cast<std::uint64_t>(day % 9 + 1) * 250000;
+			sample.Wakeups                = static_cast<std::uint64_t>(day * 5);
+			sample.WakeupWallMicroseconds = sample.WallMicroseconds;
+			samples.push_back(sample);
+		}
+		store->record_energy(samples);
+	}
+	void energy_contract(qt::insights_window& aShell)
+	{
+		auto* tabs = aShell.findChild<QTabBar*>(QStringLiteral("insightsTabs"));
+		tabs->setCurrentIndex(5);
+		auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsEnergyRange"));
+		range->setCurrentIndex(0);
+		auto* cpu = aShell.findChild<QLabel*>(QStringLiteral("insightsEnergy0"));
+		until([&] { return cpu->text().startsWith(QStringLiteral("4.00")); }, "real retained background cost reaches the public Energy page");
+		expect(cpu->property("overBudget").toBool() && aShell.findChild<QLabel*>(QStringLiteral("insightsEnergy1"))->text().startsWith(QStringLiteral("12.00")), "background-only CPU and wakeup tiles mark the seeded over-budget range");
+		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsEnergy2"))->text().contains(QStringLiteral("0.25")), "background child tile excludes the foreground Git CPU");
+		auto* facts = aShell.findChild<QTableWidget*>(QStringLiteral("insightsEnergyFacts"));
+		expect(facts->columnCount() == 3 && facts->horizontalHeaderItem(1)->text() == QStringLiteral("Foreground") && facts->horizontalHeaderItem(2)->text() == QStringLiteral("Background"), "every Energy fact has separate foreground and background columns");
+		for (int row = 0; row < facts->rowCount(); ++row) {
+			expect(facts->item(row, 1) && facts->item(row, 2), "each paired fact supplies both states");
+		}
+		expect(facts->item(1, 1)->text() != facts->item(1, 2)->text() && facts->item(3, 1)->text() == QStringLiteral("No children") && facts->item(4, 2)->text() == QStringLiteral("No children"), "foreground activity cannot leak into background CPU or either child fact");
+		auto* chart = dynamic_cast<qt::insights_chart*>(aShell.findChild<QWidget*>(QStringLiteral("insightsEnergyChart")));
+		expect(chart->accessibleDescription().contains(QStringLiteral("over")) && chart->accessibleDescription().contains(QStringLiteral("seconds per background hour")), "Energy chart describes measured idle cost against the budget");
+		range->setCurrentIndex(1);
+		expect(chart->isVisible(), "one day uses the shared lane chart");
+		range->setCurrentIndex(2);
+		auto* calendar = dynamic_cast<qt::insights_calendar*>(aShell.findChild<QWidget*>(QStringLiteral("insightsEnergyCalendar")));
+		expect(calendar->isVisible() && calendar->accessibleDescription().contains(QStringLiteral("background CPU")), "three months uses the local-day CPU-size/background-intensity calendar");
+		range->setCurrentIndex(0);
+		tabs->setCurrentIndex(0);
+		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryIdle"))->text() == cpu->text() && aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryIdle"))->property("overBudget").toBool(), "Summary idle cost uses the last-hour background measurement");
+		application::insights_snapshot unsupported;
+		core::insights_energy_sample   zero;
+		zero.AtMicroseconds   = QDateTime::currentSecsSinceEpoch() * 1000000;
+		zero.LocalDay         = application::local_insights_day(zero.AtMicroseconds / 1000000);
+		zero.Samples          = 1;
+		zero.WallMicroseconds = 60000000;
+		unsupported.Energy    = core::build_insights_energy({ zero }, zero.AtMicroseconds / 1000000, zero.LocalDay);
+		qt::insights_window unsupportedWindow;
+		unsupportedWindow.apply(unsupported);
+		expect(unsupportedWindow.findChild<QLabel*>(QStringLiteral("insightsEnergy1"))->text() == QStringLiteral("Not reported on this platform"), "an absent wakeup observation never becomes a measured zero in Qt");
+		expect(unsupportedWindow.findChild<QLabel*>(QStringLiteral("insightsEnergy0"))->text() == QStringLiteral("0.00 s / idle h"), "an actual zero-CPU interval remains a measured value");
+	}
+
 	void reviews_contract(qt::insights_window& aShell, const std::filesystem::path& aRoot)
 	{
 		auto* tabs = aShell.findChild<QTabBar*>(QStringLiteral("insightsTabs"));
@@ -267,6 +357,16 @@ namespace {
 					}
 					range->setCurrentIndex(1);
 				}
+				if (page == 5) {
+					auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsEnergyRange"));
+					for (int selected = 0; selected < 3; ++selected) {
+						range->setCurrentIndex(selected);
+						QApplication::processEvents();
+						expect(aShell.grab().save(folder + QStringLiteral("/insights-energy-%1-%2.png").arg(selected).arg(suffix)), "all Energy ranges render through the real window");
+					}
+					range->setCurrentIndex(0);
+				}
+
 				if (page == 2) {
 					auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsRange"));
 					for (auto* candidate : aShell.findChildren<QTabBar*>()) {
@@ -302,8 +402,10 @@ try {
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private course profile root admitted");
 	seed_reviews(root);
+	seed_energy(root);
 	app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot      = root;
+	options.InsightsMetrics          = std::make_shared<recorded_energy_metrics>();
 	options.RegisteredDeviceCourse   = true;
 	auto                     desktop = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::insights_budget_v1, options, [](auto) { });
 	app::github_application* runtime = nullptr;
@@ -334,6 +436,7 @@ try {
 	expect(shell->findChild<QLabel*>(QStringLiteral("insightsProblems"))->text() == QStringLiteral("2"), "Problems arrives from the same local snapshot");
 	shared_chart_contract(*window);
 	reviews_contract(*shell, root);
+	energy_contract(*shell);
 	const auto beforeRefresh = app::detail::github_application_fixture_access::evidence(*runtime);
 
 	const auto initialContent   = shell->size();

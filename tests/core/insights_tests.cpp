@@ -69,5 +69,59 @@ int main()
 	const auto sparse                                                 = core::build_insights_reviews(sparseDays, { }, 20600, 20690);
 	expect(sparse.Calendar[sparse.Calendar.size() - 2].Size == 1.0 && sparse.Calendar.back().Size == 0.16, "a sparse zero-percentile range uses its positive peak and preserves the minimum dot size");
 
+	core::insights_process_counters before;
+	before.SteadyMicroseconds = 1000000;
+	before.UnixMicroseconds   = 1000000000;
+	before.CpuMicroseconds    = 100;
+	before.Wakeups            = 10;
+	auto after                = before;
+	after.SteadyMicroseconds += 60000000;
+	after.UnixMicroseconds += 60000000;
+	after.CpuMicroseconds += 100000;
+	after.Wakeups    = 16;
+	const auto delta = core::insights_energy_delta(before, after, false, 20690);
+	expect(delta && !delta->Foreground && delta->WallMicroseconds == 60000000 && delta->CpuMicroseconds == 100000 && delta->Wakeups == 6, "a cumulative sample preserves old-state wall, CPU and wakeups");
+	expect(core::insights_cpu_per_hour(*delta) == 6.0 && core::insights_wakeups_per_minute(*delta) == 6.0, "idle cost uses measured background duration, with explicit budgets");
+	expect(!core::insights_energy_delta(after, before, false, 0) && !core::insights_energy_delta(before, before, false, 0), "nonpositive duration and decreasing CPU are dropped");
+	auto invalid    = after;
+	invalid.Wakeups = 9;
+	expect(!core::insights_energy_delta(before, invalid, false, 0), "decreasing wakeup counters drop the entire interval");
+	invalid                 = after;
+	invalid.CpuMicroseconds = 1;
+	expect(!core::insights_energy_delta(before, invalid, false, 0), "negative CPU deltas are dropped independently of duration");
+	invalid = after;
+	invalid.Wakeups.reset();
+	expect(!core::insights_energy_delta(before, invalid, false, 0)->Wakeups, "a platform without wakeups never supplies measured zero");
+	std::vector<core::insights_energy_sample> energy;
+	constexpr auto                            energyNow = 20000000LL;
+	for (const auto age : { 60LL, 7200LL, 7201LL, 172800LL, 172801LL, 94 * 86400LL }) {
+		auto sample           = *delta;
+		sample.AtMicroseconds = (energyNow - age) * 1000000;
+		sample.LocalDay       = 20690 - age / 86400;
+		energy.push_back(sample);
+	}
+	const auto retained = core::rollup_insights_energy(energy, energyNow);
+	expect(retained.size() == 3 && retained.back().WidthSeconds == 1 && retained.front().WidthSeconds == 86400, "raw, five-minute and daily retention drops expired history and combines the same bucket");
+	const auto projected = core::build_insights_energy(energy, energyNow, 20690);
+	expect(projected.Ranges[0][0].CpuMicroseconds == 100000 && projected.Ranges[0][1].Samples == 0 && projected.Ranges[1][0].Samples == 3, "ranges keep foreground/background totals separate and exclude old samples");
+	expect(projected.Calendar.size() >= 93 && (projected.Calendar.front().Day + 3) % 7 == 0 && projected.Calendar.back().Day == 20690, "energy calendar uses local days and Monday-first weeks");
+
+	auto gapStart           = *delta;
+	gapStart.AtMicroseconds = (energyNow - 180) * 1000000;
+	auto gapEnd             = *delta;
+	gapEnd.AtMicroseconds   = (energyNow - 30) * 1000000;
+	const auto gaps         = core::build_insights_energy({ gapStart, gapEnd }, energyNow, 20690);
+	expect(gaps.Hour.size() == 2 && gaps.Hour.back().GapBefore, "an actual unsampled span is preserved even when chart slot widths alone would connect it");
+
+	auto mixedBg             = *delta;
+	mixedBg.AtMicroseconds   = (energyNow - 60) * 1000000;
+	mixedBg.WallMicroseconds = 30000000;
+	mixedBg.CpuMicroseconds  = 33334;
+	auto mixedFg             = mixedBg;
+	mixedFg.Foreground       = true;
+	mixedFg.CpuMicroseconds  = 1000000;
+	const auto mixed         = core::build_insights_energy({ mixedBg, mixedFg }, energyNow, 20690);
+	expect(mixed.Hour.front().BackgroundBudget == 1.0 && *mixed.Hour.front().Background > *mixed.Hour.front().BackgroundBudget && *core::insights_cpu_per_hour(mixedBg) > 2.0, "the background budget line uses the same measured-duration denominator as the stack, so mixed-state intervals agree with the idle tile");
+
 	std::cout << "insights-core:pass\n";
 }

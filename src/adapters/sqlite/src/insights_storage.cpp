@@ -128,7 +128,7 @@ namespace bpr::adapters::sqlite {
 			auto*      db       = opened->Database.get();
 			const auto identity = detail::scalar_integer(db, "PRAGMA application_id");
 			const auto version  = detail::scalar_integer(db, "PRAGMA user_version");
-			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 3) {
+			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 4) {
 				return { };
 			}
 			if (!detail::configure_connection(db)) {
@@ -177,7 +177,84 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
+			if (*version < 4) {
+				constexpr std::array energySchema{
+					"BEGIN IMMEDIATE",
+					"CREATE TABLE insights_energy(at INTEGER NOT NULL,day INTEGER NOT NULL,width INTEGER NOT NULL,foreground INTEGER NOT NULL,samples INTEGER NOT NULL,wall INTEGER NOT NULL,cpu INTEGER NOT NULL,wakeups INTEGER,wake_wall INTEGER NOT NULL,gh_cpu INTEGER NOT NULL,git_cpu INTEGER NOT NULL,gh_count INTEGER NOT NULL,git_count INTEGER NOT NULL,gh_unknown INTEGER NOT NULL,git_unknown INTEGER NOT NULL,peak REAL NOT NULL,PRIMARY KEY(at,foreground,day)) STRICT",
+					"PRAGMA user_version=4", "COMMIT"
+				};
+				for (const auto sql : energySchema) {
+					if (!detail::execute(db, sql)) {
+						return { };
+					}
+				}
+			}
+
 			return opened;
+		}
+
+		auto read_energy(sqlite3* aDatabase) -> std::vector<core::insights_energy_sample>
+		{
+			auto query = detail::prepare(aDatabase, "SELECT * FROM insights_energy ORDER BY at,foreground");
+			if (!query) {
+				throw std::runtime_error{ "Energy read unavailable" };
+			}
+			std::vector<core::insights_energy_sample> result;
+			while (sqlite3_step(query->Value) == SQLITE_ROW) {
+				const auto                   value = [&](int aColumn) { return sqlite3_column_int64(query->Value, aColumn); };
+				core::insights_energy_sample sample;
+				sample.AtMicroseconds   = value(0);
+				sample.LocalDay         = value(1);
+				sample.WidthSeconds     = value(2);
+				sample.Foreground       = value(3) != 0;
+				sample.Samples          = static_cast<std::uint64_t>(value(4));
+				sample.WallMicroseconds = static_cast<std::uint64_t>(value(5));
+				sample.CpuMicroseconds  = static_cast<std::uint64_t>(value(6));
+				if (sqlite3_column_type(query->Value, 7) != SQLITE_NULL) {
+					sample.Wakeups = static_cast<std::uint64_t>(value(7));
+				}
+				sample.WakeupWallMicroseconds = static_cast<std::uint64_t>(value(8));
+				for (std::size_t index = 0; index < 2; ++index) {
+					sample.ChildCpuMicroseconds[index] = static_cast<std::uint64_t>(value(static_cast<int>(9 + index)));
+					sample.Children[index]             = static_cast<std::uint64_t>(value(static_cast<int>(11 + index)));
+					sample.UnmeasuredChildren[index]   = static_cast<std::uint64_t>(value(static_cast<int>(13 + index)));
+				}
+				sample.PeakLoad = sqlite3_column_double(query->Value, 15);
+				result.push_back(sample);
+				if (result.size() > 50000) {
+					throw std::runtime_error{ "Energy history limit" };
+				}
+			}
+			return result;
+		}
+		void write_energy(sqlite3* aDatabase, const core::insights_energy_sample& aSample)
+		{
+			auto query = detail::prepare(aDatabase, "INSERT INTO insights_energy VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16) ON CONFLICT DO UPDATE SET samples=samples+excluded.samples,wall=wall+excluded.wall,cpu=cpu+excluded.cpu,wakeups=CASE WHEN excluded.wakeups IS NULL THEN wakeups ELSE COALESCE(wakeups,0)+excluded.wakeups END,wake_wall=wake_wall+excluded.wake_wall,gh_cpu=gh_cpu+excluded.gh_cpu,git_cpu=git_cpu+excluded.git_cpu,gh_count=gh_count+excluded.gh_count,git_count=git_count+excluded.git_count,gh_unknown=gh_unknown+excluded.gh_unknown,git_unknown=git_unknown+excluded.git_unknown,peak=MAX(peak,excluded.peak)");
+			if (!query) {
+				throw std::runtime_error{ "Energy write unavailable" };
+			}
+			const std::array<std::int64_t, 15> values{ aSample.AtMicroseconds, aSample.LocalDay, aSample.WidthSeconds, aSample.Foreground ? 1 : 0, static_cast<std::int64_t>(aSample.Samples), static_cast<std::int64_t>(aSample.WallMicroseconds), static_cast<std::int64_t>(aSample.CpuMicroseconds), static_cast<std::int64_t>(aSample.Wakeups.value_or(0)), static_cast<std::int64_t>(aSample.WakeupWallMicroseconds), static_cast<std::int64_t>(aSample.ChildCpuMicroseconds[0]), static_cast<std::int64_t>(aSample.ChildCpuMicroseconds[1]), static_cast<std::int64_t>(aSample.Children[0]), static_cast<std::int64_t>(aSample.Children[1]), static_cast<std::int64_t>(aSample.UnmeasuredChildren[0]), static_cast<std::int64_t>(aSample.UnmeasuredChildren[1]) };
+			for (std::size_t index = 0; index < values.size(); ++index) {
+				if (index == 7 && !aSample.Wakeups) {
+					sqlite3_bind_null(query->Value, 8);
+				} else {
+					sqlite3_bind_int64(query->Value, static_cast<int>(index + 1), values[index]);
+				}
+			}
+			sqlite3_bind_double(query->Value, 16, aSample.PeakLoad);
+			if (sqlite3_step(query->Value) != SQLITE_DONE) {
+				throw std::runtime_error{ "Energy write failed" };
+			}
+		}
+		void compact_energy(sqlite3* aDatabase, const std::int64_t aNow)
+		{
+			const auto retained = core::rollup_insights_energy(read_energy(aDatabase), aNow);
+			if (!detail::execute(aDatabase, "DELETE FROM insights_energy")) {
+				throw std::runtime_error{ "Energy retention failed" };
+			}
+			for (const auto& sample : retained) {
+				write_energy(aDatabase, sample);
+			}
 		}
 
 		constexpr auto insert_history = "INSERT INTO insights_history VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17) ON CONFLICT DO UPDATE SET count=count+excluded.count,lim=COALESCE(excluded.lim,lim),remaining=CASE WHEN remaining IS NULL THEN excluded.remaining WHEN excluded.remaining IS NULL THEN remaining ELSE MIN(remaining,excluded.remaining) END,duration=MAX(duration,excluded.duration)";
@@ -439,6 +516,48 @@ namespace bpr::adapters::sqlite {
 					throw std::runtime_error{ "Insights history commit failed" };
 				}
 			}
+			void record_energy(const std::vector<core::insights_energy_sample>& aSamples) override
+			{
+				if (aSamples.empty()) {
+					return;
+				}
+				auto connection = open_database(Root);
+				if (!connection) {
+					throw std::runtime_error{ "Energy store unavailable" };
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					throw std::runtime_error{ "Energy transaction unavailable" };
+				}
+				for (const auto& sample : aSamples) {
+					write_energy(db, sample);
+				}
+				const auto now = std::ranges::max(aSamples, { }, &core::insights_energy_sample::AtMicroseconds).AtMicroseconds / 1000000;
+				if (LastEnergyCompaction == 0 || now - LastEnergyCompaction >= 300) {
+					compact_energy(db, now);
+					LastEnergyCompaction = now;
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Energy commit failed" };
+				}
+			}
+			auto energy(const std::int64_t aNow) -> core::insights_energy_snapshot override
+			{
+				auto connection = open_database(Root);
+				if (!connection) {
+					return { };
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return { };
+				}
+				compact_energy(db, aNow);
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Energy retention commit failed" };
+				}
+				return core::build_insights_energy(read_energy(db), aNow, application::local_insights_day(aNow));
+			}
+
 			void record_reviews(const std::vector<core::insights_review_event>& aEvents) override
 			{
 				if (aEvents.empty()) {
@@ -493,7 +612,8 @@ namespace bpr::adapters::sqlite {
 			}
 
 		private:
-			std::int64_t                                                    LastCompaction = 0;
+			std::int64_t                                                    LastCompaction       = 0;
+			std::int64_t                                                    LastEnergyCompaction = 0;
 			std::filesystem::path                                           Root;
 			std::function<std::vector<application::insights_storage_row>()> Git;
 			bool                                                            Available = false;

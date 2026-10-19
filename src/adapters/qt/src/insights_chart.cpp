@@ -59,7 +59,7 @@ namespace bpr::qt {
 	}
 	auto insights_chart::quantity_maximum() const -> double
 	{
-		double maximum = Data.Capacity ? nonnegative(*Data.Capacity) : 0.0;
+		double maximum = std::max(Data.Capacity.value_or(0.0), Data.Reference.value_or(0.0));
 		for (const auto& point : Data.Points) {
 			if (point.Background) {
 				maximum = std::max(maximum, nonnegative(*point.Background) + nonnegative(point.Foreground));
@@ -105,7 +105,7 @@ namespace bpr::qt {
 				continue;
 			}
 			std::size_t end = first + 1;
-			while (end < Data.Points.size() && Data.Points[end].Background && Data.Points[end].UnixSeconds - Data.Points[end - 1].UnixSeconds <= Data.GapSeconds && !Data.Points[end].Reset) {
+			while (end < Data.Points.size() && Data.Points[end].Background && Data.Points[end].UnixSeconds - Data.Points[end - 1].UnixSeconds <= Data.GapSeconds && !Data.Points[end].Reset && !Data.Points[end].GapBefore) {
 				++end;
 			}
 			QPainterPath lower, upper, lowerFill, upperFill;
@@ -157,7 +157,7 @@ namespace bpr::qt {
 	}
 	void insights_chart::paint_lanes(QPainter& aPainter)
 	{
-		double eventsMaximum = 1.0;
+		double eventsMaximum = std::max(1.0, Data.EventsReference.value_or(0.0));
 		for (const auto& point : Data.Points) {
 			if (point.Events) {
 				eventsMaximum = std::max(eventsMaximum, nonnegative(*point.Events));
@@ -179,11 +179,33 @@ namespace bpr::qt {
 		}
 		paint_quantity(aPainter, mainPlot, maximum);
 		paint_events(aPainter, eventsPlot, eventsMaximum);
-		if (Data.Reference) {
+		if (std::ranges::any_of(Data.Points, [](const auto& aPoint) { return aPoint.BackgroundBudget.has_value(); })) {
+			aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.0, Qt::DashLine });
+			std::optional<QPointF> previous;
+			std::int64_t           previousAt = 0;
+			for (const auto& point : Data.Points) {
+				if (!point.BackgroundBudget) {
+					previous.reset();
+					continue;
+				}
+				const QPointF current{ x_for(point.UnixSeconds), mainPlot.bottom() - *point.BackgroundBudget / maximum * mainPlot.height() };
+				if (previous && !point.GapBefore && point.UnixSeconds - previousAt <= Data.GapSeconds) {
+					aPainter.drawLine(*previous, current);
+				}
+				previous   = current;
+				previousAt = point.UnixSeconds;
+			}
+		} else if (Data.Reference) {
 			const auto y = mainPlot.bottom() - *Data.Reference / maximum * mainPlot.height();
 			aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.0, Qt::DashLine });
 			aPainter.drawLine(QPointF{ mainPlot.left(), y }, QPointF{ mainPlot.right(), y });
 		}
+		if (Data.EventsReference) {
+			const auto y = eventsPlot.bottom() - *Data.EventsReference / eventsMaximum * eventsPlot.height();
+			aPainter.setPen(QPen{ palette().color(QPalette::WindowText), 1.0, Qt::DashLine });
+			aPainter.drawLine(QPointF{ eventsPlot.left(), y }, QPointF{ eventsPlot.right(), y });
+		}
+
 		aPainter.setPen(tint(palette().color(QPalette::WindowText), 0.35));
 		for (const auto& point : Data.Points) {
 			if (point.Reset) {

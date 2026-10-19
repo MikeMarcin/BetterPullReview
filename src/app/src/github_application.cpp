@@ -1,4 +1,5 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/adapters/process_support/process_supervision.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
@@ -306,6 +307,24 @@ namespace bpr::app {
 	}
 
 	namespace {
+		class native_insights_metrics final : public application::process_metrics_port
+		{
+		public:
+			auto read() -> std::optional<core::insights_process_counters> override
+			{
+				const auto counters = adapters::process_support::self_process_counters();
+				if (!counters) {
+					return std::nullopt;
+				}
+				core::insights_process_counters result;
+				result.SteadyMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+				result.UnixMicroseconds   = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				result.CpuMicroseconds    = counters->CpuMicroseconds;
+				result.Wakeups            = counters->Wakeups;
+				return result;
+			}
+		};
+
 		/// [[BPR-1373]]. Which BPR profile in this run uses which pinned gh
 		/// account: one entry per profile runtime with an accepted session on a
 		/// pinned GitHub CLI profile. Composition state, read for Accounts &
@@ -4251,13 +4270,17 @@ namespace bpr::app {
 				});
 			};
 		}
-		std::unique_ptr<qt::insights_window>            Insights;
-		std::shared_ptr<application::insights_host>     InsightsHost;
-		std::shared_ptr<application::insights_recorder> InsightsRecorder;
-		std::optional<core::bpr_window_context>         InsightsOwner;
-		bool                                            InsightsInitializing = true;
-		std::map<std::string, std::string>              InsightsRepositoryLabels;
-		void                                            present_insights(core::bpr_window_context aContext, QWidget* aOpener, const qt::appearance_profile* aAppearance)
+		std::unique_ptr<qt::insights_window>                  Insights;
+		std::shared_ptr<application::insights_host>           InsightsHost;
+		std::shared_ptr<application::insights_recorder>       InsightsRecorder;
+		std::shared_ptr<application::insights_energy_sampler> EnergySampler;
+		std::shared_ptr<application::process_metrics_port>    EnergyMetrics;
+		std::unique_ptr<QTimer>                               EnergyTimer;
+		QMetaObject::Connection                               EnergyActivation;
+		std::optional<core::bpr_window_context>               InsightsOwner;
+		bool                                                  InsightsInitializing = true;
+		std::map<std::string, std::string>                    InsightsRepositoryLabels;
+		void                                                  present_insights(core::bpr_window_context aContext, QWidget* aOpener, const qt::appearance_profile* aAppearance)
 		{
 			if (!current_window(aContext)) {
 				return;
@@ -4674,6 +4697,13 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			if (EnergyTimer) {
+				EnergyTimer->stop();
+			}
+			QObject::disconnect(EnergyActivation);
+			if (EnergySampler) {
+				EnergySampler->shutdown();
+			}
 			if (Insights) {
 				Insights->hide();
 				Insights->set_dispatch({ });
@@ -4977,6 +5007,7 @@ namespace bpr::app {
 				= aFixtureOptions.PublicPreviewSelectionAvailable
 				&& !aFixture.has_value();
 			if (aFixture.has_value()) {
+				EnergyMetrics          = aFixtureOptions.InsightsMetrics;
 				ReviewSubmissionServer = aFixtureOptions.ReviewSubmissionServer ? aFixtureOptions.ReviewSubmissionServer : std::make_shared<detail::review_submission_fixture_state>();
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
@@ -5144,7 +5175,8 @@ namespace bpr::app {
 				} catch (...) { /* Diagnostics allocation must not prevent application startup. */
 				}
 			}
-			InsightsRecorder           = std::make_shared<application::insights_recorder>(InsightsEffects);
+			InsightsRecorder = std::make_shared<application::insights_recorder>(InsightsEffects);
+			InsightsRecorder->set_foreground(QGuiApplication::applicationState() == Qt::ApplicationActive);
 			TransportFactory->Insights = InsightsRecorder;
 			DiagnosticLog              = application::observe_insights_problems(DiagnosticLog, InsightsRecorder);
 			if (DiagnosticLog) {
@@ -5320,6 +5352,7 @@ namespace bpr::app {
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 				.WorkspaceOwnershipRegistry = applicationDataRoot / "agent-workspace-ownership-v1",
 #endif
+				.Insights = InsightsRecorder,
 			});
 			auto catalog = adapters::sqlite::make_epoch_catalog({
 				.StorageRoot = applicationDataRoot,
@@ -5587,6 +5620,18 @@ namespace bpr::app {
 							return;
 						}
 						InsightsRecorder->attach(admittedStorage);
+						if (!Closing) {
+							EnergySampler     = std::make_shared<application::insights_energy_sampler>(EnergyMetrics ? EnergyMetrics : std::make_shared<native_insights_metrics>(), InsightsRecorder, InsightsEffects);
+							EnergyTimer       = std::make_unique<QTimer>();
+							const auto sample = [this] {
+								const auto foreground = QGuiApplication::applicationState() == Qt::ApplicationActive;
+								EnergySampler->observe(foreground);
+								EnergyTimer->start(application::insights_energy_sampler::interval_seconds(foreground) * 1000);
+							};
+							QObject::connect(EnergyTimer.get(), &QTimer::timeout, EnergyTimer.get(), sample);
+							EnergyActivation = QObject::connect(qApp, &QGuiApplication::applicationStateChanged, EnergyTimer.get(), [sample](Qt::ApplicationState) { sample(); });
+							sample();
+						}
 						InsightsHost = std::make_shared<application::insights_host>(admittedStorage, InsightsEffects, DecisionLane, [this](const auto& aSnapshot) {
 							if (!Closing && Insights && Insights->isVisible()) {
 								Insights->apply(aSnapshot);

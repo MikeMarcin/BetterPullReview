@@ -111,6 +111,31 @@ namespace bpr::application {
 		return std::make_shared<problem_log>(std::move(aLog), std::move(aObserver));
 	}
 
+	auto capture_insights_child(std::shared_ptr<insights_observer> aObserver, const std::size_t aKind) -> insights_child_capture
+	{
+		const auto foreground = aObserver && aObserver->foreground();
+		return { std::move(aObserver), foreground, aKind };
+	}
+	void insights_child_capture::record(const std::optional<std::uint64_t> aCpuMicroseconds) const noexcept
+	{
+		try {
+			if (!Observer || Kind >= 2) {
+				return;
+			}
+			core::insights_energy_sample sample;
+			sample.AtMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			sample.LocalDay       = local_insights_day(sample.AtMicroseconds / 1000000);
+			sample.Foreground     = Foreground;
+			sample.Children[Kind] = 1;
+			if (aCpuMicroseconds) {
+				sample.ChildCpuMicroseconds[Kind] = *aCpuMicroseconds;
+			} else {
+				sample.UnmeasuredChildren[Kind] = 1;
+			}
+			Observer->record_energy(sample);
+		} catch (...) { }
+	}
+
 	insights_recorder::insights_recorder(effect_executor& aEffects)
 		: Effects{ aEffects }
 	{ }
@@ -122,7 +147,7 @@ namespace bpr::application {
 	}
 	void insights_recorder::schedule()
 	{
-		if (Pending || !Storage || (Events.empty() && ReviewEvents.empty() && !Selected)) {
+		if (Pending || !Storage || (Events.empty() && ReviewEvents.empty() && EnergySamples.empty() && !Selected)) {
 			return;
 		}
 		Pending = true;
@@ -158,6 +183,56 @@ namespace bpr::application {
 		} catch (...) { }
 	}
 
+	void insights_recorder::record_energy(core::insights_energy_sample aSample) noexcept
+	{
+		try {
+			std::lock_guard lock{ Mutex };
+			if (EnergySamples.size() < 4096) {
+				EnergySamples.push_back(std::move(aSample));
+			}
+			schedule();
+		} catch (...) { }
+	}
+	insights_energy_sampler::insights_energy_sampler(std::shared_ptr<process_metrics_port> aMetrics, std::shared_ptr<insights_recorder> aRecorder, effect_executor& aEffects)
+		: Metrics{ std::move(aMetrics) }
+		, Recorder{ std::move(aRecorder) }
+		, Effects{ aEffects }
+	{ }
+	void insights_energy_sampler::observe(const bool aForeground)
+	{
+		if (Closing.load()) {
+			return;
+		}
+		// Launches capture the current activation state immediately, independently of sampling latency.
+		Recorder->set_foreground(aForeground);
+		try {
+			Effects.post([self = shared_from_this(), aForeground] { self->collect(aForeground); });
+		} catch (...) { }
+	}
+	void insights_energy_sampler::collect(const bool aForeground)
+	{
+		std::optional<core::insights_process_counters> current;
+		try {
+			current = Metrics->read();
+		} catch (...) { }
+		if (current && Previous) {
+			if (auto delta = core::insights_energy_delta(*Previous, *current, WasForeground, local_insights_day(current->UnixMicroseconds / 1000000))) {
+				Recorder->record_energy(std::move(*delta));
+			}
+		}
+		Previous      = current;
+		WasForeground = aForeground;
+	}
+	void insights_energy_sampler::shutdown() noexcept
+	{
+		if (Closing.exchange(true)) {
+			return;
+		}
+		try {
+			Effects.post([self = shared_from_this()] { self->collect(self->WasForeground); });
+		} catch (...) { }
+	}
+
 	void insights_recorder::select(core::insights_scope aScope) noexcept
 	{
 		try {
@@ -168,21 +243,26 @@ namespace bpr::application {
 	}
 	void insights_recorder::drain()
 	{
-		std::vector<core::insights_event>        events;
-		std::vector<core::insights_review_event> reviews;
-		std::optional<core::insights_scope>      selected;
-		std::shared_ptr<insights_storage_port>   storage;
+		std::vector<core::insights_event>         events;
+		std::vector<core::insights_energy_sample> energy;
+		std::vector<core::insights_review_event>  reviews;
+		std::optional<core::insights_scope>       selected;
+		std::shared_ptr<insights_storage_port>    storage;
 		{
 			std::lock_guard lock{ Mutex };
 			events.swap(Events);
 			reviews.swap(ReviewEvents);
+			energy.swap(EnergySamples);
 			selected = Selected;
 			Selected.reset();
 			storage = Storage;
 		}
 		try {
-			storage->record(events, selected);
+			if (!events.empty() || selected) {
+				storage->record(events, selected);
+			}
 			storage->record_reviews(reviews);
+			storage->record_energy(energy);
 		} catch (...) { }
 		std::lock_guard lock{ Mutex };
 		Pending = false;
@@ -216,11 +296,13 @@ namespace bpr::application {
 				const auto built   = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 				auto       github  = core::insights_github_snapshot{ };
 				auto       reviews = core::insights_reviews_snapshot{ };
+				auto       energy  = core::insights_energy_snapshot{ };
 				try {
 					github  = self->Storage->github(built);
 					reviews = self->Storage->reviews(built);
+					energy  = self->Storage->energy(built);
 				} catch (...) { }
-				self->Decisions.post([self, measure, now, built, reviewsSnapshot = std::move(reviews), githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
+				self->Decisions.post([self, measure, now, built, energySnapshot = std::move(energy), reviewsSnapshot = std::move(reviews), githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
 					self->Pending = false;
 					if (self->Closing) {
 						return;
@@ -230,6 +312,7 @@ namespace bpr::application {
 						self->Snapshot.StorageUnixSeconds = built;
 						self->LastStorage                 = now;
 					}
+					self->Snapshot.Energy           = std::move(energySnapshot);
 					self->Snapshot.Reviews          = std::move(reviewsSnapshot);
 					self->Snapshot.Github           = std::move(githubSnapshot);
 					self->Snapshot.BuiltUnixSeconds = built;

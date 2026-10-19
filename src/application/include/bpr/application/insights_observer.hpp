@@ -7,11 +7,21 @@ namespace bpr::application {
 	class insights_observer
 	{
 	public:
-		virtual ~insights_observer()                              = default;
-		virtual void record(core::insights_event aEvent) noexcept = 0;
-		virtual void select(core::insights_scope aScope) noexcept = 0;
-		virtual void record_review(core::insights_review_event) noexcept { }
+		virtual ~insights_observer()                                            = default;
+		virtual void               record(core::insights_event aEvent) noexcept = 0;
+		virtual void               select(core::insights_scope aScope) noexcept = 0;
+		[[nodiscard]] virtual auto foreground() const noexcept -> bool { return false; }
+		virtual void               record_energy(core::insights_energy_sample) noexcept { }
+		virtual void               record_review(core::insights_review_event) noexcept { }
 	};
+	struct insights_child_capture
+	{
+		std::shared_ptr<insights_observer> Observer;
+		bool                               Foreground = false;
+		std::size_t                        Kind       = 0;
+		void                               record(std::optional<std::uint64_t> aCpuMicroseconds) const noexcept;
+	};
+	[[nodiscard]] auto capture_insights_child(std::shared_ptr<insights_observer> aObserver, std::size_t aKind) -> insights_child_capture;
 	/// \brief Host conversion to local Gregorian day, including the offset in force at that instant.
 	[[nodiscard]] auto local_insights_day(std::int64_t aUnixSeconds) -> std::int64_t;
 	/// \brief Captured exact PR facts; recording cannot change the observed operation.

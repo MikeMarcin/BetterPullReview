@@ -3,6 +3,7 @@
 
 #include "bpr/application/git_process_port.hpp"
 
+#include "bpr/application/insights_observer.hpp"
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -38,7 +39,8 @@ namespace bpr::adapters::git {
 		std::filesystem::path                IsolationRoot;
 		std::optional<std::filesystem::path> WindowsSystemRoot;
 		/// Opt-in durable workspace ownership; absent for legacy/native callers.
-		std::optional<std::filesystem::path> WorkspaceOwnershipRegistry;
+		std::optional<std::filesystem::path>            WorkspaceOwnershipRegistry;
+		std::shared_ptr<application::insights_observer> Insights;
 	};
 
 	/// \brief Creates the installed git process.

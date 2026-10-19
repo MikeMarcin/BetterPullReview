@@ -325,4 +325,16 @@ namespace bpr::adapters::process_support {
 	};
 }
 
+namespace bpr::adapters::process_support {
+	struct process_counters
+	{
+		std::uint64_t                CpuMicroseconds = 0;
+		std::optional<std::uint64_t> Wakeups;
+	};
+	/// \brief Native counters only. No clocks, scheduling, launch or attribution policy.
+	[[nodiscard]] auto self_process_counters() noexcept -> std::optional<process_counters>;
+	/// \brief Observes the exact child's terminal. Missing CPU is explicit, never a process-global estimate.
+	void observe_reaped_cpu(QProcess& aProcess, std::function<void(std::optional<std::uint64_t>)> aObserve);
+}
+
 #endif // BPR_ADAPTERS_PROCESS_SUPPORT_PROCESS_SUPERVISION_HPP

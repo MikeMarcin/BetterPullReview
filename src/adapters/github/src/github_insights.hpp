@@ -9,9 +9,10 @@ namespace bpr::adapters::github::detail {
 	{
 	public:
 		github_insights_channel(std::shared_ptr<application::insights_observer> aObserver, std::uint64_t aHost);
-		void bind(std::uint64_t aAccount) noexcept;
-		void observe(core::insights_event aEvent) noexcept;
-		void request(core::insights_resource aResource, core::insights_category aCategory, const wire_response* aResponse = nullptr, std::uint64_t aCount = 1) noexcept;
+		void               bind(std::uint64_t aAccount) noexcept;
+		[[nodiscard]] auto child_started() const -> application::insights_child_capture { return application::capture_insights_child(Observer, 0); }
+		void               observe(core::insights_event aEvent) noexcept;
+		void               request(core::insights_resource aResource, core::insights_category aCategory, const wire_response* aResponse = nullptr, std::uint64_t aCount = 1) noexcept;
 
 	private:
 		std::shared_ptr<application::insights_observer> Observer;

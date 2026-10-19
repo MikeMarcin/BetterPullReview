@@ -1,3 +1,11 @@
+# RFC-BPR-0086 Energy engineering: profile-owned30/60s metrics sampling and
+# final-interval drain reuse the existing Insights effect lane. Git configuration
+# carries only a passive observer; native support reads self counters and retains
+# an exact Windows child handle. Unix child usage is explicitly unavailable while
+# Qt's existing reap discards rusage. No launch, credential, grant, target, actor,
+# provider or publication admission changes. Fixture metrics are a typed local
+# observation port. Self-review and direct evidence are recorded in RFC0086.
+# Full/manifest seals are renewed; the production mutation branch is unchanged.
 # RFC-BPR-0086 review-stats integration over completed main a7e99406c.
 # Reviewed pinned-scope commits00e0eb7dc and c94d3b59e: composition captures
 # immutable PR/head/file facts for passive statistics, passes them to existing
@@ -1656,7 +1664,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"76fecbcc6a6b1e6ae2aee5ad985f98d187b9c8baff2c898e7df9ef87eb0edaab"
+		"00fdc86c937de03a31125cfb86035d9cab39f2852a9dc865cdc54b0947ca510a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1876,7 +1884,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "46c073a47e781b9db93cedf2073b35a5c28730cc523a81c57a3f15afab5090c0"
+        "284b6c8f40f32e8533e5f89fcd7fcab4e0b6a3283b4449d07b148cf894586ab0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

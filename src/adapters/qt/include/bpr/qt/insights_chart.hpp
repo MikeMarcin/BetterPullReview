@@ -12,7 +12,9 @@ namespace bpr::qt {
 		std::optional<double> Background;
 		double                Foreground = 0;
 		std::optional<double> Events;
-		bool                  Reset = false;
+		bool                  Reset            = false;
+		bool                  GapBefore        = false;
+		std::optional<double> BackgroundBudget = std::nullopt;
 	};
 	/// \brief Shared lane chart projection. Both quantities share a unit; events have their own scale.
 	struct insights_chart_data
@@ -29,6 +31,7 @@ namespace bpr::qt {
 		std::int64_t                      GapSeconds       = 90;
 		std::optional<double>             Capacity;
 		std::optional<double>             Reference;
+		std::optional<double>             EventsReference;
 		std::vector<insights_chart_point> Points;
 	};
 	/// \brief Theme-aware, gap-preserving stacked area chart with separate event lane and local hover card.

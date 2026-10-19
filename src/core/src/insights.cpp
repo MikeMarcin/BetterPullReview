@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <tuple>
 
 namespace bpr::core {
 	auto insights_history_width(const std::int64_t aAt, const std::int64_t aNow) noexcept -> std::int64_t
@@ -229,6 +230,165 @@ namespace bpr::core {
 			if (!result.MostReviews || pull.Reviews > result.MostReviews->Reviews) {
 				result.MostReviews = pull;
 			}
+		}
+		return result;
+	}
+
+	namespace {
+		void add_energy(insights_energy_sample& aTo, const insights_energy_sample& aFrom)
+		{
+			aTo.Samples += aFrom.Samples;
+			aTo.WallMicroseconds += aFrom.WallMicroseconds;
+			aTo.CpuMicroseconds += aFrom.CpuMicroseconds;
+			if (aFrom.Wakeups) {
+				aTo.Wakeups = aTo.Wakeups.value_or(0) + *aFrom.Wakeups;
+				aTo.WakeupWallMicroseconds += aFrom.WakeupWallMicroseconds;
+			}
+			for (std::size_t index = 0; index < 2; ++index) {
+				aTo.ChildCpuMicroseconds[index] += aFrom.ChildCpuMicroseconds[index];
+				aTo.Children[index] += aFrom.Children[index];
+				aTo.UnmeasuredChildren[index] += aFrom.UnmeasuredChildren[index];
+			}
+			aTo.PeakLoad = std::max(aTo.PeakLoad, aFrom.PeakLoad);
+		}
+		auto energy_points(const std::vector<insights_energy_sample>& aSamples, std::int64_t aNow, std::int64_t aRange, std::int64_t aWidth) -> std::vector<insights_energy_point>
+		{
+			std::map<std::int64_t, std::array<insights_energy_sample, 2>> buckets;
+			std::map<std::int64_t, std::pair<std::int64_t, std::int64_t>> spans;
+			for (const auto& sample : aSamples) {
+				const auto at = sample.AtMicroseconds / 1000000;
+				if (at > aNow || at <= aNow - aRange || sample.WallMicroseconds == 0) {
+					continue;
+				}
+				const auto bucketAt = at / aWidth * aWidth;
+				add_energy(buckets[bucketAt][sample.Foreground ? 1 : 0], sample);
+				const auto begin      = sample.WidthSeconds == 1 ? sample.AtMicroseconds - static_cast<std::int64_t>(sample.WallMicroseconds) : sample.AtMicroseconds;
+				const auto end        = sample.WidthSeconds == 1 ? sample.AtMicroseconds : sample.AtMicroseconds + sample.WidthSeconds * 1000000;
+				auto [span, inserted] = spans.try_emplace(bucketAt, std::pair{ begin, end });
+				if (!inserted) {
+					span->second.first  = std::min(span->second.first, begin);
+					span->second.second = std::max(span->second.second, end);
+				}
+			}
+			std::vector<insights_energy_point> result;
+			std::optional<std::int64_t>        previousEnd;
+			for (const auto& [at, sides] : buckets) {
+				insights_energy_point point;
+				point.UnixSeconds = at;
+				point.GapBefore   = previousEnd && spans.at(at).first > *previousEnd;
+				previousEnd       = spans.at(at).second;
+				const auto wall   = sides[0].WallMicroseconds + sides[1].WallMicroseconds;
+				// One common measured duration makes the two quantities a truthful stack.
+				point.Background = static_cast<double>(sides[0].CpuMicroseconds) * 3600.0 / static_cast<double>(wall);
+				point.Foreground = static_cast<double>(sides[1].CpuMicroseconds) * 3600.0 / static_cast<double>(wall);
+				if (sides[0].WallMicroseconds) {
+					point.BackgroundBudget = 2.0 * static_cast<double>(sides[0].WallMicroseconds) / static_cast<double>(wall);
+				}
+				auto total = sides[0];
+				add_energy(total, sides[1]);
+				point.WakeupsPerMinute = insights_wakeups_per_minute(total);
+				result.push_back(point);
+			}
+			return result;
+		}
+	}
+	auto insights_energy_delta(const insights_process_counters& aBefore, const insights_process_counters& aAfter, const bool aForeground, const std::int64_t aLocalDay) -> std::optional<insights_energy_sample>
+	{
+		if (aAfter.SteadyMicroseconds <= aBefore.SteadyMicroseconds || aAfter.CpuMicroseconds < aBefore.CpuMicroseconds || (aBefore.Wakeups && aAfter.Wakeups && *aAfter.Wakeups < *aBefore.Wakeups)) {
+			return std::nullopt;
+		}
+		insights_energy_sample sample;
+		sample.AtMicroseconds   = aAfter.UnixMicroseconds;
+		sample.LocalDay         = aLocalDay;
+		sample.Foreground       = aForeground;
+		sample.Samples          = 1;
+		sample.WallMicroseconds = static_cast<std::uint64_t>(aAfter.SteadyMicroseconds - aBefore.SteadyMicroseconds);
+		sample.CpuMicroseconds  = aAfter.CpuMicroseconds - aBefore.CpuMicroseconds;
+		sample.PeakLoad         = static_cast<double>(sample.CpuMicroseconds) / static_cast<double>(sample.WallMicroseconds);
+		if (aBefore.Wakeups && aAfter.Wakeups) {
+			sample.Wakeups                = *aAfter.Wakeups - *aBefore.Wakeups;
+			sample.WakeupWallMicroseconds = sample.WallMicroseconds;
+		}
+		return sample;
+	}
+	auto insights_cpu_per_hour(const insights_energy_sample& aSample) noexcept -> std::optional<double>
+	{
+		return aSample.WallMicroseconds ? std::optional{ static_cast<double>(aSample.CpuMicroseconds) * 3600.0 / static_cast<double>(aSample.WallMicroseconds) } : std::nullopt;
+	}
+	auto insights_wakeups_per_minute(const insights_energy_sample& aSample) noexcept -> std::optional<double>
+	{
+		return aSample.Wakeups && aSample.WakeupWallMicroseconds ? std::optional{ static_cast<double>(*aSample.Wakeups) * 60000000.0 / static_cast<double>(aSample.WakeupWallMicroseconds) } : std::nullopt;
+	}
+	auto rollup_insights_energy(const std::vector<insights_energy_sample>& aSamples, const std::int64_t aNow) -> std::vector<insights_energy_sample>
+	{
+		std::map<std::tuple<std::int64_t, bool, std::int64_t>, insights_energy_sample> buckets;
+		for (const auto& sample : aSamples) {
+			const auto width = insights_history_width(sample.AtMicroseconds / 1000000, aNow);
+			if (!width) {
+				continue;
+			}
+			// Raw keeps microsecond transition identities; older buckets retain the measured sums.
+			const auto at         = width == 1 ? sample.AtMicroseconds : sample.AtMicroseconds / (width * 1000000) * (width * 1000000);
+			auto&      bucket     = buckets[{ at, sample.Foreground, sample.LocalDay }];
+			bucket.AtMicroseconds = at;
+			bucket.LocalDay       = sample.LocalDay;
+			bucket.WidthSeconds   = width;
+			bucket.Foreground     = sample.Foreground;
+			add_energy(bucket, sample);
+		}
+		std::vector<insights_energy_sample> result;
+		result.reserve(buckets.size());
+		for (const auto& [key, sample] : buckets) {
+			result.push_back(sample);
+		}
+		return result;
+	}
+	auto build_insights_energy(const std::vector<insights_energy_sample>& aSamples, const std::int64_t aNow, const std::int64_t aToday) -> insights_energy_snapshot
+	{
+		insights_energy_snapshot result;
+		result.Available = !aSamples.empty();
+		result.Now       = aNow;
+		result.Today     = aToday;
+		std::map<std::int64_t, std::array<insights_energy_sample, 2>> days;
+		for (const auto& sample : aSamples) {
+			const auto at = sample.AtMicroseconds / 1000000;
+			if (at > aNow || at < aNow - 93 * 86400LL) {
+				continue;
+			}
+			for (std::size_t range = 0; range < 3; ++range) {
+				const auto seconds = range == 0 ? 3600LL : range == 1 ? 86400LL
+																	  : 93 * 86400LL;
+				if (at > aNow - seconds) {
+					add_energy(result.Ranges[range][sample.Foreground ? 1 : 0], sample);
+				}
+			}
+			if (sample.LocalDay <= aToday && sample.LocalDay >= aToday - 92) {
+				add_energy(days[sample.LocalDay][sample.Foreground ? 1 : 0], sample);
+			}
+		}
+		result.Hour = energy_points(aSamples, aNow, 3600, 60);
+		result.Day  = energy_points(aSamples, aNow, 86400, 300);
+		std::vector<double> amounts;
+		const auto          first = aToday - 92 - ((aToday - 92 + 3) % 7 + 7) % 7;
+		for (auto day = first; day <= aToday; ++day) {
+			const auto&         sides = days[day];
+			insights_energy_day point;
+			point.Day             = day;
+			point.CpuMicroseconds = sides[0].CpuMicroseconds + sides[1].CpuMicroseconds;
+			point.HasSamples      = sides[0].Samples + sides[1].Samples != 0;
+			if (const auto idle = insights_cpu_per_hour(sides[0])) {
+				point.BackgroundIntensity = std::clamp(*idle / 2.0, 0.0, 1.0);
+			}
+			amounts.push_back(static_cast<double>(point.CpuMicroseconds));
+			result.Calendar.push_back(point);
+		}
+		std::ranges::sort(amounts);
+		auto percentile = amounts.empty() ? 0.0 : amounts[(amounts.size() - 1) * 9 / 10];
+		if (percentile == 0 && !amounts.empty()) {
+			percentile = amounts.back();
+		}
+		for (auto& point : result.Calendar) {
+			point.Size = point.CpuMicroseconds && percentile > 0 ? std::clamp(std::sqrt(static_cast<double>(point.CpuMicroseconds) / percentile), 0.16, 1.0) : 0.16;
 		}
 		return result;
 	}
