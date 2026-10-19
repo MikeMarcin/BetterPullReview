@@ -113,7 +113,7 @@ namespace bpr::qt {
 					painter.setPen(palette().color(selected ? QPalette::HighlightedText : QPalette::ButtonText));
 					painter.drawText(box, Qt::AlignCenter, tabText(index));
 					if (selected && hasFocus()) {
-						painter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
+						painter.setPen(QPen{ palette().color(QPalette::HighlightedText), 1.5 });
 						painter.setBrush(Qt::NoBrush);
 						painter.drawRoundedRect(box.adjusted(2, 2, -2, -2), 5.0, 5.0);
 					}
