@@ -298,6 +298,7 @@ namespace {
 		// paints nothing there), so the owner's bezel is reproduced by giving
 		// the old bar's button family the bezel's light grey under the theme's
 		// text, and the style draws it from that.
+		auto fixedBezel = QColor{ };
 		for (const auto& colours : built_in_themes()) {
 			auto profile = qt::appearance_profile{ };
 			static_cast<void>(profile.select_mode(colours.Mode));
@@ -340,7 +341,12 @@ namespace {
 			const auto before = read_bar(*bar);
 			const auto label  = "the old bar on the native bezel in " + colours.Name;
 			std::cout << label << ": fill " << hex(before.Fill) << ", title " << before.Text << ":1\n";
-			expect(colour_near(before.Fill, bezel.color(QPalette::Active, QPalette::Button)), "the old-bar control actually paints the fixed native bezel");
+			// Styles may shade the fixed-grey input (Fusion paints #D0D0D0).
+			// Its rendered fill must stay fixed across all four theme surfaces.
+			if (!fixedBezel.isValid()) {
+				fixedBezel = before.Fill;
+			}
+			expect(colour_near(before.Fill, fixedBezel), "the old-bar control paints the same fixed bezel in every theme");
 			expect(host.palette().color(QPalette::Active, QPalette::Window) == colours.Surface, "the bezel control leaves the host's theme surface unchanged");
 			expect(!passes(before, colours), label + " fails the disclosure reading");
 			if (colours.Mode == core::appearance_mode::dark) {

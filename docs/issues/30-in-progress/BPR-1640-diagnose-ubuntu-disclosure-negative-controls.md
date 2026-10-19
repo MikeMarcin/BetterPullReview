@@ -55,3 +55,14 @@ surface. Every original old-reading rejection, Dark less-than4.5 control,
 shared-bar fill/contrast assertion, theme and scale remains. No product widget,
 style, palette or threshold changes. The coordinator approves this measured
 fixture correction; native focused verification and tidy remain pending.
+
+## Cross-style precondition correction
+
+NativeLinuxc3bc disclosure100/200 passes all original assertions and the new
+control. MacFusionc3bc paints its fixed-grey input as#D0D0D0 in all four themes;
+the original old-bar rejections, Dark1.3:1 control and every shared-bar reading
+pass. The newly added exactpalette-fill precondition incorrectly assumed no
+style shading. It now compares the actual rendered fixed bezel across all
+four themes, preserving the host-surface equality and every original negative
+and positive reading. No tolerance, threshold, style or product change. Mac
+and nativeLinux focused reruns plus tidy22 remain pending.
