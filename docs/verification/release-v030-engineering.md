@@ -176,3 +176,37 @@ native Windows `qt_profile_management_window` passes at committed candidate
 `9b901a0a83d1016d5e2da3795b1e7fa5249c4b85` (5.43 seconds), including the
 complete-order, disabled-state and actual-window parity checks. The coordinator
 retains the macOS/Linux normal integration reruns.
+
+[BPR-1630](../issues/60-done/BPR-1630-expose-linux-libc-endian-api-only-to-hacl.md)
+repairs the Ubuntu 26.04 normal build's strict-C11 HACL generated-C compile.
+The pinned Karamel Linux branch includes libc `endian.h`; glibc 2.43 hides its
+endian helpers under strict C11 without `_DEFAULT_SOURCE`. The provider now
+sets that definition privately on its generated C target only on Linux.
+Archive digest, upstream bytes, strict C11, hardening and consumers are unchanged.
+At `98488e2ef845541aa5f0a20cf49b878a897848ec`, the actual provider and hash
+target build. Generated commands confirm `-std=c11`, both hardening flags,
+`-D_DEFAULT_SOURCE` on HACL, none on 138 core consumer commands, and empty
+`CMAKE_C_FLAGS`. Native isolated `core_sha256` passes (0.06 seconds).
+The first focused wrapper's diagnostic filename typo and the next attempt's
+unbuilt sandbox launcher are retained as failed/not-run evidence; after building
+the existing launcher, the unchanged hash test passes. No full suite or signing
+result is implied.
+
+[BPR-1631](../issues/30-in-progress/BPR-1631-measure-fourteen-windows-containment-registrations.md)
+owns the fourteen earlier Windows exemptions still marked unmeasured. The
+native mandatory manifest failure at `18dff0d1` is retained. The exact current
+direct and contained commands must be measured before any finite cause is
+recorded or an unnecessary exemption retired; no shared-helper assumption
+replaces an actual row. Those observations and the final manifest remain pending.
+
+[BPR-1632](../issues/30-in-progress/BPR-1632-diagnose-large-review-history-input-gap.md)
+owns the frozen Mac history failure. The sole violating refresh is
+`epoch_refresh_4`: attributed GUI pulse interval 142.3115 ms exceeds the unchanged
+100 ms limit; refresh completion 440.256 ms is below 12,000 ms. Its wall gap is
+145.307833 ms, GUI processor time 1.433292 ms and measured runnable wait
+2.996333 ms. The attribution therefore retains about 140.878208 ms spent away
+from processor execution that was not observed as runnable wait. This is an
+observed blocked interval, not evidence of a particular lock, I/O operation or
+transient load. The report lacks a call stack for that interval. Read-only
+source/report diagnosis continues; no timing formula, threshold or application
+code changes, and native reproduction awaits baseline completion.
