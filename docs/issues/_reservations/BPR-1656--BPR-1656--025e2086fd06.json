@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1656"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Ship a standalone offline xdiff corresponding-source rebuild recipe",
+  "created": "2026-10-19T15:16:09.225313+00:00",
+  "base": "dfb5f95f3a6fc02ca58148d1d99b7ba7cf4d4bbd"
+}
