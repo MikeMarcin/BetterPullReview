@@ -64,3 +64,11 @@ the control changed only Active. The fixture now sets both groups on that
 one view, requires actual file-ink pixels with no folder-ink pixels, rejects
 the wrong image with the unchanged original predicate, restores the palette
 and requires the original predicate again. Native rerun remains pending.
+
+Native22b4 control counts confirm actual wrong paint: Light has21file/0folder
+pixels; Dark has21file/1folder pixels, because one blended pixel crosses the
+folder-color tolerance. Requiring zero folder pixels in this newly added
+wrong-paint precondition was unsupported. The precondition requires the21
+literal file-ink pixels; the separate unchanged original predicate still
+rejects that image, and the restored actual folder still must pass with zero
+file pixels. Original positive thresholds and tolerances remain unchanged.
