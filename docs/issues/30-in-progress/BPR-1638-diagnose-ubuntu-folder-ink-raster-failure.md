@@ -54,3 +54,13 @@ paints the root folder in file ink and must fail the identical reading; the
 original palette is restored before any assertion. This is ink evidence,
 not a claim of user DPR1 legibility from a higher-resolution target. Native
 same-DPR/negative-control verification and scoped tidy remain pending.
+
+## Assessment control correction
+
+Atc3bc the original folder-ink reading passes on both nativeLinux andMac, but
+the new wrong-paint control fails to change the displayed glyph. The delegate
+selects Active or Inactive PlaceholderText from its actual item state, while
+the control changed only Active. The fixture now sets both groups on that
+one view, requires actual file-ink pixels with no folder-ink pixels, rejects
+the wrong image with the unchanged original predicate, restores the palette
+and requires the original predicate again. Native rerun remains pending.

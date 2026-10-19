@@ -924,12 +924,19 @@ namespace {
 				if (folder.siblingAtColumn(qt::overview_file_model::file_column).data().toString() == QStringLiteral("/")) {
 					const auto original = files->palette();
 					auto       wrong    = original;
-					wrong.setColor(QPalette::Active, QPalette::PlaceholderText, fileInk);
+					for (const auto group : { QPalette::Active, QPalette::Inactive }) {
+						wrong.setColor(group, QPalette::PlaceholderText, fileInk);
+					}
 					files->setPalette(wrong);
 					const auto wrongImage = tests::ink_raster(*files->viewport());
 					files->setPalette(original);
+					expect(ink_in(wrongImage, cell, fileInk) > 8 && ink_in(wrongImage, cell, folderInk) == 0,
+						   "negative control: the actual folder glyph is painted in file ink");
 					expect(!(ink_in(wrongImage, cell, folderInk) > 8 && ink_in(wrongImage, cell, fileInk) == 0),
 						   "negative control: a folder painted in file ink fails the same raster reading");
+					const auto restored = tests::ink_raster(*files->viewport());
+					expect(ink_in(restored, cell, folderInk) > 8 && ink_in(restored, cell, fileInk) == 0,
+						   "the original folder ink reading returns after the negative control");
 				}
 				++overviewRows;
 			}
