@@ -53,3 +53,18 @@ new C++/Objective-C++ pass focused tidy22 with warnings as errors. Offscreen
 Help, reset and Option courses pass. The original foreground activation course
 is not run on the owner's live desktop; its exact-candidate isolated/native
 qualification remains pending. This card stays In Progress for that obligation.
+
+
+## Composed fixture mechanism alignment
+
+The coordinator identifies the still-old Insights public-path assertion that
+requires ApplicationSpecificRole on each donor. The singleton repair instead
+keeps the enabled window shortcut donor at NoRole and removes its QMenu
+associations on Cocoa; the native item is application-owned. This fixture now
+asserts that exact Cocoa donor boundary, including absence from any per-window
+QMenu. Offscreen retains and asserts its ordinary ApplicationSpecificRole
+action because the native helper intentionally returns false there. Public
+dispatch/shortcut assertions remain unchanged. The separate nonactivating native
+course proves the real AppKit item; the original foreground native course
+remains pending, rather than being certified by an enum. Format22 and diff
+checks pass; parent owns the next safe Mac integration at the committed source.

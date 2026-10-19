@@ -23,6 +23,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLocale>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -34,6 +35,7 @@
 #include <QThread>
 #include <QTimer>
 
+#include <algorithm>
 #include <filesystem>
 #include <functional>
 #include <iostream>
@@ -457,7 +459,13 @@ try {
 	auto* action = window->findChild<QAction*>(QStringLiteral("openInsightsAction"));
 	expect(action && action->shortcut() == QKeySequence{ Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_I }, "the public menu entry carries the agreed shortcut");
 #if defined(Q_OS_MACOS)
-	expect(action->menuRole() == QAction::ApplicationSpecificRole, "macOS moves Insights into the application menu");
+	if (QApplication::platformName() == QStringLiteral("cocoa")) {
+		const auto associations = action->associatedObjects();
+		expect(action->menuRole() == QAction::NoRole && std::ranges::none_of(associations, [](const QObject* aObject) { return qobject_cast<const QMenu*>(aObject) != nullptr; }),
+			   "Cocoa keeps the Insights shortcut donor outside per-window native menu merging");
+	} else {
+		expect(action->menuRole() == QAction::ApplicationSpecificRole, "offscreen macOS retains the ordinary Insights action composition");
+	}
 #endif
 	action->trigger();
 	until([] { return insights() && insights()->isVisible(); }, "menu entry opens the real Insights window");
