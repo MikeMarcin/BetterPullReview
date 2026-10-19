@@ -8,6 +8,14 @@ prefilter = "false"
 useDefault = true
 
 [[rules]]
+id = "bpr-review-session-url"
+description = "Authenticated loopback review URL; keep it in external session state."
+# Treat the entire URL as the credential. Capturing only the token lets the
+# upstream repeated-value placeholder filter hide an authenticated URL.
+regex = '''http://(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+/#token=[A-Za-z0-9_-]+'''
+keywords = ["#token="]
+
+[[rules]]
 id = "generic-api-key"
 
 [[rules.allowlists]]

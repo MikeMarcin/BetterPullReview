@@ -127,13 +127,24 @@ The local course tests every exception against a different value of the same
 rule in the same file, the same fake value in another file and another rule
 in the allowed file. Keep these controls passing when changing policy.
 
-History retains findings for old loopback attended-review session URL tokens
+The `bpr-review-session-url` rule also detects authenticated loopback review
+URLs without an entropy threshold. It treats the complete URL as the secret:
+capturing only the token let the pinned release's repeated-value placeholder
+filter hide an authenticated URL. Real-binary tests cover IPv4, localhost and
+IPv6 loopback URLs, a repetitive token, inline allow comments, rejected commits
+and historical detection. Keep authenticated URLs in external session state;
+tracked handoffs should contain a session ID, state directory and lifecycle
+status. Upstream content heuristics still apply as described below.
+
+History retains findings for an old loopback attended-review session URL token
 in `docs/issues/_checkpoints/BPR-1575/handoff.json` and
 `docs/issues/_checkpoints/BPR-1576/handoff.json`. The current handoffs no longer
-contain those URLs. These are not synthetic-fixture exceptions: they remain
-visible, with no live validation, baseline or history rewrite. A historical
-scan is therefore expected to return 1 for the current locally available refs:
-18 historical occurrences at those two file locations remain visible.
+contain those URLs. Investigation confirmed one retired session credential
+in two historical blobs. It has no synthetic-fixture exception, so scanning
+the original history still returns 1. The
+[remediation record](betterleaks-history-remediation.md) documents retirement
+evidence, a separately verified clean-history candidate, the rewrite's impact
+and when GitHub Support would be appropriate. No live validation was used.
 
 ## Hooks and removal
 

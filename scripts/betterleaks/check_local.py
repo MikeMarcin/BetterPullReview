@@ -30,6 +30,7 @@ spec.loader.exec_module(tool)
 # Assemble synthetic canaries so this test's own source is not a secret fixture.
 CANARY = "ghp_" + "8xYt3QmP" + "7vRs9WkL" + "2nBd6FcH" + "5jAz4UeG" + "0iOp"
 OTHER = "ghp_" + "9aZs2WnQ" + "6uRt8VkM" + "3mCe7GbJ" + "4hBy5TfH" + "1jPq"
+REVIEW_CANARY = "w" * 43
 
 
 def require(condition, message):
@@ -41,7 +42,8 @@ def require(condition, message):
 
 def call(command, env, expected=0):
     result = subprocess.run([str(a) for a in command], env=env, capture_output=True)
-    require(all(v.encode() not in result.stdout + result.stderr for v in (CANARY, OTHER)),
+    require(all(v.encode() not in result.stdout + result.stderr
+                for v in (CANARY, OTHER, REVIEW_CANARY)),
             "Secret appeared in child output (output withheld)")
     if expected is not None:
         require(result.returncode == expected,
@@ -264,7 +266,7 @@ def fixture_exceptions(parent):
     policy = tomllib.loads((tool.SUPPORT / "config.toml").read_text())
     entries = []
     for rule in policy.get("rules", []):
-        for allow in rule["allowlists"]:
+        for allow in rule.get("allowlists", []):
             require(allow["condition"] == "AND" and allow["regexTarget"] == "secret",
                     "Exception lost its conjunctive scope")
             pattern = allow["paths"][0]
@@ -341,6 +343,36 @@ def missing_objects_and_index(parent):
     r.scan("setup", 2)
 
 
+def review_session_urls(parent):
+    r = Repository(parent)
+    r.scan("hook-install")
+    r.git("commit", "-qm", "clean initial")
+    initial = r.git("rev-parse", "HEAD").stdout
+    for number, host in enumerate(("127.0.0.1", "localhost", "[::1]")):
+        # Low entropy deliberately exercises the dedicated rule, independent
+        # of generic API-key heuristics. No real session is contacted.
+        url = f"http://{host}:12345/#" + "token=" + REVIEW_CANARY
+        r.write(f"docs/handoff-{number}.txt", url + " # gitleaks:allow betterleaks:allow\n")
+    r.git("add", ".")
+    for mode in ("staged", "tracked"):
+        result = r.scan(mode, 1)
+        require(result.stdout.count(b'"rule": "bpr-review-session-url"') == 3,
+                "Dedicated review URL coverage missing")
+    r.git("commit", "-qm", "review URLs must fail", expected=1)
+    require(r.git("rev-parse", "HEAD").stdout == initial, "Review URL commit changed HEAD")
+    r.scan("hook-remove")
+    r.git("commit", "-qm", "synthetic historical review URLs")
+    result = r.scan("history", 1)
+    require(result.stdout.count(b'"rule": "bpr-review-session-url"') == 3,
+            "Historical review URL coverage missing")
+    for number in range(3):
+        r.write(f"docs/handoff-{number}.txt", "session: example; url: stopped\n")
+    r.git("add", ".")
+    r.scan("hook-install")
+    r.git("commit", "-qm", "retain only session metadata")
+    r.scan("tracked")
+
+
 def main():
     if os.environ.get("GITHUB_ACTIONS"):
         print("This scanner course is local-only; it must not run in GitHub Actions.")
@@ -363,7 +395,7 @@ def main():
     tool.verify_binary(ROOT)
     courses = (staged_and_commits, initial_and_paths, suppressions_and_refs,
                missing_and_conflicts, linked_worktree, fixture_exceptions,
-               missing_objects_and_index, setup_checksum_refusal)
+               missing_objects_and_index, setup_checksum_refusal, review_session_urls)
     for course in courses:
         with tempfile.TemporaryDirectory(prefix="bpr-betterleaks-course-") as directory:
             course(Path(directory).resolve())
