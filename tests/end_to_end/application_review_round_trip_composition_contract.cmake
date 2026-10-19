@@ -1,3 +1,13 @@
+# RFC-BPR-0086 github-budget over 55ea64194, scoped engineering self-review.
+# Profile composition attaches a passive numeric Insights recorder to the existing
+# provider factory and diagnostic stream, drains it on the owned Insights effect
+# lane, and hands semantic profile colors to the existing singleton window.
+# The gh discovery runner and anonymous wrapper retain that observer. The new
+# insights-budget-v1 fixture uses the real private store; no grant, credential,
+# publication admission or executor authority is added. Reviewed provider/native/
+# gh changes collect at their existing send/start/terminal boundaries only.
+# Full application/production manifest resealed; mutation branch is unchanged.
+# Evidence: docs/verification/RFC-BPR-0086.md and the milestone continuation.
 # RFC-BPR-0086 accepted-milestone integration over main 614c6bbb7.
 # Self-reviewed the combined app scope: Insights keeps its profile-owned local
 # lane/window, initialization/shutdown and existing export/cache gestures; main's
@@ -1620,7 +1630,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d1aafe5f6bcd3c8f2701d14d9b0f52b1a56b30f7fab89c0bd8b90887725dcada"
+		"3f8aef71be9260c68585920452d6885021a77ed4ec7cfbc38006e15fc2419717"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1840,7 +1850,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "fa2ed4fefd1cb8be7e323782cfebd993206ec41f1b7f0d5c124d2b20039b112b"
+        "64c0ddd0b801e5268549128e8d5d5401dd7d4ea9679286c1de9e98e19e03eb4f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

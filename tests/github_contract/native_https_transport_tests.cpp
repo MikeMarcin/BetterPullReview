@@ -561,6 +561,15 @@ namespace {
 
 	void test_factory_contracts_and_preflight()
 	{
+		auto                passive = std::make_shared<tests::insights_observer>();
+		auto                channel = std::make_shared<github_insights_channel>(passive, 1);
+		const wire_response wrongResource{ 200, { { "X-RateLimit-Limit", "5000" }, { "X-RateLimit-Remaining", "4999" }, { "X-RateLimit-Reset", "2000000000" }, { "X-RateLimit-Resource", "graphql" } }, "{}", page_completeness::complete };
+		channel->request(core::insights_resource::core, core::insights_category::other, &wrongResource);
+		expect(passive->events().empty(), "bootstrap Insights facts wait for verified account identity");
+		channel->bind(203);
+		const auto buffered = passive->events();
+		expect(buffered.size() == 1 && buffered.front().Scope.Account == 203 && buffered.front().Count == 1 && !buffered.front().Remaining, "binding keeps the request count while a wrong-resource tuple cannot populate its budget");
+
 		const auto native = validate_github_host_profile(
 			profile_candidate(
 				application::github_authentication_transport::native_https));

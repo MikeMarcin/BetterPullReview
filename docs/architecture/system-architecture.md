@@ -2004,7 +2004,7 @@ preference `review_markdown_images` (schema 21, Load by default): the Qt window
 applies a published change to its readers, and Don't load sends no image
 intent, so the host resolves and fetches nothing.
 
-## Insights window and storage allocation (RFC-BPR-0086, first milestone)
+## Insights allocation (RFC-BPR-0086)
 
 One `qt::insights_window` belongs to each `github_profile_runtime`, alongside
 Settings. Its menu action and central shortcut registry dispatch to composition;
@@ -2016,9 +2016,10 @@ to the decision lane. Shutdown stops the window’s timers and drains initializa
 measurement and completion before closing that lane.
 
 The SQLite adapter initializes owner-private `state/v1/insights.sqlite3` at the
-profile’s first launch. Schema 1 stores the start time, last measured aggregate
-bytes and local repository display labels; lifetime counts and history remain
-later milestones. Storage sums file lengths and SQLite sidecars without reading
+profile’s first launch. Schema 2 retains the start time, last measured aggregate bytes and local
+repository display labels and adds numeric GitHub/process/problem history and
+the last observed account partition. It migrates schema 1 in one transaction.
+Lifetime review counts, energy and work remain later milestones. Storage sums file lengths and SQLite sidecars without reading
 other stores’ contents. Git repository bytes use the same bounded file inventory
 helper as the existing cache adapter; no cache session or Git process is opened.
 A changing or refused entry can make an observation unavailable. This is a local
@@ -2030,3 +2031,23 @@ Troubleshooting scopes. Full profile purge also removes it. An anonymized frozen
 export reads only its last byte aggregates and recomputes the frozen descriptor’s
 size and digest; identifying and metadata exports add nothing from Insights.
 The [window contract](../ux/insights.md) records the currently delivered surface.
+
+GitHub collection is passive. The provider attaches a content-free per-transport
+channel; bootstrap events wait for the verified account binding. Native HTTPS
+records admitted API hops and their normalized headers; gh records API requests
+at actual process start, including account checks and headerless object reads.
+Operation identities choose closed categories. The process runner emits launch,
+failure and elapsed-time facts; the shared supervision lane emits its exact
+quarantine/abandonment transitions without changing their ordering or ownership.
+The diagnostic decorator counts failed outcomes before recording preferences.
+
+`application::insights_recorder` accepts a bounded nonblocking queue and drains
+it on the existing Insights effect executor. SQLite persists request counts,
+readings and process/problem facts, compacts raw history after two hours into
+five-minute buckets through 48 hours and daily buckets through 93 days, and
+performs retention while ordinary observations arrive as well as on snapshots.
+Core derives the account/reset-specific lowest-remaining split and the hour/day
+projections. Missing or expired readings stay unavailable; GraphQL never gets a
+split. Snapshot refresh reads this port only and owns no provider or process
+capability. Qt’s reusable chart receives values, semantic role colors and hover
+mechanics; it performs no sampling, retention or budget calculation.

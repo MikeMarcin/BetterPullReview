@@ -6,16 +6,35 @@ Ctrl–Alt–Shift–I elsewhere. Each profile has one window. Escape closes it.
 
 The content is fixed at 900 × 542 logical pixels and clamped to the opening
 screen’s available geometry with an 18 px margin. All six tabs keep that size.
-Only Storage’s bounded ledger scrolls. The window follows the profile’s font
+Only bounded ledgers inside a page scroll. The window follows the profile’s font
 and appearance. Centered tabs and two icon actions share the compact top
 strip; the title/status header beneath keeps its own height. Summary uses
 compact cards with space below them, rather than stretching them to fill
 the page. Storage uses thin rows with budget meters.
 
 The first RFC-BPR-0086 milestone supplies the shell, Summary’s Local data and
-Background work tiles, and Storage. Reviews, GitHub, Work and Energy show
-explicit empty states until their respective milestones supply observations.
-Those states do not claim a measured zero.
+Background work tiles, and Storage. The GitHub budget milestone adds the Summary
+budget bar and Problems tile and the GitHub tab. Reviews, Work and Energy retain
+their explicit empty states until their milestones supply observations.
+
+The Core budget bar uses the lowest remaining response in the current reset
+window, subtracting this profile’s persisted BPR requests to estimate other
+clients. Both used counts say “about”. Restart preserves the counts; an expired
+or missing reading shows an explicit state. Insights never fetches a reading.
+GraphQL and Search show their own remaining budget, reset and BPR request count;
+GraphQL has no other-client split because its quota charges query cost.
+
+GitHub’s hour/day chart puts BPR requests per minute above Core remaining, with
+separate scales and maxima, area fills, gaps and reset rules. Hover picks the
+nearest sample across midpoints and flips its card inside the edges. Changing
+range clears hover. The chart follows the profile’s accepted/unread color roles
+and exposes its name and range description. Bounded tables show requests by the
+closed operation categories, gh launches and observed failures, quarantines,
+abandoned children, slowest call and timestamped secondary/Retry-After events.
+Problems counts failed operations for 24 hours even when diagnostic recording
+is off. Collection is local to the profile and numeric account partition;
+repository names, addresses, credentials and response bodies are not retained
+in this history.
 
 While visible, local snapshots refresh every five seconds when the app is
 active, and every thirty seconds otherwise. A refresh already in progress is
@@ -43,4 +62,5 @@ export adds no Insights section. This window introduces no deletion action.
 `insights.sqlite3` is profile state: profile purge and Reset everything remove
 it and its sidecars. Clear local diagnostics, cache deletion or pruning, and
 the three narrower Troubleshooting resets keep it. The first launch creates
-its metadata; review counting and history arrive in later milestones.
+its metadata and GitHub history; lifetime review counting and the remaining
+measurement families arrive in later milestones.

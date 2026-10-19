@@ -45,7 +45,9 @@ namespace bpr::adapters::github::detail {
 			const auto metadata = parse_github_response_metadata(*aResponse);
 			if (metadata) {
 				event.RetryAfterSeconds = metadata->RetryAfterSeconds;
-				if (metadata->RateLimit) {
+				const auto expected     = aResource == core::insights_resource::graphql ? application::github_rate_limit_resource::graphql
+																						: (aResource == core::insights_resource::search ? application::github_rate_limit_resource::search : application::github_rate_limit_resource::core);
+				if (metadata->RateLimit && metadata->RateLimit->Resource == expected) {
 					const auto& reading    = *metadata->RateLimit;
 					event.Limit            = reading.Limit;
 					event.Remaining        = reading.Remaining;

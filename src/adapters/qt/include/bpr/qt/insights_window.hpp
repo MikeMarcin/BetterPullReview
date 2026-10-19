@@ -17,6 +17,7 @@ class QHideEvent;
 class QKeyEvent;
 
 namespace bpr::qt {
+	class insights_chart;
 	/// \brief Per-profile fixed-size Insights shell. All values arrive from the local snapshot host.
 	class insights_window final : public QWidget
 	{
@@ -24,6 +25,7 @@ namespace bpr::qt {
 		explicit insights_window(QWidget* aParent = nullptr);
 		void set_dispatch(application::insights_dispatch aDispatch);
 		void set_profile_label(const QString& aLabel);
+		void set_chart_colors(QColor aPrimary, QColor aSecondary);
 		void present(QWidget* aOpener);
 		void apply(const application::insights_snapshot& aSnapshot);
 		/// \brief Requests local data only while this window is visible.
@@ -40,6 +42,13 @@ namespace bpr::qt {
 	private:
 		void                           set_refresh_interval();
 		void                           build_pages();
+		void                           build_github_page(QVBoxLayout& aColumn);
+		void                           update_github();
+		void                           update_github_budgets();
+		void                           update_github_requests(bool aDay);
+		void                           update_github_processes(bool aDay);
+		void                           update_github_chart(bool aDay);
+		void                           update_problems();
 		void                           build_empty_page(int aIndex, QVBoxLayout& aColumn);
 		void                           refresh_typography();
 		application::insights_dispatch Dispatch;
@@ -55,7 +64,19 @@ namespace bpr::qt {
 		QTableWidget*                  Stores               = nullptr;
 		QTimer*                        RefreshTimer         = nullptr;
 		QTimer*                        AgeTimer             = nullptr;
-		std::int64_t                   BuiltUnixSeconds     = 0;
+		QWidget*                       BudgetBar            = nullptr;
+		QLabel*                        Problems             = nullptr;
+		QLabel*                        ProblemsDetail       = nullptr;
+		std::array<QLabel*, 3>         GithubValues{ };
+		std::array<QLabel*, 3>         GithubDetails{ };
+		QTabBar*                       GithubRange       = nullptr;
+		insights_chart*                GithubChart       = nullptr;
+		QTableWidget*                  RequestCategories = nullptr;
+		QTableWidget*                  ProcessFacts      = nullptr;
+		core::insights_github_snapshot GithubSnapshot;
+		QColor                         PrimaryChartColor;
+		QColor                         SecondaryChartColor;
+		std::int64_t                   BuiltUnixSeconds = 0;
 	};
 }
 

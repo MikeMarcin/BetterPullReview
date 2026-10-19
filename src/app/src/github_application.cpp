@@ -1089,6 +1089,7 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed inline drawer",
 				};
+			case detail::github_public_path_fixture::insights_budget_v1:
 			case detail::github_public_path_fixture::overview_labels_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -4257,7 +4258,7 @@ namespace bpr::app {
 		std::optional<core::bpr_window_context>         InsightsOwner;
 		bool                                            InsightsInitializing = true;
 		std::map<std::string, std::string>              InsightsRepositoryLabels;
-		void                                            present_insights(core::bpr_window_context aContext, QWidget* aOpener)
+		void                                            present_insights(core::bpr_window_context aContext, QWidget* aOpener, const qt::appearance_profile* aAppearance)
 		{
 			if (!current_window(aContext)) {
 				return;
@@ -4269,6 +4270,9 @@ namespace bpr::app {
 			Insights->set_profile_label(QString::fromStdString(Admission.Label));
 			Insights->setPalette(aOpener->palette());
 			Insights->setFont(aOpener->font());
+			if (aAppearance) {
+				Insights->set_chart_colors(aAppearance->color(core::appearance_role::state_accepted), aAppearance->color(core::appearance_role::state_unread));
+			}
 			const auto weak = weak_from_this();
 			Insights->set_dispatch({
 				.Refresh      = [weak](bool aStorage) {
@@ -7775,7 +7779,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Profile->present_diagnostic_export(DraftWindow, aPolicy);
 				}
 			});
-			Window->set_insights_presenter([this, weak] { if (!weak.expired() && !Closing) { Profile->present_insights(DraftWindow, Window.get()); } });
+			Window->set_insights_presenter([this, weak] { if (!weak.expired() && !Closing) { Profile->present_insights(DraftWindow, Window.get(), AppearanceProfile.get()); } });
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
 } });
 			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
@@ -18426,6 +18430,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AppearanceProfile->apply_to(*Window);
 			if (Profile->Insights && Profile->InsightsOwner == DraftWindow) {
 				AppearanceProfile->apply_to(*Profile->Insights);
+				Profile->Insights->set_chart_colors(AppearanceProfile->color(core::appearance_role::state_accepted), AppearanceProfile->color(core::appearance_role::state_unread));
 			}
 			// QPalette carries no role for "an added line", so the comparison
 			// surface is given the semantic palette directly. Without this the

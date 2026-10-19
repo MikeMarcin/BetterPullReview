@@ -32,6 +32,7 @@ namespace bpr::core {
 				}
 			}
 			std::vector<insights_github_point> result;
+			result.reserve(buckets.size());
 			for (const auto& [at, point] : buckets) {
 				result.push_back(point);
 			}

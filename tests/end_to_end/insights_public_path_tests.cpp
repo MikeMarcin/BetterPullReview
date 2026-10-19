@@ -2,6 +2,8 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/insights_chart.hpp"
 #include "bpr/qt/insights_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
@@ -14,6 +16,7 @@
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScreen>
@@ -52,6 +55,51 @@ namespace {
 		return nullptr;
 	}
 
+	void shared_chart_contract(QWidget& aParent)
+	{
+		qt::insights_chart chart{ &aParent };
+		chart.resize(600, 160);
+		chart.set_colors(QColor{ 20, 150, 95 }, QColor{ 40, 100, 220 });
+		qt::insights_chart_data facts;
+		facts.Name             = QStringLiteral("Stacked foreground and background");
+		facts.Description      = QStringLiteral("Background under foreground with gaps.");
+		facts.Quantity         = QStringLiteral("System capacity, %");
+		facts.BackgroundName   = QStringLiteral("Background");
+		facts.ForegroundName   = QStringLiteral("Foreground");
+		facts.EventsName       = QStringLiteral("Events/min");
+		facts.StartUnixSeconds = 0;
+		facts.EndUnixSeconds   = 300;
+		facts.GapSeconds       = 90;
+		facts.Capacity         = 100.0;
+		facts.Points           = { { 0, 10.0, 20.0, 2.0, false }, { 60, 10.0, 20.0, 3.0, false }, { 300, 10.0, 20.0, 1.0, true } };
+		chart.apply(facts);
+		expect(chart.quantity_maximum() == 100.0, "capacity lane stays at 100 until exceeded");
+		const auto move = [&](const double aX) { const auto local = QPointF{aX,90.0}; QMouseEvent event{QEvent::MouseMove,local,chart.mapToGlobal(local.toPoint()),Qt::NoButton,Qt::NoButton,Qt::NoModifier}; QApplication::sendEvent(&chart,&event); };
+		move(67.0);
+		expect(chart.hovered_index() == 0, "hover stays with the old sample before its midpoint");
+		move(69.0);
+		expect(chart.hovered_index() == 1, "hover advances after crossing the midpoint");
+		move(590.0);
+		expect(chart.hovered_index() == 2 && chart.hover_card_rect().left() >= 8.0 && chart.hover_card_rect().right() <= 592.0, "hover flips at the trailing edge with an eight-pixel inset");
+		move(10.0);
+		expect(chart.hover_card_rect().left() >= 8.0, "leading hover respects the inset");
+		chart.hide();
+		const auto raster = chart.grab().toImage();
+		expect(raster.pixelColor(60, 115) != raster.pixelColor(300, 115), "foreground is filled above background, and the unsampled interval is a gap");
+		auto empty = facts;
+		for (auto& point : empty.Points) {
+			point.Background.reset();
+		}
+		chart.apply(empty);
+		const auto emptyRaster = chart.grab().toImage();
+		expect(emptyRaster.pixelColor(60, 115) == emptyRaster.pixelColor(300, 115), "negative control: without quantity observations the area disappears");
+		facts.Points.back().Foreground = 120.0;
+		facts.EndUnixSeconds           = 600;
+		chart.apply(facts);
+		expect(chart.quantity_maximum() == 130.0 && !chart.hovered_index(), "exceeded capacity expands, and changing the range clears hover");
+		expect(!chart.accessibleName().isEmpty() && !chart.accessibleDescription().isEmpty(), "shared chart has a range description");
+	}
+
 	void render(qt::insights_window& aShell, app::github_application& aRuntime)
 	{
 		const auto folder = qEnvironmentVariable("BPR_INSIGHTS_RENDER_ROOT");
@@ -69,6 +117,19 @@ namespace {
 				tabs->setCurrentIndex(page);
 				QApplication::processEvents();
 				expect(aShell.grab().save(folder + QStringLiteral("/insights-%1-%2.png").arg(page).arg(suffix)), "composed Insights render saved");
+				if (page == 2) {
+					auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsRange"));
+					for (auto* candidate : aShell.findChildren<QTabBar*>()) {
+						if (candidate->accessibleName() == QStringLiteral("GitHub range")) {
+							range = candidate;
+						}
+					}
+					for (int selected = 0; selected < 2; ++selected) {
+						range->setCurrentIndex(selected);
+						QApplication::processEvents();
+						expect(aShell.grab().save(folder + QStringLiteral("/insights-github-%1-%2.png").arg(selected).arg(suffix)), "both real GitHub ranges render");
+					}
+				}
 			}
 		}
 		aShell.setFixedSize(original);
@@ -86,7 +147,7 @@ try {
 	app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot      = root;
 	options.RegisteredDeviceCourse   = true;
-	auto                     desktop = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [](auto) { });
+	auto                     desktop = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::insights_budget_v1, options, [](auto) { });
 	app::github_application* runtime = nullptr;
 	until([&] { runtime = desktop->runtime(core::default_bpr_profile_id); return runtime && !runtime->windows().empty(); }, "profile runtime and window composed");
 	auto* window = runtime->window(runtime->windows().front());
@@ -109,6 +170,13 @@ try {
 		foundInsights = foundInsights || table->item(row, 0)->text() == QStringLiteral("insights.sqlite3");
 	}
 	expect(foundInsights && !shell->findChild<QLabel*>(QStringLiteral("insightsLocalData"))->text().contains(QStringLiteral("unavailable")), "Summary and Storage display real data, including Insights itself");
+	auto* budget = shell->findChild<QWidget*>(QStringLiteral("insightsBudget"));
+	until([&] { return budget->property("ownRequests").toULongLong() == 412; }, "seeded real store reaches the Summary budget");
+	expect(budget->accessibleDescription().contains(QStringLiteral("1,240")) && budget->accessibleDescription().contains(QStringLiteral("3,348")), "two-client split uses persisted BPR count and the lowest remaining response");
+	expect(shell->findChild<QLabel*>(QStringLiteral("insightsProblems"))->text() == QStringLiteral("2"), "Problems arrives from the same local snapshot");
+	shared_chart_contract(*window);
+	const auto beforeRefresh = app::detail::github_application_fixture_access::evidence(*runtime);
+
 	const auto frame     = shell->frameGeometry();
 	const auto content   = shell->size();
 	auto*      tabs      = shell->findChild<QTabBar*>(QStringLiteral("insightsTabs"));
@@ -134,6 +202,11 @@ try {
 			expect(shell->frameGeometry() == frame && shell->size() == content && header->geometry() == headerBox, "three refreshes on each page preserve frame and content");
 		}
 	}
+	const auto afterRefresh = app::detail::github_application_fixture_access::evidence(*runtime);
+	expect(beforeRefresh.AccountReadCount == afterRefresh.AccountReadCount && beforeRefresh.SmartAcquireCount == afterRefresh.SmartAcquireCount && beforeRefresh.BootstrapFactoryAttempts == afterRefresh.BootstrapFactoryAttempts, "all local refreshes issue no GitHub, Git or credential acquisition");
+	window->github_connect_action()->trigger();
+	until([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "normal fixture account connects");
+	until([&] { shell->refresh(); return budget->property("ownRequests").toULongLong() > 412; }, "real provider transport observations join the persisted current-window count");
 	expect(qt::insights_window::content_size({ 800, 500 }) == QSize{ 764, 464 }, "smaller screen clamps both content dimensions with an 18 px margin");
 	shell->setFixedSize(qt::insights_window::content_size({ 800, 500 }));
 	for (int page = 0; page < tabs->count(); ++page) {

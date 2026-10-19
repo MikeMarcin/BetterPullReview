@@ -8,6 +8,7 @@
 #include "github_mutation_contract.hpp"
 #include "github_read_contract.hpp"
 
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "github_wire_request_validation.hpp"
 #include "github_wire_transport.hpp"
@@ -492,13 +493,15 @@ namespace bpr::app::detail {
 			// the GitHub-parity Markdown bodies
 			// (`scripts/build_markdown_parity_fixture.py`), and [[BPR-1544]]'s
 			// markdown-html-v1 its HTML (`scripts/build_markdown_html_fixture.py`).
+			case github_public_path_fixture::insights_budget_v1:
 			case github_public_path_fixture::overview_labels_v1:
 			case github_public_path_fixture::markdown_images_v1:
 			case github_public_path_fixture::markdown_parity_v1:
 			case github_public_path_fixture::markdown_html_v1:
 			case github_public_path_fixture::status_attention_v1:
 				return {
-					.ContractDirectory   = aFixture == github_public_path_fixture::markdown_images_v1 ? "markdown-images-v1"
+					.ContractDirectory   = aFixture == github_public_path_fixture::insights_budget_v1 ? "insights-budget-v1"
+						: aFixture == github_public_path_fixture::markdown_images_v1                  ? "markdown-images-v1"
 						: aFixture == github_public_path_fixture::markdown_parity_v1                  ? "markdown-parity-v1"
 						: aFixture == github_public_path_fixture::markdown_html_v1                    ? "markdown-html-v1"
 						: aFixture == github_public_path_fixture::status_attention_v1                 ? "status-attention-v1"
@@ -790,6 +793,95 @@ namespace bpr::app::detail {
 			return aSource.File.has_value()
 				? std::make_shared<deterministic_git_fixture>(*aSource.File, aSource.SecondFile)
 				: std::make_shared<deterministic_git_fixture>();
+		}
+
+		auto seed_insights_budget(const std::filesystem::path& aRoot) -> std::int64_t
+		{
+			auto       store    = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+			const auto now      = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			const auto existing = store->github(now);
+			if (existing.Budgets[0].Limit) {
+				return existing.Budgets[0].ResetUnixSeconds;
+			}
+			const auto                        scope = core::insights_scope{ 1, 1 };
+			std::vector<core::insights_event> events;
+			const auto                        end   = now / 60 * 60;
+			const auto                        reset = end + 1800;
+			for (int minute = 1430; minute >= 0; --minute) {
+				if ((minute > 60 && minute % 5 != 0) || (minute >= 35 && minute <= 40) || (minute >= 720 && minute <= 840)) {
+					continue;
+				}
+				core::insights_event event;
+				event.Scope            = scope;
+				event.UnixSeconds      = end - minute * 60;
+				event.Category         = static_cast<core::insights_category>(minute % 5);
+				event.Count            = minute < 30 ? (minute == 0 ? 35 : 13) : 4;
+				event.Limit            = 5000;
+				event.Remaining        = static_cast<std::uint64_t>(minute < 30 ? 3348 + minute * 35 : 1800 + minute % 60 * 42);
+				event.ResetUnixSeconds = minute < 30 ? reset : (minute <= 60 ? end - 1800 : event.UnixSeconds / 3600 * 3600 + 3600);
+				events.push_back(event);
+			}
+			core::insights_event event;
+			event.Scope            = scope;
+			event.UnixSeconds      = end - 240;
+			event.Resource         = core::insights_resource::graphql;
+			event.Count            = 1870;
+			event.Limit            = 5000;
+			event.Remaining        = 3130;
+			event.ResetUnixSeconds = reset;
+			events.push_back(event);
+			event.Resource         = core::insights_resource::search;
+			event.UnixSeconds      = now - 10;
+			event.Count            = 2;
+			event.Limit            = 30;
+			event.Remaining        = 28;
+			event.ResetUnixSeconds = now + 50;
+			events.push_back(event);
+			event                      = { };
+			event.Scope                = scope;
+			event.UnixSeconds          = end - 120;
+			event.Kind                 = core::insights_event_kind::process;
+			event.Count                = 430;
+			event.Launched             = true;
+			event.DurationMicroseconds = 4800000;
+			events.push_back(event);
+			event.Count                = 1;
+			event.Launched             = false;
+			event.ProcessFailure       = core::insights_process_failure::timeout;
+			event.DurationMicroseconds = 2000000;
+			events.push_back(event);
+			event                   = { };
+			event.Scope             = scope;
+			event.UnixSeconds       = end - 600;
+			event.Count             = 0;
+			event.Limit             = 5000;
+			event.Remaining         = 4000;
+			event.ResetUnixSeconds  = reset;
+			event.SecondaryLimited  = true;
+			event.RetryAfterSeconds = 60;
+			events.push_back(event);
+			event             = { };
+			event.UnixSeconds = end - 120;
+			event.Kind        = core::insights_event_kind::problem;
+			event.Category    = core::insights_category::opening;
+			event.Count       = 2;
+			events.push_back(event);
+			std::ranges::sort(events, { }, &core::insights_event::UnixSeconds);
+			store->record(events, scope);
+			return reset;
+		}
+		void insights_fixture_headers(wire_response& aResponse, const read_operation aOperation, const std::int64_t aReset)
+		{
+			const auto now   = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			const auto reset = aOperation == read_operation::search_pull_requests || aOperation == read_operation::search_personal_pull_requests ? now + 50 : aReset;
+			for (auto& header : aResponse.Headers) {
+				if (header.Name == "X-RateLimit-Reset") {
+					header.Value = std::to_string(reset);
+				}
+				if (header.Name == "X-RateLimit-Remaining") {
+					header.Value = graphql_read(aOperation) ? "3130" : (aOperation == read_operation::search_pull_requests || aOperation == read_operation::search_personal_pull_requests ? "28" : "3348");
+				}
+			}
 		}
 
 		[[nodiscard]] auto response_headers()
@@ -1912,6 +2004,8 @@ namespace bpr::app::detail {
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture>                  PersonalDiscovery;
 			std::shared_ptr<github_rate_limit_fixture>                        RateLimit;
+			bool                                                              InsightsBudget = false;
+			std::int64_t                                                      InsightsReset  = 0;
 			std::shared_ptr<github_offline_fixture>                           Offline;
 			std::shared_ptr<github_read_delay_fixture>                        ReadDelay;
 			std::size_t                                                       DiscoverySearches    = 0U;
@@ -2598,6 +2692,11 @@ namespace bpr::app::detail {
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, const std::stop_token aStop) -> github_wire_completion override
 			{
 				auto result = perform_impl(aRequest, aStop);
+				if (State->InsightsBudget) {
+					if (auto* success = std::get_if<github_wire_success>(&result)) {
+						insights_fixture_headers(success->Response, aRequest.Wire.Operation, State->InsightsReset);
+					}
+				}
 				if (insights_channel()) {
 					if (const auto* success = std::get_if<github_wire_success>(&result)) {
 						insights_channel()->request(adapters::github::detail::insights_resource_for(aRequest.Wire.Operation), adapters::github::detail::insights_category_for(aRequest.Wire.Operation), &success->Response);
@@ -5027,6 +5126,10 @@ namespace bpr::app::detail {
 				throw std::runtime_error{ "fixture requires admitted storage root" };
 			}
 			ApplicationDataRoot = *aOptions.ApplicationDataRoot;
+			if (aFixture == github_public_path_fixture::insights_budget_v1) {
+				Recording->InsightsBudget = true;
+				Recording->InsightsReset  = seed_insights_budget(ApplicationDataRoot);
+			}
 		}
 
 		std::shared_ptr<fixture_recording_state>                 Recording;

@@ -2,6 +2,7 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/insights_window.cpp
+        src/insights_chart.cpp
         src/review_tour_editor.cpp
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp

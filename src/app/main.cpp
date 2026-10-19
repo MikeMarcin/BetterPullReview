@@ -9608,11 +9608,11 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 6,
 					.ExpectedThreadId         = std::nullopt,
 				};
-			} else if (*fixture == "overview-labels-v1") {
+			} else if (*fixture == "overview-labels-v1" || *fixture == "insights-budget-v1") {
 				// [[BPR-1089]]. The nested-folders pull request with many
 				// labelled conversations; see `scripts/build_overview_labels_fixture.py`.
-				selectedFixture        = bpr::app::detail::github_public_path_fixture::overview_labels_v1;
-				fixtureName            = "overview-labels-v1";
+				selectedFixture        = *fixture == "insights-budget-v1" ? bpr::app::detail::github_public_path_fixture::insights_budget_v1 : bpr::app::detail::github_public_path_fixture::overview_labels_v1;
+				fixtureName            = std::string{ *fixture };
 				expectedActiveHostText = "github.com";
 				fixtureExpectations    = {
 					.Owner                    = "bpr-fixtures",

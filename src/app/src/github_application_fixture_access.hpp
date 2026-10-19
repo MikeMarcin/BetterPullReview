@@ -106,6 +106,8 @@ namespace bpr::app::detail {
 		/// [[BPR-1589]]. overview-labels-v1 read by tbutler, a reviewer, with
 		/// a mention and two failed checks, for judging the Status drawer.
 		status_attention_v1,
+		/// RFC-BPR-0086. Numeric budget/history in the real Insights store, alongside overview-labels-v1.
+		insights_budget_v1,
 		/// [[BPR-1562]]. The conventional-comments pull request whose
 		/// description and comments hold fenced code in many languages and
 		/// diff blocks, and whose threads suggest changes to its lines.

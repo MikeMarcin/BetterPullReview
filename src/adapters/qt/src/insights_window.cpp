@@ -1,4 +1,5 @@
 #include "bpr/qt/insights_window.hpp"
+#include "bpr/qt/insights_chart.hpp"
 
 #include <QApplication>
 #include <QDateTime>
@@ -25,6 +26,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <numeric>
 #include <utility>
 
 namespace bpr::qt {
@@ -165,6 +167,115 @@ namespace bpr::qt {
 			bool Folder;
 		};
 
+		class budget_bar final : public QWidget
+		{
+		public:
+			explicit budget_bar(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setFixedHeight(90);
+				setObjectName(QStringLiteral("insightsBudget"));
+				setAccessibleName(tr("GitHub budget this hour"));
+			}
+			void apply(core::insights_budget aBudget)
+			{
+				Budget                 = std::move(aBudget);
+				const auto description = Budget.Limit ? tr("BetterPullReview about %1 requests; other clients about %2; %3 left of %4. Resets at %5.")
+															.arg(QLocale{ }.toString(Budget.OwnRequests), QLocale{ }.toString(Budget.OtherClients.value_or(0)), QLocale{ }.toString(Budget.Remaining.value_or(0)), QLocale{ }.toString(*Budget.Limit), reset_time())
+													  : tr("No reading in the current reset window");
+				setAccessibleDescription(description);
+				setToolTip(description);
+				setProperty("ownRequests", QVariant::fromValue<qulonglong>(Budget.OwnRequests));
+				update();
+			}
+			void set_color(QColor aColor)
+			{
+				Ink = std::move(aColor);
+				update();
+			}
+
+		protected:
+			void paintEvent(QPaintEvent*) override
+			{
+				QPainter painter{ this };
+				painter.setRenderHint(QPainter::Antialiasing);
+				painter.setPen(QPen{ outline(palette()), 1.0 });
+				painter.setBrush(palette().color(QPalette::Base));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+				auto titleFont = font();
+				titleFont.setWeight(QFont::DemiBold);
+				painter.setFont(titleFont);
+				painter.setPen(palette().color(QPalette::WindowText));
+				painter.drawText(QRect{ 12, 8, width() - 24, 20 }, Qt::AlignLeft | Qt::AlignVCenter, tr("GitHub budget this hour"));
+				auto detailFont = font();
+				detailFont.setPointSizeF(detailFont.pointSizeF() * 11.0 / 13.0);
+				painter.setFont(detailFont);
+				painter.setPen(palette().color(QPalette::PlaceholderText));
+				if (!Budget.Limit) {
+					painter.drawText(QRect{ 12, 39, width() - 24, 22 }, Qt::AlignLeft | Qt::AlignVCenter, tr("No reading in the current reset window"));
+					return;
+				}
+				painter.drawText(QRect{ 12, 8, width() - 24, 20 }, Qt::AlignRight | Qt::AlignVCenter, tr("resets at %1").arg(reset_time()));
+				const auto   meter     = QRectF{ 12.0, 34.0, static_cast<double>(width() - 24), 20.0 };
+				const auto   own       = static_cast<double>(Budget.OwnRequests);
+				const auto   other     = static_cast<double>(Budget.OtherClients.value_or(0));
+				const auto   remaining = static_cast<double>(Budget.Remaining.value_or(0));
+				const auto   total     = std::max(1.0, std::max(static_cast<double>(*Budget.Limit), own + other + remaining));
+				QPainterPath clip;
+				clip.addRoundedRect(meter, 3, 3);
+				painter.save();
+				painter.setClipPath(clip);
+				painter.fillRect(meter, outline(palette()));
+				const auto ink = Ink.isValid() ? Ink : palette().color(QPalette::Highlight);
+				painter.fillRect(QRectF{ meter.left(), meter.top(), meter.width() * own / total, meter.height() }, ink);
+				painter.fillRect(QRectF{ meter.left() + meter.width() * own / total, meter.top(), meter.width() * other / total, meter.height() }, palette().color(QPalette::PlaceholderText));
+				painter.restore();
+				painter.setPen(palette().color(QPalette::PlaceholderText));
+				const auto legend = tr("BetterPullReview about %1     Other clients about %2     %3 left of %4")
+										.arg(QLocale{ }.toString(Budget.OwnRequests), QLocale{ }.toString(Budget.OtherClients.value_or(0)), QLocale{ }.toString(Budget.Remaining.value_or(0)), QLocale{ }.toString(*Budget.Limit));
+				painter.drawText(QRect{ 12, 60, width() - 24, 20 }, Qt::AlignLeft | Qt::AlignVCenter, legend);
+			}
+
+		private:
+			auto                  reset_time() const -> QString { return QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(Budget.ResetUnixSeconds).time(), QLocale::ShortFormat); }
+			core::insights_budget Budget;
+			QColor                Ink;
+		};
+		auto fact_table(QWidget* aParent, const QString& aName) -> QTableWidget*
+		{
+			auto* table = new QTableWidget{ 0, 2, aParent };
+			table->setObjectName(aName);
+			table->setAccessibleName(aName);
+			table->horizontalHeader()->hide();
+			table->verticalHeader()->hide();
+			table->setFrameShape(QFrame::NoFrame);
+			table->setShowGrid(false);
+			table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+			table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+			table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+			table->setSelectionBehavior(QAbstractItemView::SelectRows);
+			table->setMinimumHeight(48);
+			return table;
+		}
+		void fact_row(QTableWidget& aTable, const int aRow, const QString& aLabel, const QString& aValue)
+		{
+			for (int column = 0; column < 2; ++column) {
+				auto* item = aTable.item(aRow, column);
+				if (!item) {
+					item = new QTableWidgetItem;
+					aTable.setItem(aRow, column, item);
+				}
+				item->setText(column == 0 ? aLabel : aValue);
+				item->setToolTip(item->text());
+				item->setTextAlignment((column == 0 ? Qt::AlignLeft : Qt::AlignRight) | Qt::AlignVCenter);
+				if (column == 0) {
+					item->setForeground(aTable.palette().color(QPalette::PlaceholderText));
+				}
+			}
+			aTable.setRowHeight(aRow, 21);
+		}
+		auto category_names() -> QStringList { return { QObject::tr("Inbox and review queue"), QObject::tr("Opening pull requests"), QObject::tr("Comments and threads"), QObject::tr("Publishing"), QObject::tr("Other") }; }
+
 		auto label(const QString& aText, QWidget* aParent, const char* aType = "body") -> QLabel*
 		{
 			auto* result = new QLabel{ aText, aParent };
@@ -225,7 +336,7 @@ namespace bpr::qt {
 			aColumn.addWidget(box);
 		}
 
-		void ranges(QVBoxLayout& aColumn, const QStringList& aNames, const QString& aName, int aSelected = 0)
+		auto ranges(QVBoxLayout& aColumn, const QStringList& aNames, const QString& aName, int aSelected = 0) -> QTabBar*
 		{
 			auto* range = new segment_bar{ aColumn.parentWidget() };
 			range->setObjectName(QStringLiteral("insightsRange"));
@@ -235,6 +346,7 @@ namespace bpr::qt {
 			}
 			range->setCurrentIndex(aSelected);
 			aColumn.addWidget(range, 0, Qt::AlignRight);
+			return range;
 		}
 
 		auto bytes(const std::optional<std::uint64_t> aBytes) -> QString
@@ -368,7 +480,8 @@ namespace bpr::qt {
 			column->setSpacing(8);
 			Pages->addWidget(page);
 			if (index == 0) {
-				empty_section(*column, tr("GitHub budget this hour"), tr("No reading in the current reset window"), 90);
+				BudgetBar = new budget_bar{ page };
+				column->addWidget(BudgetBar);
 				auto* tiles = grid(*column, 3);
 				tile(*tiles, 0, 3, tr("Reviews submitted, 30 days"), tr("No review statistics yet"));
 				tile(*tiles, 1, 3, tr("Comments posted, 30 days"), tr("No comment statistics yet"));
@@ -380,7 +493,12 @@ namespace bpr::qt {
 				const auto work      = tile(*tiles, 4, 3, tr("Background work"), tr("Waiting for a snapshot"));
 				BackgroundWork       = work.Value;
 				BackgroundWorkDetail = work.Detail;
-				tile(*tiles, 5, 3, tr("Problems, 24h"), tr("No problem tallies yet"));
+				const auto problems  = tile(*tiles, 5, 3, tr("Problems, 24h"), tr("No problem tallies yet"));
+				Problems             = problems.Value;
+				ProblemsDetail       = problems.Detail;
+				Problems->setObjectName(QStringLiteral("insightsProblems"));
+			} else if (index == 2) {
+				build_github_page(*column);
 			} else if (index == 3) {
 				StorageStatus = label(tr("On disk · not measured yet"), page, "heading");
 				column->addWidget(StorageStatus);
@@ -411,10 +529,163 @@ namespace bpr::qt {
 			} else {
 				build_empty_page(index, *column);
 			}
-			if (index != 3) {
+			if (index != 3 && index != 2) {
 				column->addStretch();
 			}
 		}
+	}
+
+	void insights_window::build_github_page(QVBoxLayout& aColumn)
+	{
+		auto* tiles = grid(aColumn, 3);
+		int   index = 0;
+		for (const auto& title : { tr("Core REST"), tr("GraphQL"), tr("Search") }) {
+			const auto result                              = tile(*tiles, index, 3, title, tr("No rate-limit reading yet"));
+			GithubValues[static_cast<std::size_t>(index)]  = result.Value;
+			GithubDetails[static_cast<std::size_t>(index)] = result.Detail;
+			result.Value->setObjectName(QStringLiteral("insightsGithubBudget%1").arg(index));
+			++index;
+		}
+		GithubRange = ranges(aColumn, { tr("1h"), tr("1d") }, tr("GitHub range"));
+		GithubChart = new insights_chart{ aColumn.parentWidget() };
+		GithubChart->setObjectName(QStringLiteral("insightsGithubChart"));
+		GithubChart->setMinimumHeight(80);
+		GithubChart->setMaximumHeight(138);
+		aColumn.addWidget(GithubChart, 1);
+		auto* facts = new QHBoxLayout;
+		facts->setSpacing(16);
+		for (int side = 0; side < 2; ++side) {
+			auto* column = new QVBoxLayout;
+			column->setSpacing(2);
+			column->addWidget(label(side == 0 ? tr("Where BPR’s requests went") : tr("gh processes and secondary limits"), aColumn.parentWidget(), "heading"));
+			auto* table = fact_table(aColumn.parentWidget(), side == 0 ? QStringLiteral("insightsRequestCategories") : QStringLiteral("insightsProcessFacts"));
+			if (side == 0) {
+				RequestCategories = table;
+			} else {
+				ProcessFacts = table;
+			}
+			column->addWidget(table, 1);
+			facts->addLayout(column, 1);
+		}
+		aColumn.addLayout(facts, 1);
+		connect(GithubRange, &QTabBar::currentChanged, this, [this] { update_github(); });
+	}
+	void insights_window::set_chart_colors(QColor aPrimary, QColor aSecondary)
+	{
+		PrimaryChartColor   = std::move(aPrimary);
+		SecondaryChartColor = std::move(aSecondary);
+		static_cast<budget_bar*>(BudgetBar)->set_color(PrimaryChartColor);
+		GithubChart->set_colors(PrimaryChartColor, SecondaryChartColor);
+	}
+	void insights_window::update_github()
+	{
+		const auto day = GithubRange->currentIndex() == 1;
+		update_github_budgets();
+		update_github_requests(day);
+		update_github_processes(day);
+		update_github_chart(day);
+		update_problems();
+		refresh_typography();
+	}
+
+	void insights_window::update_github_budgets()
+	{
+		static_cast<budget_bar*>(BudgetBar)->apply(GithubSnapshot.Budgets[0]);
+		for (std::size_t index = 0; index < GithubValues.size(); ++index) {
+			const auto& budget = GithubSnapshot.Budgets[index];
+			GithubValues[index]->setText(budget.Remaining ? QLocale{ }.toString(*budget.Remaining) : tr("No current reading"));
+			GithubValues[index]->setProperty("insightsType", budget.Remaining ? "value" : "empty");
+			GithubDetails[index]->setText(budget.Limit ? tr("left of %1 · BPR %2 · resets %3").arg(QLocale{ }.toString(*budget.Limit), QLocale{ }.toString(budget.OwnRequests), QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(budget.ResetUnixSeconds).time(), QLocale::ShortFormat)) : tr("An ordinary request will fill this"));
+			GithubDetails[index]->setToolTip(index == 1 ? tr("GraphQL is charged by query cost. BPR counts requests; no other-clients split is inferred.") : QString{ });
+		}
+	}
+
+	void insights_window::update_github_requests(const bool aDay)
+	{
+		const auto  names       = category_names();
+		const auto& counts      = aDay ? GithubSnapshot.DayRequestsByCategory : GithubSnapshot.RequestsByCategory;
+		const auto  anyRequests = std::accumulate(counts.begin(), counts.end(), std::uint64_t{ 0 }) != 0;
+		RequestCategories->setRowCount(anyRequests ? 5 : 1);
+		if (anyRequests) {
+			for (int index = 0; index < 5; ++index) {
+				fact_row(*RequestCategories, index, names[index], QLocale{ }.toString(counts[static_cast<std::size_t>(index)]));
+			}
+		} else {
+			fact_row(*RequestCategories, 0, tr("Ordinary requests will fill this"), { });
+		}
+	}
+
+	void insights_window::update_github_processes(const bool aDay)
+	{
+		const auto  processes   = aDay ? GithubSnapshot.DayProcesses : GithubSnapshot.Processes;
+		const auto& failures    = aDay ? GithubSnapshot.DayProcessFailures : GithubSnapshot.ProcessFailures;
+		const auto  quarantines = aDay ? GithubSnapshot.DayQuarantines : GithubSnapshot.Quarantines;
+		const auto  abandoned   = aDay ? GithubSnapshot.DayAbandoned : GithubSnapshot.Abandoned;
+		const auto  slowest     = aDay ? GithubSnapshot.DaySlowestMicroseconds : GithubSnapshot.SlowestMicroseconds;
+		ProcessFacts->setRowCount(0);
+		const auto addFact = [this](const QString& aName, const QString& aValue) { const auto row = ProcessFacts->rowCount(); ProcessFacts->setRowCount(row+1); fact_row(*ProcessFacts,row,aName,aValue); };
+		if (processes || slowest || quarantines || abandoned) {
+			addFact(tr("Launched"), QLocale{ }.toString(processes));
+			const QStringList failureNames{ tr("Succeeded"), tr("Start failed"), tr("Timed out"), tr("Cancelled"), tr("Output limit"), tr("Crashed"), tr("Nonzero exit"), tr("Reap failed"), tr("Other failure") };
+			for (std::size_t index = 1; index < failures.size(); ++index) {
+				if (failures[index] != 0) {
+					addFact(failureNames[static_cast<int>(index)], QLocale{ }.toString(failures[index]));
+				}
+			}
+			addFact(tr("Quarantined lanes"), QLocale{ }.toString(quarantines));
+			addFact(tr("Abandoned children"), QLocale{ }.toString(abandoned));
+			addFact(tr("Slowest call"), slowest ? tr("%1 s").arg(QLocale{ }.toString(static_cast<double>(*slowest) / 1000000.0, 'f', 2)) : tr("No completed call"));
+		} else {
+			addFact(tr("No gh process observations yet"), { });
+		}
+		bool secondary = false;
+		for (const auto& event : GithubSnapshot.SecondaryLimits) {
+			if (!aDay && event.UnixSeconds < BuiltUnixSeconds - 3600) {
+				continue;
+			}
+			const auto time = QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(event.UnixSeconds).time(), QLocale::ShortFormat);
+			addFact(tr("%1 · %2").arg(time, event.SecondaryLimited ? tr("Secondary limit") : tr("Retry-After")), event.RetryAfterSeconds ? tr("%1 s").arg(*event.RetryAfterSeconds) : tr("Reported"));
+			secondary = true;
+		}
+		if (!secondary) {
+			addFact(tr("No secondary-limit events"), { });
+		}
+	}
+
+	void insights_window::update_github_chart(const bool aDay)
+	{
+		insights_chart_data chart;
+		chart.Name             = tr("Core REST budget and BPR requests");
+		chart.Quantity         = tr("Core REST remaining");
+		chart.BackgroundName   = tr("Remaining");
+		chart.EventsName       = tr("BPR requests/min");
+		chart.Empty            = tr("Ordinary GitHub requests will fill this chart.");
+		chart.StartUnixSeconds = BuiltUnixSeconds - (aDay ? 86400 : 3600);
+		chart.EndUnixSeconds   = BuiltUnixSeconds;
+		chart.GapSeconds       = aDay ? 450 : 90;
+		const auto& points     = aDay ? GithubSnapshot.Day : GithubSnapshot.Hour;
+		for (const auto& point : points) {
+			chart.Points.push_back({ point.UnixSeconds, point.Remaining, 0.0, point.RequestsPerMinute, point.Reset });
+		}
+		const auto readings = std::ranges::count_if(points, [](const auto& aPoint) { return aPoint.Remaining.has_value(); });
+		chart.Description   = readings ? tr("Core REST remaining budget over the last %1, with BPR requests per minute above; missing observations are gaps and vertical rules mark resets.").arg(aDay ? tr("day") : tr("hour")) : tr("No Core REST budget readings in the selected range; ordinary requests supply them.");
+		GithubChart->apply(std::move(chart));
+	}
+
+	void insights_window::update_problems()
+	{
+		const auto problems = std::accumulate(GithubSnapshot.ProblemsByCategory.begin(), GithubSnapshot.ProblemsByCategory.end(), std::uint64_t{ 0 });
+		Problems->setText(GithubSnapshot.Available ? QLocale{ }.toString(problems) : tr("No problem tallies yet"));
+		Problems->setProperty("insightsType", GithubSnapshot.Available ? "value" : "empty");
+		QStringList       details;
+		const QStringList shortNames{ tr("inbox"), tr("opening"), tr("conversations"), tr("publishing"), tr("other") };
+		for (std::size_t index = 0; index < GithubSnapshot.ProblemsByCategory.size(); ++index) {
+			if (GithubSnapshot.ProblemsByCategory[index] != 0) {
+				details.push_back(QLocale{ }.toString(GithubSnapshot.ProblemsByCategory[index]) + QLatin1Char{ ' ' } + shortNames[static_cast<int>(index)]);
+			}
+		}
+		ProblemsDetail->setText(problems ? details.join(QStringLiteral(", ")) : (GithubSnapshot.Available ? tr("No failed operations") : QString{ }));
+		ProblemsDetail->setToolTip(details.join(QStringLiteral(", ")));
 	}
 
 	void insights_window::build_empty_page(int aIndex, QVBoxLayout& aColumn)
@@ -435,15 +706,6 @@ namespace bpr::qt {
 				facts->addLayout(section, 1);
 			}
 			aColumn.addLayout(facts);
-		} else if (aIndex == 2) {
-			auto* tiles = grid(aColumn, 3);
-			int   index = 0;
-			for (const auto& title : { tr("Core REST"), tr("GraphQL"), tr("Search") }) {
-				tile(*tiles, index++, 3, title, tr("No rate-limit reading yet"));
-			}
-			ranges(aColumn, { tr("1h"), tr("1d") }, tr("GitHub range"));
-			empty_section(aColumn, tr("Where BPR’s requests went"), tr("Ordinary GitHub requests will fill this view."));
-			empty_section(aColumn, tr("gh processes"), tr("No process observations yet"));
 		} else if (aIndex == 4) {
 			auto* tiles = grid(aColumn, 3);
 			tile(*tiles, 0, 3, tr("Input response, p95"), tr("No event-loop timings yet"));
@@ -557,6 +819,8 @@ namespace bpr::qt {
 	void insights_window::apply(const application::insights_snapshot& aSnapshot)
 	{
 		BuiltUnixSeconds = aSnapshot.BuiltUnixSeconds;
+		GithubSnapshot   = aSnapshot.Github;
+		update_github();
 		Status->setText(tr("Updated 0 sec. ago"));
 		LocalData->setText(aSnapshot.TotalBytes ? bytes(aSnapshot.TotalBytes) : tr("Measurement unavailable"));
 		LocalData->setProperty("insightsType", aSnapshot.TotalBytes ? "value" : "empty");

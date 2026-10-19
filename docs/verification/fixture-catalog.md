@@ -2065,3 +2065,14 @@ its white or black canvas makes Light or Dark, so the high-contrast variants
 receive Light's or Dark's values rather than their own. Stored old palettes keep
 the sentinel and their slot's defaults. Explicit unreadable new-role ink remains
 a typed refusal in `application_appearance_host`.
+
+### `insights-budget-v1`, passive GitHub budget and chart history
+
+The committed provider recording is copied from `overview-labels-v1` by
+`scripts/build_insights_budget_fixture.py`; it uses the same nested-folders pack.
+Fixture composition seeds numeric history through the real Insights store port:
+412 own Core requests, 1,240 derived other-client use, 3,348 remaining, two ranges
+with gaps and resets, GraphQL/Search readings, process outcomes and Problems.
+An ordinary fixture sign-in adds actual observed requests to the same window.
+No private account, URL, path or body is in the numeric history. This is a
+synthetic review course, not an observation of the owner's real account.
