@@ -389,8 +389,9 @@ and current evidence limits.
 > The core decides. The host performs. Qt presents.
 
 - `src/core/` owns deterministic semantic state, transitions, request identity,
-  deltas, diagnostics, and shared/private authority policy. It has no Qt or
-  effectful dependency.
+  deltas, diagnostics, and shared/private authority policy. It exposes no Qt
+  or host-effect API; the scoped deterministic SHA-256 and RE2 implementation
+  exceptions are documented in the system architecture.
 - `src/application/` owns bounded observations, typed request execution,
   serialized completion delivery, cancellation, credential lifecycle, epoch
   jobs, recovery, and shutdown quiescence.

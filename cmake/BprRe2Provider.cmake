@@ -65,6 +65,9 @@ function(bpr_acquire_re2)
     # graph only so the product's own BUILD_TESTING and install policy stay.
     # Abseil requires every library using it to share one language standard;
     # the product builds as C++23, so both libraries do too.
+    # Upstream includes CTest and FindThreads by module name. Keep caller
+    # module paths out of the verified dependency subtree (BPR-1618).
+    set(CMAKE_MODULE_PATH "")
     set(CMAKE_CXX_STANDARD 23)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(BUILD_SHARED_LIBS OFF)

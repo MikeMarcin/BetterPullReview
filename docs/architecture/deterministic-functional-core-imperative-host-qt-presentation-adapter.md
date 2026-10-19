@@ -97,6 +97,13 @@ implementation do not themselves change those bytes. This exception admits
 only unkeyed SHA-256 computation, with native types private to its wrapper;
 it grants no clock, entropy, credential, filesystem or other OS capability.
 
+BPR's pinned RE2/Abseil source matcher has a separate scoped exception
+(BPR-1618, owner 2026-10-18). It starts no worker threads. Its private caches,
+hash seeds, synchronization and contention clocks may vary timing and layout,
+while spans, ordering and diagnostics remain externally deterministic. Expected
+error logging is disabled; upstream invariant-failure diagnostics remain possible.
+This does not grant first-party core clock, thread, entropy or logging APIs.
+
 Duration and time-point arithmetic may use `std::chrono` without reading a
 clock. Caller-owned PRNG state may use an explicit seed. Implicit entropy
 and global random state remain effects. A reproducible cross-platform value

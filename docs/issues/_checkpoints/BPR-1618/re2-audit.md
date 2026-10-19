@@ -15,7 +15,10 @@ The existing provider verifies archive bytes, SHA-256 and license digests:
 Audited the extracted exact archives and the candidate's verified core-only
 build copies. `cmake/BprRe2Provider.cmake` keeps upstream tests, test helpers,
 benchmarks, install rules, ICU and PCRE disabled, static libraries and C++23.
-No pin, license, archive or vendor source changed. The core-only compilation
+No pin, license, archive or vendor source changed. The provider now clears
+caller `CMAKE_MODULE_PATH` locally before entering the verified upstream trees,
+so Abseil's named CTest/FindThreads includes cannot execute caller modules.
+The existing hostile-module regression exposed and verifies this change. The core-only compilation
 database contains 176 production RE2/Abseil units and no test thread-pool unit.
 
 ## Threads, synchronization and implementation effects
