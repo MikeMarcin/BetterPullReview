@@ -1,3 +1,14 @@
+# BPR-1377 reseal 2026-10-18: tour_remote pins the unique active signed-in
+# keyring-held login through existing bounded inventory on SourceEffects before
+# shared strict transport admission. It adds no token capture, global account
+# switch, provider operation or publication grant. The source worker uses the
+# epoch host's per-call sealed pinned-source read; ordinary blob grants stay
+# unchanged. Sparse source positive/old-call negative and live CLI add/show pass.
+# Current shared app scope also contains BPR-1619's xdiff factory/header move
+# from adapter to core in github_application, cycle_session and review_cycle_desktop,
+# plus removal of the old app link. Those wiring deltas were inspected for this
+# deterministic reseal; engine acceptance belongs to BPR-1619. The production
+# mutation-branch digest stays unchanged. No sibling work is reverted.
 # RFC-BPR-0086 accepted-milestone integration over main 614c6bbb7.
 # Self-reviewed the combined app scope: Insights keeps its profile-owned local
 # lane/window, initialization/shutdown and existing export/cache gestures; main's
@@ -1620,7 +1631,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d1aafe5f6bcd3c8f2701d14d9b0f52b1a56b30f7fab89c0bd8b90887725dcada"
+		"aadf84e750f5bcda251c364933b99271e49ca4011bb2063cd3dfbc421463036c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1840,7 +1851,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "fa2ed4fefd1cb8be7e323782cfebd993206ec41f1b7f0d5c124d2b20039b112b"
+        "ecb0dddbf100c62b6f16efaa5b44f64f5a84e968f8373bb28812f8952193aa47"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

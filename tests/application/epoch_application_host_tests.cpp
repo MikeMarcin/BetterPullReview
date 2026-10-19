@@ -2,6 +2,7 @@
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/review_tour_source.hpp"
 #include "bpr/application/source_pr_search_execution.hpp"
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
@@ -5698,6 +5699,137 @@ namespace {
 		}
 	}
 
+	/// The public source service must work with sparse trees and no desktop selection.
+	void tour_source_materializes_sparse_tree_without_selected_file()
+	{
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			fixture value;
+			value.State.SupportsSparse = true;
+			value.State.SparseObjects  = true;
+			establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+			value.State.CachedBlobMissing             = true;
+			auto                              request = file_request(value, "pinned.cpp");
+			const core::tour_code_destination source{ .Commit = side == core::diff_side::left ? request.Diff.Comparison.Left.Commit : request.Diff.Comparison.Right.Commit, .Path = "pinned.cpp", .Side = side };
+			const auto                        context = application::review_tour_source_context(*value.Host, request.WorkbenchAuthority, source);
+			expect(context.has_value(), "public tour service mints pinned source authority");
+			request.Diff    = *context;
+			const auto blob = sha1_blob("exact selected blob");
+			value.State.TreeEntryResults.emplace_back(blob);
+			value.State.TreeEntryResults.emplace_back(blob);
+			auto done   = std::atomic_bool{ false };
+			auto result = std::expected<application::review_tour_source_material, application::review_tour_source_failure>{ std::unexpected(application::review_tour_source_failure::unavailable) };
+			{
+				auto worker = std::jthread{ [&] {
+					result = application::materialize_review_tour_source(*value.Host, *value.Host, request, source, { });
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (value.Effects.pending() != 0U) {
+						value.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+			expect(result && result->Text == "exact selected blob" && result->Source.Commit == source.Commit
+					   && result->Source.Path == source.Path && result->Source.Blob == blob && result->Source.First.Side == side
+					   && value.State.ExactBlobRequests.size() == 1U,
+				   "public tour source reads exact pinned text from sparse trees without desktop blob grants");
+		}
+	}
+
+	/// [[BPR-1377]]. Pinned reads carry sealed endpoint proof for this call only.
+	void pinned_source_sparse_read_does_not_grant_ordinary_blob_reads()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		value.State.CachedBlobMissing = true;
+		auto       request            = file_request(value, "pinned.cpp");
+		const auto authority          = request.WorkbenchAuthority;
+		const auto commit             = request.Diff.Comparison.Right.Commit;
+		const auto context            = value.Host->realignment_context(authority,
+																		{ authority.Host, authority.Repository, authority.PullRequest, commit, commit,
+																		  request.Diff.Comparison.Left.Identity.Epoch, request.Diff.Comparison.Right.Identity.Epoch });
+		expect(context.has_value(), "pinned source has an authorized identical-commit context");
+		request.Diff    = *context;
+		const auto blob = sha1_blob("exact selected blob");
+		value.State.TreeEntryResults.emplace_back(blob);
+		value.State.TreeEntryResults.emplace_back(blob);
+		const auto resolved = open_file(value, request);
+		expect(resolved.Status == application::workbench_selected_diff_status::available,
+			   "pinned source resolves its real tree endpoints without selecting a file");
+		auto material = prepared_blob_request(value.Host->state(), resolved, core::diff_side::right);
+		expect(read_blob(value, material).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.empty(),
+			   "ordinary blob reads acquire no pinned-source authority");
+		const auto read = [&](const application::workbench_selected_diff_observation& aSource,
+							  const application::diff_blob_request& aRequest, std::stop_token aStop = { }) {
+			auto done   = std::atomic_bool{ false };
+			auto result = application::diff_blob_observation{ };
+			{
+				auto worker = std::jthread{ [&] {
+					result = value.Host->materialize_pinned_source_blob(aSource, aRequest, aStop);
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (value.Effects.pending() != 0U) {
+						value.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+			return result;
+		};
+		auto forged      = resolved;
+		forged.RightPath = "other.cpp";
+		expect(read(forged, material).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.empty(),
+			   "a forged path cannot reuse sealed source proof");
+		auto foreign             = material;
+		foreign.Context.Key.File = core::file_identity_of("other.cpp");
+		expect(read(resolved, foreign).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.empty(),
+			   "another file cannot borrow source proof");
+		auto overLimit         = material;
+		overLimit.MaximumBytes = 256U * 1024U + 1U;
+		expect(read(resolved, overLimit).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.empty(),
+			   "source reads retain their 256 KiB bound");
+		std::stop_source stopped;
+		stopped.request_stop();
+		expect(read(resolved, material, stopped.get_token()).Status == application::diff_blob_status::cancelled
+				   && value.State.ExactBlobRequests.empty(),
+			   "stopped source reads spend no network call");
+		const auto result = read(resolved, material);
+		expect(result.Status == application::diff_blob_status::available
+				   && result.Bytes == std::vector<std::uint8_t>{ 'e', 'x', 'a', 'c', 't', ' ', 's', 'e', 'l', 'e', 'c', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'b' }
+				   && value.State.ExactBlobRequests.size() == 1U
+				   && value.State.ExactBlobRequests.front().ExpectedBlob == blob,
+			   "sealed pinned source reads exactly its missing blob and verifies its bytes");
+		foreign                  = material;
+		foreign.Context.Key.File = core::file_identity_of("other.cpp");
+		expect(read_blob(value, foreign).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.size() == 1U,
+			   "source material leaves other ordinary blob authority unchanged");
+		expect(read_blob(value, material).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.size() == 1U,
+			   "even the same ordinary blob request gains no source grant");
+		const auto moved = value.Host->realignment_context(authority,
+														   { authority.Host, authority.Repository, authority.PullRequest,
+															 request.Diff.Comparison.Left.Commit, oid<core::git_commit_oid>(0x32U),
+															 request.Diff.Comparison.Left.Identity.Epoch, request.Diff.Comparison.Right.Identity.Epoch });
+		expect(moved.has_value() && read(resolved, material).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.size() == 1U,
+			   "a replaced pinned context refuses earlier sealed proof, including retained bytes");
+		value.Host->invalidate(matching_invalidation());
+		expect(read(resolved, material).Status == application::diff_blob_status::failure
+				   && value.State.ExactBlobRequests.size() == 1U,
+			   "invalidated source proof cannot start a new remote read");
+	}
+
 	void prepared_files_read_their_missing_blobs_in_one_batch()
 	{
 		fixture value;
@@ -9321,6 +9453,8 @@ int main(int argc, char** argv)
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	selected_blob_reads_only_the_exact_missing_object();
+	tour_source_materializes_sparse_tree_without_selected_file();
+	pinned_source_sparse_read_does_not_grant_ordinary_blob_reads();
 	prepared_files_read_their_missing_blobs_in_one_batch();
 	preparation_jobs_are_counted_apart_from_the_reviewers();
 	a_prepared_blob_read_is_preparations_job();

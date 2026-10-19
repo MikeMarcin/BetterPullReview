@@ -8,6 +8,7 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/review_tour_source.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include "github_cli_process_runner.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_device_authorization_transport.hpp"
 #include "github_provider.hpp"
@@ -154,6 +155,21 @@ namespace bpr::app {
 		private:
 			std::string Code;
 		};
+#if defined(__APPLE__)
+		[[nodiscard]] auto active_keyring_login(const std::vector<gh_cli_inventory_account>& aAccounts, std::string_view aHostname) -> std::optional<std::string>
+		{
+			std::optional<std::string> selected;
+			for (const auto& account : aAccounts) {
+				if (account.Hostname == aHostname && account.Active && account.SignedIn && account.KeychainHeld) {
+					if (selected) {
+						return std::nullopt;
+					}
+					selected = account.Login;
+				}
+			}
+			return selected;
+		}
+#endif
 		class remote_reader final : public tour_remote_reader, private application::github_projection_port, private application::github_epoch_handoff_port, private application::epoch_projection_port
 		{
 		public:
@@ -379,11 +395,43 @@ namespace bpr::app {
 				}
 #endif
 				const bool cloud     = aHostname == "github.com";
-				auto       validated = validate_github_host_profile({ .Profile = core::host_profile_id{ cloud ? (aGh ? 2U : 1U) : (aGh ? 4U : 3U) }, .Host = core::git_host_id{ cloud ? 1U : 2U }, .Revision = application::github_profile_revision{ 1 }, .Server = cloud ? application::github_server_contract::github_com_2022_11_28 : application::github_server_contract::ghes_3_18_2022_11_28, .Authentication = aGh ? application::github_authentication_transport::github_cli : application::github_authentication_transport::native_https, .Provenance = github_profile_provenance::explicit_user, .Hostname = aHostname, .RestRoot = cloud ? "https://api.github.com" : "https://" + aHostname + "/api/v3", .GraphqlRoot = cloud ? "https://api.github.com/graphql" : "https://" + aHostname + "/api/graphql" });
+				auto       candidate = github_host_profile_candidate{ .Profile = core::host_profile_id{ cloud ? (aGh ? 2U : 1U) : (aGh ? 4U : 3U) }, .Host = core::git_host_id{ cloud ? 1U : 2U }, .Revision = application::github_profile_revision{ 1 }, .Server = cloud ? application::github_server_contract::github_com_2022_11_28 : application::github_server_contract::ghes_3_18_2022_11_28, .Authentication = aGh ? application::github_authentication_transport::github_cli : application::github_authentication_transport::native_https, .Provenance = github_profile_provenance::explicit_user, .Hostname = aHostname, .RestRoot = cloud ? "https://api.github.com" : "https://" + aHostname + "/api/v3", .GraphqlRoot = cloud ? "https://api.github.com/graphql" : "https://" + aHostname + "/api/graphql" };
+				auto       validated = validate_github_host_profile(candidate);
 				if (!validated) {
 					return refuse("host_refused", "Use an explicitly approved canonical GitHub or GHES hostname.", 5);
 				}
-				HostProfile                                                 = std::make_unique<validated_github_host_profile>(*validated);
+#if defined(__APPLE__)
+				if (aGh) {
+					// [[BPR-1377]]. The terminal explicitly selects gh's configured
+					// active account. Bind that one eligible login before the shared
+					// strict factory starts; never activate an unpinned profile.
+					const auto login = source_effect([&]() -> std::optional<std::string> {
+						auto configuration = live_gh_cli_configuration();
+						auto process       = adapters::github::detail::make_github_cli_process_runner();
+						if (!configuration || !process || !probe_supported_gh_cli_version(*process, *configuration)) {
+							return std::nullopt;
+						}
+						const auto observed = process->run(adapters::github::detail::compile_gh_cli_auth_inventory_request(*configuration), { });
+						if (!observed || (observed->ExitCode != 0 && observed->ExitCode != 1)) {
+							return std::nullopt;
+						}
+						const auto accounts = adapters::github::detail::parse_gh_cli_auth_inventory(observed->StandardOutput);
+						return accounts ? active_keyring_login(*accounts, aHostname) : std::nullopt;
+					});
+					if (!login) {
+						return refuse("authentication_required", "No unique active keyring-held gh account is available for this host. Sign in with gh, then reconnect explicitly.", 5);
+					}
+					candidate.CliAccountLogin = *login;
+					const auto pinned         = validate_github_host_profile(candidate);
+					if (!pinned) {
+						return refuse("authentication_required", "The configured gh account could not be bound to this host.", 5);
+					}
+					HostProfile = std::make_unique<validated_github_host_profile>(*pinned);
+				} else
+#endif
+				{
+					HostProfile = std::make_unique<validated_github_host_profile>(*validated);
+				}
 				std::shared_ptr<github_wire_transport_factory_port> factory = std::make_shared<native_github_wire_transport_factory>();
 #if defined(BPR_BUILD_TESTING)
 				if (Loopback.Requested) {

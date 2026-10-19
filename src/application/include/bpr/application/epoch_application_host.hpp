@@ -124,6 +124,13 @@ namespace bpr::application {
 			const workbench_selected_diff_request& aRequest,
 			std::stop_token                        aStop)
 			-> workbench_selected_diff_observation override;
+		/// \brief Reads one sealed pinned-source endpoint without a selected-file grant.
+		/// \details The observation must belong to the currently authorized identical-commit
+		/// re-alignment. The call alone authorizes its exact tree-proved blob, at most 256 KiB;
+		/// it creates no grant usable by ordinary diff reads. Runs on a source worker.
+		[[nodiscard]] auto materialize_pinned_source_blob(
+			const workbench_selected_diff_observation& aSource,
+			const diff_blob_request& aRequest, std::stop_token aStop) -> diff_blob_observation;
 		/// \brief Prepares the files the reviewer is about to open.
 		///
 		/// \details [[BPR-1327]]. A synchronous concurrent seam like

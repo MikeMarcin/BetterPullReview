@@ -17,9 +17,9 @@ namespace bpr::application {
 											range_unavailable,
 											too_large,
 											cancelled };
-	/// Runs on a source worker using the existing exact endpoint and blob capabilities.
+	/// Runs on a source worker with exact endpoint resolution and a sealed epoch source read.
 	/// Never reads a working tree or substitutes text for an unproved pinned endpoint.
-	[[nodiscard]] auto materialize_review_tour_source(workbench_selected_diff_port&, diff_blob_port&,
+	[[nodiscard]] auto materialize_review_tour_source(workbench_selected_diff_port&, epoch_application_host&,
 													  const workbench_selected_diff_request&, const core::tour_code_destination&, std::stop_token)
 		-> std::expected<review_tour_source_material, review_tour_source_failure>;
 }
