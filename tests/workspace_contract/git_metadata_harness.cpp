@@ -864,10 +864,11 @@ namespace {
 							  write_file(aSetup.Root / "secret.env", "x\n");
 							  return std::nullopt;
 						  } });
-		cases.push_back({ .Name  = "missing-directory-query",
+		cases.push_back({ .Name  = "explicit-directory-query",
 						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
 							  standard_repository(aContext, aSetup);
 							  write_file(aSetup.Root / ".gitignore", "absent-build/\n");
+							  expect(!std::filesystem::exists(aSetup.Root / "absent-build"), "the explicit directory starts absent before fixture preparation");
 							  aSetup.ExtraPaths = { "absent-build/" };
 							  return std::nullopt;
 						  } });
@@ -1381,6 +1382,17 @@ namespace {
 			if (const auto reason = item.Build(context, setup)) {
 				skip(*reason);
 				continue;
+			}
+			// check-ignore infers type from the filesystem. A trailing slash is
+			// not a substitute: logs/ also matches logs/** where logs does not.
+			// Back every declared directory with fixture bytes before any query
+			// or snapshot, so both readers receive the same typed question.
+			for (const auto& path : setup.ExtraPaths) {
+				if (path.ends_with('/')) {
+					const auto directory = setup.Root / path;
+					std::filesystem::create_directories(directory);
+					expect(std::filesystem::is_directory(directory), "an explicit directory question names a fixture directory");
+				}
 			}
 			auto       onDisk     = std::set<std::string>{ };
 			const auto questions  = questions_for(setup, onDisk);
