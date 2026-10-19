@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "core-re2-v1",
+  "scope": {
+    "issues": [
+      "BPR-1618"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "core-re2",
+      "outcome": "Source search uses the pinned RE2 implementation directly in core with externally stable matching and no regex adapter.",
+      "work": [
+        {
+          "issue": "BPR-1618"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1618 AC1: pinned production RE2/Abseil audit supports the scoped owner exception without broad effect permission.",
+        "BPR-1618 AC2: core-only and public composition use the same core-private engine; regex adapter is removed.",
+        "BPR-1618 AC3: matching, errors, limits and shared/cache/concurrent use remain externally stable.",
+        "BPR-1618 AC4: boundaries, dependency/package contracts, focused composed search and format/documentation gates pass."
+      ],
+      "boundary": "One architecture and relocation milestone; no search semantics, UI, dependency pins or RFC-wide closeout change."
+    }
+  ],
+  "unplanned_work": []
+}
