@@ -47,6 +47,7 @@ set_tests_properties(
 # [[BPR-1250]]. The menu bar status item's template image and the item itself,
 # macOS only: offscreen has no tray and gets no item; cocoa shows it.
 if(APPLE)
+    enable_language(OBJCXX)
     bpr_add_executable(test_insights_native_menu insights_native_menu_tests.mm)
     target_link_libraries(test_insights_native_menu PRIVATE BetterPullReview::AdapterQt)
     set_source_files_properties(insights_native_menu_tests.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
