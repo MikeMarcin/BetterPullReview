@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1624"
 title: "Validate the Insights budget fixture through the full security contract"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
