@@ -1,12 +1,17 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/insights_calendar.hpp"
 #include "bpr/qt/insights_chart.hpp"
 #include "bpr/qt/insights_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
+#include <QDateTime>
+#include <QTimeZone>
+#include <sqlite3.h>
 
 #include <QAbstractButton>
 #include <QAction>
@@ -53,6 +58,117 @@ namespace {
 			}
 		}
 		return nullptr;
+	}
+
+	void seed_reviews(const std::filesystem::path& aRoot)
+	{
+		auto                                     store = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		std::vector<core::insights_review_event> events;
+		const auto                               today = QDate::currentDate();
+		const auto                               add   = [&](core::insights_review_kind aKind, int aOffset, const std::string& aIdentity, std::uint64_t aPull = 7, std::uint64_t aFiles = 125, std::uint8_t aDisposition = 0, bool aSuggestion = false, std::uint64_t aLines = 0) {
+			core::insights_review_event event;
+			event.Kind         = aKind;
+			event.Host         = "github.com";
+			event.Repository   = aPull == 9 ? "owner/largest" : aPull == 10 ? "owner/older"
+																			: "owner/repo";
+			event.PullRequest  = aPull;
+			event.FilesChanged = aFiles;
+			event.Identity     = aIdentity;
+			event.Disposition  = aDisposition;
+			event.Suggestion   = aSuggestion;
+			event.Lines        = aLines;
+			event.UnixSeconds  = QDateTime{ today.addDays(aOffset), QTime{ 12, 0 }, QTimeZone::systemTimeZone() }.toSecsSinceEpoch();
+			event.LocalDay     = QDate{ 1970, 1, 1 }.daysTo(today.addDays(aOffset));
+			if (aKind == core::insights_review_kind::seen || aKind == core::insights_review_kind::accepted) {
+				event.Head = "fixture-head";
+			}
+			events.push_back(std::move(event));
+		};
+		using enum core::insights_review_kind;
+		add(submitted, 0, "5001");
+		add(submitted, 0, "5002");
+		add(submitted, 0, "5003");
+		add(submitted, -1, "5004", 8, 10, 1);
+		add(submitted, -7, "5005", 7, 125, 2);
+		add(submitted, -29, "5006", 9, 1700);
+		add(submitted, -30, "5007", 9, 1700, 1);
+		add(submitted, -100, "5008", 10, 50, 2);
+		add(submitted, -170, "5009", 10, 50);
+		add(opened, 0, "opened");
+		add(opened, -1, "opened");
+		add(accepted, 0, "src/one.cpp", 7, 125, 0, false, 55);
+		add(accepted, -29, "src/two.cpp", 7, 125, 0, false, 120);
+		add(accepted, -30, "src/three.cpp", 7, 125, 0, false, 30);
+		add(seen, 0, "src/one.cpp");
+		add(seen, -1, "src/extra.cpp");
+		add(seen, -29, "src/two.cpp");
+		add(seen, -30, "src/three.cpp");
+		add(comment, 0, "comment1", 7, 125, 0, true);
+		add(comment, 0, "comment2");
+		add(comment, 0, "comment3");
+		add(comment, -30, "comment4");
+		add(reply, -1, "reply1", 7, 125, 0, true);
+		add(reply, -1, "reply2");
+		add(note, 0, "note1");
+		add(defect, -1, "defect1");
+		add(round, 0, "round1");
+		add(resolved, -1, "resolve1");
+		store->record_reviews(events);
+		store->record_reviews(events);
+		store.reset();
+		sqlite3* database = nullptr;
+		expect(sqlite3_open((aRoot / "state/v1/insights.sqlite3").string().c_str(), &database) == SQLITE_OK, "seeded store reopens for its historical start date");
+		const auto started = QDateTime{ today.addDays(-180), QTime{ 0, 0 }, QTimeZone::systemTimeZone() }.toSecsSinceEpoch();
+		const auto sql     = "UPDATE insights_metadata SET started_unix_seconds=" + std::to_string(started);
+		expect(sqlite3_exec(database, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "fixture start date matches its historical activity");
+		sqlite3_close(database);
+	}
+	void reviews_contract(qt::insights_window& aShell, const std::filesystem::path& aRoot)
+	{
+		auto* tabs = aShell.findChild<QTabBar*>(QStringLiteral("insightsTabs"));
+		tabs->setCurrentIndex(1);
+		auto* range     = aShell.findChild<QTabBar*>(QStringLiteral("insightsReviewsRange"));
+		auto* submitted = aShell.findChild<QLabel*>(QStringLiteral("insightsReviewCount0"));
+		range->setCurrentIndex(1);
+		until([&] { return submitted->text() == QStringLiteral("6"); }, "Reviews30 days reads six deduplicated submissions from the seeded real store");
+		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsReviewCount1"))->text() == QStringLiteral("2") && aShell.findChild<QLabel*>(QStringLiteral("insightsReviewCount2"))->text() == QStringLiteral("3") && aShell.findChild<QLabel*>(QStringLiteral("insightsReviewCount3"))->text() == QStringLiteral("1"), "accepted files, comments and notes match the seeded range");
+		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsCountedSince"))->text().contains(QStringLiteral("Counted on this computer since")), "since-date is visible");
+		auto* endings = aShell.findChild<QTableWidget*>(QStringLiteral("insightsReviewEndings"));
+		expect(endings->item(0, 1)->text() == QStringLiteral("4") && endings->item(1, 1)->text() == QStringLiteral("1") && endings->item(2, 1)->text() == QStringLiteral("1") && endings->item(3, 1)->text() == QStringLiteral("1") && endings->item(4, 1)->text() == QStringLiteral("1"), "How reviews ended uses the selected range");
+		range->setCurrentIndex(2);
+		expect(submitted->text() == QStringLiteral("9"), "all-time includes retained activity before30 days");
+		auto* records = aShell.findChild<QTableWidget*>(QStringLiteral("insightsReviewRecords"));
+		expect(records->item(0, 1)->text().contains(QStringLiteral("1,700")) && records->item(0, 1)->text().contains(QStringLiteral("owner/largest #9")) && records->item(1, 1)->text().contains(QStringLiteral("4")) && records->item(2, 1)->text().contains(QStringLiteral("3 reviews")) && records->item(3, 1)->text() == QStringLiteral("205") && records->item(4, 1)->text() == QStringLiteral("owner/repo"), "all five lifetime records match submitted-PR and file facts");
+		range->setCurrentIndex(0);
+		const auto week = QDate::currentDate().dayOfWeek() > 1 ? 4 : 3;
+		expect(submitted->text() == QString::number(week), "This week starts on local Monday");
+		auto* calendar = dynamic_cast<qt::insights_calendar*>(aShell.findChild<QWidget*>(QStringLiteral("insightsReviewCalendar")));
+		expect(calendar && calendar->accessibleDescription().contains(QStringLiteral("9 reviews")), "the26-week calendar exposes its actual activity description");
+
+		const auto raster = calendar->grab().toImage();
+		const auto day    = QDate::currentDate().dayOfWeek() - 1;
+		const auto sample = QPoint{ static_cast<int>(34.0 + 25.5 * static_cast<double>(calendar->width() - 44) / 26.0), static_cast<int>(24.0 + (static_cast<double>(day) + 0.5) * static_cast<double>(calendar->height() - 44) / 7.0) };
+		const auto pixel  = [](const QImage& aImage, QPoint aPoint) { return aImage.pixelColor(static_cast<int>(aPoint.x() * aImage.devicePixelRatio()), static_cast<int>(aPoint.y() * aImage.devicePixelRatio())); };
+		calendar->apply({ });
+		const auto absent = calendar->grab().toImage();
+		expect(pixel(raster, sample) != pixel(absent, sample), "negative control: removing calendar activity removes today's plotted dot");
+		auto store = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		calendar->apply(store->reviews(QDateTime::currentSecsSinceEpoch()));
+		const auto  local = QPointF{ sample };
+		QMouseEvent hover{ QEvent::MouseMove, local, calendar->mapToGlobal(sample), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(calendar, &hover);
+		const auto folder = qEnvironmentVariable("BPR_INSIGHTS_RENDER_ROOT");
+		if (!folder.isEmpty()) {
+			expect(aShell.grab().save(folder + QStringLiteral("/insights-reviews-hover.png")), "current-day calendar hover is captured from the real window");
+		}
+		QEvent leave{ QEvent::Leave };
+		QApplication::sendEvent(calendar, &leave);
+		for (auto* item : aShell.findChildren<QLabel*>()) {
+			expect(!item->text().contains(QStringLiteral("streak"), Qt::CaseInsensitive), "no streak is shown");
+		}
+		range->setCurrentIndex(1);
+		tabs->setCurrentIndex(0);
+		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryReviews"))->text() == QStringLiteral("6") && aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryComments"))->text() == QStringLiteral("3"), "both Summary review tiles use30-day statistics");
 	}
 
 	void shared_chart_contract(QWidget& aParent)
@@ -142,6 +258,15 @@ namespace {
 				tabs->setCurrentIndex(page);
 				QApplication::processEvents();
 				expect(aShell.grab().save(folder + QStringLiteral("/insights-%1-%2.png").arg(page).arg(suffix)), "composed Insights render saved");
+				if (page == 1) {
+					auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsReviewsRange"));
+					for (int selected = 0; selected < 3; ++selected) {
+						range->setCurrentIndex(selected);
+						QApplication::processEvents();
+						expect(aShell.grab().save(folder + QStringLiteral("/insights-reviews-%1-%2.png").arg(selected).arg(suffix)), "all real Reviews ranges render");
+					}
+					range->setCurrentIndex(1);
+				}
 				if (page == 2) {
 					auto* range = aShell.findChild<QTabBar*>(QStringLiteral("insightsRange"));
 					for (auto* candidate : aShell.findChildren<QTabBar*>()) {
@@ -176,6 +301,7 @@ try {
 	expect(temporary.isValid(), "private course parent created");
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private course profile root admitted");
+	seed_reviews(root);
 	app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot      = root;
 	options.RegisteredDeviceCourse   = true;
@@ -207,6 +333,7 @@ try {
 	expect(budget->accessibleDescription().contains(QStringLiteral("1,240")) && budget->accessibleDescription().contains(QStringLiteral("3,348")), "two-client split uses persisted BPR count and the lowest remaining response");
 	expect(shell->findChild<QLabel*>(QStringLiteral("insightsProblems"))->text() == QStringLiteral("2"), "Problems arrives from the same local snapshot");
 	shared_chart_contract(*window);
+	reviews_contract(*shell, root);
 	const auto beforeRefresh = app::detail::github_application_fixture_access::evidence(*runtime);
 
 	const auto frame     = shell->frameGeometry();
@@ -250,6 +377,12 @@ try {
 	for (int page = 0; page < tabs->count(); ++page) {
 		tabs->setCurrentIndex(page);
 		QApplication::processEvents();
+		if (page == 1) {
+			const auto folder = qEnvironmentVariable("BPR_INSIGHTS_RENDER_ROOT");
+			if (!folder.isEmpty()) {
+				expect(shell->grab().save(folder + QStringLiteral("/insights-reviews-clamped.png")), "clamped Reviews surface renders through the public window");
+			}
+		}
 		for (auto* item : pages->currentWidget()->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
 			expect(pages->currentWidget()->rect().contains(item->geometry()), "every page fits the clamped content without page scrolling");
 		}

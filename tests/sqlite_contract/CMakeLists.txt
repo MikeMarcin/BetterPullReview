@@ -728,3 +728,4 @@ target_link_libraries(test_insights_storage PRIVATE BetterPullReview::AdapterSQL
 bpr_enable_hardening(test_insights_storage)
 bpr_enable_warnings(test_insights_storage)
 bpr_add_network_isolated_test(NAME sqlite_insights_storage COMMAND test_insights_storage)
+set_tests_properties(sqlite_insights_storage PROPERTIES ENVIRONMENT "TZ=PST8PDT")

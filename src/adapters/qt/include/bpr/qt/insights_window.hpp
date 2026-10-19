@@ -18,6 +18,7 @@ class QKeyEvent;
 
 namespace bpr::qt {
 	class insights_chart;
+	class insights_calendar;
 	/// \brief Per-profile fixed-size Insights shell. All values arrive from the local snapshot host.
 	class insights_window final : public QWidget
 	{
@@ -40,43 +41,55 @@ namespace bpr::qt {
 		void keyPressEvent(QKeyEvent* aEvent) override;
 
 	private:
-		void                           set_refresh_interval();
-		void                           build_pages();
-		void                           build_github_page(QVBoxLayout& aColumn);
-		void                           update_github();
-		void                           update_github_budgets();
-		void                           update_github_requests(bool aDay);
-		void                           update_github_processes(bool aDay);
-		void                           update_github_chart(bool aDay);
-		void                           update_problems();
-		void                           build_empty_page(int aIndex, QVBoxLayout& aColumn);
-		void                           refresh_typography();
-		application::insights_dispatch Dispatch;
-		QTabBar*                       Tabs                 = nullptr;
-		QStackedWidget*                Pages                = nullptr;
-		QLabel*                        LocalDataDetail      = nullptr;
-		QLabel*                        BackgroundWorkDetail = nullptr;
-		QLabel*                        ProfileLabel         = nullptr;
-		QLabel*                        Status               = nullptr;
-		QLabel*                        LocalData            = nullptr;
-		QLabel*                        BackgroundWork       = nullptr;
-		QLabel*                        StorageStatus        = nullptr;
-		QTableWidget*                  Stores               = nullptr;
-		QTimer*                        RefreshTimer         = nullptr;
-		QTimer*                        AgeTimer             = nullptr;
-		QWidget*                       BudgetBar            = nullptr;
-		QLabel*                        Problems             = nullptr;
-		QLabel*                        ProblemsDetail       = nullptr;
-		std::array<QLabel*, 3>         GithubValues{ };
-		std::array<QLabel*, 3>         GithubDetails{ };
-		QTabBar*                       GithubRange       = nullptr;
-		insights_chart*                GithubChart       = nullptr;
-		QTableWidget*                  RequestCategories = nullptr;
-		QTableWidget*                  ProcessFacts      = nullptr;
-		core::insights_github_snapshot GithubSnapshot;
-		QColor                         PrimaryChartColor;
-		QColor                         SecondaryChartColor;
-		std::int64_t                   BuiltUnixSeconds = 0;
+		void                            set_refresh_interval();
+		void                            build_pages();
+		void                            build_reviews_page(QVBoxLayout& aColumn);
+		void                            update_reviews();
+		void                            update_review_records();
+		void                            update_summary_reviews();
+		void                            build_github_page(QVBoxLayout& aColumn);
+		void                            update_github();
+		void                            update_github_budgets();
+		void                            update_github_requests(bool aDay);
+		void                            update_github_processes(bool aDay);
+		void                            update_github_chart(bool aDay);
+		void                            update_problems();
+		void                            build_empty_page(int aIndex, QVBoxLayout& aColumn);
+		void                            refresh_typography();
+		application::insights_dispatch  Dispatch;
+		QTabBar*                        Tabs                 = nullptr;
+		QStackedWidget*                 Pages                = nullptr;
+		QLabel*                         LocalDataDetail      = nullptr;
+		QLabel*                         BackgroundWorkDetail = nullptr;
+		QLabel*                         ProfileLabel         = nullptr;
+		QLabel*                         Status               = nullptr;
+		QLabel*                         LocalData            = nullptr;
+		QLabel*                         BackgroundWork       = nullptr;
+		QLabel*                         StorageStatus        = nullptr;
+		QTableWidget*                   Stores               = nullptr;
+		QTimer*                         RefreshTimer         = nullptr;
+		QTimer*                         AgeTimer             = nullptr;
+		QWidget*                        BudgetBar            = nullptr;
+		QLabel*                         Problems             = nullptr;
+		QLabel*                         ProblemsDetail       = nullptr;
+		std::array<QLabel*, 3>          GithubValues{ };
+		std::array<QLabel*, 3>          GithubDetails{ };
+		QTabBar*                        GithubRange       = nullptr;
+		insights_chart*                 GithubChart       = nullptr;
+		QTableWidget*                   RequestCategories = nullptr;
+		QTableWidget*                   ProcessFacts      = nullptr;
+		core::insights_github_snapshot  GithubSnapshot;
+		core::insights_reviews_snapshot ReviewsSnapshot;
+		QTabBar*                        ReviewsRange = nullptr;
+		QLabel*                         CountedSince = nullptr;
+		std::array<QLabel*, 4>          ReviewValues{ }, ReviewDetails{ };
+		std::array<QLabel*, 2>          SummaryReviewValues{ }, SummaryReviewDetails{ };
+		insights_calendar*              ReviewCalendar = nullptr;
+		QTableWidget*                   ReviewEndings  = nullptr;
+		QTableWidget*                   ReviewRecords  = nullptr;
+		QColor                          PrimaryChartColor;
+		QColor                          SecondaryChartColor;
+		std::int64_t                    BuiltUnixSeconds = 0;
 	};
 }
 

@@ -197,9 +197,12 @@ namespace bpr::core {
 		auto sorted = amounts;
 		std::ranges::sort(sorted);
 		const auto percentile = sorted.empty() ? 0 : sorted[(sorted.size() * 9 + 9) / 10 - 1];
+		// Sparse calendars have a zero 90th percentile. Use their positive peak
+		// rather than saturating every active day at the same dot size.
+		const auto scale = percentile == 0 && !sorted.empty() ? sorted.back() : percentile;
 		for (auto day = first; day <= aToday; ++day) {
 			const auto value = days[day];
-			result.Calendar.push_back({ day, value, std::clamp(std::sqrt(static_cast<double>(value) / static_cast<double>(std::max<std::uint64_t>(1, percentile))), 0.16, 1.0) });
+			result.Calendar.push_back({ day, value, std::clamp(std::sqrt(static_cast<double>(value) / static_cast<double>(std::max<std::uint64_t>(1, scale))), 0.16, 1.0) });
 		}
 		for (const auto& [day, count] : days) {
 			if (count && (!result.Busiest || count > result.Busiest->Counts[submitted])) {

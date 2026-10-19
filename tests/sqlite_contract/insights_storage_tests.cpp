@@ -138,6 +138,24 @@ int main()
 	const auto safeExport = adapters::sqlite::insights_storage_export(scratch.path());
 	expect(safeExport.find("PRIVATE_REPOSITORY_CANARY") == std::string::npos && safeExport.find("EVENT_CANARY") == std::string::npos && safeExport.find("HEAD_CANARY") == std::string::npos, "review identities never enter the numeric anonymized export");
 
+	core::insights_review_event dst;
+	dst.Kind        = core::insights_review_kind::submitted;
+	dst.Host        = "github.com";
+	dst.Repository  = "dst/repository";
+	dst.PullRequest = 99;
+	dst.Identity    = "dst-first";
+	dst.UnixSeconds = 1793521800;
+	dst.LocalDay    = application::local_insights_day(dst.UnixSeconds);
+	store->record_reviews({ dst });
+	dst.Identity    = "dst-second";
+	dst.UnixSeconds = 1793525400;
+	dst.LocalDay    = application::local_insights_day(dst.UnixSeconds);
+	store->record_reviews({ dst });
+	store->record_reviews({ dst });
+	const auto afterDst = store->reviews(1793606400);
+	const auto overlap  = std::ranges::find(afterDst.Calendar, std::int64_t{ 20758 }, &core::insights_review_calendar_day::Day);
+	expect(overlap != afterDst.Calendar.end() && overlap->Reviews == 2 && afterDst.Ranges[0][static_cast<std::size_t>(metric::submitted)] == 0 && afterDst.Ranges[1][static_cast<std::size_t>(metric::submitted)] == 3, "seeded store spans the repeated DST hour and local Monday boundary without duplicating a receipt");
+
 #if !defined(_WIN32)
 	fs::create_symlink(state / "markdown-images.sqlite3", state / "link.sqlite3");
 	bool refused = false;

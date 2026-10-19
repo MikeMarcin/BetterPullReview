@@ -1,4 +1,5 @@
 #include "bpr/qt/insights_window.hpp"
+#include "bpr/qt/insights_calendar.hpp"
 #include "bpr/qt/insights_chart.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 
@@ -494,9 +495,13 @@ namespace bpr::qt {
 			if (index == 0) {
 				BudgetBar = new budget_bar{ page };
 				column->addWidget(BudgetBar);
-				auto* tiles = grid(*column, 3);
-				tile(*tiles, 0, 3, tr("Reviews submitted, 30 days"), tr("No review statistics yet"));
-				tile(*tiles, 1, 3, tr("Comments posted, 30 days"), tr("No comment statistics yet"));
+				auto*      tiles     = grid(*column, 3);
+				const auto reviews   = tile(*tiles, 0, 3, tr("Reviews submitted, 30 days"), tr("No review statistics yet"));
+				const auto comments  = tile(*tiles, 1, 3, tr("Comments posted, 30 days"), tr("No comment statistics yet"));
+				SummaryReviewValues  = { reviews.Value, comments.Value };
+				SummaryReviewDetails = { reviews.Detail, comments.Detail };
+				SummaryReviewValues[0]->setObjectName(QStringLiteral("insightsSummaryReviews"));
+				SummaryReviewValues[1]->setObjectName(QStringLiteral("insightsSummaryComments"));
 				tile(*tiles, 2, 3, tr("Cost while idle"), tr("No background samples yet"));
 				const auto local = tile(*tiles, 3, 3, tr("Local data"), tr("Not measured yet"));
 				LocalData        = local.Value;
@@ -509,6 +514,8 @@ namespace bpr::qt {
 				Problems             = problems.Value;
 				ProblemsDetail       = problems.Detail;
 				Problems->setObjectName(QStringLiteral("insightsProblems"));
+			} else if (index == 1) {
+				build_reviews_page(*column);
 			} else if (index == 2) {
 				build_github_page(*column);
 			} else if (index == 3) {
@@ -541,9 +548,109 @@ namespace bpr::qt {
 			} else {
 				build_empty_page(index, *column);
 			}
-			if (index != 3 && index != 2) {
+			if (index != 3 && index != 2 && index != 1) {
 				column->addStretch();
 			}
+		}
+	}
+
+	void insights_window::build_reviews_page(QVBoxLayout& aColumn)
+	{
+		auto* header = new QHBoxLayout;
+		CountedSince = label(tr("Counted on this computer from the first Insights launch"), aColumn.parentWidget(), "small");
+		CountedSince->setObjectName(QStringLiteral("insightsCountedSince"));
+		header->addWidget(CountedSince, 1);
+		auto* rangeColumn = new QVBoxLayout;
+		ReviewsRange      = ranges(*rangeColumn, { tr("This week"), tr("30 days"), tr("All time") }, tr("Reviews range"), 1);
+		ReviewsRange->setObjectName(QStringLiteral("insightsReviewsRange"));
+		header->addLayout(rangeColumn);
+		aColumn.addLayout(header);
+		auto*             tiles = grid(aColumn, 4);
+		const QStringList titles{ tr("Reviews submitted"), tr("Files accepted"), tr("Comments posted"), tr("Private notes") };
+		for (int index = 0; index < 4; ++index) {
+			const auto labels                              = tile(*tiles, index, 4, titles[index], tr("No activity yet"));
+			ReviewValues[static_cast<std::size_t>(index)]  = labels.Value;
+			ReviewDetails[static_cast<std::size_t>(index)] = labels.Detail;
+			labels.Value->setObjectName(QStringLiteral("insightsReviewCount%1").arg(index));
+		}
+		aColumn.addWidget(label(tr("Reviews submitted by day"), aColumn.parentWidget(), "heading"));
+		ReviewCalendar = new insights_calendar{ aColumn.parentWidget() };
+		aColumn.addWidget(ReviewCalendar);
+		auto* sections = new QHBoxLayout;
+		sections->setSpacing(24);
+		for (int index = 0; index < 2; ++index) {
+			auto* column = new QVBoxLayout;
+			column->setSpacing(4);
+			column->addWidget(label(index == 0 ? tr("How reviews ended") : tr("Records · all time"), aColumn.parentWidget(), "heading"));
+			auto* table = fact_table(aColumn.parentWidget(), index == 0 ? QStringLiteral("insightsReviewEndings") : QStringLiteral("insightsReviewRecords"));
+			table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			column->addWidget(table, 1);
+			sections->addLayout(column, 1);
+			if (index == 0) {
+				ReviewEndings = table;
+			} else {
+				ReviewRecords = table;
+			}
+		}
+		aColumn.addLayout(sections, 1);
+		connect(ReviewsRange, &QTabBar::currentChanged, this, [this] { update_reviews(); refresh_typography(); });
+	}
+	void insights_window::update_reviews()
+	{
+		using metric       = core::insights_review_metric;
+		const auto& counts = ReviewsSnapshot.Ranges[static_cast<std::size_t>(ReviewsRange->currentIndex())];
+		const auto  value  = [&](metric aMetric) { return counts[static_cast<std::size_t>(aMetric)]; };
+		const auto  number = [](std::uint64_t aValue) { return QLocale{ }.toString(aValue); };
+		const auto  text   = [&](metric aMetric) { return value(aMetric) ? number(value(aMetric)) : tr("None yet"); };
+		const auto  date   = [](std::int64_t aDay) { return QLocale{ }.toString(QDate{ 1970, 1, 1 }.addDays(aDay), QLocale::ShortFormat); };
+		CountedSince->setText(ReviewsSnapshot.Available ? tr("Counted on this computer since %1").arg(date(ReviewsSnapshot.StartedDay)) : tr("Local review statistics unavailable"));
+		const std::array  metrics{ metric::submitted, metric::accepted, metric::comments, metric::notes };
+		const QStringList empty{ tr("No submitted reviews yet"), tr("No accepted files yet"), tr("No posted comments yet"), tr("No private notes yet") };
+		for (std::size_t index = 0; index < metrics.size(); ++index) {
+			ReviewValues[index]->setText(value(metrics[index]) ? number(value(metrics[index])) : empty[static_cast<int>(index)]);
+			ReviewValues[index]->setProperty("insightsType", value(metrics[index]) ? "value" : "empty");
+		}
+		ReviewDetails[0]->setText(value(metric::opened) ? tr("of %1 opened").arg(number(value(metric::opened))) : tr("No review openings yet"));
+		ReviewDetails[1]->setText(value(metric::seen) ? tr("%1 seen").arg(number(value(metric::seen))) : tr("No files seen yet"));
+		ReviewDetails[2]->setText(value(metric::replies) || value(metric::suggestions) ? tr("%1 replies · %2 suggestions").arg(number(value(metric::replies)), number(value(metric::suggestions))) : tr("No replies or suggestions yet"));
+		ReviewDetails[3]->setText(value(metric::defects) ? tr("%1 defects").arg(number(value(metric::defects))) : tr("No defects yet"));
+		ReviewCalendar->apply(ReviewsSnapshot);
+		const std::array  endings{ metric::approved, metric::changes, metric::commented, metric::resolved, metric::rounds };
+		const QStringList names{ tr("Approved"), tr("Changes requested"), tr("Commented"), tr("Threads resolved"), tr("Review Cycle rounds") };
+		ReviewEndings->setRowCount(5);
+		for (int row = 0; row < 5; ++row) {
+			fact_row(*ReviewEndings, row, names[row], text(endings[static_cast<std::size_t>(row)]));
+		}
+		update_review_records();
+		update_summary_reviews();
+	}
+	void insights_window::update_review_records()
+	{
+		using metric      = core::insights_review_metric;
+		const auto number = [](std::uint64_t aValue) { return QLocale{ }.toString(aValue); };
+		const auto date   = [](std::int64_t aDay) { return QLocale{ }.toString(QDate{ 1970, 1, 1 }.addDays(aDay), QLocale::ShortFormat); };
+
+		const auto pull = [](const core::insights_review_pr& aPull) { return QString::fromStdString(aPull.Repository) + QStringLiteral(" #%1").arg(aPull.Number); };
+		ReviewRecords->setRowCount(5);
+		fact_row(*ReviewRecords, 0, tr("Biggest pull request"), ReviewsSnapshot.Biggest ? tr("%1 files · %2").arg(number(ReviewsSnapshot.Biggest->Files), pull(*ReviewsSnapshot.Biggest)) : tr("No submitted reviews yet"));
+		fact_row(*ReviewRecords, 1, tr("Most reviews on one PR"), ReviewsSnapshot.MostReviews ? tr("%1 · %2").arg(number(ReviewsSnapshot.MostReviews->Reviews), pull(*ReviewsSnapshot.MostReviews)) : tr("No submitted reviews yet"));
+		fact_row(*ReviewRecords, 2, tr("Busiest day"), ReviewsSnapshot.Busiest ? tr("%1 · %2 reviews").arg(date(ReviewsSnapshot.Busiest->Day), number(ReviewsSnapshot.Busiest->Counts[static_cast<std::size_t>(metric::submitted)])) : tr("No submitted reviews yet"));
+		const auto lines = ReviewsSnapshot.Ranges[2][static_cast<std::size_t>(metric::lines)];
+		fact_row(*ReviewRecords, 3, tr("Lines read in all"), lines ? number(lines) : tr("No accepted files yet"));
+		fact_row(*ReviewRecords, 4, tr("Most reviewed repository"), ReviewsSnapshot.MostReviewedRepository.empty() ? tr("No submitted reviews yet") : QString::fromStdString(ReviewsSnapshot.MostReviewedRepository));
+	}
+	void insights_window::update_summary_reviews()
+	{
+		using metric      = core::insights_review_metric;
+		const auto number = [](std::uint64_t aValue) { return QLocale{ }.toString(aValue); };
+
+		const auto& month = ReviewsSnapshot.Ranges[1];
+		for (std::size_t index = 0; index < 2; ++index) {
+			const auto count = month[static_cast<std::size_t>(index == 0 ? metric::submitted : metric::comments)];
+			SummaryReviewValues[index]->setText(count ? number(count) : (index == 0 ? tr("No submitted reviews yet") : tr("No posted comments yet")));
+			SummaryReviewValues[index]->setProperty("insightsType", count ? "value" : "empty");
+			const auto detail = month[static_cast<std::size_t>(index == 0 ? metric::accepted : metric::replies)];
+			SummaryReviewDetails[index]->setText(detail ? (index == 0 ? tr("%1 files accepted") : tr("%1 replies")).arg(number(detail)) : QString{ });
 		}
 	}
 
@@ -596,6 +703,7 @@ namespace bpr::qt {
 		SecondaryChartColor = std::move(aSecondary);
 		static_cast<budget_bar*>(BudgetBar)->set_color(PrimaryChartColor);
 		GithubChart->set_colors(PrimaryChartColor, SecondaryChartColor);
+		ReviewCalendar->set_color(PrimaryChartColor);
 	}
 	void insights_window::update_github()
 	{
@@ -710,23 +818,7 @@ namespace bpr::qt {
 
 	void insights_window::build_empty_page(int aIndex, QVBoxLayout& aColumn)
 	{
-		if (aIndex == 1) {
-			ranges(aColumn, { tr("This week"), tr("30 days"), tr("All time") }, tr("Reviews range"), 1);
-			auto* tiles = grid(aColumn, 4);
-			int   index = 0;
-			for (const auto& title : { tr("Reviews submitted"), tr("Files accepted"), tr("Comments posted"), tr("Private notes") }) {
-				tile(*tiles, index++, 4, title, tr("No review statistics yet"));
-			}
-			empty_section(aColumn, tr("Reviews submitted by day"), tr("Reviews submitted on this computer will fill the calendar."));
-			auto* facts = new QHBoxLayout;
-			for (const auto& title : { tr("How reviews ended"), tr("Records") }) {
-				auto* section = new QVBoxLayout;
-				section->addWidget(label(title, aColumn.parentWidget(), "heading"));
-				section->addWidget(label(tr("No submitted reviews yet"), aColumn.parentWidget(), "secondary"));
-				facts->addLayout(section, 1);
-			}
-			aColumn.addLayout(facts);
-		} else if (aIndex == 4) {
+		if (aIndex == 4) {
 			auto* tiles = grid(aColumn, 3);
 			tile(*tiles, 0, 3, tr("Input response, p95"), tr("No event-loop timings yet"));
 			tile(*tiles, 1, 3, tr("Files diffed"), tr("No diff timings yet"));
@@ -841,6 +933,8 @@ namespace bpr::qt {
 	{
 		BuiltUnixSeconds = aSnapshot.BuiltUnixSeconds;
 		GithubSnapshot   = aSnapshot.Github;
+		ReviewsSnapshot  = aSnapshot.Reviews;
+		update_reviews();
 		update_github();
 		Status->setText(tr("Updated 0 sec. ago"));
 		LocalData->setText(aSnapshot.TotalBytes ? bytes(aSnapshot.TotalBytes) : tr("Measurement unavailable"));

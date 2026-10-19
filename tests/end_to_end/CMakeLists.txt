@@ -4609,7 +4609,7 @@ set_tests_properties(application_conversation_read_public_path PROPERTIES
 
 # RFC-BPR-0086: the menu, profile host, local inventory and fixed native window.
 bpr_add_executable(test_insights_public_path insights_public_path_tests.cpp)
-target_link_libraries(test_insights_public_path PRIVATE BetterPullReview::Composition)
+target_link_libraries(test_insights_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
 target_compile_definitions(test_insights_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_insights_public_path)
 bpr_enable_warnings(test_insights_public_path)

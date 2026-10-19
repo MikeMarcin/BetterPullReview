@@ -1,3 +1,73 @@
+# Reviews presentation candidate ready for combined integration
+
+Mandate **insights-window-v1-r1**, assignment **review-stats**, segment
+**review-stats-r1**, owner `/root/insights_review_stats`. BPR-1610 is Done at
+`6222c3159` (capture source `00e0eb7dc`); BPR-1611 claimed `08df4a07d`.
+The same branch, source/tracker roots and strategy selection remain selected.
+Runtime `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`.
+
+Reviews now has the since-date, three ranges, four count/detail tiles,26-week
+Monday calendar, five ending facts and five lifetime records. Summary's two
+activity tiles use30-day counts. The accepted titlebar/fixed canvas and GitHub
+chart stay intact; new calendar presentation uses profile roles, core dot sizes,
+dated edge-flipping hover and an actual activity description. A zero90th
+percentile in sparse activity uses the positive peak, preserving visible amount
+variation; the core regression covers it. No streak is presented.
+
+The real seeded store/public course passes all three ranges/records/Summary,
+fixed/clamped dimensions and passive refresh. Core+public2/2 pass in2.77s;
+public2.40s. Light/Dark, all-time/30-day, Summary, hover and clamped renders were
+inspected. A calendar absence control proves removing activity removes today's
+dot. Expanded capture8/8, lifetime2/2 and core-only direct checks are retained;
+core architecture negative contract passed in183.69s. Final seeded SQLite DST
+and simplified UI source are built; final combined checks remain before acceptance.
+LLVM22 format and focused tidy pass after correcting missing helper declarations.
+Frontend-design and code-simplifier were used for the changed UI.
+
+Main is now clean and explicitly quiescent at `a7e99406c2a8b68cae8caccf138d3902abd6e6fa`,
+BPR-1621 handoff read. No main source/index has been mutated. Next: commit this
+candidate, merge the completed main snapshot, preserve authoritative Done cards,
+review composition pins, run one focused combined integration plus affected
+SQLite/DST and fractional-scale UI checks, finish1611, renew the milestone binding
+and observation, then deliver locally only under clean/exact-revision guards.
+No push, delegation, human gate, review server or owner question. All prior
+commands are completed; any currently owned checks are collected before handoff.
+
+# Review statistics capture accepted; Reviews presentation next
+
+Mandate **insights-window-v1-r1**, assignment **review-stats**, segment
+**review-stats-r1**, owner `/root/insights_review_stats`; same source/tracker root,
+branch and coordinator-implementer selection. Capture source `00e0eb7dc` passes
+its focused checks. BPR-1610 is accepted for finish; BPR-1611 is the immediate
+next dependent slice in this same milestone. Neither milestone exit nor Reviews
+presentation is marked complete yet. Runtime:
+`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`.
+
+Typed event deltas and lifetime SQLite schema3 preserve all activity independently
+of expiring history. Existing ledger rows are never imported. Explicit successful
+file actions carry exact PR/path/head and changed lines; note/defect creations,
+confirmed publication/recovery, nonduplicate comments/replies/suggestions,
+resolutions and shared desktop/CLI cycle freezes supply the other terminals.
+Per-operation identities allow a second resolve after unresolve and new notes
+whose deleted IDs are reused. Core owns ranges, calendar size policy and records;
+the host supplies civil days, including DST. Local identity is never exported.
+
+Final capture 8/8 pass in7.57s; real cache prune/delete plus cycle replay/reuse
+2/2 pass in6.89s; core-only core/architecture2/2 pass in16.55s. Architecture
+negative contract runs separately. The early public composition also passed;
+accepted native header/chart and fixed shell are preserved. Formatting uses LLVM22.
+Frontend-design loaded before UI work. Next: finish1610, claim1611, implement and
+render the Reviews page and Summary tiles, run focused public/negative controls,
+self-review and relevant combined integration, then reconcile documentation and
+milestone binding. No new human gate is inferred from this milestone.
+
+Main now has active BPR-1621 architecture-enforcement source edits at
+`f2157e4c4`. Only its committed allocation/plan/card/receipt and claim were adopted
+as `10445f000`/`70cf9abc9`, after the documentation guard correctly refused stale
+NEXT_ID. Main source/index remain untouched; delivery to main waits for writer
+release and exact revision reconciliation. No review server or owner question.
+Owned build/test commands are being collected before any handoff.
+
 # Accepted GitHub budget milestone, round 3
 
 Mandate **insights-window-v1-r1**, assignment **github-budget**, owner

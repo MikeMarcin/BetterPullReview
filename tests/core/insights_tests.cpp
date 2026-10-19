@@ -64,5 +64,10 @@ int main()
 	expect(reviews.Calendar.size() >= 176 && reviews.Calendar.size() <= 182 && (reviews.Calendar.front().Day + 3) % 7 == 0 && reviews.Calendar.back().Day == 20690, "calendar spans26 Monday-first weeks through today");
 	expect(reviews.Biggest->Files == 120 && reviews.MostReviews->Reviews == 4 && reviews.Busiest->Counts[static_cast<std::size_t>(metric::submitted)] == 2 && reviews.MostReviewedRepository == "owner/repo", "records use submitted reviews and aggregate daily activity");
 
+	auto sparseDays                                                   = reviewDays;
+	sparseDays[1].Counts[static_cast<std::size_t>(metric::submitted)] = 100;
+	const auto sparse                                                 = core::build_insights_reviews(sparseDays, { }, 20600, 20690);
+	expect(sparse.Calendar[sparse.Calendar.size() - 2].Size == 1.0 && sparse.Calendar.back().Size == 0.16, "a sparse zero-percentile range uses its positive peak and preserves the minimum dot size");
+
 	std::cout << "insights-core:pass\n";
 }

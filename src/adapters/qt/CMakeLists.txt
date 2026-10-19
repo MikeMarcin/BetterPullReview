@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/insights_window.cpp
         src/insights_chart.cpp
+        src/insights_calendar.cpp
         src/review_tour_editor.cpp
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
