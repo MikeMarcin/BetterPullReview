@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1633"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Repair measured native Insights application-menu lifetime",
+  "created": "2026-10-19T04:59:43.214683+00:00",
+  "base": "3e13d89f57da06f2ac904c9905e7c6f59cbd2bc8"
+}
