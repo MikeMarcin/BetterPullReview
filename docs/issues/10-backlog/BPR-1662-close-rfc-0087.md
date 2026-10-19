@@ -27,3 +27,11 @@ RFC base: `74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`.
 | **AC03:** Existing gestures and command outcomes still hold. Keyboard focus, exclusivity, checked state, disabled state, accessibility, icon/menu content and translated sizing survive adoption, including theme/style changes. | Pending; no implementation evidence yet. |
 | **AC04:** Representative composed Overview, Settings Review/Comments and another migrated page are rendered and inspected with hover, press, focus and disabled evidence at 1x, 1.25x and 2x. Available style variants are exercised; offscreen and native-platform claims are recorded separately. | Pending; no implementation evidence yet. |
 | **AC05:** Focused composition and presentation checks, formatting and the documentation gate pass. The verification record names actual commands, revision, observed results, retained variants and remaining platform work. | Pending; no implementation evidence yet. |
+
+## First source checkpoint
+
+`2660e4c63096479bb5d78090017e9f0e8d898e28` begins the shared painter and
+Settings migration. [Verification and exact pending checks](../../verification/RFC-BPR-0087.md);
+[app-wide inventory](../../ux/shared-action-buttons.md). No criterion is closed
+from syntax/static checks. BPR-1659 is blocked on disk space before build,
+runtime testing and visual inspection.

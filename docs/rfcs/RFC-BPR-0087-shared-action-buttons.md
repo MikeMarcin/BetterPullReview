@@ -13,6 +13,9 @@ Adopted for implementation under the owner’s 2026-10-19 request. Immutable
 RFC_BASE_SHA: `74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`. [Plan](plans/shared-action-buttons-v1/milestone-plan.json);
 [import](assets/shared-action-buttons-v1.LIVE_IMPORT.md).
 
+[Verification and continuation](../verification/RFC-BPR-0087.md) records the
+source checkpoint and pending runtime work; [migration inventory](../ux/shared-action-buttons.md).
+
 ## Problem and grounded current behavior
 
 The owner asked on 2026-10-19 to apply the recently restyled Overview Open
