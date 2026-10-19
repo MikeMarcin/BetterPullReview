@@ -61,7 +61,7 @@ there are no task-owned background commands or review server.
 The coordinator assigned `/root/release_repairs` the release prerequisite and
 gate repair milestone while normal native gates retain frozen source
 `f6ba8f43e4477f60941dd24cdac4450ca68de911`.
-[BPR-1624](../issues/30-in-progress/BPR-1624-validate-insights-budget-fixture-security.md)
+[BPR-1624](../issues/60-done/BPR-1624-validate-insights-budget-fixture-security.md)
 repairs the fixture-security gate's missing `insights-budget-v1` entry under
 the [repair plan](../rfcs/plans/release-v030-repairs/milestone-plan.json).
 Its manifest and ten responses are the committed `overview-labels-v1`

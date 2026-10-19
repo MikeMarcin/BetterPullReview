@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1624"
 title: "Validate the Insights budget fixture through the full security contract"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"f6ba8f43e4477f60941dd24cdac4450ca68de911","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8f73f8cdd","evidence":{"kind":"command","detail":"Full 18-test github_contract_fixture_security_tests.py passes after adding exact Insights identity and populated response field shapes. All eleven fixture files traverse existing validators; no fixture or policy assertion changed."}},{"criterion":"AC2","outcome":"pass","revision":"8f73f8cdd","evidence":{"kind":"artifact","path":".mask/sessions/release-v0.3.0/fixture-security-negative-controls.json","detail":"Disposable Insights viewer extra environment field rejected while byte scan stays green; separate synthetic forbidden-byte canary rejected by exact-tree byte check. Both expected failures observed, temp tree removed."}},{"criterion":"AC3","outcome":"pass","revision":"8f73f8cdd","evidence":{"kind":"command","detail":"DOCUMENTATION_OK; all67 documentation tests pass; git diff --check passes. Self-review confirms only table entry executable change; fuzz recipe updated to actual production parser/SHA composition with thresholds unchanged. Native reruns and sanitizer execution remain coordinator-owned."}}]
 ---
 
 # BPR-1624: Validate the Insights budget fixture through the full security contract
