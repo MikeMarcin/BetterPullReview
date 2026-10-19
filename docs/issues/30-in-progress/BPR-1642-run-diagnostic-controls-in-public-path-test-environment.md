@@ -37,3 +37,12 @@ is supplied by offscreen automation.
 Evidence: ignored ubuntu-gate-r5.partial6 raw/normalized logs, lines5310–5321.
 The coordinator retains both native heavy slots; no build, render, tidy or
 native probe is authorized before explicit release.
+
+
+## Source repair checkpoint
+
+Only this row's ENVIRONMENT property now references the existing shared
+public-path fixture environment. Isolation, timeout/backstops, fixture C++ and
+all assertions are unchanged. Source self-review and diff/documentation checks
+pass. Generated native environment and the full course result remain pending
+until the shared PC is explicitly released; no desktop acceptance is claimed.
