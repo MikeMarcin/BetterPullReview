@@ -138,7 +138,7 @@ function(bpr_configure_dependencies)
     list(APPEND records "dtl|PINNED_ARCHIVE|BetterPullReview::Dtl")
 
     # [[BPR-1485]]. The diff engine's primary line matcher: Git 2.56.0's xdiff
-    # as its own shared library, which only the xdiff adapter links.
+    # as its own shared library, which only core links through its private matcher.
     bpr_acquire_xdiff()
     bpr_require_dependency_target(BetterPullReview::Xdiff git-xdiff)
     list(APPEND records "git-xdiff|PINNED_ARCHIVE|BetterPullReview::Xdiff")

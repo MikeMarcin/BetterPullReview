@@ -2,15 +2,15 @@
 #define BPR_TESTS_SUPPORT_PRODUCT_DIFF_HPP
 
 // [[BPR-1485]]. The diff the product computes: the core engine with the
-// application's line matcher port, behind which is the linked xdiff adapter
-// (Myers with the indent heuristic). The core has no matcher of its own, so a
+// core-owned matcher interface and private linked xdiff implementation
+// (Myers with the indent heuristic). The host component bridge is reused, so a
 // test that wants the product's alignment computes it here. Link the
 // `bpr_test_product_diff` target.
 
-#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_compute_components.hpp"
+#include "bpr/core/diff_line_matcher.hpp"
 
 #include <memory>
 
@@ -18,7 +18,7 @@ namespace bpr::tests {
 	/// \brief The product's line matcher, shared by every call.
 	[[nodiscard]] inline auto product_line_matcher() -> const std::shared_ptr<application::diff_line_matcher_port>&
 	{
-		static const auto matcher = adapters::xdiff::make_xdiff_line_matcher();
+		static const auto matcher = core::make_xdiff_line_matcher();
 		return matcher;
 	}
 

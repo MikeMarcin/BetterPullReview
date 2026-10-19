@@ -14,7 +14,7 @@
 // the unchanged `packaged_syntax_classifier`. No tree-sitter type leaves it.
 // The adapter never calls `ts_set_allocator`.
 
-#include "cpp_identifier_context.hpp"
+#include "bpr/core/cpp_identifier_context.hpp"
 
 #include <tree_sitter/api.h>
 
@@ -30,7 +30,7 @@
 
 extern "C" auto tree_sitter_cpp() -> const TSLanguage*;
 
-namespace bpr::adapters::syntax {
+namespace bpr::core {
 	namespace {
 		using role             = core::appearance_role;
 		constexpr auto NoIndex = std::numeric_limits<std::uint32_t>::max();
@@ -260,19 +260,19 @@ namespace bpr::adapters::syntax {
 				Scopes.emplace_back();
 			}
 
-			[[nodiscard]] auto refine(application::token_span_list& aSpans, const std::size_t aMaximumSpans)
-				-> application::syntax_classification_status
+			[[nodiscard]] auto refine(core::token_span_list& aSpans, const std::size_t aMaximumSpans)
+				-> core::syntax_classification_status
 			{
 				prepare_roles(aSpans);
 				if (Stop.stop_requested()) {
 					aSpans.clear();
-					return application::syntax_classification_status::cancelled;
+					return core::syntax_classification_status::cancelled;
 				}
 				auto owner = parse_owner{ };
 				if (!parse(owner)) {
 					aSpans.clear();
-					return Stop.stop_requested() ? application::syntax_classification_status::cancelled
-												 : application::syntax_classification_status::unavailable;
+					return Stop.stop_requested() ? core::syntax_classification_status::cancelled
+												 : core::syntax_classification_status::unavailable;
 				}
 				walk(ts_tree_root_node(owner.Tree));
 				resolve_uses();
@@ -288,7 +288,7 @@ namespace bpr::adapters::syntax {
 
 			// Identical to the shipped refinement: roles from the grammar, whole
 			// directive lines protected including continued lines.
-			void prepare_roles(const application::token_span_list& aSpans)
+			void prepare_roles(const core::token_span_list& aSpans)
 			{
 				Lines.push_back(0U);
 				for (auto at = std::size_t{ 0U }; at < Text.size(); ++at) {
@@ -940,15 +940,15 @@ namespace bpr::adapters::syntax {
 			}
 
 			// Identical to the shipped publication.
-			[[nodiscard]] auto publish(application::token_span_list& aSpans, const std::size_t aMaximumSpans)
-				-> application::syntax_classification_status
+			[[nodiscard]] auto publish(core::token_span_list& aSpans, const std::size_t aMaximumSpans)
+				-> core::syntax_classification_status
 			{
-				auto result = application::token_span_list{ };
+				auto result = core::token_span_list{ };
 				auto line   = std::uint32_t{ 0U };
 				for (auto at = std::size_t{ 0U }; at < Text.size();) {
 					if (Stop.stop_requested()) {
 						aSpans.clear();
-						return application::syntax_classification_status::cancelled;
+						return core::syntax_classification_status::cancelled;
 					}
 					if (Text[at] == '\n') {
 						++line;
@@ -960,21 +960,21 @@ namespace bpr::adapters::syntax {
 					while (end < Text.size() && Text[end] != '\n' && Roles[end] == selected) {
 						if (cancelled(end)) {
 							aSpans.clear();
-							return application::syntax_classification_status::cancelled;
+							return core::syntax_classification_status::cancelled;
 						}
 						++end;
 					}
 					if (selected != role::syntax_normal) {
 						if (result.size() >= aMaximumSpans) {
 							aSpans.clear();
-							return application::syntax_classification_status::limit_exceeded;
+							return core::syntax_classification_status::limit_exceeded;
 						}
 						result.push_back({ .Line = line, .Column = static_cast<std::uint32_t>(at) - Lines[line], .Length = static_cast<std::uint32_t>(end - at), .Role = selected });
 					}
 					at = end;
 				}
 				aSpans = std::move(result);
-				return application::syntax_classification_status::available;
+				return core::syntax_classification_status::available;
 			}
 
 			std::string_view                                         Text;
@@ -992,8 +992,8 @@ namespace bpr::adapters::syntax {
 		};
 	}
 
-	auto refine_cpp_identifiers(const std::string_view aText, application::token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> application::syntax_classification_status
+	auto refine_cpp_identifiers(const std::string_view aText, core::token_span_list& aSpans,
+								const std::size_t aMaximumSpans, const std::stop_token aStop) -> core::syntax_classification_status
 	{
 		return tree_sitter_context{ aText, aStop }.refine(aSpans, aMaximumSpans);
 	}

@@ -6,8 +6,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/Hardening.cmake")
 # (RFC-BPR-0082: `l-myers-indent`, Myers with the indent heuristic). The owner
 # accepted LGPL-2.1-or-later xdiff only "if xdiff is dynamically linked as its
 # own shared library, as Qt is" (Q1, 2026-10-13), so this is a SHARED library
-# and nothing else: no static or object copy exists, and only the xdiff adapter
-# (src/adapters/xdiff) links it; `architecture_boundaries` checks both. Only the
+# and nothing else: no static or object copy exists, and only core through its private matcher
+# (src/core/src/xdiff_line_matcher.cpp) links it; `architecture_boundaries` checks both. Only the
 # verified archive's xdiff/ sources, LGPL-2.1 notice and COPYING are extracted;
 # third_party/git-xdiff/git-compat-util.h replaces Git's own compatibility
 # header for this build. xhistogram.c (EDL-1.0) is compiled because xdiffi.c

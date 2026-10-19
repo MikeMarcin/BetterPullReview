@@ -16,16 +16,25 @@ diagnostics.
   locks, hash state and contention clocks may affect timing/cache layout but
   must not affect match spans, ordering or diagnostics. No worker creation.
   This grants no general core thread, clock, entropy or logging capability.
+  Git xdiff is additionally approved as its own dynamically linked shared
+  library for pure primary line matching (owner, 2026-10-18; BPR-1619).
 - Before hand-writing a major general-purpose system here (parser, codec,
   compressor, hash, regex or diff engine, Unicode tables, protocol), ask the
   owner whether a suitable library should be allowed instead (root `AGENTS.md`).
-- Do not include Qt, filesystem, network, database, process, thread, future,
+- Do not include Qt, network, database, process, thread, future,
   timer, provider or credential APIs. Apart from the scoped SHA-256 backend,
   OS capabilities remain outside core.
 - Duration/time-point arithmetic and caller-owned explicitly seeded PRNG state
   are permitted. Do not read clocks or implicit entropy (`random_device`,
   global C RNGs). Keep the algorithm/mapping specified when random values
   must match across platforms; standard distributions do not promise that.
+- Atomics/mutexes may protect explicit caller-owned or referenced state; prefer
+  passed references, never hidden process-global decision state. `<filesystem>`
+  is allowed for lexical paths only: no filesystem access, current-directory
+  lookup, canonicalization or directory iteration. Native path conventions
+  differ; define portable identity separately when needed (BPR-1619).
+- Git xdiff stays its own dynamic library; only `xdiff_line_matcher.cpp`
+  includes its private types. Thread creation and abandonment stay in application.
 - Keep nondeterministic facts in explicit bounded observations.
 - Reject stale completions by typed identity in constant time.
 - Bind repeated diff semantic queries to one validated immutable result; keep

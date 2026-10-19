@@ -24,13 +24,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 from contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 PROBE = r"""
-#include "cpp_identifier_context.hpp"
+#include "bpr/core/cpp_identifier_context.hpp"
 #include <cstdio>
 int main(int count, char** arguments)
 {
-	auto spans = bpr::application::token_span_list{ };
+	auto spans = bpr::core::token_span_list{ };
 	const auto text = std::string_view{ count > 1 ? arguments[1] : "namespace A { enum class E { X }; }" };
-	const auto status = bpr::adapters::syntax::refine_cpp_identifiers(text, spans, 1000U, { });
+	const auto status = bpr::core::refine_cpp_identifiers(text, spans, 1000U, { });
 	std::printf("%d %zu\n", static_cast<int>(status), spans.size());
 	return 0;
 }
@@ -83,7 +83,7 @@ def main() -> int:
             slice_report: dict = {}
             arch_flags = ["-arch", arch]
             base_objects = []
-            for source in (probe, root / "src/adapters/syntax/src/cpp_identifier_context.cpp"):
+            for source in (probe, root / "src/core/src/cpp_identifier_context.cpp"):
                 target = scratch / f"{source.stem}-{arch}.o"
                 run([arguments.cxx, *cxx_flags, *arch_flags, *includes, "-c", str(source), "-o", str(target)])
                 base_objects.append(target)

@@ -110,6 +110,16 @@ and global random state remain effects. A reproducible cross-platform value
 also requires a specified algorithm and mapping; standard distributions can
 vary across standard-library implementations.
 
+Atomics and mutexes are permitted with explicit caller-owned or referenced
+state; prefer passing references instead of retaining hidden process-global
+decision state (BPR-1619, owner 2026-10-18). `<filesystem>` can construct and
+manipulate lexical paths, but querying or modifying the filesystem remains an
+effect. Current-directory lookup, canonicalization and directory iteration are
+effects too. Native path syntax and encoding differ by platform; lexical use
+does not itself establish a portable path identity. Pure xdiff computation is
+core-owned behind a provider-free interface, with xdiff dynamically linked as
+its own shared library and scheduling/abandonment retained by the host.
+
 ### 2.2 Keep the core small in ownership and substantial in decision-making
 
 The core should own the state and policies needed to make application decisions. It should not automatically own every byte the application can access.

@@ -21,7 +21,10 @@ completed slice before starting the next one.
   libraries and scoped platform SHA-256/RE2 implementation exceptions are
   listed in `AGENTS.md`;
   chrono arithmetic and explicit seeded random state are permitted, while
-  clock reads and entropy remain host effects.
+  clock reads and entropy remain host effects. Explicit referenced atomic/mutex
+  state and lexical `<filesystem>` paths are permitted; actual filesystem access
+  remains a host effect. The pure xdiff wrapper and C++ identifier refinement
+  live in core; xdiff remains a separate dynamic library (BPR-1619).
 - The host owns effects, authority sessions, jobs, caches, cancellation, and
   lifecycle; it must not duplicate core policy.
 - Qt owns widgets, actions, focus, layout, accessibility, and event

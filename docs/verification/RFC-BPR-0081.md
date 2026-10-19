@@ -422,3 +422,11 @@ C++ corpus files (`results/macos/ac07-*.tsv.gz`).
   `tests/syntax_evaluation` (`link-option-on.json`).
 - The option refuses a configuration without `BPR_BUILD_QT` and
   `BUILD_TESTING`, so a tests-disabled package cannot enable it.
+
+## Core placement amendment, 2026-10-18
+
+[[BPR-1619]], mandate `core-boundaries-r1`, moves pure xdiff matching and C++
+identifier refinement into core. The separately linked xdiff DSO, host worker
+abandonment, syntax rules/version and existing native/evaluation obligations
+remain unchanged. [Bounded verification](../issues/_checkpoints/BPR-1619/verification.md)
+records current evidence; earlier candidate records retain their historical meaning.

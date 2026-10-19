@@ -19,7 +19,7 @@ set(bpr_eval_adapter_private "${PROJECT_SOURCE_DIR}/src/adapters/syntax/src")
 set(bpr_eval_candidate_source "${CMAKE_CURRENT_SOURCE_DIR}/candidate/cpp_identifier_context_tree_sitter.cpp")
 
 # The shipped refinement under the harness's name for it.
-add_library(bpr_syntax_evaluation_baseline OBJECT "${bpr_eval_adapter_private}/cpp_identifier_context.cpp")
+add_library(bpr_syntax_evaluation_baseline OBJECT "${PROJECT_SOURCE_DIR}/src/core/src/cpp_identifier_context.cpp")
 target_link_libraries(bpr_syntax_evaluation_baseline PRIVATE BetterPullReview::Application)
 target_include_directories(bpr_syntax_evaluation_baseline PRIVATE "${bpr_eval_adapter_private}")
 target_compile_definitions(bpr_syntax_evaluation_baseline PRIVATE refine_cpp_identifiers=refine_cpp_identifiers_baseline)

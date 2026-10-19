@@ -76,3 +76,11 @@ palette inputs are unchanged by this milestone. Its cause remains unadjudicated
 and its failure is retained, not counted as a passing suite. It does not replace
 or invalidate the direct RFC category, contrast and persistence checks. No
 scrolling work was authorized or performed here.
+
+## Core placement amendment, 2026-10-18
+
+[[BPR-1619]], mandate `core-boundaries-r1`, moves pure xdiff matching and C++
+identifier refinement into core. The separately linked xdiff DSO, host worker
+abandonment, syntax rules/version and existing native/evaluation obligations
+remain unchanged. [Bounded verification](../issues/_checkpoints/BPR-1619/verification.md)
+records current evidence; earlier candidate records retain their historical meaning.

@@ -112,11 +112,11 @@
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
-#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
+#include "bpr/core/diff_line_matcher.hpp"
 #if defined(BPR_LOCAL_AUTOMATION)
 	#include "cycle_owner_service.hpp"
 #endif
@@ -19676,7 +19676,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<application::epoch_application_host> EpochHost;
 		/// [[BPR-1485]]. Linked xdiff, every diff's line matcher; declared before
 		/// the hosts that hold it. A matcher thread a stop abandoned holds its own share.
-		std::shared_ptr<application::diff_line_matcher_port>                LineMatcher                 = adapters::xdiff::make_xdiff_line_matcher();
+		std::shared_ptr<application::diff_line_matcher_port>                LineMatcher                 = core::make_xdiff_line_matcher();
 		decltype(github_profile_runtime::AgentWorkspaceRoot)&               AgentWorkspaceRoot          = Profile->AgentWorkspaceRoot;
 		decltype(github_profile_runtime::AgentWorkspaceNeighbourhood)&      AgentWorkspaceNeighbourhood = Profile->AgentWorkspaceNeighbourhood;
 		std::string                                                         LastAgentWorkspacePath;

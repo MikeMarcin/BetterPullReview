@@ -62,7 +62,7 @@ class CoreBoundaryTests(unittest.TestCase):
         # Cycle suggestion hunks ([[BPR-1498]]).
         approved = self.run_check(
             "struct identity {};\n",
-            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl BetterPullReview::RE2)\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl BetterPullReview::RE2 BetterPullReview::Xdiff)\n",
         )
         self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
         for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):
@@ -96,11 +96,8 @@ class CoreBoundaryTests(unittest.TestCase):
             "curl/curl.h",
             "thread",
             "future",
-            "filesystem",
             "ctime",
             "fstream",
-            "atomic",
-            "mutex",
             "condition_variable",
             "asio.hpp",
             "nlohmann/json.hpp",
@@ -153,6 +150,35 @@ class CoreBoundaryTests(unittest.TestCase):
             "std::mt19937 engine{1234}; auto value = engine();\n"
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_explicit_synchronization_and_lexical_paths_are_allowed(self) -> None:
+        result = self.run_check(
+            "#include <atomic>\n#include <mutex>\n#include <filesystem>\n"
+            "auto stopped(const std::atomic_bool& stop) { return stop.load(); }\n"
+            "void update(std::mutex& guard, int& state) { std::lock_guard lock{guard}; ++state; }\n"
+            'auto path = std::filesystem::path{"src"} / ".." / "include";\n'
+            "auto normalized = path.lexically_normal();\n"
+            "auto parent = normalized.parent_path();\n"
+            "auto suffix = normalized.extension();\n"
+            "auto relative_path = normalized.lexically_relative(parent);\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_filesystem_effects_are_rejected(self) -> None:
+        for operation in (
+            "exists", "canonical", "weakly_canonical", "absolute", "relative",
+            "proximate", "current_path", "temp_directory_path", "file_size",
+            "status", "symlink_status", "is_directory", "is_regular_file",
+            "last_write_time", "copy", "copy_file", "create_directory",
+            "read_symlink", "remove", "remove_all", "rename", "resize_file",
+            "permissions", "directory_iterator", "recursive_directory_iterator",
+            "directory_entry",
+        ):
+            for prefix in ("std::filesystem::", "fs::", ""):
+                with self.subTest(operation=operation, prefix=prefix):
+                    preamble = "namespace fs = std::filesystem;\n" if prefix == "fs::" else ("using namespace std::filesystem;\n" if not prefix else "")
+                    self.assert_rejected(preamble + f"auto value = {prefix}{operation}(path);\n")
+        self.assert_rejected("using std::filesystem::directory_iterator;\n")
 
     def test_cng_link_is_owned_by_its_windows_branch(self) -> None:
         allowed = self.run_check("struct identity {};\n",

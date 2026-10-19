@@ -233,12 +233,13 @@ restart-only answer). Nothing is kept: a stopped run returns no outcome, and
 the comparison is computed again from the start the next time it is wanted.
 BPR-1366's paused states and resume points are gone.
 
-[[BPR-1485]] The primary line matches come from the application's
+[[BPR-1485]] The primary line matches come from the core-owned
 `diff_line_matcher_port`, through the engine's component seam
 (`diff_compute_components.hpp`); the engine has no primary matcher of its own,
 and a comparison without the matcher's matches is refused as a host failure.
 The product's matcher is Git 2.56.0's xdiff (Myers with the indent heuristic),
-built as its own shared library and called only by `src/adapters/xdiff`. Under
+built as its own shared library and called only by the private
+`src/core/src/xdiff_line_matcher.cpp` (BPR-1619 owner amendment, 2026-10-18). Under
 any option other than exact comparison it is given each line already
 normalized as the engine normalizes it, with no xdiff whitespace flag, and the
 engine checks every match against its own line classes. xdiff cannot be

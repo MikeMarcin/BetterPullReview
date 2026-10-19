@@ -438,7 +438,8 @@ better_pull_review_core
     libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
     HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13), and the narrow
     deterministic platform SHA-256 exception (CommonCrypto/CNG, 2026-10-18)
-    and scoped RE2/Abseil source matching (BPR-1618, 2026-10-18)
+    and scoped RE2/Abseil source matching (BPR-1618, 2026-10-18);
+    private xdiff matching via its own shared library (BPR-1619, 2026-10-18)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -487,7 +488,13 @@ The live repository may use different target names, but it must enforce these ru
   Core may use chrono duration/time-point arithmetic and caller-owned
   explicitly seeded PRNG state; it must not read a clock, implicit entropy
   or global random state. Cross-platform random identities also need a
-  specified algorithm and mapping.
+  specified algorithm and mapping. Atomics/mutexes may protect explicit
+  caller-owned or referenced state, with references preferred over retained
+  implicit process-global decision state. `<filesystem>` permits lexical path
+  construction, decomposition and `lexically_*` operations, never filesystem
+  access, current-directory lookup, canonicalization or directory iteration.
+  Native path conventions differ by platform; lexical operations alone do not
+  define a cross-platform identity (owner, 2026-10-18; BPR-1619).
 - The core links only owner-approved pinned, pure libraries (no I/O, threads,
   clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
   HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
@@ -506,6 +513,13 @@ The live repository may use different target names, but it must enforce these ru
   this does not authorize first-party effects or make Abseil a general core
   utility. The [audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records
   exact pins, call paths and limitations.
+  BPR-1619 additionally moves the pure primary xdiff wrapper into core behind
+  its provider-free matcher contract. Only its private source names xdiff
+  types; the pinned xdiff stays a separately replaceable dynamic library.
+  Application keeps scheduling, copied-input lifetime and abandonment.
+  The pure C++ identifier refinement and span value contracts also live in core;
+  the packaged Qt grammar, template helper, resources, cache and jobs keep their
+  existing owners and syntax version.
   `cmake/VerifyCoreBoundary.cmake` refuses other unapproved libraries. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.
@@ -1115,7 +1129,8 @@ KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
 grammar pass and projects a hunk from the complete result; highlighting a range
 on its own would lose the state that opened a multiline construct earlier. It produces core
 roles, never colours, and consults no standard path. RFC-BPR-0072 adds bounded,
-cancellable C++ refinement over grammar-protected spans: blob-local namespace,
+cancellable C++ refinement over grammar-protected spans, now computed in core
+(BPR-1619): blob-local namespace,
 enum, scope and delimiter facts recognize declarations and unambiguous qualified
 uses. Aliases, shadows and unresolved scopes stay conservative; no compiler or
 cross-file lookup is composed. C++ identifier revision 6 retires prior spans; C

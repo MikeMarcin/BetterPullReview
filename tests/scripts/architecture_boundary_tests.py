@@ -1603,16 +1603,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("rapidfuzz-cpp line-pair similarity ownership violation", {path: expression})
 
-    def test_linked_xdiff_has_one_adapter_owner(self) -> None:
-        # [[BPR-1485]]. Only the xdiff adapter calls xdiff and links its shared
+    def test_linked_xdiff_has_one_private_core_owner(self) -> None:
+        # [[BPR-1485]]. Only the private core matcher calls xdiff and links its shared
         # library, which only the provider builds, and only as SHARED.
         adapter = {
-            "src/adapters/xdiff/src/xdiff_line_matcher.cpp":
+            "src/core/src/xdiff_line_matcher.cpp":
                 'extern "C" {\n#include "xdiff.h"\n}\nauto parameters = xpparam_t{ };\nparameters.flags = XDF_INDENT_HEURISTIC;\n'
                 "xdl_diff(&left, &right, &parameters, &configuration, &callback);\n",
-            "src/adapters/xdiff/CMakeLists.txt":
-                "add_library(better_pull_review_adapter_xdiff STATIC src/xdiff_line_matcher.cpp)\n"
-                "target_link_libraries(better_pull_review_adapter_xdiff PUBLIC BetterPullReview::Application PRIVATE BetterPullReview::Xdiff)\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core STATIC src/xdiff_line_matcher.cpp)\n"
+                "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::Xdiff)\n",
             "cmake/BprXdiffProvider.cmake":
                 "add_library(better_pull_review_xdiff SHARED ${source}/xdiff/xdiffi.c)\n",
         }
@@ -1630,7 +1630,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
              "xdiff must be built only as its own shared library"),
             ("src/adapters/qt/CMakeLists.txt", "target_link_libraries(better_pull_review_adapter_qt PRIVATE BetterPullReview::Xdiff)\n",
              "xdiff ownership violation in src/adapters/qt/CMakeLists.txt"),
-            ("src/core/CMakeLists.txt", "add_library(better_pull_review_core src/agent_profile.cpp ${git}/xdiff/xdiffi.c)\n",
+            ("src/core/CMakeLists.txt", "add_library(better_pull_review_core src/xdiff_line_matcher.cpp ${git}/xdiff/xdiffi.c)\n",
              "xdiff ownership violation in src/core/CMakeLists.txt"),
         ):
             with self.subTest(path=path, expression=expression):

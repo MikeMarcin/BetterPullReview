@@ -18,6 +18,8 @@ if(NOT core_files)
     message(FATAL_ERROR "No functional-core sources were found")
 endif()
 
+set(filesystem_effects "absolute|canonical|weakly_canonical|relative|proximate|current_path|temp_directory_path|exists|status|symlink_status|is_regular_file|is_directory|is_symlink|is_block_file|is_character_file|is_fifo|is_socket|is_other|is_empty|equivalent|file_size|hard_link_count|last_write_time|space|copy|copy_file|copy_symlink|create_directory|create_directories|create_hard_link|create_symlink|create_directory_symlink|read_symlink|remove|remove_all|rename|resize_file|permissions|directory_iterator|recursive_directory_iterator|directory_entry")
+
 set(
     forbidden_patterns
     "#[ \t]*include[ \t]*[<\"]Q"
@@ -26,16 +28,15 @@ set(
     "#[ \t]*include[ \t]*[<\"]curl"
     "#[ \t]*include[ \t]*[<\"]thread[>\"]"
     "#[ \t]*include[ \t]*[<\"]future[>\"]"
-    "#[ \t]*include[ \t]*[<\"]filesystem[>\"]"
     "#[ \t]*include[ \t]*[<\"]ctime[>\"]"
     "#[ \t]*include[ \t]*[<\"]fstream[>\"]"
-    "#[ \t]*include[ \t]*[<\"](atomic|mutex|condition_variable)[>\"]"
     "#[ \t]*include[ \t]*[<\"](asio|boost/asio)"
     "#[ \t]*include[ \t]*[<\"](nlohmann|rapidjson|boost/json)"
     "#[ \t]*include[ \t]*[<\"](sys/socket|winsock)"
     "#[ \t]*include[ \t]*[<\"](windows\\.h|bcrypt\\.h|CommonCrypto/)"
     "(^|[^A-Za-z0-9_])(BCrypt[A-Za-z0-9_]*|BCRYPT_[A-Za-z0-9_]*|CC_SHA[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
-    "std::filesystem"
+    "#[ \t]*include[ \t]*[<\"]condition_variable[>\"]"
+    "std::filesystem::[ \t\r\n]*(${filesystem_effects})([^A-Za-z0-9_]|$)"
     "::[ \t\r\n]*now[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])(std::)?random_device([^A-Za-z0-9_]|$)"
     "std::time[ \t]*\\("
@@ -60,6 +61,18 @@ set(
 
 foreach(core_file IN LISTS core_files)
     file(READ "${core_file}" contents)
+    # Normalize namespace aliases before checking effect symbols. This is a
+    # source guard, not a C++ semantic parser; review still owns state/effects.
+    string(REGEX MATCHALL "namespace[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t\r\n]*std::filesystem[ \t]*;" filesystem_aliases "${contents}")
+    foreach(filesystem_alias IN LISTS filesystem_aliases)
+        string(REGEX REPLACE "namespace[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=.*" "\\1" filesystem_alias_name "${filesystem_alias}")
+        string(REGEX REPLACE "(^|[^A-Za-z0-9_])${filesystem_alias_name}::" "\\1std::filesystem::" contents "${contents}")
+    endforeach()
+    if(contents MATCHES "using[ \t\r\n]+namespace[ \t\r\n]+std::filesystem[ \t]*;")
+        if(contents MATCHES "(^|[^A-Za-z0-9_])(${filesystem_effects})[ \t\r\n]*[(\{]")
+            message(FATAL_ERROR "Functional-core boundary violation: filesystem effect through imported namespace")
+        endif()
+    endif()
     # The owner's deterministic SHA-256 exception has two exact owners;
     # all ordinary effect patterns still scan those files.
     if(core_file STREQUAL "${BPR_ROOT}/src/core/src/sha256_commoncrypto.cpp")
@@ -93,6 +106,8 @@ endforeach()
 # (dtl only for per-line intraline comparison and the Review Cycle suggestion
 # hunks' line edit bounded at 512 changes; architecture_boundaries keeps it to
 # those two sources).
+# Owner, 2026-10-18: Git xdiff may be privately called from core, but it
+# stays its own dynamically linked shared library (BPR-1619).
 # Owner, 2026-10-18: pinned RE2/Abseil may implement source matching with
 # externally deterministic results and no worker creation (BPR-1618). Only
 # the private production wrapper includes RE2; Abseil is transitive only.
@@ -106,6 +121,7 @@ set(
     BetterPullReview::HaclSha2
     BetterPullReview::RapidFuzz
     BetterPullReview::Dtl
+    BetterPullReview::Xdiff
     BetterPullReview::RE2
     bcrypt
 )

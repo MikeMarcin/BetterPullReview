@@ -2,7 +2,7 @@
 
 [RFC-BPR-0081](../../docs/rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md)
 compares the shipped C++ identifier refinement
-(`src/adapters/syntax/src/cpp_identifier_context.cpp`) with candidate T, the same
+(`src/core/src/cpp_identifier_context.cpp`) with candidate T, the same
 refinement fed by tree-sitter-cpp. Nothing here ships. The directory exists in a
 build only with `BPR_BUILD_SYNTAX_EVALUATION=ON`, which needs `BPR_BUILD_QT=ON`
 and `BUILD_TESTING=ON`; with the option off no target acquires or links

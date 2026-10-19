@@ -19,6 +19,8 @@ add_library(
         src/defect_workflow.cpp
         src/device_authorization_model.cpp
         src/device_authorization_transition.cpp
+        src/xdiff_line_matcher.cpp
+        src/cpp_identifier_context.cpp
         src/diff_compute.cpp
         src/diff_intraline.cpp
 		src/diff_interaction.cpp
@@ -144,7 +146,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::Xdiff BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 # Reproducible portable builds may explicitly keep the approved HACL backend.
 option(BPR_CORE_SHA256_PORTABLE "Use portable HACL SHA-256 instead of platform crypto" OFF)

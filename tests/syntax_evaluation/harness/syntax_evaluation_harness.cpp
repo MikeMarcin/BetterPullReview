@@ -62,7 +62,7 @@
 #include <thread>
 #include <vector>
 
-namespace bpr::adapters::syntax {
+namespace bpr::core {
 	auto refine_cpp_identifiers_baseline(std::string_view, application::token_span_list&, std::size_t, std::stop_token)
 		-> application::syntax_classification_status;
 	auto refine_cpp_identifiers_candidate(std::string_view, application::token_span_list&, std::size_t, std::stop_token)
@@ -214,7 +214,7 @@ void operator delete(void* aMemory, std::size_t) noexcept
 	std::free(aMemory);
 }
 
-namespace bpr::adapters::syntax {
+namespace bpr::core {
 	auto refine_cpp_identifiers(const std::string_view aText, application::token_span_list& aSpans,
 								const std::size_t aMaximumSpans, const std::stop_token aStop) -> application::syntax_classification_status
 	{

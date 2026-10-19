@@ -3636,8 +3636,8 @@ allocators return null instead of ending the process, and no regular
 expression library is used. The library is built in every graph, including
 `core-only`, and hardened like the product.
 
-Only `src/adapters/xdiff` links the library, and only its
-`xdiff_line_matcher.cpp` calls it, behind the application's
+Only core links the library, and only its private
+`src/core/src/xdiff_line_matcher.cpp` calls it, behind the core-owned
 `diff_line_matcher_port`; `architecture_boundaries` refuses an xdiff symbol or
 header anywhere else, a second build of the xdiff sources, a non-shared
 library, and any other target that links it. The application's

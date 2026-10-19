@@ -1187,3 +1187,12 @@ bpr_add_network_isolated_test(
     NAME core_review_role
     COMMAND test_better_pull_review_review_role_core_tests
 )
+
+# BPR-1619: public computation factories need only core and the xdiff DSO.
+bpr_add_executable(test_core_computation_boundaries core_computation_boundaries_tests.cpp)
+# Exclude the directory-wide host-backed product-diff helper: this course
+# deliberately verifies the core library and DSO without application linkage.
+set_property(TARGET test_core_computation_boundaries PROPERTY LINK_LIBRARIES BetterPullReview::Core)
+bpr_enable_hardening(test_core_computation_boundaries)
+bpr_enable_warnings(test_core_computation_boundaries)
+bpr_add_network_isolated_test(NAME core_computation_boundaries COMMAND test_core_computation_boundaries)

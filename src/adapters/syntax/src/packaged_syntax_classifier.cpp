@@ -1,6 +1,6 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 
-#include "cpp_identifier_context.hpp"
+#include "bpr/core/cpp_identifier_context.hpp"
 #include "cpp_template_arguments.hpp"
 
 #include <KSyntaxHighlighting/AbstractHighlighter>
@@ -1086,7 +1086,7 @@ namespace bpr::adapters::syntax {
 			++LexicalPasses;
 			auto result = collect(aRequest, definition->Name, text, aStop, std::move(answer));
 			if (definition->Name == "C++" && result.Status == application::syntax_classification_status::available) {
-				result.Status = refine_cpp_identifiers(*bytes, result.Spans, aRequest.MaximumSpans, aStop);
+				result.Status = core::refine_cpp_identifiers(*bytes, result.Spans, aRequest.MaximumSpans, aStop);
 			}
 			return result;
 		}

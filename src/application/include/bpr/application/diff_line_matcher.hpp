@@ -1,7 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_LINE_MATCHER_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_LINE_MATCHER_HPP
 
-#include "bpr/core/diff_compute_components.hpp"
+#include "bpr/core/diff_line_matcher.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -17,35 +17,8 @@
 /// matched lines; the core checks them against its own line classes and
 /// assembles everything else.
 namespace bpr::application {
-	/// \brief One comparison's sides, as the core decoded them.
-	struct diff_line_match_input
-	{
-		/// A side the comparison does not have is null and compares as empty.
-		const core::decoded_text_document* Left  = nullptr;
-		const core::decoded_text_document* Right = nullptr;
-		core::diff_options                 Options;
-	};
-
-	/// \brief Matches the lines of two decoded sides.
-	///
-	/// \details Two lines may match only when their normalized forms under
-	/// `Options` are equal, and both indices strictly increase. The call cannot
-	/// be interrupted and keeps no state between calls: it may run on a thread
-	/// whose caller has been stopped and has gone, so it touches nothing but
-	/// its input, and it is safe to call from several threads at once. Returns
-	/// nothing when it cannot match, which refuses the comparison.
-	class diff_line_matcher_port
-	{
-	public:
-		diff_line_matcher_port()                                                 = default;
-		diff_line_matcher_port(const diff_line_matcher_port&)                    = delete;
-		diff_line_matcher_port(diff_line_matcher_port&&)                         = delete;
-		auto operator=(const diff_line_matcher_port&) -> diff_line_matcher_port& = delete;
-		auto operator=(diff_line_matcher_port&&) -> diff_line_matcher_port&      = delete;
-		virtual ~diff_line_matcher_port()                                        = default;
-
-		[[nodiscard]] virtual auto match(const diff_line_match_input& aInput) -> std::optional<std::vector<core::diff_match>> = 0;
-	};
+	using diff_line_match_input  = core::diff_line_match_input;
+	using diff_line_matcher_port = core::diff_line_matcher_port;
 
 	/// \brief The engine's stop predicate over a stop token. [[BPR-1366]]
 	class stop_token_check final : public core::diff_compute_stop

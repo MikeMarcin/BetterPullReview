@@ -22,14 +22,14 @@ The core decides. The host performs. Qt presents.
 | `src/core/` | Deterministic policy, compact interaction state, typed transitions, request identity, semantic deltas, diagnostics |
 | `src/application/` | Effects, bounded observations, serialized completion lane, cancellation, lifecycle |
 | `src/adapters/qt/` | Qt events, widgets, actions, models, focus, accessibility, rendering, incremental projection |
-| `src/adapters/{github,git,sqlite,agent,syntax,mcp,workspace,xdiff}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link). `workspace` reads a chosen local root without following links, writing or running Git (Review Cycles). `xdiff` is the diff engine's primary line matcher, Git's xdiff as its own shared library behind the application's `diff_line_matcher_port` (BPR-1485) |
+| `src/adapters/{github,git,sqlite,agent,syntax,mcp,workspace}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link). `workspace` reads a chosen local root without following links, writing or running Git (Review Cycles). Pure xdiff matching and C++ identifier refinement live in core (BPR-1619) |
 | `src/adapters/process_support/` | Shared adapter support: the QProcess supervision the gh and Git runners share (serialized lane, quarantine, process-group kill, bounded reap and abandonment). Qt Core only, no first-party dependency; it launches nothing and decides nothing about what a process runs |
 | `src/platform/` | Header-only platform definitions that several adapters share and none owns, so no adapter-to-adapter edge is needed: the Windows owner-private object, its descriptor and its exact check; and the Windows launch restriction that gives a `QProcess` child its three standard handles and nothing else, and refuses at creation a launch whose list cannot be built; and the bound a Git or `gh` launch puts on its child's descriptor sweep on macOS. No adapter state, Qt, provider, file-system policy or decision about what a process runs; `architecture_boundaries` refuses a second descriptor builder and keeps the handle-list APIs to the platform header and the named launch owners |
 | `src/app/` | Concrete composition and application entry point |
 | `tests/` | Core, host, contract, Qt, end-to-end, fixture, benchmark, and fuzz evidence |
 | `packaging/` | Distribution metadata and release-time platform policy |
 
-The functional core must not include Qt, provider, filesystem, process, clock,
+The functional core must not include Qt, provider, filesystem-effect, process, clock,
 thread, timer, network, database, credential, or hidden-global semantic dependencies. Owner-approved deterministic platform SHA-256
 is the narrow OS-API exception (RFC-BPR-0080 r4, 2026-10-18): CommonCrypto
 on macOS, CNG on Windows, HACL portable fallback. CPU dispatch and internal
@@ -39,6 +39,13 @@ source matching inside core (owner, 2026-10-18; BPR-1618): no worker creation,
 with internal synchronization, hash state and contention clocks permitted only
 when matches and diagnostics remain externally deterministic. This is not
 general permission for core threads, clocks, entropy or logging.
+Atomics and mutexes may protect explicit caller-owned or referenced state;
+pass that state by reference rather than retaining implicit process-global
+decision state. `<filesystem>` is allowed for lexical path construction and
+manipulation only: filesystem reads/writes, current-directory lookup,
+canonicalization and directory iteration remain host effects. Native path
+conventions can differ by platform; lexical use alone is no cross-platform
+identity guarantee (owner, 2026-10-18; BPR-1619).
 Duration/time-point arithmetic and
 caller-owned explicitly seeded PRNG state are permitted; implicit clock reads
 and entropy (`random_device`) remain host effects (owner, 2026-10-18).
