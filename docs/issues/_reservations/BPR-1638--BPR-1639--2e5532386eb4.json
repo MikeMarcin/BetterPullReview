@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1638",
+    "BPR-1639"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Diagnose actual Ubuntu folder-ink and keyboard-shortcut layout failures",
+  "created": "2026-10-19T05:31:25.780555+00:00",
+  "base": "45ab4b604b3576ebc9f917348e2a2a4810d7da2d"
+}
