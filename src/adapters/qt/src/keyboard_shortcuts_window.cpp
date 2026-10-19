@@ -129,6 +129,7 @@ namespace bpr::qt {
 			{
 			}
 
+			/// \brief Reserves the title's wrap floor, every native key cap and a scrollbar.
 			[[nodiscard]] auto minimum_width() const -> int
 			{
 				const auto metrics = row_metrics{ View->font() };
