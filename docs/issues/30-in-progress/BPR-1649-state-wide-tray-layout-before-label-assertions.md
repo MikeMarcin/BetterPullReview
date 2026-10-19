@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1649"
 title: "State wide tray layout before label assertions"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
