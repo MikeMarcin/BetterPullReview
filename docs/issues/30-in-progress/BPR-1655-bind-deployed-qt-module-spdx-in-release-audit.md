@@ -24,5 +24,24 @@ therefore omits Svg. Preserve the failed attempt and old signed asset bytes.
 
 - AC1: Preserve the actual R2 failure, R3 module evidence and all old artifacts; bind exact configured/resolved Qt producer and separate module document hashes. Treat raw upstream survey's xdiff refusal separately from its already-declared first-party route.
 - AC2: Share bounded deployed-module SPDX selection between generated Qt provenance and native PE producer inspection. Recognize approved Windows, Darwin and Linux Svg/WebP names, require their exact configured module documents, and retain exact upstream bytes/signing normalization, unknown/duplicate/path escape and checksum refusals. No filename alone supplies producer authority or broad module fallback.
-- AC3: Prove cross-platform module closure, missing-document and hostile producer controls; run the actual complete native MSI package/security audits against unchanged b914 artifacts and preserve tool/artifact source identities. This audit cannot repair missing metadata in old assets; generate final affected provenance/SPDX/assets only through coordinator-owned common-source production.
+- AC3: Prove cross-platform module closure, missing-document and hostile producer controls; preserve the actual old-candidate full audit and any build-drift refusal, validate exact existing PE producers, then require complete native MSI package/security acceptance on freshly reproduced common-source artifacts. Preserve tool/artifact source identities. This audit cannot repair missing metadata in old assets; generate final affected provenance/SPDX/assets only through coordinator-owned common-source production.
 - AC4: Complete focused checks, independent changed-surface review and intentional card/plan/ledger/package-guide upkeep. Preserve runtime/linkage/module pins, all numerical gates and existing release gaps; final frozen/artifact binding adoption remains explicit and coordinator-owned.
+
+## Implemented scope and acceptance boundary
+
+The shared selector reads only qtbase and the exact module documents required
+by canonical deployed Svg/WebP names; the PE route retains full upstream
+file/checksum/signature checks and every unknown/duplicate/escape refusal.
+The four-platform-name fixture now exercises actual joined closure generation,
+installed notices/source offers/provenance/final SPDX, and refuses an omitted
+Svg installed provenance record. The separate source-asset archive and exact
+pinned source/legal checks remain mandatory. No old asset is repaired in place.
+
+The full package-runtime suite also exposed an older lexical test selecting
+the assessment helper's first PREPARE_ONLY branch. The fixture now selects the
+unique main ASSET_BASE branch, preserving no-notary/no-security/no-identity-sign,
+ad-hoc-sign and exit assertions. Product release.sh bytes remain unchanged.
+
+AC3's final complete native public audit remains pending fresh coordinator
+production. A packaging-source change must retain package-build-source-drift
+on old b914 artifacts. No guard is relaxed to obtain an old-candidate pass.

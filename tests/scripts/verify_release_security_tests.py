@@ -309,6 +309,52 @@ class ReleaseSecurityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "undeclared-pe-producer"):
                 pe.inspect(binary, info, root, private_producers=tuple(package.runtime.private_library_producers(info)))
 
+    def test_pe_module_documents_bind_exact_svg_and_webp_producers(self):
+        for module, name, relative in (("qtsvg", "Qt6Svg.dll", "bin/Qt6Svg.dll"),
+                                       ("qtimageformats", "qwebp.dll", "plugins/imageformats/qwebp.dll")):
+            with self.subTest(module=module), ContainedTemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                qt = root / "qt"
+                (qt / "sbom").mkdir(parents=True)
+                (qt / "sbom/qtbase-6.11.2.spdx.json").write_text('{"files":[]}')
+                binary, producer = root / name, qt / relative
+                producer.parent.mkdir(parents=True)
+                binary.write_bytes(image())
+                producer.write_bytes(image())
+                item = {"SPDXID": "file", "fileName": relative, "fileTypes": ["BINARY"],
+                        "checksums": [{"algorithm": "SHA256", "checksumValue": hashlib.sha256(image()).hexdigest()}]}
+                path = qt / f"sbom/{module}-6.11.2.spdx.json"
+                def document(files):
+                    path.write_text(json.dumps({"files": files}))
+                document([item])
+                info = {"qt_root": str(qt), "qt_version": "6.11.2"}
+                self.assertEqual(pe.upstream_dll(binary, info, root), producer)
+                with patch.object(pe, "qt_signed_spdx_match", return_value=False):
+                    document([{**item, "checksums": [{"algorithm": "SHA256", "checksumValue": "0" * 64}]}])
+                    with self.assertRaisesRegex(ValueError, "spdx-mismatch"):
+                        pe.upstream_dll(binary, info, root)
+                document([{**item, "checksums": []}])
+                with self.assertRaisesRegex(ValueError, "checksum-missing"):
+                    pe.upstream_dll(binary, info, root)
+                document([item, {**item, "SPDXID": "duplicate-file"}])
+                with self.assertRaisesRegex(ValueError, "ambiguous-qt-producer-file"):
+                    pe.upstream_dll(binary, info, root)
+                # Byte equality at a same-named path outside Qt grants no authority.
+                document([{**item, "fileName": "../" + name}])
+                with self.assertRaisesRegex(ValueError, "producer-byte-mismatch"):
+                    pe.upstream_dll(binary, info, root)
+                document([item])
+                producer.write_bytes(image() + b"changed")
+                with self.assertRaisesRegex(ValueError, "producer-byte-mismatch"):
+                    pe.upstream_dll(binary, info, root)
+                producer.write_bytes(image())
+                document([])
+                with self.assertRaisesRegex(ValueError, "undeclared-pe-producer"):
+                    pe.upstream_dll(binary, info, root)
+                path.unlink()
+                with self.assertRaises(FileNotFoundError):
+                    pe.upstream_dll(binary, info, root)
+
     def test_linker_only_cfg_indexes_are_bound_and_still_scanned(self):
         with ContainedTemporaryDirectory() as directory:
             producer = Path(directory) / "app.exe"

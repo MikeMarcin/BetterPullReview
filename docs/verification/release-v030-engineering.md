@@ -736,3 +736,32 @@ non-executable/exact-wrap shape and actual import/name absence; every name and
 all ordinary identity/address/fixture/composition assertions remain. Missing
 or wrong specimen bytes refuse. Independent final code/evidence review and the
 complete native audit remain pending at this implementation checkpoint.
+
+
+The BPR-1654 verifier at aaad passes 17 security,7 package and8 dependency
+unit cases; independent source review finds no blocking changed-surface issue.
+Actual native R2 retains the no-specimen refusal, then advances beyond MCP
+metadata and fails undeclared-pe-producer. Separate R3 passes the actual MCP
+positive plus23 hostile controls, retains all symbol/anchor scans and original
+image/map bytes, and separately reproduces upstream coverage refusal for
+Qt6Svg.dll and qwebp.dll. Both exact module SPDX documents exist in the native
+producer; the interactive configured cache resolves to its existing canonical
+C:/code/git/BetterPullReview provider. No library-selection claim is inferred.
+
+BPR-1655 corrects shared deployed-module SPDX selection and the Windows Svg
+basename. Its generated provenance, notices and final inventory now use the
+same required module closure; source offers and the separate corresponding
+source asset continue to bind QtBase,QtSvg and QtImageFormats. Portable controls
+cover all three native naming families, required missing documents, unknown/
+ambiguous/changed/escaped producers and old omitted installed provenance.
+An existing release-prefix lexical fixture selected the assessment helper's
+first PREPARE_ONLY branch; it now binds the unique main ASSET_BASE branch,
+retaining all nonpublishing assertions. No release.sh or runtime bytes change.
+
+The packaging-source change invalidates old b914 audit build bindings. Preserve
+its actual package-build-source-drift refusal and never patch old metadata to
+make it pass. BPR-1654/1655 complete-public-audit criteria remain pending fresh
+coordinator-owned common-source Mac/Windows production and exact native audits.
+Card closeout and publication/download observations remain external after the
+freeze until postrelease administrative upkeep. All earlier strict memory,
+history, native/vault/crash, security-coverage and source-access gaps remain.

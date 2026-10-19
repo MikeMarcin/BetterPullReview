@@ -143,6 +143,19 @@ selection. Changed specimens require new review. Packaging/signing and offline
 manifest preflight need no new argument; this input belongs only to the native
 PE audit and grants no installation, security or distribution qualification.
 
+Qt provenance and the native PE audit select the producer's exact `qtbase`
+SPDX plus `qtsvg` for the deployed Svg library and `qtimageformats` for the
+WebP plugin. This includes Windows `Qt6Svg.dll`, Darwin's `QtSvg` framework
+image and Linux's versioned `libQt6Svg.so` names. Missing required module
+documents, ambiguous file records, escaped producer paths, changed bytes and
+invalid upstream checksum/signature evidence refuse; filenames select required
+evidence and cannot authorize a DLL. Installed notices, source offers, Qt
+provenance and final SPDX use the same selected closure. The separate
+corresponding-source asset already includes the pinned QtBase, QtSvg and
+QtImageFormats archives, including their licence and replacement obligations.
+A correction to generated metadata requires fresh packages; never update an
+old signed runtime or its inventory in place.
+
 Signed production emits `*.release.json` binding installer, runtime archive,
 SPDX, separate source ZIP, final checksums/provenance and signature receipts.
 Selected Linux names and installed source URLs include `linux-ubuntu-26.04-x64`;

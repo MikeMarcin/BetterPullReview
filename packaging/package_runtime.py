@@ -313,20 +313,32 @@ def prepare_source_asset(build: Path, info: dict, root: Path, archives: dict[str
     return provenance
 
 
+def qt_upstream_records(info: dict, deployed_names: set[str]) -> dict:
+    """Join only producer documents for the deployed Qt runtime modules.
+
+    Basenames select a required document, never producer authority: callers
+    still bind the file/relationship record and, for PE, exact upstream bytes.
+    """
+    qt = Path(info["qt_root"])
+    upstream = json.loads((qt / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
+    names = {name.lower() for name in deployed_names}
+    svg = any(name in {"qtsvg", "qt6svg.dll", "libqt6svg.dylib"}
+              or re.fullmatch(r"libqt6svg\.so(?:\.[0-9]+)*", name) for name in names)
+    webp = bool(names & {"qwebp.dll", "libqwebp.dylib", "libqwebp.so"})
+    for module, deployed in (("qtsvg", svg), ("qtimageformats", webp)):
+        if not deployed:
+            continue
+        extra = json.loads((qt / f"sbom/{module}-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
+        for key in ("packages", "files", "relationships", "hasExtractedLicensingInfos"):
+            upstream.setdefault(key, []).extend(item for item in extra.get(key, []) if item not in upstream.get(key, []))
+    return upstream
+
+
 def qt_records(info: dict, root: Path) -> dict:
     # Match deployed runtime files to the producer's SBOM, then traverse only
     # runtime relationships. Build tools (rcc/moc/designer) are not product code.
-    upstream = json.loads((Path(info["qt_root"]) / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
-    # RFC-BPR-0084. QtSvg and qtimageformats' qwebp come from their own
-    # producer SBOMs; a package that deploys them joins those documents to
-    # qtbase's before matching, and refuses to go on without them.
     deployed_names = {path.name for path in root.rglob("*") if path.is_file()}
-    for module, marker in (("qtsvg", "QtSvg"), ("qtimageformats", "qwebp")):
-        if not any(marker in name for name in deployed_names):
-            continue
-        extra = json.loads((Path(info["qt_root"]) / f"sbom/{module}-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
-        for key in ("packages", "files", "relationships", "hasExtractedLicensingInfos"):
-            upstream.setdefault(key, []).extend(item for item in extra.get(key, []) if item not in upstream.get(key, []))
+    upstream = qt_upstream_records(info, deployed_names)
     def identity(name: str) -> str:
         # ELF deployment preserves the SONAME; the producer records the full
         # versioned file behind that symlink. Both identify the same module.

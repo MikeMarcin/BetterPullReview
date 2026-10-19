@@ -347,6 +347,94 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
             self.assertEqual({item["name"] for item in selected["packages"]}, {"Core", "Gui", "Widgets", "Network", "pcre2"})
 
+    def test_deployed_svg_and_webp_join_exact_module_closures_on_each_platform(self):
+        courses = [
+            ("Qt6Svg.dll", "qwebp.dll", "Qt6{}.dll"),
+            ("QtSvg", "libqwebp.dylib", "Qt{}"),
+            ("libQt6Svg.so.6", "libqwebp.so", "libQt6{}.so.6"),
+            ("libQt6Svg.so.6.11.2", "libqwebp.so", "libQt6{}.so.6.11.2"),
+        ]
+        for svg, webp, template in courses:
+            with self.subTest(svg=svg), ContainedTemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "sbom").mkdir()
+                stage = root / "stage"
+                stage.mkdir()
+                def document(module, names, files):
+                    record = {"documentNamespace": module, "packages": [], "files": [], "relationships": [],
+                              "hasExtractedLicensingInfos": [{"licenseId": module, "extractedText": module + " licence"}]}
+                    for name, filename in zip(names, files):
+                        record["packages"].append({"SPDXID": "p-" + name, "name": name})
+                        record["files"].append({"SPDXID": "f-" + name, "fileName": "bin/" + filename, "fileTypes": ["BINARY"]})
+                        record["relationships"].append({"spdxElementId": "p-" + name, "relatedSpdxElement": "f-" + name, "relationshipType": "CONTAINS"})
+                    return record
+                base_names = ["Core", "Gui", "Widgets", "Network"]
+                documents = {
+                    "qtbase": document("qtbase", base_names, [template.format(name) for name in base_names]),
+                    "qtsvg": document("qtsvg", ["Svg", "unshipped-svg-tool"], [svg, "svg-tool"]),
+                    "qtimageformats": document("qtimageformats", ["WebPPlugin"], [webp]),
+                }
+                documents["qtimageformats"]["packages"].append({"SPDXID": "p-webp", "name": "BundledWebP"})
+                documents["qtimageformats"]["relationships"].append({"spdxElementId": "p-WebPPlugin", "relatedSpdxElement": "p-webp", "relationshipType": "STATIC_LINK"})
+                for name, record in documents.items():
+                    (root / f"sbom/{name}-6.11.2.spdx.json").write_text(json.dumps(record))
+                for name in [*(template.format(name) for name in base_names), svg, webp]:
+                    (stage / name).touch()
+                selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
+                self.assertEqual({item["name"] for item in selected["packages"]}, {*base_names, "Svg", "WebPPlugin", "BundledWebP"})
+                self.assertEqual({Path(item["fileName"]).name for item in selected["files"]}, {p.name for p in stage.iterdir()})
+                self.assertEqual({item["licenseId"] for item in selected["hasExtractedLicensingInfos"]}, set(documents))
+                # Exercise generated notices/provenance/SPDX together. Only the
+                # synthetic upstream archive transport is stubbed here; separate
+                # source-asset tests verify complete archive bytes and digests.
+                import verify_release_security as security
+                info = {"qt_root": str(root), "qt_version": "6.11.2", "platform": "Linux", "version": "1.0.0"}
+                provenance = runtime.source_provenance(info, "a" * 40, "b" * 64)
+                empty = root / "empty.tar"
+                with tarfile.open(empty, "w"):
+                    pass
+                with patch.object(runtime, "source_archives", return_value={name: empty for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting")}), \
+                        patch.object(runtime, "prepare_source_asset", return_value=provenance):
+                    runtime.notices(root, info, stage)
+                output = root / "final.spdx.json"
+                with patch.object(runtime, "verify_source_asset"), \
+                        patch.object(runtime, "run", side_effect=["a" * 40, "", "2026-10-19T00:00:00+00:00"]):
+                    runtime.audit(root, info, stage, output)
+                final = json.loads(output.read_text())
+                self.assertTrue({"Svg", "WebPPlugin", "BundledWebP"}.issubset({item["name"] for item in final["packages"]}))
+                self.assertTrue({"QtSvg", "QtImageFormats"}.issubset({item["name"] for item in provenance["components"]}))
+                notices = (stage / "ThirdParty/THIRD-PARTY-NOTICES.txt").read_text()
+                self.assertIn("qtsvg licence", notices)
+                self.assertIn("qtimageformats licence", notices)
+                self.assertIn("matching private Qt DLLs/shared objects and plugins", (stage / "ThirdParty/SOURCE-OFFERS.txt").read_text())
+                self.assertEqual(security.source_and_notices(stage, output, info)["qt_packages"], 7)
+                installed = stage / "ThirdParty/qt-runtime-provenance.json"
+                recorded = json.loads(installed.read_text())
+                recorded["packages"] = [item for item in recorded["packages"] if item["name"] != "Svg"]
+                installed.write_text(json.dumps(recorded))
+                with self.assertRaisesRegex(ValueError, "qt-runtime-provenance-drift"):
+                    security.source_and_notices(stage, output, info)
+                # Required module evidence cannot silently fall back to qtbase.
+                for module in ("qtsvg", "qtimageformats"):
+                    path = root / f"sbom/{module}-6.11.2.spdx.json"
+                    saved = path.read_bytes()
+                    path.unlink()
+                    with self.assertRaises(FileNotFoundError):
+                        runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
+                    path.write_bytes(saved)
+
+    def test_unshipped_module_documents_are_not_selected_by_substrings(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sbom").mkdir()
+            record = {"files": []}
+            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps(record))
+            info = {"qt_root": str(root), "qt_version": "6.11.2"}
+            self.assertEqual(runtime.qt_upstream_records(info, {"QtSvg-backup", "qwebp.dll.bak", "unrelated.dll"}), record)
+            for name in ("Qt6Svg.dll", "QT6SVG.DLL", "qwebp.dll", "QWEBP.DLL"):
+                with self.subTest(name=name), self.assertRaises(FileNotFoundError):
+                    runtime.qt_upstream_records(info, {name})
+
     def test_installed_audit_needs_source(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
@@ -484,7 +572,9 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
 
     def test_release_prefix_is_nonpublishing(self):
         script = (ROOT / "tools/release.sh").read_text()
-        start = script.index('if [[ "${PREPARE_ONLY}" == "1" ]]; then')
+        # The assessment helper has an earlier PREPARE_ONLY branch; bind this
+        # public-path assertion to the main local-output branch itself.
+        start = script.index('if [[ "${PREPARE_ONLY}" == "1" ]]; then\n    ASSET_BASE=')
         end = script.index('log "Signing nested code', start)
         prefix = script[start:end]
         self.assertIn("exit 0", prefix)

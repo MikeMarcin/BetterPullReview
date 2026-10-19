@@ -9,6 +9,7 @@ their exported symbol table. Neither path is independent distribution approval.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import base64
 import json
 import os
@@ -21,6 +22,12 @@ from typing import BinaryIO
 
 import verify_binary_dependencies as dependencies
 import verify_composed_hosts as composition
+
+
+# Reuse the packaging module's exact deployed-module document selection.
+_spec = importlib.util.spec_from_file_location("bpr_pe_package_runtime", Path(__file__).resolve().parents[1] / "packaging/package_runtime.py")
+runtime = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(runtime)
 
 
 # BPR-1654: an independently inspected Windows SDK import-library specimen.
@@ -178,7 +185,7 @@ def qt_signed_spdx_match(producer: Path, hashes: list[dict]) -> bool:
 
 def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
     qt = Path(info["qt_root"]).resolve(strict=True)
-    record = json.loads((qt / f"sbom/qtbase-{info['qt_version']}.spdx.json").read_text(encoding="utf-8"))
+    record = runtime.qt_upstream_records(info, {binary.name})
     matching = [item for item in record["files"] if Path(item["fileName"]).name.lower() == binary.name.lower()
                 and "BINARY" in item.get("fileTypes", [])]
     if matching:

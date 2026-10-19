@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
-metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"b914b56f6aab8c51f632eafa863f890c80539865","reservation":"docs/issues/_reservations/BPR-1654--BPR-1654--8dea387504db.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["scripts/verify_pe_release.py","scripts/verify_release_package.py","scripts/verify_release_security.py","tests/scripts/verify_release_security_tests.py","tests/scripts/verify_release_package_tests.py","docs/development/release-packages.md"],"boundary":"Coordinator explicitly invalidates source freeze for bounded verifier-only correction; no C++/CMake/runtime/linkage/numeric-gate change or production rerun before common-source coordination"}
+metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"b914b56f6aab8c51f632eafa863f890c80539865","reservation":"docs/issues/_reservations/BPR-1654--BPR-1654--8dea387504db.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["scripts/verify_pe_release.py","scripts/verify_release_package.py","scripts/verify_release_security.py","tests/scripts/verify_release_security_tests.py","tests/scripts/verify_release_package_tests.py","docs/development/release-packages.md",".codex/skills/publish-release/references/windows.md"],"boundary":"Coordinator explicitly invalidates source freeze for bounded verifier-only correction; no C++/CMake/runtime/linkage/numeric-gate change or production rerun before common-source coordination"}
 ---
 
 # BPR-1654: Bind discarded SDK import metadata in PE release audit
@@ -64,3 +64,23 @@ class; this artifact's strict map/PE predicates establish the absence of a
 mapped implementation address. No selected-library provenance is inferred.
 The independent reviewer finds this classification sufficient in the named
 scope; actual implementation, controls and native audit remain required.
+
+## Implementation checkpoint before common-source production
+
+Implementation aaadffc76d0a66cbccd201e07e1e9518b1c41427 passes 17 security,
+7 package and 8 dependency tests. Independent review finds no blocking
+changed-surface issue. Native R2 on the unchanged b914 MSI retains the expected
+no-specimen map refusal, passes all32 focused unit cases, then advances past
+MCP metadata and fails undeclared-pe-producer at the separate Qt module
+coverage defect BPR-1655. Native R3 passes the actual MCP positive plus23
+hostile controls, preserving all original image/map bytes and complete symbol
+scans. These observations do not constitute a complete package audit pass.
+
+AC1/AC2 and the narrow changed-verifier controls have evidence. AC3's complete
+native package/security acceptance remains pending coordinator-owned fresh
+common-source production after BPR-1655; its packaging change intentionally
+makes old-source build-drift checks refuse. Administrative card closeout follows
+actual final artifact/download verification, without moving the publishing
+source after freeze. The old seven b914 assets and both failed audit attempts
+remain immutable. The Windows operator reference now exposes the specimen
+option and its refusal/provenance boundary under explicit coordinator ownership.
