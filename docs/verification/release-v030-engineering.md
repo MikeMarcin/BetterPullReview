@@ -1,5 +1,127 @@
 # v0.3.0 release engineering
 
+## Published coordinated 0.3.0 — final dd6 acceptance, 2026-10-19
+
+The coordinator published [private stable v0.3.0](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.0)
+as Latest with 28 assets: eight macOS, seven Windows and thirteen Ubuntu.
+The annotated tag and all three producers bind
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`. Later audit-tool and documentation
+commits are separate from that immutable release source; no tag, payload or
+corresponding-source archive is regenerated for administrative closeout.
+The canonical notes match the actual published body, SHA-256
+`bc67072ae5e3b942552733f64cbd29ac66eee5fc6152ae3fcb1b908cddbac107`.
+The owner requested clearer downloads: the body leads with three installer links
+and collapses the explanation of supporting assets.
+
+All 28 actual downloaded files match final producer hashes and the exact upload
+inventory. The coordinator's `resumed-after-rss-exception/postdownload-complete-dd6.json`
+binds downloaded macOS's thirteen zero-exit checks (including actual package/
+security audits and current DMG trust), five Windows native publisher/chain/
+timestamp checks, and six Ubuntu signatures verified in an isolated public-only
+keyring. The three retained source ZIPs equal those downloads and remain mode
+0444. No application is launched or installed by these download checks.
+This administrative closeout changes no product, build, runtime or package bytes.
+
+For [BPR-1654](../issues/60-done/BPR-1654-bind-discarded-sdk-import-metadata-in-pe-release-audit.md)
+and [BPR-1655](../issues/60-done/BPR-1655-bind-deployed-qt-module-spdx-in-release-audit.md)
+the final Windows public package/security audits pass on the newly
+produced dd6 MSI/runtime, with all 29 runtime-file hashes, 21 PE images and five
+publisher/timestamp checks bound to the actual bytes. The reviewed SDK specimen
+remains metadata-class evidence; actual historical LINK selection is not known.
+The final QtBase/Svg/WebP producer closure is exact; old b914/DFB artifacts,
+missing-metadata failures and old-source drift refusals are retained.
+
+For [BPR-1656](../issues/60-done/BPR-1656-ship-a-standalone-xdiff-recipient-rebuild-recipe.md),
+the actual source assets bind the six shipped xdiff helpers and selected
+component to the retained native Mac, Windows and Ubuntu archive-only rebuild,
+export, original/modified consumer and refusal courses. Of nine global recipe
+inputs, seven remain equal and two Linux packaging inputs changed for ICU;
+all-nine raw-input equality is not claimed. These are component build/relink
+observations, not complete application replacement or native-desktop courses.
+Final source/offers/notices/provenance/SPDX and public audits pass. Mac/Windows
+source ZIPs retain their earlier exact bytes; Ubuntu adds pinned ICU73.2 source,
+its hardened private trio and recipient helper/instructions.
+
+The original Linux audit failed on twelve stripped upstream Qt regular symbol
+tables. BPR-1658's independently accepted read-only correction is implementation
+commit `7301ff8eb4ce63d1a64488e4d848c7153bb627f9`, verifier SHA-256
+`2a12927c1d0d5eb1c41ab5f810499bb26b9d172f4028915c0cd1e53cf0553bcd`.
+Commit `08ef5763d24d38d3c85e903141d140c9ab2fe959` records card/plan completion;
+it does not contain that implementation. The corrected four actual Ubuntu
+package/security calls pass for both expanded roots, with 472 first-party
+compile units, 19 ELF images and twelve exact upstream Qt bindings each.
+Full first-party symbols/anchors, bytes, fixture/dependency checks and all ELF
+hardening predicates remain. Native changed-Qt, unowned-stripped and
+stripped-first-party controls refuse. All thirteen Ubuntu release files remain
+unchanged. Main integrated this audit-only branch after download verification.
+
+macOS r10's current producer/native evidence passes. Three older wrapper DMG
+rows referenced the prior producer directory and are stale for r10; the actual
+r10 producer log and the explicit current-DMG codesign/stapler/Gatekeeper
+supplement supply that evidence, all three exit zero. The old thirteen wrapper
+rows are not all relabelled current. Windows independently verifies five native
+signatures/timestamps; Ubuntu verifies six detached signatures in a public-only
+keyring, tamper refusal and all 27 runtime entries' DEB/archive equality.
+The PC final handoff SHA-256 is
+`70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea`.
+
+The designated independent technical reviewer `/root/release_security_dd6`
+accepted bounded factual applicability and native predicate evidence. Its
+coordinator-adopted response retains 97 raw Grype matches
+(33 macOS, 31 Windows, 33 Ubuntu) and 44/36/56 coverage flags. Exact
+source/configuration/caller factual dispositions expire 2026-11-18, or earlier
+on source, dependency, compiler, recipe, configuration, caller, runtime, SPDX,
+advisory or feed change. No applicable-risk or unknown-coverage waiver is
+supplied. Raw findings and prior failures remain retained; no user-added
+suppressions exist and the four inapplicable built-in Grype defaults are recorded. The current ICU genrb
+finding is scoped to the absent runtime command-line tool and actual Qt caller
+surface; the source ZIP still contains unpatched genrb. There is no generic ICU
+safety or complete vulnerability-coverage claim.
+
+Human material acceptance is exact and separate. Current Ubuntu candidate
+`v030-dd6-linux-distribution-material-v001` was accepted in session
+`5ccca36b4b292dc93c0c56a65bd62290`, consumed hand-back cursor 5, decision
+`c8d8112a-b9c2-442b-bdbc-9e7310a61a73`; all 35 packet records were rehashed.
+Mac/Windows reuse decisions `6bbe3656-a7b5-4130-b868-8f27b9a3b360` and
+`d61d4299-19e2-43e6-ac17-771eb5d1df44` only for independently verified unchanged
+inventory/source-ZIP/build material; installed notices/offers changed solely
+in common-source revision identity. These create no new human legal, native,
+security-risk or publication approval.
+
+The three source ZIPs are retained read-only under
+`/Users/jaeger/Documents/Codex/releases/v0.3.0-dd6d3cec-corresponding-source`:
+
+| Platform | Exact source ZIP SHA-256 |
+|---|---|
+| macOS | `c25f50e9ad273974ec966166a4edacf3571695d3723ed8c576a4ff19749cd407` |
+| Windows | `f5629e19b71c15184da469cb7f550482914c7ac6721972cbbf80b61411491255` |
+| Ubuntu | `4f2f01310271ae8ec25a282935e81f83cc13ab04fc99f91b2479c9b199b63b24` |
+
+Equivalent exact source remains available at no additional charge through the
+original private distribution channel, including loss of repository access and
+corporate/offline redistribution. Retention remains indefinite until the owner
+documents that all applicable obligations ended, and never ends while matching
+binaries are distributed. These are ongoing fulfillment obligations.
+
+The owner's only v0.3.0 test exception is BPR-1653's original 216 MiB Ubuntu RSS
+failure. It remains FAIL, the separate 64 MiB cache bound passes, and the card
+stays In Progress for a justified causal repair and unchanged optimized-course
+pass in a follow-up patch. No full suites were rerun under the owner's explicit
+instruction: all 1963 execution-input hashes independently match committed dd6.
+The four actual authorized macOS menu/notification/shortcut courses pass; the
+source-compatible focused optimized history course passes unchanged budgets,
+while the original timing-miss cause remains unproved. No fresh complete
+811-row normal run is claimed.
+
+RFC-BPR-0038 remains Proposed. M8/M9 clean accounts, product authentication and
+vaults, native Intel, full Windows/Ubuntu desktops, accessibility, upgrade and
+removal, resident-material crash/privacy, external hardening and complete
+vulnerability/fuzz coverage remain open. WSL production is not clean Ubuntu
+desktop/Secret Service acceptance; profile purge excludes shared updater and
+registry state and is not uninstall. Existing broader follow-ups stay open.
+Historical entries below retain their original candidates and pending states;
+this section records the current release's bounded acceptance.
+
 ## Assignment and source
 
 Mandate `release-v030-coordinated-r1` requests full coordinated stable 0.3.0

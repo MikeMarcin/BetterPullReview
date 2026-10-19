@@ -1,5 +1,34 @@
 # RFC-BPR-0038 qualification ledger
 
+## Coordinated private stable 0.3.0 published, 2026-10-19
+
+[Private stable v0.3.0](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.0)
+is Latest with 28 assets at immutable source/tag
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`. The
+[release engineering ledger](release-v030-engineering.md#published-coordinated-030--final-dd6-acceptance-2026-10-19)
+records exact artifact/download/native checks, source fulfillment and separate
+audit-tool integration. BPR-1654–1656 final package/source-material criteria
+are reconciled there; the historical failed artifacts remain unchanged.
+
+Independent factual applicability decisions retain all 97 raw findings
+(33/31/33) and coverage flags (44/36/56); expiry is 2026-11-18 or a named
+input/advisory/feed change. No applicable-risk or unknown-coverage waiver is
+invented. Current Ubuntu material has its own human acceptance; Mac/Windows
+reuse only independently verified unchanged approved material. Equivalent
+no-extra-charge source access and immutable indefinite retention remain ongoing.
+
+The owner accepts only BPR-1653's original failed Ubuntu 216 MiB RSS predicate
+as a v0.3.0 exception, with causal correction and an unchanged-course pass due
+in a follow-up patch. The 64 MiB cache bound passes; BPR-1653 stays In Progress.
+No full suite is rerun: 1963 execution-input hashes match dd6. Four authorized
+macOS focused native courses pass, without claiming a fresh complete normal run.
+
+This publication does not close RFC-BPR-0038 or its broader M8/M9 clean-account,
+authentication/vault, Intel, Windows/Ubuntu desktop, accessibility, upgrade/
+removal, resident-material crash/privacy, external-hardening or complete
+vulnerability/fuzz qualification. BPR-0958–0962 and BPR-0973 remain open.
+The historical sections below retain their original evidence and limits.
+
 ## Coordinated stable 0.3.0 source preparation, 2026-10-18
 
 The owner selected full macOS, Windows x64 and Ubuntu 26.04 packages at stable

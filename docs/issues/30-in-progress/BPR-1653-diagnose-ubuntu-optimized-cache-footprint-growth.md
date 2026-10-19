@@ -223,3 +223,34 @@ experiments. This continuation changes only the card and release ledger;
 the original acceptance criteria remain intact and the strict gate stays
 failed. No new runtime/input change is justified before coordinator-owned
 candidate reproduction. The card remains In Progress.
+
+
+## Owner amendment 2026-10-19 — v0.3.0 exception and patch follow-up
+
+The owner directed: “waive the ubuntu test for now and fix it in a follow up
+patch build”. The coordinator recorded this as
+`v030-ubuntu-rss-owner-exception-20261019`, initially against source
+`591aabf60cdbd45d9bf50a714a263a2954a39c2e`. The final release source is
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`: BPR-1657 changes packaging/source
+material only, and the coordinator independently rehashed all 1963 committed
+execution inputs without a mismatch. The original failed course remains the
+relevant observation; no fresh full suite was run under the owner's explicit
+instruction.
+
+The exception applies only to the unchanged 216 MiB process RSS-growth
+predicate of the optimized Ubuntu `application_large_review_cache_bytes`
+course for v0.3.0. Its observed result remains **FAIL**; the separate 64 MiB
+cache bound passes. This card stays **In Progress**, with original AC1–AC4,
+the sample series, rejected controls, R18 ownership falsification and exact
+source/binary restoration preserved. No causal repair, new leak, metric defect
+or allocator cause is established.
+
+The follow-up patch must establish a justified causal correction and pass the
+unchanged original optimized native course on its exact committed candidate.
+It requires a new engineering lease, explicit input-impact review, focused
+verification and reproduction of affected packages. The v0.3.0 source, tag and
+assets remain immutable. This is no other test, native, signing, vault,
+privacy, security, source/licence or publication waiver and does not close
+RFC-BPR-0038. The intake and final unchanged-input adoption remain under
+`.mask/sessions/release-v0.3.0/ubuntu-rss-owner-exception-591.json` and
+`resumed-after-rss-exception/icu-execution-input-root-adoption.json`.
