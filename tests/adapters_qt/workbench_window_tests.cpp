@@ -18703,8 +18703,18 @@ namespace {
 		for (const auto& size : { page->size(), page->minimumSize() }) {
 			page->resize(size);
 			process_events();
-			auto* const list = page->list();
-			expect(list->columnWidth(0) > list->fontMetrics().horizontalAdvance(QStringLiteral("Previous file")) && list->columnWidth(0) + list->columnWidth(1) <= list->viewport()->width() + 1,
+			auto* const list       = page->list();
+			const auto  titleFloor = list->fontMetrics().horizontalAdvance(QStringLiteral("Previous file"));
+			const auto  fits       = list->columnWidth(0) > titleFloor && list->columnWidth(0) + list->columnWidth(1) <= list->viewport()->width() + 1;
+			if (!fits) {
+				std::cerr << "shortcut-geometry size=" << page->width() << ',' << page->height()
+						  << " minimum=" << page->minimumWidth() << ',' << page->minimumHeight()
+						  << " title_column=" << list->columnWidth(0) << " title_floor=" << titleFloor
+						  << " key_column=" << list->columnWidth(1) << " viewport=" << list->viewport()->width()
+						  << " dpr=" << page->devicePixelRatioF()
+						  << " font=" << list->font().family().toStdString() << " point_size=" << list->font().pointSizeF() << '\n';
+			}
+			expect(fits,
 				   "titles keep room beside the keys, and nothing runs off the side");
 			const auto* const row  = row_of(*page, qt::shortcut_command::delete_cache);
 			const auto        hint = list->itemDelegate()->sizeHint(QStyleOptionViewItem{ }, list->indexFromItem(row, 1));

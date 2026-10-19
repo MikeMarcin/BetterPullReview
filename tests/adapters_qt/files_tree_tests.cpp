@@ -902,8 +902,19 @@ namespace {
 				if (!folder.data(qt::overview_file_model::folder_role).toBool()) {
 					continue;
 				}
-				const auto cell = files->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
-				expect(ink_in(overviewImage, cell, folderInk) > 8 && ink_in(overviewImage, cell, fileInk) == 0,
+				const auto cell         = files->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
+				const auto folderPixels = ink_in(overviewImage, cell, folderInk);
+				const auto filePixels   = ink_in(overviewImage, cell, fileInk);
+				if (folderPixels <= 8 || filePixels != 0) {
+					std::cerr << "folder-ink mode=" << static_cast<int>(mode)
+							  << " path=" << folder.siblingAtColumn(qt::overview_file_model::file_column).data().toString().toStdString()
+							  << " folder_pixels=" << folderPixels << " file_pixels=" << filePixels
+							  << " cell=" << cell.x() << ',' << cell.y() << ',' << cell.width() << ',' << cell.height()
+							  << " dpr=" << overviewImage.devicePixelRatio()
+							  << " font=" << files->font().family().toStdString() << " point_size=" << files->font().pointSizeF()
+							  << " folder_colour=" << folderInk.name().toStdString() << " file_colour=" << fileInk.name().toStdString() << '\n';
+				}
+				expect(folderPixels > 8 && filePixels == 0,
 					   "Overview's folder path is drawn in the same folder ink");
 				++overviewRows;
 			}
