@@ -20,8 +20,13 @@ The v0.3.0 macOS normal gate at `f6ba8f43e4477f60941dd24cdac4450ca68de911` fails
 - AC2: Run the focused fixture-security contract and a negative control that adds a forbidden field to the Insights fixture in a disposable copy and observes rejection. Preserve the exact-tree requirement, security policy, fixture bytes and test skips.
 - AC3: Pass documentation verification and diff checks, self-review and commit explicit paths, and hand the candidate plus focused evidence to the coordinator for matching native reruns.
 
+The coordinator also authorized a bounded documentation correction after the
+gate exposed a stale direct-fuzz recipe. The release policy must name the
+current diagnostic parser and production SHA-256 composition, preserve all
+existing fuzz limits and leave the actual sanitizer runs with the coordinator.
+
 ## Boundaries
 
-This card repairs a fixture-security test inventory. Product behavior, dependencies, signing and credential handling are unchanged. The coordinator owns native producers, deployment of locked MASK skills in their clean checkouts, full release gates, signing, packaging and publication. Missing `board_model` or installed skill scripts in an unregistered producer is an environment prerequisite, not a validator exception. RFC0038 qualification gaps and all raw native gate failures remain explicit.
+This card repairs a fixture-security test inventory and the stale source references in the release policy's existing fuzz recipe. Product behavior, dependencies, signing and credential handling are unchanged. The coordinator owns native producers, deployment of locked MASK skills in their clean checkouts, full release gates, signing, packaging and publication. Missing `board_model` or installed skill scripts in an unregistered producer is an environment prerequisite, not a validator exception. RFC0038 qualification gaps and all raw native gate failures remain explicit.
 
 The [release engineering ledger](../../verification/release-v030-engineering.md) records the result. The ignored durable repair return is `.mask/sessions/release-v0.3.0/repair-handoff.json`.

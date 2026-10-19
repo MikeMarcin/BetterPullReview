@@ -26,7 +26,7 @@
         "A focused negative control proves that a forbidden field in the Insights fixture is rejected; no validator policy, fixture bytes or test skip is relaxed.",
         "Focused fixture-security and documentation checks pass; the bounded diff is self-reviewed and committed, with native reruns and unrelated release qualification retained as coordinator obligations."
       ],
-      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep only. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes."
+      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes."
     }
   ],
   "coverage": "complete",

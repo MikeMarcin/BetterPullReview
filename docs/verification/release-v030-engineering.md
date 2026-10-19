@@ -10,7 +10,7 @@ the committed delta from v0.2.2. [BPR-1623](../issues/60-done/BPR-1623-prepare-c
 owns version, notes and exact-source readiness under the
 [engineering plan](../rfcs/plans/release-v030-engineering/milestone-plan.json).
 
-The sole engineering owner is `/root/release_engineering`. The coordinator
+The source-preparation engineering owner was `/root/release_engineering`. The coordinator
 owns native producer dispatch, normal native gates, packaging, signing and
 publication. No full build/test command or remote production is part of this
 source-preparation card. Later gate repairs require an explicit bounded
@@ -55,3 +55,36 @@ notes against the committed v0.2.2 delta and completed cards; the sole build
 change is the project version. No native gate, new configured skip, package,
 signature or publication result is claimed. Both documentation commands finished;
 there are no task-owned background commands or review server.
+
+## Bounded gate repairs
+
+The coordinator assigned `/root/release_repairs` the release prerequisite and
+gate repair milestone while normal native gates retain frozen source
+`f6ba8f43e4477f60941dd24cdac4450ca68de911`.
+[BPR-1624](../issues/30-in-progress/BPR-1624-validate-insights-budget-fixture-security.md)
+repairs the fixture-security gate's missing `insights-budget-v1` entry under
+the [repair plan](../rfcs/plans/release-v030-repairs/milestone-plan.json).
+Its manifest and ten responses are the committed `overview-labels-v1`
+recording copied by `build_insights_budget_fixture.py`; the exact synthetic
+identity and populated thread/review/comment shapes now traverse all existing
+manifest, byte, decoded-JSON and field/artifact checks. No fixture byte,
+security validator, inventory assertion or skip changes.
+
+The focused fixture-security script reproduced the eleven-file inventory
+failure before the repair, then passed all 18 tests. In a disposable copy,
+adding an `environment` field to the Insights viewer response fails its
+field/artifact test while the raw-byte scan still passes; a separate synthetic
+forbidden-byte canary fails its per-file byte check. Both controls reject the
+changed Insights response and the disposable tree is removed.
+
+The coordinator also authorized correcting the release policy's stale direct
+fuzz source references. It now names the diagnostic parser and the production
+SHA-256 stream/backend plus pinned HACL* composition. Iteration count, seed,
+input sizes, timeout and sanitizer requirements are unchanged. Actual sanitizer
+builds/runs and matching native gate reruns remain coordinator work. These
+test/documentation repairs have no product architecture or runtime behavior
+impact and supply no additional RFC0038 qualification or release approval.
+The documentation gate reports `DOCUMENTATION_OK`, all 67 documentation tests
+pass, and `git diff --check` passes. Self-review confirms the only executable
+change is the fixture table entry; existing validators and their assertions
+are intact.

@@ -76,7 +76,14 @@ evidence may be reused only with its original scope and identity.
   ASan and UBSan, no sanitizer recovery and frame pointers. The maintenance
   harness links `src/core/src/release_maintenance.cpp`; the diagnostic harness
   links `src/application/src/release_diagnostic_snapshot.cpp` and
-  `src/core/src/sha256.cpp`, with core/application include roots. Run each with
+  `src/core/src/review_submission_unknown.cpp`, with core/application include
+  roots. Its digest uses the production SHA-256 composition from
+  `src/core/CMakeLists.txt`: `sha256_hacl.cpp`, the selected platform backend
+  (`sha256_commoncrypto.cpp` on macOS), and the pinned HACL* SHA-2 dependency
+  with the include/link inputs declared by `cmake/BprHaclSha2Provider.cmake`.
+  Preserve those inputs when compiling the harness directly; one backend file
+  alone does not provide the public hash implementation or its fallback.
+  Record which dependency code the sanitizers instrument. Run each with
   at least 100,000 iterations, seed 140962, five-second input timeout, maximum
   input sizes 256 and 16384 respectively. Retain compiler/version, flags,
   sanitizer failures, final statistics and reproducer hashes. Any crash,

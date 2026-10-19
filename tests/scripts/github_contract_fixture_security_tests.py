@@ -230,6 +230,19 @@ FIXTURES = {
             "ListIssueComments": "synthetic",
         },
     },
+    # [[BPR-1624]]. overview-labels-v1's recording, copied by
+    # scripts/build_insights_budget_fixture.py; the composition seeds Insights
+    # history separately through its storage port.
+    "insights-budget-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "nested-folders", 21),
+        "mirrors": None,
+        "response_fields": {
+            "ListReviewThreads": "synthetic",
+            "ListReviews": "synthetic",
+            "ListIssueComments": "synthetic",
+        },
+    },
     # [[BPR-1589]]. overview-labels-v1 as a reviewer with thirteen check runs,
     # written by scripts/build_status_attention_fixture.py.
     "status-attention-v1": {
