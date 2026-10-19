@@ -388,10 +388,15 @@ namespace {
 			if (::lstat(path.c_str(), &status) != 0) {
 				continue;
 			}
+	#if defined(__APPLE__)
+			const auto modified = status.st_mtimespec;
+	#else
+			const auto modified = status.st_mtim;
+	#endif
 			auto entry = snapshot_entry{ .Type     = static_cast<int>(status.st_mode & S_IFMT),
 										 .Size     = static_cast<std::uint64_t>(status.st_size),
 										 .Mode     = static_cast<std::uint32_t>(status.st_mode),
-										 .Modified = (static_cast<std::int64_t>(status.st_mtimespec.tv_sec) * 1'000'000'000) + status.st_mtimespec.tv_nsec };
+										 .Modified = (static_cast<std::int64_t>(modified.tv_sec) * 1'000'000'000) + modified.tv_nsec };
 			if (S_ISREG(status.st_mode)) {
 				entry.Bytes = read_file(path);
 			} else if (S_ISLNK(status.st_mode)) {
