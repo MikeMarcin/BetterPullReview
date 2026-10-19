@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1623"
+  ],
+  "reserve_for": "release-v030-engineering",
+  "purpose": "Prepare coordinated v0.3.0 source and repair native release gates",
+  "created": "2026-10-19T03:37:54.543629+00:00",
+  "base": "a426db419d393895020ab961509df46aba94ee46"
+}

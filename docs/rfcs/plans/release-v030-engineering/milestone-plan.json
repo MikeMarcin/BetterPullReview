@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v030-engineering",
+  "scope": {"issues": ["BPR-1623"]},
+  "milestones": [
+    {
+      "id": "release-source",
+      "outcome": "One committed v0.3.0 source and grounded user-facing notes are ready for the coordinator's macOS, Windows and Ubuntu 26.04 native release gates.",
+      "work": [{"issue": "BPR-1623", "criteria": ["AC1", "AC2", "AC3"]}],
+      "depends_on": [],
+      "exit_criteria": [
+        "The project and notes name stable version 0.3.0 and the full coordinated platform set, with changes grounded in the v0.2.2-to-candidate delta.",
+        "Historical decisions, configured skips and remaining RFC0038 qualification and distribution obligations remain explicit.",
+        "Documentation checks and source self-review pass; the exact clean committed source and quiescent engineering ownership are handed to the coordinator."
+      ],
+      "boundary": "Source preparation and explicit tracker/ledger upkeep on main; native producer dispatch, full release gates, signing, packaging and publication belong to the coordinator. Later coordinator-scoped gate repairs retain this engineering owner and require bounded acceptance."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
