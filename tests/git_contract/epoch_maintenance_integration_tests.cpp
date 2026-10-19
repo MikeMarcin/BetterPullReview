@@ -584,6 +584,8 @@ namespace {
 										 std::filesystem::perm_options::replace);
 			// Mode 0700 is what POSIX understands; the catalog's own
 			// definition of a private root is what Windows needs (BPR-0436).
+			require(sqlite_adapter::make_storage_root_owner_private(Path / "git"),
+					"narrow the Git root to owner-private");
 			require(sqlite_adapter::make_storage_root_owner_private(Path / "catalog"),
 					"narrow the catalog root to owner-private");
 			Path = std::filesystem::canonical(Path);
