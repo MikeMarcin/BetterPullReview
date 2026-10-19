@@ -6,14 +6,17 @@ Mandate `insights-window-v1-r1`. Immutable RFC_BASE_SHA:
 The authored plan’s first milestone is `window-and-storage` (BPR-1606 and
 BPR-1607). Its corrected shell has explicit owner acceptance, and its storage
 and public-path obligations have passing evidence.
-No later milestone or full-RFC acceptance is claimed.
+The GitHub budget milestone now has passing automated evidence; its required
+owner chart judgment remains pending. No full-RFC acceptance is claimed.
 
 | Criterion | Evidence and current result |
 |---|---|
 | AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
 | AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
-| AC02–04, AC06–10, AC12 | Pending their authored milestones. |
+| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. Required comparison with AllTheThings remains pending. |
+| AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
+| AC06–10, AC12 | Pending their authored milestones. |
 
 ## Engineering review
 
@@ -221,3 +224,86 @@ The documentation gate passes. Existing accepted shell/storage evidence is reuse
 Energy chart source are the chart references; the current plan is recorded in
 the continuation. No owner's desktop or browser data was read. All future
 milestones, native platform qualification and human chart acceptance remain open.
+
+
+## GitHub charts candidate and integration
+
+Chart source `07561c349` completes BPR-1609's unattended portion. The shared
+Qt component renders independent event and quantity lanes, a foreground/background
+stack, maximum labels, gaps, reset rules, midpoint-based hover and an inset
+edge-flipped hover card. It accepts a capacity/reference and supplies a plain
+accessible description. The GitHub page projects the local 1h/1d snapshot and
+bounded category, process/failure and secondary-limit facts. Summary paints the
+three-part Core allocation and the real 24h Problems count. Theme changes use
+the profile's accepted/unread color roles. The accepted 900 × 542 shell remains.
+
+`frontend-design` was loaded before UI work, at the path above. The exact supplied
+HTML and the AllTheThings `InsightsEnergyChartView.swift` source were read.
+Light/Dark offscreen Summary and both GitHub ranges were inspected. The first
+chart render exposed overlapping lane labels and a sparse day series; separate
+label/plot bands and a real five-minute fixture series corrected them. A focused
+code-simplifier pass split the window projection into named update helpers.
+No owner desktop, browser profile or other personal application data was read.
+
+The committed `insights-budget-v1` fixture seeds the real SQLite port with own
+requests, a lower shared remaining value, GraphQL and Search readings, history
+gaps/reset boundaries, process failures and Problems. Its public course proves
+412 own + 1240 other + 3348 remaining, observes normal connection requests, and
+proves that repeated refresh, tabs and ranges issue no provider/process effect.
+It also checks fixed/clamped geometry, stack pixels and a negative control,
+hover midpoints and both edges, range clearing, export/manage, hidden timers and
+shutdown. Polished public/render run: pass in 3.25 seconds. Rasters and raw logs
+are retained in `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m`.
+
+The final focused integration on these source changes passes **8/8 in 30.87
+seconds**: architecture, network-isolation manifest, core, host, SQLite, native
+HTTPS response metadata, composition contract and the public Insights path.
+LLVM/clang-format 22 and tidy pass the six new/changed implementation units;
+tidy's single missing-reserve finding was corrected. The core-only Insights
+course passes. Tests-disabled production composition syntax passes. Existing
+passing real-gh terminal, supervision, retention/restart and transport evidence
+above is reused. The native header course now also proves that a response tuple
+for another resource is ignored while the actual request still counts.
+
+The full application and production-manifest composition seals were reviewed
+and renewed for passive recorder attachment, retained wrapper channels and theme
+projection. Production mutation-branch seal remains unchanged. No publication,
+credential or executor authority was added.
+
+Primary main advanced through completed BPR-1617 while this candidate was being
+prepared. Its committed allocation/card/receipt were first adopted together as
+`82c02cd36`/`43ec9904a`, resolving the documentation historical high-water gate.
+After its clean `85d6ed329` handoff confirmed every command/writer finished,
+merge `5fd9c69d5` preserved the completed platform-crypto source and tracker.
+The sole conflict adopted its exact amended plan; `8cc173dfd` removes only the
+superseded adopted In Progress card beside the authoritative Done card.
+The documentation gate passes. The combined public targets rebuild, and
+architecture, composition and Insights public checks pass **3/3 in 27.22
+seconds**. No primary checkout was mutated. The Qt, app, GitHub observation
+and public Insights source are unchanged by this merge.
+
+The attended continuation binds the self-contained frozen candidate, launcher
+check, exact executable, ready public material, short session and one pending
+Accept/Reject criterion. Automated or offscreen results do not substitute for
+that owner comparison. Calendar and later Reviews/Energy/Work implementations,
+Windows/Linux native qualification, full export privacy and idle-hour acceptance
+remain with their authored successors.
+
+
+The exact frozen candidate `43ec9904a` passes its own launcher check and the
+registered network-denying public course from writable evidence. Source/build
+are self-contained and read-only. Frozen Light 1h and Dark 1d rasters were
+inspected. Executable SHA-256 is
+`382d667aec42d96b1b65c8e596187428264634628177787350b00ab3e26b04a0`.
+Session `12f141ab8f2268fd7a22c6973bfd0921` is ready and protected at consumed
+preparation cursor4, candidate `BPR-1609-insights-github-v001`, fingerprint
+`3d608c3246f118f3937254653d3603021f4d03e80cead3f5f024ee4d1623c656`.
+BPR-1609 is human-pending; no owner verdict is inferred. Its single required
+Accept/Reject is the AllTheThings chart comparison. The continuation records the
+manual resume path, external URL/state and retained server identity.
+
+Primary main is now an active BPR-1618 writer. Only its authoritative committed
+allocation/card/receipt/claim were adopted (`2ef366b6e`/`25fec4e97`) to preserve
+counter validity. No RE2 source or primary checkout was touched. Main delivery
+remains a later guarded integration step; the already-tested completed-main
+merge and exact frozen chart candidate remain unchanged.

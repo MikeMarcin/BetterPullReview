@@ -1,49 +1,120 @@
 # Insights window continuation
 
-Mandate `insights-window-v1-r1`; current assignment **github-budget**, BPR-1608
-and BPR-1609, owner `/root/insights_github_budget`, coordinator-implementer r2.
-The accepted first milestone and its exact owner verdict remain below.
+Mandate `insights-window-v1-r1`; assignment **github-budget**, BPR-1608/BPR-1609,
+owner `/root/insights_github_budget`, coordinator-implementer recipe r2.
+RFC_BASE_SHA remains `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
+The first milestone's accepted record and original rejection remain below.
 
-## Current engineering frontier
+## Current milestone result
 
-- Branch/source/tracker: `codex/insights-window-v1`,
-  `/Users/jaeger/.codex/worktrees/3996/BetterPullReview`.
-- Adopted at `55ea64194211eb42194d6dd9fc3e7ae11c9aefa4`; RFC_BASE_SHA and
-  mandate remain unchanged. BPR-1608 promoted `fb0bc8cab`, claimed `c87c604862`.
-- Accounting source `1c8bded96`: pure numeric per-account budget/history,
-  nonblocking host intake, SQLite schema 2, passive native and gh observation,
-  process/supervision facts and Problems tallies independent of diagnostics.
-- The native loopback, gh transport, core, SQLite and public courses pass;
-  exact formatted rebuild passes. The process course observes each required
-  failure, quarantine and abandonment. The native course verifies actual hops,
-  headerless responses and preflight refusal. Initial added assertion wrongly
-  expected a rate tuple on the deliberately headerless GHES success course;
-  corrected to test absence there and the tuple on response-metadata.
-- The architecture guard initially refused the added passive callbacks because
-  it pins the exact quarantine/reap sequence. Its exact patterns and matching
-  negative-control anchors now include those callbacks while retaining ordering.
-  Its focused negative control passes; the production scan passes in 15.54 s.
-- Follow-up correction preserves the channel through the anonymous wrapper,
-  includes capability fixture facts and global profile gh discovery processes,
-  and keeps process costs across account partitions. Correction source `7fdcc9cd1`; focused build and three affected courses pass (12.01 s).
-- Runtime binding and logs:
-  `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m`.
-- No chart acceptance or new attended candidate yet. BPR-1608 has passing acceptance and is being finished; a shared chart draft is in task-owned temporary
-  files outside the checkout. Nothing from a future milestone is claimed.
+BPR-1608 is Done. BPR-1609 has passing unattended evidence and is parked for its
+one required owner chart comparison. **github-budget is human-pending**, not
+accepted. No successor is claimed; Reviews/Energy/Work remain ineligible until
+this milestone is accepted. RFC-BPR-0086 stays In Progress.
 
-The UI plan loads `frontend-design` at the required installed path, preserves
-900 × 542 and the accepted compact shell, and follows the supplied HTML's
-budget/tiles and paired facts. Native profile surface, text, muted text,
-accepted-state and unread-state roles form its palette; native UI typography
-provides the type scale. Two narrow area lanes separate request rate from Core
-remaining, with maxima, gaps, reset rules and a bounded hover card. The shared
-component also supports the later foreground/background stack. Calendar remains
-with its authored successor. No extra motion or decorative page structure.
+Source/tracker root `/Users/jaeger/.codex/worktrees/3996/BetterPullReview`, branch
+`codex/insights-window-v1`, adopted at `55ea64194211eb42194d6dd9fc3e7ae11c9aefa4`.
+Accounting source `1c8bded96`, correction `7fdcc9cd1`, BPR-1608 finish `f162b0f78`.
+Chart claim `426b3cec5`; complete chart source **`07561c349`**. It also retains
+actual request counts while ignoring a tuple for another resource. Policy and
+host remain passive numeric projections; refresh reaches only local storage.
+The accepted 900 × 542 shell is preserved. The shared chart supplies separate
+lanes/maxima, a stack, gaps/reset rules, midpoint hover, edge flipping, profile
+roles and accessible descriptions. Calendar remains explicitly assigned to the
+later Reviews/Energy milestone by BPR-1609.
 
-All commands are task-owned; no delegation, desktop access, browser-profile
-access, live GitHub mutation, push, stash or recurring waiter. Finish current
-build/test handles before handoff. Next: claim BPR-1609, integrate charts and run the affected public/render checks;
-freeze a self-contained candidate and prepare one fresh short attended session.
+`frontend-design` was read before UI work at
+`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
+The exact supplied HTML and AllTheThings' Energy chart source were read.
+Code-simplifier split the window projection into named update helpers.
+Offscreen renders alone supply no owner/native acceptance.
+
+## Exact attended handoff
+
+- Fresh state: `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-github-v001-20261018`.
+- Registry: `/Users/jaeger/.mask/attended-review-resources`.
+- Session: **`12f141ab8f2268fd7a22c6973bfd0921`**. Consumed preparation cursor **4**.
+- Candidate `BPR-1609-insights-github-v001`, revision `43ec9904a-v001`.
+- Fingerprint `3d608c3246f118f3937254653d3603021f4d03e80cead3f5f024ee4d1623c656`.
+- One Accept/Reject criterion: charts and hover meet the specified AllTheThings
+  Energy behavior, including deliberate maximum labels and gaps. No verdict
+  has been consumed. Any later owner event belongs to the next engineering round.
+- Candidate is ready and protected, with three inline frozen-build images and
+  an absolute launch command. Local host is HTTP 200 on `127.0.0.1:57822`.
+  Its complete token-bearing URL is kept only in external
+  `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m/review-handoff.json`.
+- Foreground server PID **85877**, tool command session **44967**. This is the
+  only command intentionally left running. No waiter, daemon or automation.
+- Manual continuation: decisions save immediately; automatic continuation is
+  unavailable. After **Finish and hand back**, send **Resume the attended review**
+  in the same chat. Read this exact state with `status --after 4`, verify session
+  and fingerprint, record the consumed cursor, then interpret the verdict in a
+  fresh engineering round. Preserve protection until explicit scoped release.
+- Offline fallback:
+  `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m/review.html`.
+  Offline decisions require importing the exported JSON before they count.
+
+## Frozen candidate and evidence
+
+Exact source **`43ec9904a1a688bf9fd4472e113ec29b17b07b04`**, root
+`/Users/jaeger/bpr-insights-github-v001.qt470q4v`. Source and build live inside
+that root; source/build are read-only. Committed `insights-budget-v1` and
+`nested-folders-v1` fixture trees are present. Freeze and its own launcher
+`--check` passed `ATTENDED_PULL_REQUEST_OPENED`.
+Executable SHA-256:
+`382d667aec42d96b1b65c8e596187428264634628177787350b00ab3e26b04a0`.
+Launch:
+`/opt/homebrew/opt/python@3.14/bin/python3.14 /Users/jaeger/bpr-insights-github-v001.qt470q4v/launch.py`.
+
+The exact frozen public executable passes through its registered network-denying
+wrapper from writable evidence. Summary and both GitHub ranges render in
+Light/Dark; frozen 1h Light and 1d Dark were inspected. The public course checks
+seeded split 412/1240/3348, normal fixture requests, no-effect refresh/tabs/ranges,
+stack pixels plus a negative control, hover midpoints/edges, fixed/clamped shell,
+export/manage, hidden timers and shutdown. No CTest write was attempted inside
+the read-only tree.
+
+Final focused integration: **8/8 pass in 30.87 s**, architecture/isolation,
+core/host/SQLite, native response metadata, composition contract and public UI.
+Real gh failure/supervision and retention/restart evidence is reused unchanged.
+LLVM/format 22 and six implementation-unit tidy checks pass; core-only Insights
+and tests-disabled production composition syntax pass. Initial native assertion
+mistook a deliberately headerless GHES response for a tuple-bearing response;
+that assertion was corrected. Exact supervision-guard patterns and their
+negative control preserve original ordering. The public render's initial label
+collision and sparse day series were corrected before freezing.
+
+Runtime root:
+`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-r1-1f3d_z7m`.
+It holds acceptance, logs, frozen-public command/renders, source equivalence,
+review manifest/handoff and the renewed milestone checkpoint/observation/check.
+[Verification ledger](../../../verification/RFC-BPR-0086.md) and
+[changed paths](changed-paths.txt) preserve the detailed evidence.
+
+## Writer reconciliation and integration frontier
+
+The authoritative BPR-1617 allocation/card/receipt and claim were adopted
+`82c02cd36`/`43ec9904a`, resolving the historical high-water gate. Once its clean
+`85d6ed329` handoff confirmed source and commands finished, merge `5fd9c69d5`
+preserved all completed platform-crypto work. The only conflict adopted its exact
+amended authored plan. `8cc173dfd` removes only the obsolete adopted In Progress
+card beside its authoritative Done card. Two public targets rebuilt; the three
+affected checks pass **3/3 in 27.22 s**. Twenty-seven chart/app/provider/Insights
+policy-host paths compare byte-identical to the frozen source.
+
+Primary main subsequently started BPR-1618 and is an active unrelated source
+writer. Its committed allocation/card/receipt and claim were adopted together
+from `2ec8f259d`/`68add7dfd` as `2ef366b6e`/`25fec4e97`; no RE2 source was adopted.
+No main checkout mutation or fast-forward was attempted. Final local main
+delivery must reconcile its writer/revision afresh at a later safe boundary.
+The final bookkeeping revision is bound in the external observation/check.
+
+All engineering commands, build/freeze/test children and writers finish before
+handoff; only the named review server remains. No delegation, live GitHub call,
+push, stash, owner desktop access, browser-profile access or recurring waiter.
+No unrelated source edits were reverted. Required owner comparison remains open;
+Windows/Linux native UI/new-course containment, later statistics/calendar,
+full export privacy and macOS idle-hour evidence remain unmeasured or pending.
 
 # Accepted window-and-storage record
 
