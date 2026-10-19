@@ -409,8 +409,9 @@ namespace bpr::qt {
 
 			void present(std::optional<tour_excerpt> aExcerpt)
 			{
-				Shown = std::move(aExcerpt);
-				setVisible(Shown.has_value() && !Shown->Lines.empty());
+				const auto hasLines = aExcerpt.has_value() && !aExcerpt->Lines.empty();
+				Shown               = std::move(aExcerpt);
+				setVisible(hasLines);
 				updateGeometry();
 				update();
 			}

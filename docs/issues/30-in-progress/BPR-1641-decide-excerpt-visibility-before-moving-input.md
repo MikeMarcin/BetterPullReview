@@ -37,3 +37,20 @@ optimized GCC build failure.
 Evidence: ignored ubuntu-gate-r5.partial5 raw/normalized logs, diagnostics at
 lines4952–4981. Both native heavy slots remain coordinator-owned; no build,
 tidy, render or native probe is launched while its suites run.
+
+
+## Source repair checkpoint
+
+The guarded hasLines decision now reads aExcerpt before its move into Shown;
+setVisible, updateGeometry and update still run after the same stored-state
+assignment. No optional state, source callback, line content, paint/layout rule
+or warning flag changes. Self-review covers absent, engaged-empty and populated
+inputs: the moved-to vector retains exactly the incoming sequence in all
+engaged cases. Existing tour-route/page and public composition courses remain
+the verification surface; no implementation-mirroring test is added.
+
+Clang-format22 checks the one changed translation unit; its initial alignment
+finding is corrected by the repository formatter. Documentation and diff checks
+pass. GCC15 -O3 compilation, focused tour/composition behavior and scoped tidy22
+remain pending until a native slot is explicitly released. This card stays
+In Progress and does not claim the original optimized failure is verified fixed.

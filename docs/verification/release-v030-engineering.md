@@ -323,3 +323,14 @@ negative controls fail; current disclosure assertions report no failure in the
 retained output. The actual style/fixture cause and native focused verification
 remain pending. No assertion, palette tolerance, product style or threshold is
 changed before those observations.
+
+
+[BPR-1641](../issues/30-in-progress/BPR-1641-decide-excerpt-visibility-before-moving-input.md)
+retains the Ubuntu public composition course's nested Release build failure:
+GCC15 at -O3 diagnoses the optional excerpt's stored vector after move
+assignment. The bounded source repair computes the same guarded visibility
+predicate on the initialized input before transfer, preserving stored content,
+visibility and widget update order. No compiler flag or UI rule changes.
+Source format/diff and documentation checks pass; exact optimized native compile,
+public composition/tour and focused tidy evidence remain pending while both
+native slots are coordinator-owned.
