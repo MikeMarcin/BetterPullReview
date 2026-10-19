@@ -1,3 +1,33 @@
+# Work engineering in progress
+
+Mandate **insights-window-v1-r1**, assignment **work** (BPR-1614), segment
+**work-r1**, owner `/root/insights_work`; coordinator-implementer r2.
+Source/tracker root is this checkout, branch `codex/insights-window-v1`.
+Start863f4808b; RFC_BASE_SHA0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66.
+Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-work-r1-de2hcgoq`**.
+Promotion409c25f86, claimd42914997. Work's bound prerequisite github-budget is
+accepted; Energy remains blocked/unaccepted exactly as recorded below.
+
+Current edits implement typed Work history/ranges, weighted latency/search
+quantiles, per-file diff timings/limits/paths, syntax cache observations across
+panes/Markdown/cycles, schema5 retention and Work presentation. Qt observes
+busy dispatcher turns without a polling timer; it batches normal1ms latency bins
+and retains stall microseconds, flushes before snapshots/shutdown. Actual250ms
+public event-loop course and idle negative control are pending execution. Host
+fixtures exercise actual limits and cache-hit absence; persistence/privacy and
+aggregate tests are added. No acceptance is claimed until direct checks pass.
+`frontend-design` and `code-simplifier` were loaded; accepted native title row
+and ATT chart source remain unchanged.
+
+Current owned build command6566 is active; prior commands81168/96253/15354/73179
+were collected (early public passes, build diagnostics retained). Main moved to
+d2c557f16; treat its writer active/unknown. No main mutation, remote call, desktop
+access, server or delegation. Next collect build/tests, diagnose event-loop
+semantics, inspect rendered Work Light/Dark/scales, finish focused verification
+and guarded board upkeep. Closeout1615 still depends on unfinished Energy.
+
+# Prior Energy checkpoint
+
 # Energy candidate complete independently; exact child CPU blocked
 
 Mandate **insights-window-v1-r1**, assignment **energy** (BPR-1612/BPR-1613),
