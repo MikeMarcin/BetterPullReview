@@ -1867,9 +1867,10 @@ namespace {
 				fixture.Effects.run_next();
 				return require_one<application::github_pull_request_success>(completions, "the read completes with the team's membership").Snapshot;
 			};
-			const auto expected = scoped ? application::github_team_membership::needs_read_org : application::github_team_membership::member;
-			const auto first    = read();
-			expect(first.ViewerTeamMemberships == std::vector<application::github_team_membership_record>{ { .Team = "octo-org/render-owners", .Membership = expected } } && memberships == 1U,
+			const auto expected            = scoped ? application::github_team_membership::needs_read_org : application::github_team_membership::member;
+			const auto first               = read();
+			const auto expectedMemberships = std::vector<application::github_team_membership_record>{ { .Team = "octo-org/render-owners", .Membership = expected } };
+			expect(first.ViewerTeamMemberships == expectedMemberships && memberships == 1U,
 				   scoped ? "a sign-in without read:org is kept as needing it" : "GitHub's answer that I am in the team is kept");
 			const auto second = read();
 			expect(second.ViewerTeamMemberships == first.ViewerTeamMemberships && memberships == 1U, "a second read of the session asks nothing and keeps the answer");

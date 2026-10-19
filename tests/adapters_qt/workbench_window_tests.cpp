@@ -8039,6 +8039,7 @@ namespace {
 		window.hide();
 	}
 
+#if defined(__APPLE__)
 	/// \brief [[BPR-1536]]. An Option key as macOS delivers it: the Cocoa
 	/// plugin offers the key, Option and the typed text to the shortcut map
 	/// before the text input system, and a declined offer goes on to the focus
@@ -8091,6 +8092,8 @@ namespace {
 		const auto key       = aKey[0].key();
 		return (modifiers == Qt::AltModifier || modifiers == (Qt::AltModifier | Qt::ShiftModifier)) && key >= Qt::Key_Space && key < Qt::Key_Escape;
 	}
+
+#endif
 
 	/// \brief [[BPR-1536]]. The owner, 2026-10-15: Option-R in a comment box
 	/// opened Compose review instead of typing "®". Every Option+character
