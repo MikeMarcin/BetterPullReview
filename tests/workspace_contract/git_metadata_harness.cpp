@@ -864,6 +864,13 @@ namespace {
 							  write_file(aSetup.Root / "secret.env", "x\n");
 							  return std::nullopt;
 						  } });
+		cases.push_back({ .Name  = "missing-directory-query",
+						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
+							  standard_repository(aContext, aSetup);
+							  write_file(aSetup.Root / ".gitignore", "absent-build/\n");
+							  aSetup.ExtraPaths = { "absent-build/" };
+							  return std::nullopt;
+						  } });
 		cases.push_back({ .Name  = "ignorecase-true",
 						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
 							  standard_repository(aContext, aSetup);
