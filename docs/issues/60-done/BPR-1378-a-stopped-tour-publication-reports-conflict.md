@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1378"
 title: "A tour publication stopped by its own Stop reports conflict"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: []
 metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50, staged_review_session --live-tour-course at 400e6ddc2 on e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1368"],"related_rfcs":["RFC-BPR-0041","RFC-BPR-0042"],"milestone_plan":{"id":"bpr1378-tour-stop","path":"docs/rfcs/plans/bpr1378-tour-stop/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4773277f981d429c29862e297c0e31c3d5e90335","evidence":{"kind":"observation","detail":"Fourteen production-session Stop points retain exact confirmed progress; verification-read cancellation preserves prepared steps; real drift remains conflict. See docs/issues/_checkpoints/BPR-1378/verification.md."}},{"criterion":"AC2","outcome":"pass","revision":"4773277f981d429c29862e297c0e31c3d5e90335","evidence":{"kind":"command","detail":"Final focused staged_review_session, staged_review_restart, tour_cli_publication and tour_cli_terminal_publication: 4/4 pass. New state assertions fail against old behavior; exact read-only recovery and Resume totals pass. See docs/issues/_checkpoints/BPR-1378/verification.md."}}]
 ---
 
 # BPR-1378: a tour publication stopped by its own Stop reports conflict

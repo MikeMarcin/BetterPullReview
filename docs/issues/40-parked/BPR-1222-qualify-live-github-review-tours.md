@@ -220,7 +220,7 @@ is the owner's decision on this evidence.
 **Found.** [BPR-1377](../60-done/BPR-1377-tour-cli-pinned-source-reads-fail-over-gh-sparse-trees.md):
 `bpr tour add` cannot read pinned source over gh's sparse trees, so a live
 tour cannot be authored from the terminal over gh.
-[BPR-1378](../30-in-progress/BPR-1378-a-stopped-tour-publication-reports-conflict.md):
+[BPR-1378](../60-done/BPR-1378-a-stopped-tour-publication-reports-conflict.md):
 a Stop between writes is reported as `conflict` in-process.
 
 ### Attended session for the website half
