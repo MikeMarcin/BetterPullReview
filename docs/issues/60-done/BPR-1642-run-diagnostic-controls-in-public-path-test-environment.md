@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1642"
 title: "Run diagnostic controls in public-path test environment"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f8b8f3383713713c2c580038f27534dbd170a824","evidence":{"kind":"observation","detail":"Only application_diagnostic_controls_public_path ENVIRONMENT now references existing public-path offscreen/Linux Windows-style environment. Isolation registration,fixture C++,backstops and assertions unchanged; no real-desktop qualification claimed.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"f8b8f3383713713c2c580038f27534dbd170a824","evidence":{"kind":"observation","detail":"Actual generated native CTest environment verifies both QT_QPA_PLATFORM=offscreen and QT_STYLE_OVERRIDE=Windows. Complete diagnostic-controls course passes6.60s and mandatory manifest0.42s atf8b8. Original abort-6 retained; focused native logs/JUnit plus docs/diff pass. All control,persistence,privacy,shutdown and cleanup assertions run.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-ctest.xml"}}]
 ---
 
 # BPR-1642: Run diagnostic controls in public-path test environment

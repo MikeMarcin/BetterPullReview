@@ -336,7 +336,7 @@ public composition/tour and focused tidy evidence remain pending while both
 native slots are coordinator-owned.
 
 
-[BPR-1642](../issues/30-in-progress/BPR-1642-run-diagnostic-controls-in-public-path-test-environment.md)
+[BPR-1642](../issues/60-done/BPR-1642-run-diagnostic-controls-in-public-path-test-environment.md)
 retains the Ubuntu diagnostic-controls startup abort before any assertions.
 This automated row omitted the shared public-path environment that adjacent
 composition courses already use. Its registration now binds that existing
