@@ -64,3 +64,11 @@ remote action or desktop observation is needed or claimed for this documentation
 slice. Original Windows/Linux evaluation and broader package/vault/crash/security
 obligations remain on their existing cards. Useful command receipts are retained
 under `/tmp/bpr-external-determinism`; this summary is the durable evidence.
+
+## Bookkeeping completion
+
+BPR-1620 finished in `f5fc3a6be115b7ec8110c74a3af5fa774435bc5b`. The
+post-finish documentation gate prints DOCUMENTATION_OK, scoped board validation
+is valid, and the milestone checker returns `stop` / `target-complete`. The
+policy paths still match the exact tested candidate; only checkpoint/bookkeeping
+records follow. No required pending acceptance remains for this milestone.
