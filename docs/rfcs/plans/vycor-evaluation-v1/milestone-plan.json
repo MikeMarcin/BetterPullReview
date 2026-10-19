@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "vycor-evaluation-v1",
+  "scope": {
+    "issues": [
+      "BPR-1622"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "stock-tool-evaluation",
+      "outcome": "Measure whether pinned stock vycor-cpp exposes the four required semantic distinctions on probes and BPR compilation commands, including observed Windows and WSL2 portability.",
+      "work": [
+        {
+          "issue": "BPR-1622"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1622 AC1: pinned unmodified tool, reproducible positive/negative probes and stock fact/query evidence for all four cases; unknown or absent facts explicitly fail the capability claim.",
+        "BPR-1622 AC2: actual BPR compilation-database coverage, failures and every argument adaptation recorded; native Windows and WSL2 build/run evidence or precise measured blockers recorded.",
+        "BPR-1622 AC3: evidence-backed adoption recommendation, preserved existing gates, focused validation, explicit commits and quiescent durable handoff."
+      ],
+      "boundary": "Evaluation only. No custom checker/extension, product dependency, toolchain/gate change or general native adoption claim."
+    }
+  ],
+  "unplanned_work": []
+}

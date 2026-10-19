@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1622"
+  ],
+  "reserve_for": "vycor-evaluation",
+  "purpose": "Evaluate stock vycor-cpp semantics and Windows/WSL portability",
+  "created": "2026-10-19T02:12:24.201791+00:00",
+  "base": "ef7fa9cc6b4a8111cdaab4b5765ea425457b26a8"
+}
