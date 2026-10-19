@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1634"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Repair actual GCC15 copied range-loop warning in workbench",
+  "created": "2026-10-19T05:00:53.983227+00:00",
+  "base": "bf6334a226f6991a3d175a92fa25b3ecce3825d8"
+}
