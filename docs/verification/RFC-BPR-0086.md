@@ -9,8 +9,9 @@ and public-path obligations have passing evidence.
 The GitHub budget milestone has passing automated evidence and explicit owner
 Accept verdicts for the corrected charts and native title row. BPR-1608 and
 BPR-1609 are Done. Review-stats is accepted: BPR-1610/BPR-1611 have passing
-count/lifetime and range/calendar/record evidence. Energy is next in authored
-order. Completed main through BPR-1621 is merged; local delivery is recorded
+count/lifetime and range/calendar/record evidence. Energy now has an implemented
+and verified available-platform candidate; exact Unix child CPU remains blocked
+on BPR-1612, so the milestone is unfinished. Work is independently eligible. Completed main through BPR-1621 is merged; local delivery is recorded
 in the current continuation/runtime. No full-RFC acceptance is claimed.
 
 | Criterion | Evidence and current result |
@@ -22,7 +23,9 @@ in the current continuation/runtime. No full-RFC acceptance is claimed.
 | AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
 | AC06 review statistics | Durable once-only event counts, confirmed recovery, no load/carry backfill, and actual prune/delete/Clear/restart/purge courses pass. |
 | AC07 Reviews | Three seeded ranges,26-week Monday calendar, since-date, endings/records and both Summary tiles pass; host/SQLite cover DST and Monday boundaries. No streak. |
-| AC08–10, AC12 | Energy, Work and idle-hour evidence remain with their authored milestones. |
+| AC08 sampling | Native Mac CPU calibrated against getrusage, macOS wakeups, transition splitting, invalid-delta rejection, launch-state retention and2h/48h/93d persistence pass. Exact Unix child CPU at reap remains unsatisfied on BPR-1612; Windows/Linux native qualification is unmeasured. |
+| AC09 Energy | All independent presentation criteria pass on source263f45ca9: background-only tiles, paired facts, hour/day stacks/wakeups,93-day calendar, matched budget reference and over-budget marking. BPR-1613 retains its unfinished BPR-1612 dependency. |
+| AC10, AC12 | Work and the macOS idle-hour measurement remain with their authored milestones. |
 
 ## Engineering review
 
@@ -526,3 +529,75 @@ acceptance, binding/check and local-delivery receipt. All owned commands finish
 before handoff; no review server, waiter or owner question remains. Windows/Linux
 native qualification, Energy/Work, full export privacy and macOS idle-hour evidence
 stay on their existing obligations. Stop at this milestone; Energy is next.
+
+
+## Energy available-platform candidate; exact child CPU pending
+
+Mandate `insights-window-v1-r1`, assignment `energy`, segment `energy-r1`, owner
+`/root/insights_energy`. Source **263f45ca9** implements all independent Energy
+work. **BPR-1612 is Blocked** on `qt-unix-child-rusage`; **BPR-1613 remains
+Backlog** with passing independent presentation evidence and that dependency.
+Energy is not an accepted milestone. Work may continue independently under the
+existing plan; no acceptance criterion is waived and no owner action is requested.
+
+Core validates cumulative-counter deltas, retains separate state sums and peaks,
+derives ranges/calendars/gaps and normalizes idle cost. The application owns a
+30/60-second schedule, records the old interval at activation changes and flushes
+on shutdown. All native reads/storage run on the existing Insights effect lane;
+child state is captured at the actual started signal. Schema4 adds numeric Energy
+history without importing other data. Raw transitions keep microsecond identity;
+older buckets preserve local-day identity, totals, measured wakeup coverage and
+peak load. The observer never changes an operation or launch policy.
+
+The native Mac course compares the process CPU clock with independent getrusage;
+this caught the initial Apple-silicon timebase error in interpreting libproc CPU
+fields. proc_pid_rusage remains the specified package-idle plus interrupt wakeup
+source. Windows uses GetProcessTimes, Linux the process CPU clock; their native
+results are unmeasured here. Ordinary Windows child handles are retained through
+reap, also without native qualification. Supervised Git cannot substitute helper
+CPU. The real gh course changes to foreground after a background launch and
+checks that its terminal stays background. Injected host CPU verifies the same
+attribution without inventing a native Unix observation.
+
+**Exact Unix child usage is pending.** Qt6.11.2’s
+[Unix QProcess implementation](https://github.com/qt/qtbase/blob/6.11/src/corelib/io/qprocess_unix.cpp)
+passes null rusage to internal forkfd_wait. A native probe reads final Mac zombie
+counters, then observes their absence after reap. The synchronous waits used by
+both runners poll the fork descriptor and call death handling directly; a child
+QSocketNotifier event filter would miss those paths. No private-symbol hook,
+process-global RUSAGE_CHILDREN estimate or launch wrapper is used. The pinned Qt
+provider acquires official binary archives; a maintained Qt seam would need an
+explicit source/dependency/package solution. This remains engineering work.
+
+`frontend-design` and `code-simplifier` guided reuse of the accepted native title
+row, profile roles and shared chart. The Energy page shows only background cost
+in its leading tiles; all fact rows pair foreground/background, including gh and
+Git separately. The CPU reference uses each point’s measured background share
+with the same denominator as the stack, so mixed-state intervals agree with the
+idle tile. Missing counters and real zero measurements remain distinct. Seeded
+history uses a typed recorded metrics capability, avoiding unrecorded native
+startup noise in deterministic visual evidence. Separate native evidence remains
+native. Light/Dark hour/day/calendar and Summary rasters were inspected, with no
+clipping; the Dark table header now follows the profile palette.
+
+Final focused integration **9/9 passes in41.58s**: architecture, core, host,
+native metrics, SQLite, real gh runner, review round-trip composition contract,
+binary surface and public Insights. The public course passes **2.79s**, plus
+**1.25x1.26s** and **2x1.20s**. Core-only core/architecture pass **2/2 in18.88s**;
+the architecture negative contract passes **203.97s**. LLVM22 formatting and
+focused tidy pass; the deliberate integral calendar week was named after its
+initial tidy finding. Exact full/manifest composition seals were reviewed and
+renewed; the mutation-branch seal remains unchanged. Final documentation and
+board validation are retained in the runtime. Unchanged prior privacy/reset,
+shared-chart hover, maintenance and platform evidence is reused.
+
+Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-r1-gjhn61hq`**
+retains per-card evidence, failure diagnoses, source paths, logs, renders and the
+blocked/fresh-context observation. Source263f45ca9 is followed only by tracker/
+documentation upkeep. Active main BPR-1622 source is preserved: only its committed
+allocation/receipt/plan/card and claim were adopted as188de8879/f92c67b64 after
+the counter guard refused the stale value. Main delivery waits for that writer’s
+release and guarded reconciliation. No push, review server or new human decision.
+AC12’s signed-in background idle hour and full export closeout remain later work;
+its cost can be calculated objectively from the retained background wall/CPU
+and wakeup counters, including the final shutdown interval.

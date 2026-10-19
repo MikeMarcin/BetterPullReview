@@ -1,3 +1,113 @@
+# Energy candidate complete independently; exact child CPU blocked
+
+Mandate **insights-window-v1-r1**, assignment **energy** (BPR-1612/BPR-1613),
+segment **energy-r1**, owner `/root/insights_energy`; coordinator-implementer r2.
+Same source/tracker checkout and branch `codex/insights-window-v1`; immutable
+RFC_BASE_SHA `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`. Source candidate
+**263f45ca9**. Current runtime:
+**`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-r1-gjhn61hq`**.
+
+**Energy remains unfinished.** BPR-1612 is Blocked on
+`qt-unix-child-rusage`: exact Unix gh/git CPU at reap is unsatisfied; ordinary
+Windows child handling is implemented but unmeasured natively, and supervised
+Git cannot substitute helper CPU. BPR-1613’s independent presentation criteria
+pass; its card stays Backlog for that unfinished prerequisite. The first authored
+Energy exit is pending, the second passes. No owner action/human decision is
+requested. **Work (BPR-1614) is independently eligible**; the coordinator may
+start its fresh owner while preserving the Energy obligation and candidate.
+
+## Implemented and verified
+
+Core pure deltas, retention, paired ranges, normalized budget references, chart
+gaps and local calendars; host30/60-second schedule, transition splitting and final
+shutdown flush; Mac CPU clock and proc_pid_rusage wakeups, Windows/Linux CPU
+implementations; actual-launch child state and explicit unavailable terminal
+counters; schema4 numeric history; Energy1h/1d/3m, paired facts, background-only
+tiles and Summary idle cost. Both `frontend-design` and `code-simplifier` were
+read/applied. Accepted native titlebar/ATT shared-chart choices remain intact.
+
+Exact focused integration **9/9 in41.58s**; public **2.79s**, **1.25x1.26s**,
+**2x1.20s**. Core-only core/architecture **2/2 in18.88s**; architecture negative
+contract **203.97s**. LLVM22 format and focused tidy pass. Native Mac CPU agrees
+with independent getrusage; wakeups are present. Real gh launches in background,
+then finishes in foreground without changing its stored state. Injected host CPU
+proves the same numerical attribution. Seeded real-store public evidence shows
+4.00s/idleh,12 wakeups/min,0.25s background gh and separate1.00s foreground Git.
+Zero CPU and unsupported wakeups are distinguished. Final Light/Dark Energy,
+calendar, Summary and all ranges were inspected without clipping.
+
+Full/manifest composition seals are reviewed/renewed; mutation-branch seal is
+unchanged. `BPR-1612-evidence.json` retains partial acceptance and exact pending
+criterion; `BPR-1613-evidence.json` records passing independent criteria.
+`failure-notes.json` keeps actual native timebase, fixture noise, source-guard,
+quoted-pin, compile/tidy and normalization corrections. `source-paths.json`
+records the33 explicit source/test paths committed in263f45ca9. Documentation,
+board validation, source binding and final command/process observations are
+retained alongside these files.
+
+## Exact remaining seam and continuation
+
+Qt’s Unix `waitForDeadChild` calls internal forkfd_wait with null rusage. A Mac
+zombie can be read before reap, but no longer after. Both existing runners use
+synchronous waits that poll forkfd and invoke death handling directly; a
+QSocketNotifier SockAct filter would miss those paths. The pinned provider uses
+official binary Qt archives; an exact maintained seam needs a bounded supported
+source/dependency/package solution. No launch wrapper, ownership replacement,
+private symbol ABI, process-global child estimate or fake native result was used.
+Native Windows/Linux qualification remains unmeasured. AC12’s signed-in idle hour
+and full export privacy remain on closeout; the retained interval sums and final
+flush permit objective automated idle-hour calculation later.
+
+## Main, ownership and command state
+
+Startmain/source were ef7fa9cc6. Main advanced to active BPR-1622 at f1f68bb86;
+its evaluation script/fixture source is preserved. Only authoritative committed
+allocation/receipt/plan/card0fcfc682d and claimf1f68bb86 were adopted as
+**188de8879/f92c67b64**, after the global counter guard correctly refused the stale
+NEXT_ID. No main checkout/index/source mutation or push occurred. Main delivery
+is pending release and exact writer reconciliation, then affected integration
+and guarded fast-forward. Work may continue on this branch independently.
+
+All owned builds/checks/tests/tidy commands are collected before final return.
+No server, waiter, protected candidate or background writer is handed off. The
+prior accepted chart session remains consumed at11 and unprotected; its retained
+frozen evidence is untouched. Final runtime observation uses disposition blocked,
+preserves the required child obligation and asks for fresh Work via
+independent-work. This owner releases its source/tracker writer at handoff.
+
+# Earlier Energy engineering checkpoint (superseded)
+
+# Energy engineering in progress
+
+Mandate **insights-window-v1-r1**, assignment **energy** (BPR-1612/BPR-1613),
+segment **energy-r1**, owner `/root/insights_energy`; coordinator-implementer r2.
+Source/tracker root and branch remain this checkout / `codex/insights-window-v1`.
+Start revision `ef7fa9cc6b4a8111cdaab4b5765ea425457b26a8`; immutable baseline
+`0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`. Runtime:
+`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-r1-gjhn61hq`.
+BPR-1612 claimed at `f9d31366f`; BPR-1613 remains dependent, with its independent
+implementation expressly authorized by the coordinator inside this milestone.
+No Energy acceptance is claimed yet.
+
+Current source adds pure counter deltas/rollups/ranges, host sampling and launch
+state, native process counters, schema4 Energy history, always-on30/60s profile
+sampling, background-led Energy/idle tiles, shared charts and paired facts/calendar.
+All edits are task-owned; accepted titlebar/chart choices remain. Native Unix
+child CPU remains **unsatisfied**: Qt6.11.2 `waitForDeadChild` calls internal
+`forkfd_wait(...,nullptr)` and discards per-child rusage. macOS final counters
+are readable for a zombie but gone after reap. Process-global deltas are rejected
+because simultaneous lanes would contaminate attribution. Windows retains an
+exact process handle; native Windows results remain unmeasured. No launch/reap
+replacement or Qt dependency change is made. A source-built Qt patch would need
+provider/package/corresponding-source work absent from the pinned binary provider.
+
+Early public path passes1/1. Initial core/host/SQLite expanded tests pass3/3.
+Native/public courses compile; current final focused build is being collected.
+Next: run native/public renders, inspect and refine, run focused integration/core
+boundaries, commit explicit paths and retain actual unmet child/native obligations.
+All background commands are owned by this implementer; no review server, protected
+candidate, owner desktop access, live GitHub mutation, delegation or push.
+
 # Accepted review statistics milestone
 
 Mandate **insights-window-v1-r1**, assignment **review-stats**, segment

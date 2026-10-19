@@ -15,8 +15,10 @@ the page. Storage uses thin rows with budget meters.
 
 The first RFC-BPR-0086 milestone supplies the shell, Summary’s Local data and
 Background work tiles, and Storage. The GitHub budget milestone adds the Summary
-budget bar and Problems tile and the GitHub tab. Reviews, Work and Energy retain
-their explicit empty states until their milestones supply observations.
+budget bar and Problems tile and the GitHub tab. Reviews supplies lifetime and
+ranged activity, its local-day calendar and both Summary activity tiles. Energy
+now supplies native process measurements and the idle-cost tile, with the child
+measurement limit below. Work retains its explicit empty states.
 
 The Core budget bar uses the lowest remaining response in the current reset
 window, subtracting this profile’s persisted BPR requests to estimate other
@@ -66,5 +68,36 @@ export adds no Insights section. This window introduces no deletion action.
 `insights.sqlite3` is profile state: profile purge and Reset everything remove
 it and its sidecars. Clear local diagnostics, cache deletion or pruning, and
 the three narrower Troubleshooting resets keep it. The first launch creates
-its metadata and GitHub history; lifetime review counting and the remaining
-measurement families arrive in later milestones.
+its metadata; lifetime review counts and retained measurement history stay in
+the same private store.
+
+
+Energy samples process CPU every30 seconds while the app is active and every60
+seconds otherwise, including when no window is open. An activation change splits
+the interval before changing its foreground/background attribution; shutdown saves
+the final partial interval. macOS supplies package-idle plus interrupt wakeups.
+Other platforms leave wakeups absent and show “Not reported on this platform”.
+No measurement is taken by a chart or by a snapshot refresh.
+
+The three leading Energy tiles show background measurements only. CPU seconds
+per background hour are compared with the2-second budget, and wakeups per minute
+with the6-wakeup budget. A measured zero remains zero; no samples remain an empty
+state. Over-budget ranges are named in the tiles. The Summary idle tile always
+uses the last hour. Every fact row pairs foreground and background, including
+CPU, wakeups, each child family, sample count, wall time and peak CPU load.
+
+The hour/day chart shares one measured duration for its foreground/background
+CPU stack and gives wakeups their own lane. The dashed CPU budget line accounts for each interval’s measured background
+share, so it stays comparable to the stack when both states share an interval.
+The wakeup lane marks6 wakeups per minute. Unsampled spans remain gaps.
+The3m calendar uses local days, dot size for total application CPU, and color for
+background cost relative to its budget. History keeps2 hours raw,48 hours in
+five-minute rollups and93 days in daily buckets, with measured sums and peak load
+kept separately for each state.
+
+A child retains its launch state through completion. Exact ordinary Windows
+child handles have an implementation, but native Windows qualification is pending.
+Qt’s Unix reap currently discards per-child resource usage; those gh/git terminals
+show “Child CPU unavailable”, not a measured zero. Supervised Git also stays
+unavailable where the helper’s CPU cannot establish the child’s CPU. This is the
+open BPR-1612 obligation. Energy is not accepted as a complete milestone yet.

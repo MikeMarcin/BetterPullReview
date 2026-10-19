@@ -2050,10 +2050,11 @@ to the decision lane. Shutdown stops the window’s timers and drains initializa
 measurement and completion before closing that lane.
 
 The SQLite adapter initializes owner-private `state/v1/insights.sqlite3` at the
-profile’s first launch. Schema 2 retains the start time, last measured aggregate bytes and local
+profile’s first launch. Schema4 retains the start time, last measured aggregate bytes and local
 repository display labels and adds numeric GitHub/process/problem history and
 the last observed account partition. It migrates schema 1 in one transaction.
-Lifetime review counts, energy and work remain later milestones. Storage sums file lengths and SQLite sidecars without reading
+Schema3 adds lifetime review identities; schema4 adds retained Energy intervals
+and rollups. Work remains a later milestone. Storage sums file lengths and SQLite sidecars without reading
 other stores’ contents. Git repository bytes use the same bounded file inventory
 helper as the existing cache adapter; no cache session or Git process is opened.
 A changing or refused entry can make an observation unavailable. This is a local
@@ -2085,3 +2086,19 @@ projections. Missing or expired readings stay unavailable; GraphQL never gets a
 split. Snapshot refresh reads this port only and owns no provider or process
 capability. Qt’s reusable chart receives values, semantic role colors and hover
 mechanics; it performs no sampling, retention or budget calculation.
+
+
+RFC-BPR-0086 Energy adds a narrow application metrics port. The native shared
+process-support adapter reads cumulative CPU (the process CPU clock on Unix,
+GetProcessTimes on Windows) and macOS proc_pid_rusage wakeups. The profile host
+owns30/60-second scheduling, activation changes and final-interval drain on its
+existing Insights effect lane. Core validates deltas and derives paired ranges,
+rollups, chart gaps and budget ratios from supplied counters and clocks. Sampling
+continues while Insights is hidden; presentation refresh performs no sampling.
+
+Shared supervision emits a per-child terminal observation; application capture
+retains the state seen at the actual QProcess started signal. Windows retains an
+exact process handle through reap. The existing Unix QProcess reap discards
+rusage, so CPU is explicitly unavailable there. No aggregate RUSAGE_CHILDREN
+estimate, launch wrapper or dependency patch is introduced. The corresponding
+Energy card stays unfinished until that exact-child obligation is satisfied.

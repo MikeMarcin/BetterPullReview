@@ -20,3 +20,19 @@ Implement the RFC-BPR-0086 Energy presentation and AC09.
 - Cost per idle hour against the budget line (2 s CPU per background hour, 6 wakeups per minute), with over-budget marking.
 - The Summary "Cost while idle" tile.
 - Load `frontend-design:frontend-design` first.
+
+
+## Independent presentation evidence
+
+Source `263f45ca91d6b142f80a99c9d206882ac9baeb6a` implements all presentation criteria through the real profile
+window and store: background-only tiles and Summary cost, paired facts on every
+row, hour/day stack and wakeup lane,93-day local calendar, matched CPU budget
+reference and explicit over-budget marking. The seeded public course passes,
+including fixed/clamped shell, passive refresh, Light/Dark renders, unsupported
+wakeups and a measured zero.1.25x/2x courses pass. `frontend-design` and
+`code-simplifier` were read and applied. The accepted titlebar and shared chart
+choices are preserved; no additional human criterion is introduced.
+
+The independent criteria pass; this card remains Backlog because BPR-1612's
+exact-child obligation is still unfinished. The [RFC ledger](../../verification/RFC-BPR-0086.md)
+and current continuation retain candidate-specific evidence and that dependency.
