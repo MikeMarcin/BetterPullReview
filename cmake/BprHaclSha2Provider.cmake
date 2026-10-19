@@ -3,7 +3,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/Hardening.cmake")
 
 # [[BPR-1451]]. HACL*'s generated, formally verified SHA-2 C for the core's
-# SHA-256. It is one of the owner-approved pure core libraries (RFC-BPR-0080
+# SHA-256. It is one of the owner-approved core libraries (RFC-BPR-0080
 # Q2, 2026-10-13). Only the generated distribution's Hacl_Hash_SHA2.c is
 # compiled, from dist/gcc-compatible (dist/msvc-compatible under MSVC), the
 # flavour HACL* generates for the compiler. No F* toolchain, upstream build or

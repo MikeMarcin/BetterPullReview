@@ -3,7 +3,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1434]]. utf8proc for the functional core's Unicode work (UTF-8
 # decoding, canonical decomposition and case mapping), one of the
-# owner-approved pure core libraries (2026-10-13). Only utf8proc.c is compiled,
+# owner-approved core libraries (2026-10-13). Only utf8proc.c is compiled,
 # as a static library: no upstream build, tests or install rules.
 function(bpr_acquire_utf8proc)
     if(TARGET BetterPullReview::UTF8Proc OR TARGET better_pull_review_utf8proc)

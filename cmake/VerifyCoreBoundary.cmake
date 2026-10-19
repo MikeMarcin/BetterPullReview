@@ -73,7 +73,7 @@ foreach(core_file IN LISTS core_files)
             message(FATAL_ERROR "Functional-core boundary violation: filesystem effect through imported namespace")
         endif()
     endif()
-    # The owner's deterministic SHA-256 exception has two exact owners;
+    # The approved platform SHA-256 wrappers have two exact owners;
     # all ordinary effect patterns still scan those files.
     if(core_file STREQUAL "${BPR_ROOT}/src/core/src/sha256_commoncrypto.cpp")
         string(REPLACE "#include <CommonCrypto/CommonDigest.h>" "" contents "${contents}")
@@ -99,9 +99,11 @@ foreach(core_file IN LISTS core_files)
     endforeach()
 endforeach()
 
-# Owner, 2026-10-13: core may link only these pinned, pure (no I/O, threads,
-# clocks or globals) libraries. Anything else needs the owner's approval first.
-# sha1collisiondetection and HACL*'s generated SHA-2 were approved the same day
+# Approved dependency inventory, not a definition of semantic determinism.
+# External determinism governs computation; adoption still needs owner approval.
+# Source checks preserve effect ownership and private wrappers, not a full
+# semantic/effect audit of upstream implementations.
+# sha1collisiondetection and HACL*'s generated SHA-2 were approved 2026-10-13
 # (RFC-BPR-0080 Q1 and Q2), and rapidfuzz-cpp and dtl through RFC-BPR-0082 Q2
 # (dtl only for per-line intraline comparison and the Review Cycle suggestion
 # hunks' line edit bounded at 512 changes; architecture_boundaries keeps it to

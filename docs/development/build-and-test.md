@@ -40,6 +40,17 @@ remaining designated live-server readback requirement.
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
+## Core dependency boundary
+
+Core computation follows [external determinism](../architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+Internal implementation mechanisms are judged by their semantic consequences;
+dependency approval, pins, licenses and private include/link ownership remain
+separate requirements. The [implementation inventory](../architecture/system-architecture.md#core-implementation-inventory)
+records the selected dependencies and use limits. Boundary gates enforce that
+approved graph and first-party effect ownership; they do not audit every upstream
+internal operation or prove semantic equivalence. Use focused public-contract
+checks for those claims. Qt-free builds preserve the dependency/reuse boundary.
+
 ## Core SHA-256 selection
 
 Core uses CommonCrypto on macOS, CNG (`bcrypt`) on Windows 10+ and pinned
@@ -3699,8 +3710,9 @@ builds both as C++23. Since [[BPR-1618]], core links the same pinned libraries
 privately in every graph, including Qt-free/tests-disabled builds; its private
 implementation is exposed only as `default_source_regex_engine()` behind the
 `source_regex_engine` interface. There is no regex adapter. The
-[scoped audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records the owner's
-external-determinism exception and upstream implementation effects. Licenses and provenance are under
+[scoped audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records the approved call paths
+and upstream implementation limitations under the general semantic rule.
+Licenses and provenance are under
 `third_party/re2/` and `third_party/abseil/`. `core_source_matcher`,
 `application_source_pr_search` and the `application_source_find*` and
 `application_source_pr_*` courses exercise the engine.

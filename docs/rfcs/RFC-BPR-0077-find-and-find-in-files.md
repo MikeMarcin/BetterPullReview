@@ -26,6 +26,12 @@ receipts and narrow corrective passes remain explicit. Required frontend-design
 was applied; no required human criterion is pending and no acceptance is waived.
 No main landing or publication is claimed by this lane.
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
 ## Adopted matcher ownership amendment — 2026-10-18
 
 The owner approved moving pinned RE2/Abseil into core if the implementation

@@ -53,6 +53,12 @@ thresholds, the Windows and Linux stations' conditions, or AC05's
 before-and-after rows. The [waiver record](assets/hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md)
 keeps the text before and after.
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
 ## Owner architecture amendment — 2026-10-18
 
 Mandate r4 directly selects deterministic platform SHA-256 in core:

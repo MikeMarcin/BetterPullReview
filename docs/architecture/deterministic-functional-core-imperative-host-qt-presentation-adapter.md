@@ -58,67 +58,59 @@ This pattern does **not** require:
 
 ## 2. Design philosophy
 
-### 2.1 Determinism matters more than ideological purity
+### 2.1 External determinism
 
-For a small application, a value-returning reducer may be ideal:
-
-```cpp
-[[nodiscard]] auto reduce(
-    const application_state& aState,
-    const application_event& aEvent) -> transition_result;
-```
-
-For a large or latency-sensitive application, deterministic in-place transitions are usually a better fit:
-
-```cpp
-[[nodiscard]] auto transition(
-    application_state& aState,
-    const application_event& aEvent,
-    const observation_view& aObservations,
-    transition_storage& aStorage) -> transition_result;
-```
-
-The important property is:
+The core's governing property is external determinism: within an operation's
+specified input domain and execution contract, the same explicit inputs, state
+and options produce the same semantic results, identities, ordering and
+contract-defined diagnostics. For a transition:
 
 ```text
-same prior state
-+ same event
-+ same observations
-= same resulting state, deltas, requests, and diagnostics
+same prior semantic state + same event + same observations + same options
+= same resulting semantic state, deltas, requests and diagnostics
 ```
 
-The core may mutate memory explicitly passed to it. It may use preallocated output buffers and scratch storage. What it must not do is perform hidden I/O, consult hidden globals, read the wall clock implicitly, invoke Qt, start threads, or mutate external services.
+This applies to first-party code and library-backed computation alike. Internal
+CPU dispatch, caches, allocators, synchronization, contention clocks and hash
+seeds may change execution time, memory layout or cache organization without
+disqualifying a library. They must not change the promised semantics. In-place
+mutation, retained buffers and scratch storage are equally valid when semantic
+state and ownership remain explicit. Atomics and mutexes may protect caller-owned
+or explicitly referenced state; hidden process-global decision state is excluded.
 
-BPR's owner-approved SHA-256 implementation (RFC-BPR-0080 r4, 2026-10-18)
-may call CommonCrypto on macOS or CNG on Windows, with HACL as the portable
-fallback. Determinism concerns observable digest bytes for the same input.
-CPU-feature dispatch, allocation and internal synchronization in the system
-implementation do not themselves change those bytes. This exception admits
-only unkeyed SHA-256 computation, with native types private to its wrapper;
-it grants no clock, entropy, credential, filesystem or other OS capability.
+Effects remain the host's responsibility. Application policy must not acquire
+implicit time, entropy, environment or external state, nor directly perform
+filesystem, network, process, database, credential or logging effects. Supply
+relevant facts as bounded observations and return effect requests explicitly. A library's internal
+contention measurement or hash seeding does not grant the core an application
+clock or entropy capability. Duration/time-point arithmetic and explicitly seeded
+caller-owned PRNG state are computation; clock reads and implicit random state
+used by application decisions are effects.
 
-BPR's pinned RE2/Abseil source matcher has a separate scoped exception
-(BPR-1618, owner 2026-10-18). It starts no worker threads. Its private caches,
-hash seeds, synchronization and contention clocks may vary timing and layout,
-while spans, ordering and diagnostics remain externally deterministic. Expected
-error logging is disabled; upstream invariant-failure diagnostics remain possible.
-This does not grant first-party core clock, thread, entropy or logging APIs.
+The host owns scheduling, thread creation, completion delivery, cancellation and
+lifecycle. External determinism alone grants no worker, executor, timer or event-loop
+capability. Cancellation and deadline observations remain explicit parts of the
+execution contract; scheduling can change when a stop is observed. Deterministic
+work budgets can specify reproducible exhaustion, but equal inputs do not promise
+equal success under arbitrary allocation failure, resource pressure or platform
+failure. Each operation must specify its limits and failure/refusal behavior;
+incidental upstream fatal diagnostics are not reproducible application diagnostics.
+Caches and resource-dependent fallbacks must respect that contract.
 
-Duration and time-point arithmetic may use `std::chrono` without reading a
-clock. Caller-owned PRNG state may use an explicit seed. Implicit entropy
-and global random state remain effects. A reproducible cross-platform value
-also requires a specified algorithm and mapping; standard distributions can
-vary across standard-library implementations.
+Cross-platform semantic identity must be specified and verified where required.
+Lexical `<filesystem>` path construction and manipulation are computation;
+filesystem access, current-directory lookup, canonicalization and directory
+iteration are effects. Native path syntax and encoding differ, so lexical use
+alone provides no portable identity. Seeded random values likewise need a
+specified algorithm and mapping when they must match across standard libraries;
+standard distributions do not promise that equivalence.
 
-Atomics and mutexes are permitted with explicit caller-owned or referenced
-state; prefer passing references instead of retaining hidden process-global
-decision state (BPR-1619, owner 2026-10-18). `<filesystem>` can construct and
-manipulate lexical paths, but querying or modifying the filesystem remains an
-effect. Current-directory lookup, canonicalization and directory iteration are
-effects too. Native path syntax and encoding differ by platform; lexical use
-does not itself establish a portable path identity. Pure xdiff computation is
-core-owned behind a provider-free interface, with xdiff dynamically linked as
-its own shared library and scheduling/abandonment retained by the host.
+The core remains Qt-free as a dependency and reuse choice, allowing tests,
+command-line tools and alternate frontends to reuse its decisions. Deterministic
+Qt operations do not override that boundary. Dependency approval, pins, licensing,
+private include/link ownership and lifecycle constraints are separate adoption
+requirements. The [current implementation inventory](system-architecture.md#core-implementation-inventory)
+records them; it is not a whitelist of exceptions to external determinism.
 
 ### 2.2 Keep the core small in ownership and substantial in decision-making
 
@@ -272,21 +264,23 @@ The functional core should own deterministic application decisions such as:
 - derivation of semantic dirty domains and compact projections;
 - reason-coded diagnostics for rejected actions.
 
-### 5.2 Prohibited dependencies
+### 5.2 Dependency and effect boundaries
 
-The core should normally contain no dependency on:
+Apply [external determinism](#21-external-determinism) together with the
+following ownership and dependency constraints. Core APIs do not depend on:
 
 - `QObject`, `QWidget`, `QString`, `QVariant`, `QModelIndex`, or Qt event types;
-- the filesystem;
+- filesystem access;
 - sockets or HTTP clients;
 - database connections;
-- wall-clock access that is not passed explicitly;
-- random-number generation that is not passed explicitly or seeded explicitly;
-- threads, executors, futures, timers, or event loops;
+- implicit time, entropy or environment observations used by application policy;
+- host scheduling, thread creation, executors, futures, timers or event loops;
 - dialogs, notifications, or clipboard APIs;
 - mutable service locators or process-wide singletons.
 
-Using a Qt-free core is not about disliking Qt. It creates a clean semantic boundary and makes the core usable in tests, command-line tools, alternate frontends, and headless automation.
+Private implementation dependencies must meet the same semantic contract and
+the repository's adoption requirements. Their internal mechanisms are evaluated
+under that contract rather than prohibited by name alone.
 
 ### 5.3 Core vocabulary
 
@@ -1439,7 +1433,7 @@ Do not halt product development to construct a universal framework. Generalize o
 
 - [ ] Can core tests run without `QApplication`?
 - [ ] Are all non-deterministic inputs explicit observations?
-- [ ] Does the core avoid filesystem, network, database, clock, thread, and Qt calls?
+- [ ] Does computation meet the external-determinism contract, with effects and scheduling owned by the host and Qt kept outside core?
 - [ ] Is interaction state compact relative to total application data?
 - [ ] Are feature transitions bounded rather than centralized in one giant reducer?
 - [ ] Are outputs semantic rather than widget commands?
@@ -1512,7 +1506,8 @@ CORE
     Owns decisions, compact interaction state, policy, planners, generations.
     Receives semantic events and bounded observations.
     Emits semantic deltas, requests, and diagnostics.
-    Has no Qt, I/O, threads, clocks, dialogs, or hidden globals.
+    Preserves external determinism; effects and scheduling belong to the host.
+    Remains Qt-free; decision inputs and semantic state are explicit.
 
 HOST
     Owns effects, services, authority sessions, caches, jobs, persistence,

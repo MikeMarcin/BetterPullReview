@@ -130,7 +130,10 @@ separately exercised today and its ledger row stays open under [[BPR-0285]].
 
 BetterPullReview is implemented as a deterministic functional core inside an imperative shell containing an application host and a Qt presentation adapter. The governing rule is **The core decides. The host performs. Qt presents.**
 
-- The core owns compact interaction state, semantic policy, transitions, request identity, and stale-result decisions.
+- The Qt-free core owns compact interaction state, semantic policy, transitions,
+  request identity and stale-result decisions under the [external-determinism contract](deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+  Internal timing or layout variation is compatible with that contract;
+  application effects and semantic observations remain explicit.
 - The host owns GitHub, Git, SQLite, AI processes, clocks, jobs, caches, persistence, cancellation, and lifecycle.
 - The Qt adapter owns widgets, actions, models, focus, layout, accessibility, themes, and event translation.
 - GitHub, the private retained-revision catalog, and the local workflow ledger remain authorities for their respective state classes; neither a widget nor raw cache topology becomes a competing authority.

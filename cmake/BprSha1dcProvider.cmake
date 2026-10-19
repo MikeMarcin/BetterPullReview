@@ -4,7 +4,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/Hardening.cmake")
 
 # [[BPR-1450]]. sha1collisiondetection (sha1dc), the SHA-1 Git and GitHub use,
 # for every SHA-1 Git object identity the functional core computes. It is one
-# of the owner-approved pure core libraries (RFC-BPR-0080 Q1, 2026-10-13).
+# of the owner-approved core libraries (RFC-BPR-0080 Q1, 2026-10-13).
 # Only lib/sha1.c and lib/ubc_check.c are compiled, configured as Git
 # configures them: plain SHA-1 output (no safe-hash substitution), collision
 # detection and unavoidable-bit-condition checks on, and no standard headers

@@ -8,6 +8,12 @@ metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_re
 
 # Evaluate replacing the hand-written diff engine
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
 ## Owner placement amendment — 2026-10-18
 
 Mandate `core-boundaries-r1`, [[BPR-1619]]: the owner authorizes moving pure

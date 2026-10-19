@@ -1,7 +1,7 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
-# [[BPR-1481]] [[BPR-1498]]. dtl, one of the owner-approved pure core
+# [[BPR-1481]] [[BPR-1498]]. dtl, one of the owner-approved core
 # libraries (RFC-BPR-0082 Q2, 2026-10-13), approved for exactly two uses: the
 # diff engine's per-line intraline comparison and the Review Cycle suggestion
 # hunks' line edit bounded at 512 changes. It is header-only: only the

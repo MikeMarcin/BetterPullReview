@@ -58,6 +58,12 @@ and current-host native public path. RFC-BPR-0014 owns direct clean-environment
 Windows, macOS, and Linux package installation, launch, runtime, and uninstall
 evidence.
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
 ## Architectural allocation
 
 This RFC establishes the architecture for every dependent RFC. The complete normative source is [Deterministic Functional Core, Imperative Host, and Qt Presentation Adapter](../architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md), specialized by [BetterPullReview System Architecture](../architecture/system-architecture.md).
@@ -65,7 +71,7 @@ This RFC establishes the architecture for every dependent RFC. The complete norm
 ### Deterministic functional core
 
 - Own compact interaction state, semantic intents/events, command legality, validation, transition functions, request identity/generation, semantic deltas, and reason-coded diagnostics.
-- Use standard/domain C++ only. No Qt, I/O, provider, process, clock, thread, timer, dialog, or hidden-global dependency is permitted.
+- Apply the [external-determinism contract](../architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism) to computation, with explicit semantic inputs/state and host-owned effects and lifecycle. Keep the core Qt-free; dependency approval and private implementation ownership remain separate constraints.
 - Permit deterministic in-place transitions, retained output buffers, scratch storage, and feature-composed transition functions rather than requiring immutable full-state copies or one giant reducer.
 
 ### Application host

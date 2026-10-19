@@ -2,7 +2,7 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1480]]. rapidfuzz-cpp for the diff engine's line-pair similarity, one
-# of the owner-approved pure core libraries (RFC-BPR-0082 Q2, 2026-10-13). It
+# of the owner-approved core libraries (RFC-BPR-0082 Q2, 2026-10-13). It
 # is header-only: only the verified archive's `rapidfuzz/` headers are put on
 # the include path. No upstream build, tests, benchmarks, fuzzers or install
 # rules run, and the core calls only `rapidfuzz::CachedIndel`.

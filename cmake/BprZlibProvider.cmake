@@ -2,7 +2,7 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1435]]. zlib for the functional core's review-bundle reader, one of the
-# owner-approved pure core libraries (2026-10-13). Only the raw-inflate and
+# owner-approved core libraries (2026-10-13). Only the raw-inflate and
 # checksum sources are compiled: no gz* file I/O, no deflate, no upstream build.
 # Z_PREFIX renames every symbol to z_*, so this copy can never be confused with
 # the system zlib that LibArchive links on macOS.

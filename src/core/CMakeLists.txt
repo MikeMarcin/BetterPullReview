@@ -144,8 +144,8 @@ target_include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
-# Owner 2026-10-13: core links only approved pinned, pure libraries; the
-# functional-core boundary check enforces this list.
+# Approved dependency inventory; the boundary check enforces exact links.
+# Semantic eligibility follows the architecture external-determinism contract.
 target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::Xdiff BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 # Reproducible portable builds may explicitly keep the approved HACL backend.

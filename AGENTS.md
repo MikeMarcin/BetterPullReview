@@ -29,26 +29,15 @@ The core decides. The host performs. Qt presents.
 | `tests/` | Core, host, contract, Qt, end-to-end, fixture, benchmark, and fuzz evidence |
 | `packaging/` | Distribution metadata and release-time platform policy |
 
-The functional core must not include Qt, provider, filesystem-effect, process, clock,
-thread, timer, network, database, credential, or hidden-global semantic dependencies. Owner-approved deterministic platform SHA-256
-is the narrow OS-API exception (RFC-BPR-0080 r4, 2026-10-18): CommonCrypto
-on macOS, CNG on Windows, HACL portable fallback. CPU dispatch and internal
-implementation state may vary while digest bytes remain identical. This
-does not admit arbitrary OS capabilities. Pinned RE2/Abseil may implement
-source matching inside core (owner, 2026-10-18; BPR-1618): no worker creation,
-with internal synchronization, hash state and contention clocks permitted only
-when matches and diagnostics remain externally deterministic. This is not
-general permission for core threads, clocks, entropy or logging.
-Atomics and mutexes may protect explicit caller-owned or referenced state;
-pass that state by reference rather than retaining implicit process-global
-decision state. `<filesystem>` is allowed for lexical path construction and
-manipulation only: filesystem reads/writes, current-directory lookup,
-canonicalization and directory iteration remain host effects. Native path
-conventions can differ by platform; lexical use alone is no cross-platform
-identity guarantee (owner, 2026-10-18; BPR-1619).
-Duration/time-point arithmetic and
-caller-owned explicitly seeded PRNG state are permitted; implicit clock reads
-and entropy (`random_device`) remain host effects (owner, 2026-10-18).
+The functional core follows [external determinism](docs/architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism):
+equal explicit inputs, state and options yield equal semantic results, identities,
+ordering and diagnostics under the specified contract. Internal implementation
+mechanisms do not disqualify computation when they only affect timing or layout.
+Effects and observations remain explicit; the host owns scheduling, cancellation
+and lifecycle. Qt independence and approved dependency/include/link ownership are
+separate constraints. The [core implementation inventory](docs/architecture/system-architecture.md#core-implementation-inventory)
+records current libraries, wrappers and use limits. It does not define exceptions
+to the determinism rule.
 A widget or Qt model must not perform GitHub, Git, SQLite, AI, filesystem,
 network, or process effects.
 
@@ -120,16 +109,9 @@ network, or process effects.
   Unicode tables, protocol, or similar infrastructure), ask the owner whether
   a suitable library should be allowed instead. Name the candidate, its
   licence, the layer it would live in, and why it fits or does not; do not
-  hand-roll it while that question is open. Core may link only the
-  owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries
-  below, plus the deterministic platform SHA-256 and RE2 exceptions above:
-  glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL*'s generated
-  SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13; sha1collisiondetection
-  and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082;
-  dtl only for per-line intraline comparison and the Review Cycle suggestion
-  hunks' line edit bounded at 512 changes, never as the diff engine's
-  whole-file line matcher). Pinned RE2 and its Abseil dependency are approved
-  privately for source matching under BPR-1618's external-determinism contract.
+  hand-roll it while that question is open. Core dependencies still require owner
+  approval, pinned acquisition and the [current implementation constraints](docs/architecture/system-architecture.md#core-implementation-inventory);
+  external determinism establishes semantic eligibility, not adoption approval.
   The 2026-10-13 audit found a hand-written regex
   engine with a correctness bug, eight JSON implementations, a DEFLATE
   inflater and hand-written hashes that libraries should have supplied.
