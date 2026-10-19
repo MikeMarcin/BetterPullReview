@@ -22,3 +22,9 @@ The Windows pointer x139 lies exactly before the selected footnote reference: an
 ## Preserved evidence and boundary
 
 The complete780-row original Windows normal gate at93897 is retained:767 pass,12 fail,1 configured Debug Skip, CTest exit8. The evidence ZIP SHA-256 is `5d07e4e5deb82ac9f71c89c4c0424896db09cdac5952e3fdff95b96e53fe463f`. Baseline diagnosis and temporary observation logs are under ignored `.mask/sessions/release-v0.3.0/windows-diagnosis/`; temporary sources were restored exactly, both UIforETW diagnostic apps were rebuilt from original privacy source, and all diagnostic tasks were removed. No full normal rerun or release/native desktop acceptance is inferred.
+
+## Source checkpoint
+
+The bounded repair is implemented without changing product behavior, original
+assertions or deadlines. Source self-review and diff checks pass; touched C++
+uses clang-format22. Actual focused native verification remains pending.

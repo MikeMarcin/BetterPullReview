@@ -392,7 +392,8 @@ namespace {
 		auto* reader = aView.rendered_view();
 		reader->setFocus();
 		key(*reader, Qt::Key_Tab);
-		const auto first = reader->textCursor().selectionStart();
+		const auto first    = reader->textCursor().selectionStart();
+		const auto firstEnd = reader->textCursor().selectionEnd();
 		expect(reader->textCursor().selectedText() == QStringLiteral("[1]"), "Tab reaches the first reference");
 		key(*reader, Qt::Key_Return);
 		expect(reader->textCursor().selectedText() == QStringLiteral("↩") && reader->textCursor().block().blockFormat().boolProperty(footnote_property), "Enter moves to the footnote's back reference");
@@ -411,8 +412,14 @@ namespace {
 		settle();
 		auto probe = QTextCursor{ reader->document() };
 		probe.setPosition(first + 1);
-		const auto point = reader->cursorRect(probe).center() - QPoint{ 2, 0 };
-		auto       press = QMouseEvent{ QEvent::MouseButtonPress, point, reader->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		const auto inside = reader->cursorRect(probe).center();
+		probe.setPosition(first);
+		const auto left = reader->cursorRect(probe).center().x();
+		probe.setPosition(firstEnd);
+		const auto right = reader->cursorRect(probe).center().x();
+		const auto point = QPoint{ left + (right - left) / 2, inside.y() };
+		expect(!reader->anchorAt(point).isEmpty(), "the pointer targets the interior of the first reference");
+		auto press = QMouseEvent{ QEvent::MouseButtonPress, point, reader->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(reader->viewport(), &press);
 		auto release = QMouseEvent{ QEvent::MouseButtonRelease, point, reader->viewport()->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(reader->viewport(), &release);
