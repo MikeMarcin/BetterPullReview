@@ -221,6 +221,70 @@ else:
 
 
 @unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class RelocatedLaunchCommandTests(unittest.TestCase):
+    def setUp(self):
+        temporary = ContainedTemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.bundle = self.root / "relocated app" / "BetterPullReview.app"
+        executable = self.bundle / "Contents" / "MacOS" / "BetterPullReview"
+        executable.parent.mkdir(parents=True)
+        executable.write_text("""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+Path(os.environ['STUB_CAPTURE']).write_text(json.dumps({
+    'platform': os.environ.get('QT_QPA_PLATFORM'),
+    'style': os.environ.get('QT_STYLE_OVERRIDE'),
+    'home': os.environ.get('HOME'), 'argv': sys.argv[1:]}))
+print(os.environ['STUB_MARKERS'])
+sys.exit(int(os.environ['STUB_STATUS']))
+""")
+        executable.chmod(0o700)
+
+    def launch(self, *, status=0, private=True, identity="com.gamecoretech.betterpullreview"):
+        script = (ROOT / "tools/release.sh").read_text()
+        prefix, _ = script.split('[[ "$(uname -s)" == "Darwin" ]]', 1)
+        prefix = "\n".join(
+            "ROOT_DIR=" + shlex.quote(str(ROOT)) if line.startswith("ROOT_DIR=") else line
+            for line in prefix.splitlines())
+        profile = self.root / "isolated profile"
+        capture = self.root / "command.json"
+        markers = ("AUTOMATED_PROFILE_PRIVATE_OK\n" if private else "")
+        markers += "NOTIFICATION_BUNDLE_IDENTITY:" + identity
+        environment = dict(os.environ, QT_QPA_PLATFORM="cocoa", QT_STYLE_OVERRIDE="ambient-style",
+                           STUB_CAPTURE=str(capture), STUB_MARKERS=markers, STUB_STATUS=str(status))
+        harness = prefix + "\nverify_relocated_launch " + shlex.quote(str(self.bundle)) + " " + shlex.quote(str(profile)) + "\n"
+        result = subprocess.run(["bash", "-s"], input=harness, env=environment,
+                                text=True, capture_output=True)
+        return result, json.loads(capture.read_text()), profile
+
+    def test_actual_child_is_offscreen_with_isolated_home_and_unchanged_arguments(self):
+        for status in (0, 1):
+            with self.subTest(status=status):
+                result, observed, profile = self.launch(status=status)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(observed, {"platform": "offscreen", "style": None, "home": str(profile),
+                                           "argv": ["--self-test", "--automated-run-budget-ms", "8000"]})
+                self.assertTrue(profile.is_dir())
+                self.assertIn("Relocated offscreen launch verified", result.stdout)
+
+    def test_private_profile_marker_remains_required(self):
+        result, _, _ = self.launch(private=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("did not reach the composed launch probe", result.stderr)
+
+    def test_production_bundle_identity_remains_required(self):
+        result, _, _ = self.launch(identity="com.example.wrong")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("did not report the production bundle identity", result.stderr)
+
+    def test_unexpected_child_failure_remains_refused(self):
+        result, _, _ = self.launch(status=2)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("did not complete its launch probe (status 2)", result.stderr)
+
+
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
 class NotaryCommandTests(unittest.TestCase):
     def submit(self, options=(), environment=None, status=0):
         script = (ROOT / "tools/release.sh").read_text()

@@ -192,6 +192,14 @@
             "AC2",
             "AC3"
           ]
+        },
+        {
+          "issue": "BPR-1645",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
         }
       ],
       "depends_on": [],

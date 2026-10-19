@@ -431,3 +431,22 @@ the now-verified Insights fixture association. This is honest multi-source
 selected evidence, not one final-source full normal native pass. Windows full
 normal gate remains next on the serialized PC. No signing, credential recovery
 or publication is performed by the repair implementer.
+
+## Relocated smoke safety repair
+
+[BPR-1645](../issues/30-in-progress/BPR-1645-keep-relocated-release-smoke-offscreen.md)
+records the coordinator stopping the old release driver before smoke because
+it removed QT_QPA_PLATFORM and the tests-disabled self-test shows its window.
+The helper now explicitly selects existing offscreen Qt and removes ambient
+style only. Isolated HOME, exact self-test/budget arguments, accepted0/1 status,
+private-profile and production bundle-identity predicates remain unchanged.
+Real shell-helper tests launch only a synthetic executable and observe actual
+environment/arguments; missing private marker, wrong identity and exit2 refuse.
+Trust, signatures, notary and native foreground qualification remain unchanged.
+Actual coordinator producer smoke on the committed source is still pending.
+
+The first Windows fullnormal wrapper at6e610 passed configuration but stopped
+before compilation: Ninja's -k0 was passed to the VisualStudio/MSBuild preset
+and MSBuild refused that switch. Its logs and failed receipt are preserved;
+this is a wrapper error, not a product compile/test failure. The next wrapper
+uses the existing generator-supported normal build with no trailing -k0.

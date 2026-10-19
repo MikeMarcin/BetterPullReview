@@ -66,6 +66,11 @@ This uses the existing universal build, restricted Qt deployment, both-slice
 dependency/deployment-floor checks and relocated launch smoke. It includes
 notices/source references, applies only an offline ad-hoc signature, and emits
 an app, local ZIP, separate version-bound source ZIP, SPDX SBOM and checksums.
+The relocated self-test explicitly selects `QT_QPA_PLATFORM=offscreen` with an
+isolated `HOME`, retaining the private-profile and production bundle-identity
+checks. This unattended smoke cannot qualify a native Cocoa window or desktop
+interaction; those require their separate isolated or attended courses.
+
 It does not read signing identities, change
 Keychain, contact Apple, sign with Developer ID, tag, push or publish. Ad-hoc
 sealing permits local execution; it is not Gatekeeper or distribution trust.

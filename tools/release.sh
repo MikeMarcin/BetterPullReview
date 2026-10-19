@@ -295,7 +295,10 @@ verify_relocated_launch() {
     local status
 
     mkdir -p "${profile_root}"
-    if output="$(env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE \
+    # This unattended relocation probe must not show a window on the owner's
+    # desktop. Native Cocoa launch qualification remains a separate course.
+    if output="$(env -u QT_STYLE_OVERRIDE \
+        QT_QPA_PLATFORM=offscreen \
         HOME="${profile_root}" \
         "${bundle}/Contents/MacOS/${APP_NAME}" \
         --self-test --automated-run-budget-ms 8000 2>&1)"; then
@@ -314,6 +317,7 @@ verify_relocated_launch() {
         fail "Relocated application did not reach the composed launch probe"
     grep -Fq "NOTIFICATION_BUNDLE_IDENTITY:${BUNDLE_ID}" <<<"${output}" || \
         fail "Relocated application did not report the production bundle identity"
+    log "Relocated offscreen launch verified private profile and production bundle identity"
 }
 
 while [[ $# -gt 0 ]]; do
