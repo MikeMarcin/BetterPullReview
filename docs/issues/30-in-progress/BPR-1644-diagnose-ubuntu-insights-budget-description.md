@@ -35,3 +35,20 @@ predicate unchanged.
 Evidence: ignored ubuntu-gate-r5 raw/normalized logs, lines5404–5411.
 The coordinator explicitly released the shared PC for focused repairs; the
 Mac807 integration remains parent-owned and protected.
+
+
+## Actual native observation and bounded repair
+
+At sourcef8b8f3383 the original predicate fails under QLocale C with ownRequests412
+and accessible text: BetterPullReview about412 requests; other clients about1240;
+3348 left of5000. The exact seeded counts are correct; this locale does not use
+comma group separators. Native receipt/log v030-linux-focused-r2 retains the
+full description and original failure. No budget calculation defect is inferred.
+
+The assertion now formats the same exact expected1240 and3348 using QLocale,
+matching the established product localization contract. It also binds them to
+their existing other-clients/left-of text, rather than accepting an arbitrary
+substring occurrence. Persisted412 wait, all budget semantics, product text,
+stall bounds and every later public-course assertion remain unchanged. Source
+format22/diff checks pass; native complete-course and tidy verification remain
+pending on this candidate.

@@ -494,7 +494,9 @@ try {
 	expect(foundInsights && !shell->findChild<QLabel*>(QStringLiteral("insightsLocalData"))->text().contains(QStringLiteral("unavailable")), "Summary and Storage display real data, including Insights itself");
 	auto* budget = shell->findChild<QWidget*>(QStringLiteral("insightsBudget"));
 	until([&] { return budget->property("ownRequests").toULongLong() == 412; }, "seeded real store reaches the Summary budget");
-	const auto budgetMatches = budget->accessibleDescription().contains(QStringLiteral("1,240")) && budget->accessibleDescription().contains(QStringLiteral("3,348"));
+	const auto expectedOther     = QStringLiteral("other clients about %1;").arg(QLocale{ }.toString(1240));
+	const auto expectedRemaining = QStringLiteral("%1 left of").arg(QLocale{ }.toString(3348));
+	const auto budgetMatches     = budget->accessibleDescription().contains(expectedOther) && budget->accessibleDescription().contains(expectedRemaining);
 	if (!budgetMatches) {
 		std::cerr << "insights-budget locale=" << QLocale{ }.name().toStdString() << " own_requests=" << budget->property("ownRequests").toULongLong()
 				  << " description=" << budget->accessibleDescription().toStdString() << '\n';
