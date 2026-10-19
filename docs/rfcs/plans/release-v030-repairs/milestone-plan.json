@@ -10,7 +10,8 @@
       "BPR-1628",
       "BPR-1629",
       "BPR-1630",
-      "BPR-1631"
+      "BPR-1631",
+      "BPR-1632"
     ]
   },
   "milestones": [
@@ -79,6 +80,14 @@
             "AC2",
             "AC3"
           ]
+        },
+        {
+          "issue": "BPR-1632",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
         }
       ],
       "depends_on": [],
@@ -92,9 +101,10 @@
         "The captured native Windows failures are repaired without relaxing CRT handling, CNG stub behavior, private scratch security or workbench assertions, and affected native targets build/test against the exact committed candidate.",
         "The resident Help test matches the accepted complete action order, retains windowless disabled-state assertions and changes no product UX.",
         "Pinned HACL generated C compiles under strict C11 on Ubuntu26.04 with only its private Linux feature definition; affected SHA-256 contracts pass without global flags or pin/upstream changes.",
-        "All14 pending Windows exemptions are grounded in actual direct/contained observations, reproduced portability failures are corrected, and exact finite pins plus mandatory native manifest pass without relaxed assertions, deadlines or network grants."
+        "All14 pending Windows exemptions are grounded in actual direct/contained observations, reproduced portability failures are corrected, and exact finite pins plus mandatory native manifest pass without relaxed assertions, deadlines or network grants.",
+        "The actual Mac history input-gap failure is diagnosed and a justified candidate passes focused native evidence under unchanged platform budgets and attributed timing semantics; required baseline/reproduction evidence remains explicit until supplied."
       ],
-      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact. The coordinator additionally authorizes removing inherited product-library links only from test_better_pull_review_agent_canary in tests/adapters_qt/CMakeLists.txt, preserving explicit Windows libraries; no application launch/environment policy changes. Coordinator-delegated Windows slot permits captured incremental/focused native builds and checks; Mac baseline remains frozen. Bounded source ownership additionally covers tests/core/CMakeLists.txt, tests/sqlite_contract/CMakeLists.txt, tests/git_contract/CMakeLists.txt, tests/adapters_qt/CMakeLists.txt and tests/adapters_qt/profile_management_window_tests.cpp. The coordinator authorizes the measured Windows-only sqlite_insights_storage registration and its exact scripts/verify_test_network_isolation.py pin after actual direct pass and contained ancestor READ_CONTROL Win32 5; no test skip or other containment registration changes. Required manifest validation remains mandatory. Coordinator resumes same milestone after Ubuntu normal HACL compile failure: own cmake/BprHaclSha2Provider.cmake private Linux feature definition and exact focused native Linux verification; then measured Windows14 entries, scripts/verify_test_network_isolation.py, and only reproduced test portability repairs under tests/end_to_end and tests/sqlite_contract. No full native suite, Mac heavy work, signing or credential changes. BPR1628 mandatory manifest obligation remains pending until measured registry is green."
+      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact. The coordinator additionally authorizes removing inherited product-library links only from test_better_pull_review_agent_canary in tests/adapters_qt/CMakeLists.txt, preserving explicit Windows libraries; no application launch/environment policy changes. Coordinator-delegated Windows slot permits captured incremental/focused native builds and checks; Mac baseline remains frozen. Bounded source ownership additionally covers tests/core/CMakeLists.txt, tests/sqlite_contract/CMakeLists.txt, tests/git_contract/CMakeLists.txt, tests/adapters_qt/CMakeLists.txt and tests/adapters_qt/profile_management_window_tests.cpp. The coordinator authorizes the measured Windows-only sqlite_insights_storage registration and its exact scripts/verify_test_network_isolation.py pin after actual direct pass and contained ancestor READ_CONTROL Win32 5; no test skip or other containment registration changes. Required manifest validation remains mandatory. Coordinator resumes same milestone after Ubuntu normal HACL compile failure: own cmake/BprHaclSha2Provider.cmake private Linux feature definition and exact focused native Linux verification; then measured Windows14 entries, scripts/verify_test_network_isolation.py, and only reproduced test portability repairs under tests/end_to_end and tests/sqlite_contract. No full native suite, Mac heavy work, signing or credential changes. BPR1628 mandatory manifest obligation remains pending until measured registry is green. Coordinator additionally assigns read-only source/report diagnosis of Mac application_large_review_history while its baseline runs; no heavy Mac work until baseline completion and no application edits before source-backed cause/agreed scope."
     }
   ],
   "coverage": "complete",

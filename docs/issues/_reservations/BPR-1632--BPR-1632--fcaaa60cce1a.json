@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1632"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Diagnose actual Mac large-review history attributed input-gap failure",
+  "created": "2026-10-19T04:30:23.434770+00:00",
+  "base": "98488e2ef845541aa5f0a20cf49b878a897848ec"
+}
