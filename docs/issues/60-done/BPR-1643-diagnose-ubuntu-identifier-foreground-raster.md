@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1643"
 title: "Diagnose Ubuntu identifier foreground raster"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Actual native fullyvisible Networktoken correctformat#1b5e70, monospace9, closestDPR1raster#256074 diff10; original710contrastpairs pass. Unchangedpredicate appDPR2 control passes complete4variants.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Approved actualwidget repaint atassessmentminimumDPR2 leaves appDPR/font/layout unchanged and scales logicalcrop correctly; RGBatmost3,710pairs/percharacter/bothpanes/4variants/freshprocess phases preserved. Wrongtoken paint rejects same reader, restoringformats passes.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC3","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Complete nativeLinuxc3bc freshprocesscourse passes2.79s and Mac4e0a passes, including actualwrongpaint controls. Source-bound scopedtidy22Werror/format22/architecture/docs/diff pass. This does not qualify DPR1 userlegibility.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}}]
 ---
 
 # BPR-1643: Diagnose Ubuntu identifier foreground raster
@@ -67,3 +68,14 @@ formats must restore the required ink. All710 contrast pairs, every-character
 format checks, both panes, four variants and fresh-process phases remain.
 This is palette/paint evidence, not DPR1 user legibility qualification. Native
 complete-course/negative-control and scoped tidy checks remain pending.
+
+## Verified repair result
+
+Actual native fullyvisible Networktoken correctformat#1b5e70, monospace9, closestDPR1raster#256074 diff10; original710contrastpairs pass. Unchangedpredicate appDPR2 control passes complete4variants.
+
+Approved actualwidget repaint atassessmentminimumDPR2 leaves appDPR/font/layout unchanged and scales logicalcrop correctly; RGBatmost3,710pairs/percharacter/bothpanes/4variants/freshprocess phases preserved. Wrongtoken paint rejects same reader, restoringformats passes.
+
+Complete nativeLinuxc3bc freshprocesscourse passes2.79s and Mac4e0a passes, including actualwrongpaint controls. Source-bound scopedtidy22Werror/format22/architecture/docs/diff pass. This does not qualify DPR1 userlegibility.
+
+Exact receipts, raw failures, JUnit and source bindings remain under the ignored
+release-v0.3.0 session; other release qualifications are separate obligations.

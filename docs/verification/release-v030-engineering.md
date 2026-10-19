@@ -346,7 +346,7 @@ Native generated-environment and complete-course verification stay pending;
 offscreen automation supplies no real-desktop qualification.
 
 
-[BPR-1643](../issues/30-in-progress/BPR-1643-diagnose-ubuntu-identifier-foreground-raster.md)
+[BPR-1643](../issues/60-done/BPR-1643-diagnose-ubuntu-identifier-foreground-raster.md)
 retains the later Ubuntu identifier appearance failure after all710 contrast
 pairs pass in four variants. Exact pane-layout foreground checks also precede
 the failed pixel assertion. Failure-only context now names its token, variant,
