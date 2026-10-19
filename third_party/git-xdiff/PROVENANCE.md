@@ -65,4 +65,14 @@ corresponding source and licensed like it, `LGPL-2.1-or-later`. With
 pinned by SHA-256 as the `buildInputs` of the `git-xdiff` entry in
 `packaging/dependencies.json`, and every release's corresponding-source asset
 carries them under `git-xdiff-2.56.0-build/` beside the upstream archive.
-Installing the library is copying that one file into place.
+The same pinned build inputs now also include the standalone
+`third_party/git-xdiff/rebuild/CMakeLists.txt`, its `README.md`, and the
+unchanged `cmake/Hardening.cmake` helper ([[BPR-1656]]). This recipient entry
+point uses the extracted, optionally modified Git source and the local shims;
+it needs no application checkout, CPM or download. The original provider alone
+was insufficient because its acquisition helpers were not in the source asset.
+The standalone project preserves all seven compiled sources, C11 shared
+linkage, output/export settings and the original hardening helper. Its README
+gives platform architecture, rebuild and replacement instructions. Installing
+the compatible replacement is copying that one library file into place;
+macOS additionally requires local resealing of the modified bundle copy.

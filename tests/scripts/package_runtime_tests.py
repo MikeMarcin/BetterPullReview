@@ -122,12 +122,13 @@ class PackageRuntimeTests(unittest.TestCase):
         # retained file beside the record is either a notice or a build input.
         inputs = {entry["path"]: entry["sha256"] for entry in item["buildInputs"]}
         self.assertEqual(set(inputs), {"third_party/git-xdiff/git-compat-util.h", "third_party/git-xdiff/bpr-xdiff-regex.h",
-                                       "cmake/BprXdiffProvider.cmake"})
+                                       "cmake/BprXdiffProvider.cmake", "cmake/Hardening.cmake",
+                                       "third_party/git-xdiff/rebuild/CMakeLists.txt", "third_party/git-xdiff/rebuild/README.md"})
         for path, value in inputs.items():
             self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), value,
                              f"{path} changed: update its buildInputs digest in packaging/dependencies.json")
-        files = {path.relative_to(ROOT).as_posix() for path in retained.iterdir() if path.is_file() and path.name != "PROVENANCE.md"}
-        self.assertEqual(files, {"third_party/" + name for name in notices} | (set(inputs) - {"cmake/BprXdiffProvider.cmake"}))
+        files = {path.relative_to(ROOT).as_posix() for path in retained.rglob("*") if path.is_file() and path.name != "PROVENANCE.md"}
+        self.assertEqual(files, {"third_party/" + name for name in notices} | {name for name in inputs if name.startswith("third_party/")})
         self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"],
                                                      "Windows": ["bpr_xdiff.dll"], "Linux": ["libbpr_xdiff.so"]})
         self.assertIn("OUTPUT_NAME bpr_xdiff", provider)

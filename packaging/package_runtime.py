@@ -439,7 +439,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
         "Git's xdiff (LGPL-2.1-or-later; xdiff/xhistogram.c BSD-3-Clause, the Eclipse Distribution License 1.0) is its own separately replaceable shared library: "
         "Contents/Frameworks/libbpr_xdiff.dylib on macOS, bpr_xdiff.dll beside better_pull_review.exe on Windows, libbpr_xdiff.so beside the application on Linux. "
         "BetterPullReview links it dynamically and contains no copy of it. Its complete corresponding source is in the source asset above: the unmodified git-xdiff-2.56.0.tar.xz archive, "
-        "whose xdiff/ directory is the library, and under git-xdiff-2.56.0-build/ the two compatibility headers that replace Git's git-compat-util.h and the CMake script that compiles them. "
+        "whose xdiff/ directory is the library, and under git-xdiff-2.56.0-build/ the two compatibility headers, original provider, self-contained hardening helper and standalone recipient CMake project. "
+        "Start with git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md: verify and extract the supplied archive, then configure that directory against your extracted, optionally modified source. No application checkout, CPM or network acquisition is required. "
         "You may modify it and replace that one file with your own build exporting the same C interface (xdiff/xdiff.h of Git 2.56.0), as for the Qt libraries above, including the macOS resealing step.\n"
         "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n"
         "This evidence does not constitute owner/legal approval to distribute a release. That remains the release-readiness gate.\n", encoding="utf-8")

@@ -454,11 +454,23 @@ dynamically linked as its own shared library, as Qt is" (RFC-BPR-0082 Q1,
 - **Corresponding source.** The separate corresponding-source asset carries
   the unmodified `git-xdiff-2.56.0.tar.xz` archive and, under
   `git-xdiff-2.56.0-build/`, BetterPullReview's two compatibility headers
-  that replace Git's `git-compat-util.h` and the CMake script that compiles
-  the library: the `buildInputs` of the `git-xdiff` entry, pinned by SHA-256.
+  that replace Git's `git-compat-util.h`, the original provider, standalone
+  recipient CMake project/README and its self-contained hardening helper:
+  the `buildInputs` of the `git-xdiff` entry, pinned by SHA-256.
   Preparing the asset refuses a build input whose bytes changed, and the
   audits verify each entry's digest. Change a pinned file and update its
   digest in the same commit; `package_runtime_tests` names the stale one.
+- **Recipient rebuild.** Start at
+  `git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md` in the asset.
+  Verify and extract the supplied Git archive, then configure that standalone
+  CMake directory with the absolute extracted source path. It compiles the same
+  seven C11 sources into the separately replaceable shared library, using only
+  the local shims and shipped hardening helper. No application checkout, CPM,
+  shared cache or network is required. Recipients may modify their extracted
+  source and rebuild; pinning the original archive does not prohibit that.
+  Platform architecture, output/import-library and local resealing instructions
+  are included. The original acquisition provider remains provenance, rather
+  than the recipient entry point ([[BPR-1656]]).
 - **Replacement.** `SOURCE-OFFERS.txt` states that xdiff is a separately
   replaceable shared library, names the file on each platform and permits
   replacing it with a modified build exporting the same C interface

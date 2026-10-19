@@ -801,3 +801,43 @@ release-prefix fixture correction reconcile. Local Mac package-runtime has
 24 pass/1 Linux-native skip and covers the POSIX fixture separately from
 Windows's 23 pass/2 platform skips. Source review completion supplies no final
 artifact audit, new SPDX vulnerability disposition or publication acceptance.
+
+
+## Standalone xdiff corresponding-source repair
+
+[BPR-1656](../issues/30-in-progress/BPR-1656-ship-a-standalone-xdiff-recipient-rebuild-recipe.md)
+repairs an actual practical source-material gap discovered in both retained
+DFB source ZIPs. Their declared three build inputs are byte-correct, but the
+provider requires absent acquisition/hardening helpers and an application tree.
+A recipient could not use it as a standalone entry point. Exact inventory
+success did not establish practical rebuilding; original assets remain intact.
+
+The source asset now additionally pins a standalone recipient CMake project,
+its instructions and the unchanged canonical hardening helper. With the
+already supplied Git archive and shims it builds the original seven C11 sources
+as a separately replaceable shared library, with matching output/export settings.
+It needs no BetterPullReview checkout, CPM, shared cache or network acquisition,
+and permits edits to recipient-extracted source. Installed offers, the package
+guide and provenance identify this entry point. The production provider,
+compiled C/C++ inputs, dependency pins and hardening policy are unchanged.
+
+The fresh component-only Mac assessment builds both architectures, verifies
+all seven compile commands and canonical flags, matches all30 defined arm64
+exports against the retained signed DFB library, and directly links/runs the
+public C API with exact diff output. An edited-source marker executes after
+rebuild/relink with original exports/API preserved. Corrupt-archive,
+missing-helper/header/source and wrong-result controls refuse; disposable roots
+are removed and delivered bytes are unchanged. Receipts retain actual input
+hashes and distinguish an assessment from a produced release asset.
+Focused package-runtime tests pass24 with one native-Linux configured skip on
+Mac; source-asset tests pass21. Canonical criterion binding, documentation and
+independent changed-surface review accompany the final handoff. No full runtime
+matrix is repeated for this build-material-only correction.
+
+Windows/Linux recipe execution and the regenerated final common-source assets,
+installed notices/provenance/SPDX, native public audits and fresh exact security
+bindings remain coordinator-owned acceptance. The issue stays In Progress at
+source freeze. Later operational receipts remain outside source; administrative
+closeout does not move the publishing candidate. Existing strict test failures,
+unavailable native clean-account contexts and all other release obligations
+are preserved.
