@@ -91,13 +91,11 @@ namespace bpr::app::detail::large_review_fixture {
 	[[nodiscard]] inline auto connection(glz::generic::array_t aNodes, std::size_t aTotal,
 										 std::size_t aEnd, std::string_view aPrefix) -> glz::generic
 	{
-		// Glaze's initializer lists contain const values, so even a moved
-		// nodes array would be copied. Transfer the complete page once.
-		auto result          = glz::generic(glz::generic::object_t{ });
-		result["nodes"]      = glz::generic(std::move(aNodes));
-		result["totalCount"] = glz::generic(aTotal);
-		result["pageInfo"]   = glz::generic{ { "hasNextPage", aEnd < aTotal }, { "endCursor", std::string{ aPrefix } + std::to_string(aEnd) } };
-		return result;
+		return glz::generic{
+			{ "nodes", std::move(aNodes) },
+			{ "totalCount", aTotal },
+			{ "pageInfo", glz::generic{ { "hasNextPage", aEnd < aTotal }, { "endCursor", std::string{ aPrefix } + std::to_string(aEnd) } } },
+		};
 	}
 
 	[[nodiscard]] inline auto file_connection(const glz::generic::array_t& aFiles, std::size_t aStart) -> glz::generic
@@ -198,15 +196,9 @@ namespace bpr::app::detail::large_review_fixture {
 			if (initial || !filePage) {
 				pull["reviewThreads"] = thread_connection(aRoot, pages[pageIndex], pageIndex);
 			}
-			// Keep the same ordered envelope without copying its complete
-			// thread page at each nested initializer list (BPR-1653).
-			auto repository           = glz::generic{ { "id", "R_large_review" } };
-			repository["pullRequest"] = std::move(pull);
-			auto data                 = glz::generic(glz::generic::object_t{ });
-			data["repository"]        = std::move(repository);
-			auto body                 = glz::generic(glz::generic::object_t{ });
-			body["data"]              = std::move(data);
-			append_exchange(aExchanges, semantic, body);
+			append_exchange(aExchanges, semantic, glz::generic{
+													  { "data", glz::generic{ { "repository", glz::generic{ { "id", "R_large_review" }, { "pullRequest", std::move(pull) } } } } },
+												  });
 		}
 	}
 

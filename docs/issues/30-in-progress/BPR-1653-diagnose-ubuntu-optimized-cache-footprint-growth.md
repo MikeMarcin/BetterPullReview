@@ -24,7 +24,7 @@ benchmark build itself passed in 350.403 seconds.
 - AC2: Implement only a justified bounded correction after reporting exact product/frozen-input impact to the coordinator. Preserve original footprint/live-heap/cache/eviction/cleanup/input predicates, platform limits, course configuration and deadlines. No platform skip, allocator tuning or measurement bypass supplies acceptance.
 - AC3: Run the actual optimized native course on the exact candidate, retain the original failure and meaningful causal counterexample evidence, and complete appropriate focused verification. Any temporary diagnostics are restored and original binary rebuilt before acceptance; final source freeze follows all card/ledger upkeep.
 
-- AC4: Preserve exact encoded request/response output for all 32 heads with an altered-field negative control. Review only the fixture-header source change, reseal full/app-manifest composition pins with unchanged production mutation digest, and run the actual complete composition contract. Record tests-OFF exclusion separately; the Mac frozen tests-on input is invalid until explicit rebuild/reconciliation.
+- AC4: Preserve the bounded fixture-move experiment, full32-head output equality and altered-field controls, original-header causal comparison and exact restoration. Revert a change that does not establish the memory repair. Any later app-input correction requires a separately reviewed composition reseal/actual contract and explicit frozen/distribution binding; no automatic adoption or limit change.
 
 ## Preserved first failure
 
@@ -78,3 +78,29 @@ This header is an app/helper input in tests-on Mac builds, invalidating the
 previous frozen-input adoption until fresh rebuild or rigorous reconciliation.
 The tests-OFF distribution fixture exclusion and unchanged production mutation
 digest require separate evidence. No automatic guard-based adoption applies.
+
+## Rejected fixture-move experiment
+
+Candidate a661b333f preserves all32 heads' complete encoded request/response
+output:992 exchanges, including one viewer bootstrap per compiled script plus
+30 authenticated exchanges. Altered response status and request path refuse.
+The first two probe wrappers incorrectly expected30 total entries and stopped
+before cache execution; those refusals remain retained. The corrected probe
+checks all31 entries per head and21882326 response-body bytes.
+
+The actual unchanged-budget candidate still fails in49.7115s at selection19,
+with233431040 footprint-growth bytes. Its original-header causal control fails
+in50.4109s at selection17, with226967552 bytes. Matched live heap is essentially
+identical, and candidate-minus-original RSS changes sign across phases. These
+measurements do not support the move assembly as the memory repair.
+
+Both temporary probe/control sources are restored and the candidate binary
+rebuilt to identical d2a6cbe7d03909d486b3ece03edcfe7fd27f1cd24e9ba425c7311ce20fd7d156
+before the experimental header is intentionally reverted. All evidence remains
+under ignored linux-final-evidence/v030-linux-cache-move-candidate-r8-results.
+No composition pin is changed for this rejected experiment. The original
+header SHA256 cd5b441f57144b21f61fe1b9544d54754d07fd90c5dfb3587d5289d8f0fef7a7
+is restored; frozen input eligibility requires fresh current comparison and
+coordinator adoption rather than assuming the intermediate invalidation gone.
+Further live/presentation-versus-allocator diagnosis remains open under the
+original216MiB/900s predicates.
