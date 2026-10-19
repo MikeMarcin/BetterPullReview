@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1656"
 title: "Ship a standalone xdiff recipient rebuild recipe"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0082"]
 depends_on: []
 priority: "P1"
