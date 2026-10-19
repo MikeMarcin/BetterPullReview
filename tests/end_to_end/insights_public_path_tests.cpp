@@ -459,6 +459,7 @@ try {
 	auto* action = window->findChild<QAction*>(QStringLiteral("openInsightsAction"));
 	expect(action && action->shortcut() == QKeySequence{ Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_I }, "the public menu entry carries the agreed shortcut");
 #if defined(Q_OS_MACOS)
+	std::cout << "insights-menu platform=" << QApplication::platformName().toStdString() << " role=" << static_cast<int>(action->menuRole()) << " associations=" << action->associatedObjects().size() << '\n';
 	if (QApplication::platformName() == QStringLiteral("cocoa")) {
 		const auto associations = action->associatedObjects();
 		expect(action->menuRole() == QAction::NoRole && std::ranges::none_of(associations, [](const QObject* aObject) { return qobject_cast<const QMenu*>(aObject) != nullptr; }),
