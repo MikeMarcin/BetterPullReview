@@ -1,0 +1,36 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "4773277f981d429c29862e297c0e31c3d5e90335",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "detail": "Authoritative external-determinism contract and linked live guidance; current RFC amendment is adopted without rewriting history."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "4773277f981d429c29862e297c0e31c3d5e90335",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "detail": "Implementation constraints, host effect/lifecycle ownership, Qt independence and resource/cross-platform qualifications preserved; no behavior/dependency changes."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "4773277f981d429c29862e297c0e31c3d5e90335",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "detail": "Documentation gate, 67 docs contracts, both direct boundary scans, 11 core and ten focused architecture contracts pass; CMake executable content unchanged."
+      }
+    }
+  ]
+}

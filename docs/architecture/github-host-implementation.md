@@ -2159,11 +2159,11 @@ markers, and evidence strings are absent.
 
 ## Build and dependency allocation
 
-The selected dependency direction is:
+The selected dependency direction follows the [core semantic contract and implementation inventory](system-architecture.md#core-implementation-inventory):
 
 ```text
 better_pull_review_core
-    standard/domain C++ only
+    Qt-free semantic computation + approved private dependencies
 
 better_pull_review_application
     core + normalized GitHub port/read models

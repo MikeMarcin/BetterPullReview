@@ -1,7 +1,7 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
-# [[BPR-1439]]. {fmt} for text formatting, one of the owner-approved pure core
+# [[BPR-1439]]. {fmt} for text formatting, one of the owner-approved core
 # libraries (2026-10-13); the owner chose it over `std::format`. It is used
 # header-only (FMT_HEADER_ONLY): no upstream build, tests or install rules
 # run, and no `os.cc` file I/O is compiled. Quill's bundled copy lives in its

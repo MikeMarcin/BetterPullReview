@@ -9,6 +9,16 @@ metadata: {"mandate_revision":"cpp-identifier-context-r1","rfc_base_sha":"6ebd33
 
 # Context-aware C++ namespace and enum highlighting
 
+## Owner placement amendment — 2026-10-18
+
+Mandate `core-boundaries-r1`, [[BPR-1619]]: the owner permits the modest
+extraction of pure `refine_cpp_identifiers` into core. Its token spans and status
+are core value contracts with application aliases. This supersedes the lexical
+recognition placement below; packaged KSyntaxHighlighting grammar/resources,
+Qt template helper and host caching stay with their existing owners. No rules,
+colors, syntax-definition revision, limits or cancellation semantics change.
+Historical accepted candidates and the original adopted plan remain intact.
+
 ## Adoption
 
 Adopted on 2026-10-12 under mandate `cpp-identifier-context-r1` with the supplied syntax amendment. Immutable RFC_BASE_SHA: `6ebd33e57479a24aed91b930624bab030a436045`. The [live import](assets/cpp-identifier-context-v1.LIVE_IMPORT.md) retains the original proposal and all eight criteria. Historical palette verdicts remain separate.

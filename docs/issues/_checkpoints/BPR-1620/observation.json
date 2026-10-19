@@ -1,0 +1,112 @@
+{
+  "run_id": "external-determinism-v1",
+  "segment_id": "implementation",
+  "mandate_revision": "external-determinism-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "external-determinism-v1",
+    "plan_path": "docs/rfcs/plans/external-determinism-v1/milestone-plan.json",
+    "milestone_id": "architecture-policy",
+    "definition_fingerprint": "sha256:0a462cd691ae992205133195f06312f75d4efed01827ed53cf6f1c400b8d3f48",
+    "obligations": [
+      {
+        "id": "BPR-1620:*",
+        "source": "BPR-1620",
+        "selector": null,
+        "source_fingerprint": "sha256:fb63c0f396ac32131827e2c4c5915b11a40c7893628a06bd131b9fc104213b63"
+      }
+    ],
+    "obligation_fingerprint": "sha256:0e059213f6e6347dd982c6c654594f4816b62cff8bfef6e8efe5128ea5e4579e",
+    "exit_criteria": [
+      {
+        "id": "architecture-policy:exit:1",
+        "text": "BPR-1620 AC1: one authoritative external-determinism rule and linked live architecture/instructions replace library-specific purity exceptions."
+      },
+      {
+        "id": "architecture-policy:exit:2",
+        "text": "BPR-1620 AC2: implementation inventory, effect and lifecycle ownership, Qt independence, failure qualifications and historical obligations are preserved."
+      },
+      {
+        "id": "architecture-policy:exit:3",
+        "text": "BPR-1620 AC3: documentation gate and its contracts plus focused boundary checks pass; policy-only diff and intentional commits are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "architecture-policy",
+  "disposition": "milestone-complete",
+  "candidate_revision": "f5fc3a6be115b7ec8110c74a3af5fa774435bc5b",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1620/handoff.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/BPR-1620/verification.md",
+    "docs/issues/_checkpoints/BPR-1620/acceptance.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1620:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "docs/issues/_checkpoints/BPR-1620/acceptance.json"
+      ]
+    },
+    {
+      "id": "architecture-policy:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "docs/issues/_checkpoints/BPR-1620/acceptance.json"
+      ]
+    },
+    {
+      "id": "architecture-policy:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "docs/issues/_checkpoints/BPR-1620/acceptance.json"
+      ]
+    },
+    {
+      "id": "architecture-policy:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/BPR-1620/verification.md",
+        "docs/issues/_checkpoints/BPR-1620/acceptance.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-1620 architecture policy reconciliation and upkeep complete; original native/RFC/release obligations remain on their existing cards."
+  },
+  "ownership": "quiescent"
+}

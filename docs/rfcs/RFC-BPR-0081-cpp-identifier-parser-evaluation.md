@@ -8,6 +8,15 @@ metadata: {"rfc_base_sha":"530d92eaff1578413c0e669f476e740387441152","mandate_re
 
 # Evaluate a mature parser for C++ identifier refinement
 
+## Owner placement amendment — 2026-10-18
+
+Mandate `core-boundaries-r1`, [[BPR-1619]] moves the existing pure identifier
+refinement into core without redesigning it or admitting a new parser library.
+The optional evaluation follows its new core symbol and source location; the
+recorded macOS evaluation remains historical. Windows/Linux measurements on
+BPR-1443/BPR-1444 and closeout BPR-1445 remain owed under the original plan.
+No syntax-version change or new semantic acceptance is claimed.
+
 ## Execution status
 
 Mandate `cpp-identifier-parser-evaluation-r1` adopts the original proposal
@@ -58,7 +67,7 @@ RFC-DRAFT-0018, the diff-engine evaluation draft.
 (Auto-Verified through
 [BPR-1411](../issues/60-done/BPR-1411-recognize-cpp-namespace-and-enum-context.md)
 and [BPR-1412](../issues/60-done/BPR-1412-close-rfc-0072.md)) added
-[`cpp_identifier_context.cpp`](../../src/adapters/syntax/src/cpp_identifier_context.cpp)
+[`cpp_identifier_context.cpp`](../../src/core/src/cpp_identifier_context.cpp)
 in commit `c58bdebda` on 2026-10-12. The file is 539 lines and has not changed
 since. It runs only for the C++ definition. It runs after KSyntaxHighlighting
 6.28.1 has produced complete-blob spans, and only when that pass is available

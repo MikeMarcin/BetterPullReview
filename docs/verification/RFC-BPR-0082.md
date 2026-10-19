@@ -369,3 +369,11 @@ macOS: measured (this report). Linux and Windows: the cards [[BPR-1468]] and
 [[BPR-1469]] are eligible for those stations and unmeasured; cross-platform
 determinism is therefore open. The process shape's hook uses `posix_spawn`, so
 the Windows card also ports the hook's launch.
+
+## Core placement amendment, 2026-10-18
+
+[[BPR-1619]], mandate `core-boundaries-r1`, moves pure xdiff matching and C++
+identifier refinement into core. The separately linked xdiff DSO, host worker
+abandonment, syntax rules/version and existing native/evaluation obligations
+remain unchanged. [Bounded verification](../issues/_checkpoints/BPR-1619/verification.md)
+records current evidence; earlier candidate records retain their historical meaning.

@@ -16,7 +16,7 @@
 // are. The core checks every match against its own classes, so a mismatch is
 // a refused comparison, never a wrong one.
 
-#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
+#include "bpr/core/diff_line_matcher.hpp"
 
 extern "C" {
 #include "bpr-xdiff-regex.h"
@@ -31,7 +31,7 @@ extern "C" {
 #include <span>
 #include <vector>
 
-namespace bpr::adapters::xdiff {
+namespace bpr::core {
 	namespace {
 		/// One hunk of a zero-context diff, zero-based: left lines
 		/// [OldBegin, OldBegin + OldCount) are replaced by right lines
@@ -65,7 +65,7 @@ namespace bpr::adapters::xdiff {
 			return aByte == 0x20U || aByte == 0x09U;
 		}
 
-		[[nodiscard]] auto line_count(const core::decoded_text_document* aDocument) noexcept -> std::size_t
+		[[nodiscard]] auto line_count(const decoded_text_document* aDocument) noexcept -> std::size_t
 		{
 			return aDocument == nullptr ? 0U : aDocument->Lines.size();
 		}
@@ -75,13 +75,13 @@ namespace bpr::adapters::xdiff {
 		/// form, one record per engine line. Spaces and tabs are single bytes in UTF-8 and never part of a
 		/// longer sequence, so removing them bytewise is removing them as
 		/// scalars.
-		[[nodiscard]] auto comparison_bytes(const core::decoded_text_document* aDocument, const core::diff_options& aOptions,
+		[[nodiscard]] auto comparison_bytes(const decoded_text_document* aDocument, const diff_options& aOptions,
 											std::vector<std::uint8_t>& aStorage) -> std::span<const std::uint8_t>
 		{
 			if (aDocument == nullptr) {
 				return { };
 			}
-			if (aOptions.Whitespace == core::whitespace_policy::exact && aOptions.LineEndings == core::line_ending_policy::exact) {
+			if (aOptions.Whitespace == whitespace_policy::exact && aOptions.LineEndings == line_ending_policy::exact) {
 				return aDocument->Bytes;
 			}
 			aStorage.clear();
@@ -91,18 +91,18 @@ namespace bpr::adapters::xdiff {
 				const auto content = bytes.subspan(static_cast<std::size_t>(line.Content.Begin), static_cast<std::size_t>(line.Content.End - line.Content.Begin));
 				const auto start   = aStorage.size();
 				for (const auto byte : content) {
-					if (aOptions.Whitespace == core::whitespace_policy::ignore_all && is_blank(byte)) {
+					if (aOptions.Whitespace == whitespace_policy::ignore_all && is_blank(byte)) {
 						continue;
 					}
 					aStorage.push_back(byte);
 				}
-				if (aOptions.Whitespace == core::whitespace_policy::ignore_trailing) {
+				if (aOptions.Whitespace == whitespace_policy::ignore_trailing) {
 					while (aStorage.size() > start && is_blank(aStorage.back())) {
 						aStorage.pop_back();
 					}
 				}
 				switch (line.Ending) {
-				case core::text_line_ending::none:
+				case text_line_ending::none:
 					// Only a final line has no ending. Normalized to nothing it
 					// would vanish, leaving xdiff one record short of the
 					// engine's lines; it is given a byte valid UTF-8 never
@@ -111,11 +111,11 @@ namespace bpr::adapters::xdiff {
 						aStorage.push_back(empty_final_line);
 					}
 					break;
-				case core::text_line_ending::lf:
+				case text_line_ending::lf:
 					aStorage.push_back('\n');
 					break;
-				case core::text_line_ending::crlf:
-					if (aOptions.LineEndings == core::line_ending_policy::exact) {
+				case text_line_ending::crlf:
+					if (aOptions.LineEndings == line_ending_policy::exact) {
 						aStorage.push_back('\r');
 					}
 					aStorage.push_back('\n');
@@ -128,9 +128,9 @@ namespace bpr::adapters::xdiff {
 		/// The matched lines between and around the hunks, or nothing when the
 		/// hunks do not tile both sides.
 		[[nodiscard]] auto matches_from_hunks(const std::vector<line_hunk>& aHunks, const std::size_t aLeftLines, const std::size_t aRightLines)
-			-> std::optional<std::vector<core::diff_match>>
+			-> std::optional<std::vector<diff_match>>
 		{
-			auto result = std::vector<core::diff_match>{ };
+			auto result = std::vector<diff_match>{ };
 			auto left   = std::size_t{ 0U };
 			auto right  = std::size_t{ 0U };
 			for (const auto& hunk : aHunks) {
@@ -157,10 +157,10 @@ namespace bpr::adapters::xdiff {
 			return result;
 		}
 
-		class xdiff_line_matcher final : public application::diff_line_matcher_port
+		class xdiff_line_matcher final : public diff_line_matcher_port
 		{
 		public:
-			[[nodiscard]] auto match(const application::diff_line_match_input& aInput) -> std::optional<std::vector<core::diff_match>> override
+			[[nodiscard]] auto match(const diff_line_match_input& aInput) -> std::optional<std::vector<diff_match>> override
 			{
 				auto       leftStorage  = std::vector<std::uint8_t>{ };
 				auto       rightStorage = std::vector<std::uint8_t>{ };
@@ -188,8 +188,8 @@ namespace bpr::adapters::xdiff {
 		};
 	} // namespace
 
-	auto make_xdiff_line_matcher() -> std::shared_ptr<application::diff_line_matcher_port>
+	auto make_xdiff_line_matcher() -> std::shared_ptr<diff_line_matcher_port>
 	{
 		return std::make_shared<xdiff_line_matcher>();
 	}
-} // namespace bpr::adapters::xdiff
+} // namespace bpr::core

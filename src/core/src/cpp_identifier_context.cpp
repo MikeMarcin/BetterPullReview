@@ -1,4 +1,4 @@
-#include "cpp_identifier_context.hpp"
+#include "bpr/core/cpp_identifier_context.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace bpr::adapters::syntax {
+namespace bpr::core {
 	namespace {
 		using role             = core::appearance_role;
 		constexpr auto NoIndex = std::numeric_limits<std::uint32_t>::max();
@@ -113,8 +113,8 @@ namespace bpr::adapters::syntax {
 				Scopes.emplace_back();
 			}
 
-			[[nodiscard]] auto refine(application::token_span_list& aSpans, const std::size_t aMaximumSpans)
-				-> application::syntax_classification_status
+			[[nodiscard]] auto refine(token_span_list& aSpans, const std::size_t aMaximumSpans)
+				-> syntax_classification_status
 			{
 				prepare_roles(aSpans);
 				tokenize();
@@ -141,7 +141,7 @@ namespace bpr::adapters::syntax {
 				return !text.empty() && identifier_start(text.front());
 			}
 
-			void prepare_roles(const application::token_span_list& aSpans)
+			void prepare_roles(const token_span_list& aSpans)
 			{
 				Lines.push_back(0U);
 				for (auto at = std::size_t{ 0U }; at < Text.size(); ++at) {
@@ -640,15 +640,15 @@ namespace bpr::adapters::syntax {
 				}
 			}
 
-			[[nodiscard]] auto publish(application::token_span_list& aSpans, const std::size_t aMaximumSpans)
-				-> application::syntax_classification_status
+			[[nodiscard]] auto publish(token_span_list& aSpans, const std::size_t aMaximumSpans)
+				-> syntax_classification_status
 			{
-				auto result = application::token_span_list{ };
+				auto result = token_span_list{ };
 				auto line   = std::uint32_t{ 0U };
 				for (auto at = std::size_t{ 0U }; at < Text.size();) {
 					if (Stop.stop_requested()) {
 						aSpans.clear();
-						return application::syntax_classification_status::cancelled;
+						return syntax_classification_status::cancelled;
 					}
 					if (Text[at] == '\n') {
 						++line;
@@ -660,21 +660,21 @@ namespace bpr::adapters::syntax {
 					while (end < Text.size() && Text[end] != '\n' && Roles[end] == selected) {
 						if (cancelled(end)) {
 							aSpans.clear();
-							return application::syntax_classification_status::cancelled;
+							return syntax_classification_status::cancelled;
 						}
 						++end;
 					}
 					if (selected != role::syntax_normal) {
 						if (result.size() >= aMaximumSpans) {
 							aSpans.clear();
-							return application::syntax_classification_status::limit_exceeded;
+							return syntax_classification_status::limit_exceeded;
 						}
 						result.push_back({ .Line = line, .Column = static_cast<std::uint32_t>(at) - Lines[line], .Length = static_cast<std::uint32_t>(end - at), .Role = selected });
 					}
 					at = end;
 				}
 				aSpans = std::move(result);
-				return application::syntax_classification_status::available;
+				return syntax_classification_status::available;
 			}
 
 			std::string_view                               Text;
@@ -690,8 +690,8 @@ namespace bpr::adapters::syntax {
 		};
 	}
 
-	auto refine_cpp_identifiers(const std::string_view aText, application::token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> application::syntax_classification_status
+	auto refine_cpp_identifiers(const std::string_view aText, token_span_list& aSpans,
+								const std::size_t aMaximumSpans, const std::stop_token aStop) -> syntax_classification_status
 	{
 		return cpp_context{ aText, aStop }.refine(aSpans, aMaximumSpans);
 	}

@@ -5,6 +5,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/model.hpp"
+#include "bpr/core/syntax_classification.hpp"
 #include "bpr/core/theme_exchange.hpp"
 
 #include <array>
@@ -318,24 +319,8 @@ namespace bpr::application {
 			&& aKey.Definition.Name.size() <= maximum_syntax_definition_bytes;
 	}
 
-	/// \brief Describes one classified token span.
-	///
-	/// \details `Line` is the zero-based line of the complete blob, `Column` the
-	/// zero-based byte offset within that line, and `Length` the span length in
-	/// bytes. Offsets are byte offsets because the host never decodes the blob.
-	/// `Role` is a core role, so a span names a semantic category and never a
-	/// colour.
-	struct token_span
-	{
-		std::uint32_t         Line   = 0U;
-		std::uint32_t         Column = 0U;
-		std::uint32_t         Length = 0U;
-		core::appearance_role Role   = core::appearance_role::syntax_normal;
-
-		auto operator<=>(const token_span&) const = default;
-	};
-
-	using token_span_list = std::vector<token_span>;
+	using token_span      = core::token_span;
+	using token_span_list = core::token_span_list;
 	// A retained classification is immutable and shared. Presentation may hold it
 	// for its projection lifetime; it cannot mutate it or become its authority.
 	using shared_token_spans = std::shared_ptr<const token_span_list>;
@@ -354,12 +339,7 @@ namespace bpr::application {
 		auto operator<=>(const syntax_classification_request&) const = default;
 	};
 
-	enum class syntax_classification_status : std::uint8_t {
-		available,
-		cancelled,
-		unavailable,
-		limit_exceeded,
-	};
+	using syntax_classification_status = core::syntax_classification_status;
 
 	/// \brief Describes the syntax classification record.
 	struct syntax_classification

@@ -62,7 +62,7 @@ class CoreBoundaryTests(unittest.TestCase):
         # Cycle suggestion hunks ([[BPR-1498]]).
         approved = self.run_check(
             "struct identity {};\n",
-            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl BetterPullReview::RE2)\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl BetterPullReview::RE2 BetterPullReview::Xdiff)\n",
         )
         self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
         for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):
@@ -74,7 +74,7 @@ class CoreBoundaryTests(unittest.TestCase):
                 self.assertNotEqual(refused.returncode, 0, refused.stdout)
                 self.assertIn("not an owner-approved core library", refused.stdout + refused.stderr)
 
-    def test_re2_exception_has_one_private_owner(self) -> None:
+    def test_re2_has_one_private_owner(self) -> None:
         allowed = self.run_check('#include <re2/re2.h>\n',
                                  source_path="src/core/src/source_regex_engine.cpp")
         self.assertEqual(allowed.returncode, 0, allowed.stdout + allowed.stderr)
@@ -94,14 +94,6 @@ class CoreBoundaryTests(unittest.TestCase):
             "CommonCrypto/CommonDigest.h",
             "sqlite3.h",
             "curl/curl.h",
-            "thread",
-            "future",
-            "filesystem",
-            "ctime",
-            "fstream",
-            "atomic",
-            "mutex",
-            "condition_variable",
             "asio.hpp",
             "nlohmann/json.hpp",
             "sys/socket.h",
@@ -130,9 +122,12 @@ class CoreBoundaryTests(unittest.TestCase):
             "clock_gettime(0, nullptr)",
             "GetSystemTime()",
             "clock()",
+            "std::localtime(&observed_time)",
+            "std::mktime(&observed_calendar)",
+            "std::ctime(&observed_time)",
+            'std::strftime(output, size, "%Z", &observed_calendar)',
             "rand()",
             "std::chrono::utc_clock::now()",
-            "clock_alias::now()",
             "std::chrono::steady_clock::now()",
             "std::chrono::system_clock::now()",
             "std::random_device{}()",
@@ -154,6 +149,35 @@ class CoreBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_explicit_synchronization_and_lexical_paths_are_allowed(self) -> None:
+        result = self.run_check(
+            "#include <atomic>\n#include <mutex>\n#include <filesystem>\n"
+            "auto stopped(const std::atomic_bool& stop) { return stop.load(); }\n"
+            "void update(std::mutex& guard, int& state) { std::lock_guard lock{guard}; ++state; }\n"
+            'auto path = std::filesystem::path{"src"} / ".." / "include";\n'
+            "auto normalized = path.lexically_normal();\n"
+            "auto parent = normalized.parent_path();\n"
+            "auto suffix = normalized.extension();\n"
+            "auto relative_path = normalized.lexically_relative(parent);\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_filesystem_effects_are_rejected(self) -> None:
+        for operation in (
+            "exists", "canonical", "weakly_canonical", "absolute", "relative",
+            "proximate", "current_path", "temp_directory_path", "file_size",
+            "status", "symlink_status", "is_directory", "is_regular_file",
+            "last_write_time", "copy", "copy_file", "create_directory",
+            "read_symlink", "remove", "remove_all", "rename", "resize_file",
+            "permissions", "directory_iterator", "recursive_directory_iterator",
+            "directory_entry",
+        ):
+            for prefix in ("std::filesystem::", "fs::", ""):
+                with self.subTest(operation=operation, prefix=prefix):
+                    preamble = "namespace fs = std::filesystem;\n" if prefix == "fs::" else ("using namespace std::filesystem;\n" if not prefix else "")
+                    self.assert_rejected(preamble + f"auto value = {prefix}{operation}(path);\n")
+        self.assert_rejected("using std::filesystem::directory_iterator;\n")
+
     def test_cng_link_is_owned_by_its_windows_branch(self) -> None:
         allowed = self.run_check("struct identity {};\n",
             "if(APPLE)\nelseif(WIN32)\n"
@@ -173,10 +197,85 @@ class CoreBoundaryTests(unittest.TestCase):
                     result = self.run_check(source, source_path=path)
                     self.assertNotEqual(result.returncode, 0)
 
-    def test_embedded_provider_endpoint_is_rejected(self) -> None:
-        self.assert_rejected(
-            'constexpr auto endpoint = "https://api.github.com";\n'
+    def test_inert_standard_headers_types_and_domain_names_are_allowed(self) -> None:
+        result = self.run_check(
+            "#include <thread>\n#include <future>\n#include <ctime>\n"
+            "#include <condition_variable>\n#include <fstream>\n"
+            "auto classify(std::thread::id id, const std::tm& observed, "
+            "std::future<int>& result, std::condition_variable& ready, "
+            "std::ifstream& input) -> bool;\n"
+            "auto stamp = observed_clock::now();\n"
+            "auto sample = model.time() + model.clock() + model.random();\n"
+            "auto selected = domain::connect(); auto opened = model.open();\n"
+            "auto value = domain::time() + domain::clock() + domain::random();\n"
+            'constexpr auto link = "https://example.test/help";\n'
+            '// Documentation: http://example.test/reference\n'
         )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_known_clock_and_entropy_aliases_are_rejected(self) -> None:
+        for source in (
+            "namespace ch = std::chrono; auto stamp = ch::steady_clock::now();",
+            "namespace ch = ::std::chrono; auto stamp = ch::steady_clock::now();",
+            "namespace standard = std; auto stamp = standard::chrono::steady_clock::now();",
+            "using clock_alias = std::chrono::system_clock; auto stamp = clock_alias::now();",
+            "typedef std::chrono::high_resolution_clock clock_alias; auto stamp = clock_alias::now();",
+            "using std::chrono::utc_clock; auto stamp = utc_clock::now();",
+            "using namespace std::chrono; auto stamp = steady_clock::now();",
+            "auto stamp = ::std::chrono::steady_clock::now();",
+            "auto stamp = std :: chrono :: steady_clock ::\n now ();",
+            "using entropy = std::random_device; entropy source;",
+        ):
+            with self.subTest(source=source):
+                self.assert_rejected(source)
+
+    def test_worker_launch_and_file_acquisition_are_rejected(self) -> None:
+        for source in (
+            "std::thread worker{run};",
+            "std::thread worker = {run};",
+            "auto worker = std::jthread(run);",
+            "using worker_type = std::thread; worker_type worker(run);",
+            "using std::thread; thread worker(run);",
+            "auto task = std::async(std::launch::async, run);",
+            "auto task = std::async(run);",
+            "auto task = std::async(std::launch::deferred | std::launch::async, run);",
+            "using std::async; auto task = async(run);",
+            "std::this_thread::sleep_for(delay);",
+            "std::this_thread::yield();",
+            "std::this_thread::get_id();",
+            "std::thread::hardware_concurrency();",
+            "using std::this_thread::sleep_for; sleep_for(delay);",
+            'std::ifstream input{"state"};',
+            'std::ifstream input = {"state"};',
+            'std::basic_ifstream<char> input{"state"};',
+            'auto input = std::ofstream("state");',
+            'using input_type = std::ifstream; input_type input("state");',
+            'using std::ifstream; ifstream input("state");',
+            'std::fstream input; input.open("state");',
+            'void read(std::fstream& input) { input.open("state"); }',
+            'std::filebuf buffer; buffer.open("state", std::ios::in);',
+            'std :: ifstream input; input.open("state");',
+            'auto task = std::async(std::launch::deferred, [] { return std::time(nullptr); });',
+        ):
+            with self.subTest(source=source):
+                self.assert_rejected(source)
+
+    def test_inert_thread_and_stream_objects_are_allowed(self) -> None:
+        result = self.run_check(
+            "std::thread worker; std::jthread pending{};\n"
+            "std::ifstream input; std::ofstream output{}; std::filebuf buffer;\n"
+            "auto mode = std::launch::deferred;\n"
+            "auto task = std::async(std::launch::deferred, [] { return 5; });\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_all_core_source_extensions_are_checked(self) -> None:
+        for suffix in (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".m", ".mm"):
+            with self.subTest(suffix=suffix):
+                result = self.run_check("auto stamp = std::chrono::steady_clock::now();",
+                                        source_path=f"src/core/policy{suffix}")
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("Functional-core boundary violation", result.stderr)
 
 
 if __name__ == "__main__":

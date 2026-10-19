@@ -1409,6 +1409,7 @@ namespace bpr::application {
 			std::optional<std::vector<std::uint8_t>>                   Bytes;
 			std::optional<std::uint64_t>                               SelectedGrantSequence;
 			std::optional<std::uint64_t>                               PreparedGrantSequence;
+			std::optional<workbench_selected_diff_observation>         PinnedSource;
 			bool                                                       FetchedRemotely   = false;
 			bool                                                       RetainedOverLimit = false;
 			/// [[BPR-1359]]. Held from admission until the network read ends.
@@ -5437,7 +5438,12 @@ namespace bpr::application {
 			auto selectedPair = std::optional<core::comparison_pair>{ };
 			{
 				std::scoped_lock lock{ aActor->BlobAuthorityMutex };
-				if (aActor->SelectedBlobGrant && exact_selected_blob_request(*aActor->SelectedBlobGrant, request)) {
+				if (aRead.PinnedSource) {
+					if (aActor->RealignmentAuthority != std::optional{ selected_diff_authority{ .Workbench = aRead.PinnedSource->Request.WorkbenchAuthority, .Diff = aRead.PinnedSource->Request.Diff } }) {
+						return;
+					}
+					selectedPair = aRead.PinnedSource->Request.Diff.Comparison;
+				} else if (aActor->SelectedBlobGrant && exact_selected_blob_request(*aActor->SelectedBlobGrant, request)) {
 					aRead.SelectedGrantSequence = aActor->SelectedBlobGrantSequence;
 					selectedPair                = aActor->SelectedBlobGrant->Request.Diff.Comparison;
 				} else if (const auto prepared = std::ranges::find_if(
@@ -5460,11 +5466,22 @@ namespace bpr::application {
 					}
 				}
 			}
-			if (aRead.Bytes || aRead.RetainedOverLimit || (!aRead.SelectedGrantSequence && !aRead.PreparedGrantSequence)
-				|| !selectedPair
-				|| !durably_sparse_anchor(*aActor, *aSelected,
-										  request.Side == core::diff_side::left ? selectedPair->Left : selectedPair->Right,
-										  workStop)) {
+			if (aRead.Bytes || aRead.RetainedOverLimit || !selectedPair
+				|| (!aRead.PinnedSource && !aRead.SelectedGrantSequence && !aRead.PreparedGrantSequence)) {
+				return;
+			}
+			if (aRead.PinnedSource) {
+				// [[BPR-1377]]. Pinned source may name either side or an older
+				// retained commit, independently of the displayed epoch pair.
+				// Its sealed endpoint proves exact path membership; the retained
+				// cache must still physically hold that commit's sparse tree.
+				const auto commit = aActor->Cache->inspect_sparse_commit_object(selectedPair->Left.Commit, workStop);
+				if (!commit || !application::valid(*commit) || commit->Commit != selectedPair->Left.Commit
+					|| commit->Residency != git_revision_residency::sparse_commit_trees) {
+					return;
+				}
+			} else if (!durably_sparse_anchor(*aActor, *aSelected,
+											  request.Side == core::diff_side::left ? selectedPair->Left : selectedPair->Right, workStop)) {
 				return;
 			}
 			// [[BPR-1359]]. A prepared file's blob read for preparation alone:
@@ -5563,6 +5580,7 @@ namespace bpr::application {
 					aRead.Observation.Status = diff_blob_status::cancelled;
 				} else if (aActor->BlobAuthority != std::optional{ aAuthorization }
 						   || aActor->BlobAuthorityGeneration != aAdmittedGeneration
+						   || (aRead.PinnedSource && aActor->RealignmentAuthority != std::optional{ selected_diff_authority{ .Workbench = aRead.PinnedSource->Request.WorkbenchAuthority, .Diff = aRead.PinnedSource->Request.Diff } })
 						   || (aRead.SelectedGrantSequence
 							   && (aActor->SelectedBlobGrantSequence != *aRead.SelectedGrantSequence
 								   || !aActor->SelectedBlobGrant
@@ -5600,8 +5618,9 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto materialize(
-			const diff_blob_request& aRequest,
-			const std::stop_token    aStop) -> diff_blob_observation
+			const diff_blob_request&                           aRequest,
+			const std::stop_token                              aStop,
+			std::optional<workbench_selected_diff_observation> aPinnedSource = std::nullopt) -> diff_blob_observation
 		{
 			auto result = diff_blob_observation{
 				.Context = aRequest.Context,
@@ -5609,6 +5628,16 @@ namespace bpr::application {
 				.Blob    = aRequest.Blob,
 				.Status  = diff_blob_status::failure,
 			};
+			if (aPinnedSource) {
+				const auto& source   = *aPinnedSource;
+				const auto& endpoint = aRequest.Side == core::diff_side::left ? source.LeftEndpoint : source.RightEndpoint;
+				const auto& path     = aRequest.Side == core::diff_side::left ? source.LeftPath : source.RightPath;
+				if (aRequest.MaximumBytes > 256U * 1024U || !exact_selected_blob_request(source, aRequest)
+					|| source.Request.Diff.Comparison.Left.Commit != source.Request.Diff.Comparison.Right.Commit
+					|| !path || !endpoint || !valid(*endpoint, source.Request, aRequest.Side, aRequest.Blob, *path)) {
+					return result;
+				}
+			}
 			if (!begin_blob_call()) {
 				return result;
 			}
@@ -5704,8 +5733,10 @@ namespace bpr::application {
 					 aStop,
 					 waiter,
 					 control,
-					 reviewer = std::move(turn)] {
+					 pinnedSource = std::move(aPinnedSource),
+					 reviewer     = std::move(turn)] {
 						auto read                     = actor_blob_read{ aRequest };
+						read.PinnedSource             = pinnedSource;
 						auto publicationAuthorityLock = std::unique_lock<std::mutex>{ };
 						try {
 							auto forwardCallerStop = std::stop_callback{
@@ -9668,6 +9699,13 @@ namespace bpr::application {
 		-> workbench_selected_diff_observation
 	{
 		return Implementation->resolve_selected_diff(aRequest, aStop);
+	}
+
+	auto epoch_application_host::materialize_pinned_source_blob(
+		const workbench_selected_diff_observation& aSource,
+		const diff_blob_request& aRequest, std::stop_token aStop) -> diff_blob_observation
+	{
+		return Implementation->materialize(aRequest, aStop, aSource);
 	}
 
 	auto epoch_application_host::read_cached_source(cached_review_source_request aRequest, std::stop_token aStop, cached_review_source_completion aCompletion) -> bool

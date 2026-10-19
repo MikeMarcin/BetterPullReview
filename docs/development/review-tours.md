@@ -124,7 +124,10 @@ reaffirm or retarget; identical selected bytes do not establish unchanged contex
 
 **Stop** revokes remaining authority and retains confirmed effects. Restart reads
 and reconciles what may have happened; inspect a fresh preview and use **Resume**
-for remaining writes. An unknown outcome is not proof of failure and must not be
+for remaining writes. A Stop between writes reports the confirmed pending,
+partial-update or published state, including a separate description update still
+needing attention. Cancellation alone does not establish a remote conflict.
+An unknown outcome is not proof of failure and must not be
 reposted blindly. During partial maintenance, each stop keeps an overview escape
 link and the existing root remains the route until its final update.
 

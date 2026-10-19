@@ -58,7 +58,11 @@ desktop, start a session with an unlocked keyring first, for example
 --components=secrets` with the keyring password on standard input, then
 `bpr tour connect`. Explicit
 `--transport gh` opts into the existing macOS gh executable/configuration trust
-boundary and selects its configured identity; it never extracts tokens.
+boundary and selects the unique active, signed-in, keyring-held account for the
+exact host. That login is pinned before the shared strict transport admits a
+read; each operation acquires its named transient credential through the existing
+adapter. Missing or ineligible selection refuses without switching accounts or
+falling back to another account or transport.
 
 Machine reads after open require `--profile` and the opaque `draft_id` returned
 by open. Every ID and revision is a decimal string (the opaque draft handle is a
@@ -69,6 +73,11 @@ summaries using `--cursor`; `show problem|solution|stop:ID` preserves raw Markdo
 in JSON and neutralizes terminal controls in human output. `show stop:ID --source` requests bounded pinned source; unavailable material is
 reported explicitly while the current comment remains readable. No worktree
 file is substituted. Source uses the same pinned endpoint/blob services exercised by the installed-Git fixture.
+On a sparse gh cache, the source worker passes the epoch host's sealed exact
+endpoint to one source read bounded at 256 KiB. The retained commit/tree and
+returned Git blob digest are checked; the read creates no selected-file or
+prepared-file grant. A replaced account, review or pinned comparison refuses
+the result, and ordinary diff reads retain their existing authority checks.
 
 `--data-root` selects an absolute private application root for isolated work.
 Existing non-private roots are refused, never chmodded into ownership. Local

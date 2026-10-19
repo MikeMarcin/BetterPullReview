@@ -17,11 +17,11 @@ completed slice before starting the next one.
 
 ## Architecture rules
 
-- Core code performs deterministic computation and no I/O. Its approved
-  libraries and scoped platform SHA-256/RE2 implementation exceptions are
-  listed in `AGENTS.md`;
-  chrono arithmetic and explicit seeded random state are permitted, while
-  clock reads and entropy remain host effects.
+- Core computation follows [external determinism](docs/architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism),
+  with explicit semantic inputs/state and host-owned effects. Internal timing or
+  layout variation does not disqualify a library. Qt independence, dependency
+  approval and the [implementation inventory](docs/architecture/system-architecture.md#core-implementation-inventory)
+  remain separate requirements.
 - The host owns effects, authority sessions, jobs, caches, cancellation, and
   lifecycle; it must not duplicate core policy.
 - Qt owns widgets, actions, focus, layout, accessibility, and event

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1377"
 title: "bpr tour add and show --source refuse every pinned-source read over the gh transport's sparse trees"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50 and #49, macOS, tour-cli build at e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1302","BPR-1327","BPR-1344","BPR-1359","BPR-1360"],"related_rfcs":["RFC-BPR-0044"],"milestone_plan":{"id":"bpr1377-sparse-tour-source","path":"docs/rfcs/plans/bpr1377-sparse-tour-source/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"530a7b94d4a196130320724a14988b65a2c1eab4","evidence":{"kind":"observation","detail":"Public source service sparse fixtures pass LEFT/RIGHT; sealed path/key/bound/cancellation/replacement/invalidation controls pass and ordinary reads gain no grant. Three focused composition/host suites pass.","artifact":"docs/issues/_checkpoints/BPR-1377/verification.md"}},{"criterion":"AC2","outcome":"pass","revision":"530a7b94d4a196130320724a14988b65a2c1eab4","evidence":{"kind":"command","detail":"Former ordinary materialize source call: application_epoch_host exits 8 at the exact public sparse-source assertion. Restore candidate bytes and rebuild: epoch host passes; final integration 3/3 pass."}},{"criterion":"AC3","outcome":"pass","revision":"530a7b94d4a196130320724a14988b65a2c1eab4","evidence":{"kind":"observation","detail":"Live non-GUI bpr on MikeMarcin/BPR-Test#49 adds RIGHT lines 1-2 of bpr-2acct/identity/review-me.txt, then show --source matches exact text/head/path/side. Head 2e1d8b415ce33ad1284b2f2ca34e82734c07ddc1; blob a4c178354da79ee0a3b425d7f0f319e5defe5fba. No remote writes."}}]
 ---
 
 # BPR-1377: bpr tour add and show --source refuse every pinned-source read over the gh transport's sparse trees
@@ -59,3 +60,16 @@ needed there. The macOS gh rows of that course were not run.
 - A fixture or loopback row that serves sparse trees fails before the fix and
   passes after it.
 - One live check on `MikeMarcin/BPR-Test` adds a stop and shows its source.
+
+## Resolution — 2026-10-18
+
+The epoch host now accepts one sealed pinned-source read without installing a
+desktop file grant. Exact tree provenance, commit/blob identity, the 256 KiB
+bound, cancellation and final authority checks remain enforced; ordinary diff
+reads gain no authority. The headless gh path also pins its unique active,
+signed-in keyring account before the existing strict factory admits it.
+
+All three original criteria pass for source candidate `530a7b94d4a196130320724a14988b65a2c1eab4`:
+LEFT/RIGHT sparse public-source fixtures, the failing-before former-call
+control and live BPR-Test#49 add/readback. See the [verification record](../_checkpoints/BPR-1377/verification.md).
+Parent tour qualification gaps are unchanged. No human review is required.

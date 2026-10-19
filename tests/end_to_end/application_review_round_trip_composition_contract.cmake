@@ -1,3 +1,14 @@
+# RFC-BPR-0086 review-stats integration over completed main a7e99406c.
+# Reviewed pinned-scope commits00e0eb7dc and c94d3b59e: composition captures
+# immutable PR/head/file facts for passive statistics, passes them to existing
+# review hosts, and preserves the same grants, provider and publication admission.
+# Workflow selections retain only that optional capture. Core factory wiring from
+# BPR-1619 and bounded pinned tour reads from BPR-1377 remain as reviewed below.
+# No app source inventory addition. The production mutation branch adds only
+# the passive capture argument to its existing host constructor; grant, target,
+# actor, source, provider and publication admission are unchanged.
+# Combined full/manifest pins bind these integrated bytes; evidence is on
+# RFC-BPR-0086 and its existing continuation.
 # BPR-1609 correction integration over 318c3f5aa: adopted completed BPR-1618
 # removes the regex adapter include and uses the core singleton. Recorded main
 # audit/Find evidence is preserved; Insights UI-only correction adds no app source.
@@ -12,6 +23,17 @@
 # gh changes collect at their existing send/start/terminal boundaries only.
 # Full application/production manifest resealed; mutation branch is unchanged.
 # Evidence: docs/verification/RFC-BPR-0086.md and the milestone continuation.
+# BPR-1377 reseal 2026-10-18: tour_remote pins the unique active signed-in
+# keyring-held login through existing bounded inventory on SourceEffects before
+# shared strict transport admission. It adds no token capture, global account
+# switch, provider operation or publication grant. The source worker uses the
+# epoch host's per-call sealed pinned-source read; ordinary blob grants stay
+# unchanged. Sparse source positive/old-call negative and live CLI add/show pass.
+# Current shared app scope also contains BPR-1619's xdiff factory/header move
+# from adapter to core in github_application, cycle_session and review_cycle_desktop,
+# plus removal of the old app link. Those wiring deltas were inspected for this
+# deterministic reseal; engine acceptance belongs to BPR-1619. The production
+# mutation-branch digest stays unchanged. No sibling work is reverted.
 # RFC-BPR-0086 accepted-milestone integration over main 614c6bbb7.
 # Self-reviewed the combined app scope: Insights keeps its profile-owned local
 # lane/window, initialization/shutdown and existing export/cache gestures; main's
@@ -1634,7 +1656,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3ce13916d9c5ee79e9fff685669465fb2ea4b7dc6b52150b5ac87273ab8faea7"
+		"76fecbcc6a6b1e6ae2aee5ad985f98d187b9c8baff2c898e7df9ef87eb0edaab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1854,7 +1876,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7ae164d2a6fb19cc9768e8ed0c48c69a85f0070864621a23afbc2d9f87e7a3c9"
+        "46c073a47e781b9db93cedf2073b35a5c28730cc523a81c57a3f15afab5090c0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2195,7 +2217,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         bpr_mutation_production_digest
     )
     set(bpr_expected_mutation_production_digest
-        "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
+        "16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

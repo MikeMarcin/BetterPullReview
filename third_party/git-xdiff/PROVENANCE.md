@@ -13,7 +13,8 @@ measured as candidate `l-myers-indent` (Myers with the indent heuristic).
 `bpr_xdiff.dll`, `libbpr_xdiff.so`). No other part of Git is compiled, and no
 static or object copy exists: the owner accepted LGPL xdiff only "if xdiff is
 dynamically linked as its own shared library, as Qt is" (RFC-BPR-0082 Q1,
-2026-10-13). Only the xdiff adapter, `src/adapters/xdiff`, links it, and
+2026-10-13). Core alone links it through its private `xdiff_line_matcher.cpp` wrapper
+(owner placement amendment, 2026-10-18; BPR-1619), and
 `architecture_boundaries` enforces both ([[BPR-1485]]). The product calls it
 for Myers with the indent heuristic; `xhistogram.c` is compiled only because
 `xdiffi.c` refers to it, and histogram is never selected.

@@ -434,11 +434,8 @@ The initial target shape should be equivalent to:
 
 ```text
 better_pull_review_core
-    standard/domain C++, plus only the owner-approved pinned, pure
-    libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
-    HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13), and the narrow
-    deterministic platform SHA-256 exception (CommonCrypto/CNG, 2026-10-18)
-    and scoped RE2/Abseil source matching (BPR-1618, 2026-10-18)
+    Qt-free semantic computation under the external-determinism contract
+    owner-approved dependencies with pinned acquisition and private wrappers
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -479,36 +476,10 @@ better_pull_review_app
 
 The live repository may use different target names, but it must enforce these rules:
 
-- The core imports no Qt, SQLite, GitHub, Git, AI, thread, future, timer,
-  dialog or process APIs. OS APIs are limited to deterministic unkeyed SHA-256
-  in `sha256_commoncrypto.cpp` and `sha256_cng.cpp` (RFC-BPR-0080 r4).
-  Identical inputs yield identical digest bytes; platform CPU dispatch and
-  internal state are implementation details, not semantic observations.
-  Core may use chrono duration/time-point arithmetic and caller-owned
-  explicitly seeded PRNG state; it must not read a clock, implicit entropy
-  or global random state. Cross-platform random identities also need a
-  specified algorithm and mapping.
-- The core links only owner-approved pinned, pure libraries (no I/O, threads,
-  clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
-  HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
-  sha1collisiondetection and HACL* through RFC-BPR-0080, rapidfuzz-cpp and
-  dtl through RFC-BPR-0082; dtl only for per-line intraline comparison and
-  the Review Cycle suggestion hunks' line edit bounded at 512 changes, never
-  as the diff engine's whole-file line matcher).
-  Windows additionally links the system `bcrypt` only in its SHA-256 branch;
-  macOS CommonCrypto comes from libSystem. HACL remains the portable backend.
-  Pinned RE2 2025-11-05 and Abseil 20250814.2 are a second scoped exception
-  (owner, 2026-10-18; BPR-1618). Core privately owns the source matcher; it
-  creates no worker threads. Internal synchronization, contention clocks and
-  hash seeds may vary cache layout and elapsed time, while match spans, order
-  and diagnostics remain deterministic. Ordinary parse and DFA-exhaustion
-  logging is disabled. Upstream fatal invariant diagnostics remain possible;
-  this does not authorize first-party effects or make Abseil a general core
-  utility. The [audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records
-  exact pins, call paths and limitations.
-  `cmake/VerifyCoreBoundary.cmake` refuses other unapproved libraries. Before
-  hand-writing a general-purpose system in core, ask the owner whether a
-  library should be allowed instead.
+- Core computation follows the [external-determinism contract](deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+  Qt independence, host effect/lifecycle ownership and dependency adoption are
+  separate constraints. The implementation inventory below records the selected
+  dependencies and private ownership; it does not add exceptions to determinism.
 - The host depends on core and capability-specific port contracts. It may be mutable and concurrent, but semantic decisions remain in the core.
 - Provider adapters implement narrow host ports. They do not expose provider response types to the core or Qt.
 - `QProcess`, `QNetworkAccessManager`, and credential-vault APIs are confined
@@ -562,6 +533,48 @@ static `BetterPullReview::SQLite3` target and is never replaced by a system
 library. Only its verified C translation unit and public header are staged into
 the target's include/source directory; unrelated cache siblings never enter
 the compiler search path.
+
+### Core implementation inventory
+
+These are current adoption and encapsulation constraints, separate from the
+[general semantic rule](deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+`cmake/VerifyCoreBoundary.cmake` enforces approved links and private include
+owners; `architecture_boundaries` enforces additional source ownership. These
+source/build guards do not prove semantic determinism or every absence of effects.
+New dependencies still need owner approval, reproducible acquisition and licensing
+review. Before hand-writing a major general-purpose system in core, ask the owner
+whether a suitable library should be allowed instead.
+
+- Approved pinned libraries are glaze, utf8proc, zlib, fmt,
+  sha1collisiondetection, HACL* generated SHA-2, rapidfuzz-cpp, dtl, RE2/Abseil
+  and Git xdiff. Approval of one use does not admit arbitrary APIs from a
+  library or its transitive dependencies.
+- SHA-1 retains collision detection. Unkeyed SHA-256 uses CommonCrypto on macOS,
+  CNG on Windows and HACL as the portable backend (RFC-BPR-0080 r4,
+  [[BPR-1617]]). Native types/APIs stay private to `sha256_commoncrypto.cpp`
+  and `sha256_cng.cpp`; only the Windows branch links system `bcrypt`, while
+  CommonCrypto comes from libSystem. Initialization refusal selects HACL;
+  established native-state failure terminates rather than emitting a wrong
+  digest. [Build guidance](../development/build-and-test.md#core-sha-256-selection)
+  records allocation and copy/move behavior. No other OS capability is adopted.
+- dtl is approved only for per-line intraline comparison and Review Cycle
+  suggestion hunks' line edit bounded at 512 changes, never the diff engine's
+  whole-file line matcher (RFC-BPR-0082).
+- RE2 2025-11-05 and Abseil 20250814.2 implement source matching with no worker
+  creation ([[BPR-1618]]). Only `source_regex_engine.cpp` includes RE2;
+  Abseil remains transitive. Match spans, order and contract-defined diagnostics
+  remain externally deterministic. Ordinary parse/DFA-exhaustion logging is
+  disabled; upstream fatal invariant diagnostics remain possible. The
+  [audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records call paths and
+  limitations. Abseil is not adopted as a general core utility.
+- The provider-free primary xdiff wrapper is core-owned; only
+  `xdiff_line_matcher.cpp` includes its private types. Pinned xdiff remains its
+  own separately replaceable dynamic library, preserving licensing,
+  corresponding source and relinking requirements ([[BPR-1619]], RFC-BPR-0082).
+  The application owns scheduling, copied-input lifetime and abandonment.
+- C++ identifier refinement and span value contracts live in core. Packaged Qt
+  grammar, template helper, resources, cache and jobs retain their existing
+  owners and syntax version ([[BPR-1619]]).
 
 ## Repository shape
 
@@ -662,7 +675,9 @@ struct transition_result
     transition_storage& aStorage) -> transition_result;
 ```
 
-Deterministic in-place mutation and retained storage are permitted. Hidden I/O, hidden globals, implicit wall-clock reads, thread creation, and Qt access are not.
+In-place mutation and retained storage follow the [external-determinism contract](deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+Semantic state and observations stay explicit; effects and worker lifecycle
+belong to the host, and the core remains Qt-free.
 
 ## End-to-end flow
 
@@ -1115,7 +1130,8 @@ KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
 grammar pass and projects a hunk from the complete result; highlighting a range
 on its own would lose the state that opened a multiline construct earlier. It produces core
 roles, never colours, and consults no standard path. RFC-BPR-0072 adds bounded,
-cancellable C++ refinement over grammar-protected spans: blob-local namespace,
+cancellable C++ refinement over grammar-protected spans, now computed in core
+(BPR-1619): blob-local namespace,
 enum, scope and delimiter facts recognize declarations and unambiguous qualified
 uses. Aliases, shadows and unresolved scopes stay conservative; no compiler or
 cross-file lookup is composed. C++ identifier revision 6 retires prior spans; C

@@ -53,6 +53,12 @@ thresholds, the Windows and Linux stations' conditions, or AC05's
 before-and-after rows. The [waiver record](assets/hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md)
 keeps the text before and after.
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
 ## Owner architecture amendment — 2026-10-18
 
 Mandate r4 directly selects deterministic platform SHA-256 in core:
@@ -64,7 +70,7 @@ changed rationale and preserved obligations. [[BPR-1617]] and its
 own the new milestone. Original evaluation/adoption evidence remains historical;
 station, host window-thread and release closeout gaps remain open.
 
-## Progress, 2026-10-13
+## Progress, 2026-10-18
 
 - [[BPR-1446]] (done): the macOS arm64 evaluation and its
   [report](../verification/RFC-BPR-0080.md), on loaded-machine measurements
@@ -76,9 +82,11 @@ station, host window-thread and release closeout gaps remain open.
   block-level calls; the first-party `sha256.cpp` is deleted.
 - [[BPR-1447]] (done): feedback body digests come from CommonCrypto on the
   provider's worker on macOS, off the window thread; adopted on macOS.
+- [[BPR-1452]] (done as inapplicable, 2026-10-18): Q1 Accept selected
+  BPR-1450, so the conditional first-party fallback does not run. No fallback
+  implementation, correctness or throughput result is claimed.
 - Open: the Windows and Linux stations ([[BPR-1448]], [[BPR-1449]]), Q3 if the
-  Linux backend passes, and closeout ([[BPR-1453]]). [[BPR-1452]] is not needed
-  after the Q1 Accept.
+  Linux backend passes, and closeout ([[BPR-1453]]).
 
 ## Problem and grounded current behavior
 

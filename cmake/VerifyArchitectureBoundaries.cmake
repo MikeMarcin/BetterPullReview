@@ -928,6 +928,8 @@ set(
     "QJson[A-Za-z0-9_]*"
     "#[ \t]*include[ \t]*[<\"](curl|nlohmann|rapidjson|boost/json)"
 )
+# These checks also preserve approved serialization/dependency ownership;
+# QJson and unapproved JSON libraries are not inherently nondeterministic.
 foreach(effect_free_file IN LISTS effect_free_region_files)
     file(READ "${effect_free_file}" contents)
     foreach(pattern IN LISTS effect_free_region_patterns)
@@ -1094,7 +1096,6 @@ endfunction()
 set(
     provider_free_projection_patterns
     "QUrl"
-    "https?://"
     "Authorization[ \t]*:"
     "Bearer[ \t]+"
     "bpr/application/github_(read_model|provider_port)"
@@ -1104,7 +1105,14 @@ set(
 foreach(provider_free_file IN LISTS provider_free_projection_files)
     file(READ "${provider_free_file}" contents)
     strip_markdown_resource_denial("${provider_free_file}")
-    foreach(pattern IN LISTS provider_free_projection_patterns)
+    set(projection_patterns ${provider_free_projection_patterns})
+    # A URL string is data, not network access. Core may compute on it under
+    # external determinism; provider endpoints/auth/wire contracts retain
+    # their separate owners. Qt's URL-free projection contract is narrower.
+    if(provider_free_file IN_LIST qt_github_projection_files)
+        list(APPEND projection_patterns "https?://")
+    endif()
+    foreach(pattern IN LISTS projection_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${provider_free_file}")
             message(
@@ -1777,9 +1785,6 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
             # ownership the designated live supervisor rules above check.
             set(effect_owner_cmake "${allowed_name}")
             set(effect_owner_target "the designated live macOS tools")
-        elseif(current_allowed_relative MATCHES "^src/adapters/xdiff/")
-            file(READ "${BPR_ROOT}/src/adapters/xdiff/CMakeLists.txt" effect_owner_cmake)
-            set(effect_owner_target "better_pull_review_adapter_xdiff")
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
@@ -1911,17 +1916,17 @@ verify_effect_owner(
     "src/core/src/review_cycle_suggestion.cpp"
 )
 # [[BPR-1485]]. The diff engine's primary line matcher is Git's xdiff, called
-# only by the xdiff adapter behind the application's line matcher port
+# only by the private core matcher behind its provider-free interface
 # (RFC-BPR-0082): no other source names an xdiff symbol or header.
 verify_effect_owner(
     "(xdl_[a-z_]+[ \t\r\n]*\\(|xpparam_t|xdemitconf_t|xdemitcb_t|mmfile_t|XDF_[A-Z_]+|#[ \t]*include[ \t]*[<\"]xdiff\\.h[>\"])"
     "linked xdiff"
-    "src/adapters/xdiff/src/xdiff_line_matcher.cpp"
+    "src/core/src/xdiff_line_matcher.cpp"
 )
 # The owner accepted LGPL xdiff only as its own dynamically linked shared
 # library, as Qt is (RFC-BPR-0082 Q1, 2026-10-13): the provider builds it
 # SHARED and nothing else, no other product build file compiles its sources,
-# and only the xdiff adapter links it.
+# and only core links it.
 set(xdiff_provider_relative "cmake/BprXdiffProvider.cmake")
 if(EXISTS "${BPR_ROOT}/${xdiff_provider_relative}")
     file(READ "${BPR_ROOT}/${xdiff_provider_relative}" xdiff_provider_contents)
@@ -1941,9 +1946,9 @@ foreach(xdiff_cmake_file IN LISTS xdiff_scanned_cmake_files)
        AND xdiff_cmake_contents MATCHES "(xdiff/x[a-z]+\\.c|add_library\\([ \t\r\n]*better_pull_review_xdiff[ \t\r\n])")
         message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only ${xdiff_provider_relative} builds xdiff")
     endif()
-    if(NOT xdiff_cmake_relative STREQUAL "src/adapters/xdiff/CMakeLists.txt"
+    if(NOT xdiff_cmake_relative STREQUAL "src/core/CMakeLists.txt"
        AND xdiff_cmake_contents MATCHES "target_link_libraries\\([^)]*(BetterPullReview::Xdiff|better_pull_review_xdiff)[ \t\r\n)]")
-        message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only the xdiff adapter links the xdiff shared library")
+        message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only core links the xdiff shared library")
     endif()
 endforeach()
 # RFC-BPR-0080 r4 admits deterministic SHA-256 in the core's one native

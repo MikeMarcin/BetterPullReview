@@ -40,6 +40,39 @@ remaining designated live-server readback requirement.
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
+## Core dependency boundary
+
+Core computation follows [external determinism](../architecture/deterministic-functional-core-imperative-host-qt-presentation-adapter.md#21-external-determinism).
+Internal implementation mechanisms are judged by their semantic consequences;
+dependency approval, pins, licenses and private include/link ownership remain
+separate requirements. The [implementation inventory](../architecture/system-architecture.md#core-implementation-inventory)
+records the selected dependencies and use limits. Boundary gates enforce that
+approved graph and first-party effect ownership; they do not audit every upstream
+internal operation or prove semantic equivalence. Use focused public-contract
+checks for those claims. Qt-free builds preserve the dependency/reuse boundary.
+
+The source guards allow standard headers, chrono values, lexical paths,
+explicitly seeded PRNG state, caller-owned synchronization, and generic URL
+strings as core data. A domain method named `now`, `time` or `random` is not
+itself a clock or entropy read. Known standard clocks, entropy APIs, worker
+launches, default/async `std::async` policies and file-opening forms remain
+guarded. Explicit `std::launch::deferred` creates lazy state without a worker;
+its callable must obey the same effect and explicit-state contract. An empty
+thread or stream object does not by itself acquire a resource.
+
+These are textual checks, with canonical spellings and simple same-file aliases,
+not C++ type or effect analysis. They can miss macros, indirect calls, aliases
+from another file, complex declarations and hidden global decision state. They
+can conservatively reject nonempty handle moves, declarations that resemble
+constructors, or pure filesystem overloads such as `is_directory(file_status)`
+whose safety needs type resolution. Other ownership checks still inspect raw
+text. A passing gate cannot certify semantic determinism or the absence of
+effects; use code review and direct behavior contracts. Provider wire/auth
+ownership, Qt's URL-free projections, approved JSON libraries, exact private
+wrappers, pins and xdiff's separate shared library remain independent policies.
+The [enforcement audit](../issues/_checkpoints/BPR-1621/audit.md) records the
+changed and retained checks.
+
 ## Core SHA-256 selection
 
 Core uses CommonCrypto on macOS, CNG (`bcrypt`) on Windows 10+ and pinned
@@ -3636,8 +3669,8 @@ allocators return null instead of ending the process, and no regular
 expression library is used. The library is built in every graph, including
 `core-only`, and hardened like the product.
 
-Only `src/adapters/xdiff` links the library, and only its
-`xdiff_line_matcher.cpp` calls it, behind the application's
+Only core links the library, and only its private
+`src/core/src/xdiff_line_matcher.cpp` calls it, behind the core-owned
 `diff_line_matcher_port`; `architecture_boundaries` refuses an xdiff symbol or
 header anywhere else, a second build of the xdiff sources, a non-shared
 library, and any other target that links it. The application's
@@ -3699,8 +3732,9 @@ builds both as C++23. Since [[BPR-1618]], core links the same pinned libraries
 privately in every graph, including Qt-free/tests-disabled builds; its private
 implementation is exposed only as `default_source_regex_engine()` behind the
 `source_regex_engine` interface. There is no regex adapter. The
-[scoped audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records the owner's
-external-determinism exception and upstream implementation effects. Licenses and provenance are under
+[scoped audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records the approved call paths
+and upstream implementation limitations under the general semantic rule.
+Licenses and provenance are under
 `third_party/re2/` and `third_party/abseil/`. `core_source_matcher`,
 `application_source_pr_search` and the `application_source_find*` and
 `application_source_pr_*` courses exercise the engine.

@@ -16,7 +16,7 @@ namespace bpr::application {
 		return aEpoch.realignment_context(aAuthority, { aAuthority.Host, aAuthority.Repository, aAuthority.PullRequest, aSource.Commit, aSource.Commit, current->Comparison.Left.Identity.Epoch, current->Comparison.Right.Identity.Epoch });
 	}
 
-	auto materialize_review_tour_source(workbench_selected_diff_port& aEndpoints, diff_blob_port& aBlobs,
+	auto materialize_review_tour_source(workbench_selected_diff_port& aEndpoints, epoch_application_host& aEpoch,
 										const workbench_selected_diff_request& aRequest, const core::tour_code_destination& aSource, std::stop_token aStop)
 		-> std::expected<review_tour_source_material, review_tour_source_failure>
 	{
@@ -43,7 +43,7 @@ namespace bpr::application {
 			return std::unexpected(review_tour_source_failure::unavailable);
 		}
 		const diff_blob_request materialRequest{ .Context = { core::request_id{ 2 }, aRequest.Context.Session, key, aRequest.Context.Generation }, .Side = aSource.Side, .Blob = *blob, .MaximumBytes = 256 * 1024 };
-		const auto              material = aBlobs.materialize(materialRequest, aStop);
+		const auto              material = aEpoch.materialize_pinned_source_blob(resolved, materialRequest, aStop);
 		if (aStop.stop_requested()) {
 			return std::unexpected(review_tour_source_failure::cancelled);
 		}

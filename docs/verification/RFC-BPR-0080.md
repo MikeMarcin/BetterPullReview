@@ -301,6 +301,30 @@ named above are not this site and were not run.
   `architecture_boundaries` allow-list change happen only with the owner's
   Accept.
 
+## Conditional SHA-1 fallback disposition — 2026-10-18
+
+[[BPR-1452]] is closed as inapplicable under the existing Q1 **Accept** of
+2026-10-13. The authored `adopt-sha1dc` milestone runs only the branch matching
+that answer. [[BPR-1450]] already adopted sha1collisiondetection and removed
+`src/core/src/sha1.cpp`; current core composition still uses the detecting
+wrapper and approved target. The SHA-1 wrapper and public header match
+BPR-1450's accepted revision `23c6b345f` byte for byte. The provider's only
+change since that revision is removal of "pure" from its approval comment;
+its pin, sources and configuration are unchanged.
+
+The original BPR-1452 AC1–AC3 are conditional on Q1 Reject. They are retained
+with explicit not-applicable dispositions; no new fallback or fallback test
+or timing result is claimed. Historical control-arm rows above retain their
+original meaning. [Reconciliation evidence](../issues/_checkpoints/BPR-1452/verification.md)
+and the [handoff](../issues/_checkpoints/BPR-1452/continuation.md) bind this
+documentation-only closure to the actual source and owner decision.
+
+Documentation impact: no product behavior, API, persistence, build or packaging
+change. RFC-BPR-0080 stays In Progress. Windows and Linux station criteria,
+conditional Q3 and BPR-1453's full acceptance/package closeout remain pending;
+neither the Q1 decision nor this branch disposition supplies missing evidence.
+The authored plan and RFC_BASE_SHA remain unchanged.
+
 ## Raw results
 
 Each file is the driver's complete output: the machine, the build, every line

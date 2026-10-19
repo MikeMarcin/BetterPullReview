@@ -5,7 +5,6 @@ add_subdirectory(git)
 add_subdirectory(sqlite)
 add_subdirectory(workspace)
 # [[BPR-1485]]. Every graph computes diffs, so every graph has the matcher.
-add_subdirectory(xdiff)
 add_subdirectory(syntax)
 add_subdirectory(agent)
 add_subdirectory(mcp)

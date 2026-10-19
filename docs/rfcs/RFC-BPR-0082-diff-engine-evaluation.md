@@ -8,6 +8,24 @@ metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_re
 
 # Evaluate replacing the hand-written diff engine
 
+## Current core policy — 2026-10-18
+
+The [adopted external-determinism amendment](amendments/RFC-BPR-0001-external-determinism-r1.md)
+supersedes library-specific purity-exception rationale. Dependency approval,
+implementation constraints and original acceptance obligations remain.
+
+## Owner placement amendment — 2026-10-18
+
+Mandate `core-boundaries-r1`, [[BPR-1619]]: the owner authorizes moving pure
+xdiff matching from its adapter into core. This supersedes only the original
+adapter-only placement in Q1/shape L. xdiff remains the pinned separately
+replaceable dynamic shared library; licensing, corresponding source, relinking,
+whitespace mapping, line identities and memory contracts are unchanged.
+Application retains copied-input scheduling and abandonable cancellation. The
+[additive plan](plans/core-boundaries-v1/milestone-plan.json) does not replace
+historical evaluation evidence or the open Linux/Windows qualification and
+closeout obligations on BPR-1468, BPR-1469 and BPR-1470.
+
 ## Execution status
 
 Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018 unchanged in scope.
