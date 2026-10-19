@@ -104,6 +104,20 @@ namespace {
 		chart.apply(empty);
 		const auto emptyRaster = chart.grab().toImage();
 		expect(pixel(emptyRaster, 60, 115) == pixel(emptyRaster, 300, 115), "negative control: without quantity observations the area disappears");
+		auto segmented = facts;
+		segmented.ForegroundName.clear();
+		segmented.Points = { { 0, 10.0, 0.0, std::nullopt, false }, { 180, 10.0, 0.0, std::nullopt, false }, { 240, 30.0, 0.0, std::nullopt, false }, { 300, 10.0, 0.0, std::nullopt, false } };
+		chart.apply(segmented);
+		const auto afterIsolated = chart.grab().toImage();
+		segmented.Points.erase(segmented.Points.begin());
+		chart.apply(segmented);
+		const auto withoutIsolated = chart.grab().toImage();
+		expect(pixel(afterIsolated, 474, 118) == pixel(withoutIsolated, 474, 118), "an isolated sample must not change the fill of a later continuous run");
+		const auto renderRoot = qEnvironmentVariable("BPR_INSIGHTS_RENDER_ROOT");
+		if (!renderRoot.isEmpty()) {
+			expect(QDir{ }.mkpath(renderRoot), "chart render folder exists");
+			expect(afterIsolated.save(renderRoot + QStringLiteral("/chart-isolated-then-continuous.png")) && withoutIsolated.save(renderRoot + QStringLiteral("/chart-continuous-only.png")), "painter-state regression renders saved");
+		}
 		facts.Points.back().Foreground = 120.0;
 		facts.EndUnixSeconds           = 600;
 		chart.apply(facts);

@@ -131,6 +131,9 @@ namespace bpr::qt {
 			}
 			upperFill.closeSubpath();
 			aPainter.fillPath(lowerFill, tint(ink, 0.26));
+			// An earlier isolated-point marker may have left a solid brush.
+			// Open outline paths must never acquire their own polygon fill.
+			aPainter.setBrush(Qt::NoBrush);
 			aPainter.setPen(QPen{ ink, 1.8 });
 			aPainter.drawPath(lower);
 			if (!Data.ForegroundName.isEmpty()) {
