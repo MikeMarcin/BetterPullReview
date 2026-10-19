@@ -356,3 +356,21 @@ class, warm matching fell from 1,568,828 µs to 348,163 µs and warm final from
 bytes. Cold totals remain dominated by acquisition. The committed regression
 thresholds are unchanged and pass. AC02 and AC08 evidence above is superseded
 for the engine only; the original records remain as they were taken.
+
+## Core matcher ownership amendment (BPR-1618, 2026-10-18)
+
+The owner approved pinned RE2/Abseil in core if the implementation creates no
+worker threads and source matching remains externally deterministic.
+[[BPR-1618]] relocates BPR-1431's wrapper into core-private
+`source_regex_engine.cpp`, removes the regex adapter and supplies the same
+interface from `default_source_regex_engine()`. The pins, UTF-8/options,
+error mapping, search rules, resource limits and cancellation policy are unchanged.
+
+The [audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records Abseil's real
+internal synchronization, contention clocks and address-derived hash state,
+without claiming purity or broader core effect permission. The
+[verification](../issues/_checkpoints/BPR-1618/verification.md) binds the
+core-only production matcher, repeated/shared/concurrent and fresh-process fixed
+answers, independent reference, historical host search, four composed public
+courses, dependency/module/offline fixes and boundary/package/format/docs gates.
+Original RFC acceptance and broader native/release obligations remain unchanged.
