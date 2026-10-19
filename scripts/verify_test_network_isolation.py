@@ -189,9 +189,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1601]]. Durable read state for PR comments and review summaries.
     "application_conversation_read_public_path": "unmeasured (registered on macOS)",
     "merge_base_fixture_contract": "unmeasured (registered on macOS)",
-    # RFC-BPR-0084. The fixture's regeneration check runs the builder in a
-    # scratch root, as its github_recorded_fixture_contract sibling does.
-    "markdown_images_fixture_contract": "unmeasured (registered on macOS)",
     "sqlite_markdown_image_disk_cache": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, whose fixture setup it shares.

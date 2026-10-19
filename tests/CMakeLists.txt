@@ -429,7 +429,6 @@ bpr_add_network_isolated_test(
 # RFC-BPR-0084. markdown-images-v1 regenerates byte for byte and is consistent.
 bpr_add_network_isolated_test(
     NAME markdown_images_fixture_contract
-    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/markdown_images_fixture_tests.py"
