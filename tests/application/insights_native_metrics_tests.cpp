@@ -47,6 +47,10 @@ try {
 	QTemporaryDir scratch{ QDir::tempPath() + QStringLiteral("/energy-native-XXXXXX") };
 	expect(scratch.isValid(), "native course owns its scratch root");
 	QProcess child;
+	// Neither side consumes standard streams. Forward them rather than asking
+	// QProcess to create private pipes inside the Windows AppContainer.
+	child.setProcessChannelMode(QProcess::ForwardedChannels);
+	child.setInputChannelMode(QProcess::ForwardedInputChannel);
 	child.setProgram(QFileInfo{ app.applicationFilePath() }.canonicalFilePath());
 	child.setArguments({ QStringLiteral("--energy-child") });
 	child.setWorkingDirectory(scratch.path());
