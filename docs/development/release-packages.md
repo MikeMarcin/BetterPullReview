@@ -160,6 +160,34 @@ old signed runtime or its inventory in place.
 
 Signed production emits `*.release.json` binding installer, runtime archive,
 SPDX, separate source ZIP, final checksums/provenance and signature receipts.
+[[BPR-1657]]. Linux Qt6.11.2 requires ICU73.2's data, uc and i18n
+companions. Packaging admits only that exact trio from the selected Qt provider,
+with the official Qt archive and raw file hashes pinned in
+`packaging/dependencies.json`. Those prebuilt inputs lack immediate binding;
+the delivered trio is rebuilt from the exact pinned ICU source with the selected
+native compilers, PIC, stack protection, frame pointers, FORTIFY3 and full
+RELRO/NOW/nonexecutable stack. This does not modify the shared Qt provider.
+
+`packaging/linux_icu.py` uses a private out-of-source prefix; a cached producer
+must match source, recipe, compiler/make identities, flags, the extracted source
+and all three output hashes. `ThirdParty/icu-runtime-provenance.json` names that
+actual source build. `runtime-closure.json` keeps official Qt input, source-built
+producer and relocated output hashes distinct. Native audits reproduce the
+loader-path operation on disposable producer copies and compare complete files.
+Wrong origins, unknown ICU names, changed producer/delivered bytes, incomplete
+trios and source-build provenance drift fail closed. The existing ELF hardening
+gate remains unchanged.
+
+The Linux source asset now carries21 upstream archives and eight build inputs
+(29 entries): the previous20 archives/six xdiff helpers plus ICU source, its
+standalone Python recipe and recipient README. Its installed notices contain the
+complete ICU mixed third-party text; the canonical ICU package retains
+`NOASSERTION` for a single aggregate licence conclusion. The upstream Qt SPDX's
+separate ICU73.2 record stays unchanged. macOS/Windows selected component and
+notice sets are unchanged. Practical recipient instructions are under
+`ICU-73.2-build/third_party/icu/rebuild/README.md`; final native trust, material
+review, scan/applicability decisions and broad qualification remain separate.
+
 Selected Linux names and installed source URLs include `linux-ubuntu-26.04-x64`;
 reconfigure older distribution builds before production. Optional RPM names
 remain `linux-rhel-10-x64` and are not required assets.

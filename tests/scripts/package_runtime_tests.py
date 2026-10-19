@@ -82,7 +82,7 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertIn(face[1], provenance)
         self.assertEqual(len(re.findall(r'"JetBrainsMonoNL-[A-Za-z]+\.ttf\|', provider)), 4)
         security = (ROOT / "scripts/verify_release_security.py").read_text(encoding="utf-8")
-        self.assertIn("package.runtime.NOTICE_FILES", security)
+        self.assertIn("package.runtime.notice_files(info)", security)
 
     def test_xdiff_ships_as_its_own_noticed_replaceable_shared_library(self):
         # [[BPR-1485]]. The owner accepted LGPL xdiff only as its own
@@ -210,6 +210,174 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertTrue(runtime.qt_library(name))
         for name in ("Qt6Cored.dll", "Qt6WebEngineCore.dll", "libQt6Sql.so.6", "libQt6Qml.so.6", "Qt6Gui.dll.bak"):
             self.assertFalse(runtime.qt_library(name))
+
+    def test_linux_icu_source_binary_and_notice_contract_is_platform_scoped(self):
+        import hashlib
+        item = next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU")
+        self.assertEqual(item["version"], "73.2")
+        self.assertEqual(item["sha256"], "818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1")
+        self.assertEqual(item["qtRuntime"]["qtVersion"], "6.11.2")
+        self.assertEqual(set(item["qtRuntime"]["files"]), {"libicudata.so.73", "libicuuc.so.73", "libicui18n.so.73"})
+        self.assertEqual({entry["path"] for entry in item["buildInputs"]},
+                         {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md"})
+        for entry in item["buildInputs"]:
+            self.assertEqual(runtime.digest(ROOT / entry["path"]), entry["sha256"])
+        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 29)
+        notice = ROOT / "third_party/icu/LICENSE"
+        self.assertIn(hashlib.sha256(notice.read_bytes()).hexdigest(), (notice.parent / "PROVENANCE.md").read_text())
+        self.assertIn("ICU License - ICU 1.8.1 to ICU 57.1", notice.read_text())
+        self.assertIn("Chinese/Japanese Word Break Dictionary Data", notice.read_text())
+        self.assertIn("File: config.guess", notice.read_text())
+        self.assertIn("icu/LICENSE", runtime.notice_files({"platform": "Linux"}))
+        for system in ("Darwin", "Windows"):
+            self.assertNotIn(item, runtime.components({"platform": system}))
+            self.assertEqual(runtime.notice_files({"platform": system}), runtime.NOTICE_FILES)
+
+    def test_linux_icu_origin_version_name_and_bytes_fail_closed(self):
+        import copy
+        with ContainedTemporaryDirectory() as directory:
+            qt = Path(directory) / "qt"
+            (qt / "lib").mkdir(parents=True)
+            item = copy.deepcopy(next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU"))
+            name = "libicuuc.so.73"
+            producer = qt / "lib" / item["qtRuntime"]["files"][name]["file"]
+            producer.write_bytes(b"synthetic trusted ICU producer")
+            item["qtRuntime"]["files"][name]["sha256"] = runtime.digest(producer)
+            observed = qt / "lib" / name
+            observed.symlink_to(producer.name)
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}
+            with patch.object(runtime, "components", return_value=[item]):
+                self.assertEqual(runtime.linux_qt_companion(info, name, observed)[0], producer.resolve())
+                outside = Path(directory) / name
+                outside.write_bytes(producer.read_bytes())
+                with self.assertRaisesRegex(ValueError, "origin"):
+                    runtime.linux_qt_companion(info, name, outside)
+                for bad in ("libicuio.so.73", "libicuuc.so.74", "libicuuc.so.73.bak"):
+                    with self.subTest(name=bad), self.assertRaisesRegex(ValueError, "undeclared"):
+                        runtime.linux_qt_companion(info, bad, observed)
+                with self.assertRaisesRegex(ValueError, "undeclared"):
+                    runtime.linux_qt_companion({**info, "qt_version": "6.11.3"}, name, observed)
+                with self.assertRaisesRegex(ValueError, "require Linux"):
+                    runtime.linux_qt_companion({**info, "platform": "Windows"}, name, observed)
+                producer.write_bytes(producer.read_bytes() + b"corrupt")
+                with self.assertRaisesRegex(ValueError, "producer digest"):
+                    runtime.linux_qt_companion(info, name, observed)
+                producer.unlink()
+                producer.symlink_to(outside)
+                with self.assertRaisesRegex(ValueError, "origin"):
+                    runtime.linux_qt_companion(info, name, observed)
+
+    def test_linux_icu_exact_relocation_and_complete_inventory_are_required(self):
+        import copy
+        with ContainedTemporaryDirectory() as directory:
+            qt, stage = Path(directory) / "qt", Path(directory) / "stage"
+            (qt / "lib").mkdir(parents=True)
+            stage.mkdir()
+            item = copy.deepcopy(next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU"))
+            for name, entry in item["qtRuntime"]["files"].items():
+                producer = qt / "lib" / entry["file"]
+                producer.write_bytes(b"synthetic ICU " + name.encode())
+                entry["sha256"] = runtime.digest(producer)
+                (qt / "lib" / name).symlink_to(producer.name)
+                (stage / name).write_bytes(producer.read_bytes() + b" relocated ORIGIN")
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}
+            def relocate(*args):
+                self.assertEqual(args[:3], ("patchelf", "--set-rpath", "$ORIGIN"))
+                path = args[-1]
+                path.write_bytes(path.read_bytes() + b" relocated ORIGIN")
+                return ""
+            producers = {name: qt / "lib" / entry["file"] for name, entry in item["qtRuntime"]["files"].items()}
+            receipt = {"outputs": {name: runtime.digest(path) for name, path in producers.items()}, "binding": {"recipeSHA256": "synthetic-recipe"}}
+            with patch.object(runtime, "components", return_value=[item]), patch.object(runtime, "run", side_effect=relocate), \
+                    patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)):
+                proof = runtime.verify_linux_qt_companions(Path(directory), info, stage)
+                self.assertEqual(len(proof), 3)
+                self.assertTrue(all(v["producerSHA256"] != v["deployedSHA256"] for v in proof))
+                name = next(iter(item["qtRuntime"]["files"]))
+                path = stage / name
+                original = path.read_bytes()
+                path.write_bytes(original + b"tamper")
+                with self.assertRaisesRegex(ValueError, "relocated digest"):
+                    runtime.verify_linux_qt_companions(Path(directory), info, stage)
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, "inventory"):
+                    runtime.verify_linux_qt_companions(Path(directory), info, stage)
+                path.symlink_to(qt / "lib" / name)
+                with self.assertRaisesRegex(ValueError, "inventory"):
+                    runtime.verify_linux_qt_companions(Path(directory), info, stage)
+                path.unlink()
+                path.write_bytes(original)
+                (stage / "libicuio.so.73").write_bytes(b"unselected tool library")
+                with self.assertRaisesRegex(ValueError, "inventory"):
+                    runtime.verify_linux_qt_companions(Path(directory), info, stage)
+            self.assertEqual(runtime.verify_linux_qt_companions(Path(directory), {"platform": "Windows"}, stage), [])
+
+    def test_icu_source_build_cache_refuses_input_source_and_output_drift(self):
+        import copy, shutil
+        builder = runtime.linux_icu_builder()
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "icu"
+            source.mkdir()
+            (source / "fixture.c").write_text("int sample;\n")
+            (source / "data").mkdir()
+            (source / "data/sub.txt").write_text("nested")
+            (source / "data.txt").write_text("sibling")
+            prefix = root / "prefix/lib"
+            prefix.mkdir(parents=True)
+            for name in builder.FILES.values():
+                (prefix / name).write_bytes(b"synthetic compiled " + name.encode())
+            archive = root / "source.tar.gz"
+            with tarfile.open(archive, "w:gz") as packed:
+                packed.add(source, arcname="icu")
+            component = {"version": "73.2", "sha256": runtime.digest(archive)}
+            compilers = {"CC": Path(shutil.which("cc")), "CXX": Path(shutil.which("c++"))}
+            receipt = {"schema": "bpr.linux-icu-source-build.v1", "binding": builder.binding(component, compilers),
+                       "sourceTreeSHA256": builder.tree_digest(source),
+                       "outputs": {name: builder.digest(prefix / filename) for name, filename in builder.FILES.items()}}
+            record = root / "receipt.json"
+            def restore(): record.write_text(json.dumps(receipt))
+            restore()
+            self.assertEqual(builder.verify(root, component, compilers), receipt)
+            for key in ("sourceSHA256", "recipeSHA256", "CFLAGS", "LDFLAGS"):
+                changed = copy.deepcopy(receipt)
+                changed["binding"][key] = "changed"
+                record.write_text(json.dumps(changed))
+                with self.subTest(key=key), self.assertRaisesRegex(ValueError, "binding mismatch"):
+                    builder.verify(root, component, compilers)
+            changed = copy.deepcopy(receipt)
+            changed["binding"]["compilers"]["CC"]["sha256"] = "0" * 64
+            record.write_text(json.dumps(changed))
+            with self.assertRaisesRegex(ValueError, "binding mismatch"):
+                builder.verify(root, component, compilers)
+            restore()
+            (source / "fixture.c").write_text("int changed;\n")
+            with self.assertRaisesRegex(ValueError, "source drift"):
+                builder.verify(root, component, compilers)
+            (source / "fixture.c").write_text("int sample;\n")
+            output = prefix / next(iter(builder.FILES.values()))
+            original_output = output.read_bytes()
+            output.write_bytes(original_output + b"tamper")
+            with self.assertRaisesRegex(ValueError, "producer digest"):
+                builder.verify(root, component, compilers)
+            output.write_bytes(original_output)
+            with ContainedTemporaryDirectory() as other_directory:
+                outside = Path(other_directory)
+                for file in prefix.iterdir():
+                    shutil.copy2(file, outside / file.name)
+                saved_prefix = prefix.with_name("saved-lib")
+                prefix.rename(saved_prefix)
+                prefix.symlink_to(outside, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "producer digest"):
+                    builder.verify(root, component, compilers)
+                prefix.unlink()
+                saved_prefix.rename(prefix)
+            archive = root / "bad-source.tgz"
+            archive.write_bytes(b"not pinned source")
+            fresh = root / "never-created"
+            with self.assertRaisesRegex(ValueError, "archive digest mismatch"):
+                builder.prepare(fresh, archive, component, compilers)
+            self.assertFalse(fresh.exists())
 
     def test_native_baseline_does_not_silently_rise(self):
         for identity in (('ubuntu', '24.04'), ('ubuntu', '26.10'), ('debian', '13')):
@@ -528,11 +696,18 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             library = qt / "lib/libQt6Core.so.6"
             library.parent.mkdir()
             library.write_bytes(b"\x7fELF")
+            import copy
+            icu = copy.deepcopy(next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU"))
+            for name, entry in icu["qtRuntime"]["files"].items():
+                producer = qt / "lib" / entry["file"]
+                producer.write_bytes(b"\x7fELF" + name.encode())
+                entry["sha256"] = runtime.digest(producer)
+                (qt / "lib" / name).symlink_to(producer.name)
 
             def inspect(*arguments, env=None):
                 if arguments[0] == "ldd":
                     self.assertEqual(env["LD_LIBRARY_PATH"].split(runtime.os.pathsep)[0], str(qt / "lib"))
-                    return f" libQt6Core.so.6 => {library} (0x000000)\n libbpr_xdiff.so => {xdiff_source} (0x000000)\n"
+                    return f" libQt6Core.so.6 => {library} (0x000000)\n libbpr_xdiff.so => {xdiff_source} (0x000000)\n" + "".join(f" {name} => {qt / 'lib' / name} (0x000000)\n" for name in icu["qtRuntime"]["files"])
                 if arguments[:2] == ("readelf", "--file-header"):
                     return "Class: ELF64\nMachine: Advanced Micro Devices X86-64\n"
                 if arguments[:2] == ("readelf", "--version-info"):
@@ -540,34 +715,37 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 self.assertEqual(arguments[0], "patchelf")
                 return ""
 
+            producers = {name: qt / "lib" / entry["file"] for name, entry in icu["qtRuntime"]["files"].items()}
+            receipt = {"outputs": {name: runtime.digest(path) for name, path in producers.items()}, "binding": {"recipeSHA256": "synthetic-recipe"}}
+            (stage / "ThirdParty").mkdir()
             versions = "GLIBC_2.43 GLIBCXX_3.4.35"
             xdiff_source = xdiff
-            with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
-                runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+            with patch.object(runtime, "prepare_linux_icu", return_value=receipt), patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)), patch.object(runtime, "components", return_value=[icu]), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+                runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
             closure = json.loads((stage / "runtime-closure.json").read_text())
             self.assertIn("libQt6Core.so.6", closure["files"])
             self.assertIn("libbpr_xdiff.so", closure["files"])
-            with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
-                for name in ("qt.conf", "runtime-closure.json"):
+            with patch.object(runtime, "prepare_linux_icu", return_value=receipt), patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)), patch.object(runtime, "components", return_value=[icu]), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+                for name in ("qt.conf", "runtime-closure.json", "ThirdParty/icu-runtime-provenance.json"):
                     (stage / name).unlink()
                 # An xdiff resolved from outside the package is untrusted...
                 xdiff_source = build / "elsewhere/libbpr_xdiff.so"
                 with self.assertRaisesRegex(ValueError, "untrusted ELF dependency"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
                 xdiff_source = xdiff
                 # ...and a package without it is refused before inspection.
                 xdiff.unlink()
                 with self.assertRaisesRegex(ValueError, "private shared library missing: libbpr_xdiff.so"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
                 xdiff.write_bytes(b"\x7fELF")
             self.assertEqual(closure["baseline"], {"glibcFloor": "2.43", "requiredGLIBCXX": ["3.4.35"]})
             for ceiling, versions in (("2.43", "GLIBC_2.44"), ("2.39", "GLIBC_2.43")):
-                with self.subTest(ceiling=ceiling), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": ceiling}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+                with self.subTest(ceiling=ceiling), patch.object(runtime, "prepare_linux_icu", return_value=receipt), patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)), patch.object(runtime, "components", return_value=[icu]), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": ceiling}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
                     # Prior deployment output is data, not an ELF input.
-                    for name in ("qt.conf", "runtime-closure.json"):
+                    for name in ("qt.conf", "runtime-closure.json", "ThirdParty/icu-runtime-provenance.json"):
                         (stage / name).unlink(missing_ok=True)
                     with self.assertRaisesRegex(ValueError, f"glibc {ceiling} ceiling"):
-                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
 
     def test_linux_sonames_bind_versioned_qt_producer_records(self):
         with ContainedTemporaryDirectory() as directory:

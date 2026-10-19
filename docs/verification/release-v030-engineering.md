@@ -891,3 +891,55 @@ source freeze. Later operational receipts remain outside source; administrative
 closeout does not move the publishing candidate. Existing strict test failures,
 unavailable native clean-account contexts and all other release obligations
 are preserved.
+
+
+## BPR-1657 — Linux Qt ICU closure and hardened source producer
+
+The actual final591 Ubuntu attempt linked the app, then CPack refused the
+pinned Qt6.11.2 provider's `libicui18n.so.73` as an untrusted ELF dependency.
+That failed output and its logs remain retained; no signed Linux manifest was
+emitted. The maintained mandatory vault unlock succeeded before app build.
+The failed task has exited and been retired.
+
+[BPR-1657](../issues/60-done/BPR-1657-package-the-pinned-linux-qt-icu-companions.md)
+adds an exact Linux-only companion contract. The official Qt ICU archive
+SHA-256 is `111bdae30a66fff6ef65620e95766170fa5a6f425c360ea33b79cb2ec7e2fd86`;
+its three raw library hashes match the actual provider. ICU73.2 source
+SHA-256 `818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1`
+also matches upstream's published SHA-512. The complete mixed licence/notice
+file is retained for Linux. A single aggregate licence conclusion and Qt's
+upstream unknowns remain `NOASSERTION`.
+
+The official ICU binaries lack NOW. The repair preserves the existing security
+gate and builds only the same-version source runtime in a private native prefix.
+The maintained helper pins source/recipe/compiler/make/flags, uses a minimal
+build environment, compares the extracted source to its pinned archive, refuses
+partial or drifted caches and validates all output bytes/paths. Native testing
+with an inherited disabling MAKEFLAGS seed still produces the required flags.
+Full RELRO/NOW/nonexecutable stack passes on all three delivery candidates.
+All31 ICU symbols imported by the actual QtCore are supplied; the private loader
+and ordinary/numeric/case-insensitive QtCore collation probes pass. Nine actual
+wrong-origin/name/raw/delivered/inventory/cache controls refuse. The loader-path
+audit compares entire files after reproducing the same patchelf operation.
+These facts distinguish official Qt ABI inputs, source-built producers and final
+relocated output; they do not label rebuilt bytes as official prebuilt bytes.
+
+The dirty-source engineering assessment emits and verifies29 source-ZIP entries:
+21 pinned upstream archives plus six unchanged xdiff helpers and the exact ICU
+helper/recipient README. It is explicitly an assessment, not a signed release
+or final-source acceptance. The actual new common-source artifacts still need
+their native source/inventory/trust audits and Linux-specific security/material
+intake. No older Mac/Windows applicability approval is transferred to ICU.
+
+The owner explicitly forbids full test-suite reruns for this repair. Only
+focused package/source/package-audit/security/native-manifest contracts run
+(29/21/7/18/30 cases, with the two existing native-specific skips retained), plus
+the native companion course and documentation checks. The source proof binds
+1963 unchanged app/CMake/end-to-end/fixture/xdiff/release-script inputs to591.
+Mac/Windows selected components and notice sets remain byte-equal to591.
+No app source, resource, normal-suite predicate, memory budget, signer or
+publication policy changes. Existing composite/native observations, original
+RSS failure/owner exception and broader RFC0038/M8/M9 gaps keep their scope.
+
+Final production waits coordinator adoption of this commit as the common source;
+the historical591 Mac/Windows sets and failed Ubuntu attempt remain preserved.

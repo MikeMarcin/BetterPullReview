@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1657"
+  ],
+  "reserve_for": "ubuntu-final-production",
+  "purpose": "Repair pinned Qt ICU73.2 Linux release closure",
+  "created": "2026-10-19T19:40:02.637429+00:00",
+  "base": "591aabf60cdbd45d9bf50a714a263a2954a39c2e"
+}

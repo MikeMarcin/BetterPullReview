@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -60,6 +61,10 @@ NOTICE_FILES = (
     "sha1collisiondetection/LICENSE", "hacl-star/LICENSE", "rapidfuzz-cpp/LICENSE", "dtl/COPYING",
     "git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt",
 )
+
+
+def notice_files(info: dict) -> tuple[str, ...]:
+    return NOTICE_FILES + (("icu/LICENSE",) if info["platform"] == "Linux" else ())
 
 
 def run(*arguments: str | Path, env: dict | None = None) -> str:
@@ -380,7 +385,7 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
                         f"Download: {provenance['asset']['url']}\n"
                         f"SHA-256: {provenance['asset']['sha256']}\n")
     texts.append(("Corresponding source release asset", source_reference + "See SOURCE-OFFERS.txt for recipient access, retention and replacement instructions."))
-    for relative in NOTICE_FILES:
+    for relative in notice_files(info):
         texts.append((relative, (ROOT / "third_party" / relative).read_text(encoding="utf-8")))
     for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting"):
         with tarfile.open(archives[name]) as source:
@@ -441,7 +446,12 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
         "BetterPullReview links it dynamically and contains no copy of it. Its complete corresponding source is in the source asset above: the unmodified git-xdiff-2.56.0.tar.xz archive, "
         "whose xdiff/ directory is the library, and under git-xdiff-2.56.0-build/ the two compatibility headers, original provider, self-contained hardening helper and standalone recipient CMake project. "
         "Start with git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md: verify and extract the supplied archive, then configure that directory against your extracted, optionally modified source. No application checkout, CPM or network acquisition is required. "
-        "You may modify it and replace that one file with your own build exporting the same C interface (xdiff/xdiff.h of Git 2.56.0), as for the Qt libraries above, including the macOS resealing step.\n"
+        "You may modify it and replace that one file with your own build exporting the same C interface (xdiff/xdiff.h of Git 2.56.0), as for the Qt libraries above, including the macOS resealing step.\n" +
+        ("Linux ICU73.2 is rebuilt from the pinned source with PIC, stack protection, frame pointers, FORTIFY3 and full RELRO/NOW/nonexecutable stack. "
+         "The source asset includes ICU-73.2.tar.gz and under ICU-73.2-build/ the exact packaging/linux_icu.py helper and third_party/icu/rebuild/README.md. "
+         "Follow that README to build and replace the three matching data/uc/i18n SONAME73 files beside Qt; no application checkout or signing credentials are needed. "
+         "The complete mixed upstream ICU notices are retained here, and ThirdParty/icu-runtime-provenance.json distinguishes the actual hardened source build from Qt's prebuilt ABI inputs.\n"
+         if info["platform"] == "Linux" else "") +
         "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n"
         "This evidence does not constitute owner/legal approval to distribute a release. That remains the release-readiness gate.\n", encoding="utf-8")
 
@@ -466,6 +476,85 @@ def linux_target() -> str:
 def qt_library(name: str) -> bool:
     match = re.fullmatch(r"(?:lib)?Qt6([A-Za-z0-9]+)(?:\.dll|\.so(?:\.[0-9.]+)?)", name, re.I)
     return bool(match and match[1] in QT_LIBRARIES)
+
+
+def linux_qt_companion(info: dict, name: str, observed: Path) -> tuple[Path, dict]:
+    """Bind Qt's separately supplied ICU runtime to its exact upstream bytes."""
+    if info["platform"] != "Linux":
+        raise ValueError("Qt ICU companions require Linux")
+    component = next(item for item in components(info) if item["name"] == "ICU")
+    contract = component["qtRuntime"]
+    if info.get("qt_version") != contract["qtVersion"] or name not in contract["files"]:
+        raise ValueError("undeclared Qt ICU companion: " + name)
+    expected = contract["files"][name]
+    directory = (Path(info["qt_root"]) / "lib").resolve(strict=True)
+    producer = (directory / expected["file"]).resolve(strict=True)
+    if producer.parent != directory or observed.resolve(strict=True) != producer:
+        raise ValueError("untrusted Qt ICU companion origin: " + name)
+    if digest(producer) != expected["sha256"]:
+        raise ValueError("Qt ICU companion producer digest mismatch: " + name)
+    return producer, expected
+
+
+def linux_icu_builder():
+    # Non-Linux offline publication does not need this native build helper.
+    spec = importlib.util.spec_from_file_location("bpr_linux_icu", ROOT / "packaging/linux_icu.py")
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    return builder
+
+
+def linux_icu_compilers(build: Path) -> dict[str, Path]:
+    cache = (build / "CMakeCache.txt").read_text(encoding="utf-8")
+    result = {}
+    for name, key in (("CC", "CMAKE_C_COMPILER"), ("CXX", "CMAKE_CXX_COMPILER")):
+        values = re.findall(r"(?m)^" + key + r":(?:FILEPATH|STRING)=(.+)$", cache)
+        if len(values) != 1:
+            raise ValueError("ICU needs the selected native CMake compiler: " + key)
+        result[name] = Path(values[0])
+    return result
+
+
+def prepare_linux_icu(build: Path, info: dict) -> dict:
+    component = next(item for item in components(info) if item["name"] == "ICU")
+    archives = source_archives(build, info)
+    return linux_icu_builder().prepare(build / "_bpr/icu/73.2", archives["ICU"], component, linux_icu_compilers(build))
+
+
+def linux_icu_producers(build: Path, info: dict) -> tuple[dict[str, Path], dict]:
+    component = next(item for item in components(info) if item["name"] == "ICU")
+    directory = build / "_bpr/icu/73.2"
+    builder = linux_icu_builder()
+    receipt = builder.verify(directory, component, linux_icu_compilers(build))
+    return {name: directory / "prefix/lib" / filename for name, filename in builder.FILES.items()}, receipt
+
+
+def verify_linux_qt_companions(build: Path, info: dict, root: Path) -> list[dict]:
+    if info["platform"] != "Linux":
+        return []
+    component = next(item for item in components(info) if item["name"] == "ICU")
+    contract = component["qtRuntime"]
+    names = set(contract["files"])
+    actual = {path.relative_to(root).as_posix() for path in root.rglob("libicu*") if path.is_file()}
+    if actual != names or any((root / name).is_symlink() for name in names):
+        raise ValueError("Qt ICU companion runtime inventory mismatch")
+    producers, receipt = linux_icu_producers(build, info)
+    records = []
+    with tempfile.TemporaryDirectory(prefix="bpr-icu-relocation-") as directory:
+        for name in sorted(names):
+            _, qt_input = linux_qt_companion(info, name, Path(info["qt_root"]) / "lib" / name)
+            relocated = Path(directory) / name
+            shutil.copy2(producers[name], relocated)
+            run("patchelf", "--set-rpath", "$ORIGIN", relocated)
+            checksum = digest(relocated)
+            if digest(root / name) != checksum:
+                raise ValueError("Qt ICU companion relocated digest mismatch: " + name)
+            records.append({"name": name, "version": component["version"], "producerKind": "source-built",
+                            "qtInputSHA256": qt_input["sha256"], "producerSHA256": receipt["outputs"][name],
+                            "deployedSHA256": checksum, "qtVersion": contract["qtVersion"],
+                            "qtArchiveSHA256": contract["sha256"], "sourceSHA256": component["sha256"],
+                            "recipeSHA256": receipt["binding"]["recipeSHA256"]})
+    return records
 
 
 def runtime_data(root: Path, target: str) -> set[Path]:
@@ -499,6 +588,11 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
         shutil.copy2(source, destination)
     data = runtime_data(root, target)
     private_libraries(root, target)
+    icu_receipt = None
+    icu_producers = {}
+    if target == "Linux":
+        prepare_linux_icu(build, info)
+        icu_producers, icu_receipt = linux_icu_producers(build, info)
     pending = [path for path in root.rglob("*") if path.is_file() and path not in data]
     processed = set()
     system = set()
@@ -558,6 +652,15 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
                     if not destination.exists():
                         shutil.copy2(source, destination)
                         pending.append(destination)
+                elif name.startswith("libicu"):
+                    linux_qt_companion(info, name, source)
+                    producer = icu_producers[name]
+                    destination = root / name
+                    if destination.exists() and digest(destination) != icu_receipt["outputs"][name]:
+                        raise ValueError("Qt ICU companion staging digest mismatch: " + name)
+                    if not destination.exists():
+                        shutil.copy2(producer, destination)
+                        pending.append(destination)
                 elif name.startswith("libQt"):
                     raise ValueError(f"undeclared Qt module: {name}")
                 elif name in PRIVATE_LIBRARIES["Linux"] and source.resolve() == (root / name).resolve():
@@ -582,8 +685,12 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
                "systemDependencies": sorted(system), "files": sorted(str(path.relative_to(root)) for path in processed), "plugins": PLUGINS[target]}
     if RUNTIME_DATA[target]:
         closure["data"] = RUNTIME_DATA[target]
+    if target == "Linux":
+        closure["qtCompanions"] = verify_linux_qt_companions(build, info, root)
     write_json(root / "runtime-closure.json", closure)
     notices(build, info, root, source_archive)
+    if icu_receipt is not None:
+        write_json(legal_root(root, info) / "icu-runtime-provenance.json", icu_receipt)
     audit(build, info, root, root / "sbom.spdx.json", source_archive)
 
 

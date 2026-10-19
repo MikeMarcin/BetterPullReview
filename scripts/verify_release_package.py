@@ -215,6 +215,12 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
     evidence["source_asset"] = source["asset"]
     check_dependency_inventory(sbom, info)
     evidence.update(check_graph(build, info, revision))
+    if info["platform"] == "Linux":
+        evidence["qt_companions"] = runtime.verify_linux_qt_companions(build, info, root)
+        closure = json.loads((root / "runtime-closure.json").read_text(encoding="utf-8"))
+        require(closure.get("qtCompanions") == evidence["qt_companions"], "qt-companion-provenance-drift")
+        installed_icu = json.loads((runtime.legal_root(root, info) / "icu-runtime-provenance.json").read_text(encoding="utf-8"))
+        require(installed_icu == runtime.linux_icu_producers(build, info)[1], "icu-source-build-provenance-drift")
     binaries = []
     symbol_evidence = {}
     private_producers = tuple(runtime.private_library_producers(info)) if info["platform"] == "Windows" else ()
