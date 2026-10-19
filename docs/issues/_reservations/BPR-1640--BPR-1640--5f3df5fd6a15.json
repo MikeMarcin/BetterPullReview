@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1640"
+  ],
+  "reserve_for": "release-v030-coordinated-r1",
+  "purpose": "Diagnose actual Ubuntu disclosure negative-control raster failures without weakening current disclosure assertions",
+  "created": "2026-10-19T05:37:24.615856+00:00",
+  "base": "1bcc20ba8f12781be852e0289e39716b090cca86"
+}
