@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1637"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Preserve explicit directory query in Git metadata oracle",
+  "created": "2026-10-19T05:22:24.327904+00:00",
+  "base": "adb1e7bf6cb8f9c3b057d1f3f7d93a7f9abef6fc"
+}
