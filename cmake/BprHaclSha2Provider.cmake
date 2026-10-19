@@ -63,6 +63,12 @@ function(bpr_acquire_hacl_sha2)
             "${dist}/karamel/krmllib/dist/minimal"
     )
     set_target_properties(better_pull_review_hacl_sha2 PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 11 C_STANDARD_REQUIRED ON)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # [[BPR-1630]]. Karamel's Linux endian.h branch uses the libc endian
+        # helpers hidden by glibc under strict C11 without this feature set.
+        # Keep their admission local to generated C, not its core consumers.
+        target_compile_definitions(better_pull_review_hacl_sha2 PRIVATE _DEFAULT_SOURCE)
+    endif()
     # Built hardened like the core that links it.
     bpr_enable_hardening(better_pull_review_hacl_sha2)
 endfunction()
