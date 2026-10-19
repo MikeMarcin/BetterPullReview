@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1646",
+    "BPR-1647",
+    "BPR-1648",
+    "BPR-1649",
+    "BPR-1650",
+    "BPR-1651",
+    "BPR-1652"
+  ],
+  "reserve_for": "release-v030-coordinated-r1-windows-final",
+  "purpose": "Repair seven measured Windows normal-gate failure groups after complete preserved780-row run",
+  "created": "2026-10-19T10:29:14.860338+00:00",
+  "base": "76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2"
+}
