@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "core-boundaries-v1",
+  "scope": {
+    "issues": [
+      "BPR-1619"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "core-boundaries",
+      "outcome": "Deterministic xdiff matching and C++ identifier refinement live in core; capability boundaries permit explicit synchronization and lexical paths while refusing effects.",
+      "work": [
+        {
+          "issue": "BPR-1619"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1619 AC1: pure xdiff matcher and interface are core-owned, adapter removed, shared-library and host abandonment contracts preserved.",
+        "BPR-1619 AC2: explicit referenced atomic/mutex state and lexical filesystem paths are allowed while filesystem effects stay rejected.",
+        "BPR-1619 AC3: pure C++ identifier refinement is core-owned with unchanged syntax version, limits and cancellation; packaged Qt classifier stays in its adapter.",
+        "BPR-1619 AC4: focused core-only, composed host/identifier, boundary, dependency/package, format22 and documentation evidence passes; historical platform obligations remain open."
+      ],
+      "boundary": "One owner-authorized placement and boundary amendment. No algorithm, syntax version, pin, UI or RFC-wide closeout change."
+    }
+  ],
+  "unplanned_work": []
+}
