@@ -68,3 +68,17 @@ dispatch/shortcut assertions remain unchanged. The separate nonactivating native
 course proves the real AppKit item; the original foreground native course
 remains pending, rather than being certified by an enum. Format22 and diff
 checks pass; parent owns the next safe Mac integration at the committed source.
+
+
+## Retained offscreen expectation failure
+
+The parent source1b1316a66 Mac offscreen continuation fails the new offscreen
+ApplicationSpecificRole expectation. That expectation was an implementer
+mistake: the caller creates the action directly in Help and no longer sets a
+role; the helper returns false off Cocoa. The fixture now checks the actual
+required offscreen Help-menu association, rather than guessing a default enum,
+and reports platform/role/association count if that contract fails. Cocoa still
+requires NoRole with no QMenu donor; actual native item/profile/empty-window
+qualification remains separate. The failing Mac result is retained and the
+corrected assertion's actual Mac result remains pending; no Mac command is run
+by the repair owner while the parent gate is active.

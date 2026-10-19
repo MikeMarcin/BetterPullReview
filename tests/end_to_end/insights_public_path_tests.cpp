@@ -464,7 +464,15 @@ try {
 		expect(action->menuRole() == QAction::NoRole && std::ranges::none_of(associations, [](const QObject* aObject) { return qobject_cast<const QMenu*>(aObject) != nullptr; }),
 			   "Cocoa keeps the Insights shortcut donor outside per-window native menu merging");
 	} else {
-		expect(action->menuRole() == QAction::ApplicationSpecificRole, "offscreen macOS retains the ordinary Insights action composition");
+		const auto associations = action->associatedObjects();
+		const auto inHelp       = std::ranges::any_of(associations, [](const QObject* aObject) {
+			const auto* menu = qobject_cast<const QMenu*>(aObject);
+			return menu != nullptr && QString{ menu->title() }.remove(QLatin1Char{ '&' }) == QStringLiteral("Help");
+		});
+		if (!inHelp) {
+			std::cerr << "insights-menu platform=" << QApplication::platformName().toStdString() << " role=" << static_cast<int>(action->menuRole()) << " associations=" << associations.size() << '\n';
+		}
+		expect(inHelp, "offscreen macOS retains Insights in the ordinary Help menu");
 	}
 #endif
 	action->trigger();
