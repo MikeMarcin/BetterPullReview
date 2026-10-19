@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1620"
+  ],
+  "reserve_for": "external-determinism-r1",
+  "purpose": "Reconcile architecture around external determinism",
+  "created": "2026-10-19T01:08:28.905289+00:00",
+  "base": "80f280ee8c9946b98c6527a79c65c878d0a6a4d1"
+}
