@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1658"
+  ],
+  "reserve_for": "release-elf-audit",
+  "purpose": "BPR v0.3.0 exact stripped upstream Qt ELF audit evidence; tool-only correction",
+  "created": "2026-10-19T20:27:07.622578+00:00",
+  "base": "dd6d3cec6026f32dd50428238bbfe9aaa80926fe"
+}

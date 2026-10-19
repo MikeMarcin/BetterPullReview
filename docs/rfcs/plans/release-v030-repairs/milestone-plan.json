@@ -36,7 +36,8 @@
       "BPR-1654",
       "BPR-1655",
       "BPR-1656",
-      "BPR-1657"
+      "BPR-1657",
+      "BPR-1658"
     ]
   },
   "milestones": [
@@ -362,6 +363,24 @@
       ],
       "boundary": "Root authorized grounded final591 CPack failure repair; owner explicitly forbids full test-suite reruns. Own Linux packaging/source/notices and focused contracts only; preserve historical591 candidates and all trust gates. Root owns common-source producer adoption, final artifacts, independent/material intake and publication.",
       "depends_on": []
+    },
+    {
+      "id": "stripped-qt-audit",
+      "outcome": "An exact separate read-only audit tool verifies approved stripped prebuilt Linux Qt images while first-party symbol and all package/security predicates remain intact; signed dd6 assets remain unchanged.",
+      "work": [
+        {
+          "issue": "BPR-1658",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exits": [
+        "Bounded verifier controls and full actual dd6 DEB/archive audits pass, with original failures and exact tool/product separation retained."
+      ]
     }
   ],
   "coverage": "complete",
