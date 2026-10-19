@@ -55,8 +55,11 @@ namespace {
 
 int main(int aArgc, char** aArgv)
 try {
+	qputenv("QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM", "1");
 	[NSApplication sharedApplication];
-	expect([NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited], "the fixture cannot activate on the desktop");
+	static_cast<void>([NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited]);
+	std::cout << "activation policy before Qt: " << NSApp.activationPolicy << '\n';
+	expect(NSApp.activationPolicy == NSApplicationActivationPolicyProhibited, "the fixture cannot activate on the desktop");
 	QApplication application{ aArgc, aArgv };
 	expect(NSApp.activationPolicy == NSApplicationActivationPolicyProhibited, "Qt preserves prohibited activation");
 	expect(!NSApp.active, "the fixture remains inactive");

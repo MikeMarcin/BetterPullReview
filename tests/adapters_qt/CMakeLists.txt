@@ -55,7 +55,7 @@ if(APPLE)
     bpr_enable_warnings(test_insights_native_menu)
     bpr_add_network_isolated_test(NAME qt_insights_native_menu COMMAND test_insights_native_menu)
     set_tests_properties(qt_insights_native_menu PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=cocoa"
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa;QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM=1"
         PASS_REGULAR_EXPRESSION "insights-native-menu-tests:pass"
         TIMEOUT 30)
     bpr_add_executable(
