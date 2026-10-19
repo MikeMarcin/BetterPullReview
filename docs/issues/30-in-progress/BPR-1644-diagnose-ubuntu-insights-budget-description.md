@@ -52,3 +52,11 @@ substring occurrence. Persisted412 wait, all budget semantics, product text,
 stall bounds and every later public-course assertion remain unchanged. Source
 format22/diff checks pass; native complete-course and tidy verification remain
 pending on this candidate.
+
+
+The next native control at395ae2393 confirms the corrected budget passes in C
+and exposes one further comma literal in the same course: the1700-files
+lifetime record. The complete en_US course passes1.17 seconds with unchanged
+values. Production records use the same QLocale formatter. That expectation now
+formats exactly1700 files through QLocale while retaining all five record
+conditions; the next native C course must still finish every assertion.

@@ -266,7 +266,7 @@ namespace {
 		range->setCurrentIndex(2);
 		expect(submitted->text() == QStringLiteral("9"), "all-time includes retained activity before30 days");
 		auto* records = aShell.findChild<QTableWidget*>(QStringLiteral("insightsReviewRecords"));
-		expect(records->item(0, 1)->text().contains(QStringLiteral("1,700")) && records->item(0, 1)->text().contains(QStringLiteral("owner/largest #9")) && records->item(1, 1)->text().contains(QStringLiteral("4")) && records->item(2, 1)->text().contains(QStringLiteral("3 reviews")) && records->item(3, 1)->text() == QStringLiteral("205") && records->item(4, 1)->text() == QStringLiteral("owner/repo"), "all five lifetime records match submitted-PR and file facts");
+		expect(records->item(0, 1)->text().contains(QLocale{ }.toString(1700) + QStringLiteral(" files")) && records->item(0, 1)->text().contains(QStringLiteral("owner/largest #9")) && records->item(1, 1)->text().contains(QStringLiteral("4")) && records->item(2, 1)->text().contains(QStringLiteral("3 reviews")) && records->item(3, 1)->text() == QStringLiteral("205") && records->item(4, 1)->text() == QStringLiteral("owner/repo"), "all five lifetime records match submitted-PR and file facts");
 		range->setCurrentIndex(0);
 		const auto week = QDate::currentDate().dayOfWeek() > 1 ? 4 : 3;
 		expect(submitted->text() == QString::number(week), "This week starts on local Monday");
