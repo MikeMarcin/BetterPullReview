@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1643"
 title: "Diagnose Ubuntu identifier foreground raster"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
