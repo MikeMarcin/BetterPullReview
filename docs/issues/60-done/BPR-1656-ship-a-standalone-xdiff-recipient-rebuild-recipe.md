@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1656"
 title: "Ship a standalone xdiff recipient rebuild recipe"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0082"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"dfb5f95f3a6fc02ca58148d1d99b7ba7cf4d4bbd","reservation":"docs/issues/_reservations/BPR-1656--BPR-1656--025e2086fd06.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["packaging/dependencies.json","packaging/package_runtime.py","third_party/git-xdiff/rebuild/CMakeLists.txt","third_party/git-xdiff/rebuild/README.md","third_party/git-xdiff/PROVENANCE.md","tests/scripts/package_runtime_tests.py","tests/scripts/xdiff_recipient_rebuild_tests.py","docs/development/release-packages.md"],"boundary":"Coordinator explicitly reopens the freeze for the standalone corresponding-source recipe; no production C/C++/provider/hardening change, producer mutation or runtime qualification"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Original DFB source-material gap/assets retained. Final exact source ZIPs carry pinned original Git archive and six standalone build helpers/instructions, preserving seven C11 source/output/export/hardening settings and modified recipient-source allowance.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC2","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Retained actual Mac universal build/arm64 consumer and30exports, Windows11 x64/MSVC consumer/import-library and33exports, Ubuntu26.04 WSL2 original/modified consumer and30exports plus all original refusal controls. Current selected xdiff component/sixhelpers/source material are byte-identical and independently reviewed. Seven of9 global recipe inputs match; two Linux packaging inputs changed for ICU. No all9 equality/nativeIntel/desktop/application-replacement claim.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC3","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Fresh dd6 all-platform package production and matching exact separate source/notices/offers/provenance/SPDX complete native public audits. All28 actual downloaded files equal finalproducer hashes; Mac13 downloaded checks/Windows5native trust/Linux6public-only signature checks pass. Historical DFB artifacts remain unchanged; human material decisions are scoped to exact proven material.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC4","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Focused21 source-asset and24package-runtime passes with original configuredskip, native component courses, independent changed-surface review, canonical source binding and prefreeze documentation retained. Final operational receipts stayed outside source until root authorized this postpublication closeout. All broader qualification and ongoing sourceaccess/retention obligations remain explicit.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}}]
 ---
 
 # BPR-1656: Ship a standalone xdiff recipient rebuild recipe
@@ -109,3 +110,33 @@ The own scheduled task retires and the shared PC/WSL lease returns before the
 coordinator assigns any later work. All three platform recipe observations
 remain component assessments; final reproduced public-artifact acceptance is
 still pending outside source.
+
+
+## Final dd6 artifact acceptance, 2026-10-19
+
+All three final platform sets are reproduced from
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`. Their separate source ZIPs,
+installed notices/offers/provenance and SPDX pass the complete native public
+audits. All 28 actual uploaded/downloaded files equal final producer hashes;
+downloaded Mac checks (13), Windows native trust checks (five) and Ubuntu
+public-only signatures (six) pass. The exact retained source trio is read-only
+and equal to the downloaded source assets. Root's ignored
+`resumed-after-rss-exception/postdownload-complete-dd6.json` binds the result.
+
+The selected xdiff component, its six shipped helpers and practical source
+material remain byte-identical to the independently reviewed native original/
+modified consumer courses above. Seven of nine global recipe inputs match;
+two Linux packaging inputs changed for ICU. No all-nine equality is claimed.
+Mac/Windows reuse their exact approved inventory/source-ZIP/material scope by
+independently verified equality; Ubuntu's changed ICU material has its own
+human acceptance, decision `c8d8112a-b9c2-442b-bdbc-9e7310a61a73` in session
+`5ccca36b4b292dc93c0c56a65bd62290`, hand-back cursor 5.
+
+This completes AC3's deferred final-asset acceptance and AC4's postpublication
+upkeep boundary. AC1's original material gap/DFB assets and AC2's actual native
+component controls remain retained, with their recorded architecture and
+source-status limits. No full suite or component course is repeated. Ongoing
+no-extra-charge equivalent source access, original-channel/corporate/offline
+fallback and indefinite immutable retention continue. This supplies no native
+Intel/desktop, complete application replacement, vault, crash/privacy or broad
+RFC0038 qualification, and BPR-1653 remains open.

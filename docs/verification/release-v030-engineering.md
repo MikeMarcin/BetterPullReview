@@ -839,7 +839,7 @@ artifact audit, new SPDX vulnerability disposition or publication acceptance.
 
 ## Standalone xdiff corresponding-source repair
 
-[BPR-1656](../issues/30-in-progress/BPR-1656-ship-a-standalone-xdiff-recipient-rebuild-recipe.md)
+[BPR-1656](../issues/60-done/BPR-1656-ship-a-standalone-xdiff-recipient-rebuild-recipe.md)
 repairs an actual practical source-material gap discovered in both retained
 DFB source ZIPs. Their declared three build inputs are byte-correct, but the
 provider requires absent acquisition/hardening helpers and an application tree.
