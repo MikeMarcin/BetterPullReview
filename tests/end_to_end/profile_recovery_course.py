@@ -53,18 +53,20 @@ def stop_owned_process(process):
     if os.name == "nt":
         # The Popen handle retains this child's identity while taskkill stops
         # its tree. No executable name or unrelated process is selected.
-        result = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                timeout=20, check=False)
-        if result.returncode != 0 and process.poll() is None:
-            raise RuntimeError("could not stop the owned application process tree")
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       timeout=20, check=False)
     else:
         os.killpg(process.pid, signal.SIGTERM)
+    # The tree walk can race natural exit. The retained process handle,
+    # rather than an immediate poll after taskkill, proves completion.
     try:
         process.wait(timeout=20)
     except subprocess.TimeoutExpired:
         if os.name == "nt":
             process.kill()
+            process.wait(timeout=20)
+            raise RuntimeError("the owned Windows process tree did not stop within its bound")
         else:
             os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=20)
