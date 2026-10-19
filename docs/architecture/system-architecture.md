@@ -315,12 +315,13 @@ absent or does not match. Snapshots compare without the digests, which are a
 derived cache of the bodies.
 
 The concrete backend is `adapters::github::platform_body_digest`: CommonCrypto
-on macOS and, until BPR-1448 and BPR-1449 measure CNG and libcrypto, the core's
-own SHA-256 elsewhere (`application::core_body_digest`), still off the window
+on macOS and the core's SHA-256 elsewhere (CNG on Windows, HACL on other
+platforms after RFC-BPR-0080 r4) (`application::core_body_digest`), still off the window
 thread. Composition owns one per profile and passes it to each window read
-host. `architecture_boundaries` allows CommonCrypto's SHA-2 only in
-`src/adapters/github/src/platform_body_digest.cpp`, so core and application
-stay free of OS crypto. The core still owns every identity it derives; only
+host. `architecture_boundaries` admits CommonCrypto SHA-2 only in the native
+core wrapper, this adapter and the existing designated test-tool owners; CNG
+SHA-256 belongs only to the native core wrapper. Application contracts
+remain free of OS types. The core still owns every identity it derives; only
 this classifier cache key is supplied by the host.
 
 ## Diagnostic logging boundary
@@ -435,7 +436,8 @@ The initial target shape should be equivalent to:
 better_pull_review_core
     standard/domain C++, plus only the owner-approved pinned, pure
     libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
-    HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13)
+    HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13), and the narrow
+    deterministic platform SHA-256 exception (CommonCrypto/CNG, 2026-10-18)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -480,7 +482,15 @@ better_pull_review_app
 
 The live repository may use different target names, but it must enforce these rules:
 
-- The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
+- The core imports no Qt, SQLite, GitHub, Git, AI, thread, future, timer,
+  dialog or process APIs. OS APIs are limited to deterministic unkeyed SHA-256
+  in `sha256_commoncrypto.cpp` and `sha256_cng.cpp` (RFC-BPR-0080 r4).
+  Identical inputs yield identical digest bytes; platform CPU dispatch and
+  internal state are implementation details, not semantic observations.
+  Core may use chrono duration/time-point arithmetic and caller-owned
+  explicitly seeded PRNG state; it must not read a clock, implicit entropy
+  or global random state. Cross-platform random identities also need a
+  specified algorithm and mapping.
 - The core links only owner-approved pinned, pure libraries (no I/O, threads,
   clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
   HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
@@ -488,7 +498,9 @@ The live repository may use different target names, but it must enforce these ru
   dtl through RFC-BPR-0082; dtl only for per-line intraline comparison and
   the Review Cycle suggestion hunks' line edit bounded at 512 changes, never
   as the diff engine's whole-file line matcher).
-  `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
+  Windows additionally links the system `bcrypt` only in its SHA-256 branch;
+  macOS CommonCrypto comes from libSystem. HACL remains the portable backend.
+  `cmake/VerifyCoreBoundary.cmake` refuses other unapproved libraries. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.
 - The host depends on core and capability-specific port contracts. It may be mutable and concurrent, but semantic decisions remain in the core.

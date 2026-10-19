@@ -317,3 +317,90 @@ content from outside the repository and its seeded inputs is recorded.
 
 `dirty` is true in the throughput and x86_64 files because documentation was being
 edited in the working tree; the harness sources were the committed ones.
+
+## Deterministic core platform SHA-256 — owner r4/r5, 2026-10-18
+
+[[BPR-1617]] implements the [adopted architecture amendment](../rfcs/amendments/RFC-BPR-0080-platform-crypto-r4.md).
+The owner directly selected CommonCrypto on macOS and CNG on Windows with
+pinned HACL as the portable fallback; this selection supersedes the earlier
+claim that OS CPU dispatch itself breaks determinism. All digest bytes,
+SHA-1 collision detection, host scheduling and persisted identities retain
+their contracts. Chrono duration/time-point arithmetic and caller-owned
+explicitly seeded PRNG state are admitted; clock reads, implicit entropy and
+global C RNG state remain prohibited. No generator or RE2 placement changes.
+
+The public SHA-256 API remains noexcept. Copies duplicate the unfinished
+prefix; moves transfer ownership. CommonCrypto uses an inline context and
+HACL uses its existing block API. CNG uses the Windows 10+ SHA-256 pseudo-handle
+and owns a hash handle per stream; construction/copy may allocate, while
+updates allocate no first-party memory. Failed native initialization chooses
+HACL before input. Failed native duplication/update/finalization terminates;
+the API never returns a digest for a partially processed input. Backend
+failure contracts use executable CNG stubs, explicitly separate from native
+Windows observations.
+
+### Direct observations
+
+- macOS arm64, Apple M4 Pro, Darwin 25.6.0, AppleClang 21.0.0: the public
+  `core_sha256` course passed known answers, block/padding edges, every split
+  point, empty updates, independent copies, assignments and moves. LLDB stopped
+  in `libcommonCrypto.dylib`'s `CC_SHA256_Update` with the stack
+  `core::sha256 -> sha256_stream::update -> update_platform`; the traced child
+  was then stopped by its own PID. This demonstrates actual native dispatch.
+- Native JaegAW Windows 11 Home 10.0.26200 x64, Intel i9-10900KF, MSVC
+  19.51.36260.0, SDK 10.0.26100.0: the exact public header, stream wrapper,
+  CNG/portable sources and SHA-256 test file were transferred to one owned
+  temporary directory. A standalone CMake Release build linked the pinned
+  `dist/msvc-compatible` HACL source and system bcrypt, using `/W4 /WX
+  /permissive-` for the course. Both native and portable courses passed,
+  including independent copies, assignments and moves. `dumpbin /imports`
+  showed bcrypt.dll and CreateHash, DuplicateHash, HashData, FinishHash and
+  DestroyHash. Native/portable timing below also discriminates dispatch.
+  Remote source SHA-256 values matched local bytes exactly; the committed
+  [evidence manifest](_BPR-1617-platform-sha256.json) retains them. No Windows
+  repository checkout or owner desktop was used. MSBuild's MSB8029 warning
+  concerns its temporary output location; compilation and both courses passed.
+- The new CNG contract runs the exact production source against an API stub:
+  deep-copy independence and handle release, initialization-to-HACL fallback,
+  and fatal refusal at duplication/update/finalization. It is not a substitute
+  for the native Windows course above.
+- The boundary contracts permit chrono arithmetic/time points and explicit
+  seeded engines, reject clock reads (including aliases), random_device and
+  global C RNGs, and reject unrelated crypto/clock capabilities even inside
+  the two native SHA-256 source owners. The bcrypt link is Windows-branch-only.
+
+### Compact bulk probe
+
+Release probe through `core::sha256`, one update of 64 MiB, median of seven;
+input byte `i` is `uint8_t(i * 131 + (i >> 7))`. Input preparation is outside
+the timed interval; calls include stream creation/finalization. These are
+loaded-machine observations, not the original full station evaluation.
+
+| Platform | Native median / MB/s | HACL median / MB/s | Native/HACL |
+|---|---|---|---|
+| M4 Pro, AppleClang `-O3` | 21.352 ms / 3143.0 | 121.209 ms / 553.7 | 5.68x |
+| i9-10900KF, MSVC Release `/O2` | 121.502 ms / 552.3 | 247.165 ms / 271.5 | 2.03x |
+
+All four outputs equal
+`fb8c3f34e6dc82d617c642e906c2d0ed1faf93041a7e4cc0e235b2cbd3fa4735`.
+The probe compiles `sha256_hacl.cpp` plus exactly one native/portable source
+and the same pinned HACL object; no alternate hash implementation enters it.
+
+### Verification and remaining scope
+
+The focused core-only pass covers the public SHA-256 course, Git object
+identities and collision-vector refusals, the core body-digest port, CNG
+contract branches and architecture boundaries. Formatting uses clang-format
+22.1.8. Documentation verification and its 67 contract tests pass. The full
+architecture contract initially passed 157/158; its one failure was the new
+ownership fixture omitting its target source list. Adding that list made the
+focused contract pass; no production-boundary relaxation was needed.
+Final exact-candidate results are recorded in BPR-1617's checkpoint.
+
+RFC-BPR-0080 remains In Progress. BPR-1448 still owes its full station
+SHA-1/collision/repository sweep, W1-W3 and host window-thread course; the
+focused CNG course here is partial native correctness evidence. BPR-1449's
+Linux libcrypto evaluation and Q3 remain pending. BPR-1453 retains full RFC
+acceptance/package closeout, including the original dev-build and regression
+obligations. No Linux or universal-x86 slice result, full dev build, release
+qualification or owner judgement is claimed by this amendment milestone.

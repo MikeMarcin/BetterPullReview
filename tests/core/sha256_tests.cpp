@@ -16,6 +16,8 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -64,6 +66,9 @@ int main()
 {
 	using bpr::core::sha256;
 	using bpr::core::sha256_stream;
+	static_assert(std::is_nothrow_copy_constructible_v<sha256_stream>);
+	static_assert(std::is_nothrow_copy_assignable_v<sha256_stream>);
+	static_assert(std::is_nothrow_move_constructible_v<sha256_stream>);
 
 	// FIPS 180-4 / NIST examples.
 	expect(hex(sha256(bytes(""))) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "the empty input");
@@ -123,6 +128,35 @@ int main()
 	auto empty = sha256_stream{ };
 	empty.update({ });
 	expect(hex(empty.finish()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "an empty update");
+
+	// Copy an unfinished prefix, then diverge independently. Assignment must
+	// release its previous native state; destroying a copy must not alias it.
+	auto prefix = sha256_stream{ };
+	prefix.update(std::span{ large }.first(67U));
+	auto copy     = prefix;
+	auto assigned = sha256_stream{ };
+	assigned.update(bytes("discarded prefix"));
+	assigned          = prefix;
+	const auto& alias = prefix;
+	prefix            = alias;
+	copy.update(bytes("copy"));
+	assigned.update(bytes("assigned"));
+	prefix.update(bytes("original"));
+	const auto with_tail = [&](const std::string_view aTail) {
+		auto material = std::vector<std::uint8_t>{ large.begin(), large.begin() + 67 };
+		material.insert(material.end(), aTail.begin(), aTail.end());
+		return sha256(material);
+	};
+	expect(copy.finish() == with_tail("copy"), "copy retains an independent prefix");
+	expect(assigned.finish() == with_tail("assigned"), "assignment replaces an independent prefix");
+	expect(prefix.finish() == with_tail("original"), "copy operations preserve the original");
+	auto moveSource = sha256_stream{ };
+	moveSource.update(bytes("a"));
+	auto moved        = std::move(moveSource);
+	auto moveAssigned = sha256_stream{ };
+	moveAssigned      = std::move(moved);
+	moveAssigned.update(bytes("bc"));
+	expect(moveAssigned.finish() == sha256(bytes("abc")), "moves transfer an unfinished stream");
 
 	std::cout << "core-sha256-tests:pass\n";
 	return EXIT_SUCCESS;

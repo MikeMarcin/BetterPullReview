@@ -1,0 +1,66 @@
+{
+  "schema": "bpr.platform-sha256-evidence.v1",
+  "mandate_revision": "hashing-replacement-r5",
+  "date": "2026-10-18",
+  "source_sha256": {
+    "src/core/include/bpr/core/sha256.hpp": "5d3784c562d30937b3a03b4b2426f7491bcdc6fc9b66ba4b4a1b04d506516f67",
+    "src/core/src/sha256_hacl.cpp": "a477ec7c7beb6a31041c1b8bbf709b5a7523a57a3a461bd74a9929f4463ba695",
+    "src/core/src/sha256_commoncrypto.cpp": "b93b2d4df4e48def2d41abfa47c9c8dfcf57de3bb1694a7882aa2ef4f159642c",
+    "src/core/src/sha256_cng.cpp": "9aeb7aafb97fc46edd87c236ef9beafb70aa30c16f23906df2f0417812a273ae",
+    "src/core/src/sha256_portable.cpp": "331132eddda71e90ac9fae10de9863dafc6bded77cee4e7ad77200c4eb005081",
+    "tests/core/sha256_tests.cpp": "ce6d30834c1042a394d9da272f30eae83b53cca57e1312358348c97fbc5811b6",
+    "tests/core/sha256_cng_contract_tests.cpp": "2ad5a097c7371af349490289aac7ee35653428159a0b7d25ee27561c21f076ca"
+  },
+  "windows": {
+    "source_sha256": {
+      "src/core/include/bpr/core/sha256.hpp": "5d3784c562d30937b3a03b4b2426f7491bcdc6fc9b66ba4b4a1b04d506516f67",
+      "src/core/src/sha256_portable.cpp": "331132eddda71e90ac9fae10de9863dafc6bded77cee4e7ad77200c4eb005081",
+      "src/core/src/sha256_cng.cpp": "9aeb7aafb97fc46edd87c236ef9beafb70aa30c16f23906df2f0417812a273ae",
+      "tests/core/sha256_tests.cpp": "ce6d30834c1042a394d9da272f30eae83b53cca57e1312358348c97fbc5811b6",
+      "src/core/src/sha256_hacl.cpp": "a477ec7c7beb6a31041c1b8bbf709b5a7523a57a3a461bd74a9929f4463ba695"
+    },
+    "cpu": "Intel(R) Core(TM) i9-10900KF CPU @ 3.70GHz",
+    "os": "Microsoft Windows 11 Home",
+    "cng_imports": [
+      "bcrypt.dll",
+      "E BCryptDestroyHash",
+      "11 BCryptDuplicateHash",
+      "1D BCryptFinishHash",
+      "25 BCryptHashData",
+      "6 BCryptCreateHash"
+    ],
+    "version": "10.0.26200"
+  },
+  "macos": {
+    "cpu": "Apple M4 Pro",
+    "os": "Darwin 25.6.0 arm64",
+    "compiler": "AppleClang 21.0.0",
+    "native_runtime_stack": [
+      "core::sha256",
+      "sha256_stream::update",
+      "sha256_stream::update_platform",
+      "libcommonCrypto.dylib CC_SHA256_Update"
+    ]
+  },
+  "bulk_probe": {
+    "bytes": 67108864,
+    "runs": 7,
+    "statistic": "median",
+    "pattern": "uint8_t(i * 131 + (i >> 7))",
+    "digest": "fb8c3f34e6dc82d617c642e906c2d0ed1faf93041a7e4cc0e235b2cbd3fa4735",
+    "macos": {
+      "native_ms": 21.352,
+      "portable_ms": 121.209
+    },
+    "windows": {
+      "native_ms": 121.502,
+      "portable_ms": 247.165
+    }
+  },
+  "limits": [
+    "focused native course, not full station/RFC evaluation",
+    "loaded machines; no idle-machine claim",
+    "no Linux native or universal-x86 slice evidence",
+    "full dev/package/release verification not run"
+  ]
+}

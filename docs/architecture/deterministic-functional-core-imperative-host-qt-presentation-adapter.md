@@ -89,6 +89,20 @@ same prior state
 
 The core may mutate memory explicitly passed to it. It may use preallocated output buffers and scratch storage. What it must not do is perform hidden I/O, consult hidden globals, read the wall clock implicitly, invoke Qt, start threads, or mutate external services.
 
+BPR's owner-approved SHA-256 implementation (RFC-BPR-0080 r4, 2026-10-18)
+may call CommonCrypto on macOS or CNG on Windows, with HACL as the portable
+fallback. Determinism concerns observable digest bytes for the same input.
+CPU-feature dispatch, allocation and internal synchronization in the system
+implementation do not themselves change those bytes. This exception admits
+only unkeyed SHA-256 computation, with native types private to its wrapper;
+it grants no clock, entropy, credential, filesystem or other OS capability.
+
+Duration and time-point arithmetic may use `std::chrono` without reading a
+clock. Caller-owned PRNG state may use an explicit seed. Implicit entropy
+and global random state remain effects. A reproducible cross-platform value
+also requires a specified algorithm and mapping; standard distributions can
+vary across standard-library implementations.
+
 ### 2.2 Keep the core small in ownership and substantial in decision-making
 
 The core should own the state and policies needed to make application decisions. It should not automatically own every byte the application can access.

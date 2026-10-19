@@ -4,7 +4,7 @@ title: "Evaluate and replace the hand-written SHA-1 and SHA-256"
 status: "In Progress"
 depends_on: []
 area: "BPR"
-metadata: {"mandate_revision":"hashing-replacement-r3","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"hashing-replacement-r5","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
 ---
 
 # Evaluate and replace the hand-written SHA-1 and SHA-256
@@ -52,6 +52,17 @@ machine; it covers load, not missing rows, and it does not change the ratio
 thresholds, the Windows and Linux stations' conditions, or AC05's
 before-and-after rows. The [waiver record](assets/hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md)
 keeps the text before and after.
+
+## Owner architecture amendment — 2026-10-18
+
+Mandate r4 directly selects deterministic platform SHA-256 in core:
+CommonCrypto on macOS, CNG on Windows, HACL as portable fallback. The
+[adopted amendment](amendments/RFC-BPR-0080-platform-crypto-r4.md) records the
+exact owner instructions, r5's chrono/random follow-up, prior source identities,
+changed rationale and preserved obligations. [[BPR-1617]] and its
+[additive plan](plans/deterministic-platform-sha256-v1/milestone-plan.json)
+own the new milestone. Original evaluation/adoption evidence remains historical;
+station, host window-thread and release closeout gaps remain open.
 
 ## Progress, 2026-10-13
 
@@ -171,8 +182,8 @@ The core's blob identities equalled Git's in both object formats.
 | Role | Recommended | Why |
 |---|---|---|
 | SHA-1 Git identity and verification of fetched bytes, in every layer | **sha1dc**, pinned, in its own static C target linked by core, configured as Git configures it | Git's and GitHub's own SHA-1. Pure computation (state in a caller context, constant tables). Expected to be faster than today's byte-at-a-time code. Needs Q1. |
-| SHA-256 in core: identities, keys, record digests | **HACL\*** generated `Hacl_Hash_SHA2` C, pinned, in its own static target linked by core | Formally verified portable C, MIT, and what CPython's built-in hashlib uses ([gh-99108](https://github.com/python/cpython/issues/99108)). Same speed class as today. Removes the last first-party hash. Needs Q2. |
-| SHA-256 over large content the host already holds | **Platform crypto behind a narrow host port**, adopted per site only if the evidence rules below pass: CommonCrypto (macOS), CNG `BCrypt*` (Windows), system libcrypto EVP (Linux) | Maintained and hardware-accelerated (7.6× the core on the M4 Pro), with no vendored code. OS APIs keep it out of core. |
+| SHA-256 in core: identities, keys, record digests | **CommonCrypto / CNG**, with pinned HACL* generated SHA-2 as portable fallback (owner r4) | Identical deterministic SHA-256 bytes through system-maintained acceleration. HACL remains the approved portable MIT implementation. |
+| SHA-256 over large content the host already holds | **Platform crypto behind a narrow host port**, adopted per site only if the evidence rules below pass: CommonCrypto (macOS), CNG `BCrypt*` (Windows), system libcrypto EVP (Linux) | Maintained and hardware-accelerated (7.6× the core on the M4 Pro), with no vendored code. The host port keeps bulk work off the window thread; the core now has its own narrow native SHA-256 implementation. |
 | Pack checksums | Keep `QCryptographicHash` | Not an identity; Git also uses a non-detecting SHA-1 here. |
 
 Hashing cannot move wholesale behind a host port. Core decisions compute
@@ -182,21 +193,18 @@ cycle round digests derive identities, and the feedback reuse rule digests
 bodies. A port would have to be threaded through those pure functions as a
 capability, or the decisions would move into the host. The architecture's
 prohibited shortcuts rule out the latter: semantic policy duplicated in host
-and core. So whatever hashes for core must be pure code that core links.
+and core. The synchronous deterministic core hash API therefore remains.
 
-Hardware acceleration cannot meet that purity bar. Every maintained
-accelerated library examined detects CPU features through the OS or keeps
-them in process state:
-- Botan queries `getauxval`, `sysctlbyname` and `IsProcessorFeaturePresent`
-  and probes instructions.
-- OpenSSL keeps a capability global with an environment override.
-
-Acceleration therefore goes to the host, and only where the host already has
-the bytes and core needs only the digest. The first candidate is BPR-1349's
-feedback bodies: the host would supply each body's digest with the
-observation, computed off the window thread. Other candidates are Review
-Cycle capture and export of large files, and update archives. Digests are
-identical, so persisted values stay valid.
+The original r1-r3 reasoning rejected acceleration because implementations may
+query CPU features or keep capability state. Owner amendment r4 replaces that
+reasoning: those details do not change SHA-256 bytes. The synchronous core
+API uses CommonCrypto on macOS, CNG on Windows and HACL elsewhere, or HACL
+on every platform with `BPR_CORE_SHA256_PORTABLE=ON`. No arbitrary OS API is
+admitted. Native initialization failure falls back before any input; failure
+after acceptance of native state terminates instead of emitting a wrong digest.
+The stream stays noexcept and independently copyable. CNG may allocate at
+construction/copy; CommonCrypto/HACL and all first-party updates allocate
+nothing. The host's existing body-digest port and off-window scheduling remain.
 
 ### Candidates considered
 
@@ -204,7 +212,7 @@ identical, so persisted values stay valid.
 |---|---|---|---|---|
 | sha1collisiondetection | MIT | none; upstream says it "takes less than twice the amount of time as regular SHA-1" | pure C; Git-exact | SHA-1 |
 | HACL\* `Hacl_Hash_SHA2` | MIT (generated C) | none | pure; verified; the streaming API allocates, so the wrapper uses block-level calls or proves the contract | core SHA-256 |
-| CommonCrypto / CNG / libcrypto | system | yes where the CPU has it | OS APIs: an adapter only; no collision detection | bulk SHA-256, evidence-gated |
+| CommonCrypto / CNG / libcrypto | system | yes where the CPU has it | r4 admits CommonCrypto/CNG for core SHA-256; Linux libcrypto remains a host-only proposal; no collision detection | CommonCrypto/CNG core adoption authorized; existing host-site evidence retained |
 | `QCryptographicHash` | Qt (shipped) | none in the pinned build | Qt is barred from core and application; SHA-256 measured slower than core | keep only the existing non-identity uses |
 | Botan 3 | BSD-2-Clause | yes | OS-based CPU detection; adds nothing over platform crypto in the host | reject |
 | OpenSSL or BoringSSL vendored subset | Apache-2.0 / ISC-style | yes | perlasm build, process-global state, heavy release burden | reject; Linux uses the system libcrypto through the port |
@@ -368,8 +376,8 @@ HMAC, key derivation and randomness.
   counters recorded. No adopted change makes a recorded row worse by more than
   its run-to-run spread.
 - **AC06:** `core-only` and `dev` build. The architecture checks admit only
-  the approved pure targets in core. Any platform crypto sits in an adapter
-  behind the host port.
+  the approved pure targets and the scoped CommonCrypto/CNG SHA-256 backend
+  in core (owner r4, 2026-10-18). Other OS crypto remains behind host ports.
 - **AC07:** For each adopted library, the release inventory, provenance,
   notices, SPDX and corresponding source are complete, and the package audit
   passes on macOS. Unavailable stations are recorded explicitly.

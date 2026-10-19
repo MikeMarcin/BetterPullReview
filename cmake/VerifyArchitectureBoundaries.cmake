@@ -1946,17 +1946,23 @@ foreach(xdiff_cmake_file IN LISTS xdiff_scanned_cmake_files)
         message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only the xdiff adapter links the xdiff shared library")
     endif()
 endforeach()
-# [[BPR-1447]]. Platform crypto sits behind the application's body digest port
-# in one adapter file (RFC-BPR-0080 AC06): CommonCrypto's SHA-2 is named
-# nowhere else in the product, so core and application stay free of OS crypto.
+# RFC-BPR-0080 r4 admits deterministic SHA-256 in the core's one native
+# implementation. Existing host digest and designated test tooling retain
+# their narrow ownership; no other core OS capability is admitted.
 # The designated live capsule and supervisor identities, test tooling that
 # already fingerprinted their own images with it, keep it.
 verify_effect_owner(
     "(CommonCrypto/|CC_SHA(224|256|384|512)[A-Za-z0-9_]*)"
     "platform crypto (CommonCrypto SHA-2)"
+    "src/core/src/sha256_commoncrypto.cpp"
     "src/adapters/github/src/platform_body_digest.cpp"
     "src/app/src/designated_live_macos_capsule_identity.cpp"
     "${app_designated_live_supervisor_identity_relative}"
+)
+verify_effect_owner(
+    "(BCrypt(CreateHash|DuplicateHash|HashData|FinishHash|DestroyHash)|BCRYPT_SHA256_ALG_HANDLE)"
+    "platform crypto (CNG SHA-256)"
+    "src/core/src/sha256_cng.cpp"
 )
 verify_effect_owner(
     "QNetworkAccessManager"

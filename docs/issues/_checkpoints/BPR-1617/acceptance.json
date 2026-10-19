@@ -1,0 +1,56 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "45b0d3528fdf159ad9050debe3bd0f9f28d59bcf",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1617/verification.md",
+        "detail": "Architecture, RFC amendment and exact crypto owners reconciled; core/architecture gates and contracts pass."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "45b0d3528fdf159ad9050debe3bd0f9f28d59bcf",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1617/verification.md",
+        "detail": "Public vectors/chunking/copy/move tests pass on macOS and Windows; CNG init fallback and terminal-failure contracts pass."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "45b0d3528fdf159ad9050debe3bd0f9f28d59bcf",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1617/verification.md",
+        "detail": "LLDB proves CommonCrypto dispatch; forced portable CMake path passes 3/3; focused composition 11/11 and format/docs gates pass."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "45b0d3528fdf159ad9050debe3bd0f9f28d59bcf",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1617/verification.md",
+        "detail": "Real MSVC CNG and HACL courses pass against identical source hashes; stub branches pass; full station gaps retained on BPR-1448."
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "45b0d3528fdf159ad9050debe3bd0f9f28d59bcf",
+      "evidence": {
+        "kind": "artifact",
+        "path": "docs/issues/_checkpoints/BPR-1617/verification.md",
+        "detail": "Chrono arithmetic and explicit seeded state permitted, clock/random_device/global RNG calls refused; 8 boundary contracts pass."
+      }
+    }
+  ]
+}

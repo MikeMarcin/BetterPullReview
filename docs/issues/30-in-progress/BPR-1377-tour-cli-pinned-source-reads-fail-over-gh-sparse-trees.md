@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1377"
 title: "bpr tour add and show --source refuse every pinned-source read over the gh transport's sparse trees"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50 and #49, macOS, tour-cli build at e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1302","BPR-1327","BPR-1344","BPR-1359","BPR-1360"],"related_rfcs":["RFC-BPR-0044"]}
+metadata: {"kind":"defect","found_by":"BPR-1222's two-account course on MikeMarcin/BPR-Test#50 and #49, macOS, tour-cli build at e964b5a83 (2026-10-09)","reservation":"docs/issues/_reservations/BPR-1377--BPR-1378--58ecbdbf1b08.json","related_cards":["BPR-1222","BPR-1302","BPR-1327","BPR-1344","BPR-1359","BPR-1360"],"related_rfcs":["RFC-BPR-0044"],"milestone_plan":{"id":"bpr1377-sparse-tour-source","path":"docs/rfcs/plans/bpr1377-sparse-tour-source/milestone-plan.json"}}
 ---
 
 # BPR-1377: bpr tour add and show --source refuse every pinned-source read over the gh transport's sparse trees

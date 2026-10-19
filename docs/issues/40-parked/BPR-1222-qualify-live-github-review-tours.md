@@ -217,7 +217,7 @@ unavailable), and a tests-enabled composition keeps its composers read-only
 without a fixture. `bpr tour preview` ran (above). Lifting the gate per row
 is the owner's decision on this evidence.
 
-**Found.** [BPR-1377](../20-ready/BPR-1377-tour-cli-pinned-source-reads-fail-over-gh-sparse-trees.md):
+**Found.** [BPR-1377](../30-in-progress/BPR-1377-tour-cli-pinned-source-reads-fail-over-gh-sparse-trees.md):
 `bpr tour add` cannot read pinned source over gh's sparse trees, so a live
 tour cannot be authored from the terminal over gh.
 [BPR-1378](../20-ready/BPR-1378-a-stopped-tour-publication-reports-conflict.md):

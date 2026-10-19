@@ -30,7 +30,13 @@ The core decides. The host performs. Qt presents.
 | `packaging/` | Distribution metadata and release-time platform policy |
 
 The functional core must not include Qt, provider, filesystem, process, clock,
-thread, timer, network, database, credential, or hidden-global dependencies.
+thread, timer, network, database, credential, or hidden-global semantic dependencies. Owner-approved deterministic platform SHA-256
+is the narrow OS-API exception (RFC-BPR-0080 r4, 2026-10-18): CommonCrypto
+on macOS, CNG on Windows, HACL portable fallback. CPU dispatch and internal
+implementation state may vary while digest bytes remain identical. This
+does not admit arbitrary OS capabilities. Duration/time-point arithmetic and
+caller-owned explicitly seeded PRNG state are permitted; implicit clock reads
+and entropy (`random_device`) remain host effects (owner, 2026-10-18).
 A widget or Qt model must not perform GitHub, Git, SQLite, AI, filesystem,
 network, or process effects.
 
@@ -103,14 +109,16 @@ network, or process effects.
   a suitable library should be allowed instead. Name the candidate, its
   licence, the layer it would live in, and why it fits or does not; do not
   hand-roll it while that question is open. Core may link only the
-  owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries:
+  owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries
+  below, plus the deterministic platform SHA-256 exception above:
   glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL*'s generated
   SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13; sha1collisiondetection
   and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082;
   dtl only for per-line intraline comparison and the Review Cycle suggestion
   hunks' line edit bounded at 512 changes, never as the diff engine's
   whole-file line matcher). RE2 stays in an adapter
-  because Abseil uses threads. The 2026-10-13 audit found a hand-written regex
+  under its existing adapter contract; deterministic utility exceptions do not
+  change its placement. The 2026-10-13 audit found a hand-written regex
   engine with a correctness bug, eight JSON implementations, a DEFLATE
   inflater and hand-written hashes that libraries should have supplied.
 - Never use `git stash` in a worktree: the stash list is shared by every
