@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1630"
 title: "Expose Linux libc endian API only to HACL"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
