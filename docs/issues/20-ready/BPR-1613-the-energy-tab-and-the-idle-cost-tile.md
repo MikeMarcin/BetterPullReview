@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1613"
 title: "The Energy tab and the idle-cost tile"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1609", "BPR-1612"]
 platforms: ["mac", "win", "linux"]
