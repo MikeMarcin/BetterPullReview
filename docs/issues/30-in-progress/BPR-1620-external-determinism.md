@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1620"
 title: "Make external determinism the general core rule"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0001"]
 depends_on: []
 priority: "P1"
