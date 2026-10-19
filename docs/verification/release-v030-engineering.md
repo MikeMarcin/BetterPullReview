@@ -593,8 +593,9 @@ The actual first Ubuntu Release course fails in49.6288s at its unchanged
 216MiB footprint-growth limit (229601280 measured bytes versus226492416).
 The exact-binary bounded counter observation reproduces it in49.9305s, with
 zero swap; both raw reports, full sample series and process provenance remain.
-BPR-1653 owns grounded allocator/live/mapped-page diagnosis before any repair
-or final source freeze. No passing supplement or unchanged-budget acceptance
+BPR-1653 owns grounded allocator/live/mapped-page diagnosis before any repair.
+The coordinator permits a reviewable producer source freeze with its failed
+gate explicitly retained. No passing supplement or unchanged-budget acceptance
 is claimed. No unsigned Linux
 distribution, credential operation or package publication is performed here.
 
@@ -618,3 +619,85 @@ secret retrieval or signing. Existing M8/M9, vulnerability coverage and
 corresponding-source access limitations remain explicit. The new BPR-1653 memory failure remains an agent-owned obligation. Together,
 these obligations keep the overall milestone/release open despite the seven
 completed Windows repair cards.
+
+## Ubuntu memory diagnosis closeout with strict failure retained
+
+The original Release course and unchanged-binary repetitions remain failures
+under the216MiB/900s serial contract. The raw failed sample is bound separately
+because the benchmark prints it before appending to its JSON resource series.
+No memory limit, baseline, formula, skip, workload or allocator setting is
+changed. Every temporary source is restored and original binary SHA-256
+`67f292c90c8ccb089cc70893360597a11dd6ce2cdb8b5cd55a3b9435f623d777`
+is rebuilt before handoff. Current source/fixture/runtime inputs remain equal
+to the focused-tested f164d6214 source; final tracker/notes/plan changes require
+fresh explicit source and frozen-input comparison.
+
+The a661 fixture-move proposal preserves all32 heads/992 encoded exchanges and
+rejects altered status/path controls, but fails the same limit. Matched live
+heap is effectively unchanged and resident differences change sign. Its header
+is intentionally reverted at c01e12c1e, with full equality/causal evidence
+retained. No composition seal changes or frozen rebuild are adopted solely for
+this rejected proposal.
+
+R9 reproduces the original failure with187 own-descendant map observations.
+File-backed application/Qt/system/font categories plateau while anonymous
+residency grows. R10's scratch-only Heaptrack course reaches only the first
+large selection before observer overhead triggers failure. Its existing trace
+is analyzed without another native run: QtSvg supplies zero allocation-stack
+events, xdiff's largest request is607456 bytes and none remains at global peak
+or end, while preparation splitting, C++ refinement and Qt publication expose
+source-grounded transient/cohort allocations. Overlapping category peaks,
+aggregate traffic and equal-size/stack cohorts do not prove individual
+lifetimes or a causal allocator threshold. The separate bounded independent
+review establishes no new leak, metric defect or justified correction.
+
+R12 latches/logs the two original footprint predicates, completes the original
+20-selection/eviction/revisit/supersession/close/shutdown/destruction workload,
+suppresses the acceptance marker and always fails. All completed non-footprint
+checks hold, but eight footprint observations fail. Live heap returns from
+159909840 bytes before close to2371136 after destruction with cache/jobs zero;
+resident bytes remain206852096. This distinguishes released live ownership
+from residency without qualifying the failed course. Glibc free arena bytes
+cannot be subtracted as if they were measured resident pages.
+
+All four later temporary controls fail unchanged numeric predicates and retain
+matched-original failures: equivalent Dif conversion R11 at selection18,
+preparation disabled R14 at18, C++ refinement bypass R15 at20, and direct Qt
+publication R16 at18. R14 deliberately omits preparation and R15 changes
+refinement semantics, so neither can qualify the original contract. R16's
+paired final cache/live bytes are effectively equal, with only565248 resident
+bytes difference. No permanent feature removal, staging-threshold increase or
+speculative storage repair is retained. The frontend-design skill was applied
+before the bounded visual-runtime controls; accepted Qt styling is unchanged.
+
+The unmodified historical e257b236a source is reconstructed in owned scratch
+with its declared pins/current native toolchain. Its original course passes
+in32.396s with BudgetsEnforced false, a similar sampled live peak and lower
+resident high-water. All14 workload payloads match current; source/static/font
+closure and application image differ. QtSvg/xdiff are current-only ELF dependencies; other compared dynamic
+dependency files match. This does not isolate a causal source owner.
+
+R17's first category-observer wrapper refuses before launching the course on
+an incorrect expected skip property. Its corrected R17-r2 preserves historical
+TIMEOUT900/RUN_SERIAL true with SKIP_RETURN_CODE absent, runs the unchanged
+historical binary in30.9226s and collects119 samples. At each run's actual
+maximum concurrent mapping sample, current R9 totals262025216 bytes versus
+historical229085184: application image29863936 versus21483520, anonymous/kernel
+191332352 versus167112704. Qt/system/font pages are nearly stable. The points
+occur at different phases/timings; they are not a matched attribution and no
+independent maxima are summed. Both image and anonymous residency differ.
+The corrected archive SHA-256 is
+`7d072893165f296772ff3bd0e6f1370393f54930014e24a225ef1518c027d07e`.
+Both exact R17 tasks are retired after preserving the refusal and completion;
+native build/test/producer image inventory is empty.
+
+BPR-1653 remains In Progress: causal ownership, a justified correction and the
+original optimized native pass remain unsatisfied. The coordinator's explicit
+stopping boundary permits final source/card/notes/plan upkeep and reviewable
+producer reproduction with this strict failure recorded. Further native
+diagnosis needs a newly allocated lease and a named phase-matched ownership/
+residency question. This boundary does not amend card criteria, certify release
+readiness or close the milestone. Mac history, four native courses, missing
+Linux signing credential, M8/M9/security coverage and corresponding-source
+access obligations remain as recorded above; later changes require explicit
+candidate and security/frozen-input reconciliation.

@@ -63,12 +63,12 @@ the original benchmark is rebuilt to identical SHA-256
 No diagnostic binary supplies acceptance. BPR-1371's existing separate Mac
 allocator/assertion proposal remains unapplied and is not adopted here.
 
-## Approved bounded repair
+## Rejected bounded repair proposal
 
 The pinned Glaze8.3 object initializer-list constructor explicitly copies its
 const entries, including moved arrays. The connection and GraphQL envelope
 currently nest each100-thread page through several of those lists on every
-refresh. The approved candidate moves the same arrays/objects into the same
+refresh. The approved experiment moved the same arrays/objects into the same
 ordered envelope instead. There is no cache, skipped refresh, changed payload,
 baseline shift or allocator tuning. Exact32-head output equivalence and a
 changed-field control precede native acceptance; the original header supplies
@@ -104,3 +104,69 @@ is restored; frozen input eligibility requires fresh current comparison and
 coordinator adoption rather than assuming the intermediate invalidation gone.
 Further live/presentation-versus-allocator diagnosis remains open under the
 original216MiB/900s predicates.
+
+## Final bounded diagnosis and producer handoff
+
+R9's unchanged-binary aggregate map observer reproduces the failure in48.9628s.
+Application/Qt/system/font file pages plateau while anonymous residency grows;
+independent category maxima are not added. Scratch-only Heaptrack R10 identifies
+temporary preparation line splitting, C++ refinement and Qt publication
+allocations, but stops at the first large selection because observation
+overhead trips the original predicate. QtSvg has no allocation-stack events;
+xdiff has no retained allocation at the trace's global peak or end. Aggregate
+traffic and cohort windows do not establish individual allocation lifetimes or
+a causal allocator-threshold change. The independent bounded review finds no
+proven new leak, metric defect or accepted repair.
+
+The temporary R12 lifecycle observer latches the two unchanged footprint
+predicates, completes all original selections/eviction/revisit/cleanup checks,
+suppresses acceptance and always exits failure. Eight footprint misses remain;
+all other completed checks hold. Live heap falls from159909840 bytes before
+close to2371136 after destruction, with cache/jobs zero, while RSS remains
+206852096. Released live ownership therefore does not explain away resident
+pages or supply a passing gate; allocator free bytes are not resident bytes
+that may be subtracted from the measurement.
+
+Every bounded causal control retains the original numeric predicates and
+fails: R11 equivalent Dif conversion/move at selection18, R14 preparation
+disabled at18, R15 C++ refinement bypassed at20, and R16 the existing direct
+publication branch at18. Their matched original controls fail too. The preparation control omits
+preparation work, the refinement control omits C++ refinement, and the direct
+branch bypasses staged scheduling. None can qualify the original contract. Direct publication
+and its original control differ by only565248 resident bytes at selection18,
+with effectively equal live/cache bytes. No permanent feature removal,
+staging-threshold increase or speculative storage repair is adopted.
+
+The faithful e257b236a historical reconstruction uses the current station,
+original declared pins and unmodified sources. Its original course passes
+in32.396s, explicitly with BudgetsEnforced false. Its sampled live peak is
+similar to R12, while resident high-water is lower. Source/static/runtime-image
+and font inputs differ, so this is a bounded comparison rather than acceptance
+or a station-only explanation. R17's first observer wrapper refuses before
+launch because it incorrectly expects SKIP_RETURN_CODE; the old registration
+has TIMEOUT900/RUN_SERIAL true and no skip property. The corrected R17-r2 runs
+that unchanged historical binary in30.9226s and collects119 samples, preserving
+the absent property. Its actual maximum concurrent map sample totals229085184
+bytes (application21483520, anonymous167112704); R9's totals262025216
+(application29863936, anonymous191332352). These points have different
+phases/timings and are not a phase-matched causal comparison. Both image and
+anonymous residency contribute to the observed difference; no single owner is
+isolated.
+
+All temporary benchmark, observer, syntax and Qt sources are restored exactly,
+and the original benchmark is rebuilt to SHA-256
+`67f292c90c8ccb089cc70893360597a11dd6ce2cdb8b5cd55a3b9435f623d777`.
+Complete reports, original refusals, raw failed samples, causal controls,
+archives and exact task-retirement receipts remain in the ignored release
+session. R17-r2's archive SHA-256 is
+`7d072893165f296772ff3bd0e6f1370393f54930014e24a225ef1518c027d07e`.
+No diagnostic binary supplies acceptance; no production input or limit change
+is retained.
+
+The coordinator authorizes a reviewable producer source freeze with this
+strict failure still open. Causal attribution and the justified correction/
+original-course pass remain unsatisfied; the rejected experiment and exact
+restoration are retained. Further native experiments require a new
+coordinator lease and a named, phase-matched ownership/residency question.
+Release candidate production is not card or milestone acceptance. Any later
+source correction explicitly invalidates and reproduces affected candidates.
