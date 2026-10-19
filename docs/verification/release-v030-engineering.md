@@ -434,7 +434,7 @@ or publication is performed by the repair implementer.
 
 ## Relocated smoke safety repair
 
-[BPR-1645](../issues/30-in-progress/BPR-1645-keep-relocated-release-smoke-offscreen.md)
+[BPR-1645](../issues/60-done/BPR-1645-keep-relocated-release-smoke-offscreen.md)
 records the coordinator stopping the old release driver before smoke because
 it removed QT_QPA_PLATFORM and the tests-disabled self-test shows its window.
 The helper now explicitly selects existing offscreen Qt and removes ambient
@@ -482,3 +482,39 @@ notification course and no device probe; the offscreen platform has no native
 tray surface. Neither product runtime restrictions nor delivered plugin policy
 changes. Coordinator actual clone smoke remains pending and cannot qualify
 exact shipped Cocoa launch, native desktop or independent trust.
+
+## Preserved Windows gate and final repair continuation
+
+The complete native Windows normal r3 gate at clean93897e9c2cfce8b0ad674e6d311a3ed84eb70cde
+configures/builds successfully and selects all780 rows:767 pass,12 fail,
+1 configured Debug cache-bytes Skip; CTest exits8 after10239.96s. The full
+configure/build/test logs,780-row manifest/JUnit/timings and wrapper receipts
+are preserved in the ignored complete-evidence ZIP, SHA-256
+`5d07e4e5deb82ac9f71c89c4c0424896db09cdac5952e3fdff95b96e53fe463f`.
+The completed task is removed and producer/build/test processes are absent
+before focused diagnostics. No failed row is converted to a pass by this
+archive or by later unchanged courses.
+
+The12 failures group into native metrics self-child pipes, native HTTPS
+OpenSSL startup, epoch maintenance root privacy,2x thread-move settling,
+three workbench scales plus current-file unread badge, three Markdown scales,
+and UIforETW selected-diff capture. New BPR-1646 through BPR-1652 own the seven
+grounded repairs. Original direct/contained observations and temporary
+synthetic diagnostic evidence remain under the ignored Windows diagnosis
+root. Both temporary UIforETW privacy sources are restored exactly and the
+original app rebuilt; neither diagnostic binary supplies acceptance credit.
+The call stack uses only own-app RVAs and the existing linker map, with no
+process memory or personal profile inspection. Focused repaired rows and
+separate optimized Windows/Ubuntu cache-bytes supplements remain pending.
+
+BPR-1645's actual coordinator signed Mac r4 assessment clone smoke passes
+at clean76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2. The original complete
+bundle fingerprint is `4612b2eeda70246808413f250f7699fd733a9d8ffcc187f5363bd7caebf7c3df`
+and executable SHA-256 is `8ef495711f4db619ffc3eed02eddb50a133b677408100b4af2a36bc696ca7e61`,
+both unchanged before/after; original strict/deep signature remains valid.
+The8 final Mac assets pass package/checksum audits, and original app/DMG
+pass actual publisher/team/runtime/universal/stapler/Gatekeeper checks.
+The private clone remains an assessment dependency, with native Cocoa launch
+and four foreground courses separately pending. Root owns any later
+source/platform/artifact reconciliation and security disposition; no blanket
+qualification transfers to later candidates.

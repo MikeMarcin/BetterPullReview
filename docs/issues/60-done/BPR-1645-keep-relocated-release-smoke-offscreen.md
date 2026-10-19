@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1645"
 title: "Keep relocated release smoke offscreen"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"6e610e44dc02ab4e25b75d061b0755549a318d96","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2","evidence":{"kind":"observation","detail":"Actual signed assessment clone selected offscreen, cleared external plugin paths, retained isolated HOME, exact self-test/budget argv, status and private-profile/production-bundle identity predicates. Original sealed staged bundle remained byte-identical and signature valid; exact delivered Cocoa qualification remains pending.","artifact":".mask/sessions/release-v0.3.0/BPR-1645-actual-clone-smoke-r4.json"}},{"criterion":"AC2","outcome":"pass","revision":"76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2","evidence":{"kind":"command","detail":"release_source_assets_tests.py:21 pass, including10 real shell-helper cases exercising actual environment/argv, exact predicates and refusal controls for corrupt/escaped clone, original mutation, Qt binding, dependencies, architecture and signer; bash syntax, documentation gate and diff check pass. Tests use owned synthetic children/tool stubs and do not drive native UI.","artifact":".mask/sessions/release-v0.3.0/offscreen-clone-7697-evidence.json"}},{"criterion":"AC3","outcome":"pass","revision":"76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2","evidence":{"kind":"artifact","detail":"Intentional clean7697 source/test/docs commit and coordinator actual Mac distribution r4 complete0; assessment clone smoke PASS, original bundle fingerprint4612b2ee… and original executable8ef49571… identical before/after; strict/deep original signature valid. Native Cocoa/foreground, original timing failure, configured Debug Skip, other-platform gates and security/trust obligations retain their separate dispositions.","artifact":".mask/sessions/release-v0.3.0/macos-distribution-r4.log"}}]
 ---
 
 # BPR-1645: Keep relocated release smoke offscreen
@@ -95,3 +96,23 @@ platform supplies no tray surface. The ordinary self-test checks the selected
 vault adapter's status without a credential exercise. No owner desktop or
 native Cocoa process is driven. Actual signed clone smoke remains coordinator
 work, and does not qualify the exact delivered Cocoa runtime or native trust.
+
+## Actual signed assessment and closeout
+
+The coordinator's clean76974f7d0f89317a28f512a8cab3c2a3e1e4c5a2
+Mac distribution r4 completes with8 assets and passing checksums/package audits.
+Its actual signed assessment clone smoke passes the original private-profile
+and production bundle-identity predicates. Original bundle fingerprint
+`4612b2eeda70246808413f250f7699fd733a9d8ffcc187f5363bd7caebf7c3df`
+and executable SHA-256
+`8ef495711f4db619ffc3eed02eddb50a133b677408100b4af2a36bc696ca7e61`
+remain equal before/after, and original strict/deep signature verification passes.
+The original app and final DMG subsequently pass coordinator-owned publisher,
+team, runtime, universal-architecture, stapler and Gatekeeper checks. These
+actual trust results belong to that candidate; the clone supplies only the
+scoped assessment smoke and does not qualify the exact delivered Cocoa launch
+or any pending native foreground course. Raw r2/r3 failures stay retained.
+
+The closeout is intentionally integrated with the next justified Windows
+repair chain before its final candidate freeze. No credential, signing or
+publication action was performed by the repair implementer.
