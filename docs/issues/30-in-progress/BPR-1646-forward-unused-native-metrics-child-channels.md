@@ -28,3 +28,13 @@ The complete780-row original Windows normal gate at93897 is retained:767 pass,12
 The bounded repair is implemented without changing product behavior, original
 assertions or deadlines. Source self-review and diff checks pass; touched C++
 uses clang-format22. Actual focused native verification remains pending.
+
+## Focused static-analysis follow-up
+
+The actual Mac shared-fixture13-row course passes at7d4cd9f. Focused
+clang-tidy22 exposes two pre-existing static-member-through-instance uses in
+this touched fixture. Qualifying arguments/applicationFilePath with
+QCoreApplication preserves the same static calls and the QApplication
+owner lifetime. Only this test translation unit changes; its exact native
+rebuild/course/tidy follow-up remains pending. The original tidy failure
+and passing other three translation units are retained.

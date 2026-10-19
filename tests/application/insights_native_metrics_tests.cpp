@@ -14,7 +14,7 @@ try {
 	QCoreApplication app{ aArgc, aArgv };
 	using namespace bpr;
 	using tests::expect;
-	if (app.arguments().contains(QStringLiteral("--energy-child"))) {
+	if (QCoreApplication::arguments().contains(QStringLiteral("--energy-child"))) {
 		QElapsedTimer timer;
 		timer.start();
 		while (timer.elapsed() < 80) { }
@@ -51,7 +51,7 @@ try {
 	// QProcess to create private pipes inside the Windows AppContainer.
 	child.setProcessChannelMode(QProcess::ForwardedChannels);
 	child.setInputChannelMode(QProcess::ForwardedInputChannel);
-	child.setProgram(QFileInfo{ app.applicationFilePath() }.canonicalFilePath());
+	child.setProgram(QFileInfo{ QCoreApplication::applicationFilePath() }.canonicalFilePath());
 	child.setArguments({ QStringLiteral("--energy-child") });
 	child.setWorkingDirectory(scratch.path());
 #if defined(Q_OS_UNIX)
