@@ -248,3 +248,51 @@ workbench with all warnings as errors. Mac focused `qt_change_end_keys` passes
 workbench's exact compilation database. No command behavior or warning flag
 changes. BPR1635 and BPR1636 separately retain the later native test compile
 failures and their verification obligations.
+
+
+[BPR-1635](../issues/60-done/BPR-1635-select-native-nanosecond-metadata-timestamp.md)
+selects Apple's `st_mtimespec` and Linux's `st_mtim` without losing the
+nanosecond snapshot field. The actual Ubuntu complete r5 build compiles it,
+and its runtime retains 45 unchanged-checkout observations, zero writes and
+a passing canary; the separate C5 question-type failure is owned by BPR1637.
+The actual Mac metadata harness and scoped clang-tidy22 pass.
+
+[BPR-1636](../issues/30-in-progress/BPR-1636-make-final-gcc-test-helper-lifetimes-explicit.md)
+confines three macOS Option-key helpers to their existing Apple caller, and
+names the expected membership vector without altering complete equality or
+request counts. Ubuntu's complete r5 build passes all original warnings as
+errors. Mac Option typing passes in 1.14 seconds and the actual GitHub provider
+course passes in 3.36 seconds; both changed test units pass focused tidy22.
+
+[BPR-1633](../issues/30-in-progress/BPR-1633-keep-one-native-insights-application-menu-item.md)
+loads the canonical frontend-design skill and preserves the approved native
+Insights label, location, shortcut and profile action. One application-owned
+Cocoa item selects the existing QAction belonging to the actual current menu
+bar; QPointer donors prevent dispatch after destruction. Removing the donor
+from its QMenu preserves its enabled state; hiding it was rejected because Qt
+disables hidden actions. A background process with activation prohibited shows
+no windows and reads only its own AppKit menu. Its completed-arbitration input
+retains Qt's shared application item without focusing a window. Actual checks
+pass for one item, distinct donor dispatch, exact once-only native shortcut,
+sibling destruction, disabled resident menu and reopening. All new C++ and
+Objective-C++ pass focused tidy22 with warnings as errors. The original native
+foreground desktop course is not rerun and remains exact-candidate isolated or
+human qualification; this focused course does not claim its activation result.
+
+BPR1632 retains the original failed report and an unchanged unprofiled passing
+rerun (149.25 seconds). One authorized diagnostic course on `adb1e7bf6` samples
+only its owned synthetic child at 10 ms and passes with maximum refresh gap
+67.224 ms. Those perturbed timings are diagnostic, not acceptance. Aggregated
+stacks show actual GUI allocation waiting on the native malloc fork lock and
+a worker in fork; they do not identify the original 142.3115 ms gap. No source,
+threshold, attribution or retry policy changes. All diagnostic processes end;
+the original failure's disposition remains pending with the coordinator.
+
+[BPR-1637](../issues/30-in-progress/BPR-1637-preserve-git-oracle-directory-questions.md)
+retains the Ubuntu C5 failure, the missing-directory negative and the rejected
+blanket-slash counterexamples. Git infers path type from its filesystem, while
+K receives an explicit directory flag. The faithful fixture now prepares those
+declared directories before queries or snapshots, leaving original bare Git
+queries and all classifications unchanged. The complete Mac harness passes
+in 15.16 seconds, with scoped tidy22 passing. Native Linux rerun remains pending
+after its current suite; the failed serializer candidate is not accepted.
