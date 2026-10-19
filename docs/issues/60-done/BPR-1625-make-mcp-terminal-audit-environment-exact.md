@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1625"
 title: "Make the MCP terminal audit environment exact on macOS"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"04eaf0e1271d4fccdb14a07ba20bef56788f6713","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ee7534e2f2ba1c4680d92130a8aa7f4b3a4dd86b","evidence":{"kind":"observation","detail":"Frozen helper f063cfca5159527a9fb1c8e781f5bde0cb0f537d8267b07f6ce9d53288c45205 reports258 received/0 retained/0 unexpected for257 supplied names. Disposable CoreFoundation probe proves startup insertion of __CF_USER_TEXT_ENCODING and exact equality once explicitly supplied."}},{"criterion":"AC2","outcome":"pass","revision":"ee7534e2f2ba1c4680d92130a8aa7f4b3a4dd86b","evidence":{"kind":"command","detail":"Full audit_terminal_diagnostics.py against the unchanged frozen helper passes every count/content/bounded/blocked-and-closed-pipe/protocol check. Synthetic startup field is supplied explicitly; exact count equals len(constructed environment), retained and unexpected remain exactly zero."}},{"criterion":"AC3","outcome":"pass","revision":"ee7534e2f2ba1c4680d92130a8aa7f4b3a4dd86b","evidence":{"kind":"artifact","detail":"Three in-memory count negative controls each fail only complete_received_and_retained_counts for independent received/retained/unexpected mismatches; no product/file mutations. DOCUMENTATION_OK and git diff --check pass. Bounded diff self-reviewed; helper/product code unchanged."}}]
 ---
 
 # BPR-1625: Make the MCP terminal audit environment exact on macOS

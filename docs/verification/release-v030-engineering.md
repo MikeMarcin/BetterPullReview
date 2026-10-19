@@ -89,7 +89,7 @@ pass, and `git diff --check` passes. Self-review confirms the only executable
 change is the fixture table entry; existing validators and their assertions
 are intact.
 
-[BPR-1625](../issues/30-in-progress/BPR-1625-make-mcp-terminal-audit-environment-exact.md)
+[BPR-1625](../issues/60-done/BPR-1625-make-mcp-terminal-audit-environment-exact.md)
 owns the terminal privacy audit's macOS input correction. The exact frozen
 helper (`f063cfca5159527a9fb1c8e781f5bde0cb0f537d8267b07f6ce9d53288c45205`)
 reports 258 received names and zero retained/unexpected names for 257 supplied
