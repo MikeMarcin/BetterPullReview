@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1641"
+  ],
+  "reserve_for": "release-v030-coordinated-r1",
+  "purpose": "Repair actual GCC15 optimized excerpt visibility lifetime diagnostic without UI or warning policy change",
+  "created": "2026-10-19T05:47:57.632350+00:00",
+  "base": "5b43e63eebcbfc2d82fc42ad13f60344f2fec647"
+}
