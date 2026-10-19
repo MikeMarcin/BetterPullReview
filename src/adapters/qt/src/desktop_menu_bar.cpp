@@ -1,6 +1,9 @@
 #include "bpr/qt/desktop_menu_bar.hpp"
 
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#if defined(Q_OS_MACOS)
+	#include "insights_menu_mac.hpp"
+#endif
 
 #include <array>
 #include <utility>
@@ -262,7 +265,7 @@ namespace bpr::qt {
 		auto* const insights = HelpMenu->addAction(QStringLiteral("Insights…"));
 		insights->setObjectName(QStringLiteral("desktopOpenInsightsAction"));
 #if defined(Q_OS_MACOS)
-		insights->setMenuRole(QAction::ApplicationSpecificRole);
+		static_cast<void>(use_native_insights_menu(*insights, *this));
 #endif
 		insights->setShortcuts(shortcut_keys(shortcut_command::insights));
 		insights->setEnabled(false);

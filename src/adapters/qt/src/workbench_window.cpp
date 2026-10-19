@@ -10,6 +10,9 @@
 #include "bpr/core/review_comment_range.hpp"
 
 #include "conversation_glyphs.hpp"
+#if defined(Q_OS_MACOS)
+	#include "insights_menu_mac.hpp"
+#endif
 
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
@@ -17015,7 +17018,7 @@ namespace bpr::qt {
 		auto* insights = diagnosticMenu->addAction(QStringLiteral("Insights…"));
 		insights->setObjectName(QStringLiteral("openInsightsAction"));
 #if defined(Q_OS_MACOS)
-		insights->setMenuRole(QAction::ApplicationSpecificRole);
+		static_cast<void>(use_native_insights_menu(*insights, *menuBar()));
 #endif
 		insights->setShortcuts(shortcut_keys(shortcut_command::insights));
 		addAction(insights);
