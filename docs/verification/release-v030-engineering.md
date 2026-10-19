@@ -943,3 +943,39 @@ RSS failure/owner exception and broader RFC0038/M8/M9 gaps keep their scope.
 
 Final production waits coordinator adoption of this commit as the common source;
 the historical591 Mac/Windows sets and failed Ubuntu attempt remain preserved.
+
+## BPR-1658: separate Linux Qt symbol audit tool
+
+The final signed dd6 Ubuntu package exposes an existing verifier mismatch:
+twelve exact pinned upstream Qt libraries/plugins have dynamic symbols but no
+regular symbol table. The original native audit stops at QtCore with
+`nm produced an empty symbol table`; app/helpers, xdiff and source-built ICU
+retain full symbols. This failure is preserved independently of the correction.
+
+The standalone draft verifier SHA-256
+`2a12927c1d0d5eb1c41ab5f810499bb26b9d172f4028915c0cd1e53cf0553bcd`
+selects only declared Linux Qt paths, binds canonical producer identity to its
+actual upstream SPDX checksum, and matches a separately relocated copy to
+actual delivered bytes before reading genuine defined dynamic symbols. There
+is no generic fallback. First-party composition anchors and all original byte,
+fixture, dependency, source/notices, compilation and native hardening checks
+remain. Nine package and18 security focused controls pass; actual disposable
+native copies reject changed Qt, unowned stripped bytes and stripped first-party
+bytes.67 documentation controls pass.
+
+All four actual corrected package/security audits pass on the preserved dd6
+DEB and user-archive roots, each with472 first-party units,19 ELF images and12
+producer-bound Qt images. The external tool's runtime/source context explicitly
+names the actual clean producer, retaining all required graph regions rather
+than inspecting a compilation database outside its root. All13 signed products
+remain byte-identical. The first draft wrapper missed the already approved
+patchelf PATH; it is preserved, and the corrected wrapper changes no tool bytes.
+
+Only the verifier, focused tests and operator/tracker documentation change on
+`codex/release-elf-audit`. Product/build/packaging/dependency/helper and source
+asset inputs remain unchanged. The coordinator may adopt this separately pinned
+read-only tool for artifacts produced at
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`; main/tag/producers remain there through
+publication, with branch integration afterward. Independent tool/security
+adoption, human material review, native desktop/vault/privacy qualification and
+publication remain separately owned obligations.

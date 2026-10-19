@@ -378,9 +378,10 @@
         }
       ],
       "depends_on": [],
-      "exits": [
+      "exit_criteria": [
         "Bounded verifier controls and full actual dd6 DEB/archive audits pass, with original failures and exact tool/product separation retained."
-      ]
+      ],
+      "boundary": "Standalone read-only verifier/tests/docs only. Preserve all signed dd6 product, build, package, source-material and producer inputs; root owns independent acceptance and publication. No full suites or new production."
     }
   ],
   "coverage": "complete",

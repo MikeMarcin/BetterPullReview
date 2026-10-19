@@ -572,6 +572,25 @@ evidence. macOS also checks every packaged native library reference and RPATH.
 Native Windows/Linux loaded origins and full trust/license review are separate
 qualification evidence, not implied by the static check.
 
+Linux's pinned prebuilt Qt libraries and declared plugins may lack regular
+symbol tables. Their audit uses actual defined dynamic symbols only after the
+canonical selected producer matches its upstream SPDX file/checksum and an
+independently relocated copy matches the delivered bytes. Empty, malformed,
+unowned or changed images refuse. The application, helpers, xdiff and source-built
+ICU retain the full-symbol requirement; the production application retains its
+composition anchors. Byte, fixture, dependency and hardening checks still apply
+to every image. This is a specific producer class, not a general fallback for
+stripped binaries ([[BPR-1658]]).
+
+A separately pinned read-only verifier may audit an older signed candidate
+when product, build, packaging and corresponding-source inputs are unchanged.
+Record the tool revision/hash separately from the artifact producer revision,
+bind both verifier and runtime source context to the actual producer checkout,
+and retain its actual compilation database and all mandatory graph regions.
+Running from another checkout must not silently omit those compilation units.
+Preserve original failed audit results and actual artifact hashes. This narrow
+tool correction does not grant native, security, material or publication approval.
+
 For the macOS hostile course, use an external canonical disposable root and the
 installed qualification guard. Every path argument below expands absolutely;
 replace the checkout, candidate and producer revision with the exact inputs:

@@ -17,6 +17,64 @@ import verify_release_package as audit
 
 
 class ReleasePackageTests(unittest.TestCase):
+    def test_linux_qt_dynamic_symbols_require_exact_producer_and_relocation(self):
+        with ContainedTemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            root, qt = base / "runtime", base / "qt"
+            root.mkdir()
+            (qt / "lib").mkdir(parents=True)
+            producer = qt / "lib/libQt6Core.so.6"
+            binary = root / producer.name
+            producer.write_bytes(b"exact prebuilt fixture")
+            binary.write_bytes(producer.read_bytes())
+            info = {"platform": "Linux", "qt_root": str(qt)}
+            record = {"SPDXID": "SPDXRef-controlled-producer", "fileName": "./lib/" + producer.name,
+                      "fileTypes": ["BINARY"], "checksums": [{"algorithm": "SHA1", "checksumValue": audit.runtime.digest(producer, "sha1")}]}
+            with (patch.object(audit.runtime, "qt_upstream_records", return_value={"files": [record]}),
+                  patch.object(audit.runtime, "run"),
+                  patch.object(audit.subprocess, "check_output", return_value="0000000000001234 T actual_function\n0000000000002000 R actual_data\n") as command):
+                table, binding = audit.linux_qt_symbol_evidence(binary, root, info)
+                self.assertEqual(set(table.symbols), {"actual_function", "actual_data"})
+                self.assertEqual(binding["defined_dynamic_symbols"], 2)
+                command.assert_called_once_with(["nm", "-D", "--demangle", str(binary)], text=True)
+                for text in ("", "0000000000000000 A Qt_6\n", "                 U actual_function\n", "malformed dynamic record\n"):
+                    with self.subTest(dynamic=text), patch.object(audit.subprocess, "check_output", return_value=text):
+                        with self.assertRaises(audit.composition.verification_error):
+                            audit.linux_qt_symbol_evidence(binary, root, info)
+                binary.write_bytes(b"changed delivered image")
+                with self.assertRaisesRegex(ValueError, "relocated-digest"):
+                    audit.linux_qt_symbol_evidence(binary, root, info)
+                binary.write_bytes(producer.read_bytes())
+                producer.write_bytes(b"changed producer")
+                with self.assertRaisesRegex(ValueError, "producer-digest"):
+                    audit.linux_qt_symbol_evidence(binary, root, info)
+                producer.write_bytes(binary.read_bytes())
+                with patch.object(audit.runtime, "qt_upstream_records", return_value={"files": []}):
+                    with self.assertRaisesRegex(ValueError, "producer-record"):
+                        audit.linux_qt_symbol_evidence(binary, root, info)
+                outside = base / "outside"
+                outside.write_bytes(binary.read_bytes())
+                producer.unlink()
+                producer.symlink_to(outside)
+                with self.assertRaisesRegex(ValueError, "producer-origin"):
+                    audit.linux_qt_symbol_evidence(binary, root, info)
+
+    def test_first_party_source_built_and_unowned_images_never_get_dynamic_shortcut(self):
+        root = Path("/runtime")
+        with patch.object(audit.runtime, "qt_upstream_records") as producer, patch.object(audit.subprocess, "check_output") as dynamic:
+            for name in ("better_pull_review", "better_pull_review_agent_supervisor", "libbpr_xdiff.so",
+                         "libicuuc.so.73", "libQt6Unknown.so.6", "unknown.so", "plugins/unowned/libqxcb.so"):
+                self.assertIsNone(audit.linux_qt_symbol_evidence(root / name, root, {"platform": "Linux"}))
+            self.assertIsNone(audit.linux_qt_symbol_evidence(root / "libQt6Core.so.6", root, {"platform": "Darwin"}))
+            producer.assert_not_called()
+            dynamic.assert_not_called()
+        # The retained ordinary inspector still refuses a stripped first-party
+        # image; it never asks for a dynamic-only table after this failure.
+        with (patch.object(audit.composition.shutil, "which", side_effect=lambda name: "/usr/bin/" + name if name in {"nm", "c++filt"} else None),
+              patch.object(audit.composition.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "no symbols"))):
+            with self.assertRaises(audit.composition.verification_error):
+                audit.composition.inspect_symbols(root / "better_pull_review")
+
     def test_package_layout_requires_each_helper_and_only_declared_plugins(self):
         for system in ("Darwin", "Windows", "Linux"):
             with self.subTest(system=system), ContainedTemporaryDirectory() as directory:

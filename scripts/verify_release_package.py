@@ -9,11 +9,14 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 import verify_binary_dependencies as dependencies
@@ -201,6 +204,47 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
                 and (base / origin.split("/", 1)[1]).resolve().is_relative_to(root), "untrusted-library-search-path")
 
 
+def linux_qt_symbol_evidence(binary: Path, root: Path, info: dict) -> tuple[composition.symbol_table, dict] | None:
+    """Inspect dynamic definitions only for an exact relocated upstream Qt image.
+
+    This is an explicit producer class, never a fallback after failed full-symbol
+    inspection. Source-built images retain the ordinary full-symbol requirement.
+    """
+    if info["platform"] != "Linux":
+        return None
+    relative = binary.relative_to(root).as_posix()
+    library = re.fullmatch(r"libQt6([A-Za-z0-9]+)\.so\.6", relative)
+    if library is not None and library[1] in runtime.QT_LIBRARIES:
+        producer_relative = "lib/" + relative
+    elif relative in {"plugins/" + name for name in runtime.PLUGINS["Linux"]}:
+        producer_relative = relative
+    else:
+        return None
+    qt = Path(info["qt_root"]).resolve(strict=True)
+    producer = (qt / producer_relative).resolve(strict=True)
+    require(producer.is_file() and producer.is_relative_to(qt), "qt-symbol-producer-origin-mismatch")
+    upstream = runtime.qt_upstream_records(info, {binary.name})
+    records = [item for item in upstream["files"]
+               if item.get("fileName") == "./" + producer.relative_to(qt).as_posix()
+               and "BINARY" in item.get("fileTypes", [])]
+    require(len(records) == 1, "qt-symbol-producer-record-mismatch")
+    checksums = [item for item in records[0].get("checksums", []) if item.get("algorithm") in {"SHA1", "SHA256"}]
+    require(bool(checksums) and all(runtime.digest(producer, item["algorithm"].lower()) == item["checksumValue"]
+                                   for item in checksums), "qt-symbol-producer-digest-mismatch")
+    with tempfile.TemporaryDirectory(prefix="bpr-qt-symbol-relocation-") as directory:
+        relocated = Path(directory) / binary.name
+        shutil.copy2(producer, relocated)
+        origin = os.path.relpath(root, binary.parent)
+        runtime.run("patchelf", "--set-rpath", "$ORIGIN" if origin == "." else "$ORIGIN/" + origin, relocated)
+        require(runtime.digest(relocated) == runtime.digest(binary), "qt-symbol-relocated-digest-mismatch")
+    contents = subprocess.check_output(["nm", "-D", "--demangle", str(binary)], text=True)
+    symbols = composition.parse_nm_defined_symbols(contents)
+    return composition.symbol_table(symbols, "nm -D --demangle (exact upstream Qt relocation)"), {
+        "producer": str(producer), "producer_sha256": runtime.digest(producer),
+        "upstream_file": records[0]["SPDXID"], "upstream_checksums": checksums,
+        "deployed_sha256": runtime.digest(binary), "defined_dynamic_symbols": len(symbols)}
+
+
 def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None,
           source_archive: Path | None = None, windows_import_library: Path | None = None) -> dict:
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
@@ -223,6 +267,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
         require(installed_icu == runtime.linux_icu_producers(build, info)[1], "icu-source-build-provenance-drift")
     binaries = []
     symbol_evidence = {}
+    qt_symbol_evidence = {}
     private_producers = tuple(runtime.private_library_producers(info)) if info["platform"] == "Windows" else ()
     for path in sorted(root.rglob("*")):
         if path.is_symlink() or not path.is_file():
@@ -231,9 +276,13 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
             magic = stream.read(4)
         if not magic.startswith(BINARY_MAGICS):
             continue
-        table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers,
-                                    windows_import_library=windows_import_library) if info["platform"] == "Windows"
-                 else composition.inspect_symbols(path))
+        qt_symbols = linux_qt_symbol_evidence(path, root, info)
+        if qt_symbols is not None:
+            table, qt_symbol_evidence[path.relative_to(root).as_posix()] = qt_symbols
+        else:
+            table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers,
+                                        windows_import_library=windows_import_library) if info["platform"] == "Windows"
+                     else composition.inspect_symbols(path))
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])
         if path == app:
@@ -252,6 +301,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
         data[path.relative_to(root).as_posix()] = runtime.digest(path)
     return {**evidence, "source_revision": revision, "families": runtime.families(info), "executable_sha256": runtime.digest(app),
             "binaries": binaries, "runtime_data": data, "symbol_evidence": symbol_evidence,
+            "prebuilt_qt_symbol_evidence": qt_symbol_evidence,
             "trust": "not-assessed", "license_approval": "pending"}
 
 
