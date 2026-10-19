@@ -14,6 +14,9 @@ namespace bpr::adapters::github::detail {
 			if (aRecord.Published) {
 				return aRecord.Plan.Description && !aRecord.DescriptionDone ? state::description_attention : state::published;
 			}
+			if (aRecord.Plan.Update && (aRecord.Updated != 0 || aRecord.DestinationsPublished)) {
+				return state::partial;
+			}
 			return aRecord.Plan.Compatibility && !aRecord.Comments.empty() ? state::partial : (aRecord.Review ? state::staged : state::ready);
 		}
 		auto actor(const application::staged_review_plan& aPlan) -> application::staged_review_actor
@@ -519,7 +522,7 @@ namespace bpr::adapters::github::detail {
 					return current.Drafting ? application::staged_publication_result{ state::ready, current } : application::staged_publication_result{ state::outcome_unknown, { } };
 				}
 				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !observe_exact(aStop, false, leftLine)) {
-					return { state::conflict, { } };
+					return { aStop.stop_requested() ? state::unavailable : state::conflict, { } };
 				}
 				const auto drafting = current.Drafting ? std::optional{ current } : std::nullopt;
 				current.Plan        = aPlan;
@@ -551,15 +554,20 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			for (std::size_t step = 0; step < 2 * aPlan.Stops.size() + (aPlan.Update ? aPlan.Update->Stops.size() + aPlan.Update->Retired.size() + 8 : 4); ++step) {
+				// [[BPR-1378]]. Stop keeps the journal's confirmed prefix or its
+				// unknown witness; cancelled reads cannot establish remote drift.
+				if (aStop.stop_requested()) {
+					return { status(current), current };
+				}
 				if (current.PossiblyTransmitted) {
 					const auto reconciled = reconcile_staged(current, aStop);
 					if (reconciled == state::outcome_unknown || reconciled == state::conflict) {
 						return { reconciled, current };
 					}
 				}
-				if (!aWrite || aStop.stop_requested()) {
+				if (!aWrite) {
 					if (!verify_staged(current, aStop)) {
-						return { state::conflict, current };
+						return { aStop.stop_requested() ? status(current) : state::conflict, current };
 					}
 					return { status(current), current };
 				}
@@ -578,7 +586,9 @@ namespace bpr::adapters::github::detail {
 					current = next;
 				}
 				if (aPlan.Submission.LiveBinding->Target != Configuration.Target || !verify_staged(current, aStop, leftLine)) {
-					return { current.Published ? state::description_attention : state::conflict, current };
+					return { aStop.stop_requested() ? status(current) : current.Published ? state::description_attention
+																						  : state::conflict,
+							 current };
 				}
 				const auto wire = compile_staged_review_request(*current.Pending);
 				if (!wire) {

@@ -207,6 +207,7 @@ namespace {
 		std::optional<std::size_t>                         SuppressAt;
 		std::stop_source*                                  Stop = nullptr;
 		std::optional<std::size_t>                         StopAt;
+		std::optional<std::size_t>                         StopOnReadAfter;
 		std::function<void(server&)>                       AfterWrite;
 		auto                                               review_json(std::uint64_t aId = 501) const -> std::string
 		{
@@ -297,12 +298,16 @@ namespace {
 			Bodies          = { json["first"].toString().toStdString(), json["second"].toString().toStdString() };
 			Description     = json["description"].toString().toStdString();
 		}
-		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			const bpr::tests::exit_on_failure insideSession;
 			const auto&                       wire = aRequest.Wire;
 			const auto                        ok   = [](std::string aBody) { return github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(aBody) } }; };
 			if (wire.Method == http_method::get) {
+				if (Stop && StopOnReadAfter == Writes && aStop.stop_possible()) {
+					Stop->request_stop();
+					return github_mutation_wire_error{ };
+				}
 				if (ReadFailure) {
 					return github_mutation_wire_error{ };
 				}
@@ -809,15 +814,23 @@ namespace {
 			scratch          root;
 			server           remote;
 			std::stop_source stop;
-			remote.Stop   = &stop;
-			remote.StopAt = stopped;
-			auto provider = session(remote, root.Path);
-			static_cast<void>(provider->publish_tour(plan(), stop.get_token(), [](const auto&) { return true; }));
+			remote.Stop         = &stop;
+			remote.StopAt       = stopped;
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(plan(), stop.get_token(), [](const auto&) { return true; });
+			const auto expected = stopped < 3 ? publication_state::staged : stopped == 3 ? publication_state::description_attention
+																						 : publication_state::published;
+			expect(result.State == expected, "Stop reports confirmed staged, published or description progress, never a false conflict");
+			expect(result.Record && result.Record->Review && result.Record->Review->Id.value() == 501 && result.Record->Comments.size() == 2
+					   && result.Record->Patched == std::min(stopped, std::size_t{ 2 }) && result.Record->Published == (stopped >= 3)
+					   && result.Record->DescriptionDone == (stopped == 4) && !result.Record->PossiblyTransmitted && !result.Record->Pending,
+				   "Stop retains exact review/comment identities and the confirmed patch, submission and description prefix");
 			expect(remote.Writes == stopped + 1, "Stop prevents remaining writes");
 			remote.Stop = nullptr;
 			provider.reset();
-			provider = session(remote, root.Path);
-			static_cast<void>(provider->reconcile_tour(plan()));
+			provider             = session(remote, root.Path);
+			const auto recovered = provider->reconcile_tour(plan());
+			expect(recovered.State == expected && recovered.Record == result.Record, "read-only restart confirms the exact stopped progress");
 			expect(remote.Writes == stopped + 1, "restart remains read-only");
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "Resume after Stop completes bounded plan");
 		}
@@ -827,6 +840,28 @@ namespace {
 		auto input                         = plan();
 		input.Compatibility                = true;
 		input.Description->AppendIndexLink = true;
+		for (std::size_t stopped = 0; stopped < 6; ++stopped) {
+			scratch          root;
+			server           remote;
+			std::stop_source stop;
+			remote.Stop         = &stop;
+			remote.StopAt       = stopped;
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(input, stop.get_token(), [](const auto&) { return true; });
+			const auto expected = stopped < 4 ? publication_state::partial : stopped == 4 ? publication_state::description_attention
+																						  : publication_state::published;
+			expect(result.State == expected && result.Record && result.Record->Comments.size() == std::min(stopped + 1, std::size_t{ 2 })
+					   && result.Record->Index.has_value() == (stopped >= 2) && result.Record->Published == (stopped >= 4)
+					   && result.Record->DescriptionDone == (stopped == 5) && !result.Record->PossiblyTransmitted && remote.Writes == stopped + 1,
+				   "compatibility Stop reports each confirmed visible prefix without false conflict");
+			remote.Stop = nullptr;
+			provider.reset();
+			provider             = session(remote, root.Path);
+			const auto recovered = provider->reconcile_tour(input);
+			expect(recovered.State == expected && recovered.Record == result.Record && remote.Writes == stopped + 1, "compatibility Stop recovers its exact prefix read-only");
+			expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 6 && remote.Creates == 0 && remote.Submits == 0,
+				   "compatibility Stop resumes without duplicating visible comments");
+		}
 		for (std::size_t lost = 0; lost < 6; ++lost) {
 			scratch root;
 			server  remote;
@@ -876,6 +911,75 @@ namespace {
 	}
 	void test_maintenance_sessions()
 	{
+		for (const std::size_t writes : { 0U, 1U, 6U }) {
+			scratch root;
+			server  remote;
+			auto    provider = session(remote, root.Path);
+			auto    input    = plan();
+			if (writes == 6U) {
+				const auto original = provider->publish_tour(input, { }, [](const auto&) { return true; });
+				input               = maintenance_plan(*original.Record);
+				remote.Maintenance  = true;
+			}
+			std::stop_source stop;
+			remote.Stop            = &stop;
+			remote.StopOnReadAfter = writes;
+			const auto result      = provider->publish_tour(input, stop.get_token(), [](const auto&) { return true; });
+			const auto expected    = writes == 0 ? publication_state::unavailable : writes == 1 ? publication_state::staged
+																								: publication_state::partial;
+			expect(stop.stop_requested() && result.State == expected && remote.Writes == writes, "Stop during verification reports retained progress without another write or false conflict");
+			if (writes != 0) {
+				expect(result.Record && result.Record->Pending && !result.Record->PossiblyTransmitted, "a cancelled verification retains the prepared untransmitted next step");
+				remote.Stop = nullptr;
+				provider.reset();
+				provider = session(remote, root.Path);
+				std::stop_source readStop;
+				remote.Stop              = &readStop;
+				const auto cancelledRead = provider->reconcile_tour(input, readStop.get_token());
+				expect(readStop.stop_requested() && cancelledRead.State == expected && cancelledRead.Record == result.Record && remote.Writes == writes, "Stop during read-only verification retains confirmed progress too");
+				remote.Stop          = nullptr;
+				const auto recovered = provider->reconcile_tour(input);
+				expect(recovered.State == expected && recovered.Record == result.Record && remote.Writes == writes, "cancelled verification's prepared next step recovers read-only");
+				expect(provider->publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == (writes == 1 ? 5U : 8U), "cancelled verification resumes without repeating a confirmed effect");
+			}
+		}
+		for (std::size_t stopped = 0; stopped < 3; ++stopped) {
+			scratch          root;
+			server           remote;
+			auto             provider = session(remote, root.Path);
+			const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			const auto       update   = maintenance_plan(*original.Record);
+			std::stop_source stop;
+			remote.Maintenance  = true;
+			remote.Stop         = &stop;
+			remote.StopAt       = 5 + stopped;
+			const auto result   = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
+			const auto expected = stopped < 2 ? publication_state::partial : publication_state::published;
+			expect(result.State == expected && result.Record && result.Record->Plan == update && result.Record->Updated == stopped + 1
+					   && result.Record->Published == (stopped == 2) && !result.Record->PossiblyTransmitted && !result.Record->Pending && remote.Writes == 6 + stopped,
+				   "Stop reports each confirmed maintenance edit as partial until the root is published");
+			remote.Stop = nullptr;
+			provider.reset();
+			provider             = session(remote, root.Path);
+			const auto recovered = provider->reconcile_tour(update);
+			expect(recovered.State == expected && recovered.Record == result.Record && remote.Writes == 6 + stopped, "maintenance restart confirms the exact stopped prefix without writes");
+			expect(provider->publish_tour(update, { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 8 && remote.Creates == 1 && remote.Submits == 1,
+				   "Resume after maintenance Stop finishes only the remaining edits, preserving the review and comments");
+		}
+		{
+			scratch          root;
+			server           remote;
+			auto             provider = session(remote, root.Path);
+			const auto       original = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			const auto       update   = maintenance_plan(*original.Record);
+			std::stop_source stop;
+			remote.Maintenance = true;
+			remote.Stop        = &stop;
+			remote.StopAt      = 5;
+			remote.AfterWrite  = [](auto& aServer) { aServer.Bodies[1] += "Website edit during Stop."; };
+			const auto result  = provider->publish_tour(update, stop.get_token(), [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 6, "real body drift discovered while reconciling a stopped write still reports conflict");
+		}
 		for (std::size_t lost = 0; lost < 3; ++lost) {
 			scratch    root;
 			server     remote;
