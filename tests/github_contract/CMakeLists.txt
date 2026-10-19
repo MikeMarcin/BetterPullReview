@@ -6,7 +6,9 @@ bpr_enable_hardening(test_release_update_transport)
 bpr_enable_warnings(test_release_update_transport)
 bpr_add_network_isolated_test(NAME release_update_transport_contract COMMAND test_release_update_transport)
 find_program(BPR_UPDATE_TEST_OPENSSL NAMES openssl REQUIRED)
-bpr_add_network_isolated_test(NAME release_update_native_https LOOPBACK_PORT_COUNT 1
+# [[BPR-1647]]. The complete course passes directly; contained MSYS OpenSSL
+# cannot create its BaseNamedObjects runtime directory (0xC0000022).
+bpr_add_network_isolated_test(NAME release_update_native_https WINDOWS_UNCONTAINED LOOPBACK_PORT_COUNT 1
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_update_transport.py"
     --executable "$<TARGET_FILE:test_release_update_transport>" --openssl "${BPR_UPDATE_TEST_OPENSSL}")
 set_tests_properties(release_update_native_https PROPERTIES TIMEOUT 90)

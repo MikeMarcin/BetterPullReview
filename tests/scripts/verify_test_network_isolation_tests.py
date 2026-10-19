@@ -729,6 +729,7 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "ancestor-control-denied",
                 "owner-private-acl-denied",
                 "git-reference-parent-denied",
+                "msys-runtime-object",
             },
         )
 

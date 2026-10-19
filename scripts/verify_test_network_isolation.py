@@ -119,7 +119,14 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #   rather than assuming a process-launch or DOS-name failure. This names
 #   Git's measured refusal, without claiming an unobserved Win32 cause.
 # No registration, network capability, assertion or deadline is changed.
+# [[BPR-1647]]. On 2026-10-19 the complete26-scenario native updater HTTPS
+# course passes directly, while its contained Git-for-Windows MSYS OpenSSL
+# exits3221225794 at NtCreateDirectoryObject(\BaseNamedObjects\msys-2.0S5-...),
+# status0xC0000022. `msys-runtime-object` names that exact external runtime
+# namespace refusal, not a child-launch or DOS-name assumption. Only this row
+# receives the measured pin; loopback scope and all course assertions remain.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    "release_update_native_https": "msys-runtime-object",
     "sqlite_device_binding_storage": "dos-volume-name",
     # BPR-0806: measured on JaegAW 2026-09-17. Contained, std::filesystem::canonical
     # on the package temp root reports "Access is denied" before any course step
