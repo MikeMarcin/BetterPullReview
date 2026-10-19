@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1612"
 title: "Process-metrics sampler with foreground/background attribution"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1607"]
 platforms: ["mac", "win", "linux"]
 metadata: {"milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"}}
-blocked_by: "qt-unix-child-rusage"
 ---
 
 # Process-metrics sampler with foreground/background attribution
