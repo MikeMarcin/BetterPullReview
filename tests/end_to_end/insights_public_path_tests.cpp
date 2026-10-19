@@ -87,22 +87,23 @@ namespace {
 		QApplication::sendEvent(&chart, &leave);
 		chart.hide();
 		const auto raster = chart.grab().toImage();
-		expect(raster.pixelColor(115, 40) != raster.pixelColor(300, 40), "the events lane draws interval bars and leaves unsampled time empty");
-		expect(raster.pixelColor(60, 115) != raster.pixelColor(300, 115), "foreground is filled above background, and the unsampled interval is a gap");
+		const auto pixel  = [](const QImage& aImage, const int aX, const int aY) { return aImage.pixelColor(static_cast<int>(aX * aImage.devicePixelRatio()), static_cast<int>(aY * aImage.devicePixelRatio())); };
+		expect(pixel(raster, 115, 40) != pixel(raster, 300, 40), "the events lane draws interval bars and leaves unsampled time empty");
+		expect(pixel(raster, 60, 115) != pixel(raster, 300, 115), "foreground is filled above background, and the unsampled interval is a gap");
 		auto noEvents = facts;
 		for (auto& point : noEvents.Points) {
 			point.Events.reset();
 		}
 		chart.apply(noEvents);
 		const auto noEventsRaster = chart.grab().toImage();
-		expect(noEventsRaster.pixelColor(115, 40) == noEventsRaster.pixelColor(300, 40), "negative control: removing events removes the bars");
+		expect(pixel(noEventsRaster, 115, 40) == pixel(noEventsRaster, 300, 40), "negative control: removing events removes the bars");
 		auto empty = facts;
 		for (auto& point : empty.Points) {
 			point.Background.reset();
 		}
 		chart.apply(empty);
 		const auto emptyRaster = chart.grab().toImage();
-		expect(emptyRaster.pixelColor(60, 115) == emptyRaster.pixelColor(300, 115), "negative control: without quantity observations the area disappears");
+		expect(pixel(emptyRaster, 60, 115) == pixel(emptyRaster, 300, 115), "negative control: without quantity observations the area disappears");
 		facts.Points.back().Foreground = 120.0;
 		facts.EndUnixSeconds           = 600;
 		chart.apply(facts);
