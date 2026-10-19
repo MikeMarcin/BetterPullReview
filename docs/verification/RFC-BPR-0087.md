@@ -1,5 +1,11 @@
 # RFC-BPR-0087 verification and continuation
 
+Current frontier: the app-wide source is complete at `81a132674`, with technical
+AC01–AC05 evidence reconciled below. BPR-1661 is verified; BPR-1662's separate
+integration authorization remains pending under the explicit no-merge/push/release
+mandate. The RFC stays **In Progress**. The initial disk pause and first-slice
+pending rows below are historical; the final proposal supersedes that frontier.
+
 ## Initial candidate and disk pause
 
 - RFC import: `6fcdd1537`, based on immutable RFC_BASE_SHA
@@ -270,3 +276,121 @@ Separate integration authorization is required; none is inferred here.
 All task-owned builds/tests have exited and writer ownership returns to the
 coordinator at this boundary. The source tree, build and local evidence remain
 available for the successor.
+
+## Final verification and closeout proposal
+
+The fresh non-delegating `verification-closeout` implementer used the shared
+engineering contract and selected coordinator-implementer recipe. The required
+frontend-design skill was read from
+`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`;
+the accepted BPR-1577 v002 treatment remains the reference. There is no visual
+redesign or product-source change in this milestone. Generated route readiness
+is configuration evidence only; native runtime host loading was not observed.
+
+The reviewed source candidate is `81a13267446e883c12ac0f8c7b5a43927c2efc68`,
+with first-slice runtime/capture additions at
+`9dc946997350ab23866ce75f39bbebf32b140be8`. App-rollout acceptance and ledger
+were committed at `29251e68d82fa87fa11b2299aec7c1262fb786fe`. Final verification
+readiness `52662d1f2` and claim `bb64e195d` preceded this milestone's edits.
+The complete source diff was assessed against immutable RFC_BASE_SHA
+`74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`: Qt presentation, its focused tests
+and documentation only; no core/host command authority or settings schema changed.
+
+### Criterion judgment
+
+| Criterion | Judgment and direct evidence |
+|---|---|
+| AC01 | **Pass for the recorded offscreen scope.** Overview retains the accepted Open/All content and geometry over `button_surface`; Review/Comments choices and Reset plus Appearance tab choices use `quiet_tool_button`. First-slice 10/10 focused checks and 18/18 four-theme style/scale courses pass. Inspected composed captures show the shared quiet chip, bare unselected choice and unchanged labels. |
+| AC02 | **Pass.** The [inventory](../ux/shared-action-buttons.md) resolves all 46 page/factory translation units and mixed-factory products as migrated or intentionally retained with concrete reasons; no migration is deferred. A broader baseline constructor/subclass scan additionally accounts for four dedicated specialized implementation units and one declaration header. |
+| AC03 | **Pass for exercised Qt contracts.** The shared Settings and quiet-button courses exercise exclusive checked choices, accepted-value publication, one Space dispatch, disabled refusal, accessibility name/description/role, dialog Return/default preservation, native mnemonic parity, text/icon/menu fallbacks, translated sizing, font changes and four-theme palette changes. The 23/23 app-rollout composition courses, tour-writing course and final 4/4 smoke pass. Constructors retain object names, signal wiring, tooltips and focus policies; shared components retain their original Qt base class. |
+| AC04 | **Pass for drawing/layout and interaction evidence, with native claims explicitly separate.** The 18 first-slice and 6 app-rollout courses span Fusion/Windows styles, four themes and 1x/1.25x/2x on macOS arm64, Qt 6.11.2, offscreen. Complete Overview, Review/Comments, Appearance, Diagnostics, Profiles and further Settings windows include hover/press/focus/disabled states; prior representative inspection and this milestone's six additional inspections are recorded below. |
+| AC05 | **Pass for technical verification.** Prior 10/10 and 23/23 focused checks and composed integration are reused because source inputs are unchanged; the final serial public-path smoke passes 4/4. clang-format 22.1.8 passes all 47 changed C++ paths; architecture and documentation gates pass. Actual commands, revisions, failures, variants and platform limits remain recorded. Separate integration authorization is a remaining closeout-card obligation, not a technical test result. |
+
+### Reused and final evidence
+
+Local evidence root:
+`/Users/jaeger/Documents/Codex/2026-10-19/task-4/button-verification/`.
+Screenshots and logs remain outside Git. `matrix-results.json` contains the
+18 first-slice command/result records; `app-rollout/matrix-results.json`
+contains 6 push-button courses, each exit 0 with actual style/DPR facts. The
+app-rollout's `focused-command.json`, `focused.log`, `focused-results.xml` and
+`tour-writing-results.xml` retain the 23 focused checks and tour course.
+The 192 push-course PNGs and 27 review-cycle PNGs remain available alongside
+the first-slice captures. These are not native desktop captures.
+
+This milestone directly inspected these additional complete widget/window
+captures; all labels fit, selected/action surfaces are coherent, focus is
+visible and disabled controls remain muted:
+
+- `fusion-100/shared-buttons-review-light.png` and
+  `fusion-100/shared-buttons-review-dark-hover.png`.
+- `windows-125/shared-buttons-comments-high_contrast_dark.png`.
+- `fusion-200/shared-buttons-review-light-pressed.png`.
+- `app-rollout/windows-200/high_contrast_light-diagnostics-focus.png`.
+- `app-rollout/fusion-200/dark-diagnostics-disabled.png`.
+
+The final serial command at `bb64e195d93b2a46e35352659cd6e23686337ed5` was:
+
+```sh
+ctest --preset dev --output-on-failure -j 1 -R '^(qt_quiet_buttons|qt_feedback_label_settings|qt_appearance_settings_panel|qt_composed_github_scale_100)$' --output-junit /Users/jaeger/Documents/Codex/2026-10-19/task-4/button-verification/verification-closeout/focused-results.xml
+```
+
+It passes **4/4**, **7.39 s**, using this lane's existing offline build and
+registered macOS network-deny wrappers. `verification-closeout/` retains the
+exact argument array (`focused-command.json`), `focused.log`, XML and timing/
+candidate (`focused-result.json`). No new build or dependency acquisition was
+needed. All 47 `.cpp`/`.hpp` paths returned by `git diff --name-only
+74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc -- src tests` passed
+`python3 _coding-standard/scripts/format.py --dry-run` with those explicit paths
+and clang-format **22.1.8**. The exact architecture command also passes:
+
+```sh
+cmake -DBPR_ROOT=/Users/jaeger/Documents/Codex/2026-10-19/task-4/shared-action-buttons -P cmake/VerifyArchitectureBoundaries.cmake
+```
+
+A concise simplification review found one shared surface painter under the two
+native button classes, narrow opt-in/fallback guards and existing semantic
+factory discriminators. No further refactor was needed. Baseline inventory
+cross-check found 51 files: the 46 rows, four explicitly retained specialized
+`.cpp` files and `discuss_header.hpp`; none is unaccounted for.
+
+### Platform limits and retained failure
+
+| Surface of evidence | Observed result |
+|---|---|
+| macOS arm64, Qt 6.11.2, offscreen, Fusion/Windows styles | Recorded layout and interaction courses pass at 1x/1.25x/2x in all four themes. |
+| Native macOS appearance integration | Unobserved; offscreen forced styles cannot establish it. |
+| Native Windows desktop/style integration | Unobserved; Qt Windows style running on macOS is style evidence only. |
+| Native Linux desktop/style integration | Unobserved. |
+| Owner visual judgment | Unobserved; no human criterion was introduced by this technical closeout. |
+
+The existing full Appearance Fusion-2x popover placement failure remains a
+**failure**, not a pass or skipped result. Its unchanged native-choice control
+in `appearance-native-choice-control.log` reproduces glyph `(101,412)` and the
+same assertion; the normal-scale full suite and focused shared-button 2x
+courses pass. This is outside the migrated choice surface and does not block
+the RFC's bounded technical criteria. No native-platform acceptance is inferred.
+
+### Authorization and durable continuation
+
+All authorized technical verification and proposal work is complete. BPR-1661's
+evidence-recording criteria pass. BPR-1662 cannot be marked Done because its
+unchanged second acceptance bullet also requires **separate integration
+authorization**; that authorization has not been supplied and the user explicitly
+prohibits merge, push and release. Its remaining blocker is
+`integration-authorization`, with technical acceptance preserved. This is a
+permission boundary, not a disk, build, visual-regression or native-test failure.
+The RFC and index remain **In Progress**; Auto-Verified is only proposed after
+that closeout obligation is resolved. No merge approval is requested here.
+
+Binding and observation use run `shared-action-buttons-r1`, segment
+`verification-closeout`, mandate `shared-action-buttons-r1`, the preserved
+execution selection and both accepted prerequisite milestones. Local
+`verification-closeout/checkpoint.json`, `observation.json` and `check.json`
+retain that final continuation. The helper checks structure and fingerprints;
+it does not establish truth of tests, host loading or authorization.
+
+Preserve this branch, its single build and evidence for a future explicitly
+authorized integration owner. Root README and unrelated work remain untouched.
+At return, all task-owned test/gate commands are exited, writer ownership is
+released and no task-owned background process remains.

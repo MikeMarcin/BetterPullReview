@@ -7,8 +7,9 @@ intentionally retained below; RFC-wide verification remains a separate milestone
 Native constructors are factories as well as individual buttons; their count
 is not a count of runtime controls.
 
-The scan covers all 46 Qt translation units containing native push/tool-button
-construction or a direct custom subclass. Also retain the established
+The table covers the 46 page/factory translation units in the initial native
+push/tool-button construction scan. Dedicated specialized implementations are
+accounted for separately below. Also retain the established
 `disclosure_button`, `menu_tool_button`, `drawer_section_header`, info glyphs,
 switches, palette swatches, review-modality segments, `updates_disclosure`,
 `review_progress_chip`, `home_row_action` and window caption buttons. The
@@ -82,6 +83,27 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
 | [workbench_strip.cpp](../../src/adapters/qt/src/workbench_strip.cpp) | Retain toolbar, navigation, status/menu/icon controls and review-progress/custom caption variants. |
 | [workbench_window.cpp](../../src/adapters/qt/src/workbench_window.cpp) | Review/Comments options and Reset already shared. Migrated Show later threads, composition-page Back/Restore, Home Copy/Cancel/Retry, Cancel setup, Open Project, Open Repositories, Copy message, existing-checkout choice, queue/notification Reset/Preview, account preparation, repository/server Cancel and tour Back. Chat factory migrates Context/New session/Continue old revision while retaining primary Send; finding factory migrates Open evidence/Ask follow-up/Add notes while retaining primary Convert and destructive Dismiss. Storage factory migrates Cancel maintenance while retaining Prune/Delete cache. Retain toolbar/navigation/icon controls, workshop Accept/Reject decisions, Apply classification, primary Add/setup/connect actions, destructive Remove, hyperlink guidance and standard confirmations. |
 | [writing_hooks_panel.cpp](../../src/adapters/qt/src/writing_hooks_panel.cpp) | Factory migrates Restore default and Test saved hook. Retain Save instructions: explicit primary persistence action. |
+
+## Dedicated specialized implementations
+
+A broader scan against immutable baseline `74ef7f4fb` also finds these four
+implementation units and the `discuss_header.hpp` class declaration. They
+remain intentional variants, rather than untracked migrations:
+
+- [destructive_question.cpp](../../src/adapters/qt/src/destructive_question.cpp):
+  `question_button` and `danger_tool_button` distinguish confirmed destructive
+  consequences and the safe default response.
+- [disclosure_button.cpp](../../src/adapters/qt/src/disclosure_button.cpp):
+  `disclosure_button` owns the title/chevron bar and its open state.
+- [discuss_header.cpp](../../src/adapters/qt/src/discuss_header.cpp) and
+  [declaration](../../src/adapters/qt/src/discuss_header.hpp): `discuss_tool`
+  combines conversation glyphs, counts, filter chips, paired segments and the
+  drill-down close mark in the existing Discuss header language (BPR-1337).
+- [info_glyph.cpp](../../src/adapters/qt/src/info_glyph.cpp): `info_glyph` is the
+  information icon (or one-character fallback) that opens a consequence popover.
+
+The broad baseline scan has 51 files: the 46 table rows, these four `.cpp`
+files and the one header. There is no unaccounted baseline file in that scan.
 
 ## Completion and evidence
 
