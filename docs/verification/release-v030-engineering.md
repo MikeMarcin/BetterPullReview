@@ -313,3 +313,13 @@ required isolated or attended qualification. A selected unattended run can
 exercise the other 807 of 811 rows with unchanged properties, but must report
 that selected completeness separately; it is not a complete normal native
 gate. No test skip, selector registration or runner completeness guard changes.
+
+
+[BPR-1640](../issues/30-in-progress/BPR-1640-diagnose-ubuntu-disclosure-negative-controls.md)
+retains the later two Ubuntu disclosure scale failures. The selected Windows
+style renders the supposed old native-bezel control using theme surface fills,
+not its supplied grey button palette. Dark contrast and both high-contrast
+negative controls fail; current disclosure assertions report no failure in the
+retained output. The actual style/fixture cause and native focused verification
+remain pending. No assertion, palette tolerance, product style or threshold is
+changed before those observations.
