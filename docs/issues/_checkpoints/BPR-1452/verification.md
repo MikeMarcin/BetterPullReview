@@ -41,6 +41,7 @@ implementation, correctness, throughput or boundary-test run is claimed.
   provider diff, authored-plan digest and immutable baseline: pass.
   Runtime receipt: `/tmp/bpr-closeout-20261018/hash-relevance.json`.
 - `python3 scripts/verify_documentation.py --root .`: DOCUMENTATION_OK.
+  Repeated after finish `45da1d9bd`: DOCUMENTATION_OK.
 - Scoped issue-board validation: valid, 1,610 cards, no errors.
 - Milestone checkpoint check: `action: stop`. The conditional Reject exit's
   passing record means its applicability was resolved by Q1 Accept; it is
