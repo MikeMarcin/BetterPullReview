@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1626"
 title: "Supply the approved Linux verification key in v0.3.0 notes"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"04eaf0e1271d4fccdb14a07ba20bef56788f6713","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7d177514b800833a585c69fc49185755a18dbc58","evidence":{"kind":"artifact","detail":"Release notes include the complete404-byte approved public key, full approved fingerprint and exact SHA256 plus save/import/verify instructions; public-key-notes-verification.json binds the exact export."}},{"criterion":"AC2","outcome":"pass","revision":"7d177514b800833a585c69fc49185755a18dbc58","evidence":{"kind":"command","detail":"Notes fenced block is byte-identical to approved export; public-only no-autostart GPG import succeeds and fingerprint listing contains exactly the approved full fingerprint, temporary home removed. DOCUMENTATION_OK and git diff --check pass. Private same-channel scope and RFC0038 limits preserved; asset/manifest/publisher guards unchanged."}}]
 ---
 
 # BPR-1626: Supply the approved Linux verification key in v0.3.0 notes

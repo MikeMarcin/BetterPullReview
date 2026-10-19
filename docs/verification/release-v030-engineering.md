@@ -108,7 +108,7 @@ complete-count check. The disposable probe is removed, and the ignored repair
 handoff binds the diagnostic and control receipts. Native full-suite reruns
 remain with the coordinator.
 
-[BPR-1626](../issues/30-in-progress/BPR-1626-supply-linux-verification-key-in-v030-notes.md)
+[BPR-1626](../issues/60-done/BPR-1626-supply-linux-verification-key-in-v030-notes.md)
 adds the approved Linux verification key to the committed 0.3.0 notes for
 delivery through the same private release channel. The fenced block is
 byte-identical to the approved 404-byte public export, SHA-256
