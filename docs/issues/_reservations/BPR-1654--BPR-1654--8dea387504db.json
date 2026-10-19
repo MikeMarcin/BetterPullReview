@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1654"
+  ],
+  "reserve_for": "release-v030-coordinated-r1-pe-metadata",
+  "purpose": "Bind discarded Windows SDK import metadata in native release PE audit",
+  "created": "2026-10-19T14:04:20.898150+00:00",
+  "base": "b914b56f6aab8c51f632eafa863f890c80539865"
+}
