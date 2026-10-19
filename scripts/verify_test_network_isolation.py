@@ -136,12 +136,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
     "application_profile_startup_public_path": "dos-volume-name",
-    # [[BPR-1602]]. Profile data reset and startup recovery; Windows
-    # containment has not yet been measured for these courses.
-    "sqlite_profile_data_reset_files": "unmeasured (registered on macOS)",
-    "application_profile_data_reset_public_path": "unmeasured (registered on macOS)",
-    "application_insights_public_path": "unmeasured (registered on macOS)",
-    "application_profile_recovery_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1631]]. Measured Interactive Limited session 3, 2026-10-18:
+    # actual direct/contained courses and native admission probes. See
+    # docs/verification/release-v030-engineering.md. Private C++/Python
+    # roots reach the ancestor refusal; Qt roots refuse WRITE_DAC first.
+    "sqlite_profile_data_reset_files": "ancestor-control-denied",
+    "application_profile_data_reset_public_path": "owner-private-acl-denied",
+    "application_insights_public_path": "owner-private-acl-denied",
+    "application_profile_recovery_public_path": "ancestor-control-denied",
     # BPR-0810: measured on JaegAW 2026-09-17. Contained, both fixtures stop at
     # "FAILED: private desktop test root under the canonical storage policy",
     # make_storage_root_owner_private refusing the package temp root exactly as
@@ -176,23 +178,24 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
     # RFC-BPR-0084. The markdown-images course of the same setup-destination
-    # executable, registered uncontained like its siblings; not yet measured
-    # on the Windows station.
-    "application_markdown_images_public_path": "unmeasured (registered on macOS)",
-    "application_merge_base_public_path": "unmeasured (registered on macOS)",
+    # executable; the actual course and shared Qt-root probe now measure its
+    # private-root refusal on the Windows station ([[BPR-1631]]).
+    "application_markdown_images_public_path": "owner-private-acl-denied",
+    "application_merge_base_public_path": "owner-private-acl-denied",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
-    "application_pending_states_public_path": "unmeasured (registered on macOS)",
+    "application_pending_states_public_path": "owner-private-acl-denied",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
-    "application_refresh_feedback_public_path": "unmeasured (registered on macOS)",
+    "application_refresh_feedback_public_path": "owner-private-acl-denied",
     # [[BPR-1589]]. Status attention for the signed-in reviewer.
-    "application_status_attention_public_path": "unmeasured (registered on macOS)",
+    "application_status_attention_public_path": "owner-private-acl-denied",
     # [[BPR-1601]]. Durable read state for PR comments and review summaries.
-    "application_conversation_read_public_path": "unmeasured (registered on macOS)",
-    "merge_base_fixture_contract": "unmeasured (registered on macOS)",
-    "sqlite_markdown_image_disk_cache": "unmeasured (registered on macOS)",
+    "application_conversation_read_public_path": "owner-private-acl-denied",
+    "merge_base_fixture_contract": "git-reference-parent-denied",
+    "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
-    # application_review_navigation_entry, whose fixture setup it shares.
-    "application_close_review": "unmeasured (registered on macOS)",
+    # application_review_navigation_entry, with its actual Qt-root refusal now
+    # measured ([[BPR-1631]]).
+    "application_close_review": "owner-private-acl-denied",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
     # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
     # uncontained; contained through the sandbox launcher it fails "private

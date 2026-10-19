@@ -39,3 +39,25 @@ These are test setup/oracle changes only. All original assertions, production
 storage/admission policy, UI, deadlines and network grants remain unchanged.
 Focused corrected native courses and final containment classification remain
 pending.
+
+The corrected native reset courses pass at `c5d458ee0`. Recovery then reaches
+its next actual failure, missing Windows `os.killpg`; the exact application
+orphan is recorded and stopped by its owned PID. The source now uses native
+Windows PID-tree termination with bounded waits and unconditional `finally`
+cleanup, retaining POSIX group termination. Matching native recovery acceptance
+remains pending.
+
+All fourteen actual initial contained commands ran. The markdown fixture passes
+inside, so its exemption and pin are retired. The nine Qt private-root failures
+are explained by a current QTemporaryDir/native-header probe: canonical paths
+succeed both ways; READ_CONTROL plus WRITE_DAC succeeds directly and returns
+Win32 5 contained. The probe's contained root cannot remove itself; its exact
+logged owned root requires external cleanup after process exit. The actual
+merge fixture fails Git init; its exact command and fixture environment show
+`cannot lock ref 'HEAD': unable to create directory for .../.git/HEAD` only
+contained. The C++ private-scratch/native ancestor probe from the unchanged
+header context supplies Win32 5 for the first C-drive READ_CONTROL admission;
+actual SQLite store/lease and Python registry courses reach that shared
+ancestor check. Original raw outcomes are retained rather than generalized to
+unrun rows. Thirteen exact finite reasons replace unmeasured entries; final
+recovery, manifest and cleanup verification remain pending.
