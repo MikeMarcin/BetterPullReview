@@ -444,3 +444,31 @@ NEXT_ID. Only its committed allocation/receipt/plan/card and claim were adopted
 as `e69eb9bf0`/`660fb623f`, preserving the authoritative global counter. Main's
 BPR-1378 and BPR-1620 writers remain active; no product source or main checkout
 was mutated. The repeated finish dry-run passes, with no protected link repair.
+
+
+## Review statistics capture milestone (in progress)
+
+Assignment `review-stats`, mandate `insights-window-v1-r1`, segment
+`review-stats-r1`, engineering owner `/root/insights_review_stats`.
+BPR-1610 capture is accepted at source `00e0eb7dc`; BPR-1611 follows in this milestone. Prior shell/native
+header/chart acceptance remains unchanged. `frontend-design` was read from the
+configured installed path before work on this milestone.
+
+Typed activity deltas, opening-only local-day dedup, lifetime event persistence,
+local-day/repository aggregates, three ranges, calendar scaling and records are
+implemented. SQLite schema 3 adds activity without rewriting or backfilling
+existing ledger state. Successful explicit ledger actions, new notes/defects,
+validated submission/recovery results, nonduplicate mutations, resolutions and
+shared SQLite cycle freezes are the sources. A successful unresolve adds
+nothing; a later resolve has a new operation identity. Note creation likewise
+uses an operation identity so erased note IDs cannot suppress later creations.
+Observer failures cannot veto the original operation.
+
+Initial public composition: 4/4 pass in 3.17 s. Expanded capture verification:
+8/8 pass in 5.29 s (core, DST host, SQLite, submission recovery, mutation host,
+ledger host, actual maintenance Clear/purge and public Insights). Real cache
+prune/delete plus SQLite frozen-round replay/reuse courses pass 2/2 in 6.89 s.
+The explicit-command correction passes the final 8/8 focused course in7.57s;
+core-only core and architecture pass2/2 in16.55s. No completed Reviews UI or whole-milestone acceptance
+is claimed yet. Runtime evidence:
+`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-review-stats-r1-36e1d558`.
