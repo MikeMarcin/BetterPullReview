@@ -1446,7 +1446,7 @@ namespace bpr::qt {
 							 QStringLiteral("lastWorkbenchChangeAction"),
 							 QStringLiteral("Select the last change in this file."),
 							 { change_end_keys()[1] });
-		for (const auto [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
+		for (const auto& [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
 			ViewMenu->insertAction(HeaderSourceAction, entry->Action);
 			connect(entry->Action, &QAction::triggered, this, [this, id] { dispatch_navigation(static_cast<std::size_t>(id)); });
 		}
@@ -12084,7 +12084,7 @@ namespace bpr::qt {
 
 	void workbench_window::describe_change_ends()
 	{
-		for (const auto [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
+		for (const auto& [entry, id] : { std::pair{ &ChangeEnds[0], core::workbench_command_id::first_change }, std::pair{ &ChangeEnds[1], core::workbench_command_id::last_change } }) {
 			if (entry->Action == nullptr) {
 				continue;
 			}
