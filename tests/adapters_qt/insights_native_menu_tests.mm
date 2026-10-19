@@ -15,7 +15,8 @@
 
 namespace {
 	using bpr::tests::expect;
-	void settle()
+	NSMenuItem* application_item = nil;
+	void        settle()
 	{
 		for (int turn = 0; turn < 5; ++turn) {
 			QCoreApplication::sendPostedEvents();
@@ -28,11 +29,27 @@ namespace {
 		// No window is shown, application activated or desktop pixels inspected.
 		[NSApp setMainMenu:aBar.toNSMenu()];
 		settle();
+		if (application_item == nil) {
+			application_item = [NSApp.mainMenu itemAtIndex:0];
+		} else {
+			// A bar that never receives focus does not get Qt's application-menu
+			// attachment. Supply that completed arbitration input, using the same
+			// retained AppKit item, without focusing or showing any window.
+			NSMenu* selected = aBar.toNSMenu();
+			[application_item.menu removeItem:application_item];
+			if (selected.numberOfItems > 0 && [selected itemAtIndex:0].submenu == nil) {
+				[selected removeItemAtIndex:0];
+			}
+			[selected insertItem:application_item atIndex:0];
+			[NSApp setMainMenu:selected];
+		}
 		NSMenu* application = [NSApp.mainMenu itemAtIndex:0].submenu;
 		std::cout << "selected menus: ";
 		for (NSMenuItem* top in NSApp.mainMenu.itemArray) {
 			std::cout << top.title.UTF8String << "[";
-			for (NSMenuItem* child in top.submenu.itemArray) { std::cout << child.title.UTF8String << ";"; }
+			for (NSMenuItem* child in top.submenu.itemArray) {
+				std::cout << child.title.UTF8String << ";";
+			}
 			std::cout << "]";
 		}
 		std::cout << std::endl;
@@ -49,7 +66,7 @@ namespace {
 	}
 	auto make_bar(int& aCalls, bool aEnabled = true) -> std::unique_ptr<QMenuBar>
 	{
-		auto  bar    = std::make_unique<QMenuBar>();
+		auto  bar  = std::make_unique<QMenuBar>();
 		auto* menu = bar->addMenu(QStringLiteral("Help"));
 		menu->addAction(QStringLiteral("Diagnostics…"));
 		auto* action = menu->addAction(QStringLiteral("Insights…"));
