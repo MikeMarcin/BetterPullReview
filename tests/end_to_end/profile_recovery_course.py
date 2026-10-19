@@ -28,6 +28,8 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bpr_narrow_owner_private import make_root_private  # noqa: E402
 from scripts.contained_temporary_support import make_contained_temporary_directory  # noqa: E402
 
 OPENED = "ATTENDED_PULL_REQUEST_OPENED"
@@ -41,8 +43,7 @@ def fail(message, log=""):
 
 
 def private(path):
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
+    make_root_private(path)
     return path
 
 
@@ -93,7 +94,7 @@ def main():
     application, source = sys.argv[1], sys.argv[2]
     scratch = Path(make_contained_temporary_directory(prefix="bpr-profile-recovery-")).resolve()
     try:
-        os.chmod(scratch, 0o700)
+        make_root_private(scratch)
         root = private(scratch / "profile")
         state = root / "state" / "v1"
 

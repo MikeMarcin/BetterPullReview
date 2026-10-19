@@ -7,9 +7,8 @@
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
-#include "platform_test_support.hpp"
+#include "scratch_root.hpp"
 
-#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -29,21 +28,21 @@ namespace {
 
 	struct scratch
 	{
-		fs::path Path;
+		tests::sqlite_contract::scratch_root Owner;
+		fs::path                             Path;
 		explicit scratch(std::string_view aName)
+			: Owner{ std::string{ "reset-" } + std::string{ aName } }
+			, Path{ Owner.path() }
 		{
-			Path               = fs::temp_directory_path() / ("bpr-reset-" + std::string{ aName } + "-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-			const auto created = fs::create_directory(Path);
-			auto       made    = bpr::tests::scratch_guard{ created ? Path : fs::path{ } };
-			expect(created && adapters::sqlite::make_storage_root_owner_private(Path), "private disposable root");
-			Path = fs::canonical(Path);
-			made.release();
+			// A real profile has acquired its lifetime lease before a reset.
+			// Windows retains its lock file after closing the handle; include
+			// that existing input in every exact before/after snapshot.
+			expect(adapters::sqlite::acquire_profile_runtime_lease(Path).has_value(), "initial profile lease admitted");
 		}
 		~scratch()
 		{
 			std::error_code ignored;
 			fs::permissions(Path / "repositories/v1" / (std::string{ cache_hash } + ".git") / "objects/pack", fs::perms::owner_all, ignored);
-			fs::remove_all(Path, ignored);
 		}
 		scratch(const scratch&)                    = delete;
 		auto operator=(const scratch&) -> scratch& = delete;

@@ -6,6 +6,7 @@
 // comparison history is damaged fails to start and opens again with a cache
 // reset run before its stores.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../sqlite_contract/platform_test_support.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/profile_data_reset_views.hpp"
@@ -27,11 +28,9 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
-#if !defined(_WIN32)
-	#include <sys/stat.h>
-#endif
 
 namespace {
 	using namespace bpr;
@@ -64,22 +63,19 @@ namespace {
 		return found;
 	}
 
-	/// The inode of a file, or 0 when it is absent.
-	auto inode(const fs::path& aPath) -> std::uint64_t
+	/// Native volume/object identity, or nothing when the file is absent.
+	auto identity(const fs::path& aPath) -> std::optional<tests::sqlite_contract::file_identity>
 	{
-#if defined(_WIN32)
-		return fs::exists(aPath) ? 1U : 0U;
-#else
-		struct stat status{ };
-		return ::stat(aPath.c_str(), &status) == 0 ? static_cast<std::uint64_t>(status.st_ino) : 0U;
-#endif
+		const auto found = tests::sqlite_contract::identity_of(aPath);
+		expect(found.has_value() || !fs::exists(aPath), "native identity is readable for each existing store");
+		return found;
 	}
 
-	auto inodes(const fs::path& aRoot, const std::set<std::string>& aStores) -> std::map<std::string, std::uint64_t>
+	auto identities(const fs::path& aRoot, const std::set<std::string>& aStores) -> std::map<std::string, std::optional<tests::sqlite_contract::file_identity>>
 	{
-		std::map<std::string, std::uint64_t> found;
+		std::map<std::string, std::optional<tests::sqlite_contract::file_identity>> found;
 		for (const auto& store : aStores) {
-			found.emplace(store, inode(aRoot / "state/v1" / (store + ".sqlite3")));
+			found.emplace(store, identity(aRoot / "state/v1" / (store + ".sqlite3")));
 		}
 		return found;
 	}
@@ -201,41 +197,41 @@ try {
 
 	// Reset settings: its stores go; review data, caches, saved sources and sign-in stay the same files.
 	{
-		const auto settings = inodes(root, settings_stores());
-		const auto other    = inodes(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
+		const auto settings = identities(root, settings_stores());
+		const auto other    = identities(root, [] { auto all = review_stores(); all.merge(cache_stores()); all.merge(kept_stores()); return all; }());
 		run.reset_from_settings(reset::settings, QStringLiteral("Settings reset"));
 		for (const auto& [store, before] : settings) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) != before, "Reset settings removed each settings store");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Reset settings removed each settings store");
 		}
 		for (const auto& [store, before] : other) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Reset settings keeps every other store as the same file");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "Reset settings keeps every other store as the same file");
 		}
 		checkKeptLogs();
 	}
 	// Clear caches: the comparison history goes; review data and settings stay.
 	{
-		const auto caches = inodes(root, cache_stores());
-		const auto other  = inodes(root, [] { auto all = review_stores(); all.merge(kept_stores()); return all; }());
+		const auto caches = identities(root, cache_stores());
+		const auto other  = identities(root, [] { auto all = review_stores(); all.merge(kept_stores()); return all; }());
 		run.reset_from_settings(reset::caches, QStringLiteral("Caches cleared"));
 		for (const auto& [store, before] : caches) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) != before, "Clear caches removed each cache store");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Clear caches removed each cache store");
 		}
 		for (const auto& [store, before] : other) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Clear caches keeps review data and saved sources");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "Clear caches keeps review data and saved sources");
 		}
 		checkKeptLogs();
 	}
 	// Reset review data: the review stores go; saved sources and sign-in stay.
 	{
-		const auto review = inodes(root, review_stores());
-		const auto kept   = inodes(root, kept_stores());
-		expect(review.at("review-cycles") != 0U, "a review store exists before its reset");
+		const auto review = identities(root, review_stores());
+		const auto kept   = identities(root, kept_stores());
+		expect(review.at("review-cycles").has_value(), "a review store exists before its reset");
 		run.reset_from_settings(reset::review_data, QStringLiteral("Review data reset"));
 		for (const auto& [store, before] : review) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) != before, "Reset review data removed each review store");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) != before, "Reset review data removed each review store");
 		}
 		for (const auto& [store, before] : kept) {
-			expect(before == 0U || inode(root / "state/v1" / (store + ".sqlite3")) == before, "Reset review data keeps saved sources and sign-in");
+			expect(!before || identity(root / "state/v1" / (store + ".sqlite3")) == before, "Reset review data keeps saved sources and sign-in");
 		}
 		checkKeptLogs();
 	}
@@ -258,7 +254,7 @@ try {
 			const std::string garbage(4096, 'Z');
 			damaged.write(garbage.data(), static_cast<std::streamsize>(garbage.size()));
 		}
-		const auto ledger = inode(root / "state/v1/review-cycles.sqlite3");
+		const auto ledger = identity(root / "state/v1/review-cycles.sqlite3");
 		auto       failed = false;
 		run.Desktop       = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { failed = !aResult; });
 		until([&] { return failed && run.Desktop->is_quiescent(); }, "a damaged comparison history stops the profile at start");
@@ -267,7 +263,7 @@ try {
 		recovered.DataReset = core::profile_data_reset_request{ reset::caches };
 		run.Desktop         = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::profile_window_restoration_v1, recovered, [](auto) { });
 		until([&] { return run.window() != nullptr && run.window()->statusBar()->currentMessage().startsWith(QStringLiteral("Caches cleared")); }, "the profile opens after a cache reset run before its stores", 60000);
-		expect(ledger != 0U && inode(root / "state/v1/review-cycles.sqlite3") == ledger, "recovery keeps the review data");
+		expect(ledger.has_value() && identity(root / "state/v1/review-cycles.sqlite3") == ledger, "recovery keeps the review data");
 		run.Desktop->quit();
 		until([&] { return run.Desktop->is_quiescent(); }, "desktop drains after recovery");
 		run.Desktop.reset();

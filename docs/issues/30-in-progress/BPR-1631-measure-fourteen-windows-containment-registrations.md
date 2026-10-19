@@ -26,3 +26,16 @@ are in scope.
 
 Evidence and remaining qualification are bound by the ignored
 `.mask/sessions/release-v0.3.0/repair-handoff.json`.
+
+## Reproduced direct-course portability defects
+
+The first actual `c5ca34be1` measurement retains three direct failures:
+
+- SQLite reset: `profile-runtime.lock` appears after the initial snapshot. The Windows lifetime lease deliberately creates a persistent private lock file; POSIX locks the root directory. The fixture now acquires/releases an initial genuine lease before populating/snapshotting, and uses the shared random owner-private scratch root rather than its old clock-based directory.
+- Composed reset: the Windows identity stand-in returned `1` for every existing store, so a removed/recreated store could never differ. The test now uses the existing independent platform volume/object identity helper, and refuses an unreadable identity for an existing file; exact preserved/replaced comparisons remain.
+- Recovery: a healthy startup refuses the registry because `chmod` does not write the product's Windows private DACL. The Python course now uses the existing shared `bpr_narrow_owner_private` helper on its owned scratch and profile roots. The later POSIX-only process cleanup remains unchanged pending actual execution after this first refusal is repaired.
+
+These are test setup/oracle changes only. All original assertions, production
+storage/admission policy, UI, deadlines and network grants remain unchanged.
+Focused corrected native courses and final containment classification remain
+pending.
