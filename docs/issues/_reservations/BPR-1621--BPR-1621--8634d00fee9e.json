@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1621"
+  ],
+  "reserve_for": "determinism-enforcement-r1",
+  "purpose": "",
+  "created": "2026-10-19T01:23:46.313112+00:00",
+  "base": "740ec08f84e7ee9755b2c54e0082aedcb008b3ac"
+}

@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "determinism-enforcement-v1",
+  "scope": {
+    "issues": [
+      "BPR-1621"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "boundary-cleanup",
+      "outcome": "Architecture guards distinguish deterministic data/computation from host effects while retaining independent ownership and adoption constraints.",
+      "work": [
+        {
+          "issue": "BPR-1621"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1621 AC1: audit and remove stale purity-only enforcement without changing product behavior or dependency approval.",
+        "BPR-1621 AC2: positive computation/data and negative effect/ownership regressions pass on the changed public guards.",
+        "BPR-1621 AC3: focused integration and documentation gates pass; self-review, exact candidate, commits and quiescent handoff are recorded."
+      ],
+      "boundary": "Mechanical architecture enforcement, its regression tests and explanatory documentation/tracking only; no new dependency or backend permission."
+    }
+  ],
+  "unplanned_work": []
+}
