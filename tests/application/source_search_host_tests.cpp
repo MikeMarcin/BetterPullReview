@@ -282,10 +282,22 @@ namespace {
 		search_expect(f.Host.is_quiescent(), "real matcher owner quiesces");
 	}
 
+	void test_failed_execution_still_records_work()
+	{
+		fixture    f;
+		const auto observer = std::make_shared<bpr::tests::insights_observer>();
+		f.Host.observe_work(observer);
+		f.Execution.Answer = [](const auto&, auto) -> source_search_execution { throw std::runtime_error{ "execution refused" }; };
+		search_expect(f.Host.set_query("private-query-canary"), "failed execution admitted");
+		f.drain();
+		search_expect(f.Host.state().Status == core::source_search_status::failure && observer->work().size() == 1 && observer->work().front().Path.empty(), "failed acquisition remains a failure and records actual search work without query content");
+	}
+
 }
 
 int main()
 {
+	test_failed_execution_still_records_work();
 	test_public_query_and_decision_path();
 	test_coalescing_retires_every_admitted_request();
 	test_invalid_queries_and_qualified_empty();

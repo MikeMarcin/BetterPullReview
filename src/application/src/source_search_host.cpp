@@ -421,8 +421,10 @@ namespace bpr::application {
 				Effects.post([host, current, observer] {
 					const auto started  = std::chrono::steady_clock::now();
 					auto       terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
+					bool       executed = false;
 					if (!current->Stop.stop_requested()) {
 						try {
+							executed = true;
 							terminal = host->Execution.execute(current->Work, current->Stop.get_token(), [host, current](source_search_batch aBatch) { host->receive_batch(current, std::move(aBatch)); });
 							{
 								std::scoped_lock lock{ current->ProgressMutex };
@@ -437,7 +439,7 @@ namespace bpr::application {
 							terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } } };
 						}
 					}
-					if (observer && (terminal.Terminal.Status == core::source_search_status::complete || terminal.Terminal.Status == core::source_search_status::partial)) {
+					if (observer && executed) {
 						core::insights_work_sample sample;
 						sample.Kind                 = core::insights_work_kind::search;
 						sample.DurationMicroseconds = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
