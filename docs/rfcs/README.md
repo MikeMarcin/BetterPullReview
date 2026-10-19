@@ -624,3 +624,14 @@ Mandate `drawer-design-system-r1` adopts RFC-DRAFT-0023 as decided by the owner 
 | [RFC-BPR-0086](RFC-BPR-0086-insights-window.md) | Insights: what BetterPullReview costs, and what you've reviewed | Auto-Verified | None |
 
 Mandate `insights-window-v1-r3` closes the available implementation: r2 retains official Qt and defers unsupported exact child CPU; r3 explicitly bypasses the full idle hour for this pack and preserves it for later release qualification. No measured idle-budget or Windows/Linux native pass is implied. [Verification and release obligation](../verification/RFC-BPR-0086.md); [import and provenance](assets/insights-window-v1.LIVE_IMPORT.md); [plan](plans/insights-window-v1/milestone-plan.json).
+
+## Shared action buttons
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | In Progress | None |
+
+Owner mandate `shared-action-buttons-r1` authorizes RFC authoring and initial
+implementation in an isolated worktree; no merge, push or release.
+[Import](assets/shared-action-buttons-v1.LIVE_IMPORT.md);
+[plan](plans/shared-action-buttons-v1/milestone-plan.json).

@@ -1,0 +1,76 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "shared-action-buttons-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0087"
+    ],
+    "issues": [
+      "BPR-1659",
+      "BPR-1660",
+      "BPR-1661",
+      "BPR-1662"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "shared-settings",
+      "outcome": "The accepted Overview chip has one shared painter and the same treatment appears in Review, Comments and Appearance settings.",
+      "work": [
+        {
+          "issue": "BPR-1659"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reference Open/All uses the shared surface painter without losing its accepted appearance or behavior.",
+        "Review and Comments choices/Reset plus Appearance tab choices use the same treatment; primary and specialized controls retain their meanings.",
+        "Four-theme focused rendering, interaction, disabled/focus/hover checks and relevant composed tests pass; record exact commands and platform limits."
+      ],
+      "boundary": "Qt presentation and focused tests/docs only. This is the requested first implementation slice; remaining app migration is retained."
+    },
+    {
+      "id": "app-rollout",
+      "outcome": "Comparable buttons throughout the app share the treatment and intentional variants are documented.",
+      "work": [
+        {
+          "issue": "BPR-1660"
+        }
+      ],
+      "depends_on": [
+        "shared-settings"
+      ],
+      "exit_criteria": [
+        "Complete the RFC app-wide inventory with migrated or intentionally retained classifications.",
+        "Migrate remaining comparable text choices and secondary actions using the shared component and preserve primary/destructive/menu/icon variants.",
+        "Focused affected composition checks and representative actual renders pass."
+      ]
+    },
+    {
+      "id": "verification-closeout",
+      "outcome": "The entire migration has defensible visual and interaction evidence.",
+      "work": [
+        {
+          "issue": "BPR-1661"
+        },
+        {
+          "issue": "BPR-1662"
+        },
+        {
+          "rfc": "RFC-BPR-0087"
+        }
+      ],
+      "depends_on": [
+        "app-rollout"
+      ],
+      "exit_criteria": [
+        "Record RFC AC03\u2013AC04 evidence at 1x, 1.25x and 2x across the four themes.",
+        "Record which native macOS/Windows/Linux behaviors were observed versus offscreen layout evidence; fix regressions rather than claim missing results.",
+        "Judge every RFC criterion against direct evidence, with the full migration inventory accounted for.",
+        "Documentation gate, focused integration and relevant formatting checks pass; retain native-platform limitations and obtain separate integration authorization."
+      ]
+    }
+  ],
+  "unplanned_work": []
+}
