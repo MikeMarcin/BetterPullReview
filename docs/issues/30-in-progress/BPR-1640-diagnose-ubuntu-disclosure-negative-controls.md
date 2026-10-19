@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1640"
 title: "Diagnose Ubuntu disclosure negative controls"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
