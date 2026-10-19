@@ -107,3 +107,16 @@ retained and unexpected-retained totals; each produces exit 1 solely for the
 complete-count check. The disposable probe is removed, and the ignored repair
 handoff binds the diagnostic and control receipts. Native full-suite reruns
 remain with the coordinator.
+
+[BPR-1626](../issues/30-in-progress/BPR-1626-supply-linux-verification-key-in-v030-notes.md)
+adds the approved Linux verification key to the committed 0.3.0 notes for
+delivery through the same private release channel. The fenced block is
+byte-identical to the approved 404-byte public export, SHA-256
+`c271732f02b5f3c709ad1a61d7f7816200e96226c490fd77d88f6583437f9798`,
+fingerprint `ED85BAA84A3B6D83FCD5B1F107CEC96F2688E4A8`. A public-only
+import into a disposable GPG home succeeds with auto-start disabled; listing
+that home yields exactly the approved fingerprint and the home is removed.
+The notes explain saving, checking, importing and verifying every detached
+signature before use, including the DEB's separate verification requirement.
+No package asset, manifest, publisher guard, private material or signing
+configuration changes; final signatures and actual publication remain pending.
