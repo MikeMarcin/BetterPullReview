@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1633"
 title: "Keep one native Insights application-menu item"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0086"]
 depends_on: []
 priority: "P1"
