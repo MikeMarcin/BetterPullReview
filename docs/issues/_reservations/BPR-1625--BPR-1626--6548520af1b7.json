@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1625",
+    "BPR-1626"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "",
+  "created": "2026-10-19T03:57:50.856613+00:00",
+  "base": "04eaf0e1271d4fccdb14a07ba20bef56788f6713"
+}
