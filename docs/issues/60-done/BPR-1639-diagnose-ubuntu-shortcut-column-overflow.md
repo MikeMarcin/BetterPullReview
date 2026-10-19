@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1639"
 title: "Diagnose Ubuntu shortcut column overflow"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Actual Linux original minimum240x224 leaves title30 below required73 beside native keys195 and viewport198; all three failing scales retained.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Measured delegate contents now determine minimum width while original title floor, labels, search, keycaps, accessibility, preferred size, resize and no horizontal scrollbar remain. Canonical frontend-design applied.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}},{"criterion":"AC3","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Linux395ae actual scales100/125/200 pass0.43/0.46/0.50s and original GCC15 optimized object compiles; Mac4e0a scales pass0.66/0.61/0.61s. Source-bound7TU clang-tidy22 warnings-as-errors passes, format22/architecture/documentation/diff gates pass.","artifact":".mask/sessions/release-v0.3.0/macos-focused-r5/ctest.xml"}}]
 ---
 
 # BPR-1639: Diagnose Ubuntu shortcut column overflow
@@ -53,3 +54,14 @@ recomputes that minimum through the existing coalesced layout pass. Labels,
 keys, search, accessibility, paint and assertions are unchanged. The canonical
 frontend-design skill remains applied to this established layout; no redesign.
 Native focused scale verification and scoped tidy are pending on this candidate.
+
+## Verified repair result
+
+Actual Linux original minimum240x224 leaves title30 below required73 beside native keys195 and viewport198; all three failing scales retained.
+
+Measured delegate contents now determine minimum width while original title floor, labels, search, keycaps, accessibility, preferred size, resize and no horizontal scrollbar remain. Canonical frontend-design applied.
+
+Linux395ae actual scales100/125/200 pass0.43/0.46/0.50s and original GCC15 optimized object compiles; Mac4e0a scales pass0.66/0.61/0.61s. Source-bound7TU clang-tidy22 warnings-as-errors passes, format22/architecture/documentation/diff gates pass.
+
+Exact receipts, raw failures, JUnit and source bindings remain under the ignored
+release-v0.3.0 session; other release qualifications are separate obligations.
