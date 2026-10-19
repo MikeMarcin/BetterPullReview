@@ -150,7 +150,18 @@ The repair confines CNG stub includes to an object library, retains the real
 SDK for the executable's CRT unit, adds the two tests' Windows dependencies
 and enables `/bigobj` only on the oversized MSVC target. Quiet-CRT behavior,
 scratch security, CNG stub logic and workbench assertions are unchanged.
-Matching native compilation and focused contracts are pending.
+At committed `9b901a0a83d1016d5e2da3795b1e7fa5249c4b85`, all seven
+affected targets compile. Five CNG modes, the Git Insights contract, Help menu,
+agent canary and workbench placement checks pass. The SQLite Insights course
+fails contained at private-store creation but passes directly. A tiny probe
+uses the actual scratch descriptor and native admission header: canonical root
+succeeds, while the ancestor open with `FILE_READ_ATTRIBUTES | READ_CONTROL`
+receives Win32 5 only inside the AppContainer and the retained chain reports
+`invalid_permissions`. Both courses clean their owned scratch directory.
+Only this row receives the established Windows-uncontained registration and
+exact `ancestor-control-denied` verifier pin. The Git row remains contained;
+all SQLite assertions and macOS/Linux containment remain unchanged. The
+corrected native row and mandatory manifest validation are pending.
 
 [BPR-1629](../issues/60-done/BPR-1629-include-insights-in-desktop-help-contract.md)
 repairs the resident Help test's stale six-action expectation. The accepted

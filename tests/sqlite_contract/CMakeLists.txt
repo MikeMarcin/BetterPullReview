@@ -730,5 +730,8 @@ if(WIN32)
 endif()
 bpr_enable_hardening(test_insights_storage)
 bpr_enable_warnings(test_insights_storage)
-bpr_add_network_isolated_test(NAME sqlite_insights_storage COMMAND test_insights_storage)
+# [[BPR-1628]]. The native store passes normally; inside the Windows
+# AppContainer its retained ancestor walk cannot READ_CONTROL the drive root
+# (Win32 5). The exact measured cause is pinned by the isolation manifest.
+bpr_add_network_isolated_test(NAME sqlite_insights_storage WINDOWS_UNCONTAINED COMMAND test_insights_storage)
 set_tests_properties(sqlite_insights_storage PROPERTIES ENVIRONMENT "TZ=PST8PDT")

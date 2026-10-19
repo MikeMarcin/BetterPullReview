@@ -128,6 +128,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # five pass uncontained.
     "sqlite_profile_registry_storage": "dos-volume-name",
     "sqlite_remembered_connection_storage": "ancestor-control-denied",
+    # [[BPR-1628]]. Native direct storage course passes on 2026-10-18;
+    # the shared ancestor primitive receives Win32 5 for READ_CONTROL on C:\
+    # inside the AppContainer. The scratch root and its DOS name succeed.
+    "sqlite_insights_storage": "ancestor-control-denied",
     "sqlite_window_review_restoration_storage": "dos-volume-name",
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
