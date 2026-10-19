@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1622"
 title: "Evaluate vycor-cpp semantic facts and Windows/WSL portability"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0001"]
 depends_on: []
 priority: "P1"
