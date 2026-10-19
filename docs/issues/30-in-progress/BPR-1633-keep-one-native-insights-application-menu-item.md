@@ -82,3 +82,15 @@ requires NoRole with no QMenu donor; actual native item/profile/empty-window
 qualification remains separate. The failing Mac result is retained and the
 corrected assertion's actual Mac result remains pending; no Mac command is run
 by the repair owner while the parent gate is active.
+
+## Verified offscreen fixture alignment
+
+Mac source4e0a complete Insights public course passes1.57s under explicitglobal
+offscreen. Actual marker is platform=offscreen, role=1, associations=2; its
+required Help QMenu association is present. The same frozen course's native
+Prohibited unit passes0.20s and retains exactly one process-local native item,
+profile donor dispatch, native shortcut and empty/reopen lifecycle assertions.
+The changed public-course TU passes scoped clang-tidy22 warnings-as-errors.
+The earlier1b1316 enum-assumption failure remains retained. No foreground
+activation course is run; that required isolated or attended qualification
+keeps this card In Progress.

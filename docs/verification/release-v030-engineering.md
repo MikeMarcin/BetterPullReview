@@ -370,3 +370,64 @@ database and Ninja completion record retain all original warnings/hardening.
 BPR1641's remaining scoped tidy verification stays explicit. An initial repair
 wrapper used the wrong cache path without the final release component and
 stopped after a successful focused build; its failed receipt is retained.
+
+## Native repair verification checkpoint — 2026-10-19
+
+The later native Linux focused courses retain the original eleven Ubuntu
+failures rather than overwriting the baseline. Atf8b8, the metadata harness
+passes3.23s and diagnostic-controls public course passes6.60s. The complete
+public composition passes407.88s with the affected excerpt TU compiled by
+GCC15.2 at Release -O3, unchanged warnings-as-errors and hardening. The actual
+compile database, Ninja completion record and raw diagnostics are retained.
+
+The shortcut minimum is now measured from native key labels, the existing
+title floor and view/layout margins. Original240px minimum left30px beside
+195px keys where73px of title was required. Linux scales100/125/200 now pass
+and the optimized object compiles; Mac4e0a scales pass0.66/0.59/0.63s. The
+canonical frontend-design skill applies to this bounded established layout.
+No native labels, search, accessibility, preferred size or resize behavior
+changes.
+
+Native thin nine-point glyphs lack literal foreground at DPR1 despite correct
+layout formats and visible geometry. The unchanged complete courses pass at
+appDPR2, establishing a coverage control. The agreed assessment-only repaint
+uses minimumDPR2 on the actual viewport without changing appDPR, font or
+logical geometry. Original RGB-at-most3, folder counts,710contrast pairs, four
+variants, per-character formats and fresh-process assertions remain. Actual
+wrong folder/token paint must fail the identical reader, and restoration must
+pass. Linuxc3bc complete identifier appearance passes2.79s and Macc3bc/4e0a
+passes with all controls. Final foldere40 passes nativeLinux and Mac1.18s.
+This supplies paint/palette evidence, not DPR1 user-legibility qualification.
+
+The old-bezel disclosure fixture now supplies fixed Window grey only to the
+old checked button that reads it on Windows style. Its host theme stays
+unchanged. The rendered bezel stays fixed across themes, allowing actual
+Fusion shading; every old rejection, Dark contrast and shared current-widget
+reading remains. NativeLinux and Mac both scale100/200 courses pass.
+
+Insights' two original C-locale failures used comma literals for exact1240,
+3348 and1700 values. Expectations now use the same established QLocale
+formatter, preserving exact counts/text anchors and every budget, latency,
+privacy, persistence and later course assertion. Nativec3bc complete defaultC
+and en_US courses pass1.19/1.16s. Mac4e0a public course passes1.57s and its
+positive marker binds actual offscreen role1 plus Help-menu association. The
+original enum-assumption failure remains. The safe native Prohibited unit
+passes0.20s; original foreground qualification remains pending.
+
+All seven changed C++ translation units pass focused clang-tidy22 with
+warnings-as-errors against the actual Mac dev compilation database at4e0a.
+The final folder change passes its updated-TU repeat at e40. Format22, current
+architecture-boundary and documentation checks pass. Eligible cards1638–1644
+are Done;1632 original history cause/disposition and1633 foreground native
+qualification remain separate pending obligations. The configured Debug
+cachebytes skip is retained; the separate optimized tests-on supplement passes
+in102.44s at e40cd8026, with normal Release configuration and original assertions.
+The task-owned optimized tree is397MiB, dev18GiB and free space20.87GiB at
+completion. All Mac implementer commands are quiescent before slot handoff.
+
+The coordinator's earlier Mac selected composite is805pass/1fail/1Debugskip,
+with four explicit native foreground courses pending. Its sole failure was
+the now-verified Insights fixture association. This is honest multi-source
+selected evidence, not one final-source full normal native pass. Windows full
+normal gate remains next on the serialized PC. No signing, credential recovery
+or publication is performed by the repair implementer.
