@@ -78,6 +78,7 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QPersistentModelIndex>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPointer>
@@ -12300,12 +12301,18 @@ namespace {
 	void test_the_right_tray_holds_comments_and_notes_tabs()
 	{
 		qt::workbench_window window;
-		window.resize(1'280, 560);
+		window.resize(1'600, 560);
 		window.show();
 		auto opened      = both_files_enabled();
 		opened.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = core::file_identity_of("src/file.cpp") } };
 		opened.Drawers   = drawer_states(core::workbench_drawer_state::collapsed,
 										 core::workbench_drawer_state::expanded);
+		// The full-label contract needs the wide tray state. Compact trays
+		// deliberately show icons with the same accessible names.
+		opened.Layout = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 420U,
+		};
 		window.publish(opened);
 		process_events();
 		auto text = std::string{ };
@@ -15733,12 +15740,29 @@ namespace {
 			process_events();
 			auto clock = QElapsedTimer{ };
 			clock.start();
-			save_render(window, QStringLiteral("thread-moves-%1-1-arrived").arg(name));
+			// PNG compression must not starve the animation's event loop between
+			// its timed frames, especially at2x. Encode only after the course.
+			auto frames = std::vector<std::pair<QString, QPixmap>>{ };
+			frames.reserve(5U);
+			const auto capture = [&window, &frames](const QString& aSuffix) {
+				auto rendered = window.grab();
+				expect(!rendered.isNull(), "the window renders");
+				frames.emplace_back(aSuffix, std::move(rendered));
+			};
+			capture(QStringLiteral("thread-moves-%1-1-arrived").arg(name));
 			for (const auto& [at, label] : { std::pair{ 500, QStringLiteral("2-held") }, std::pair{ 950, QStringLiteral("3-dissolving") }, std::pair{ 1'150, QStringLiteral("4-dissolving") }, std::pair{ 1'700, QStringLiteral("5-settled") } }) {
 				wait_for([&clock, at] { return clock.elapsed() >= at; }, at + 200);
-				save_render(window, QStringLiteral("thread-moves-%1-%2").arg(name, label));
+				process_events();
+				capture(QStringLiteral("thread-moves-%1-%2").arg(name, label));
 			}
 			expect(cards->arrival_post().empty() && cards->picked_post() == "review-comment:late-2", "the last frame is the settled pick");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				for (const auto& [suffix, rendered] : frames) {
+					expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), suffix), "PNG"),
+						   "the render is saved for inspection");
+				}
+			}
 			window.hide();
 		}
 	}
