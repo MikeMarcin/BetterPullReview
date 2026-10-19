@@ -53,12 +53,59 @@ were under assessment before integration, not a new release asset. Input hashes
 and the final commit binding accompany the coordinator handoff. This is an
 actual universal build and arm64 execution/export comparison, with no native
 Intel desktop or Windows/Linux recipe-execution claim. Windows import-library
-and API controls remain external native verification work.
+and API controls were still pending at that Mac observation; the subsequent
+native course is recorded below.
 
 Focused package-runtime verification passes 24/25 with its configured Linux
-baseline skip on Mac; separate source-asset verification passes all21. The
+baseline skip on Mac; separate source-asset verification passes all 21. The
 coordinator owns final all-platform source/SPDX/notices/package reproduction
 and complete public audits. The card stays In Progress for that acceptance;
 all old assets and broader test/native/vault/privacy/signing/legal/security
 obligations remain. No claim or receipt from the component-only assessment
 repairs the old asset or certifies the application replacement course.
+
+## Native Windows recipient course
+
+At clean committed source `1d62aadb33bf5e3e094fc75c2098afcc143713cd`, the
+same archive-only course passes on native Windows 11 x64/MSVC in 8.082 seconds.
+All seven sources compile with the packaged canonical helper. The rebuilt DLL
+has exactly the preserved DFB DLL's 33 defined exports. Its generated import
+library actually links a separate C consumer, which runs the exact public
+xdl_diff comparison. After editing recipient xutils.c, a new exported marker
+returns the expected value while all original exports and the original diff
+result remain. Every original tamper/missing-input/wrong-result control passes.
+
+The complete receipt, actual compile commands and raw output are retained at
+`.mask/sessions/release-v0.3.0/windows-xdiff-recipient-r1-native/`.
+The 1d62 tool/assessment identity and DFB comparison-artifact identity remain
+separate. The own task retires after completion with clean source and no
+build/test processes; the PC lease returns to the coordinator. A transfer-only
+PowerShell array-path failure is preserved, then corrected without rerunning or
+altering the successful course. No delivered artifact or signing state changes.
+The later Mac r3 record additionally hashes exact assessment inputs for final
+commit reconciliation. Neither course is complete application replacement or
+clean-account qualification. The subsequent Ubuntu course below retains its
+separate baseline-artifact and source-status limits.
+
+## Ubuntu archive-only recipient course
+
+The same course passes on Ubuntu 26.04 x86_64 under WSL2 in 91.923 seconds.
+The seven-source Release build matches all 30 defined ELF exports of the
+unchanged retained Ubuntu Release library, and the original/modified consumer,
+marker, tamper and refusal controls pass. The library's before/after SHA-256 is
+`de56293200d8bb3c4815e53a3437015db3109a2424d37f335775bcb713d66132`.
+This comparison is an existing build library, not a final delivered Linux
+package; no app build, package signing, desktop, vault or credentials are used.
+The WSL application checkout, source and benchmark/binaries stay untouched.
+
+The receipt is under
+`.mask/sessions/release-v0.3.0/linux-xdiff-recipient-r1-native/`.
+It preserves Linux Git's dirty view of the mounted Windows source, while
+native Windows Git remains clean at 1d62. No clean-Linux-Git claim is made.
+All nine actual input hashes (script/runtime/declaration plus six shipped build
+files) independently equal committed 1d62 bytes across Mac, Windows and Linux.
+The source-status mismatch is retained separately from that exact byte proof.
+The own scheduled task retires and the shared PC/WSL lease returns before the
+coordinator assigns any later work. All three platform recipe observations
+remain component assessments; final reproduced public-artifact acceptance is
+still pending outside source.

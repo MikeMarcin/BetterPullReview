@@ -494,7 +494,9 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     offers = (runtime.legal_root(stage, info) / "SOURCE-OFFERS.txt").read_text()
                     for required in ("ABI-compatible", "codesign --force --deep --sign -", "equivalent access", "Retention is indefinite",
                                      "separately replaceable shared library", "libbpr_xdiff.dylib", "bpr_xdiff.dll", "libbpr_xdiff.so",
-                                     "git-xdiff-2.56.0.tar.xz", "git-xdiff-2.56.0-build/"):
+                                     "git-xdiff-2.56.0.tar.xz", "git-xdiff-2.56.0-build/",
+                                     "third_party/git-xdiff/rebuild/README.md",
+                                     "No application checkout, CPM or network acquisition is required"):
                         self.assertIn(required, offers)
                     # A new staging location and changed source-cache times must
                     # retain the exact separately distributable archive bytes.

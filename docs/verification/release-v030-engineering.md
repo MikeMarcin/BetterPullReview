@@ -822,19 +822,35 @@ guide and provenance identify this entry point. The production provider,
 compiled C/C++ inputs, dependency pins and hardening policy are unchanged.
 
 The fresh component-only Mac assessment builds both architectures, verifies
-all seven compile commands and canonical flags, matches all30 defined arm64
+all seven compile commands and canonical flags, matches all 30 defined arm64
 exports against the retained signed DFB library, and directly links/runs the
 public C API with exact diff output. An edited-source marker executes after
 rebuild/relink with original exports/API preserved. Corrupt-archive,
 missing-helper/header/source and wrong-result controls refuse; disposable roots
 are removed and delivered bytes are unchanged. Receipts retain actual input
 hashes and distinguish an assessment from a produced release asset.
-Focused package-runtime tests pass24 with one native-Linux configured skip on
-Mac; source-asset tests pass21. Canonical criterion binding, documentation and
+Focused package-runtime tests pass 24 with one native-Linux configured skip on
+Mac; source-asset tests pass 21. Canonical criterion binding, documentation and
 independent changed-surface review accompany the final handoff. No full runtime
 matrix is repeated for this build-material-only correction.
 
-Windows/Linux recipe execution and the regenerated final common-source assets,
+The native Windows course at clean `1d62aadb33bf5e3e094fc75c2098afcc143713cd`
+subsequently passes in 8.082 seconds: the exact seven-source build, all 33 defined
+DLL exports, actual import-library consumer link/public-API result and modified
+source marker/API/refusal controls. Own task/source cleanup and PC lease return
+are explicit. This establishes that bounded Windows recipient rebuild, while
+keeping DFB comparison artifacts distinct from the new assessment.
+
+The Ubuntu 26.04 x86_64 WSL2 course also passes (91.923 seconds), matching
+all 30 ELF exports of the unchanged retained Release library and passing the
+original/modified API and refusal controls. That library is an unpackaged
+baseline, not a final release. Linux Git reports the mounted Windows source
+dirty; that raw mismatch remains. All nine actual assessment input hashes on
+each platform equal committed 1d62 bytes, while Windows native Git remains
+clean. The existing WSL application source/build/benchmark is untouched, and
+the own task retires before PC/WSL lease return.
+
+The regenerated final common-source assets,
 installed notices/provenance/SPDX, native public audits and fresh exact security
 bindings remain coordinator-owned acceptance. The issue stays In Progress at
 source freeze. Later operational receipts remain outside source; administrative
