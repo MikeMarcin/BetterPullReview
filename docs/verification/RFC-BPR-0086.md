@@ -601,3 +601,58 @@ release and guarded reconciliation. No push, review server or new human decision
 AC12’s signed-in background idle hour and full export closeout remain later work;
 its cost can be calculated objectively from the retained background wall/CPU
 and wakeup counters, including the final shutdown interval.
+
+
+## Accepted Work milestone
+
+Mandate `insights-window-v1-r1`, assignment `work`, segment `work-r1`, owner
+`/root/insights_work`. Source **6ec2d3faf**, allocation-only refinement
+**02d6210b8**, final search observation **9334f0b12**. BPR-1614's whole-card
+obligations and authored Work exit pass. Energy stays unfinished and RFC0086
+stays In Progress; no closeout criterion is waived.
+
+Qt starts a busy turn at the first delivered GUI event and ends it at a dispatcher
+boundary, excluding sleep and modal waits. It adds no polling timer, uses1ms bins
+for ordinary latencies, retains actual stall microseconds, and flushes before
+snapshots/shutdown. The actual public250ms block produces exactly one stall
+(251177us in the recorded course). A separate production-monitor probe records
+253081us and excludes800ms idle; removing event-filter installation produces
+zero stalls and the intended failing exit. The original awake-only hook missed
+the block because this dispatcher emits awake after the callback; that failed
+course and its isolated ordering probe remain recorded.
+
+The application host times actual diff computation, preserves a local display
+path alongside identity, and records each limit separately. Prepared work uses
+the same observation, while cache hits add nothing. Real fixtures reach move work,
+segment and approximate limits; syntax observations match hit/miss/eviction host
+counters across panes, Markdown and cycles. Every executed source search times
+acquisition plus matching, including failures and partial results, without retaining
+query text. Core derives weighted p95, conventional median, hour/day selection
+and five slowest local paths. SQLite schema5 preserves duration distributions
+in48h five-minute/93d daily history. Restart and Work-path export canary pass;
+existing reset/purge classification and byte-only export admission are unchanged.
+
+`frontend-design` and `code-simplifier` were loaded/applied. Work retains the
+accepted native title row, palette and type; its three figures and bounded tables
+fit inspected Light/Dark renders at1x,1.25x and2x. The public course checks exact
+seeded7files/5paths,75%cache hits,2evictions and20ms search median, fixed/clamped
+layout, accessibility, all ranges, no-effect refresh and hidden/shutdown behavior.
+
+Completed/released main02f8b4cf1 merges conflict-free at**23b74e1ef**; b509e5157
+removes only its obsolete adopted1622 claim beside the authoritative Done card.
+Combined focused integration **10/10 in32.65s** covers architecture, core, diff,
+syntax, search, recorder, SQLite, composition pins, binary surface and public UI.
+Final allocation-only core/public recheck **2/2 in6.84s**; final search/public
+recheck **2/2 in3.99s**. Public DPI courses pass **1.25x4.63s**, **2x8.48s**.
+Core-only core/architecture **2/2 in18.28s**, architecture negative contract
+**218.19s**, final core **0.36s**. LLVM22 format and focused tidy pass; tests-disabled
+composition syntax passes. Full/manifest seals were reviewed/renewed; mutation
+admission seal is unchanged. The documentation gate passes after integration.
+
+Runtime `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-work-r1-de2hcgoq`
+retains exact acceptance, binding/observation/check, logs, renders and diagnosed
+failures. The durable continuation owns local main delivery and command state.
+No human criterion is introduced, and no review session or server is prepared.
+Native Windows/Linux Work observation remains unmeasured. Exact Unix child CPU,
+full export privacy and the signed-in macOS idle hour remain their existing
+Energy/closeout obligations; no owner manual work is requested here.
