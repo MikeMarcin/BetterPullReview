@@ -6,13 +6,15 @@
       "BPR-1624",
       "BPR-1625",
       "BPR-1626",
-      "BPR-1627"
+      "BPR-1627",
+      "BPR-1628",
+      "BPR-1629"
     ]
   },
   "milestones": [
     {
       "id": "fixture-security",
-      "outcome": "The committed Insights budget fixture traverses the complete existing GitHub fixture-security validator, with exact inventory, read-only identity, byte and JSON field/artifact checks intact. The terminal privacy audit also holds exact environment counts under native runtime startup, and Linux recipients receive the approved public verification key through the same private release notes. The standard-library agent canary no longer inherits unrelated product libraries that alter its startup environment.",
+      "outcome": "The committed Insights budget fixture traverses the complete existing GitHub fixture-security validator, with exact inventory, read-only identity, byte and JSON field/artifact checks intact. The terminal privacy audit also holds exact environment counts under native runtime startup, and Linux recipients receive the approved public verification key through the same private release notes. The standard-library agent canary no longer inherits unrelated product libraries that alter its startup environment. The Windows normal test graph compiles its CNG stub, Insights storage and large workbench tests with their actual dependencies; the desktop Help contract includes the approved Insights command.",
       "work": [
         {
           "issue": "BPR-1624",
@@ -44,6 +46,21 @@
             "AC2",
             "AC3"
           ]
+        },
+        {
+          "issue": "BPR-1628",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        },
+        {
+          "issue": "BPR-1629",
+          "criteria": [
+            "AC1",
+            "AC2"
+          ]
         }
       ],
       "depends_on": [],
@@ -53,9 +70,11 @@
         "Focused fixture-security and documentation checks pass; the bounded diff is self-reviewed and committed, with native reruns and unrelated release qualification retained as coordinator obligations.",
         "The MCP terminal audit supplies every expected startup environment name explicitly and preserves exact received/retained counts, content exclusion, bounded records, blocked/closed-pipe behavior and protocol assertions against the unchanged native helper.",
         "The release notes contain the complete approved public key, full fingerprint, exact export digest and concise import/detached-verification instructions; package manifests and asset guards remain unchanged.",
-        "The agent canary fixture declares only its actual standard/platform dependencies; the exact two-name child environment assertion and production profile remain intact, with focused native fixture evidence and matching integration reruns handed to the coordinator."
+        "The agent canary fixture declares only its actual standard/platform dependencies; the exact two-name child environment assertion and production profile remain intact, with focused native fixture evidence and matching integration reruns handed to the coordinator.",
+        "The captured native Windows failures are repaired without relaxing CRT handling, CNG stub behavior, private scratch security or workbench assertions, and affected native targets build/test against the exact committed candidate.",
+        "The resident Help test matches the accepted complete action order, retains windowless disabled-state assertions and changes no product UX."
       ],
-      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact. The coordinator additionally authorizes removing inherited product-library links only from test_better_pull_review_agent_canary in tests/adapters_qt/CMakeLists.txt, preserving explicit Windows libraries; no application launch/environment policy changes."
+      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact. The coordinator additionally authorizes removing inherited product-library links only from test_better_pull_review_agent_canary in tests/adapters_qt/CMakeLists.txt, preserving explicit Windows libraries; no application launch/environment policy changes. Coordinator-delegated Windows slot permits captured incremental/focused native builds and checks; Mac baseline remains frozen. Bounded source ownership additionally covers tests/core/CMakeLists.txt, tests/sqlite_contract/CMakeLists.txt, tests/git_contract/CMakeLists.txt, tests/adapters_qt/CMakeLists.txt and tests/adapters_qt/profile_management_window_tests.cpp."
     }
   ],
   "coverage": "complete",
