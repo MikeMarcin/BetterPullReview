@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1378"
 title: "A tour publication stopped by its own Stop reports conflict"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
