@@ -5,13 +5,14 @@
     "issues": [
       "BPR-1624",
       "BPR-1625",
-      "BPR-1626"
+      "BPR-1626",
+      "BPR-1627"
     ]
   },
   "milestones": [
     {
       "id": "fixture-security",
-      "outcome": "The committed Insights budget fixture traverses the complete existing GitHub fixture-security validator, with exact inventory, read-only identity, byte and JSON field/artifact checks intact. The terminal privacy audit also holds exact environment counts under native runtime startup, and Linux recipients receive the approved public verification key through the same private release notes.",
+      "outcome": "The committed Insights budget fixture traverses the complete existing GitHub fixture-security validator, with exact inventory, read-only identity, byte and JSON field/artifact checks intact. The terminal privacy audit also holds exact environment counts under native runtime startup, and Linux recipients receive the approved public verification key through the same private release notes. The standard-library agent canary no longer inherits unrelated product libraries that alter its startup environment.",
       "work": [
         {
           "issue": "BPR-1624",
@@ -35,6 +36,14 @@
             "AC1",
             "AC2"
           ]
+        },
+        {
+          "issue": "BPR-1627",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
         }
       ],
       "depends_on": [],
@@ -43,9 +52,10 @@
         "A focused negative control proves that a forbidden field in the Insights fixture is rejected; no validator policy, fixture bytes or test skip is relaxed.",
         "Focused fixture-security and documentation checks pass; the bounded diff is self-reviewed and committed, with native reruns and unrelated release qualification retained as coordinator obligations.",
         "The MCP terminal audit supplies every expected startup environment name explicitly and preserves exact received/retained counts, content exclusion, bounded records, blocked/closed-pipe behavior and protocol assertions against the unchanged native helper.",
-        "The release notes contain the complete approved public key, full fingerprint, exact export digest and concise import/detached-verification instructions; package manifests and asset guards remain unchanged."
+        "The release notes contain the complete approved public key, full fingerprint, exact export digest and concise import/detached-verification instructions; package manifests and asset guards remain unchanged.",
+        "The agent canary fixture declares only its actual standard/platform dependencies; the exact two-name child environment assertion and production profile remain intact, with focused native fixture evidence and matching integration reruns handed to the coordinator."
       ],
-      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact."
+      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep, plus the coordinator-authorized correction to stale source references in docs/security/release-policy.md. Existing fuzz limits and coordinator-owned sanitizer runs remain unchanged. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes. Coordinator additions authorize tests/scripts/audit_terminal_diagnostics.py and docs/releases/v0.3.0.md plus their tracker/evidence upkeep. The frozen source and previously completed BPR-1624 acceptance remain intact. The coordinator additionally authorizes removing inherited product-library links only from test_better_pull_review_agent_canary in tests/adapters_qt/CMakeLists.txt, preserving explicit Windows libraries; no application launch/environment policy changes."
     }
   ],
   "coverage": "complete",
