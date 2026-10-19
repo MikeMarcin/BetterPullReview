@@ -55,6 +55,7 @@ namespace bpr::app {
 	{
 		const adapters::syntax::packaged_definition_catalog* Definitions = nullptr;
 		application::effect_executor*                        Effects     = nullptr;
+		std::shared_ptr<application::insights_observer>      Insights;
 	};
 
 	/// \brief [[BPR-1157]]. Composes local Review Cycles into one desktop window.

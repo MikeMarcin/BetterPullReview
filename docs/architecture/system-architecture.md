@@ -2050,11 +2050,11 @@ to the decision lane. Shutdown stops the window’s timers and drains initializa
 measurement and completion before closing that lane.
 
 The SQLite adapter initializes owner-private `state/v1/insights.sqlite3` at the
-profile’s first launch. Schema4 retains the start time, last measured aggregate bytes and local
+profile’s first launch. Schema5 retains the start time, last measured aggregate bytes and local
 repository display labels and adds numeric GitHub/process/problem history and
 the last observed account partition. It migrates schema 1 in one transaction.
 Schema3 adds lifetime review identities; schema4 adds retained Energy intervals
-and rollups. Work remains a later milestone. Storage sums file lengths and SQLite sidecars without reading
+and rollups; schema5 adds Work history. Storage sums file lengths and SQLite sidecars without reading
 other stores’ contents. Git repository bytes use the same bounded file inventory
 helper as the existing cache adapter; no cache session or Git process is opened.
 A changing or refused entry can make an observation unavailable. This is a local
@@ -2102,3 +2102,20 @@ exact process handle through reap. The existing Unix QProcess reap discards
 rusage, so CPU is explicitly unavailable there. No aggregate RUSAGE_CHILDREN
 estimate, launch wrapper or dependency patch is introduced. The corresponding
 Energy card stays unfinished until that exact-child obligation is satisfied.
+
+
+RFC-BPR-0086 Work attaches passive observers to existing application hosts.
+The diff host times only the computation, carries a bounded local display path
+alongside the comparison identity, and records all three limit flags separately.
+Prepared work follows the same path; a cache hit creates no observation. Syntax
+owners emit hits, submitted misses and evictions; source search measures its
+execution including acquisition and matching, without recording its query.
+
+Qt's event-loop observer starts on the first delivered GUI event and closes the
+busy turn at a dispatcher boundary. This handles dispatchers that emit `awake`
+before or after event delivery, and excludes blocking sleep and nested modal
+waits. It adds no recurring timer; retained latency batches use the same passive
+recorder and effect lane. Core derives weighted p95, median, totals and the five
+slowest paths; SQLite schema5 retains five-minute history for48hours and daily
+history for93days. Neither timing nor local path labels change diff identity,
+provider admission, scheduling or the byte-only export classification.

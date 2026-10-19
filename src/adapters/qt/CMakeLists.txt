@@ -2,6 +2,7 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/insights_window.cpp
+        src/event_loop_metrics.cpp
         src/insights_chart.cpp
         src/insights_calendar.cpp
         src/review_tour_editor.cpp

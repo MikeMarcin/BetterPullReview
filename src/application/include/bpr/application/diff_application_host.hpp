@@ -3,6 +3,7 @@
 
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 
 #include <cstddef>
@@ -36,7 +37,7 @@ namespace bpr::application {
 		auto operator=(diff_application_host&&)
 			-> diff_application_host& = delete;
 
-		void request(core::file_comparison_key aKey, core::diff_options aOptions);
+		void request(core::file_comparison_key aKey, core::diff_options aOptions, std::string aPath = { });
 		/// \brief Replaces the comparisons to prepare in the background.
 		///
 		/// \details [[BPR-1327]]. In order, first most wanted. A prepared
@@ -74,6 +75,9 @@ namespace bpr::application {
 		/// waiting for the one being prepared.
 		[[nodiscard]] auto prepared_hits() const noexcept -> std::uint64_t;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+		/// \brief Attaches a passive profile observer; existing work and admission are unchanged.
+		void observe_work(std::shared_ptr<insights_observer> aObserver);
 
 	private:
 		struct implementation;

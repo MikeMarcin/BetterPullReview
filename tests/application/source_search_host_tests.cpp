@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "../support/source_regex_engine_fixture.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/application/manual_executor.hpp"
@@ -58,7 +59,9 @@ namespace {
 
 	void test_public_query_and_decision_path()
 	{
-		fixture pane;
+		fixture    pane;
+		const auto observer = std::make_shared<bpr::tests::insights_observer>();
+		pane.Host.observe_work(observer);
 		fixture files;
 		search_expect(files.Host.set_scope(search_scope(core::source_search_target::files)), "independent PR scope admitted");
 		search_expect(pane.Host.open() && pane.Host.clear() && pane.Effects.pending() == 0U, "opening and clearing empty input does no source work");
@@ -69,6 +72,7 @@ namespace {
 		pane.Decisions.drain();
 		files.drain();
 		search_expect(pane.Host.state().Summary.Matches == 3U && pane.Host.projection().Query == "pane\n😀" && files.Host.projection().Query == "files", "accepted terminal returns to own session");
+		search_expect(observer->work().size() == 1 && observer->work().front().Kind == core::insights_work_kind::search, "one completed host execution records acquisition plus matching duration without query content");
 		const auto calls = pane.Execution.Calls.size();
 		for (unsigned index = 0U; index < 1000U; ++index) {
 			search_expect(pane.Host.navigate(core::change_navigation_direction::next), "next admitted");

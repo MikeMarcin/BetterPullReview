@@ -158,6 +158,8 @@ namespace bpr::application {
 		bool                                   Submitting = false;
 	};
 
+	void markdown_code_syntax_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->Host.observe_work(std::move(aObserver)); }
+
 	markdown_code_syntax_host::markdown_code_syntax_host(syntax_classification_port& aClassifier, markdown_code_texts& aTexts, effect_executor& aEffects, decision_executor& aDecisions,
 														 definition_resolver aDefinitionFor, publisher aPublish, const markdown_code_syntax_limits aLimits)
 		: Implementation{ std::make_unique<implementation>(aClassifier, aTexts, aEffects, aDecisions, std::move(aDefinitionFor), std::move(aPublish), aLimits) }

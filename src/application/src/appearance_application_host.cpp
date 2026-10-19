@@ -66,6 +66,8 @@ namespace bpr::application {
 		appearance_consumer_id                                   Consumer;
 		bool                                                     Closing = false;
 	};
+	void appearance_application_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->Classification.observe_work(std::move(aObserver)); }
+
 	appearance_application_host::appearance_application_host(appearance_settings aInitialSettings, const appearance_builtin_palettes& aBuiltins,
 															 appearance_settings_port& aSettings, theme_document_port& aThemeDocuments, syntax_classification_port& aClassification,
 															 effect_executor& aEffects, decision_executor& aDecisionLane, appearance_projection_port& aProjections,

@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
@@ -1166,8 +1167,10 @@ namespace {
 
 	void test_cache_evicts_the_least_recently_used_entry()
 	{
-		auto harnessed = harness{ application::appearance_host_limits{
+		auto       harnessed = harness{ application::appearance_host_limits{
 			.TokenSpanCacheEntries = 2U } };
+		const auto observer  = std::make_shared<tests::insights_observer>();
+		harnessed.Host.observe_work(observer);
 		harnessed.Host.classify(key(1U));
 		harnessed.settle();
 		harnessed.Host.classify(key(2U));
@@ -1176,6 +1179,9 @@ namespace {
 		harnessed.settle();
 		harnessed.Host.classify(key(3U));
 		harnessed.settle();
+
+		const auto facts = core::build_insights_work(observer->work(), 0).Ranges[0];
+		expect(facts.SyntaxHits == harnessed.Host.cache_hits() && facts.SyntaxMisses == harnessed.Host.classification_submissions() && facts.SyntaxEvictions == harnessed.Host.cache_evictions(), "Insights cache facts match host hits, misses and evictions exactly");
 
 		expect(harnessed.Host.cache_evictions() == 1U, "the bound evicts exactly once");
 		expect(harnessed.Host.cached_classifications() == 2U,

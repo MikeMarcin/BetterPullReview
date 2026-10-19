@@ -11,6 +11,7 @@ namespace bpr::application {
 		virtual void               record(core::insights_event aEvent) noexcept = 0;
 		virtual void               select(core::insights_scope aScope) noexcept = 0;
 		[[nodiscard]] virtual auto foreground() const noexcept -> bool { return false; }
+		virtual void               record_work(core::insights_work_sample) noexcept { }
 		virtual void               record_energy(core::insights_energy_sample) noexcept { }
 		virtual void               record_review(core::insights_review_event) noexcept { }
 	};

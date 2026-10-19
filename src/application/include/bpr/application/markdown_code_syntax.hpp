@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_MARKDOWN_CODE_SYNTAX_HPP
 
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/epoch_model.hpp"
 
@@ -97,6 +98,8 @@ namespace bpr::application {
 		/// \brief Requests refused: plain, too large, or no identity.
 		[[nodiscard]] auto refused() const noexcept -> std::size_t;
 		[[nodiscard]] auto waiting() const noexcept -> std::size_t;
+
+		void observe_work(std::shared_ptr<insights_observer> aObserver);
 
 	private:
 		struct implementation;

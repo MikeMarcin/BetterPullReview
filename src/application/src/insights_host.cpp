@@ -147,7 +147,7 @@ namespace bpr::application {
 	}
 	void insights_recorder::schedule()
 	{
-		if (Pending || !Storage || (Events.empty() && ReviewEvents.empty() && EnergySamples.empty() && !Selected)) {
+		if (Pending || !Storage || (Events.empty() && ReviewEvents.empty() && EnergySamples.empty() && WorkSamples.empty() && !Selected)) {
 			return;
 		}
 		Pending = true;
@@ -183,6 +183,19 @@ namespace bpr::application {
 		} catch (...) { }
 	}
 
+	void insights_recorder::record_work(core::insights_work_sample aSample) noexcept
+	{
+		try {
+			if (!aSample.At) {
+				aSample.At = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			}
+			std::lock_guard lock{ Mutex };
+			if (WorkSamples.size() < 4096) {
+				WorkSamples.push_back(std::move(aSample));
+			}
+			schedule();
+		} catch (...) { }
+	}
 	void insights_recorder::record_energy(core::insights_energy_sample aSample) noexcept
 	{
 		try {
@@ -246,6 +259,7 @@ namespace bpr::application {
 		std::vector<core::insights_event>         events;
 		std::vector<core::insights_energy_sample> energy;
 		std::vector<core::insights_review_event>  reviews;
+		std::vector<core::insights_work_sample>   work;
 		std::optional<core::insights_scope>       selected;
 		std::shared_ptr<insights_storage_port>    storage;
 		{
@@ -253,6 +267,7 @@ namespace bpr::application {
 			events.swap(Events);
 			reviews.swap(ReviewEvents);
 			energy.swap(EnergySamples);
+			work.swap(WorkSamples);
 			selected = Selected;
 			Selected.reset();
 			storage = Storage;
@@ -263,6 +278,7 @@ namespace bpr::application {
 			}
 			storage->record_reviews(reviews);
 			storage->record_energy(energy);
+			storage->record_work(work);
 		} catch (...) { }
 		std::lock_guard lock{ Mutex };
 		Pending = false;
@@ -293,16 +309,18 @@ namespace bpr::application {
 						snapshot = self->Storage->measure();
 					} catch (...) { }
 				}
-				const auto built   = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-				auto       github  = core::insights_github_snapshot{ };
-				auto       reviews = core::insights_reviews_snapshot{ };
-				auto       energy  = core::insights_energy_snapshot{ };
+				const auto built     = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				auto       github    = core::insights_github_snapshot{ };
+				auto       reviews   = core::insights_reviews_snapshot{ };
+				auto       energy    = core::insights_energy_snapshot{ };
+				auto       workStats = core::insights_work_snapshot{ };
 				try {
-					github  = self->Storage->github(built);
-					reviews = self->Storage->reviews(built);
-					energy  = self->Storage->energy(built);
+					github    = self->Storage->github(built);
+					reviews   = self->Storage->reviews(built);
+					energy    = self->Storage->energy(built);
+					workStats = self->Storage->work(built);
 				} catch (...) { }
-				self->Decisions.post([self, measure, now, built, energySnapshot = std::move(energy), reviewsSnapshot = std::move(reviews), githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
+				self->Decisions.post([self, measure, now, built, workSnapshot = std::move(workStats), energySnapshot = std::move(energy), reviewsSnapshot = std::move(reviews), githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
 					self->Pending = false;
 					if (self->Closing) {
 						return;
@@ -312,6 +330,7 @@ namespace bpr::application {
 						self->Snapshot.StorageUnixSeconds = built;
 						self->LastStorage                 = now;
 					}
+					self->Snapshot.Work             = std::move(workSnapshot);
 					self->Snapshot.Energy           = std::move(energySnapshot);
 					self->Snapshot.Reviews          = std::move(reviewsSnapshot);
 					self->Snapshot.Github           = std::move(githubSnapshot);

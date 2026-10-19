@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SYNTAX_CLASSIFICATION_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SYNTAX_CLASSIFICATION_APPLICATION_HOST_HPP
 #include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 namespace bpr::application {
 	/// \brief Owns one window's syntax capability, request lifecycle and bounded immutable cache.
@@ -31,6 +32,9 @@ namespace bpr::application {
 		[[nodiscard]] auto is_closing() const noexcept -> bool;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+		/// \brief Attaches a passive profile observer; existing work and admission are unchanged.
+		void observe_work(std::shared_ptr<insights_observer> aObserver);
 
 	private:
 		struct implementation;

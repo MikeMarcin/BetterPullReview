@@ -16,6 +16,7 @@
 #include "bpr/core/hex.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
+#include "bpr/qt/event_loop_metrics.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/insights_window.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -4273,6 +4274,7 @@ namespace bpr::app {
 		std::unique_ptr<qt::insights_window>                  Insights;
 		std::shared_ptr<application::insights_host>           InsightsHost;
 		std::shared_ptr<application::insights_recorder>       InsightsRecorder;
+		std::unique_ptr<qt::event_loop_metrics>               WorkMetrics;
 		std::shared_ptr<application::insights_energy_sampler> EnergySampler;
 		std::shared_ptr<application::process_metrics_port>    EnergyMetrics;
 		std::unique_ptr<QTimer>                               EnergyTimer;
@@ -4299,7 +4301,8 @@ namespace bpr::app {
 			Insights->set_dispatch({
 				.Refresh      = [weak](bool aStorage) {
 					if (auto self = weak.lock(); self && !self->Closing && self->InsightsHost) {
-						const auto work = !self->ProviderEffects.idle() ? "GitHub requests" : !self->EpochEffects.idle() ? "Git cache work" : !self->DiffEffects.idle() ? "Computing diffs" : !self->SearchEffects.idle() ? "Searching source" : "Idle";
+						self->WorkMetrics->flush();
+                        const auto work = !self->ProviderEffects.idle() ? "GitHub requests" : !self->EpochEffects.idle() ? "Git cache work" : !self->DiffEffects.idle() ? "Computing diffs" : !self->SearchEffects.idle() ? "Searching source" : "Idle";
 						self->InsightsHost->refresh(aStorage, std::string{ work } + "\nNext inbox refresh: on activation");
 					} },
 				.RevealData   = [weak] { if (auto self = weak.lock(); self && !self->Closing) { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdU16String(self->ApplicationDataRoot.u16string()))); } },
@@ -4701,6 +4704,7 @@ namespace bpr::app {
 				EnergyTimer->stop();
 			}
 			QObject::disconnect(EnergyActivation);
+			WorkMetrics.reset();
 			if (EnergySampler) {
 				EnergySampler->shutdown();
 			}
@@ -5176,6 +5180,7 @@ namespace bpr::app {
 				}
 			}
 			InsightsRecorder = std::make_shared<application::insights_recorder>(InsightsEffects);
+			WorkMetrics      = std::make_unique<qt::event_loop_metrics>([recorder = InsightsRecorder](auto aSample) { recorder->record_work(std::move(aSample)); });
 			InsightsRecorder->set_foreground(QGuiApplication::applicationState() == Qt::ApplicationActive);
 			TransportFactory->Insights = InsightsRecorder;
 			DiagnosticLog              = application::observe_insights_problems(DiagnosticLog, InsightsRecorder);
@@ -7954,7 +7959,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Suggest change is coloured by the panes' classifier over the same
 			// definitions, on the lane every classifier over them runs on.
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
-																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects }, nullptr,
+																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder }, nullptr,
 #if defined(BPR_AGENT_INTEGRATIONS)
 																  ClaudeWrapperSource, locate_claude()
 #else
@@ -8782,6 +8787,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				application::diff_host_limits{ }, Profile->DiffComputeLimits
 #endif
 			);
+			DiffHost->observe_work(Profile->InsightsRecorder);
 			PaneFind = std::make_unique<pane_find_controller>(*Window->comparison_surface(), SourceRegex, ReviewerDecisions, DiffEffects, [this]() -> std::optional<core::source_search_scope> {
                     const auto* surface = Window->comparison_surface();
                     if(Closing || !SelectedDiffPublication || !surface->current_context() || !surface->current_result()
@@ -9014,6 +9020,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						Window->apply_markdown_code_syntax(aSpans);
 					}
 				});
+			MarkdownCode->observe_work(Profile->InsightsRecorder);
 			Window->set_markdown_code_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) {
 				if (!Closing && MarkdownCode) {
 					MarkdownCode->request(aRequests);
@@ -9051,6 +9058,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				DecisionLane,
 				AppearanceProjections,
 				WindowSession);
+			AppearanceHost->observe_work(Profile->InsightsRecorder);
+			PaneFind->observe_work(Profile->InsightsRecorder);
+			PrFind->observe_work(Profile->InsightsRecorder);
 			// Loads the durable record. An absent record keeps the composed
 			// settings and is never written back, so a fresh installation
 			// stays a fresh installation until the reviewer chooses
@@ -18004,6 +18014,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					requests.push_back(application::prepared_diff_request{
 						.Key     = *key,
 						.Options = observation.Request.Diff.Options,
+						.Path    = observation.Request.File.PresentationPath,
 					});
 				}
 			}
@@ -18045,7 +18056,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->set_conversation_endpoint_placement(
 					leftHasCurrentDiffRevision, rightIsCurrentHead);
 			}
-			DiffHost->request(std::move(aKey), std::move(aOptions));
+			DiffHost->request(std::move(aKey), std::move(aOptions), std::string{ aPath });
 			if (!DiffHost->state().Pending.has_value()) {
 				return;
 			}

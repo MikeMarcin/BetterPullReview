@@ -28,6 +28,8 @@ namespace bpr::app {
 		[[nodiscard]] auto statistics() const -> application::source_search_statistics;
 		void               publish(const application::source_search_projection& aProjection) override;
 
+		void observe_work(std::shared_ptr<application::insights_observer> aObserver) { Host.observe_work(std::move(aObserver)); }
+
 	private:
 		qt::source_search_panel&                Panel;
 		qt::diff_workbench&                     Surface;

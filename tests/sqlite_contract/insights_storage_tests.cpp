@@ -188,5 +188,23 @@ int main()
 	const auto restartedCost = store->energy(energyNow);
 	expect(restartedCost.Ranges[2][0].CpuMicroseconds == 500000 && restartedCost.Ranges[2][1].Samples == 0, "restart preserves background totals independently of foreground");
 
+	core::insights_work_sample work;
+	work.At                   = energyNow - 60;
+	work.Kind                 = core::insights_work_kind::diff;
+	work.Path                 = "PRIVATE_WORK_PATH_CANARY";
+	work.DurationMicroseconds = 12500;
+	work.WorkLimit            = true;
+	auto dailyWork            = work;
+	dailyWork.At              = energyNow - 3 * 86400;
+	auto expiredWork          = work;
+	expiredWork.At            = energyNow - 94 * 86400;
+	store->record_work({ work, dailyWork, expiredWork });
+	store.reset();
+	store                = adapters::sqlite::make_insights_storage(scratch.path(), [] { return std::vector<application::insights_storage_row>{ }; });
+	const auto workStats = store->work(energyNow);
+	expect(workStats.Ranges[0].Files == 1 && workStats.Ranges[0].WorkLimits == 1 && workStats.Ranges[0].Slowest.front().Path == work.Path, "Work range and local paths survive restart");
+	const auto privateExport = adapters::sqlite::insights_storage_export(scratch.path());
+	expect(privateExport.find("PRIVATE_WORK_PATH_CANARY") == std::string::npos, "Work paths never enter the numeric diagnostic export");
+
 	std::cout << "insights-storage:pass\n";
 }

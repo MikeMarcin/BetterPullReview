@@ -128,7 +128,7 @@ namespace bpr::adapters::sqlite {
 			auto*      db       = opened->Database.get();
 			const auto identity = detail::scalar_integer(db, "PRAGMA application_id");
 			const auto version  = detail::scalar_integer(db, "PRAGMA user_version");
-			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 4) {
+			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 5) {
 				return { };
 			}
 			if (!detail::configure_connection(db)) {
@@ -190,7 +190,75 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
+			if (*version < 5) {
+				constexpr std::array workSchema{
+					"BEGIN IMMEDIATE",
+					"CREATE TABLE insights_work(at INTEGER NOT NULL,kind INTEGER NOT NULL CHECK(kind BETWEEN 0 AND 5),count INTEGER NOT NULL CHECK(count>0),duration INTEGER NOT NULL CHECK(duration>=0),path TEXT NOT NULL CHECK(length(path)<=4096),work_limit INTEGER NOT NULL,segment_limit INTEGER NOT NULL,approximate INTEGER NOT NULL,PRIMARY KEY(at,kind,duration,path,work_limit,segment_limit,approximate)) STRICT",
+					"PRAGMA user_version=5", "COMMIT"
+				};
+				for (const auto sql : workSchema) {
+					if (!detail::execute(db, sql)) {
+						return { };
+					}
+				}
+			}
+
 			return opened;
+		}
+
+		auto read_work(sqlite3* aDatabase) -> std::vector<core::insights_work_sample>
+		{
+			auto query = detail::prepare(aDatabase, "SELECT * FROM insights_work ORDER BY at,kind");
+			if (!query) {
+				throw std::runtime_error{ "Work read unavailable" };
+			}
+			std::vector<core::insights_work_sample> result;
+			int                                     status = SQLITE_ROW;
+			while ((status = sqlite3_step(query->Value)) == SQLITE_ROW) {
+				core::insights_work_sample sample;
+				sample.At                   = sqlite3_column_int64(query->Value, 0);
+				sample.Kind                 = static_cast<core::insights_work_kind>(sqlite3_column_int(query->Value, 1));
+				sample.Count                = static_cast<std::uint64_t>(sqlite3_column_int64(query->Value, 2));
+				sample.DurationMicroseconds = static_cast<std::uint64_t>(sqlite3_column_int64(query->Value, 3));
+				const auto* text            = sqlite3_column_text(query->Value, 4);
+				sample.Path                 = text ? reinterpret_cast<const char*>(text) : "";
+				sample.WorkLimit            = sqlite3_column_int(query->Value, 5) != 0;
+				sample.SegmentLimit         = sqlite3_column_int(query->Value, 6) != 0;
+				sample.Approximate          = sqlite3_column_int(query->Value, 7) != 0;
+				result.push_back(std::move(sample));
+			}
+			if (status != SQLITE_DONE) {
+				throw std::runtime_error{ "Work read failed" };
+			}
+			return result;
+		}
+		void write_work(sqlite3* aDatabase, const core::insights_work_sample& aSample)
+		{
+			auto query = detail::prepare(aDatabase, "INSERT INTO insights_work VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT DO UPDATE SET count=count+excluded.count");
+			if (!query) {
+				throw std::runtime_error{ "Work write unavailable" };
+			}
+			sqlite3_bind_int64(query->Value, 1, aSample.At);
+			sqlite3_bind_int(query->Value, 2, static_cast<int>(aSample.Kind));
+			sqlite3_bind_int64(query->Value, 3, static_cast<sqlite3_int64>(aSample.Count));
+			sqlite3_bind_int64(query->Value, 4, static_cast<sqlite3_int64>(aSample.DurationMicroseconds));
+			sqlite3_bind_text(query->Value, 5, aSample.Path.c_str(), static_cast<int>(aSample.Path.size()), SQLITE_TRANSIENT);
+			sqlite3_bind_int(query->Value, 6, aSample.WorkLimit);
+			sqlite3_bind_int(query->Value, 7, aSample.SegmentLimit);
+			sqlite3_bind_int(query->Value, 8, aSample.Approximate);
+			if (sqlite3_step(query->Value) != SQLITE_DONE) {
+				throw std::runtime_error{ "Work write failed" };
+			}
+		}
+		void compact_work(sqlite3* aDatabase, const std::int64_t aNow)
+		{
+			const auto retained = core::rollup_insights_work(read_work(aDatabase), aNow);
+			if (!detail::execute(aDatabase, "DELETE FROM insights_work")) {
+				throw std::runtime_error{ "Work compaction failed" };
+			}
+			for (const auto& sample : retained) {
+				write_work(aDatabase, sample);
+			}
 		}
 
 		auto read_energy(sqlite3* aDatabase) -> std::vector<core::insights_energy_sample>
@@ -516,6 +584,55 @@ namespace bpr::adapters::sqlite {
 					throw std::runtime_error{ "Insights history commit failed" };
 				}
 			}
+			void record_work(const std::vector<core::insights_work_sample>& aSamples) override
+			{
+				if (aSamples.empty()) {
+					return;
+				}
+				auto connection = open_database(Root);
+				if (!connection) {
+					return;
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return;
+				}
+				for (const auto& sample : aSamples) {
+					if (sample.Count && sample.Path.size() <= 4096) {
+						auto bucket = sample;
+						bucket.At   = bucket.At / 300 * 300;
+						write_work(db, bucket);
+					}
+				}
+				const auto now = std::ranges::max(aSamples, { }, &core::insights_work_sample::At).At;
+				if (now - LastWorkCompaction >= 300) {
+					compact_work(db, now);
+					LastWorkCompaction = now;
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Work commit failed" };
+				}
+			}
+			auto work(const std::int64_t aNow) -> core::insights_work_snapshot override
+			{
+				auto connection = open_database(Root);
+				if (!connection) {
+					return { };
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					return { };
+				}
+				if (!LastWorkCompaction || aNow - LastWorkCompaction >= 300) {
+					compact_work(db, aNow);
+					LastWorkCompaction = aNow;
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Work commit failed" };
+				}
+				return core::build_insights_work(read_work(db), aNow);
+			}
+
 			void record_energy(const std::vector<core::insights_energy_sample>& aSamples) override
 			{
 				if (aSamples.empty()) {
@@ -613,6 +730,7 @@ namespace bpr::adapters::sqlite {
 
 		private:
 			std::int64_t                                                    LastCompaction       = 0;
+			std::int64_t                                                    LastWorkCompaction   = 0;
 			std::int64_t                                                    LastEnergyCompaction = 0;
 			std::filesystem::path                                           Root;
 			std::function<std::vector<application::insights_storage_row>()> Git;

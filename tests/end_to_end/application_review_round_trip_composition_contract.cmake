@@ -1658,13 +1658,17 @@ function(bpr_compute_full_application_digest source_variable out_variable)
     set(${out_variable} "${bpr_full_digest}" PARENT_SCOPE)
 endfunction()
 
+# BPR-1614: reviewed passive Work observer wiring, bounded display labels,
+# dispatcher latency observation and shutdown drain. No grant, credential,
+# provider or mutation admission changes; mutation-branch digest unchanged.
+
 function(bpr_verify_full_application_digest source_variable)
     bpr_compute_full_application_digest(
         ${source_variable}
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"00fdc86c937de03a31125cfb86035d9cab39f2852a9dc865cdc54b0947ca510a"
+		"f26e94273fa5d2e0ca20dcb57b83032eac8fbe1b494dbfdcb1620f9ce3b4c59b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1884,7 +1888,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "284b6c8f40f32e8533e5f89fcd7fcab4e0b6a3283b4449d07b148cf894586ab0"
+        "a7d8c778e9da83be64514845f8aa461c59b2d0bd421e8e4d9975cf922d0a8830"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

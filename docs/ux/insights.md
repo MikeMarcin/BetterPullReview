@@ -101,3 +101,23 @@ Qt’s Unix reap currently discards per-child resource usage; those gh/git termi
 show “Child CPU unavailable”, not a measured zero. Supervised Git also stays
 unavailable where the helper’s CPU cannot establish the child’s CPU. This is the
 open BPR-1612 obligation. Energy is not accepted as a complete milestone yet.
+
+
+Work shows observations for1h or1d. Its leading figures are stalls over100ms,
+files actually computed, and median source-search wall time (acquisition and
+matching). The fact table pairs event-loop p95 with the100ms target and names
+move-detection work, segment and approximate-alignment counts separately. Syntax
+hit rate is hits divided by hits plus submitted classifications; coalesced
+requests are not extra lookups. Evictions include the panes, rendered Markdown
+and Review Cycle syntax caches. Cached diffs add no computation or timing.
+The five slowest local file paths are ordered by each path's longest observed
+computation; paths stay on this computer and never enter export.
+
+Qt observes busy event-loop turns, excluding dispatcher sleep and nested modal
+waits. It installs no polling timer. Ordinary latency bins have1ms resolution;
+stalls retain measured microseconds. Batches flush on the next dispatcher
+boundary after30seconds, before a snapshot, and at shutdown. Work history keeps
+five-minute buckets through48hours and daily buckets through93days, preserving
+weighted duration distributions for percentiles and medians. The snapshot reads
+only the retained facts on the Insights worker lane. With no observations, it
+names what will populate each figure rather than displaying a measured zero.

@@ -218,5 +218,42 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto build_insights_energy(const std::vector<insights_energy_sample>& aSamples, std::int64_t aNow, std::int64_t aToday) -> insights_energy_snapshot;
 
+	/// \brief Passive work observations; paths are local display data and never exported.
+	enum class insights_work_kind : std::uint8_t { latency,
+												   diff,
+												   syntax_hit,
+												   syntax_miss,
+												   syntax_eviction,
+												   search };
+	struct insights_work_sample
+	{
+		std::int64_t       At    = 0;
+		insights_work_kind Kind  = insights_work_kind::latency;
+		std::uint64_t      Count = 1, DurationMicroseconds = 0;
+		std::string        Path;
+		bool               WorkLimit = false, SegmentLimit = false, Approximate = false;
+	};
+	struct insights_slow_file
+	{
+		std::string   Path;
+		std::uint64_t Microseconds = 0;
+	};
+	/// \brief Exact weighted duration distributions over retained observation buckets.
+	struct insights_work_range
+	{
+		std::uint64_t                   Latencies = 0, Stalls = 0, LongestMicroseconds = 0;
+		std::uint64_t                   Files = 0, DiffMicroseconds = 0, WorkLimits = 0, SegmentLimits = 0, Approximate = 0;
+		std::uint64_t                   SyntaxHits = 0, SyntaxMisses = 0, SyntaxEvictions = 0, Searches = 0;
+		std::optional<std::uint64_t>    P95Microseconds, SearchMedianMicroseconds;
+		std::vector<insights_slow_file> Slowest;
+	};
+	struct insights_work_snapshot
+	{
+		std::array<insights_work_range, 2> Ranges;
+	};
+	/// \brief Keeps five-minute history for48h and daily history through93days.
+	[[nodiscard]] auto rollup_insights_work(const std::vector<insights_work_sample>& aSamples, std::int64_t aNow) -> std::vector<insights_work_sample>;
+	[[nodiscard]] auto build_insights_work(const std::vector<insights_work_sample>& aSamples, std::int64_t aNow) -> insights_work_snapshot;
+
 }
 #endif

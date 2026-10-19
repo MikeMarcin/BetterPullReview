@@ -261,14 +261,16 @@ namespace bpr::app {
 			SyntaxHost        = std::make_unique<application::syntax_classification_application_host>(
 				*SyntaxClassifier, *aSyntax.Effects, aDecisions, static_cast<application::appearance_projection_port&>(*this), core::application_session_id{ 1U },
 				application::appearance_host_limits{ .OutstandingRequests = 4U, .TokenSpanCacheEntries = 4U });
+			SyntaxHost->observe_work(aSyntax.Insights);
 			View->composer()->SyntaxWanted = [this](const qt::suggestion_syntax_request& aRequest) { want_syntax(aRequest); };
 			View->SourceSyntaxWanted       = [this](const qt::source_syntax_request& aRequest) { want_source_syntax(aRequest); };
 			// [[BPR-1161]]. Share notes' code in the same colours, by its own host.
-			CodeTexts                        = std::make_unique<suggestion_text_source>();
-			CodeClassifier                   = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *CodeTexts);
-			CodeRelay                        = std::make_unique<code_syntax_relay>([this](const application::token_span_publication* aSpans) { code_syntax_done(aSpans); });
-			CodeHost                         = std::make_unique<application::syntax_classification_application_host>(*CodeClassifier, *aSyntax.Effects, aDecisions, *CodeRelay, core::application_session_id{ 2U },
-																													 application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 4U });
+			CodeTexts      = std::make_unique<suggestion_text_source>();
+			CodeClassifier = std::make_unique<adapters::syntax::packaged_syntax_classifier>(*SyntaxDefinitions, *CodeTexts);
+			CodeRelay      = std::make_unique<code_syntax_relay>([this](const application::token_span_publication* aSpans) { code_syntax_done(aSpans); });
+			CodeHost       = std::make_unique<application::syntax_classification_application_host>(*CodeClassifier, *aSyntax.Effects, aDecisions, *CodeRelay, core::application_session_id{ 2U },
+																								   application::appearance_host_limits{ .OutstandingRequests = 1U, .TokenSpanCacheEntries = 4U });
+			CodeHost->observe_work(aSyntax.Insights);
 			View->share_page()->SyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };
 			// [[BPR-1281]]. The comparison's two sides through the same host.
 			View->ComparisonSyntaxWanted = [this](const qt::source_syntax_request& aRequest) { want_code_syntax(aRequest); };

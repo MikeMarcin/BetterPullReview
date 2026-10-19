@@ -31,6 +31,7 @@ namespace bpr::application {
 		core::insights_github_snapshot    Github;
 		core::insights_reviews_snapshot   Reviews;
 		core::insights_energy_snapshot    Energy;
+		core::insights_work_snapshot      Work;
 	};
 
 	/// \brief Presentation gestures; none gives Qt access to a storage or process capability.

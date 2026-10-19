@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -31,8 +32,10 @@ namespace bpr::application {
 
 		struct diff_job
 		{
-			core::compute_file_diff_request Request;
-			std::stop_source                Stop;
+			core::compute_file_diff_request    Request;
+			std::string                        Path;
+			std::shared_ptr<insights_observer> Observer;
+			std::stop_source                   Stop;
 			/// [[BPR-1344]]. A prepared comparison, not one the reviewer asked for.
 			bool Prepared = false;
 			/// [[BPR-1366]] Decision lane only: the comparison is no longer
@@ -44,6 +47,7 @@ namespace bpr::application {
 
 		struct deferred_diff_request
 		{
+			std::string               Path;
 			core::file_comparison_key Key;
 			core::diff_options        Options;
 		};
@@ -293,20 +297,22 @@ namespace bpr::application {
 			}
 		}
 
-		void request(core::file_comparison_key aKey, core::diff_options aOptions)
+		void request(core::file_comparison_key aKey, core::diff_options aOptions, std::string aPath)
 		{
 			enqueue(deferred_diff_request{
+				.Path    = std::move(aPath),
 				.Key     = std::move(aKey),
 				.Options = aOptions,
 			});
 		}
 
 		void request_now(core::file_comparison_key aKey,
-						 const core::diff_options  aOptions)
+						 const core::diff_options aOptions, std::string aPath)
 		{
 			if (Closing) {
 				return;
 			}
+			CurrentPath = std::move(aPath);
 			dispatch(core::request_file_diff_intent{
 				.Key     = std::move(aKey),
 				.Options = aOptions,
@@ -536,6 +542,8 @@ namespace bpr::application {
 					},
 					.Options = aRequest.Options,
 				};
+				job->Path     = std::move(aRequest.Path);
+				job->Observer = WorkObserver;
 				job->Prepared = true;
 			} catch (...) {
 				return;
@@ -595,10 +603,11 @@ namespace bpr::application {
 			// Only a stop the host asked for is a yield: a blob port that
 			// declines on its own also answers cancelled, and is not retried.
 			const auto yielded = PreparedJob->Stop.stop_requested();
+			const auto path    = PreparedJob->Path;
 			PreparedJob.reset();
 			if (!Closing && !discarded && yielded && aCompletion.Reason == core::diff_reason_code::cancelled) {
 				try {
-					requeue_preparation(prepared_diff_request{ .Key = aCompletion.Context.Key, .Options = aCompletion.Options });
+					requeue_preparation(prepared_diff_request{ .Key = aCompletion.Context.Key, .Options = aCompletion.Options, .Path = path });
 				} catch (...) {
 				}
 			} else if (!Closing && !discarded && aCompletion.Reason == core::diff_reason_code::none
@@ -680,7 +689,7 @@ namespace bpr::application {
 					if constexpr (std::is_same_v<ingress_type,
 												 deferred_diff_request>) {
 						request_now(std::move(aTypedIngress.Key),
-									aTypedIngress.Options);
+									aTypedIngress.Options, std::move(aTypedIngress.Path));
 					} else if constexpr (std::is_same_v<ingress_type,
 														deferred_diff_cancel>) {
 						cancel_now();
@@ -810,8 +819,10 @@ namespace bpr::application {
 			}
 			auto job = std::shared_ptr<diff_job>{ };
 			try {
-				job          = std::make_shared<diff_job>();
-				job->Request = aRequest;
+				job           = std::make_shared<diff_job>();
+				job->Request  = aRequest;
+				job->Path     = CurrentPath;
+				job->Observer = WorkObserver;
 				Jobs.push_back(job);
 			} catch (...) {
 				finish(staged_diff_completion{
@@ -965,7 +976,9 @@ namespace bpr::application {
 						: std::nullopt,
 					.Limits     = aLimits,
 				};
-				auto run = core::compute_file_diff(input, control, matching);
+				const auto started = std::chrono::steady_clock::now();
+				auto       run     = core::compute_file_diff(input, control, matching);
+				const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count();
 				if (!run.Outcome.has_value()) {
 					// Stopped within the engine's check interval of the
 					// request, or within the matcher's poll while it waits.
@@ -981,6 +994,19 @@ namespace bpr::application {
 						: outcome.Reason;
 					return completion;
 				}
+
+				try {
+					if (aJob->Observer) {
+						core::insights_work_sample sample;
+						sample.Kind                 = core::insights_work_kind::diff;
+						sample.Path                 = aJob->Path;
+						sample.DurationMicroseconds = static_cast<std::uint64_t>(elapsed);
+						sample.WorkLimit            = outcome.Result->MoveDetectionWorkLimitReached;
+						sample.SegmentLimit         = outcome.Result->MoveDetectionSegmentLimitReached;
+						sample.Approximate          = outcome.Result->AlignmentApproximate;
+						aJob->Observer->record_work(std::move(sample));
+					}
+				} catch (...) { }
 				left.reset();
 				right.reset();
 				completion.Result = std::make_shared<const core::computed_file_diff>(std::move(*outcome.Result));
@@ -1235,6 +1261,8 @@ namespace bpr::application {
 		diff_projection_port&                          Projections;
 		std::shared_ptr<diff_line_matcher_port>        Matcher;
 		diff_host_limits                               Limits;
+		std::shared_ptr<insights_observer>             WorkObserver;
+		std::string                                    CurrentPath;
 		core::diff_compute_limits                      ComputeLimits;
 		std::shared_ptr<completion_gate>               Gate;
 		std::vector<std::shared_ptr<diff_job>>         Jobs;
@@ -1252,6 +1280,8 @@ namespace bpr::application {
 		bool                                           TurnActive               = false;
 		bool                                           DeferredIngressScheduled = false;
 	};
+
+	void diff_application_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->WorkObserver = std::move(aObserver); }
 
 	diff_application_host::diff_application_host(
 		core::diff_state                        aInitialState,
@@ -1280,9 +1310,9 @@ namespace bpr::application {
 	}
 
 	void diff_application_host::request(core::file_comparison_key aKey,
-										core::diff_options        aOptions)
+										core::diff_options aOptions, std::string aPath)
 	{
-		Implementation->request(std::move(aKey), aOptions);
+		Implementation->request(std::move(aKey), aOptions, std::move(aPath));
 	}
 
 	void diff_application_host::prepare(std::vector<prepared_diff_request> aRequests)

@@ -10,6 +10,7 @@
 #include "bpr/qt/settings_window.hpp"
 #include "private_data_root.hpp"
 #include <QDateTime>
+#include <QEventLoop>
 #include <QTimeZone>
 #include <sqlite3.h>
 
@@ -58,6 +59,27 @@ namespace {
 			}
 		}
 		return nullptr;
+	}
+
+	void seed_work(const std::filesystem::path& aRoot)
+	{
+		auto                                    store = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		std::vector<core::insights_work_sample> samples;
+		const auto                              add = [&](core::insights_work_kind aKind, std::uint64_t aDuration, std::uint64_t aCount = 1) {core::insights_work_sample sample; sample.At=QDateTime::currentSecsSinceEpoch()-60; sample.Kind=aKind; sample.DurationMicroseconds=aDuration; sample.Count=aCount; samples.push_back(sample); };
+		for (std::uint64_t index = 0; index < 7; ++index) {
+			add(core::insights_work_kind::diff, 10000 * (index + 1));
+			samples.back().Path         = "src/work/file-" + std::to_string(index) + ".cpp";
+			samples.back().WorkLimit    = index == 0;
+			samples.back().SegmentLimit = index == 1;
+			samples.back().Approximate  = index == 2;
+		}
+		add(core::insights_work_kind::syntax_hit, 0, 9);
+		add(core::insights_work_kind::syntax_miss, 0, 3);
+		add(core::insights_work_kind::syntax_eviction, 0, 2);
+		add(core::insights_work_kind::search, 10000);
+		add(core::insights_work_kind::search, 20000);
+		add(core::insights_work_kind::search, 30000);
+		store->record_work(samples);
 	}
 
 	void seed_reviews(const std::filesystem::path& aRoot)
@@ -403,6 +425,7 @@ try {
 	expect(!root.empty(), "private course profile root admitted");
 	seed_reviews(root);
 	seed_energy(root);
+	seed_work(root);
 	app::detail::github_public_path_fixture_options options;
 	options.ApplicationDataRoot      = root;
 	options.InsightsMetrics          = std::make_shared<recorded_energy_metrics>();
@@ -410,6 +433,11 @@ try {
 	auto                     desktop = app::detail::github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::insights_budget_v1, options, [](auto) { });
 	app::github_application* runtime = nullptr;
 	until([&] { runtime = desktop->runtime(core::default_bpr_profile_id); return runtime && !runtime->windows().empty(); }, "profile runtime and window composed");
+
+	QEventLoop latencyCourse;
+	QTimer::singleShot(20, &latencyCourse, [] { QThread::msleep(250); });
+	QTimer::singleShot(400, &latencyCourse, &QEventLoop::quit);
+	latencyCourse.exec();
 	auto* window = runtime->window(runtime->windows().front());
 	window->show();
 	auto* action = window->findChild<QAction*>(QStringLiteral("openInsightsAction"));
@@ -422,6 +450,18 @@ try {
 	auto* shell = insights();
 	action->trigger();
 	expect(insights() == shell, "repeated open reuses one per-profile instance");
+
+	until([&] { return shell->findChild<QLabel*>(QStringLiteral("insightsWork1"))->text() == QStringLiteral("7"); }, "Work fixture snapshot is ready");
+	const auto debugWork = adapters::sqlite::make_insights_storage(root, [] { return std::vector<application::insights_storage_row>{ }; })->work(QDateTime::currentSecsSinceEpoch()).Ranges[0];
+	std::cout << "work-latency:count=" << debugWork.Latencies << " stalls=" << debugWork.Stalls << " longest=" << debugWork.LongestMicroseconds << "\n";
+	until([&] { return shell->findChild<QLabel*>(QStringLiteral("insightsWork0"))->text() == QStringLiteral("1"); }, "real250ms main-thread block becomes exactly one stall through the public snapshot path");
+	const auto observedWork = adapters::sqlite::make_insights_storage(root, [] { return std::vector<application::insights_storage_row>{ }; })->work(QDateTime::currentSecsSinceEpoch()).Ranges[0];
+	expect(observedWork.Stalls == 1 && observedWork.LongestMicroseconds >= 240000 && observedWork.LongestMicroseconds < 330000, "stall reports the actual250ms busy turn and excludes idle wait");
+	auto* workFacts = shell->findChild<QTableWidget*>(QStringLiteral("insightsWorkFacts"));
+	auto* slowFiles = shell->findChild<QTableWidget*>(QStringLiteral("insightsSlowFiles"));
+	expect(workFacts->item(2, 1)->text() == QStringLiteral("1") && workFacts->item(3, 1)->text() == QStringLiteral("1") && workFacts->item(4, 1)->text() == QStringLiteral("1"), "three diff limits appear under their own rows");
+	expect(workFacts->item(5, 1)->text() == QStringLiteral("75.0% (9 / 12)") && workFacts->item(6, 1)->text() == QStringLiteral("2"), "syntax cache figures match retained observations");
+	expect(slowFiles->rowCount() == 5 && slowFiles->item(0, 0)->text() == QStringLiteral("src/work/file-6.cpp") && shell->findChild<QLabel*>(QStringLiteral("insightsWork2"))->text() == QStringLiteral("20.0 ms"), "five slowest paths and search median match host facts");
 	auto* table = shell->findChild<QTableWidget*>(QStringLiteral("insightsStores"));
 	until([&] { return table->rowCount() > 0; }, "the composed snapshot reaches a populated storage ledger");
 	expect(std::filesystem::exists(root / "state/v1/insights.sqlite3"), "first launch composed its real Insights store");

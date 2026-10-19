@@ -580,15 +580,78 @@ namespace bpr::qt {
 				column->addLayout(actions);
 				connect(manage, &QPushButton::clicked, this, [this] { if (Dispatch.ManageCaches) { Dispatch.ManageCaches(); } });
 				connect(reveal, &QPushButton::clicked, this, [this] { if (Dispatch.RevealData) { Dispatch.RevealData(); } });
+			} else if (index == 4) {
+				build_work_page(*column);
 			} else if (index == 5) {
 				build_energy_page(*column);
 			} else {
 				build_empty_page(index, *column);
 			}
-			if (index != 3 && index != 2 && index != 1 && index != 5) {
+			if (index != 3 && index != 2 && index != 1 && index != 5 && index != 4) {
 				column->addStretch();
 			}
 		}
+	}
+
+	void insights_window::build_work_page(QVBoxLayout& aColumn)
+	{
+		WorkRange = ranges(aColumn, { tr("1h"), tr("1d") }, tr("Work range"));
+		WorkRange->setObjectName(QStringLiteral("insightsWorkRange"));
+		auto*            tiles = grid(aColumn, 3);
+		const std::array titles{ tr("Main-thread stalls"), tr("Files diffed"), tr("Source search, median") };
+		for (std::size_t index = 0; index < titles.size(); ++index) {
+			const auto item    = tile(*tiles, static_cast<int>(index), 3, titles[index], tr("No work observations yet"));
+			WorkValues[index]  = item.Value;
+			WorkDetails[index] = item.Detail;
+			item.Value->setObjectName(QStringLiteral("insightsWork%1").arg(index));
+		}
+		auto* body        = new QHBoxLayout;
+		auto* factsColumn = new QVBoxLayout;
+		factsColumn->addWidget(label(tr("Responsiveness and work limits"), aColumn.parentWidget(), "heading"));
+		WorkFacts = fact_table(aColumn.parentWidget(), QStringLiteral("insightsWorkFacts"));
+		factsColumn->addWidget(WorkFacts, 1);
+		auto* filesColumn = new QVBoxLayout;
+		filesColumn->addWidget(label(tr("Five slowest files"), aColumn.parentWidget(), "heading"));
+		SlowFiles = fact_table(aColumn.parentWidget(), QStringLiteral("insightsSlowFiles"));
+		SlowFiles->setAccessibleName(tr("Five slowest diff computations in the selected range"));
+		filesColumn->addWidget(SlowFiles, 1);
+		body->addLayout(factsColumn, 1);
+		body->addLayout(filesColumn, 1);
+		aColumn.addLayout(body, 1);
+		connect(WorkRange, &QTabBar::currentChanged, this, [this] { update_work(); });
+	}
+	void insights_window::update_work()
+	{
+		const auto& stats    = WorkSnapshot.Ranges[WorkRange->currentIndex() == 1 ? 1U : 0U];
+		const auto  duration = [](std::uint64_t aValue) { return QStringLiteral("%1 ms").arg(static_cast<double>(aValue) / 1000, 0, 'f', 1); };
+		const auto  none     = tr("No observations yet");
+		WorkValues[0]->setText(stats.Latencies ? QString::number(stats.Stalls) : tr("No event-loop samples yet"));
+		WorkDetails[0]->setText(tr("Over 100 ms; longest %1").arg(stats.Stalls ? duration(stats.LongestMicroseconds) : QStringLiteral("—")));
+		WorkValues[1]->setText(stats.Files ? QString::number(stats.Files) : tr("No diffs yet"));
+		WorkDetails[1]->setText(stats.Files ? tr("%1 per file, on average").arg(duration(stats.DiffMicroseconds / stats.Files)) : tr("Computed files will appear here"));
+		WorkValues[2]->setText(stats.SearchMedianMicroseconds ? duration(*stats.SearchMedianMicroseconds) : tr("No searches yet"));
+		WorkDetails[2]->setText(tr("Acquisition and matching; %1 searches").arg(stats.Searches));
+		const std::array observed{ stats.Latencies, stats.Files, stats.Searches };
+		for (std::size_t index = 0; index < WorkValues.size(); ++index) {
+			WorkValues[index]->setProperty("insightsType", observed[index] ? "value" : "empty");
+		}
+
+		const auto       lookups = stats.SyntaxHits + stats.SyntaxMisses;
+		const std::array names{ tr("Event-loop latency, p95"), tr("Input response target"), tr("Move detection work limit"), tr("Move detection segment limit"), tr("Approximate alignment"), tr("Syntax cache hit rate"), tr("Syntax cache evictions") };
+		const std::array values{ stats.P95Microseconds ? duration(*stats.P95Microseconds) : none, tr("100 ms"), stats.Files ? QString::number(stats.WorkLimits) : none, stats.Files ? QString::number(stats.SegmentLimits) : none, stats.Files ? QString::number(stats.Approximate) : none, lookups ? QStringLiteral("%1% (%2 / %3)").arg(100.0 * static_cast<double>(stats.SyntaxHits) / static_cast<double>(lookups), 0, 'f', 1).arg(stats.SyntaxHits).arg(lookups) : none, lookups ? QString::number(stats.SyntaxEvictions) : none };
+		WorkFacts->setRowCount(static_cast<int>(names.size()));
+		for (std::size_t row = 0; row < names.size(); ++row) {
+			fact_row(*WorkFacts, static_cast<int>(row), names[row], values[row]);
+		}
+		SlowFiles->setRowCount(static_cast<int>(std::max<std::size_t>(1, stats.Slowest.size())));
+		if (stats.Slowest.empty()) {
+			fact_row(*SlowFiles, 0, tr("Computed file paths will appear here"), QString{ });
+		}
+		for (std::size_t row = 0; row < stats.Slowest.size(); ++row) {
+			fact_row(*SlowFiles, static_cast<int>(row), QString::fromStdString(stats.Slowest[row].Path), duration(stats.Slowest[row].Microseconds));
+		}
+		WorkFacts->setAccessibleDescription(tr("%1 stalls over the 100 ms target. Event-loop latency p95: %2.").arg(stats.Stalls).arg(values[0]));
+		refresh_typography();
 	}
 
 	void insights_window::build_energy_page(QVBoxLayout& aColumn)
@@ -1085,6 +1148,8 @@ namespace bpr::qt {
 		GithubSnapshot   = aSnapshot.Github;
 		ReviewsSnapshot  = aSnapshot.Reviews;
 		EnergySnapshot   = aSnapshot.Energy;
+		WorkSnapshot     = aSnapshot.Work;
+		update_work();
 		update_energy();
 		update_reviews();
 		update_github();

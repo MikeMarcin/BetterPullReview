@@ -20,6 +20,8 @@ namespace bpr::application {
 		virtual ~insights_storage_port()                          = default;
 		[[nodiscard]] virtual auto measure() -> insights_snapshot = 0;
 		virtual void               record(const std::vector<core::insights_event>&, std::optional<core::insights_scope>) { }
+		virtual void               record_work(const std::vector<core::insights_work_sample>&) { }
+		[[nodiscard]] virtual auto work(std::int64_t) -> core::insights_work_snapshot { return { }; }
 		virtual void               record_energy(const std::vector<core::insights_energy_sample>&) { }
 		[[nodiscard]] virtual auto energy(std::int64_t) -> core::insights_energy_snapshot { return { }; }
 		virtual void               record_reviews(const std::vector<core::insights_review_event>&) { }
@@ -40,6 +42,7 @@ namespace bpr::application {
 		void               select(core::insights_scope aScope) noexcept override;
 		void               record_review(core::insights_review_event aEvent) noexcept override;
 		void               record_energy(core::insights_energy_sample aSample) noexcept override;
+		void               record_work(core::insights_work_sample aSample) noexcept override;
 		[[nodiscard]] auto foreground() const noexcept -> bool override { return Foreground.load(); }
 		void               set_foreground(bool aForeground) noexcept { Foreground.store(aForeground); }
 
@@ -52,6 +55,7 @@ namespace bpr::application {
 		std::vector<core::insights_event>         Events;
 		std::vector<core::insights_review_event>  ReviewEvents;
 		std::vector<core::insights_energy_sample> EnergySamples;
+		std::vector<core::insights_work_sample>   WorkSamples;
 		std::atomic_bool                          Foreground = false;
 		std::optional<core::insights_scope>       Selected;
 		bool                                      Pending = false;

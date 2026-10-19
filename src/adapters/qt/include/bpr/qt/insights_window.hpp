@@ -43,6 +43,8 @@ namespace bpr::qt {
 	private:
 		void                            set_refresh_interval();
 		void                            build_pages();
+		void                            build_work_page(QVBoxLayout& aColumn);
+		void                            update_work();
 		void                            build_energy_page(QVBoxLayout& aColumn);
 		void                            update_energy();
 		void                            update_energy_chart();
@@ -101,9 +103,14 @@ namespace bpr::qt {
 		insights_calendar*              EnergyCalendar    = nullptr;
 		QTableWidget*                   EnergyFacts       = nullptr;
 
-		QColor       PrimaryChartColor;
-		QColor       SecondaryChartColor;
-		std::int64_t BuiltUnixSeconds = 0;
+		core::insights_work_snapshot WorkSnapshot;
+		QTabBar*                     WorkRange = nullptr;
+		std::array<QLabel*, 3>       WorkValues{ }, WorkDetails{ };
+		QTableWidget*                WorkFacts = nullptr;
+		QTableWidget*                SlowFiles = nullptr;
+		QColor                       PrimaryChartColor;
+		QColor                       SecondaryChartColor;
+		std::int64_t                 BuiltUnixSeconds = 0;
 	};
 }
 

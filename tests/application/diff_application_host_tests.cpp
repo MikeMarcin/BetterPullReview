@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
@@ -2030,8 +2031,56 @@ namespace {
 	}
 } // namespace
 
+void test_work_observations()
+{
+	using namespace bpr;
+	for (int mode = 0; mode < 3; ++mode) {
+		auto limits = core::diff_compute_limits{ };
+		if (mode == 0) {
+			limits.MaximumMoveDetectionWork = 1;
+		}
+		if (mode == 1) {
+			fixture baseline;
+			baseline.Blobs.LeftBytes  = bytes("stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n");
+			baseline.Blobs.RightBytes = bytes("stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n");
+			baseline.request(comparison_key());
+			baseline.run_effect_and_decision();
+			limits.MaximumSegments = static_cast<std::uint32_t>(baseline.Projections.Results.back().Result.Alignment.Segments.size());
+		}
+		if (mode == 2) {
+			limits.MaximumMatrixCells = 1;
+		}
+		fixture    test{ { }, limits };
+		const auto observer = std::make_shared<tests::insights_observer>();
+		test.Host->observe_work(observer);
+		test.Blobs.LeftBytes  = bytes("stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n");
+		test.Blobs.RightBytes = bytes("stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n");
+		auto options          = core::diff_options{ };
+		options.Moves         = core::move_detection_policy::deterministic_exact;
+		if (mode == 2) {
+			test.Blobs.reset_behavior();
+			options.Moves = core::move_detection_policy::disabled;
+		}
+		const auto key = comparison_key(options);
+		test.Host->request(key, options, "src/limit.cpp");
+		test.run_effect_and_decision();
+		expect(test.Projections.Results.size() == 1, "work-limit course computes through the application host");
+		const auto work = observer->work();
+		std::cout << "work-limit:mode=" << mode << " work=" << work.front().WorkLimit << " segment=" << work.front().SegmentLimit << " approximate=" << work.front().Approximate << "\n";
+		expect(work.size() == 1 && work.front().Path == "src/limit.cpp", "one actual computation retains its local display path");
+		expect(mode == 0 ? work.front().WorkLimit : mode == 1 ? work.front().SegmentLimit
+															  : work.front().Approximate,
+			   "actual optional work and segment limits and approximate alignment reach their own counters");
+		test.Host->request(key, options, "src/limit.cpp");
+		expect(test.Effects.pending() == 0, "cached comparison needs no computation effect");
+		test.Decisions.drain();
+		expect(observer->work().size() == 1, "a cached comparison adds no invented computation");
+	}
+}
+
 int main()
 {
+	test_work_observations();
 	test_pathological_diagnostic_content();
 	test_worker_and_cache_lanes();
 	test_exact_cache_key_collisions();

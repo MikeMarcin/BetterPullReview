@@ -9,6 +9,8 @@ namespace {
 	class local_storage final : public bpr::application::insights_storage_port
 	{
 	public:
+		std::vector<bpr::core::insights_work_sample>   Work;
+		void                                           record_work(const std::vector<bpr::core::insights_work_sample>& aSamples) override { Work.insert(Work.end(), aSamples.begin(), aSamples.end()); }
 		int                                            Measurements = 0;
 		std::vector<bpr::core::insights_event>         Recorded;
 		std::vector<bpr::core::insights_energy_sample> Energy;
@@ -95,6 +97,13 @@ int main()
 	reading.CpuMicroseconds += 1500;
 	reading.Wakeups = 5;
 	native->Values.push_back(reading);
+	core::insights_work_sample work;
+	work.Kind                 = core::insights_work_kind::latency;
+	work.DurationMicroseconds = 250000;
+	recorder->record_work(work);
+	effects.drain();
+	expect(storage->Work.size() == 1 && storage->Work.front().At > 0, "passive Work intake supplies its clock and drains off-lane");
+
 	auto sampler = std::make_shared<application::insights_energy_sampler>(native, recorder, effects);
 	sampler->observe(false);
 	const auto backgroundChild = application::capture_insights_child(recorder, 0);

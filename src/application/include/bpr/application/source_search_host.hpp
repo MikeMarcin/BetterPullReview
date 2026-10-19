@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/source_search_projection.hpp"
 #include "bpr/core/source_matcher.hpp"
@@ -113,6 +114,9 @@ namespace bpr::application {
 		[[nodiscard]] auto counters() const noexcept -> source_search_host_counters;
 		[[nodiscard]] auto retained_work_packets() const noexcept -> std::size_t;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+
+		/// \brief Attaches a passive profile observer; existing work and admission are unchanged.
+		void observe_work(std::shared_ptr<insights_observer> aObserver);
 
 	private:
 		struct implementation;

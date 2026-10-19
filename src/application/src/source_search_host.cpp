@@ -139,6 +139,7 @@ namespace bpr::application {
 		effect_executor&                                               Effects;
 		source_search_execution_port&                                  Execution;
 		source_search_projection_port&                                 Projection;
+		std::shared_ptr<insights_observer>                             WorkObserver;
 		core::source_search_state                                      State;
 		std::string                                                    Query;
 		std::string                                                    Include;
@@ -416,8 +417,10 @@ namespace bpr::application {
 			const auto current = Active;
 			const auto host    = shared_from_this();
 			try {
-				Effects.post([host, current] {
-					auto terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
+				const auto observer = WorkObserver;
+				Effects.post([host, current, observer] {
+					const auto started  = std::chrono::steady_clock::now();
+					auto       terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
 					if (!current->Stop.stop_requested()) {
 						try {
 							terminal = host->Execution.execute(current->Work, current->Stop.get_token(), [host, current](source_search_batch aBatch) { host->receive_batch(current, std::move(aBatch)); });
@@ -434,6 +437,13 @@ namespace bpr::application {
 							terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } } };
 						}
 					}
+					if (observer && (terminal.Terminal.Status == core::source_search_status::complete || terminal.Terminal.Status == core::source_search_status::partial)) {
+						core::insights_work_sample sample;
+						sample.Kind                 = core::insights_work_kind::search;
+						sample.DurationMicroseconds = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
+						observer->record_work(sample);
+					}
+
 					host->Decisions.post([host, current, completion = std::move(terminal)]() mutable { host->complete(current, std::move(completion)); });
 				});
 				++Counters.Scheduled;
@@ -490,6 +500,8 @@ namespace bpr::application {
 			drain();
 		}
 	};
+
+	void source_search_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->WorkObserver = std::move(aObserver); }
 
 	source_search_host::source_search_host(decision_executor& aDecisions, effect_executor& aEffects, source_search_execution_port& aExecution, source_search_projection_port& aProjection)
 		: Implementation(std::make_shared<implementation>(aDecisions, aEffects, aExecution, aProjection))

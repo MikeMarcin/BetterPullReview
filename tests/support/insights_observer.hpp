@@ -24,6 +24,16 @@ namespace bpr::tests {
 			std::lock_guard lock{ Mutex };
 			return Energy;
 		}
+		void record_work(core::insights_work_sample aSample) noexcept override
+		{
+			std::lock_guard lock{ Mutex };
+			Work.push_back(std::move(aSample));
+		}
+		auto work() -> std::vector<core::insights_work_sample>
+		{
+			std::lock_guard lock{ Mutex };
+			return Work;
+		}
 		void select(core::insights_scope) noexcept override { }
 		void record_review(core::insights_review_event aEvent) noexcept override
 		{
@@ -44,6 +54,7 @@ namespace bpr::tests {
 	private:
 		std::atomic_bool                          Foreground = false;
 		std::mutex                                Mutex;
+		std::vector<core::insights_work_sample>   Work;
 		std::vector<core::insights_energy_sample> Energy;
 		std::vector<core::insights_review_event>  Reviews;
 		std::vector<core::insights_event>         Events;

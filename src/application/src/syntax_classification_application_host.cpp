@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -357,6 +358,11 @@ namespace bpr::application {
 					});
 				});
 				++ClassificationSubmissions;
+				if (WorkObserver) {
+					core::insights_work_sample sample;
+					sample.Kind = core::insights_work_kind::syntax_miss;
+					WorkObserver->record_work(sample);
+				}
 			} catch (...) {
 				abandon(request.Context.Request);
 				publish_failure(request.Context,
@@ -440,6 +446,11 @@ namespace bpr::application {
 			}
 			Cache.erase(found);
 			++CacheEvictions;
+			if (WorkObserver) {
+				core::insights_work_sample sample;
+				sample.Kind = core::insights_work_kind::syntax_eviction;
+				WorkObserver->record_work(sample);
+			}
 		}
 
 		[[nodiscard]] auto classification_in_flight(
@@ -470,6 +481,11 @@ namespace bpr::application {
 				++CacheSequence;
 				entry->Sequence = CacheSequence;
 				++CacheHits;
+				if (WorkObserver) {
+					core::insights_work_sample sample;
+					sample.Kind = core::insights_work_kind::syntax_hit;
+					WorkObserver->record_work(sample);
+				}
 				publish_spans(local_context(), aKey, entry->Spans, true);
 				return;
 			}
@@ -586,6 +602,7 @@ namespace bpr::application {
 		core::application_session_id            Session;
 		appearance_host_limits                  Limits;
 		std::shared_ptr<completion_gate>        Gate;
+		std::shared_ptr<insights_observer>      WorkObserver;
 		std::vector<cache_entry>                Cache;
 		std::vector<outstanding_request>        Outstanding;
 		std::deque<deferred_appearance_ingress> DeferredIngress;
@@ -604,6 +621,8 @@ namespace bpr::application {
 		bool                                    DeferredIngressScheduled  = false;
 		bool                                    ProjectionDeliveryFailed  = false;
 	};
+	void syntax_classification_application_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->WorkObserver = std::move(aObserver); }
+
 	syntax_classification_application_host::syntax_classification_application_host(
 		syntax_classification_port& aClassification, effect_executor& aEffects, decision_executor& aDecisionLane,
 		appearance_projection_port& aProjections, core::application_session_id aSession, appearance_host_limits aLimits)

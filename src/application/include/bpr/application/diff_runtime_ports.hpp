@@ -74,6 +74,7 @@ namespace bpr::application {
 	{
 		core::file_comparison_key Key;
 		core::diff_options        Options;
+		std::string               Path;
 
 		auto operator<=>(const prepared_diff_request&) const = default;
 	};

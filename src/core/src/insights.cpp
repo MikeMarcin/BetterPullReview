@@ -393,4 +393,111 @@ namespace bpr::core {
 		return result;
 	}
 
+	namespace {
+		auto work_rank(const std::map<std::uint64_t, std::uint64_t>& aValues, const std::uint64_t aRank) -> std::uint64_t
+		{
+			std::uint64_t seen = 0;
+			for (const auto& [duration, count] : aValues) {
+				seen += count;
+				if (seen >= aRank) {
+					return duration;
+				}
+			}
+			return 0;
+		}
+		auto work_percentile(const std::map<std::uint64_t, std::uint64_t>& aValues, const std::uint64_t aCount, const std::uint64_t aPercent) -> std::optional<std::uint64_t>
+		{
+			if (!aCount) {
+				return std::nullopt;
+			}
+			return work_rank(aValues, (aCount / 100) * aPercent + ((aCount % 100) * aPercent + 99) / 100);
+		}
+		auto work_median(const std::map<std::uint64_t, std::uint64_t>& aValues, const std::uint64_t aCount) -> std::optional<std::uint64_t>
+		{
+			if (!aCount) {
+				return std::nullopt;
+			}
+			const auto lower = work_rank(aValues, (aCount + 1) / 2);
+			const auto upper = work_rank(aValues, aCount / 2 + 1);
+			return lower + (upper - lower) / 2;
+		}
+
+		auto work_range(const std::vector<insights_work_sample>& aSamples, std::int64_t aStart, std::int64_t aNow) -> insights_work_range
+		{
+			insights_work_range                    result;
+			std::map<std::uint64_t, std::uint64_t> latencies, searches;
+			std::map<std::string, std::uint64_t>   paths;
+			for (const auto& sample : aSamples) {
+				if (sample.At < aStart || sample.At > aNow || !sample.Count) {
+					continue;
+				}
+				switch (sample.Kind) {
+				case insights_work_kind::latency:
+					result.Latencies += sample.Count;
+					latencies[sample.DurationMicroseconds] += sample.Count;
+					if (sample.DurationMicroseconds > 100000) {
+						result.Stalls += sample.Count;
+						result.LongestMicroseconds = std::max(result.LongestMicroseconds, sample.DurationMicroseconds);
+					}
+					break;
+				case insights_work_kind::diff:
+					result.Files += sample.Count;
+					result.DiffMicroseconds += sample.DurationMicroseconds * sample.Count;
+					result.WorkLimits += sample.WorkLimit ? sample.Count : 0;
+					result.SegmentLimits += sample.SegmentLimit ? sample.Count : 0;
+					result.Approximate += sample.Approximate ? sample.Count : 0;
+					if (!sample.Path.empty()) {
+						paths[sample.Path] = std::max(paths[sample.Path], sample.DurationMicroseconds);
+					}
+					break;
+				case insights_work_kind::syntax_hit:      result.SyntaxHits += sample.Count; break;
+				case insights_work_kind::syntax_miss:     result.SyntaxMisses += sample.Count; break;
+				case insights_work_kind::syntax_eviction: result.SyntaxEvictions += sample.Count; break;
+				case insights_work_kind::search:
+					result.Searches += sample.Count;
+					searches[sample.DurationMicroseconds] += sample.Count;
+					break;
+				}
+			}
+			result.P95Microseconds          = work_percentile(latencies, result.Latencies, 95);
+			result.SearchMedianMicroseconds = work_median(searches, result.Searches);
+			for (const auto& [path, duration] : paths) {
+				result.Slowest.push_back({ path, duration });
+			}
+			std::ranges::sort(result.Slowest, [](const auto& aLeft, const auto& aRight) { return aLeft.Microseconds != aRight.Microseconds ? aLeft.Microseconds > aRight.Microseconds : aLeft.Path < aRight.Path; });
+			if (result.Slowest.size() > 5) {
+				result.Slowest.resize(5);
+			}
+			return result;
+		}
+	}
+	auto rollup_insights_work(const std::vector<insights_work_sample>& aSamples, const std::int64_t aNow) -> std::vector<insights_work_sample>
+	{
+		using key = std::tuple<std::int64_t, insights_work_kind, std::uint64_t, std::string, bool, bool, bool>;
+		std::map<key, insights_work_sample> buckets;
+		for (auto sample : aSamples) {
+			if (sample.At < aNow - 93 * 86400 || sample.At > aNow || !sample.Count || sample.Path.size() > 4096) {
+				continue;
+			}
+			const auto width       = sample.At >= aNow - 48 * 3600 ? 300 : 86400;
+			sample.At              = sample.At / width * width;
+			auto [found, inserted] = buckets.try_emplace(key{ sample.At, sample.Kind, sample.DurationMicroseconds, sample.Path, sample.WorkLimit, sample.SegmentLimit, sample.Approximate }, sample);
+			if (!inserted) {
+				found->second.Count += sample.Count;
+			}
+		}
+		std::vector<insights_work_sample> result;
+		for (auto& [identity, sample] : buckets) {
+			result.push_back(std::move(sample));
+		}
+		return result;
+	}
+	auto build_insights_work(const std::vector<insights_work_sample>& aSamples, const std::int64_t aNow) -> insights_work_snapshot
+	{
+		insights_work_snapshot result;
+		result.Ranges[0] = work_range(aSamples, (aNow - 3600) / 300 * 300, aNow);
+		result.Ranges[1] = work_range(aSamples, (aNow - 86400) / 300 * 300, aNow);
+		return result;
+	}
+
 }

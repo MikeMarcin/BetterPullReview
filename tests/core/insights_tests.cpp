@@ -123,5 +123,48 @@ int main()
 	const auto mixed         = core::build_insights_energy({ mixedBg, mixedFg }, energyNow, 20690);
 	expect(mixed.Hour.front().BackgroundBudget == 1.0 && *mixed.Hour.front().Background > *mixed.Hour.front().BackgroundBudget && *core::insights_cpu_per_hour(mixedBg) > 2.0, "the background budget line uses the same measured-duration denominator as the stack, so mixed-state intervals agree with the idle tile");
 
+	std::vector<core::insights_work_sample> work;
+	const auto                              addWork = [&](core::insights_work_kind aKind, std::uint64_t aDuration, std::uint64_t aCount = 1) {
+		core::insights_work_sample sample;
+		sample.At                   = energyNow - 60;
+		sample.Kind                 = aKind;
+		sample.DurationMicroseconds = aDuration;
+		sample.Count                = aCount;
+		work.push_back(sample);
+	};
+	addWork(core::insights_work_kind::latency, 100000, 19);
+	addWork(core::insights_work_kind::latency, 250000);
+	addWork(core::insights_work_kind::search, 10000);
+	addWork(core::insights_work_kind::search, 30000);
+	for (std::uint64_t i = 0; i < 7; ++i) {
+		addWork(core::insights_work_kind::diff, 1000 * (i + 1));
+		work.back().Path         = "src/" + std::to_string(i) + ".cpp";
+		work.back().WorkLimit    = i == 0;
+		work.back().SegmentLimit = i == 1;
+		work.back().Approximate  = i == 2;
+	}
+	addWork(core::insights_work_kind::syntax_hit, 0, 3);
+	addWork(core::insights_work_kind::syntax_miss, 0, 1);
+	addWork(core::insights_work_kind::syntax_eviction, 0, 1);
+	const auto stats = core::build_insights_work(work, energyNow).Ranges[0];
+	expect(stats.Stalls == 1 && stats.LongestMicroseconds == 250000 && stats.P95Microseconds == 100000, "strictly greater than100ms is one stall; weighted p95 includes normal turns");
+	expect(stats.Files == 7 && stats.WorkLimits == 1 && stats.SegmentLimits == 1 && stats.Approximate == 1 && stats.Slowest.size() == 5 && stats.Slowest.front().Path == "src/6.cpp", "all diff limits are separate and the five slowest paths are ordered by measured wall time");
+	expect(stats.SyntaxHits == 3 && stats.SyntaxMisses == 1 && stats.SyntaxEvictions == 1 && stats.Searches == 2 && stats.SearchMedianMicroseconds == 20000, "cache facts and search sample counts survive projection");
+	auto dayWork = work.back();
+	dayWork.Kind = core::insights_work_kind::diff;
+	dayWork.At   = energyNow - 7200;
+	dayWork.Path = "old.cpp";
+	work.push_back(dayWork);
+	const auto workRanges = core::build_insights_work(work, energyNow);
+	expect(workRanges.Ranges[0].Files == 7 && workRanges.Ranges[1].Files == 8, "hour and day ranges select their retained five-minute buckets independently");
+	auto ancient = work.front();
+	ancient.At   = energyNow - 94 * 86400;
+	work.push_back(ancient);
+	auto daily = work.front();
+	daily.At   = energyNow - 3 * 86400;
+	work.push_back(daily);
+	const auto rolledWork = core::rollup_insights_work(work, energyNow);
+	expect(rolledWork.front().At % 86400 == 0 && rolledWork.size() == work.size() - 1, "Work retains five-minute and daily history and discards expired observations");
+
 	std::cout << "insights-core:pass\n";
 }
