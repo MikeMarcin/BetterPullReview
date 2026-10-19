@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1623"
 title: "Prepare the coordinated v0.3.0 release source"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"assigned_implementer":"/root/release_engineering","mandate":"release-v030-coordinated-r1","baseline":"a426db419d393895020ab961509df46aba94ee46","milestone_plan":{"id":"release-v030-engineering","path":"docs/rfcs/plans/release-v030-engineering/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"491306a81ed589c9ed821cacfba974fa1a81ed3f","evidence":{"kind":"observation","detail":"CMake version is 0.3.0; notes grounded in v0.2.2 delta select stable full macOS/Windows/Ubuntu26.04 with agent and local automation."}},{"criterion":"AC2","outcome":"pass","revision":"491306a81ed589c9ed821cacfba974fa1a81ed3f","evidence":{"kind":"artifact","detail":"Notes and release-v030-engineering ledger retain RFC0038 native/vault/crash/privacy/vulnerability/trust/source obligations, original skip evidence and candidate-specific historical decisions. RFC0038 remains Proposed.","path":"docs/verification/release-v030-engineering.md"}},{"criterion":"AC3","outcome":"pass","revision":"491306a81ed589c9ed821cacfba974fa1a81ed3f","evidence":{"kind":"command","detail":"DOCUMENTATION_OK; 67 documentation tests pass; direct CMake/notes identity check and git diff --check pass. Source self-review complete. No full/native builds started; all owned commands finished. Exact full source handed to coordinator in durable engineering-handoff.json."}}]
 ---
 
 # BPR-1623: Prepare the coordinated v0.3.0 release source

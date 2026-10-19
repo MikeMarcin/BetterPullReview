@@ -6,7 +6,7 @@ Mandate `release-v030-coordinated-r1` requests full coordinated stable 0.3.0
 for macOS universal, Windows x64 and Ubuntu 26.04 x86_64, retaining agent
 integrations and local automation. Entry source is clean main
 `a426db419d393895020ab961509df46aba94ee46`; the change summary is grounded in
-the committed delta from v0.2.2. [BPR-1623](../issues/30-in-progress/BPR-1623-prepare-coordinated-v030-release-source.md)
+the committed delta from v0.2.2. [BPR-1623](../issues/60-done/BPR-1623-prepare-coordinated-v030-release-source.md)
 owns version, notes and exact-source readiness under the
 [engineering plan](../rfcs/plans/release-v030-engineering/milestone-plan.json).
 

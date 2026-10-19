@@ -3,7 +3,7 @@
 ## Coordinated stable 0.3.0 source preparation, 2026-10-18
 
 The owner selected full macOS, Windows x64 and Ubuntu 26.04 packages at stable
-0.3.0. [BPR-1623](../issues/30-in-progress/BPR-1623-prepare-coordinated-v030-release-source.md)
+0.3.0. [BPR-1623](../issues/60-done/BPR-1623-prepare-coordinated-v030-release-source.md)
 and the [engineering ledger](release-v030-engineering.md) bind source
 preparation to entry `a426db419d393895020ab961509df46aba94ee46` under mandate
 `release-v030-coordinated-r1`. The coordinator owns exact-source native normal
