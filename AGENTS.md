@@ -22,7 +22,7 @@ The core decides. The host performs. Qt presents.
 | `src/core/` | Deterministic policy, compact interaction state, typed transitions, request identity, semantic deltas, diagnostics |
 | `src/application/` | Effects, bounded observations, serialized completion lane, cancellation, lifecycle |
 | `src/adapters/qt/` | Qt events, widgets, actions, models, focus, accessibility, rendering, incremental projection |
-| `src/adapters/{github,git,sqlite,agent,syntax,mcp,workspace,regex,xdiff}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link). `workspace` reads a chosen local root without following links, writing or running Git (Review Cycles). `regex` is source search's RE2 engine behind core's `source_regex_engine` interface. `xdiff` is the diff engine's primary line matcher, Git's xdiff as its own shared library behind the application's `diff_line_matcher_port` (BPR-1485) |
+| `src/adapters/{github,git,sqlite,agent,syntax,mcp,workspace,xdiff}` | Narrow application-host capability ports; no provider types cross inward. `mcp` is the shipped read-only context helper (its own executable, core-only link). `workspace` reads a chosen local root without following links, writing or running Git (Review Cycles). `xdiff` is the diff engine's primary line matcher, Git's xdiff as its own shared library behind the application's `diff_line_matcher_port` (BPR-1485) |
 | `src/adapters/process_support/` | Shared adapter support: the QProcess supervision the gh and Git runners share (serialized lane, quarantine, process-group kill, bounded reap and abandonment). Qt Core only, no first-party dependency; it launches nothing and decides nothing about what a process runs |
 | `src/platform/` | Header-only platform definitions that several adapters share and none owns, so no adapter-to-adapter edge is needed: the Windows owner-private object, its descriptor and its exact check; and the Windows launch restriction that gives a `QProcess` child its three standard handles and nothing else, and refuses at creation a launch whose list cannot be built; and the bound a Git or `gh` launch puts on its child's descriptor sweep on macOS. No adapter state, Qt, provider, file-system policy or decision about what a process runs; `architecture_boundaries` refuses a second descriptor builder and keeps the handle-list APIs to the platform header and the named launch owners |
 | `src/app/` | Concrete composition and application entry point |
@@ -34,7 +34,12 @@ thread, timer, network, database, credential, or hidden-global semantic dependen
 is the narrow OS-API exception (RFC-BPR-0080 r4, 2026-10-18): CommonCrypto
 on macOS, CNG on Windows, HACL portable fallback. CPU dispatch and internal
 implementation state may vary while digest bytes remain identical. This
-does not admit arbitrary OS capabilities. Duration/time-point arithmetic and
+does not admit arbitrary OS capabilities. Pinned RE2/Abseil may implement
+source matching inside core (owner, 2026-10-18; BPR-1618): no worker creation,
+with internal synchronization, hash state and contention clocks permitted only
+when matches and diagnostics remain externally deterministic. This is not
+general permission for core threads, clocks, entropy or logging.
+Duration/time-point arithmetic and
 caller-owned explicitly seeded PRNG state are permitted; implicit clock reads
 and entropy (`random_device`) remain host effects (owner, 2026-10-18).
 A widget or Qt model must not perform GitHub, Git, SQLite, AI, filesystem,
@@ -110,15 +115,15 @@ network, or process effects.
   licence, the layer it would live in, and why it fits or does not; do not
   hand-roll it while that question is open. Core may link only the
   owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries
-  below, plus the deterministic platform SHA-256 exception above:
+  below, plus the deterministic platform SHA-256 and RE2 exceptions above:
   glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL*'s generated
   SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13; sha1collisiondetection
   and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082;
   dtl only for per-line intraline comparison and the Review Cycle suggestion
   hunks' line edit bounded at 512 changes, never as the diff engine's
-  whole-file line matcher). RE2 stays in an adapter
-  under its existing adapter contract; deterministic utility exceptions do not
-  change its placement. The 2026-10-13 audit found a hand-written regex
+  whole-file line matcher). Pinned RE2 and its Abseil dependency are approved
+  privately for source matching under BPR-1618's external-determinism contract.
+  The 2026-10-13 audit found a hand-written regex
   engine with a correctness bug, eight JSON implementations, a DEFLATE
   inflater and hand-written hashes that libraries should have supplied.
 - Never use `git stash` in a worktree: the stash list is shared by every

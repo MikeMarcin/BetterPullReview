@@ -7,6 +7,22 @@ matcher and M3 the exact epoch corpus. M4 ([[BPR-1422]]) composes native pane
 Find in the shipped source reader. M5 ([[BPR-1423]]) composes PR Search, exact
 result activation and the large public performance course.
 
+## Matcher ownership
+
+[[BPR-1618]] moves BPR-1431's unchanged pinned RE2 wrapper into core's private
+`source_regex_engine.cpp`. `default_source_regex_engine()` supplies it to the
+same injectable `source_regex_engine` interface used by pane and PR execution.
+Both Qt-free core and the application use that implementation. RE2 and Abseil
+types never cross the core API; the regex adapter and its target are removed.
+
+The owner approved this scoped dependency on 2026-10-18 after auditing worker
+creation and externally visible determinism. Internal locks, one-time state,
+hash seeds and contention clocks may change cache layout/timing; they must not
+change syntax, match spans/order, error codes or offsets. Fixed UTF-8 options,
+quiet errors, no captures, the existing memory bound and DFA fallback stay as
+before. See the [audit](../issues/_checkpoints/BPR-1618/re2-audit.md). Host-owned
+cancellation and source reads retain their existing effect boundary.
+
 ## Core policy
 
 `core::source_search_state` retains an exact scope, query owner, monotonic
@@ -100,9 +116,9 @@ native pane controls through the installed application composition.
 `compile_source_match` compiles once and returns an immutable host-owned program.
 Matching runs on [Google RE2](../../third_party/re2/PROVENANCE.md) ([[BPR-1431]]),
 which replaced a hand-written engine after the 2026-10-13 review found it
-silently missed Whole Word regex matches. Core owns the rules and links no
-library: it reaches RE2 through the `source_regex_engine` interface, which the
-`regex` adapter implements and the composition root supplies. RE2 runs in linear
+silently missed Whole Word regex matches. Core owns the rules and the private
+RE2 implementation behind `source_regex_engine`; composition supplies the core
+factory to the host ([[BPR-1618]]). RE2 runs in linear
 time with no backtracking; literal queries use its literal mode. Case-insensitive
 matching uses RE2's Unicode simple case folding, with no locale, accent removal,
 normalization or multi-scalar fold. Whole Word treats Unicode letters, marks,

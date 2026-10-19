@@ -57,7 +57,7 @@ def copy_core_archives(cache: Path) -> None:
     ([[BPR-1434]]), glaze ([[BPR-1433]]), fmt ([[BPR-1439]]) and
     sha1collisiondetection ([[BPR-1450]]), HACL* ([[BPR-1451]]),
     rapidfuzz-cpp ([[BPR-1480]]), Git's xdiff ([[BPR-1485]]) and dtl
-    ([[BPR-1481]])."""
+    ([[BPR-1481]]), plus RE2/Abseil ([[BPR-1618]])."""
     cache.mkdir(parents=True, exist_ok=True)
     for archive in (
         "zlib-1.3.2.tar.gz",
@@ -69,6 +69,8 @@ def copy_core_archives(cache: Path) -> None:
         "rapidfuzz-cpp-3.3.4.tar.gz",
         "git-2.56.0.tar.xz",
         "dtl-1.21.tar.gz",
+        "re2-2025-11-05.tar.gz",
+        "abseil-cpp-20250814.2.tar.gz",
     ):
         shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
 
@@ -543,6 +545,8 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         targets = {record.split("|", 2)[2] for record in records}
         self.assertIn("Threads::Threads", targets)
+        # [[BPR-1618]]. Source matching is also a core dependency.
+        self.assertIn("RE2|PINNED_ARCHIVE|BetterPullReview::RE2", records)
         # [[BPR-1450]]. Every graph, Qt or not, builds the core's SHA-1.
         self.assertIn(
             "sha1collisiondetection|PINNED_ARCHIVE|BetterPullReview::Sha1dc",
@@ -581,6 +585,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 / "build/_bpr/product-dependency-audit.cmake"
             ).read_text(encoding="utf-8")
             self.assertIn("Threads|TOOLCHAIN|Threads::Threads", audit)
+            self.assertIn("RE2|PINNED_ARCHIVE|BetterPullReview::RE2", audit)
             for dependency in ("Python3", "Git", "Qt6", "LibSecret"):
                 self.assertNotIn(dependency, audit)
 

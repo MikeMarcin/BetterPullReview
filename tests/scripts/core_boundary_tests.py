@@ -62,7 +62,7 @@ class CoreBoundaryTests(unittest.TestCase):
         # Cycle suggestion hunks ([[BPR-1498]]).
         approved = self.run_check(
             "struct identity {};\n",
-            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl BetterPullReview::RE2)\n",
         )
         self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
         for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):
@@ -73,6 +73,18 @@ class CoreBoundaryTests(unittest.TestCase):
                 )
                 self.assertNotEqual(refused.returncode, 0, refused.stdout)
                 self.assertIn("not an owner-approved core library", refused.stdout + refused.stderr)
+
+    def test_re2_exception_has_one_private_owner(self) -> None:
+        allowed = self.run_check('#include <re2/re2.h>\n',
+                                 source_path="src/core/src/source_regex_engine.cpp")
+        self.assertEqual(allowed.returncode, 0, allowed.stdout + allowed.stderr)
+        for path in ("src/core/include/bpr/core/source_matcher.hpp", "src/core/src/policy.cpp"):
+            with self.subTest(path=path):
+                refused = self.run_check('#include <re2/re2.h>\n', source_path=path)
+                self.assertNotEqual(refused.returncode, 0)
+        refused = self.run_check('#include <absl/synchronization/mutex.h>\n',
+                                 source_path="src/core/src/source_regex_engine.cpp")
+        self.assertNotEqual(refused.returncode, 0)
 
     def test_qt_provider_and_effect_headers_are_rejected(self) -> None:
         for header in (

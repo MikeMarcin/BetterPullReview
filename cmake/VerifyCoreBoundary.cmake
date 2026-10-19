@@ -70,6 +70,11 @@ foreach(core_file IN LISTS core_files)
         string(REPLACE "#include <bcrypt.h>" "" contents "${contents}")
         string(REGEX REPLACE "(BCrypt(CreateHash|DuplicateHash|HashData|FinishHash|DestroyHash)|BCRYPT_SHA256_ALG_HANDLE|BCRYPT_HASH_HANDLE)" "" contents "${contents}")
     endif()
+    if(contents MATCHES "#[ \t]*include[ \t]*[<\"](re2/|absl/)"
+       AND (NOT core_file STREQUAL "${BPR_ROOT}/src/core/src/source_regex_engine.cpp"
+            OR contents MATCHES "#[ \t]*include[ \t]*[<\"]absl/"))
+        message(FATAL_ERROR "Functional-core boundary violation: RE2 belongs only to the private source matcher; Abseil is transitive only")
+    endif()
     foreach(pattern IN LISTS forbidden_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${core_file}")
@@ -88,6 +93,9 @@ endforeach()
 # (dtl only for per-line intraline comparison and the Review Cycle suggestion
 # hunks' line edit bounded at 512 changes; architecture_boundaries keeps it to
 # those two sources).
+# Owner, 2026-10-18: pinned RE2/Abseil may implement source matching with
+# externally deterministic results and no worker creation (BPR-1618). Only
+# the private production wrapper includes RE2; Abseil is transitive only.
 set(
     core_allowed_link_targets
     glaze::glaze
@@ -98,6 +106,7 @@ set(
     BetterPullReview::HaclSha2
     BetterPullReview::RapidFuzz
     BetterPullReview::Dtl
+    BetterPullReview::RE2
     bcrypt
 )
 set(core_cmake "${BPR_ROOT}/src/core/CMakeLists.txt")

@@ -30,7 +30,7 @@ namespace bpr::core {
 		std::uint64_t MaximumScanSteps    = 128U * 1024U * 1024U;
 	};
 
-	/// \brief One compiled RE2-syntax pattern supplied by the host's regex engine.
+	/// \brief One compiled RE2-syntax pattern supplied by the source-search engine.
 	/// \details [[BPR-1431]]. The engine is a mature library (RE2) behind this
 	/// interface; core keeps the matching rules. Implementations are immutable
 	/// and safe to call from several threads.
@@ -61,7 +61,7 @@ namespace bpr::core {
 		std::shared_ptr<const source_regex> Regex;
 		std::size_t                         RetainedBytes = 0U;
 	};
-	/// \brief The host's regex engine, injected so core links no library.
+	/// \brief Source-search engine interface, injectable for focused host and limit tests.
 	class source_regex_engine
 	{
 	public:
@@ -71,6 +71,11 @@ namespace bpr::core {
 		virtual ~source_regex_engine()                                                                                           = default;
 		[[nodiscard]] virtual auto compile(std::string_view aPattern, source_regex_syntax aSyntax) const -> source_regex_compile = 0;
 	};
+
+	/// \brief Core's pinned RE2 implementation, with UTF-8, quiet errors and bounded caches.
+	/// \details [[BPR-1618]]. The implementation creates no worker threads. Its
+	/// synchronized caches do not affect match spans, ordering or diagnostics.
+	[[nodiscard]] auto default_source_regex_engine() -> const source_regex_engine&;
 
 	/// \brief Immutable compiled query, owned by the host and reusable across documents.
 	/// \details Literal and regular-expression queries both run on the injected

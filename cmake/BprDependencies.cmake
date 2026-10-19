@@ -93,6 +93,12 @@ function(bpr_configure_dependencies)
     bpr_require_dependency_target(Threads::Threads Threads)
     list(APPEND records "Threads|TOOLCHAIN|Threads::Threads")
 
+    # [[BPR-1618]]. Owner-approved deterministic source matching in core.
+    # RE2's internal synchronization creates no worker threads.
+    bpr_acquire_re2()
+    bpr_require_dependency_target(BetterPullReview::RE2 RE2)
+    list(APPEND records "RE2|PINNED_ARCHIVE|BetterPullReview::RE2")
+
     # [[BPR-1435]]. The core's review-bundle reader inflates with pinned zlib.
     bpr_acquire_zlib()
     bpr_require_dependency_target(BetterPullReview::ZLib zlib)
@@ -318,12 +324,6 @@ function(bpr_configure_dependencies)
             bpr_acquire_quill()
             bpr_require_dependency_target(quill::quill Quill)
             list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
-
-            # [[BPR-1431]]. Source search's regex engine. It stays out of the
-            # Qt-free core graph: Abseil uses threads, so it is no core library.
-            bpr_acquire_re2()
-            bpr_require_dependency_target(BetterPullReview::RE2 RE2)
-            list(APPEND records "RE2|PINNED_ARCHIVE|BetterPullReview::RE2")
 
             bpr_acquire_syntax_highlighting()
 
