@@ -26708,7 +26708,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// at its right.
 	#if defined(_WIN32)
 		const auto windowControlsInRow = exactRowOrder
-			? toolbar->actionGeometry(toolbarActions[at(18)])
+			? toolbar->actionGeometry(toolbarActions[at(16)])
 			: QRect{ };
 	#else
 		const auto windowControlsInRow = QRect{ };
