@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_APPLICATION_HOST_HPP
 
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
@@ -214,7 +215,7 @@ namespace bpr::application {
 			effect_executor&                      aEffects,
 			decision_executor&                    aDecisionLane,
 			review_mutation_projection_port&      aProjection,
-			review_mutation_source_port*          aSources = nullptr);
+			review_mutation_source_port* aSources = nullptr, insights_review_capture aInsights = { });
 
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
 		/// \brief Builds the fixture-only path around a hermetic mutation provider.
@@ -228,7 +229,7 @@ namespace bpr::application {
 			effect_executor&                 aEffects,
 			decision_executor&               aDecisionLane,
 			review_mutation_projection_port& aProjection,
-			review_mutation_source_port*     aSources = nullptr);
+			review_mutation_source_port* aSources = nullptr, insights_review_capture aInsights = { });
 #endif
 
 		~review_mutation_application_host();

@@ -63,5 +63,9 @@ int main()
 	effects.drain();
 	expect(effects.pending() == 0 && storage->Recorded.size() == 1 && storage->Recorded.front().Kind == core::insights_event_kind::problem, "problem tallies work without a diagnostic logger and drain one bounded effect task");
 
+	expect(application::local_insights_day(1793521800) == 20758 && application::local_insights_day(1793525400) == 20758, "both occurrences of 1:30 in the fall DST overlap share one local day");
+	expect(application::local_insights_day(1793606399) == 20758 && application::local_insights_day(1793606400) == 20759, "the 25-hour day ends at local midnight, not a fixed UTC boundary");
+	expect(application::local_insights_day(1772963940) == 20520 && application::local_insights_day(1772964060) == 20520, "the spring-forward gap stays in its local day");
+
 	std::cout << "insights-host:pass\n";
 }

@@ -139,6 +139,7 @@ namespace bpr::application {
 		effect_executor&                   Effects;
 		decision_executor&                 Decisions;
 		review_submission_projection_port& Projection;
+		insights_review_capture            Insights;
 		mutable std::mutex                 Mutex;
 		std::shared_ptr<record>            Active;
 		std::uint64_t                      Next    = 0U;
@@ -146,7 +147,7 @@ namespace bpr::application {
 
 		implementation(review_submission_provider_factory aFactory, review_submission_live_binding aBinding,
 					   core::application_session_id aSession, core::request_generation aGeneration,
-					   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection)
+					   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights)
 			: Factory{ std::move(aFactory) }
 			, Binding{ std::move(aBinding) }
 			, Session{ aSession }
@@ -154,6 +155,7 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, Decisions{ aDecisions }
 			, Projection{ aProjection }
+			, Insights{ std::move(aInsights) }
 		{ }
 
 		static auto refused(const record& aRecord, review_mutation_failure aFailure, bool aBeforeEffect) -> review_submission_host_terminal
@@ -222,6 +224,9 @@ namespace bpr::application {
 				if (result.Record && (!valid(*result.Record) || result.Record->Plan != *aRecord->Plan)) {
 					return refused(*aRecord, review_mutation_failure::unavailable, false);
 				}
+				if (result.Record && result.Record->Published && result.Record->Review && !result.Record->Plan.ConversationReply && !result.Record->Plan.Update) {
+					Insights.record(core::insights_review_kind::submitted, std::to_string(result.Record->Review->Id.value()));
+				}
 				return { aRecord->Context, std::move(result) };
 			}
 			if (aRecord->Operation == operation::discover) {
@@ -274,6 +279,11 @@ namespace bpr::application {
 					&& (!result.Receipt || !valid(*result.Receipt, expected)))
 				|| (result.Publication != review_submission_publication::published && result.Receipt)) {
 				return refused(*aRecord, review_mutation_failure::unavailable, false);
+			}
+			if (result.Publication == review_submission_publication::published && result.Receipt) {
+				const auto disposition = result.Receipt->Disposition;
+				Insights.record(core::insights_review_kind::submitted, std::to_string(result.Receipt->ReviewDatabaseId.value()), 0, false, disposition == core::review_disposition::approve ? 0 : disposition == core::review_disposition::request_changes ? 1
+																																																														   : 2);
 			}
 			return { aRecord->Context, std::move(result) };
 		}
@@ -342,8 +352,8 @@ namespace bpr::application {
 	};
 	review_submission_application_host::review_submission_application_host(review_submission_provider_factory aFactory,
 																		   review_submission_live_binding aBinding, core::application_session_id aSession, core::request_generation aGeneration,
-																		   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection)
-		: Implementation{ std::make_shared<implementation>(std::move(aFactory), std::move(aBinding), aSession, aGeneration, aEffects, aDecisions, aProjection) }
+																		   effect_executor& aEffects, decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights)
+		: Implementation{ std::make_shared<implementation>(std::move(aFactory), std::move(aBinding), aSession, aGeneration, aEffects, aDecisions, aProjection, std::move(aInsights)) }
 	{ }
 	review_submission_application_host::~review_submission_application_host() { shutdown(); }
 	auto review_submission_application_host::discover() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover, nullptr, { }); }

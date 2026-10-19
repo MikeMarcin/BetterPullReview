@@ -6,6 +6,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/application/agent_launch.hpp"
@@ -1083,9 +1084,29 @@ namespace {
 		}
 	}
 
+	auto seed_review_statistics(const std::filesystem::path& aRoot) -> std::unique_ptr<application::insights_storage_port>
+	{
+		auto                        store = bpr::adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+		core::insights_review_event event;
+		event.Kind        = core::insights_review_kind::submitted;
+		event.Host        = "github.com";
+		event.Repository  = "owner/lifetime";
+		event.PullRequest = 1;
+		event.Identity    = "review1";
+		event.LocalDay    = 20000;
+		event.UnixSeconds = 1728000000;
+		store->record_reviews({ event });
+		return store;
+	}
+	void require_review_statistics(application::insights_storage_port& aStore)
+	{
+		require(aStore.reviews(2000000000).Ranges[2][static_cast<std::size_t>(core::insights_review_metric::submitted)] == 1, "real cache cleanup preserves the independent lifetime review total");
+	}
+
 	auto verify_real_prune() -> void
 	{
 		real_fixture value{ "prune" };
+		auto         statistics = seed_review_statistics(value.Root.Path / "git");
 		value.start();
 		const auto epoch     = value.inserted_epoch();
 		const auto authority = *value.Host->state().Authority;
@@ -1094,6 +1115,7 @@ namespace {
 			.Epochs  = { epoch },
 		});
 		value.drain();
+		require_review_statistics(*statistics);
 		require(value.Host->state().Catalog->Revision
 					== core::epoch_catalog_revision{ 2 },
 				"real prune advances the visible catalog exactly once");
@@ -1132,6 +1154,7 @@ namespace {
 	auto verify_real_cache_delete() -> void
 	{
 		real_fixture value{ "delete" };
+		auto         statistics = seed_review_statistics(value.Root.Path / "git");
 		value.start();
 		const auto epoch     = value.inserted_epoch();
 		const auto authority = *value.Host->state().Authority;
@@ -1140,6 +1163,7 @@ namespace {
 			.Cache   = authority.Cache,
 		});
 		value.drain();
+		require_review_statistics(*statistics);
 		require(value.Host->state().Catalog->Revision
 					== core::epoch_catalog_revision{ 2 },
 				"real cache deletion advances the visible catalog exactly once");

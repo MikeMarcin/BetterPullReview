@@ -1,4 +1,5 @@
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/core/sha256.hpp"
 #include "scratch_root.hpp"
@@ -221,8 +222,13 @@ namespace {
 		const auto reused = store.Store->freeze(operation(6), commit, { });
 		expect(reused && !reused->Changed && reused->Allocated == 1, "same draft revision and payload reuse the round");
 		const auto otherPayload = store.Store->install(bytes_of("{\"round\":\"other\"}"), { });
-		auto       changed      = commit;
-		changed.Payload         = *otherPayload;
+		{
+			auto insights = adapters::sqlite::make_insights_storage(scratch.path(), [] { return std::vector<application::insights_storage_row>{ }; });
+			expect(insights->reviews(2000000000).Ranges[2][static_cast<std::size_t>(core::insights_review_metric::rounds)] == 1, "a real frozen round counts once, excluding operation replay and content reuse");
+		}
+
+		auto changed    = commit;
+		changed.Payload = *otherPayload;
 		expect(store.Store->freeze(operation(7), changed, { }).error().Failure == cycle_store_failure::conflict, "different payload for a frozen revision");
 
 		expect(store.Store->save_draft(operation(8), subject, draft, 2, bytes_of("Fix the lexer and parser."), { }).has_value(), "edit after freeze");

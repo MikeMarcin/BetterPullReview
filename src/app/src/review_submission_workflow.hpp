@@ -20,7 +20,7 @@ namespace bpr::app {
 		using grant_factory         = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::review_submission_request&)>;
 		using publication_admission = std::function<std::expected<void, application::review_mutation_failure>(const application::review_submission_live_binding&)>;
 		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, publication_admission = { });
-		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory);
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, application::insights_review_capture = { });
 		void               invalidate(QString aReason = { });
 		void               invalidate(const application::pull_request_authority_invalidation&);
 		void               dispatch(qt::review_submission_editor_intent);
@@ -73,6 +73,7 @@ namespace bpr::app {
 			application::review_submission_live_binding     Binding;
 			application::workbench_pull_request_authority   Authority;
 			application::review_submission_provider_factory Factory;
+			application::insights_review_capture            Insights;
 		};
 		void retire();
 		void start_selection();
@@ -141,7 +142,7 @@ namespace bpr::app {
 		using grant_factory = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::staged_review_plan&)>;
 		using receipt_sink  = std::function<void(const application::staged_publication_record&)>;
 		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::publication_admission = { }, receipt_sink = { });
-		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false);
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false, application::insights_review_capture = { });
 		void               observe(const application::tour_presentation&);
 		void               dispatch(qt::tour_editor_action);
 		void               invalidate();
@@ -177,7 +178,7 @@ namespace bpr::app {
 	public:
 		using grant_factory = review_tour_publication_workflow::grant_factory;
 		conversation_reply_workflow(application::effect_executor&, application::decision_executor&, qt::workbench_window&, grant_factory, review_submission_workflow::publication_admission, std::function<void()>);
-		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, core::bpr_profile_id, application::review_submission_provider_factory);
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, core::bpr_profile_id, application::review_submission_provider_factory, application::insights_review_capture = { });
 		void               dispatch(core::conversation_reply_action, core::conversation_reply_draft);
 		void               invalidate();
 		void               shutdown();

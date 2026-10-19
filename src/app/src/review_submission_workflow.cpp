@@ -75,7 +75,7 @@ namespace bpr::app {
 	{ }
 
 	void review_submission_workflow::adopt(application::review_submission_live_binding   aBinding,
-										   application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory)
+										   application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, application::insights_review_capture aInsights)
 	{
 		if (Closing) {
 			return;
@@ -86,7 +86,7 @@ namespace bpr::app {
 		if (Host && (Ready || Context) && Current && Current->Binding == aBinding && Current->Authority == aAuthority) {
 			return;
 		}
-		Next = selection{ std::move(aBinding), std::move(aAuthority), std::move(aFactory) };
+		Next = selection{ std::move(aBinding), std::move(aAuthority), std::move(aFactory), std::move(aInsights) };
 		retire();
 		Status = QStringLiteral("Updating review authority…");
 		present();
@@ -131,7 +131,7 @@ namespace bpr::app {
 		}
 		Generation = core::request_generation{ Generation.value() + 1U };
 		Host       = std::make_unique<application::review_submission_application_host>(Current->Factory, Current->Binding,
-																					   Current->Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+																					   Current->Authority.ApplicationSession, Generation, Effects, Decisions, *this, Current->Insights);
 		Status     = QStringLiteral("Checking for an unfinished review…");
 		Context    = Host->discover();
 		if (!Context) {
@@ -769,7 +769,7 @@ namespace bpr::app {
 		Status    = "Publication authority changed. Refresh and prepare a new preview.";
 		present();
 	}
-	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aQualified)
+	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aQualified, application::insights_review_capture aInsights)
 	{
 		if (Closing) {
 			return;
@@ -786,7 +786,7 @@ namespace bpr::app {
 		Description = std::move(aDescription);
 		Qualified   = aQualified;
 		Generation  = core::request_generation{ Generation.value() + 1 };
-		Host        = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+		Host        = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this, std::move(aInsights));
 		Context     = Host->discover_tours();
 		Status      = "Checking saved publication state. No writes are scheduled.";
 		present();
@@ -1048,7 +1048,7 @@ namespace bpr::app {
 	{
 		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
 	}
-	void conversation_reply_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, core::bpr_profile_id aProfile, application::review_submission_provider_factory aFactory)
+	void conversation_reply_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, core::bpr_profile_id aProfile, application::review_submission_provider_factory aFactory, application::insights_review_capture aInsights)
 	{
 		aAuthority.Snapshot              = { };
 		aAuthority.PullRequestGeneration = { };
@@ -1060,7 +1060,7 @@ namespace bpr::app {
 		Authority  = aAuthority;
 		Profile    = aProfile;
 		Generation = core::request_generation{ Generation.value() + 1 };
-		Host       = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+		Host       = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this, std::move(aInsights));
 		Context    = Host->discover_conversation_replies();
 		Status     = QStringLiteral("Loading saved replies.");
 	}

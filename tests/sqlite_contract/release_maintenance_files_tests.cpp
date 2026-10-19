@@ -176,6 +176,15 @@ namespace {
 		write(aRoot / "updates/transaction-1/keep", "shared transaction");
 		auto insights = adapters::sqlite::make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
 		expect(insights->measure().TotalBytes.has_value(), "Insights has a measured local summary");
+		core::insights_review_event event;
+		event.Kind        = core::insights_review_kind::submitted;
+		event.Host        = "github.com";
+		event.Repository  = "private/stats-canary";
+		event.PullRequest = 7;
+		event.Identity    = "review-77";
+		event.LocalDay    = 20000;
+		event.UnixSeconds = 1728000000;
+		insights->record_reviews({ event });
 	}
 	void test_host_native_public_path()
 	{
@@ -233,6 +242,10 @@ namespace {
 		expect(host.state().Phase == core::release_maintenance_phase::completed && vault.Erased == 0
 				   && fs::exists(root.Path / "logs/.retention.lock") && !fs::exists(segment) && !fs::exists(root.Path / "logs/diagnostics.log") && fs::exists(root.Path / "state/v1/appearance-settings.sqlite3"),
 			   "clear owns only log artifacts and leaves credentials and stores");
+		{
+			auto kept = adapters::sqlite::make_insights_storage(root.Path, [] { return std::vector<application::insights_storage_row>{ }; });
+			expect(kept->reviews(2000000000).Ranges[2][static_cast<std::size_t>(core::insights_review_metric::submitted)] == 1, "actual Clear local diagnostics preserves lifetime review totals");
+		}
 		host.dispatch({ files.authority(), command::prepare_purge, { } });
 		drain();
 		expect(barrier.Drained && host.state().Prepared, "native inventory after producer barrier");

@@ -128,7 +128,7 @@ namespace bpr::adapters::sqlite {
 			auto*      db       = opened->Database.get();
 			const auto identity = detail::scalar_integer(db, "PRAGMA application_id");
 			const auto version  = detail::scalar_integer(db, "PRAGMA user_version");
-			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 2) {
+			if (!identity || (*identity != 0 && *identity != 1112557902) || !version || *version > 3) {
 				return { };
 			}
 			if (!detail::configure_connection(db)) {
@@ -163,6 +163,20 @@ namespace bpr::adapters::sqlite {
 					}
 				}
 			}
+			if (*version < 3) {
+				constexpr std::array reviewSchema{
+					"BEGIN IMMEDIATE",
+					"CREATE TABLE insights_review_events(host TEXT NOT NULL,repository TEXT NOT NULL,pr INTEGER NOT NULL,kind INTEGER NOT NULL,identity TEXT NOT NULL,head TEXT NOT NULL,identity_day INTEGER NOT NULL,day INTEGER NOT NULL,at INTEGER NOT NULL,files INTEGER NOT NULL,c0 INTEGER NOT NULL CHECK(c0>=0),c1 INTEGER NOT NULL CHECK(c1>=0),c2 INTEGER NOT NULL CHECK(c2>=0),c3 INTEGER NOT NULL CHECK(c3>=0),c4 INTEGER NOT NULL CHECK(c4>=0),c5 INTEGER NOT NULL CHECK(c5>=0),c6 INTEGER NOT NULL CHECK(c6>=0),c7 INTEGER NOT NULL CHECK(c7>=0),c8 INTEGER NOT NULL CHECK(c8>=0),c9 INTEGER NOT NULL CHECK(c9>=0),c10 INTEGER NOT NULL CHECK(c10>=0),c11 INTEGER NOT NULL CHECK(c11>=0),c12 INTEGER NOT NULL CHECK(c12>=0),c13 INTEGER NOT NULL CHECK(c13>=0),c14 INTEGER NOT NULL CHECK(c14>=0),PRIMARY KEY(host,repository,pr,kind,identity,head,identity_day)) STRICT",
+					"CREATE INDEX insights_review_days ON insights_review_events(day,repository)",
+					"PRAGMA user_version=3", "COMMIT"
+				};
+				for (const auto sql : reviewSchema) {
+					if (!detail::execute(db, sql)) {
+						return { };
+					}
+				}
+			}
+
 			return opened;
 		}
 
@@ -255,6 +269,80 @@ namespace bpr::adapters::sqlite {
 					throw std::runtime_error{ "Insights retention failed" };
 				}
 			}
+		}
+
+		auto insert_review(sqlite3* aDatabase, const core::insights_review_event& aEvent) -> bool
+		{
+			if (static_cast<unsigned>(aEvent.Kind) > 9 || aEvent.Host.size() > 255 || aEvent.Repository.empty() || aEvent.Repository.size() > 1024 || aEvent.Identity.empty() || aEvent.Identity.size() > 4096 || aEvent.Head.size() > 128 || aEvent.Disposition > 2 || aEvent.Lines > 1000000000 || aEvent.FilesChanged > 1000000 || aEvent.PullRequest > static_cast<std::uint64_t>(INT64_MAX)) {
+				return false;
+			}
+			auto query = detail::prepare(aDatabase, "INSERT OR IGNORE INTO insights_review_events VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25)");
+			if (!query) {
+				return false;
+			}
+			const auto text = [&](int aIndex, const std::string& aValue) { return sqlite3_bind_text(query->Value, aIndex, aValue.c_str(), static_cast<int>(aValue.size()), SQLITE_TRANSIENT) == SQLITE_OK; };
+			if (!text(1, aEvent.Host) || !text(2, aEvent.Repository) || !text(5, aEvent.Identity) || !text(6, aEvent.Head)) {
+				return false;
+			}
+			sqlite3_bind_int64(query->Value, 3, static_cast<std::int64_t>(aEvent.PullRequest));
+			sqlite3_bind_int(query->Value, 4, static_cast<int>(aEvent.Kind));
+			sqlite3_bind_int64(query->Value, 7, core::insights_review_identity_day(aEvent));
+			sqlite3_bind_int64(query->Value, 8, aEvent.LocalDay);
+			sqlite3_bind_int64(query->Value, 9, aEvent.UnixSeconds);
+			sqlite3_bind_int64(query->Value, 10, static_cast<std::int64_t>(aEvent.FilesChanged));
+			const auto counts = core::insights_review_delta(aEvent);
+			for (std::size_t index = 0; index < counts.size(); ++index) {
+				sqlite3_bind_int64(query->Value, static_cast<int>(index + 11), static_cast<std::int64_t>(counts[index]));
+			}
+			return sqlite3_step(query->Value) == SQLITE_DONE;
+		}
+		auto review_text(sqlite3_stmt* aQuery, int aColumn) -> std::string
+		{
+			const auto* bytes = sqlite3_column_text(aQuery, aColumn);
+			return bytes ? std::string{ reinterpret_cast<const char*>(bytes), static_cast<std::size_t>(sqlite3_column_bytes(aQuery, aColumn)) } : std::string{ };
+		}
+		auto read_reviews(sqlite3* aDatabase, std::int64_t aNow) -> core::insights_reviews_snapshot
+		{
+			const auto started = detail::scalar_integer(aDatabase, "SELECT started_unix_seconds FROM insights_metadata WHERE singleton=1");
+			if (!started) {
+				return { };
+			}
+			auto query = detail::prepare(aDatabase, "SELECT day,repository,SUM(c0),SUM(c1),SUM(c2),SUM(c3),SUM(c4),SUM(c5),SUM(c6),SUM(c7),SUM(c8),SUM(c9),SUM(c10),SUM(c11),SUM(c12),SUM(c13),SUM(c14) FROM insights_review_events GROUP BY day,repository ORDER BY day,repository");
+			if (!query) {
+				return { };
+			}
+			std::vector<core::insights_review_bucket> buckets;
+			int                                       status = SQLITE_ROW;
+			while ((status = sqlite3_step(query->Value)) == SQLITE_ROW) {
+				core::insights_review_bucket bucket;
+				bucket.Day        = sqlite3_column_int64(query->Value, 0);
+				bucket.Repository = review_text(query->Value, 1);
+				for (std::size_t index = 0; index < bucket.Counts.size(); ++index) {
+					bucket.Counts[index] = static_cast<std::uint64_t>(sqlite3_column_int64(query->Value, static_cast<int>(index + 2)));
+				}
+				buckets.push_back(std::move(bucket));
+			}
+			if (status != SQLITE_DONE) {
+				throw std::runtime_error{ "Insights review buckets unavailable" };
+			}
+			auto records = detail::prepare(aDatabase, "SELECT host,repository,pr,SUM(c1),MAX(files) FROM insights_review_events WHERE kind=1 GROUP BY host,repository,pr ORDER BY host,repository,pr");
+			if (!records) {
+				return { };
+			}
+			std::vector<core::insights_review_pr> pulls;
+			while ((status = sqlite3_step(records->Value)) == SQLITE_ROW) {
+				core::insights_review_pr pull;
+				pull.Host       = review_text(records->Value, 0);
+				pull.Repository = review_text(records->Value, 1);
+				pull.Number     = static_cast<std::uint64_t>(sqlite3_column_int64(records->Value, 2));
+				pull.Reviews    = static_cast<std::uint64_t>(sqlite3_column_int64(records->Value, 3));
+				pull.Files      = static_cast<std::uint64_t>(sqlite3_column_int64(records->Value, 4));
+				pulls.push_back(std::move(pull));
+			}
+			if (status != SQLITE_DONE) {
+				throw std::runtime_error{ "Insights review records unavailable" };
+			}
+			return core::build_insights_reviews(buckets, pulls, application::local_insights_day(*started), application::local_insights_day(aNow));
 		}
 
 		class storage final : public application::insights_storage_port
@@ -351,6 +439,34 @@ namespace bpr::adapters::sqlite {
 					throw std::runtime_error{ "Insights history commit failed" };
 				}
 			}
+			void record_reviews(const std::vector<core::insights_review_event>& aEvents) override
+			{
+				if (aEvents.empty()) {
+					return;
+				}
+				auto connection = open_database(Root);
+				if (!connection) {
+					throw std::runtime_error{ "Insights review store unavailable" };
+				}
+				auto* db = connection->Database.get();
+				if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+					throw std::runtime_error{ "Insights review transaction unavailable" };
+				}
+				for (const auto& event : aEvents) {
+					if (!insert_review(db, event)) {
+						throw std::runtime_error{ "Insights review write failed" };
+					}
+				}
+				if (!detail::execute(db, "COMMIT")) {
+					throw std::runtime_error{ "Insights review commit failed" };
+				}
+			}
+			auto reviews(const std::int64_t aNow) -> core::insights_reviews_snapshot override
+			{
+				auto connection = open_database(Root);
+				return connection ? read_reviews(connection->Database.get(), aNow) : core::insights_reviews_snapshot{ };
+			}
+
 			auto github(const std::int64_t aNow) -> core::insights_github_snapshot override
 			{
 				auto connection = open_database(Root);
@@ -387,6 +503,18 @@ namespace bpr::adapters::sqlite {
 	auto make_insights_storage(const std::filesystem::path& aRoot, std::function<std::vector<application::insights_storage_row>()> aGitInventory) -> std::unique_ptr<application::insights_storage_port>
 	{
 		return std::make_unique<storage>(aRoot, std::move(aGitInventory));
+	}
+
+	void record_insights_review(const std::filesystem::path& aRoot, core::insights_review_event aEvent) noexcept
+	{
+		try {
+			if (aEvent.UnixSeconds == 0) {
+				aEvent.UnixSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				aEvent.LocalDay    = application::local_insights_day(aEvent.UnixSeconds);
+			}
+			auto store = make_insights_storage(aRoot, [] { return std::vector<application::insights_storage_row>{ }; });
+			store->record_reviews({ aEvent });
+		} catch (...) { }
 	}
 
 	auto store_insights_repository_label(const std::filesystem::path& aRoot, const std::string& aCache, const std::string& aName) -> bool

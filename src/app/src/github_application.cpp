@@ -11448,19 +11448,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return detail::make_staged_review_fixture_provider(server, std::move(*store), binding, description);
 				};
 				if (ConversationReply) {
-					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory);
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, tourFactory, insights_capture(aHandoff));
 				}
-				TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
+				TourPublication->adopt(binding, workbench_authority(aHandoff), tourFactory, WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified, insights_capture(aHandoff));
 #else
 				// [[BPR-1222]]. Live publication is on (owner amendment 2026-10-09);
 				// Publish still asks the write confirmation and spends a one-use grant.
 				if (ConversationReply) {
-					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, factory);
+					ConversationReply->adopt(binding, workbench_authority(aHandoff), DraftWindow.Profile, factory, insights_capture(aHandoff));
 				}
-				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true);
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true, insights_capture(aHandoff));
 #endif
 			}
-			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
+			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory), insights_capture(aHandoff));
 			observe_review_preflight();
 		}
 
@@ -12327,7 +12327,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewMutationEffects,
 				*ReviewMutationDecisionGate,
 				*this,
-				this);
+				this, insights_capture(aHandoff));
 			FixtureReviewMutationHostComposed = true;
 #else
 			if (Host == nullptr || WorkbenchHost == nullptr
@@ -12383,7 +12383,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					ReviewMutationEffects,
 					DecisionLane,
 					*this,
-					this);
+					this, insights_capture(aHandoff));
 				ReviewMutationHost->repair_pending_publications();
 			} else {
 				LiveReviewMutationGrant.reset();
@@ -13469,11 +13469,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 		}
+		[[nodiscard]] auto insights_capture(const application::accepted_pull_request_handoff& aHandoff) const -> application::insights_review_capture
+		{
+			application::insights_review_capture result;
+			result.Observer             = Profile->InsightsRecorder;
+			result.Context.Host         = std::string{ aHandoff.Hostname.value() };
+			result.Context.Repository   = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name;
+			result.Context.PullRequest  = aHandoff.Number.value();
+			result.Context.FilesChanged = aHandoff.Shape ? aHandoff.Shape->FileCount : 0;
+			return result;
+		}
+
 		void compose_review_ledger(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
 			retire_review_ledger();
 			PrivateDraftsReady = false;
+			auto stats         = insights_capture(aHandoff);
+			stats.record(core::insights_review_kind::opened, "opened");
+			auto fileStats = [stats, head = std::string{ core::canonical_hex(aHandoff.Head).view() }, files = WindowRead->accepted_snapshot() ? WindowRead->accepted_snapshot()->Files : std::vector<application::github_file_record>{ }](const core::file_receipt& aReceipt, const core::file_receipt_command_kind aKind) mutable {
+				const auto file = std::ranges::find_if(files, [&](const auto& aFile) { return core::file_identity_of(aFile.Path) == aReceipt.File; });
+				if (file == files.end()) {
+					return;
+				}
+				stats.Context.Head = head;
+				if (aKind == core::file_receipt_command_kind::mark_seen || aKind == core::file_receipt_command_kind::mark_read) {
+					stats.record(core::insights_review_kind::seen, file->Path);
+				}
+				if (aKind == core::file_receipt_command_kind::accept && aReceipt.Accepted) {
+					stats.record(core::insights_review_kind::accepted, file->Path, file->Additions + file->Deletions);
+				}
+			};
 
 			// [[BPR-1211]]. Opening the store, like every later read and write
 			// of it, happens on the ledger's effect lane. Until it answers the
@@ -13502,7 +13528,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
 					open_private_review(std::move(privateReview));
 					review_ledger_opened(aOpened.has_value());
-				}));
+				}),
+				application::maximum_outstanding_ledger_operations, stats, std::move(fileStats));
 			{
 				const auto lock       = std::scoped_lock{ ReviewLedgerStateMutex };
 				ReviewLedgerAuthority = workbench_authority(aHandoff);

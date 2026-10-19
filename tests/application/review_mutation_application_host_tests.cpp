@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 
@@ -269,6 +270,7 @@ namespace {
 	class fake_provider final : public application::review_mutation_port
 	{
 	public:
+		bool Duplicate = false;
 		auto observe_target() -> std::expected<
 			core::review_mutation_target,
 			application::review_mutation_failure> override
@@ -312,7 +314,7 @@ namespace {
 			Submitted.push_back(aRequest);
 			return application::review_mutation_receipt{
 				.ServerCommentId = "fixture-comment",
-				.Duplicate       = false,
+				.Duplicate       = Duplicate,
 			};
 		}
 
@@ -637,6 +639,7 @@ namespace {
 		auto  effects    = application::manual_executor{ };
 		auto  decisions  = application::manual_executor{ };
 		auto  projection = recording_projection{ };
+		auto  observer   = std::make_shared<tests::insights_observer>();
 		auto  host       = application::review_mutation_application_host{
 			std::move(provider),
 			live_target(),
@@ -648,6 +651,7 @@ namespace {
 			decisions,
 			projection,
 			&projection,
+			{ observer, { } },
 		};
 		const auto request = application::review_thread_resolution_publication_request{
 			.Thread = "PRRT_fixture_1", .Resolve = true
@@ -701,6 +705,11 @@ namespace {
 		expect(observed->Resolved.size() == 2U && !observed->Resolved.back().Resolve
 				   && projection.Resolutions.back().Result.has_value() && !projection.Resolutions.back().Result->Resolved,
 			   "unresolve reaches the provider and answers the open thread");
+		expect(observer->reviews().size() == 1, "only a successful resolve adds a statistic; refusals and unresolve do not");
+		static_cast<void>(host.resolve(request));
+		effects.run_next();
+		decisions.run_next();
+		expect(observer->reviews().size() == 2 && observer->reviews()[0].Identity != observer->reviews()[1].Identity, "resolving again after unresolve counts a new event");
 		host.shutdown();
 	}
 
@@ -711,6 +720,7 @@ namespace {
 		auto  effects    = application::manual_executor{ };
 		auto  decisions  = application::manual_executor{ };
 		auto  projection = recording_projection{ };
+		auto  observer   = std::make_shared<tests::insights_observer>();
 		auto  host       = application::review_mutation_application_host{
 			std::move(provider),
 			live_target(),
@@ -722,6 +732,7 @@ namespace {
 			decisions,
 			projection,
 			&projection,
+			{ observer, { } },
 		};
 
 		const auto context = host.publish(publication_request());
@@ -754,7 +765,9 @@ namespace {
 				   && observed->Submitted.front().Source->Placement == projection.Source->Placement,
 			   "the provider receives the exact retained source and placement accepted by the host");
 
-		const auto retry = host.publish(publication_request());
+		expect(observer->reviews().size() == 1 && observer->reviews().front().Kind == core::insights_review_kind::comment, "successful new-thread receipt adds one comment statistic");
+		observed->Duplicate = true;
+		const auto retry    = host.publish(publication_request());
 		effects.run_next();
 		decisions.run_next();
 		expect(retry != context && observed->Submitted.size() == 2U
@@ -762,7 +775,9 @@ namespace {
 					   == observed->Submitted[1].IdempotencyKey,
 			   "a retry gets new host identity while preserving mutation idempotency identity");
 
-		auto copied = publication_request();
+		expect(observer->reviews().size() == 1, "a duplicate mutation receipt adds no comment or suggestion event");
+		observed->Duplicate = false;
+		auto copied         = publication_request();
 		copied.SelectedDiff.Request.File.Change
 			= application::workbench_file_change_kind::copied;
 		copied.SelectedDiff.Request.File.CurrentPath  = "copied/current.cpp";

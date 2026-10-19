@@ -90,6 +90,54 @@ int main()
 	request.ResetUnixSeconds = 7600;
 	store->record({ request }, std::nullopt);
 	expect(store->github(4020).Budgets[0].OwnRequests == 1, "a new reset does not inherit the preceding window count");
+	using metric     = core::insights_review_metric;
+	const auto count = [](const core::insights_reviews_snapshot& aSnapshot, metric aMetric) { return aSnapshot.Ranges[2][static_cast<std::size_t>(aMetric)]; };
+	expect(count(store->reviews(2000000000), metric::submitted) == 0, "existing ledger-like canary files are never backfilled");
+	std::vector<core::insights_review_event> activity;
+	for (unsigned kind = 0; kind <= 9; ++kind) {
+		core::insights_review_event event;
+		event.Kind         = static_cast<core::insights_review_kind>(kind);
+		event.Host         = "github.com";
+		event.Repository   = "PRIVATE_REPOSITORY_CANARY";
+		event.PullRequest  = 42;
+		event.Identity     = "EVENT_CANARY";
+		event.Head         = kind == 5 || kind == 6 ? "HEAD_CANARY" : "";
+		event.UnixSeconds  = 1792368000;
+		event.LocalDay     = 20743;
+		event.FilesChanged = 125;
+		event.Lines        = 37;
+		event.Suggestion   = true;
+		event.Disposition  = 0;
+		activity.push_back(event);
+	}
+	store->record_reviews(activity);
+	store->record_reviews(activity);
+	auto reviews = store->reviews(1792454400);
+	for (const auto selected : { metric::opened, metric::submitted, metric::approved, metric::comments, metric::replies, metric::resolved, metric::seen, metric::accepted, metric::notes, metric::defects, metric::rounds }) {
+		expect(count(reviews, selected) == 1, "a duplicate persisted event does not change its count");
+	}
+	expect(count(reviews, metric::suggestions) == 2 && count(reviews, metric::lines) == 37, "suggestions count comments and replies, and duplicate file acceptance never adds lines");
+	auto opened = activity.front();
+	++opened.LocalDay;
+	opened.UnixSeconds += 86400;
+	store->record_reviews({ opened });
+	auto accepted = activity[6];
+	++accepted.LocalDay;
+	accepted.UnixSeconds += 86400;
+	store->record_reviews({ accepted });
+	expect(count(store->reviews(1792454400), metric::opened) == 2 && count(store->reviews(1792454400), metric::accepted) == 1, "next-day reopening counts, next-day file retry does not");
+	accepted.Head = "NEXT_HEAD";
+	store->record_reviews({ accepted });
+	expect(count(store->reviews(1792454400), metric::accepted) == 2, "same path on a new head counts once more");
+	store.reset();
+	store = adapters::sqlite::make_insights_storage(scratch.path(), [] { return std::vector<application::insights_storage_row>{ }; });
+	static_cast<void>(store->github(2000000000));
+	expect(count(store->reviews(2000000000), metric::submitted) == 1 && count(store->reviews(2000000000), metric::lines) == 74, "restart and history retention leave lifetime review totals intact");
+	store->record_reviews(activity);
+	expect(count(store->reviews(2000000000), metric::submitted) == 1, "event identity persists beyond history retention and restart");
+	const auto safeExport = adapters::sqlite::insights_storage_export(scratch.path());
+	expect(safeExport.find("PRIVATE_REPOSITORY_CANARY") == std::string::npos && safeExport.find("EVENT_CANARY") == std::string::npos && safeExport.find("HEAD_CANARY") == std::string::npos, "review identities never enter the numeric anonymized export");
+
 #if !defined(_WIN32)
 	fs::create_symlink(state / "markdown-images.sqlite3", state / "link.sqlite3");
 	bool refused = false;

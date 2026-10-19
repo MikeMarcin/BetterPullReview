@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_LEDGER_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_LEDGER_APPLICATION_HOST_HPP
 
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/review_ledger.hpp"
@@ -189,12 +190,14 @@ namespace bpr::application {
 	public:
 		/// \brief Starts opening the store; `aOpened` answers on the decision lane.
 		review_ledger_application_host(
-			review_ledger_store_opener aOpen,
-			receipt_projection_port&   aProjection,
-			effect_executor&           aEffects,
-			decision_executor&         aDecisions,
-			ledger_completion<void>    aOpened   = { },
-			std::size_t                aCapacity = maximum_outstanding_ledger_operations);
+			review_ledger_store_opener                                                      aOpen,
+			receipt_projection_port&                                                        aProjection,
+			effect_executor&                                                                aEffects,
+			decision_executor&                                                              aDecisions,
+			ledger_completion<void>                                                         aOpened         = { },
+			std::size_t                                                                     aCapacity       = maximum_outstanding_ledger_operations,
+			insights_review_capture                                                         aInsights       = { },
+			std::function<void(const core::file_receipt&, core::file_receipt_command_kind)> aFileStatistics = { });
 		~review_ledger_application_host();
 
 		review_ledger_application_host(const review_ledger_application_host&)                    = delete;

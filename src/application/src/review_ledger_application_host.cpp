@@ -230,7 +230,9 @@ namespace bpr::application {
 		std::size_t                 PendingTerminals = 0U;
 		std::optional<bool>         Available;
 
-		core::file_receipt Retained;
+		insights_review_capture                                                         Insights;
+		std::function<void(const core::file_receipt&, core::file_receipt_command_kind)> FileStatistics;
+		core::file_receipt                                                              Retained;
 		/// Advances on every material observation and `retain`; an older
 		/// observation neither retains nor publishes.
 		std::uint64_t MaterialGeneration = 0U;
@@ -639,11 +641,13 @@ namespace bpr::application {
 		effect_executor&           aEffects,
 		decision_executor&         aDecisions,
 		ledger_completion<void>    aOpened,
-		const std::size_t          aCapacity)
+		const std::size_t aCapacity, insights_review_capture aInsights, std::function<void(const core::file_receipt&, core::file_receipt_command_kind)> aFileStatistics)
 		: Implementation{ std::make_shared<implementation>(aProjection, aEffects, aDecisions, aCapacity) }
 	{
-		using impl       = implementation;
-		auto* const self = Implementation.get();
+		using impl           = implementation;
+		auto* const self     = Implementation.get();
+		self->Insights       = std::move(aInsights);
+		self->FileStatistics = std::move(aFileStatistics);
 		self->enqueue(impl::operation{
 			.Begin = [self, open = std::move(aOpen), opened = aOpened](impl::outcome& aOutcome) mutable { aOutcome.Next = [self, open, opened](impl::store_cell& aCell) mutable -> impl::continuation {
 																											  auto failure = std::optional<ledger_store_failure>{ };
@@ -870,7 +874,12 @@ namespace bpr::application {
 					// write. Persisting it would turn every repeated click into a commit,
 					// and publishing it would announce a change that did not happen.
 					++self->Statistics.Unchanged;
-					aOutcome.Terminal = [outcome, done] {
+					aOutcome.Terminal = [self, outcome, aCommand, done] {
+						try {
+							if (self->FileStatistics) {
+								self->FileStatistics(outcome.Receipt, aCommand.Kind);
+							}
+						} catch (...) { }
 						impl::answer(done, std::expected<core::file_receipt_outcome, ledger_store_failure>{ outcome });
 					};
 					return;
@@ -880,7 +889,7 @@ namespace bpr::application {
 					[receipt = outcome.Receipt](review_ledger_store_port& aStore) {
 						return aStore.commit(receipt_persistence_request{ .Receipt = receipt });
 					},
-					[self, outcome, generation = self->MaterialGeneration, done](
+					[self, outcome, aCommand, generation = self->MaterialGeneration, done](
 						std::expected<void, ledger_store_failure> aCommitted, impl::outcome& aNext) mutable {
 						++self->Statistics.Completions;
 						if (!aCommitted) {
@@ -899,6 +908,11 @@ namespace bpr::application {
 							};
 							return;
 						}
+						try {
+							if (self->FileStatistics) {
+								self->FileStatistics(outcome.Receipt, aCommand.Kind);
+							}
+						} catch (...) { }
 						self->remember_durable(outcome.Receipt.File, outcome.Receipt, true);
 						// A `retain` while the write ran selected something else;
 						// the commit is durable, and it is no longer this view's.
@@ -1253,7 +1267,13 @@ namespace bpr::application {
 				}
 				++self->Statistics.PrivateWrites;
 				aOutcome.Next = impl::storage<std::expected<local_note_record, local_note_failure>>(
-					[aNote, aExpectedRevision](review_ledger_store_port& aStore) { return aStore.store_note(aNote, aExpectedRevision); },
+					[aNote, aExpectedRevision, insights = self->Insights](review_ledger_store_port& aStore) {
+						auto result = aStore.store_note(aNote, aExpectedRevision);
+						if (result && !aExpectedRevision) {
+							insights.record_new(core::insights_review_kind::note);
+						}
+						return result;
+					},
 					[self, aNote, aExpectedRevision, done](std::expected<local_note_record, local_note_failure> aStored, impl::outcome& aNext) mutable {
 						if (!aStored) {
 							++self->Statistics.PrivateFailures;
@@ -1393,7 +1413,14 @@ namespace bpr::application {
 	{
 		private_write(
 			*Implementation, valid(aDefect), false,
-			[aDefect](review_ledger_store_port& aStore) { return aStore.store_defect(aDefect); },
+			[aDefect, insights = Implementation->Insights](review_ledger_store_port& aStore) {
+				auto before = aStore.load_private();
+				auto result = aStore.store_defect(aDefect);
+				if (result && before && std::ranges::none_of(before->Defects, [&](const auto& aValue) { return aValue.History.Defect.Id == aDefect.History.Defect.Id; })) {
+					insights.record_new(core::insights_review_kind::defect);
+				}
+				return result;
+			},
 			[aDefect](implementation& aSelf) { aSelf.adopt_defect(aDefect); },
 			std::move(aDone));
 	}

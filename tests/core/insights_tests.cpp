@@ -42,5 +42,27 @@ int main()
 	github = core::build_insights_github(events, scope, 4020);
 	expect(github.Budgets[1].OwnRequests == 1 && !github.Budgets[1].OtherClients, "GraphQL retains request counts without a cost split");
 	expect(core::insights_history_width(0, 7200) == 300 && core::insights_history_width(0, 172800) == 86400 && core::insights_history_width(0, 94 * 86400LL) == 0, "retention changes at the supplied boundaries");
+	using metric = core::insights_review_metric;
+	core::insights_review_event activity;
+	activity.Kind  = core::insights_review_kind::accepted;
+	activity.Lines = 97;
+	expect(core::insights_review_delta(activity)[static_cast<std::size_t>(metric::accepted)] == 1 && core::insights_review_delta(activity)[static_cast<std::size_t>(metric::lines)] == 97, "acceptance counts changed lines once with the file event");
+	activity.LocalDay = 20690;
+	expect(core::insights_review_identity_day(activity) == 0, "file dedup is lifetime, independent of local day");
+	activity.Kind = core::insights_review_kind::opened;
+	expect(core::insights_review_identity_day(activity) == activity.LocalDay, "opening dedup is scoped to the supplied civil day");
+	std::vector<core::insights_review_bucket> reviewDays;
+	for (const auto day : { 20665LL, 20689LL, 20690LL, 20691LL }) {
+		core::insights_review_bucket bucket;
+		bucket.Day                                                 = day;
+		bucket.Repository                                          = "owner/repo";
+		bucket.Counts[static_cast<std::size_t>(metric::submitted)] = day == 20691 ? 999 : 2;
+		reviewDays.push_back(bucket);
+	}
+	const auto reviews = core::build_insights_reviews(reviewDays, { { "github.com", "owner/repo", 8, 4, 120 } }, 20600, 20690);
+	expect(reviews.Ranges[0][static_cast<std::size_t>(metric::submitted)] == 4 && reviews.Ranges[1][static_cast<std::size_t>(metric::submitted)] == 6 && reviews.Ranges[2][static_cast<std::size_t>(metric::submitted)] == 6, "local Monday and30-day inclusive ranges exclude future days");
+	expect(reviews.Calendar.size() >= 176 && reviews.Calendar.size() <= 182 && (reviews.Calendar.front().Day + 3) % 7 == 0 && reviews.Calendar.back().Day == 20690, "calendar spans26 Monday-first weeks through today");
+	expect(reviews.Biggest->Files == 120 && reviews.MostReviews->Reviews == 4 && reviews.Busiest->Counts[static_cast<std::size_t>(metric::submitted)] == 2 && reviews.MostReviewedRepository == "owner/repo", "records use submitted reviews and aggregate daily activity");
+
 	std::cout << "insights-core:pass\n";
 }

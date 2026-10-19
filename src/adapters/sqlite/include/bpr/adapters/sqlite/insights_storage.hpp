@@ -10,6 +10,8 @@ namespace bpr::adapters::sqlite {
 	/// \details Git sizes arrive from its adapter's inventory, never a second walk by SQLite.
 	[[nodiscard]] auto make_insights_storage(const std::filesystem::path&                                    aRoot,
 											 std::function<std::vector<application::insights_storage_row>()> aGitInventory) -> std::unique_ptr<application::insights_storage_port>;
+	/// \brief Records one successful local-store terminal on its existing effect lane.
+	void record_insights_review(const std::filesystem::path& aRoot, core::insights_review_event aEvent) noexcept;
 	/// \brief Retains a local display label for one already accepted cache identity, never exported.
 	[[nodiscard]] auto store_insights_repository_label(const std::filesystem::path& aRoot, const std::string& aCache, const std::string& aName) -> bool;
 	/// \brief Byte-only section for an anonymized frozen export; contains no local names or paths.

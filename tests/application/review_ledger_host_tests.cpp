@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
@@ -558,11 +559,13 @@ namespace {
 		rig(application::review_ledger_store_port& aStore, event_log& aLog,
 			const std::size_t aCapacity = application::maximum_outstanding_ledger_operations)
 			: Projection{ aLog }
-			, Host{ opener(aStore, &Closed), Projection, Effects, Lane, [this](const std::expected<void, application::ledger_store_failure>& aOpened) { Opened = aOpened.has_value(); }, aCapacity }
+			, Host{ opener(aStore, &Closed), Projection, Effects, Lane, [this](const std::expected<void, application::ledger_store_failure>& aOpened) { Opened = aOpened.has_value(); }, aCapacity, { Insights, { } }, [this](const auto&, auto) { ++FileStatistics; } }
 		{
 			settle();
 		}
 
+		std::shared_ptr<tests::insights_observer>   Insights       = std::make_shared<tests::insights_observer>();
+		std::size_t                                 FileStatistics = 0;
 		recording_projection                        Projection;
 		application::manual_executor                Lane;
 		application::manual_executor                Effects;
@@ -743,6 +746,7 @@ namespace {
 			rigged.Projection.Published.size() == 1U
 				&& rigged.Projection.Published.front().Receipt == store.Committed,
 			"the published projection is exactly what was committed");
+		expect(rigged.FileStatistics == 1, "file statistics follow a successful explicit receipt commit");
 		expect(
 			rigged.Host.retained().Read == core::file_read_state::read,
 			"the host adopts the committed receipt");
@@ -987,6 +991,7 @@ namespace {
 				&& *empty == application::private_ledger_observation{ },
 			"deletion returns the exact scope to an empty private observation");
 
+		expect(rigged.Insights->reviews().size() == 2, "one note and one defect creation count; failed writes and deletes add nothing");
 		const auto statistics = rigged.Host.statistics();
 		expect(
 			statistics.PrivateWrites == 4U

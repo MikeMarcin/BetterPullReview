@@ -1,8 +1,58 @@
 #include "bpr/application/insights_host.hpp"
 
+#include <ctime>
+#include <random>
 #include <utility>
 
 namespace bpr::application {
+	auto local_insights_day(const std::int64_t aUnixSeconds) -> std::int64_t
+	{
+		const auto timestamp = static_cast<std::time_t>(aUnixSeconds);
+		std::tm    local{ };
+#ifdef _WIN32
+		if (localtime_s(&local, &timestamp) != 0) {
+			throw std::runtime_error{ "Local date unavailable" };
+		}
+#else
+		if (!localtime_r(&timestamp, &local)) {
+			throw std::runtime_error{ "Local date unavailable" };
+		}
+#endif
+		return std::chrono::sys_days{ std::chrono::year{ local.tm_year + 1900 } / std::chrono::month{ static_cast<unsigned>(local.tm_mon + 1) } / std::chrono::day{ static_cast<unsigned>(local.tm_mday) } }.time_since_epoch().count();
+	}
+	namespace {
+		auto new_insights_activity_identity() -> std::string
+		{
+			std::random_device entropy;
+			return std::to_string(entropy()) + ":" + std::to_string(entropy()) + ":" + std::to_string(entropy()) + ":" + std::to_string(entropy());
+		}
+
+	}
+	void insights_review_capture::record_new(core::insights_review_kind aKind) const noexcept
+	{
+		try {
+			if (Observer) {
+				record(aKind, new_insights_activity_identity());
+			}
+		} catch (...) { }
+	}
+
+	void insights_review_capture::record(const core::insights_review_kind aKind, std::string aIdentity, const std::uint64_t aLines, const bool aSuggestion, const std::uint8_t aDisposition) const noexcept
+	{
+		try {
+			if (!Observer) {
+				return;
+			}
+			auto event        = Context;
+			event.Kind        = aKind;
+			event.Identity    = std::move(aIdentity);
+			event.Lines       = aLines;
+			event.Suggestion  = aSuggestion;
+			event.Disposition = aDisposition;
+			Observer->record_review(std::move(event));
+		} catch (...) { }
+	}
+
 	namespace {
 		class problem_log final : public diagnostic_log_port, public diagnostic_control_port
 		{
@@ -72,7 +122,7 @@ namespace bpr::application {
 	}
 	void insights_recorder::schedule()
 	{
-		if (Pending || !Storage || (Events.empty() && !Selected)) {
+		if (Pending || !Storage || (Events.empty() && ReviewEvents.empty() && !Selected)) {
 			return;
 		}
 		Pending = true;
@@ -95,6 +145,19 @@ namespace bpr::application {
 			schedule();
 		} catch (...) { }
 	}
+	void insights_recorder::record_review(core::insights_review_event aEvent) noexcept
+	{
+		try {
+			if (aEvent.UnixSeconds == 0) {
+				aEvent.UnixSeconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				aEvent.LocalDay    = local_insights_day(aEvent.UnixSeconds);
+			}
+			std::lock_guard lock{ Mutex };
+			ReviewEvents.push_back(std::move(aEvent));
+			schedule();
+		} catch (...) { }
+	}
+
 	void insights_recorder::select(core::insights_scope aScope) noexcept
 	{
 		try {
@@ -105,18 +168,21 @@ namespace bpr::application {
 	}
 	void insights_recorder::drain()
 	{
-		std::vector<core::insights_event>      events;
-		std::optional<core::insights_scope>    selected;
-		std::shared_ptr<insights_storage_port> storage;
+		std::vector<core::insights_event>        events;
+		std::vector<core::insights_review_event> reviews;
+		std::optional<core::insights_scope>      selected;
+		std::shared_ptr<insights_storage_port>   storage;
 		{
 			std::lock_guard lock{ Mutex };
 			events.swap(Events);
+			reviews.swap(ReviewEvents);
 			selected = Selected;
 			Selected.reset();
 			storage = Storage;
 		}
 		try {
 			storage->record(events, selected);
+			storage->record_reviews(reviews);
 		} catch (...) { }
 		std::lock_guard lock{ Mutex };
 		Pending = false;
@@ -147,12 +213,14 @@ namespace bpr::application {
 						snapshot = self->Storage->measure();
 					} catch (...) { }
 				}
-				const auto built  = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-				auto       github = core::insights_github_snapshot{ };
+				const auto built   = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				auto       github  = core::insights_github_snapshot{ };
+				auto       reviews = core::insights_reviews_snapshot{ };
 				try {
-					github = self->Storage->github(built);
+					github  = self->Storage->github(built);
+					reviews = self->Storage->reviews(built);
 				} catch (...) { }
-				self->Decisions.post([self, measure, now, built, githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
+				self->Decisions.post([self, measure, now, built, reviewsSnapshot = std::move(reviews), githubSnapshot = std::move(github), measuredSnapshot = std::move(snapshot), work]() mutable {
 					self->Pending = false;
 					if (self->Closing) {
 						return;
@@ -162,6 +230,7 @@ namespace bpr::application {
 						self->Snapshot.StorageUnixSeconds = built;
 						self->LastStorage                 = now;
 					}
+					self->Snapshot.Reviews          = std::move(reviewsSnapshot);
 					self->Snapshot.Github           = std::move(githubSnapshot);
 					self->Snapshot.BuiltUnixSeconds = built;
 					self->Snapshot.BackgroundWork   = work;

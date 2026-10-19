@@ -1,5 +1,6 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "bpr/core/suggestion_draft.hpp"
 #include "review_mutation_execution_authority.hpp"
 
 #include <atomic>
@@ -341,7 +342,7 @@ namespace bpr::application {
 			effect_executor&                      aEffects,
 			decision_executor&                    aDecisionLane,
 			review_mutation_projection_port&      aProjection,
-			review_mutation_source_port*          aSources)
+			review_mutation_source_port* aSources, insights_review_capture aInsights)
 			: OwnedProvider{ std::move(aProvider) }
 			, TargetBinding{ std::move(aTarget) }
 			, ActingIdentityBinding{ std::move(aActingIdentity) }
@@ -353,6 +354,7 @@ namespace bpr::application {
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
 			, Sources{ aSources }
+			, Insights{ std::move(aInsights) }
 			, Capabilities{ Coordinator.capabilities() }
 			, CompleteLiveBinding{ true }
 		{
@@ -370,7 +372,7 @@ namespace bpr::application {
 			effect_executor&                   aEffects,
 			decision_executor&                 aDecisionLane,
 			review_mutation_projection_port&   aProjection,
-			review_mutation_source_port*       aSources)
+			review_mutation_source_port* aSources, insights_review_capture aInsights)
 			: TargetBinding{ std::move(aTarget) }
 			, ActingIdentityBinding{ std::move(aActingIdentity) }
 			, Coordinator{ aProvider, TargetBinding, ActingIdentityBinding }
@@ -381,6 +383,7 @@ namespace bpr::application {
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
 			, Sources{ aSources }
+			, Insights{ std::move(aInsights) }
 			, Capabilities{ Coordinator.capabilities() }
 			, CompleteLiveBinding{ true }
 		{
@@ -567,6 +570,10 @@ namespace bpr::application {
 				} else {
 					++Statistics.TerminalsPublished;
 				}
+			}
+			if (aSubmission.Result && !aSubmission.Result->Duplicate) {
+				const auto& proposal = aRecord->Request.Proposal;
+				Insights.record(proposal.ReplyToThread ? core::insights_review_kind::reply : core::insights_review_kind::comment, aSubmission.Result->ServerCommentId, 0, !core::suggestion_blocks(proposal.Body).empty());
 			}
 			if (publish) {
 				try {
@@ -800,6 +807,9 @@ namespace bpr::application {
 					try {
 						result = Coordinator.resolve_thread(
 							record->Request.Thread, record->Request.Resolve, record->Stop.get_token());
+						if (result && result->Resolved) {
+							Insights.record_new(core::insights_review_kind::resolved);
+						}
 					} catch (...) {
 						result = std::unexpected(review_mutation_failure::unavailable);
 					}
@@ -930,6 +940,7 @@ namespace bpr::application {
 		decision_executor&                    DecisionLane;
 		review_mutation_projection_port&      Projection;
 		review_mutation_source_port*          Sources = nullptr;
+		insights_review_capture               Insights;
 		review_provider_capabilities          Capabilities;
 		bool                                  CompleteLiveBinding = false;
 
@@ -957,7 +968,7 @@ namespace bpr::application {
 		effect_executor&                      aEffects,
 		decision_executor&                    aDecisionLane,
 		review_mutation_projection_port&      aProjection,
-		review_mutation_source_port*          aSources)
+		review_mutation_source_port* aSources, insights_review_capture aInsights)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aProvider),
 			  std::move(aTarget),
@@ -967,7 +978,7 @@ namespace bpr::application {
 			  std::move(aExecutionGrant),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection, aSources) }
+			  aProjection, aSources, std::move(aInsights)) }
 	{
 	}
 
@@ -982,7 +993,7 @@ namespace bpr::application {
 		effect_executor&                   aEffects,
 		decision_executor&                 aDecisionLane,
 		review_mutation_projection_port&   aProjection,
-		review_mutation_source_port*       aSources)
+		review_mutation_source_port* aSources, insights_review_capture aInsights)
 		: Implementation{ std::make_shared<implementation>(
 			  aFixtureProvider,
 			  std::move(aTarget),
@@ -992,7 +1003,7 @@ namespace bpr::application {
 			  std::move(aExecutionGrant),
 			  aEffects,
 			  aDecisionLane,
-			  aProjection, aSources) }
+			  aProjection, aSources, std::move(aInsights)) }
 	{
 	}
 #endif

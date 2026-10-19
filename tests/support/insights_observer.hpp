@@ -12,6 +12,16 @@ namespace bpr::tests {
 			Events.push_back(std::move(aEvent));
 		}
 		void select(core::insights_scope) noexcept override { }
+		void record_review(core::insights_review_event aEvent) noexcept override
+		{
+			std::lock_guard lock{ Mutex };
+			Reviews.push_back(std::move(aEvent));
+		}
+		auto reviews() -> std::vector<core::insights_review_event>
+		{
+			std::lock_guard lock{ Mutex };
+			return Reviews;
+		}
 		auto events() -> std::vector<core::insights_event>
 		{
 			std::lock_guard lock{ Mutex };
@@ -19,8 +29,9 @@ namespace bpr::tests {
 		}
 
 	private:
-		std::mutex                        Mutex;
-		std::vector<core::insights_event> Events;
+		std::mutex                               Mutex;
+		std::vector<core::insights_review_event> Reviews;
+		std::vector<core::insights_event>        Events;
 	};
 }
 #endif

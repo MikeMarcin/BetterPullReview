@@ -1,5 +1,6 @@
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/core/sha256.hpp"
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
@@ -1124,7 +1125,7 @@ namespace bpr::adapters::sqlite {
 				if (aCommit.Round) {
 					request.u64(aCommit.Round->value());
 				}
-				return write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
+				auto result = write(aOperation, request, aStop, [&](sqlite3* aDatabase) -> cycle_store_result<cycle_write_receipt> {
 					if (!object_present(aDatabase, aCommit.Payload)) {
 						return fail(cycle_store_failure::object_unavailable);
 					}
@@ -1159,6 +1160,16 @@ namespace bpr::adapters::sqlite {
 					}
 					return cycle_write_receipt{ .Cycle = aCommit.Subject.Cycle, .Revision = frozen->Cycle.Revision, .Allocated = frozen->Round.Id.Id.value(), .Changed = !frozen->Reused };
 				});
+				if (result && result->Changed && !result->Replayed) {
+					core::insights_review_event event;
+					event.Kind        = core::insights_review_kind::round;
+					event.Host        = "local";
+					event.Repository  = "Review Cycles";
+					event.PullRequest = aCommit.Subject.Cycle.value();
+					event.Identity    = std::to_string(result->Allocated);
+					record_insights_review(Root, std::move(event));
+				}
+				return result;
 			}
 
 			auto rounds(const core::local_cycle_subject& aSubject, const std::optional<core::cycle_round_id> aAfter, std::stop_token aStop)

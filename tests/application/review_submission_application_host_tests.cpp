@@ -1,3 +1,4 @@
+#include "../support/insights_observer.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_submission_application_host.hpp"
@@ -166,9 +167,16 @@ namespace {
 		projection                                      Projection{ State };
 		core::application_session_id                    Session{ 1U };
 		core::request_generation                        Generation{ 2U };
+		std::shared_ptr<tests::insights_observer>       Insights = std::make_shared<tests::insights_observer>();
 		application::review_submission_application_host Host{
 			[state = State]() -> std::expected<std::unique_ptr<application::review_submission_port>, application::review_mutation_failure> { return std::make_unique<provider>(state); },
-			*request().LiveBinding, Session, Generation, Effects, Decisions, Projection
+			*request().LiveBinding,
+			Session,
+			Generation,
+			Effects,
+			Decisions,
+			Projection,
+			{ Insights, { } }
 		};
 		auto grant(const application::review_submission_request& aRequest = request()) -> application::review_submission_execution_grant
 		{
@@ -189,6 +197,28 @@ namespace {
 			drain();
 		}
 	};
+	void test_insights_confirmed_publication_only()
+	{
+		fixture f;
+		f.State->Answer = [](auto& aResult) { aResult.Publication=application::review_submission_publication::indeterminate; aResult.Receipt.reset(); };
+		expect(f.Host.submit(request(), f.grant()).has_value(), "indeterminate fixture admitted");
+		f.drain();
+		expect(f.Insights->reviews().empty(), "indeterminate submission is never counted");
+		f.State->Answer = { };
+		expect(f.Host.reconcile(request()).has_value(), "recovery admitted");
+		f.drain();
+		auto events = f.Insights->reviews();
+		expect(events.size() == 1 && events.front().Kind == core::insights_review_kind::submitted && events.front().Identity == "42" && events.front().Disposition == 0, "confirmed recovery counts the exact approved review identity");
+		f.State->Answer = [](auto& aResult) { aResult.Duplicate = true; };
+		expect(f.Host.reconcile(request()).has_value(), "duplicate recovery admitted");
+		f.drain();
+		expect(f.Insights->reviews().size() == 2 && f.Insights->reviews().back().Identity == events.front().Identity, "recovery retries retain the same durable dedup identity");
+		f.State->Answer = [](auto& aResult) { aResult.Receipt->ActingAccount = core::github_account_id{ 999 }; };
+		expect(f.Host.reconcile(request()).has_value(), "hostile fixture admitted");
+		f.drain();
+		expect(f.Insights->reviews().size() == 2, "invalid receipts cannot add statistics");
+	}
+
 	void test_staged_authority()
 	{
 		auto input                 = request();
@@ -379,6 +409,7 @@ auto main() -> int
 {
 	static_assert(!std::is_convertible_v<bpr::application::review_mutation_execution_grant, bpr::application::review_submission_execution_grant>);
 	static_assert(!std::is_default_constructible_v<bpr::application::review_submission_execution_authority>);
+	test_insights_confirmed_publication_only();
 	test_staged_authority();
 	test_exact_authority_and_async_delivery();
 	test_recovery_and_bad_results();

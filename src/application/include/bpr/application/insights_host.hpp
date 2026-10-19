@@ -19,6 +19,8 @@ namespace bpr::application {
 		virtual ~insights_storage_port()                          = default;
 		[[nodiscard]] virtual auto measure() -> insights_snapshot = 0;
 		virtual void               record(const std::vector<core::insights_event>&, std::optional<core::insights_scope>) { }
+		virtual void               record_reviews(const std::vector<core::insights_review_event>&) { }
+		[[nodiscard]] virtual auto reviews(std::int64_t) -> core::insights_reviews_snapshot { return { }; }
 		[[nodiscard]] virtual auto github(std::int64_t) -> core::insights_github_snapshot { return { }; }
 	};
 
@@ -33,16 +35,18 @@ namespace bpr::application {
 		void attach(std::shared_ptr<insights_storage_port> aStorage);
 		void record(core::insights_event aEvent) noexcept override;
 		void select(core::insights_scope aScope) noexcept override;
+		void record_review(core::insights_review_event aEvent) noexcept override;
 
 	private:
-		void                                   schedule();
-		void                                   drain();
-		effect_executor&                       Effects;
-		std::mutex                             Mutex;
-		std::shared_ptr<insights_storage_port> Storage;
-		std::vector<core::insights_event>      Events;
-		std::optional<core::insights_scope>    Selected;
-		bool                                   Pending = false;
+		void                                     schedule();
+		void                                     drain();
+		effect_executor&                         Effects;
+		std::mutex                               Mutex;
+		std::shared_ptr<insights_storage_port>   Storage;
+		std::vector<core::insights_event>        Events;
+		std::vector<core::insights_review_event> ReviewEvents;
+		std::optional<core::insights_scope>      Selected;
+		bool                                     Pending = false;
 	};
 
 	/// \brief Serial snapshot owner. Effects run off-lane, one at a time; storage is sampled at most once per minute.

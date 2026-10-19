@@ -1,6 +1,7 @@
 #include "bpr/core/insights.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 
 namespace bpr::core {
@@ -121,4 +122,112 @@ namespace bpr::core {
 		result.Day  = points(aEvents, aScope, aNow, 86400, 300);
 		return result;
 	}
+	auto insights_review_identity_day(const insights_review_event& aEvent) noexcept -> std::int64_t
+	{
+		return aEvent.Kind == insights_review_kind::opened ? aEvent.LocalDay : 0;
+	}
+	auto insights_review_delta(const insights_review_event& aEvent) noexcept -> insights_review_counts
+	{
+		insights_review_counts result{ };
+		const auto             add = [&](insights_review_metric aMetric, std::uint64_t aCount = 1) { result[static_cast<std::size_t>(aMetric)] += aCount; };
+		using enum insights_review_kind;
+		using metric = insights_review_metric;
+		switch (aEvent.Kind) {
+		case opened: add(metric::opened); break;
+		case submitted:
+			add(metric::submitted);
+			add(aEvent.Disposition == 0 ? metric::approved : aEvent.Disposition == 1 ? metric::changes
+																					 : metric::commented);
+			break;
+		case comment:
+			add(metric::comments);
+			if (aEvent.Suggestion) {
+				add(metric::suggestions);
+			}
+			break;
+		case reply:
+			add(metric::replies);
+			if (aEvent.Suggestion) {
+				add(metric::suggestions);
+			}
+			break;
+		case resolved: add(metric::resolved); break;
+		case seen:     add(metric::seen); break;
+		case accepted:
+			add(metric::accepted);
+			add(metric::lines, aEvent.Lines);
+			break;
+		case note:   add(metric::notes); break;
+		case defect: add(metric::defects); break;
+		case round:  add(metric::rounds); break;
+		}
+		return result;
+	}
+	auto build_insights_reviews(const std::vector<insights_review_bucket>& aBuckets, const std::vector<insights_review_pr>& aPullRequests, const std::int64_t aStartedDay, const std::int64_t aToday) -> insights_reviews_snapshot
+	{
+		insights_reviews_snapshot result;
+		result.Available                             = true;
+		result.StartedDay                            = aStartedDay;
+		result.Today                                 = aToday;
+		const auto                            monday = aToday - ((aToday + 3) % 7 + 7) % 7;
+		std::map<std::int64_t, std::uint64_t> days;
+		std::map<std::string, std::uint64_t>  repositories;
+		constexpr auto                        submitted = static_cast<std::size_t>(insights_review_metric::submitted);
+		for (const auto& bucket : aBuckets) {
+			if (bucket.Day > aToday) {
+				continue;
+			}
+			for (std::size_t index = 0; index < bucket.Counts.size(); ++index) {
+				result.Ranges[2][index] += bucket.Counts[index];
+				if (bucket.Day >= aToday - 29) {
+					result.Ranges[1][index] += bucket.Counts[index];
+				}
+				if (bucket.Day >= monday) {
+					result.Ranges[0][index] += bucket.Counts[index];
+				}
+			}
+			days[bucket.Day] += bucket.Counts[submitted];
+			repositories[bucket.Repository] += bucket.Counts[submitted];
+		}
+		std::vector<std::uint64_t> amounts;
+		const auto                 first = monday - 25 * 7;
+		for (auto day = first; day <= aToday; ++day) {
+			amounts.push_back(days[day]);
+		}
+		auto sorted = amounts;
+		std::ranges::sort(sorted);
+		const auto percentile = sorted.empty() ? 0 : sorted[(sorted.size() * 9 + 9) / 10 - 1];
+		for (auto day = first; day <= aToday; ++day) {
+			const auto value = days[day];
+			result.Calendar.push_back({ day, value, std::clamp(std::sqrt(static_cast<double>(value) / static_cast<double>(std::max<std::uint64_t>(1, percentile))), 0.16, 1.0) });
+		}
+		for (const auto& [day, count] : days) {
+			if (count && (!result.Busiest || count > result.Busiest->Counts[submitted])) {
+				insights_review_bucket busiest;
+				busiest.Day               = day;
+				busiest.Counts[submitted] = count;
+				result.Busiest            = busiest;
+			}
+		}
+		std::uint64_t most = 0;
+		for (const auto& [repository, count] : repositories) {
+			if (count > most) {
+				most                          = count;
+				result.MostReviewedRepository = repository;
+			}
+		}
+		for (const auto& pull : aPullRequests) {
+			if (!pull.Reviews) {
+				continue;
+			}
+			if (!result.Biggest || pull.Files > result.Biggest->Files) {
+				result.Biggest = pull;
+			}
+			if (!result.MostReviews || pull.Reviews > result.MostReviews->Reviews) {
+				result.MostReviews = pull;
+			}
+		}
+		return result;
+	}
+
 }

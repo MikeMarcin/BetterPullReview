@@ -29,6 +29,7 @@ namespace bpr::application {
 		std::optional<std::uint64_t>      GitBytes;
 		std::string                       BackgroundWork;
 		core::insights_github_snapshot    Github;
+		core::insights_reviews_snapshot   Reviews;
 	};
 
 	/// \brief Presentation gestures; none gives Qt access to a storage or process capability.

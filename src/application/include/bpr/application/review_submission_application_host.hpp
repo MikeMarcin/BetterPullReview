@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_SUBMISSION_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_SUBMISSION_APPLICATION_HOST_HPP
 
+#include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_submission_port.hpp"
 
@@ -65,7 +66,7 @@ namespace bpr::application {
 		review_submission_application_host(review_submission_provider_factory aFactory,
 										   review_submission_live_binding aBinding, core::application_session_id aSession,
 										   core::request_generation aGeneration, effect_executor& aEffects,
-										   decision_executor& aDecisions, review_submission_projection_port& aProjection);
+										   decision_executor& aDecisions, review_submission_projection_port& aProjection, insights_review_capture aInsights = { });
 		~review_submission_application_host();
 		review_submission_application_host(const review_submission_application_host&)                    = delete;
 		auto operator=(const review_submission_application_host&) -> review_submission_application_host& = delete;
