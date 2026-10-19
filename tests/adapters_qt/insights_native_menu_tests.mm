@@ -48,7 +48,9 @@ namespace {
 		action->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+I") });
 		QObject::connect(action, &QAction::triggered, action, [&aCalls] { ++aCalls; });
 		expect(bpr::qt::use_native_insights_menu(*action, *bar), "actual Cocoa registration");
-		expect(!action->isVisible() && action->menuRole() == QAction::NoRole, "the donor creates no competing menu entry or shortcut");
+		expect(action->isVisible() && action->menuRole() == QAction::NoRole
+				   && !bar->findChild<QMenu*>()->actions().contains(action),
+			   "the donor preserves its state without a competing Qt menu entry");
 		return bar;
 	}
 }

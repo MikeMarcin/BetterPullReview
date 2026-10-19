@@ -4,6 +4,7 @@
 
 #include <QAction>
 #include <QGuiApplication>
+#include <QMenu>
 #include <QMenuBar>
 #include <QObject>
 #include <QPointer>
@@ -76,9 +77,15 @@ namespace bpr::qt {
 				Donors.push_back({ &aAction, &aBar });
 				// ApplicationSpecificRole creates an item for every QMenu. AppKit
 				// retains that application menu while Qt switches window bars.
-				// Only the native item owns the Cocoa menu entry and its shortcut.
+				// Only the native item owns the Cocoa menu entry. Removing the
+				// donor from its QMenu preserves its enabled state and the window's
+				// existing QAction shortcut; hiding a QAction disables it in Qt.
 				aAction.setMenuRole(QAction::NoRole);
-				aAction.setVisible(false);
+				for (auto* object : aAction.associatedObjects()) {
+					if (auto* menu = qobject_cast<QMenu*>(object)) {
+						menu->removeAction(&aAction);
+					}
+				}
 				connect(&aAction, &QAction::changed, this, [this] { schedule(); });
 				connect(&aAction, &QObject::destroyed, this, [this] { schedule(); });
 				connect(&aBar, &QObject::destroyed, this, [this] { schedule(); });
