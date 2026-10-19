@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1644"
+  ],
+  "reserve_for": "release-v030-coordinated-r1",
+  "purpose": "Diagnose actual Ubuntu Insights two-client persisted/remaining public budget assertion without weakening semantics",
+  "created": "2026-10-19T06:14:53.594920+00:00",
+  "base": "1da94d44545c9f6e9cffad4bd12b919416a08858"
+}
