@@ -257,7 +257,7 @@ and its runtime retains 45 unchanged-checkout observations, zero writes and
 a passing canary; the separate C5 question-type failure is owned by BPR1637.
 The actual Mac metadata harness and scoped clang-tidy22 pass.
 
-[BPR-1636](../issues/30-in-progress/BPR-1636-make-final-gcc-test-helper-lifetimes-explicit.md)
+[BPR-1636](../issues/60-done/BPR-1636-make-final-gcc-test-helper-lifetimes-explicit.md)
 confines three macOS Option-key helpers to their existing Apple caller, and
 names the expected membership vector without altering complete equality or
 request counts. Ubuntu's complete r5 build passes all original warnings as
