@@ -910,9 +910,13 @@ namespace {
 							  << " path=" << folder.siblingAtColumn(qt::overview_file_model::file_column).data().toString().toStdString()
 							  << " folder_pixels=" << folderPixels << " file_pixels=" << filePixels
 							  << " cell=" << cell.x() << ',' << cell.y() << ',' << cell.width() << ',' << cell.height()
+							  << " viewport=" << files->viewport()->width() << ',' << files->viewport()->height()
 							  << " dpr=" << overviewImage.devicePixelRatio()
 							  << " font=" << files->font().family().toStdString() << " point_size=" << files->font().pointSizeF()
 							  << " folder_colour=" << folderInk.name().toStdString() << " file_colour=" << fileInk.name().toStdString() << '\n';
+					if (const auto root = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT"); !root.isEmpty()) {
+						static_cast<void>(overviewImage.save(root + QStringLiteral("/failure-overview-%1.png").arg(static_cast<int>(mode))));
+					}
 				}
 				expect(folderPixels > 8 && filePixels == 0,
 					   "Overview's folder path is drawn in the same folder ink");
