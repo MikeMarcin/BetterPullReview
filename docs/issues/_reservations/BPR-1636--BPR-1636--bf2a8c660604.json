@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1636"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Repair actual GCC15 Qt helper scope and provider test temporary lifetime warnings",
+  "created": "2026-10-19T05:13:03.358126+00:00",
+  "base": "16b78abf171fc81e1f47a35d54b0e94368b97a6a"
+}
