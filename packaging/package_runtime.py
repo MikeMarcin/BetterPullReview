@@ -340,6 +340,8 @@ def qt_records(info: dict, root: Path) -> dict:
     deployed_names = {path.name for path in root.rglob("*") if path.is_file()}
     upstream = qt_upstream_records(info, deployed_names)
     def identity(name: str) -> str:
+        if info.get("platform") == "Windows":
+            return name.lower()
         # ELF deployment preserves the SONAME; the producer records the full
         # versioned file behind that symlink. Both identify the same module.
         return re.sub(r"\.so(?:\.[0-9]+)+$", ".so", name) if name.startswith("libQt6") else name

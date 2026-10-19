@@ -765,3 +765,16 @@ coordinator-owned common-source Mac/Windows production and exact native audits.
 Card closeout and publication/download observations remain external after the
 freeze until postrelease administrative upkeep. All earlier strict memory,
 history, native/vault/crash, security-coverage and source-access gaps remain.
+
+
+Native R4 at9579 passes exact producer/map/export/payload/dependency/hardening
+checks for all21 PEs and complete separate source-asset/installed-reference
+verification. The corrected Qt closure has11 files. Both full public audit
+commands preserve the expected old-source drift refusal; old installed
+provenance preserves its omitted-Svg refusal. No old artifact changes.
+Independent review then proves a case-only Windows Svg rename could still
+repeat that omission. Windows provenance identity now folds filename case,
+with uppercase Svg/WebP/core names exercised through actual platform-specific
+notices/provenance/SPDX generation. Darwin/Linux identity remains exact.
+The evidence for9579 is retained with that counterexample; final acceptance
+binds the corrected common-source candidate and fresh producer artifacts.

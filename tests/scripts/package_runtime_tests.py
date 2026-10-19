@@ -349,13 +349,14 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
 
     def test_deployed_svg_and_webp_join_exact_module_closures_on_each_platform(self):
         courses = [
-            ("Qt6Svg.dll", "qwebp.dll", "Qt6{}.dll"),
-            ("QtSvg", "libqwebp.dylib", "Qt{}"),
-            ("libQt6Svg.so.6", "libqwebp.so", "libQt6{}.so.6"),
-            ("libQt6Svg.so.6.11.2", "libqwebp.so", "libQt6{}.so.6.11.2"),
+            ("Windows", "Qt6Svg.dll", "qwebp.dll", "Qt6{}.dll", False),
+            ("Windows", "Qt6Svg.dll", "qwebp.dll", "Qt6{}.dll", True),
+            ("Darwin", "QtSvg", "libqwebp.dylib", "Qt{}", False),
+            ("Linux", "libQt6Svg.so.6", "libqwebp.so", "libQt6{}.so.6", False),
+            ("Linux", "libQt6Svg.so.6.11.2", "libqwebp.so", "libQt6{}.so.6.11.2", False),
         ]
-        for svg, webp, template in courses:
-            with self.subTest(svg=svg), ContainedTemporaryDirectory() as directory:
+        for system, svg, webp, template, uppercase in courses:
+            with self.subTest(system=system, svg=svg, uppercase=uppercase), ContainedTemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "sbom").mkdir()
                 stage = root / "stage"
@@ -379,22 +380,32 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 for name, record in documents.items():
                     (root / f"sbom/{name}-6.11.2.spdx.json").write_text(json.dumps(record))
                 for name in [*(template.format(name) for name in base_names), svg, webp]:
-                    (stage / name).touch()
-                selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
+                    (stage / (name.upper() if uppercase else name)).touch()
+                module_info = {"qt_root": str(root), "qt_version": "6.11.2", "platform": system}
+                selected = runtime.qt_records(module_info, stage)
                 self.assertEqual({item["name"] for item in selected["packages"]}, {*base_names, "Svg", "WebPPlugin", "BundledWebP"})
-                self.assertEqual({Path(item["fileName"]).name for item in selected["files"]}, {p.name for p in stage.iterdir()})
+                expected_names = {p.name.lower() if system == "Windows" else p.name for p in stage.iterdir()}
+                self.assertEqual({Path(item["fileName"]).name.lower() if system == "Windows" else Path(item["fileName"]).name for item in selected["files"]}, expected_names)
                 self.assertEqual({item["licenseId"] for item in selected["hasExtractedLicensingInfos"]}, set(documents))
                 # Exercise generated notices/provenance/SPDX together. Only the
                 # synthetic upstream archive transport is stubbed here; separate
                 # source-asset tests verify complete archive bytes and digests.
                 import verify_release_security as security
-                info = {"qt_root": str(root), "qt_version": "6.11.2", "platform": "Linux", "version": "1.0.0"}
+                info = {**module_info, "version": "1.0.0"}
+                legal = runtime.legal_root(stage, info)
+                notice = root / "msvc-notice.txt"
+                notice.write_text("synthetic licensed runtime notice")
+                if system == "Windows":
+                    (stage / "MSVCP140.dll").touch()
                 provenance = runtime.source_provenance(info, "a" * 40, "b" * 64)
                 empty = root / "empty.tar"
+                (root / "_bpr").mkdir()
+                (root / "_bpr/LibArchive-NOTICES.txt").write_text("synthetic LibArchive notice")
                 with tarfile.open(empty, "w"):
                     pass
                 with patch.object(runtime, "source_archives", return_value={name: empty for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting")}), \
-                        patch.object(runtime, "prepare_source_asset", return_value=provenance):
+                        patch.object(runtime, "prepare_source_asset", return_value=provenance), \
+                        patch.dict("os.environ", {"BPR_MSVC_REDISTRIBUTION_NOTICE": str(notice)}):
                     runtime.notices(root, info, stage)
                 output = root / "final.spdx.json"
                 with patch.object(runtime, "verify_source_asset"), \
@@ -403,12 +414,12 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 final = json.loads(output.read_text())
                 self.assertTrue({"Svg", "WebPPlugin", "BundledWebP"}.issubset({item["name"] for item in final["packages"]}))
                 self.assertTrue({"QtSvg", "QtImageFormats"}.issubset({item["name"] for item in provenance["components"]}))
-                notices = (stage / "ThirdParty/THIRD-PARTY-NOTICES.txt").read_text()
+                notices = (legal / "THIRD-PARTY-NOTICES.txt").read_text()
                 self.assertIn("qtsvg licence", notices)
                 self.assertIn("qtimageformats licence", notices)
-                self.assertIn("matching private Qt DLLs/shared objects and plugins", (stage / "ThirdParty/SOURCE-OFFERS.txt").read_text())
+                self.assertIn("matching private Qt DLLs/shared objects and plugins", (legal / "SOURCE-OFFERS.txt").read_text())
                 self.assertEqual(security.source_and_notices(stage, output, info)["qt_packages"], 7)
-                installed = stage / "ThirdParty/qt-runtime-provenance.json"
+                installed = legal / "qt-runtime-provenance.json"
                 recorded = json.loads(installed.read_text())
                 recorded["packages"] = [item for item in recorded["packages"] if item["name"] != "Svg"]
                 installed.write_text(json.dumps(recorded))
@@ -420,7 +431,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     saved = path.read_bytes()
                     path.unlink()
                     with self.assertRaises(FileNotFoundError):
-                        runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
+                        runtime.qt_records(module_info, stage)
                     path.write_bytes(saved)
 
     def test_unshipped_module_documents_are_not_selected_by_substrings(self):

@@ -45,3 +45,18 @@ ad-hoc-sign and exit assertions. Product release.sh bytes remain unchanged.
 AC3's final complete native public audit remains pending fresh coordinator
 production. A packaging-source change must retain package-build-source-drift
 on old b914 artifacts. No guard is relaxed to obtain an old-candidate pass.
+
+Independent review supplies a real Windows case-only counterexample at9579:
+QT6SVG.DLL could pass PE ownership while provenance repeated the Svg omission.
+Windows file identity is now consistently case-insensitive; Darwin/Linux file
+identity remains exact. The public generation course covers uppercase Windows
+Svg/WebP/core files, actual platform-specific legal layout and final SPDX, then
+proves omitted installed Svg provenance refuses. No filename authorizes bytes.
+
+Native R4 at9579 passes all21 exact PE producer/map/export/payload/dependency/
+hardening inspections and verifies the complete old corresponding-source asset
+and installed source references. Its corrected Qt closure contains11 files.
+Both maintained public auditors actually refuse old b914 with
+package-build-source-drift; the old installed provenance separately refuses
+qt-runtime-provenance-drift. Original assets and extracted runtime hashes remain
+unchanged. These partial observations do not close the final public-audit AC.

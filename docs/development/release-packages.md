@@ -143,6 +143,8 @@ selection. Changed specimens require new review. Packaging/signing and offline
 manifest preflight need no new argument; this input belongs only to the native
 PE audit and grants no installation, security or distribution qualification.
 
+Windows Qt provenance compares deployed filenames case-insensitively, matching
+PE producer inspection; Darwin/Linux keep their native exact filename identity.
 Qt provenance and the native PE audit select the producer's exact `qtbase`
 SPDX plus `qtsvg` for the deployed Svg library and `qtimageformats` for the
 WebP plugin. This includes Windows `Qt6Svg.dll`, Darwin's `QtSvg` framework
