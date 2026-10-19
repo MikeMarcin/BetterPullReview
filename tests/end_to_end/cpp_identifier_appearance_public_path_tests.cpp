@@ -226,7 +226,7 @@ namespace {
 		wait_for([&] { return !window.comparison_surface()->geometry_pending() && window.comparison_surface()->left_pane()->viewport()->width() > 500; }, "public drawer controls give both panes room for qualified names");
 	}
 
-	void check_token(QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const QColor& aColour)
+	void check_token(QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const QColor& aColour, const core::appearance_variant aVariant)
 	{
 		auto block = aPane.document()->begin();
 		while (block.isValid() && !block.text().contains(aLine)) {
@@ -249,13 +249,28 @@ namespace {
 			std::cerr << "token-not-visible:" << aLine.toStdString() << ":" << aToken.toStdString() << ":line=" << block.blockNumber() << ":origin=" << start.x() << "," << start.y() << ":viewport=" << aPane.viewport()->width() << "," << aPane.viewport()->height() << '\n';
 		}
 		expect(!area.isEmpty(), "verified token is visible in the offscreen raster");
-		const auto image   = aPane.viewport()->grab(area).toImage();
-		bool       colored = false;
+		const auto image             = aPane.viewport()->grab(area).toImage();
+		bool       colored           = false;
+		auto       closestDifference = 256;
+		auto       closestColour     = QColor{ };
 		for (int y = 0; y < image.height(); ++y) {
 			for (int x = 0; x < image.width(); ++x) {
-				const auto pixel = image.pixelColor(x, y);
-				colored          = colored || (std::abs(pixel.red() - aColour.red()) <= 3 && std::abs(pixel.green() - aColour.green()) <= 3 && std::abs(pixel.blue() - aColour.blue()) <= 3);
+				const auto pixel      = image.pixelColor(x, y);
+				const auto difference = std::max({ std::abs(pixel.red() - aColour.red()), std::abs(pixel.green() - aColour.green()), std::abs(pixel.blue() - aColour.blue()) });
+				if (difference < closestDifference) {
+					closestDifference = difference;
+					closestColour     = pixel;
+				}
+				colored = colored || (std::abs(pixel.red() - aColour.red()) <= 3 && std::abs(pixel.green() - aColour.green()) <= 3 && std::abs(pixel.blue() - aColour.blue()) <= 3);
 			}
+		}
+		if (!colored) {
+			std::cerr << "identifier-ink variant=" << core::stable_name(aVariant)
+					  << " pane=" << aPane.objectName().toStdString() << " line=" << aLine.toStdString() << " token=" << aToken.toStdString()
+					  << " expected=" << aColour.name().toStdString() << " closest=" << closestColour.name().toStdString() << " channel_difference=" << closestDifference
+					  << " area=" << area.x() << ',' << area.y() << ',' << area.width() << ',' << area.height()
+					  << " raster=" << image.width() << ',' << image.height() << " dpr=" << image.devicePixelRatio()
+					  << " font=" << aPane.font().family().toStdString() << " point_size=" << aPane.font().pointSizeF() << '\n';
 		}
 		expect(colored, "token's required foreground appears in its visible painted pixels");
 	}
@@ -269,7 +284,7 @@ namespace {
 			expect(QDir{ }.mkpath(root), "render evidence directory exists");
 			expect(aApplication.window().grab().save(root + QLatin1Char{ '/' } + QString::fromUtf8(core::stable_name(aVariant).data(), static_cast<qsizetype>(core::stable_name(aVariant).size())) + QStringLiteral(".png")), "full composed Light/Dark window saved offscreen");
 		}
-		const auto check = [&](QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const role aRole) { check_token(aPane, aLine, aToken, qt::to_presentation_color(colors[at(aRole)])); };
+		const auto check = [&](QPlainTextEdit& aPane, const QString& aLine, const QString& aToken, const role aRole) { check_token(aPane, aLine, aToken, qt::to_presentation_color(colors[at(aRole)]), aVariant); };
 		for (auto* pane : { surface->left_pane(), surface->right_pane() }) {
 			check(*pane, QStringLiteral("namespace GCT"), QStringLiteral("GCT"), role::syntax_namespace);
 			check(*pane, QStringLiteral("namespace GCT"), QStringLiteral("Network"), role::syntax_namespace);

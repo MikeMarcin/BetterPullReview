@@ -37,3 +37,14 @@ Evidence: ignored ubuntu-gate-r5.partial7 raw/normalized logs, lines5364–5371.
 The coordinator owns both active native heavy slots; no native build, render,
 tidy or probe starts before explicit slot release. Frontend-design remains
 required for any subsequent product visual repair.
+
+
+## Observation preparation
+
+Failure-only context now names the variant, pane, exact synthetic token/site,
+expected and closest raster RGB, nearest maximum-channel difference, crop/DPR
+and font. The existing RGB-at-most3 predicate, per-character format validation,
+contrast matrix and fresh-process completion checks are unchanged. The nearest
+color is diagnostic context, not a substituted assertion or accepted tolerance.
+Source format22/diff checks pass; native compile, original-predicate measurement
+and focused tidy remain pending until explicit host release.

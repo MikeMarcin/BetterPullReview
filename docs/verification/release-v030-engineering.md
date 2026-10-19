@@ -344,3 +344,12 @@ offscreen environment, including the established headless Linux style.
 Isolation, backstops and all control/persistence assertions remain unchanged.
 Native generated-environment and complete-course verification stay pending;
 offscreen automation supplies no real-desktop qualification.
+
+
+[BPR-1643](../issues/30-in-progress/BPR-1643-diagnose-ubuntu-identifier-foreground-raster.md)
+retains the later Ubuntu identifier appearance failure after all710 contrast
+pairs pass in four variants. Exact pane-layout foreground checks also precede
+the failed pixel assertion. Failure-only context now names its token, variant,
+font, geometry and closest actual raster color without changing the original
+RGB predicate or contrast requirements. Native observation and a source-backed
+cause remain pending; no raster tolerance or product color changes.
