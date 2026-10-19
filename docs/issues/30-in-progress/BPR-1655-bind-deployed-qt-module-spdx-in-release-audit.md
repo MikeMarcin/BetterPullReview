@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1655"
 title: "Bind deployed Qt module SPDX in release audit"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0084"]
 depends_on: []
 priority: "P1"
