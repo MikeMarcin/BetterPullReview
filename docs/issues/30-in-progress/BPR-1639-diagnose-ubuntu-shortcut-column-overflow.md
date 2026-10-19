@@ -24,3 +24,13 @@ in the same repair milestone; it applies before any visual surface change.
 - AC1: Measure exact initial/minimum sizes, title/key columns, viewport, native label widths and fonts at the failing scales; bind the actual layout cause without assuming a font issue.
 - AC2: Implement only a bounded agreed layout repair preserving approved native labels, key caps, search and accessibility; frontend-design applies and meaningful overflow controls remain.
 - AC3: Verify focused native/faithful offscreen scale and font evidence plus scoped format/tidy/architecture/docs, commit explicit paths and reconcile commands/pending observations.
+
+## Source diagnosis checkpoint
+
+The initial/minimum size comes from 42/24 em, while the key column measures
+actual native key-cap strings using ResizeToContents. A platform label/font
+width mismatch is a hypothesis until observed. Failure-only diagnostics now
+retain dialog/minimum sizes, title/key column and viewport widths, title floor,
+DPR and font. The complete original fit predicate and subsequent widest-key
+assertion remain unchanged. No layout or minimum-size repair is made; native
+measurements and compilation of these diagnostics remain pending.

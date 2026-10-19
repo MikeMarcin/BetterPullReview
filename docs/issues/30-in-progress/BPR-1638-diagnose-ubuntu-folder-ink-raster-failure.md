@@ -24,3 +24,14 @@ in the same repair milestone; it applies before any visual surface change.
 - AC1: Bind the exact failing row/mode/geometry and observed folder/file ink counts to native or faithful offscreen evidence, separating font/raster, selection, palette and layout causes.
 - AC2: Apply only a source-backed agreed repair, retaining meaningful wrong-color negative evidence and approved UX; load frontend-design before any visual edit and verify affected platform/render courses.
 - AC3: Run scoped format/tidy/architecture/documentation checks, retain failures, commit explicit paths and reconcile commands/native qualification.
+
+## Source diagnosis checkpoint
+
+The folder delegate explicitly selects PlaceholderText; the test currently
+requires more than eight near-color pixels and zero ordinary Text pixels in
+each folder-name cell, including the one-character root path. No measured
+row/mode/count is present in the original Linux log. Failure-only diagnostics
+now retain those counts, path, cell, DPR, font and palette colors with the
+exact original predicate unchanged. A thin root glyph is only a hypothesis,
+not an accepted cause or a reason to lower the threshold. Native observations
+and compilation of the new diagnostics remain pending the coordinator's slot.

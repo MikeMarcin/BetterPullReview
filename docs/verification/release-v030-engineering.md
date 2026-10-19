@@ -296,3 +296,20 @@ declared directories before queries or snapshots, leaving original bare Git
 queries and all classifications unchanged. The complete Mac harness passes
 in 15.16 seconds, with scoped tidy22 passing. Native Linux rerun remains pending
 after its current suite; the failed serializer candidate is not accepted.
+
+
+The remaining Ubuntu failures are tracked as
+[BPR-1638](../issues/30-in-progress/BPR-1638-diagnose-ubuntu-folder-ink-raster-failure.md)
+and [BPR-1639](../issues/30-in-progress/BPR-1639-diagnose-ubuntu-shortcut-column-overflow.md).
+Their original raster/column predicates remain intact; failure-only diagnostics
+record the missing palette/pixel or geometry/font observations. Neither a
+tolerance nor a product layout change is justified or claimed yet. Native
+measurements wait for the current Ubuntu suite to finish.
+
+The Mac command slot is quiescent after focused work. An ignored exact manifest
+partition identifies four existing Cocoa courses that display native desktop
+items, request notification behavior or show/activate windows. They remain
+required isolated or attended qualification. A selected unattended run can
+exercise the other 807 of 811 rows with unchanged properties, but must report
+that selected completeness separately; it is not a complete normal native
+gate. No test skip, selector registration or runner completeness guard changes.

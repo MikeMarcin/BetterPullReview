@@ -33,3 +33,23 @@ This repair follows the established native platform palette, system menu type,
 existing command order and label; it adds no visual tokens, copy or layout.
 The design is the single existing Insights command, with ownership matching
 its application-menu lifetime and existing per-profile action semantics.
+
+## Focused engineering evidence
+
+One application-owned Cocoa item now follows the existing QAction whose
+QMenuBar is the process's actual current NSMenu. QPointer donors prevent use
+after action/bar destruction. The donor is removed from its QMenu rather than
+hidden: the first hidden-action attempt was rejected because Qt disables it.
+Native label, location, shortcut and per-profile callbacks remain approved.
+Windows/Linux and offscreen keep the existing ordinary QAction composition.
+
+The actual new native course passes (0.55 seconds; final guard rerun 0.58),
+with activation policy Prohibited before and after QApplication, no shown
+window, and only process-local AppKit menu inspection. It supplies completed
+menu arbitration without activating a window, and checks one item, distinct
+donor dispatch, a real native key-equivalent event dispatching exactly once,
+sibling retirement, disabled resident state, reopening and destruction. All
+new C++/Objective-C++ pass focused tidy22 with warnings as errors. Offscreen
+Help, reset and Option courses pass. The original foreground activation course
+is not run on the owner's live desktop; its exact-candidate isolated/native
+qualification remains pending. This card stays In Progress for that obligation.

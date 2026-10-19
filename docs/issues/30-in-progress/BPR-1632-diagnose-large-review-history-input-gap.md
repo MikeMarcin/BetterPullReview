@@ -35,3 +35,18 @@ report digest and exact phase are preserved in ignored
 `.mask/sessions/release-v0.3.0/history-initial-diagnosis.json`. No formula or
 threshold changed. Native reproduction remains pending the coordinator's
 baseline and prescribed release-fuzz completion.
+
+## Bounded native follow-up
+
+The unchanged frozen source passes its unprofiled focused rerun in 149.25
+seconds. One authorized diagnostic course on clean `adb1e7bf6` also passes,
+with maximum refresh input gap 67.224 ms against the unchanged 100 ms limit.
+Only its owned synthetic child is sampled at 10 ms; the report is explicitly
+perturbed diagnostic evidence, not unprofiled acceptance. Aggregate stacks show
+GUI allocation waiting on malloc's native fork lock and a worker in fork. They
+do not identify the original failed interval or establish its unique cause.
+Original report, passing unprofiled report, sampled report, full stacks and
+process receipts are retained under ignored `history-diagnosis/`. All three
+owned course/sample processes finish. No timing source, budget, attribution or
+retry policy changes; no further diagnostic course is authorized this round.
+Coordinator disposition remains pending, so this card stays In Progress.
