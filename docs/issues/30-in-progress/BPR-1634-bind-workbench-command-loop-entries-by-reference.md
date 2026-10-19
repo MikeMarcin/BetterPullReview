@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1634"
 title: "Bind workbench command loop entries by reference"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
