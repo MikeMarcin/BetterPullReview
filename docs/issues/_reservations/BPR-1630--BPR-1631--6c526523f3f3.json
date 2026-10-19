@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1630",
+    "BPR-1631"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Ubuntu strict-C11 HACL provider and Windows measured containment prerequisites for v0.3.0",
+  "created": "2026-10-19T04:26:28.140908+00:00",
+  "base": "18dff0d12623520da114392f92d18c4c21536c67"
+}
