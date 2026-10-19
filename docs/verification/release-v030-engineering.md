@@ -691,6 +691,40 @@ The corrected archive SHA-256 is
 Both exact R17 tasks are retired after preserving the refusal and completion;
 native build/test/producer image inventory is empty.
 
+The coordinator's separately allocated R18 observes copied matcher-document
+ownership against begin/end timestamps around the original native resource
+snapshot, with later diagnostic draining/TID/maps observations timestamped
+separately. The one unchanged-predicate Release course fails in 49.3444s at
+selection 18: 227815424 footprint-growth bytes against 226492416, excess 1323008.
+There are 21 original sample brackets, 490 numeric events and 49 complete
+large-copy lifetimes, with zero overflow. All tracked owners retire before
+every relevant sample bracket; the nearest lead is 469.558ms and the failing
+sample's lead is 655.952ms. Live retention of these copied documents at the
+checkpoints is falsified using event intervals, rather than later counters.
+
+Delayed recorded-TID checks find none present and stack-VMA RSS is at most
+167936 bytes; these are not atomic sample-time native-exit/residency proofs.
+Former-clone-intersecting VMAs reach 66699264 resident bytes, but stale buffer
+addresses cannot separate other live allocations and allocator pages. No
+production leak, metric defect or justified product/input correction is
+established; phase-specific live allocation/page ownership remains missing.
+The original 216MiB/900s predicates, fixture, scheduling and allocator settings
+are unchanged, and no diagnostic result supplies acceptance.
+
+The three temporary sources are guarded-restored exactly at unchanged clean
+WSL c01e12c1ec959091905e7f3dafc004d933901786; six governing source hashes stay
+equal and the original 67f292 benchmark SHA-256 recorded above is rebuilt
+exactly. Both target builds pass, the one course fails its original predicate,
+the wrapper exits 0, the owned task is retired and no native build/test jobs
+remain at lease return. The evidence archive SHA-256 is
+`cb9de9df03b9c01a825e572392c2c551cc7c3476dcdd806a8db0be570f034d07`;
+receipts, full failed samples and interval analysis remain under ignored
+`.mask/sessions/release-v0.3.0/memory-owner-discriminator-r18/`.
+The coordinator accepts the bounded falsification, stops further experiments
+and authorizes only this card/ledger continuation before refreshed source
+bindings and candidate reproduction. Original criteria and all release gaps
+remain intact; no owner waiver decision is supplied or inferred.
+
 BPR-1653 remains In Progress: causal ownership, a justified correction and the
 original optimized native pass remain unsatisfied. The coordinator's explicit
 stopping boundary permits final source/card/notes/plan upkeep and reviewable

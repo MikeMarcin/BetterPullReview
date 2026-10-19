@@ -170,3 +170,55 @@ restoration are retained. Further native experiments require a new
 coordinator lease and a named, phase-matched ownership/residency question.
 Release candidate production is not card or milestone acceptance. Any later
 source correction explicitly invalidates and reproduces affected candidates.
+
+## R18 large-copy ownership discriminator
+
+The coordinator allocated one new bounded course to distinguish live copied
+matcher inputs from resident pages after their owners retire. Its WSL source
+remains clean c01e12c1ec959091905e7f3dafc004d933901786 before and after the
+experiment. Temporary hooks record creation, copied buffer identity/capacity,
+matcher thread/body completion and retirement after both copied documents
+free. The original native RSS/live-heap sample has its own steady-clock
+begin/end bracket; event draining, native-TID checks and intersecting-VMA RSS
+have separate later timestamps. Scheduling, matching, fixture, allocator,
+baseline, numeric predicates and the original 900-second serial registration
+remain unchanged. The diagnostic completion path cannot supply acceptance.
+
+The actual Release course fails in 49.3444s at selection 18: RSS 257687552 minus
+before-application 29872128 gives 227815424 growth bytes against 226492416,
+excess 1323008. Live heap is 158348064, cache 64292683 and jobs zero. All 21
+original samples, 490 events and 49 complete large-copy owner lifetimes are
+retained with zero ring overflow. Each tracked owner holds 2480000 bytes of
+copied buffer capacity during its lifetime. Every tracked owner retires
+before each relevant original sample bracket; the nearest retirement is 469.558ms before a sample and 655.952ms
+before the failing sample. No owner lifetime overlaps a sampled bracket.
+This falsifies live retention of these instrumented large copies at those
+checkpoints, rather than inferring it from a later zero counter.
+
+Each later check finds no recorded native TID present, and recorded stack VMAs
+hold at most 167936 resident bytes. These observations begin at most
+31 microseconds after the sample bracket and are not atomic sample-time
+thread-exit or stack-residency proof. VMAs intersecting former clone buffers
+reach 66699264 resident bytes, but freed addresses cannot attribute those pages
+exclusively to copies: cache allocations, other live objects and allocator
+pages may share them. Phase-specific live allocation/page ownership remains
+the missing discriminator. No production leak or justified product/input
+correction is established.
+
+All three temporary matcher/observer/benchmark sources are guarded-restored
+exactly, and the original benchmark is rebuilt to the same 67f292 SHA-256
+recorded above. The source stays clean at the same revision and six governing
+sources retain their hashes. Both focused builds pass; exactly one course
+runs and fails its original predicate without an acceptance marker. The owned
+scheduled task is retired, its wrapper exits 0, and the native audit finds no
+build/test jobs before returning the PC lease. Native evidence archive SHA-256
+is `cb9de9df03b9c01a825e572392c2c551cc7c3476dcdd806a8db0be570f034d07`;
+receipts, original failed samples, derived sample-bracket interval analysis
+and restoration evidence remain under ignored
+`.mask/sessions/release-v0.3.0/memory-owner-discriminator-r18/`.
+
+The coordinator accepts this bounded falsification and stops further
+experiments. This continuation changes only the card and release ledger;
+the original acceptance criteria remain intact and the strict gate stays
+failed. No new runtime/input change is justified before coordinator-owned
+candidate reproduction. The card remains In Progress.
