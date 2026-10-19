@@ -49,7 +49,9 @@ def main():
     common = ["--build-path", str(output)]
     run("index", ["megascope", "index", *common, "--threads", "1"])
     run("info", ["megascope", "info", *common, "--files"])
-    if not json.loads((output / "info.stdout").read_text())["coverage"]["complete"]:
+    coverage = json.loads((output / "info.stdout").read_text())["coverage"]
+    if (not coverage["complete"] or coverage["requested"] != len(sources)
+            or coverage["indexed"] != len(sources) or coverage["partial"] != 0 or coverage["failed"] != 0):
         raise SystemExit("incomplete main probe index; see info.stdout and index.stderr")
     if run("dump", ["megascope", "dump", *common, "--format", "json"]) != 0:
         raise SystemExit("no usable dump; see captured index/info/dump results")
