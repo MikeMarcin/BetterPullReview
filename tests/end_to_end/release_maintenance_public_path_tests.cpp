@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -22,6 +23,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
@@ -70,6 +72,80 @@ namespace {
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
 	}
+	// [[BPR-1615]]. Each private Insights family is populated before the real
+	// frozen-preview/export course; an empty store cannot prove privacy.
+	void seed_insights(const std::filesystem::path& aRoot)
+	{
+		auto                        store = adapters::sqlite::make_insights_storage(aRoot, [] {
+			return std::vector<application::insights_storage_row>{ { "BPR_INSIGHTS_REPOSITORY_61B9", 6789, 65536, true } };
+		});
+		const auto                  now   = QDateTime::currentSecsSinceEpoch();
+		core::insights_review_event review;
+		review.Kind         = core::insights_review_kind::submitted;
+		review.Host         = "BPR_INSIGHTS_ACCOUNT_84D2";
+		review.Repository   = "BPR_INSIGHTS_REPOSITORY_61B9";
+		review.Identity     = "BPR_INSIGHTS_BODY_93C7";
+		review.Head         = "BPR_INSIGHTS_HEAD_2AE6";
+		review.PullRequest  = 794613852U;
+		review.FilesChanged = 17;
+		review.UnixSeconds  = now;
+		review.LocalDay     = application::local_insights_day(now);
+		store->record_reviews({ review });
+		expect(store->reviews(now).MostReviewedRepository == review.Repository, "identifying review canaries actually populate the private store");
+		core::insights_work_sample work;
+		work.At                   = now;
+		work.Kind                 = core::insights_work_kind::diff;
+		work.DurationMicroseconds = 250000;
+		work.Path                 = "BPR_INSIGHTS_PATH_05F8/private.cpp";
+		store->record_work({ work });
+		const auto workSnapshot = store->work(now);
+		expect(workSnapshot.Ranges[0].Slowest.size() == 1 && workSnapshot.Ranges[0].Slowest.front().Path == work.Path, "the private Work path reaches the snapshot");
+		core::insights_event request;
+		request.Scope            = { 231759846U, 879246013U };
+		request.UnixSeconds      = now;
+		request.Limit            = 5000;
+		request.Remaining        = 4321;
+		request.ResetUnixSeconds = now + 1800;
+		store->record({ request }, request.Scope);
+		const auto githubSnapshot = store->github(now);
+		expect(githubSnapshot.Scope == request.Scope && githubSnapshot.Budgets[0].OwnRequests == 1, "numeric account identity and budget canaries reach GitHub history");
+		core::insights_energy_sample energy;
+		energy.AtMicroseconds         = now * 1000000;
+		energy.LocalDay               = review.LocalDay;
+		energy.Samples                = 1;
+		energy.WallMicroseconds       = 60000000;
+		energy.CpuMicroseconds        = 12345;
+		energy.Wakeups                = 3;
+		energy.WakeupWallMicroseconds = energy.WallMicroseconds;
+		store->record_energy({ energy });
+		expect(store->energy(now).Ranges[0][0].CpuMicroseconds == 12345, "Energy durations and wakeups reach their private family");
+		expect(adapters::sqlite::store_insights_repository_label(aRoot, std::string(64, 'c'), review.Repository), "private cache display label is stored");
+		expect(store->measure().TotalBytes > 0, "measured byte totals exist before export");
+		const auto persisted = read(aRoot / "state/v1/insights.sqlite3") + read(aRoot / "state/v1/insights.sqlite3-wal");
+		for (const auto canary : { "BPR_INSIGHTS_ACCOUNT_84D2", "BPR_INSIGHTS_REPOSITORY_61B9", "BPR_INSIGHTS_BODY_93C7", "BPR_INSIGHTS_HEAD_2AE6", "BPR_INSIGHTS_PATH_05F8" }) {
+			expect(persisted.find(canary) != std::string::npos, "every identifying text canary is present in the selected persisted fixture store");
+		}
+	}
+
+	void check_insights_export(const std::string& aBytes, bool aAnonymized)
+	{
+		for (const auto canary : { "BPR_INSIGHTS_", "794613852", "231759846", "879246013" }) {
+			expect(aBytes.find(canary) == std::string::npos, "all export sections exclude private Insights repository, account, PR, path and body canaries");
+		}
+		unsigned sections = 0;
+		for (const auto& line : QByteArray::fromStdString(aBytes).split('\n')) {
+			const auto object = QJsonDocument::fromJson(line).object();
+			if (object.value(QStringLiteral("section")).toString() != QStringLiteral("insights")) {
+				continue;
+			}
+			++sections;
+			expect(object.size() == 3 && object.value(QStringLiteral("local_store_bytes")).isDouble()
+					   && object.value(QStringLiteral("git_cache_bytes")).isDouble(),
+				   "the actual Insights section admits exactly its two numeric byte fields");
+		}
+		expect(sections == (aAnonymized ? 1U : 0U), "anonymized export includes one Insights section; identifying export adds none");
+	}
+
 	auto save_dialog(qt::release_maintenance_panel& aPanel) -> QFileDialog*
 	{
 		for (auto* candidate : aPanel.findChildren<QFileDialog*>(QStringLiteral("releaseMaintenanceSaveDialog"))) {
@@ -168,6 +244,7 @@ try {
 	// beside the root has a private parent.
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private application root");
+	seed_insights(root);
 	controlled_directories(QFileInfo{ temporary.path() }.canonicalFilePath());
 	const auto standardLocations = app::diagnostic_export_locations();
 	expect(standardLocations[0] == app::native_filesystem_path(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation))
@@ -257,6 +334,7 @@ try {
 	expect(directPanel && !directPanel->window()->isVisible(), "Settings stays closed for direct Help export");
 	until([&] { return directPanel->action(command::export_diagnostics)->isEnabled(); }, "first Help export waits for native startup and prepares exact preview");
 	const auto helpFrozen = directPanel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText();
+	check_insights_export(helpFrozen.toStdString(), true);
 	open_save(*directPanel)->reject();
 	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 	expect(directPanel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText() == helpFrozen && directPanel->action(command::export_diagnostics)->isEnabled(), "signed-out Help cancellation retains exact frozen preview");
@@ -293,6 +371,7 @@ try {
 	auto* preview = panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"));
 	expect(preview && preview->isReadOnly(), "exact export text is selectable read-only preview");
 	const auto bytes = preview->toPlainText().toStdString();
+	check_insights_export(bytes, true);
 	expect(bytes.starts_with("{\"format\":\"bpr-diagnostics-v2\"") && bytes.find("998877") == std::string::npos && bytes.find("887766") == std::string::npos, "actual mixed-mode log exports with fresh anonymized identities");
 	expect(bytes.find("Unknown schema field fields") != std::string::npos, "useful safe explanation survives the public preview");
 	const auto originals        = tests::read_diagnostic_logs(root);
@@ -351,6 +430,7 @@ try {
 	identifying->click();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "identifying preview prepared separately");
 	const auto identifyingBytes = preview->toPlainText().toStdString();
+	check_insights_export(identifyingBytes, false);
 	open_save(*panel)->reject();
 	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 	expect(identifyingBytes.find("\"request\":998877") != std::string::npos && identifyingBytes.find("\"request\":0") != std::string::npos, "identifying preview retains captured identifiers without reversing capture redaction");
@@ -365,6 +445,7 @@ try {
 	helpExport("exportIdentifyingDiagnosticsAction");
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "Help prepares a fresh identifying preview");
 	const auto confirmedBytes = preview->toPlainText().toStdString();
+	check_insights_export(confirmedBytes, false);
 	open_save(*panel);
 	const auto identifyingDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/identifying.txt");
 	choose(*panel, identifyingDestination, false);
