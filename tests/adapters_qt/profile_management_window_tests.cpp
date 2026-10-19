@@ -464,13 +464,16 @@ namespace {
 				   && help->accessibleName() == QStringLiteral("Help"),
 			   "the desktop bar offers Help where Check for Updates… attaches");
 		const auto helpActions = help->actions();
-		// [[BPR-1567]]. Keyboard Shortcuts first, as in the window's Help.
-		expect(helpActions.size() == 6 && helpActions[0]->text() == QStringLiteral("&Keyboard Shortcuts") && helpActions[1]->isSeparator()
-				   && helpActions[2]->text() == QStringLiteral("Diagnostics…") && helpActions[3]->isSeparator()
-				   && helpActions[4]->text() == QStringLiteral("Export anonymized diagnostics…")
-				   && helpActions[5]->text() == QStringLiteral("Export with identifying details…")
-				   && !helpActions[0]->isEnabled() && !helpActions[2]->isEnabled() && !helpActions[4]->isEnabled() && !helpActions[5]->isEnabled(),
-			   "with the window's Keyboard Shortcuts and diagnostic commands, none actionable with no window open");
+		// Keyboard Shortcuts first, followed by the approved Insights command
+		// and diagnostics, as in the window's Help.
+		expect(helpActions.size() == 7 && helpActions[0]->text() == QStringLiteral("&Keyboard Shortcuts") && helpActions[1]->isSeparator()
+				   && helpActions[2]->text() == QStringLiteral("Insights…")
+				   && helpActions[3]->text() == QStringLiteral("Diagnostics…") && helpActions[4]->isSeparator()
+				   && helpActions[5]->text() == QStringLiteral("Export anonymized diagnostics…")
+				   && helpActions[6]->text() == QStringLiteral("Export with identifying details…"),
+			   "with the window's Keyboard Shortcuts, Insights and diagnostic commands in exact order");
+		expect(std::ranges::none_of(helpActions, [](const QAction* const aAction) { return !aAction->isSeparator() && aAction->isEnabled(); }),
+			   "none of Help's commands is actionable with no window open");
 		const auto pullRequestActions = pullRequest->actions();
 		// [[BPR-1338]]. Read from a window's own Pull Request menu, with each
 		// command's key, rather than restated: BPR-1338 put Open on GitHub on
@@ -498,6 +501,9 @@ namespace {
 			}
 			expect(!windowLines.isEmpty() && desktopLines == windowLines,
 				   "Pull Request carries the window menu's own commands, on their keys, in the window menu's own order");
+			auto* const windowHelp = window.findChild<QMenu*>(QStringLiteral("releaseUpdateMenu"));
+			expect(windowHelp != nullptr && withKeys(helpActions) == withKeys(windowHelp->actions()),
+				   "Help carries the window menu's own commands, on their keys, in the window menu's own order");
 		}
 		expect(pullRequest->accessibleDescription().endsWith(QStringLiteral("unavailable while no window is open")),
 			   "and the menu says why none of them acts");
@@ -541,7 +547,7 @@ namespace {
 				   && viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,

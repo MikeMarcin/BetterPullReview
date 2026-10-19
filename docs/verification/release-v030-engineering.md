@@ -151,3 +151,14 @@ SDK for the executable's CRT unit, adds the two tests' Windows dependencies
 and enables `/bigobj` only on the oversized MSVC target. Quiet-CRT behavior,
 scratch security, CNG stub logic and workbench assertions are unchanged.
 Matching native compilation and focused contracts are pending.
+
+[BPR-1629](../issues/30-in-progress/BPR-1629-include-insights-in-desktop-help-contract.md)
+repairs the resident Help test's stale six-action expectation. The accepted
+Insights implementation puts seven entries in both Help menus: Keyboard
+Shortcuts, separator, Insights, Diagnostics, separator and the two exports.
+The test now asserts that exact order, every non-separator disabled without
+a window, and parity with the window's actual command labels and keys.
+Its disabled-gesture course includes both exports. Product UI, callbacks and
+shortcuts are unchanged; this is a test correction with no new visual or
+human acceptance. The touched C++ is formatted with clang-format 22. Matching
+native Qt verification remains pending.
