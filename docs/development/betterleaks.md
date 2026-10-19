@@ -146,6 +146,11 @@ the original history still returns 1. The
 evidence, a separately verified clean-history candidate, the rewrite's impact
 and when GitHub Support would be appropriate. No live validation was used.
 
+The separate [GitHub hosted-content audit](../security/github-content-audit-2026-10-19.md)
+covers all 115 release assets and accessible hosted metadata. It records
+upstream-fixture and public-metadata dispositions, plus the remaining Packages,
+Projects and historical-hosting coverage limits. It does not clear publication.
+
 ## Hooks and removal
 
 Installation refuses an existing different `pre-commit`, symlink or custom

@@ -42,7 +42,10 @@ and zero pull requests, 15 branches and 14 release tags. Local remote-tracking
 tips agreed with the inspected remote branch tips. The token was absent from
 every release tag's current tree. Release asset contents, external clones,
 server caches, GitHub uploads and other accounts were not audited by this
-exact-value search.
+exact-value search. The subsequent
+[hosted-content audit](../security/github-content-audit-2026-10-19.md) inspected
+all 115 release assets and accessible metadata, with no additional copy of
+the retired value found. It records its own remaining coverage limits.
 
 ## Prevention and local verification
 
