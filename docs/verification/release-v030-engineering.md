@@ -194,7 +194,7 @@ unbuilt sandbox launcher are retained as failed/not-run evidence; after building
 the existing launcher, the unchanged hash test passes. No full suite or signing
 result is implied.
 
-[BPR-1631](../issues/30-in-progress/BPR-1631-measure-fourteen-windows-containment-registrations.md)
+[BPR-1631](../issues/60-done/BPR-1631-measure-fourteen-windows-containment-registrations.md)
 owns the fourteen earlier Windows exemptions still marked unmeasured. The
 native mandatory manifest failure at `18dff0d1` is retained. The exact current
 direct and contained commands must be measured before any finite cause is
@@ -211,8 +211,10 @@ recovery passes in 10.08 seconds and the mandatory native manifest passes in
 1.24 seconds. All 72 verifier tests pass. All owned native commands are complete;
 nine completed repair tasks, five probes/overlays and nineteen exact owned
 fixture roots are removed after receipts and process-absence checks. The shared
-PC slot returns to the coordinator. Required focused tidy on changed C++ remains
-part of the pending repair milestone.
+PC slot returns to the coordinator. Focused clang-tidy22 with warnings as errors passes on the three changed
+test C++ units against the clean Mac `4b73e7046` compilation database; their
+verified source is unchanged. New Mac repairs and whole release integration
+remain pending under the same milestone.
 
 [BPR-1632](../issues/30-in-progress/BPR-1632-diagnose-large-review-history-input-gap.md)
 owns the frozen Mac history failure. The sole violating refresh is

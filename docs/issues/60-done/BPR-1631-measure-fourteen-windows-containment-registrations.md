@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1631"
 title: "Measure fourteen Windows containment registrations"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"18dff0d12623520da114392f92d18c4c21536c67","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"All14 actual direct and contained commands measured;11original directpasses+2correctedresetpasses+recovery613fpass. Markdown passescontained and exemptionretired;13 finite measured pins. Raw rowcommands/probes/failures retained."}},{"criterion":"AC2","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"Only actual fixture defects repaired: native persistent lock baseline, native independent file identity, owner-private DACL preparation and bounded owned process-tree cleanup. Actual affected native directcourses pass; no assertions/deadlines/network/productpolicy changes. Independent POSIX normal/exception controls reap owned child and retain unrelatedsentinel."}},{"criterion":"AC3","outcome":"pass","revision":"613f33524f92e844e8996126f86c5f64e54b1103","evidence":{"kind":"observation","detail":"All72 verifier tests and mandatory actual native manifest613fpass1.24s; cleanupreceipt verifies tasks/probes/exactownedroots removed and zero producers.3changedCPP clang-tidy22 warnings-as-errors passes exact clean4b73 compileDB unchangedsource. Explicitcommits/documentation/diff/selfreview complete; fullgates handed coordinator."}}]
 ---
 
 # BPR-1631: Measure fourteen Windows containment registrations
@@ -77,5 +78,8 @@ controls retain an unrelated sentinel process and reap every owned child.
 The nine completed native repair tasks, five disposable probe/overlay trees and
 nineteen exact task-owned fixture roots are removed after receipts and process
 absence checks. No native build/test producer remains. Full suites are handed
-to the coordinator. Focused warnings-as-errors clang-tidy on the changed test
-C++ units remains pending in the released Mac slot before this card closes.
+to the coordinator. Focused clang-tidy22 with warnings as errors passes on all three changed test
+C++ units using the exact clean `4b73e70461c316483ea92d9e4710f1149db13a96` Mac
+compilation database. Their source bytes are unchanged from the verified
+Windows repairs. Whole release and new Mac repairs remain coordinator/milestone
+obligations rather than acceptance of this finite measurement slice.
