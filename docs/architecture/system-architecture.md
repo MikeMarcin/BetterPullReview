@@ -2101,7 +2101,10 @@ retains the state seen at the actual QProcess started signal. Windows retains an
 exact process handle through reap. The existing Unix QProcess reap discards
 rusage, so CPU is explicitly unavailable there. No aggregate RUSAGE_CHILDREN
 estimate, launch wrapper or dependency patch is introduced. The corresponding
-Energy card stays unfinished until that exact-child obligation is satisfied.
+counter is shown as “Not reported”. Owner amendment r2 keeps official pinned
+Qt binaries and defers unsupported exact child CPU; that capability limitation
+no longer blocks Energy or pack closeout. Supported counters retain their exact
+child identity, and measured zero stays distinct from absent usage.
 
 
 RFC-BPR-0086 Work attaches passive observers to existing application hosts.

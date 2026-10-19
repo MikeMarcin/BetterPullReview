@@ -1,0 +1,16 @@
+{
+  "schema": "bpr.insights.owner-amendment.v1",
+  "mandate_revision": "insights-window-v1-r2",
+  "date": "2026-10-18",
+  "source": "Direct owner instruction forwarded by coordinator to this engineering assignment",
+  "rfc": "RFC-BPR-0086",
+  "amendment_anchor": "owner-amendment-r2-official-qt-and-supported-child-counters",
+  "scope": "Official pinned Qt binaries only; exact child CPU is conditional on supported Qt/platform APIs. Unsupported counters show Not reported, with no estimates or process-wide deltas, and this capability limitation does not block Energy or pack closeout.",
+  "plan_helper_result": {
+    "state": "invalid",
+    "diagnostic": "amendment must preserve all exit criteria, including pending decisions",
+    "truncated": false
+  },
+  "disposition": "The helper preserves every previous exit by design and cannot approve an explicitly changed requirement. This change is authorized by the owner amendment, recorded separately from observations; r1 remains historical. Fresh r2 binding follows the published live RFC/cards/plan.",
+  "preserved": "All other original acceptance, prior owner titlebar/chart verdicts, sampling/retention, own CPU/wakeups, source baseline and imported pack bytes."
+}

@@ -1,3 +1,27 @@
+# Energy recovery under owner amendment r2
+
+Mandate **insights-window-v1-r2**, assignment **energy** (BPR-1612/BPR-1613),
+segment **energy-recovery-r2**, owner `/root/insights_energy_recovery`.
+Source/tracker root is this checkout; branch `codex/insights-window-v1`.
+Immutable RFC_BASE_SHA remains `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
+Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-recovery-3zsrq2oe`**.
+
+The explicit [r2 amendment](energy-r2-amendment.json) keeps official pinned Qt
+binaries and defers exact child CPU where supported APIs cannot provide it.
+Those counters show “Not reported”, never estimates, process-wide deltas or
+measured zero. That capability limitation no longer blocks this pack's closeout.
+All other original criteria remain. Prior r1 evidence below is historical.
+
+BPR-1612 was resumed and claimed at `95aecc5de`; BPR-1613 is dependent.
+The attempted Qt source seam and helper-only additions were restored/removed
+before the r2 implementation; no fork change is committed. All own source
+build/probe/configure commands had finished when the amendment arrived.
+The removal inventory is in runtime `fork-removal-inventory.json`.
+Official Qt reconfigure passed; focused build/verification is in progress.
+No Energy acceptance is claimed in this checkpoint. Next: finish focused
+native/public checks, bind passing r2 obligations, finish both cards, clean
+only task-owned fork artifacts and deliver with guarded main reconciliation.
+
 # Work milestone accepted; Energy remains unfinished
 
 Mandate **insights-window-v1-r1**, assignment **work** (BPR-1614), segment

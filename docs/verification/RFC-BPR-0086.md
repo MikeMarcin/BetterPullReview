@@ -1,6 +1,6 @@
 # RFC-BPR-0086 verification
 
-Mandate `insights-window-v1-r1`. Immutable RFC_BASE_SHA:
+Mandate `insights-window-v1-r2` (owner official-Qt amendment below). Immutable RFC_BASE_SHA:
 `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
 
 The authored plan’s first milestone is `window-and-storage` (BPR-1606 and
@@ -9,23 +9,27 @@ and public-path obligations have passing evidence.
 The GitHub budget milestone has passing automated evidence and explicit owner
 Accept verdicts for the corrected charts and native title row. BPR-1608 and
 BPR-1609 are Done. Review-stats is accepted: BPR-1610/BPR-1611 have passing
-count/lifetime and range/calendar/record evidence. Energy now has an implemented
-and verified available-platform candidate; exact Unix child CPU remains blocked
-on BPR-1612, so the milestone is unfinished. Work is independently eligible. Completed main through BPR-1621 is merged; local delivery is recorded
-in the current continuation/runtime. No full-RFC acceptance is claimed.
+count/lifetime and range/calendar/record evidence. Work is accepted (BPR-1614).
+Energy's supported-API r2 candidate now passes the official-runtime native and
+public checks. The owner explicitly deferred unsupported exact child CPU, so
+that limitation no longer blocks Energy or pack closeout. BPR-1612/BPR-1613
+completion and final delivery are recorded in the continuation. Full export
+privacy and the macOS idle hour remain BPR-1615 obligations; no full-RFC
+acceptance is claimed.
 
 | Criterion | Evidence and current result |
 |---|---|
 | AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
 | AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
-| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Reviews calendar behavior now has rendered evidence; Energy calendar remains later. These owner verdicts retain their exact prior-candidate scope. |
+| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Reviews and Energy calendars have rendered evidence. These owner verdicts retain their exact prior-candidate scope. |
 | AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
 | AC06 review statistics | Durable once-only event counts, confirmed recovery, no load/carry backfill, and actual prune/delete/Clear/restart/purge courses pass. |
 | AC07 Reviews | Three seeded ranges,26-week Monday calendar, since-date, endings/records and both Summary tiles pass; host/SQLite cover DST and Monday boundaries. No streak. |
-| AC08 sampling | Native Mac CPU calibrated against getrusage, macOS wakeups, transition splitting, invalid-delta rejection, launch-state retention and2h/48h/93d persistence pass. Exact Unix child CPU at reap remains unsatisfied on BPR-1612; Windows/Linux native qualification is unmeasured. |
-| AC09 Energy | All independent presentation criteria pass on source263f45ca9: background-only tiles, paired facts, hour/day stacks/wakeups,93-day calendar, matched budget reference and over-budget marking. BPR-1613 retains its unfinished BPR-1612 dependency. |
-| AC10, AC12 | Work and the macOS idle-hour measurement remain with their authored milestones. |
+| AC08 sampling | Native Mac CPU calibrated against getrusage, macOS wakeups, transition splitting, invalid-delta rejection, launch-state retention and2h/48h/93d persistence pass. Owner amendment r2 defers unsupported exact child CPU; it remains absent and shows “Not reported”, with no estimates, process-wide deltas or Qt fork. The official Qt native course passes. Windows/Linux native qualification is unmeasured. |
+| AC09 Energy | All independent presentation criteria pass on source263f45ca9: background-only tiles, paired facts, hour/day stacks/wakeups,93-day calendar, matched budget reference and over-budget marking. The official-Qt r2 public course additionally verifies “Not reported” in the child tile and both family facts, including mixed measured/unmeasured totals. |
+| AC10 Work | BPR-1614 is accepted; its stall, diff-limit, slow-path, syntax and search evidence remains recorded below. |
+| AC12 idle hour | The macOS idle-hour measurement remains BPR-1615 closeout work. |
 
 ## Engineering review
 
@@ -656,3 +660,51 @@ No human criterion is introduced, and no review session or server is prepared.
 Native Windows/Linux Work observation remains unmeasured. Exact Unix child CPU,
 full export privacy and the signed-in macOS idle hour remain their existing
 Energy/closeout obligations; no owner manual work is requested here.
+
+
+## Energy recovery r2: official Qt and supported counters
+
+The owner's 2026-10-18 [amendment](../rfcs/RFC-BPR-0086-insights-window.md#owner-amendment-r2-official-qt-and-supported-child-counters)
+changes the exact-child obligation, not the observations. Mandate is now
+`insights-window-v1-r2`. The old r1 blocker and attempted source seam above
+retain their historical meaning. The live Energy exit, BPR-1612/BPR-1613 and
+BPR-1615's canonical AC08 checklist reflect the conditional supported-API scope.
+The plan checker refuses removal of an old exit by design; that refusal is
+retained in `energy-r2-amendment.json`. This separate direct owner amendment
+supplies the changed requirement; a fresh r2 binding passes.
+
+All seven fork/helper/test edits were restored to `bd183e50a`. The new source
+builder, Qt patch and helper numeric header were removed. None was committed.
+All task-owned source-build/probe commands had completed when r2 arrived; six
+exact build/install/probe roots were then removed. No official binary cache,
+unrelated work, launch isolation, Git ownership, credential handling or packaging
+provenance changed. Verified official upstream archives remain cached. Runtime
+`fork-removal-inventory.json` records the exact inventory.
+
+Default official-Qt configure and seven focused build targets pass. Native
+Mac process CPU/wakeups still pass; unsupported child CPU is absent
+(`child_cpu_reported=0`). The native test and the actual app's bounded invalid
+argument launch record the loaded official QtCore image under
+`bprqt/6.11.2/6.11.2/macos/lib/QtCore.framework`, not just a configured prefix.
+The public composition passes in4.59s and renders the child tile and paired gh /
+Git facts as “Not reported”, including a mixed measured/unmeasured total. Zero
+own CPU remains0.00 and no children remains distinct. The offscreen render was
+inspected without clipping. The prior accepted native titlebar and ATT chart
+choices, own CPU, wakeups, schedule and storage semantics are unchanged.
+
+`frontend-design` was read before the two wording edits and `code-simplifier`
+was applied to the touched surface. LLVM22 format and focused tidy pass; the
+corrected documentation gate and scoped board validation pass. Relevant r1
+retention, transition, launch-state, scale and presentation evidence is reused.
+Native Windows/Linux qualification remains unmeasured; supported ordinary
+Windows exact-handle code remains intact. No estimate or process-wide delta
+fills unsupported Unix or supervised-Git usage. Final integration/acceptance
+and main delivery receipts are in the current continuation.
+
+Runtime: `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-energy-recovery-3zsrq2oe`.
+Evidence: `configure-official.log`, `build-official.log`,
+`native-official-loaded.log`, `app-official-loaded.log`,
+`public-official-runtime.log`, `renders/insights-energy-not-reported.png`,
+`integration-official.log`, `integration-composition-official.log`,
+`tidy.log`, `format.log`, `documentation-r2-corrected.log` and
+`fork-removal-inventory.json`.

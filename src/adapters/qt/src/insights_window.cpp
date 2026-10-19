@@ -291,7 +291,7 @@ namespace bpr::qt {
 				return QObject::tr("No children");
 			}
 			if (aSide.UnmeasuredChildren[aKind]) {
-				return QObject::tr("Unavailable");
+				return QObject::tr("Not reported");
 			}
 			return energy_seconds(aSide.ChildCpuMicroseconds[aKind]);
 		}
@@ -715,7 +715,7 @@ namespace bpr::qt {
 		EnergyDetails[1]->setText(wakes ? (*wakes > 6.0 ? tr("Over budget · at most 6 / min") : tr("Within budget · at most 6 / min")) : QString{ });
 		const auto children = bg.Children[0] + bg.Children[1];
 		const auto unknown  = bg.UnmeasuredChildren[0] + bg.UnmeasuredChildren[1];
-		EnergyValues[2]->setText(!children ? tr("No child CPU samples yet") : unknown ? tr("Child CPU unavailable")
+		EnergyValues[2]->setText(!children ? tr("No child CPU samples yet") : unknown ? tr("Not reported")
 																					  : seconds(bg.ChildCpuMicroseconds[0] + bg.ChildCpuMicroseconds[1]));
 		EnergyDetails[2]->setText(!children ? tr("Completed gh and git processes will fill this") : unknown ? tr("%1 children without final counters").arg(unknown)
 																											: tr("gh %1 · git %2").arg(energy_child(bg, 0), energy_child(bg, 1)));

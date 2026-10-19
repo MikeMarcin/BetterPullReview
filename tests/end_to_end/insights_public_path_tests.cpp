@@ -224,15 +224,28 @@ namespace {
 		expect(aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryIdle"))->text() == cpu->text() && aShell.findChild<QLabel*>(QStringLiteral("insightsSummaryIdle"))->property("overBudget").toBool(), "Summary idle cost uses the last-hour background measurement");
 		application::insights_snapshot unsupported;
 		core::insights_energy_sample   zero;
-		zero.AtMicroseconds   = QDateTime::currentSecsSinceEpoch() * 1000000;
-		zero.LocalDay         = application::local_insights_day(zero.AtMicroseconds / 1000000);
-		zero.Samples          = 1;
-		zero.WallMicroseconds = 60000000;
-		unsupported.Energy    = core::build_insights_energy({ zero }, zero.AtMicroseconds / 1000000, zero.LocalDay);
+		zero.AtMicroseconds       = QDateTime::currentSecsSinceEpoch() * 1000000;
+		zero.LocalDay             = application::local_insights_day(zero.AtMicroseconds / 1000000);
+		zero.Samples              = 1;
+		zero.WallMicroseconds     = 60000000;
+		zero.Children             = { 2, 2 };
+		zero.UnmeasuredChildren   = { 1, 1 };
+		zero.ChildCpuMicroseconds = { 123000, 456000 };
+		unsupported.Energy        = core::build_insights_energy({ zero }, zero.AtMicroseconds / 1000000, zero.LocalDay);
 		qt::insights_window unsupportedWindow;
 		unsupportedWindow.apply(unsupported);
 		expect(unsupportedWindow.findChild<QLabel*>(QStringLiteral("insightsEnergy1"))->text() == QStringLiteral("Not reported on this platform"), "an absent wakeup observation never becomes a measured zero in Qt");
 		expect(unsupportedWindow.findChild<QLabel*>(QStringLiteral("insightsEnergy0"))->text() == QStringLiteral("0.00 s / idle h"), "an actual zero-CPU interval remains a measured value");
+		expect(unsupportedWindow.findChild<QLabel*>(QStringLiteral("insightsEnergy2"))->text() == QStringLiteral("Not reported"), "an unsupported child counter cannot display a partial sum or measured zero");
+		auto* unsupportedFacts = unsupportedWindow.findChild<QTableWidget*>(QStringLiteral("insightsEnergyFacts"));
+		expect(unsupportedFacts->item(3, 2)->text() == QStringLiteral("Not reported") && unsupportedFacts->item(4, 2)->text() == QStringLiteral("Not reported") && unsupportedFacts->item(3, 1)->text() == QStringLiteral("No children"), "gh and Git facts preserve unsupported counters separately from no children");
+		const auto folder = qEnvironmentVariable("BPR_INSIGHTS_RENDER_ROOT");
+		if (!folder.isEmpty()) {
+			unsupportedWindow.findChild<QTabBar*>(QStringLiteral("insightsTabs"))->setCurrentIndex(5);
+			unsupportedWindow.present(nullptr);
+			QApplication::processEvents();
+			expect(unsupportedWindow.grab().save(folder + QStringLiteral("/insights-energy-not-reported.png")), "unsupported child wording renders on the actual Energy surface");
+		}
 	}
 
 	void reviews_contract(qt::insights_window& aShell, const std::filesystem::path& aRoot)

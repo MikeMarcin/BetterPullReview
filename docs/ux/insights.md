@@ -95,12 +95,15 @@ background cost relative to its budget. History keeps2 hours raw,48 hours in
 five-minute rollups and93 days in daily buckets, with measured sums and peak load
 kept separately for each state.
 
-A child retains its launch state through completion. Exact ordinary Windows
-child handles have an implementation, but native Windows qualification is pending.
-Qt’s Unix reap currently discards per-child resource usage; those gh/git terminals
-show “Child CPU unavailable”, not a measured zero. Supervised Git also stays
-unavailable where the helper’s CPU cannot establish the child’s CPU. This is the
-open BPR-1612 obligation. Energy is not accepted as a complete milestone yet.
+A child retains its launch state through completion. Supported exact child
+counters stay separate from application CPU. Ordinary Windows child handles
+have an implementation; native Windows qualification is unmeasured. The official
+Qt Unix reap discards per-child resource usage, and supervised Git cannot report
+its helper's CPU as Git CPU. Those counters show “Not reported”, including totals
+with any unmeasured children. Measured zero and “No children” remain distinct.
+Owner amendment r2 retains official pinned Qt binaries and defers unsupported
+exact child CPU without blocking Energy or pack closeout. There is no Qt fork,
+launch wrapper, sampling estimate or process-wide child delta.
 
 
 Work shows observations for1h or1d. Its leading figures are stalls over100ms,

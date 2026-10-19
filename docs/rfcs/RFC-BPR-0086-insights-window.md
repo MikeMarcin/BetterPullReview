@@ -4,12 +4,30 @@ title: "Insights: what BetterPullReview costs, and what you've reviewed"
 status: "In Progress"
 area: "BPR"
 depends_on: []
-metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r1","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"},"implementation_support_paths":["scripts/verify_test_network_isolation.py"]}
+metadata: {"rfc_base_sha":"0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66","mandate_revision":"insights-window-v1-r2","pack":"docs/rfcs/assets/insights-window-v1/README.md","milestone_plan":{"id":"insights-window-v1","path":"docs/rfcs/plans/insights-window-v1/milestone-plan.json"},"implementation_support_paths":["scripts/verify_test_network_isolation.py"]}
 ---
 
 # Insights: what BetterPullReview costs, and what you've reviewed
 
 Adopted for implementation by the owner on 2026-10-18. Immutable RFC_BASE_SHA: `0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`. The [design record](assets/insights-window-v1/DECISIONS.md) holds the answers; the [live import](assets/insights-window-v1.LIVE_IMPORT.md) records the mapping.
+
+## Owner amendment r2: official Qt and supported child counters
+
+On 2026-10-18 the owner directed:
+
+> Stop the patched-Qt approach. I don’t want BetterPullReview to build or maintain a Qt fork; keep the official pinned Qt binaries. Revert only the fork-specific changes, preserving the other Insights work and unrelated edits. Amend the RFC and cards so exact child CPU is deferred where the supported Qt/platform APIs don’t provide it. Show “Not reported” there—don’t substitute estimates or process-wide deltas. Continue the remaining Insights implementation and verification under that amended scope. Record the limitation clearly; it should no longer block this pack’s closeout.
+
+This is mandate `insights-window-v1-r2`. It supersedes the unconditional
+exact-child-CPU obligation in Energy and AC08; all other acceptance remains.
+The existing official pinned Qt binary provider stays authoritative. Exact
+child CPU is recorded only where supported Qt/platform APIs provide the
+specific child’s final counters. Unsupported Unix gh/git and supervised-Git
+counters remain absent and show “Not reported”, including in mixed measured /
+unmeasured totals. No launch wrapper, Qt fork, process-wide delta or sampling
+estimate fills that gap. Ordinary Windows children retain the existing exact
+handle implementation; native Windows/Linux qualification is still unmeasured.
+This documented capability limitation does not block Energy or pack closeout.
+Historical r1 failures and evidence retain their original meaning.
 
 ## Problem and grounded current behavior
 
@@ -339,10 +357,14 @@ what it's doing while I'm engaged with it."
   budget.
 
 **Child processes.**
-- The CPU time of each `gh` and `git` child is recorded when the child is
-  reaped. It is attributed to the foreground or background state that was
-  active when the child was launched, and kept apart from the
-  application's own CPU.
+- Where supported Qt/platform APIs provide exact final counters, the CPU time
+  of each `gh` and `git` child is recorded at reap, attributed to the state
+  active at launch, and kept apart from the application's own CPU.
+- Where those APIs do not provide exact child CPU, retain an absent counter
+  and show “Not reported”. Measured zero and no children stay distinct.
+  Do not estimate, use process-wide deltas, or build/maintain a Qt fork.
+  This capability limitation is deferred under owner amendment r2 and does
+  not block this pack's closeout.
 - Sampling is a platform adapter behind an application port. The core never
   reads a clock or a process.
 
@@ -485,8 +507,11 @@ sections above; the [design record](assets/insights-window-v1/DECISIONS.md) quot
 - **AC08 Energy sampling.**
   - A forced foreground/background switch splits the interval at the
     transition.
-  - Child CPU from a `gh` launched in the background counts as background
-    even if it finishes in the foreground.
+  - Exact child CPU available through supported Qt/platform APIs from a `gh`
+    launched in the background counts as background even if it finishes in
+    the foreground. Unsupported child CPU shows “Not reported”, with no
+    estimates or process-wide deltas. Keep official pinned Qt binaries;
+    this documented limitation does not block pack closeout (amendment r2).
   - Invalid deltas are dropped.
   - A platform without wakeups shows "Not reported on this platform".
   - Retention matches the 2 h / 48 h / 93 d windows.

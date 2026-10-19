@@ -62,7 +62,7 @@ The Energy tab judges background cost against the idle budget, with foreground a
 
 **Completion:**
 
-- Transitions split intervals, and background-launched child CPU counts as background.
+- Transitions split intervals. Exact child CPU available through supported Qt/platform APIs retains its launch state; unsupported child CPU shows Not reported, with no estimates or process-wide deltas.
 - Tiles show background only, and an over-budget range is marked against the budget line.
 
 **Boundary:** The complete Energy tab and the Summary idle-cost tile.
