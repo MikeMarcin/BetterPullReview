@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1619"
 title: "Move pure diff and identifier computation into core"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0082", "RFC-BPR-0072", "RFC-BPR-0081"]
 depends_on: []
 priority: "P1"
