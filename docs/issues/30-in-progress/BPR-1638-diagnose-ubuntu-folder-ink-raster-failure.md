@@ -35,3 +35,22 @@ now retain those counts, path, cell, DPR, font and palette colors with the
 exact original predicate unchanged. A thin root glyph is only a hypothesis,
 not an accepted cause or a reason to lower the threshold. Native observations
 and compilation of the new diagnostics remain pending the coordinator's slot.
+
+
+## Native coverage control and assessment repair
+
+At395ae2393 only the visible root slash lacks literal ink at DPR1: viewport719x512,
+cell32,176,87,22, Sans Serif9. Its closest RGB differs by32 channels, with LCD
+fringes in the retained actual raster. The unchanged complete course passes
+at appDPR2 in1.43 seconds. Geometry/clipping and a wrong product brush are not
+inferred from the first literal-pixel failure.
+
+The coordinator approves an assessment-only raster target of at least DPR2.
+A shared Qt helper repaints the actual widget with the same font/layout and
+leaves application/widget DPR unchanged; physical crop coordinates are derived
+from that target's DPR. Original folder-pixel greater-than8 and file-pixel zero
+checks remain. In every variant, a real temporary wrong PlaceholderText palette
+paints the root folder in file ink and must fail the identical reading; the
+original palette is restored before any assertion. This is ink evidence,
+not a claim of user DPR1 legibility from a higher-resolution target. Native
+same-DPR/negative-control verification and scoped tidy remain pending.

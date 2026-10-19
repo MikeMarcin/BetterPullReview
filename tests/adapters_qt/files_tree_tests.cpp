@@ -1,3 +1,4 @@
+#include "../support/qt_ink_raster.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -875,7 +876,7 @@ namespace {
 			expect(std::abs(folderInk.red() - fileInk.red()) + std::abs(folderInk.green() - fileInk.green()) + std::abs(folderInk.blue() - fileInk.blue()) >= 96,
 				   "the folder ink is far enough from the file ink to tell apart");
 
-			const auto drawer = view.viewport()->grab().toImage();
+			const auto drawer = tests::ink_raster(*view.viewport());
 			const auto name   = [&](const QModelIndex& aIndex, const QFont& aFont) {
 				const auto rect = view.visualRect(aIndex);
 				return QRect{ rect.left() + 4, rect.top(), QFontMetrics{ aFont }.horizontalAdvance(aIndex.data().toString()), rect.height() };
@@ -895,7 +896,7 @@ namespace {
 			nameAt.setWidth(QFontMetrics{ view.font() }.horizontalAdvance(readme.data().toString()));
 			expect(ink_in(drawer, nameAt, fileInk) > 8, "a drawer file's name keeps the ordinary text ink");
 
-			const auto overviewImage = files->viewport()->grab().toImage();
+			const auto overviewImage = tests::ink_raster(*files->viewport());
 			auto       overviewRows  = 0;
 			for (auto row = 0; row < overview->rowCount(); ++row) {
 				const auto folder = overview->index(row, qt::overview_file_model::operation_column);
@@ -920,6 +921,16 @@ namespace {
 				}
 				expect(folderPixels > 8 && filePixels == 0,
 					   "Overview's folder path is drawn in the same folder ink");
+				if (folder.siblingAtColumn(qt::overview_file_model::file_column).data().toString() == QStringLiteral("/")) {
+					const auto original = files->palette();
+					auto       wrong    = original;
+					wrong.setColor(QPalette::Active, QPalette::PlaceholderText, fileInk);
+					files->setPalette(wrong);
+					const auto wrongImage = tests::ink_raster(*files->viewport());
+					files->setPalette(original);
+					expect(!(ink_in(wrongImage, cell, folderInk) > 8 && ink_in(wrongImage, cell, fileInk) == 0),
+						   "negative control: a folder painted in file ink fails the same raster reading");
+				}
 				++overviewRows;
 			}
 			expect(overviewRows == 5, "Overview's five folder rows, the root's \"/\" among them, were checked");
