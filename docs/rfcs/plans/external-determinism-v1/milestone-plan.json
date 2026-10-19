@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "external-determinism-v1",
+  "scope": {
+    "issues": [
+      "BPR-1620"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "architecture-policy",
+      "outcome": "External determinism governs core eligibility; dependency approval, encapsulation and host effect ownership remain separate and consistent across live guidance.",
+      "work": [
+        {
+          "issue": "BPR-1620"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1620 AC1: one authoritative external-determinism rule and linked live architecture/instructions replace library-specific purity exceptions.",
+        "BPR-1620 AC2: implementation inventory, effect and lifecycle ownership, Qt independence, failure qualifications and historical obligations are preserved.",
+        "BPR-1620 AC3: documentation gate and its contracts plus focused boundary checks pass; policy-only diff and intentional commits are recorded."
+      ],
+      "boundary": "Documentation and explanatory comments only; no product behavior, dependency adoption or RFC-wide closeout."
+    }
+  ],
+  "unplanned_work": []
+}
