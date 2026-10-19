@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1642"
+  ],
+  "reserve_for": "release-v030-coordinated-r1",
+  "purpose": "Bind diagnostic public-path automation to existing offscreen fixture environment after actual Ubuntu display-plugin abort",
+  "created": "2026-10-19T06:08:58.854448+00:00",
+  "base": "0567367145f1b221a9be43ba68e74c5b50c931cf"
+}
