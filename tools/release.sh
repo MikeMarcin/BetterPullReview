@@ -288,6 +288,25 @@ verify_signature_policy() {
     fi
 }
 
+bundle_fingerprint() {
+    python3 - "$1" <<'PY'
+import hashlib, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+entries = []
+for path in sorted(root.rglob('*')):
+    relative = path.relative_to(root).as_posix()
+    if path.is_symlink():
+        entries.append([relative, 'link', str(path.readlink())])
+    elif path.is_file():
+        entries.append([relative, 'file', hashlib.sha256(path.read_bytes()).hexdigest()])
+    elif path.is_dir():
+        entries.append([relative, 'directory'])
+    else:
+        raise SystemExit('unsupported assessment source entry')
+print(hashlib.sha256(json.dumps(entries, ensure_ascii=True).encode()).hexdigest())
+PY
+}
+
 prepare_assessment_platform() {
     local bundle="$1"
     local platform_dir="$2"
@@ -313,8 +332,8 @@ prepare_assessment_platform() {
     lipo "${source_plugin}" -verify_arch arm64 x86_64 >/dev/null || \
         fail "Release Qt offscreen assessment plugin is not universal"
 
-    # The package intentionally ships Cocoa only. Keep this test dependency
-    # outside the bundle and leave the producer's pinned Qt cache untouched.
+    # Only the private assessment clone receives this test dependency. Leave
+    # the deliverable and the producer's pinned Qt cache untouched.
     source_hash="$(shasum -a 256 "${source_plugin}" | awk '{print $1}')"
     mkdir -p "${platform_dir}"
     cp "${source_plugin}" "${plugin}"
@@ -369,22 +388,46 @@ verify_relocated_launch() {
     local profile_root="$2"
     local output
     local status
-    local platform_dir="${profile_root}/assessment-platforms"
+    local source_hash
+    local executable_hash
+    local assessment_root
+    local assessment_bundle
 
     mkdir -p "${profile_root}"
-    prepare_assessment_platform "${bundle}" "${platform_dir}"
-    # This unattended relocation probe must not show a window on the owner's
-    # desktop. Native Cocoa launch qualification remains a separate course.
-    if output="$(env -u QT_STYLE_OVERRIDE -u QT_PLUGIN_PATH \
+    source_hash="$(bundle_fingerprint "${bundle}")"
+    executable_hash="$(shasum -a 256 "${bundle}/Contents/MacOS/${APP_NAME}" | awk '{print $1}')"
+    assessment_root="$(mktemp -d "${profile_root}/assessment.XXXXXX")"
+    assessment_bundle="${assessment_root}/${APP_NAME}.app"
+    ditto "${bundle}" "${assessment_bundle}"
+    [[ -d "${assessment_bundle}" && ! -L "${assessment_bundle}" ]] || fail "Assessment clone is not a real bundle"
+    [[ "$(cd "${assessment_bundle}" && pwd -P)" == "$(cd "${assessment_root}" && pwd -P)/${APP_NAME}.app" ]] || \
+        fail "Assessment clone escapes its private root"
+    [[ "$(bundle_fingerprint "${assessment_bundle}")" == "${source_hash}" ]] || fail "Assessment clone differs before resealing"
+    log "Assessment clone copied identical bundle bytes: source_sha256=${source_hash}; executable_sha256=${executable_hash}; clone=${assessment_bundle}"
+    prepare_assessment_platform "${assessment_bundle}" "${assessment_bundle}/Contents/PlugIns/platforms"
+    if [[ "${PREPARE_ONLY}" == "1" ]]; then
+        codesign --force --sign - --timestamp=none "${assessment_bundle}"
+    else
+        sign_mach_file "${assessment_bundle}"
+    fi
+    codesign --verify --deep --strict "${assessment_bundle}"
+    # Distribution startup correctly forbids external plugin paths. Exercise
+    # its own PlugIns in a resealed clone, never adding a plugin to delivery.
+    # Native Cocoa launch qualification of the delivered app stays pending.
+    if output="$(env -u QT_STYLE_OVERRIDE -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u QT_QPA_GENERIC_PLUGINS \
         QT_QPA_PLATFORM=offscreen \
-        QT_QPA_PLATFORM_PLUGIN_PATH="${platform_dir}" \
         HOME="${profile_root}" \
-        "${bundle}/Contents/MacOS/${APP_NAME}" \
+        "${assessment_bundle}/Contents/MacOS/${APP_NAME}" \
         --self-test --automated-run-budget-ms 8000 2>&1)"; then
         status=0
     else
         status=$?
     fi
+    [[ "$(bundle_fingerprint "${bundle}")" == "${source_hash}" ]] || fail "Delivered bundle changed during assessment"
+    [[ "$(shasum -a 256 "${bundle}/Contents/MacOS/${APP_NAME}" | awk '{print $1}')" == "${executable_hash}" ]] || \
+        fail "Delivered executable changed during assessment"
+    codesign --verify --deep --strict "${bundle}"
+    log "Delivered bundle unchanged after assessment: source_sha256=${source_hash}; executable_sha256=${executable_hash}; original_signature=valid"
 
     # A release build with a new profile has no configured host, so its
     # composed self-test may return 1 after successfully launching.
@@ -396,7 +439,7 @@ verify_relocated_launch() {
         fail "Relocated application did not reach the composed launch probe"
     grep -Fq "NOTIFICATION_BUNDLE_IDENTITY:${BUNDLE_ID}" <<<"${output}" || \
         fail "Relocated application did not report the production bundle identity"
-    log "Relocated offscreen launch verified private profile and production bundle identity"
+    log "Relocated offscreen assessment clone verified private profile and production bundle identity; delivered Cocoa launch remains separate"
 }
 
 while [[ $# -gt 0 ]]; do

@@ -69,13 +69,18 @@ an app, local ZIP, separate version-bound source ZIP, SPDX SBOM and checksums.
 The relocated self-test explicitly selects `QT_QPA_PLATFORM=offscreen` with an
 isolated `HOME`, retaining the private-profile and production bundle-identity
 checks. The package still ships only the Cocoa platform plugin. The smoke
-uses a staging-only offscreen plugin copied from the release build's exact
-`Qt6_DIR`, checks its universal slices and packaged Qt/system dependencies,
-and redirects its RPATH to the staged frameworks. It seals that copy with the
-app's selected identity (ad-hoc for prepare-only) for hardened library
-validation, verifies it, and logs both plugin hashes and the signing team.
-The dependency never enters the app or release assets; ambient plugin paths
-are excluded from this probe. This unattended smoke cannot qualify a native Cocoa window or desktop
+first copies the sealed app into a private assessment bundle and verifies
+complete byte equality before adding the release build's exact `Qt6_DIR`
+offscreen plugin to that clone. It checks universal slices and packaged
+Qt/system dependencies, and redirects that plugin's RPATH to the clone's
+frameworks. It seals the plugin and clone with the selected identity (ad-hoc
+for prepare-only), verifies them, and logs plugin hashes and signing team.
+Resealing changes the assessment signatures; no equality after resealing is
+claimed. The original app's complete fingerprint and executable hash must
+remain unchanged after the course, and its signature must still verify.
+The dependency never enters the delivered app or release assets; external
+plugin paths are excluded, preserving distribution startup's own plugin-path
+restriction. This unattended smoke cannot qualify a native Cocoa window or desktop
 interaction; those require their separate isolated or attended courses.
 
 It does not read signing identities, change

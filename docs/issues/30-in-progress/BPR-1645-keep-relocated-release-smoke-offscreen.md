@@ -46,7 +46,7 @@ guard, then the offscreen smoke aborts134: the intentionally restricted package
 contains Cocoa only. It reaches no notary submission or completed distribution
 asset. The raw log/receipt and separate partial source ZIP are retained.
 
-The helper now reads only that release build's absolute Qt6_DIR configuration
+The df7e540e candidate reads only that release build's absolute Qt6_DIR configuration
 and refuses a missing cache/configuration/plugin or missing universal slice
 before launch. The actual pinned Qt6.11.2 offscreen plugin has x86_64 and arm64
 slices and Qt teamA5GTH44LYL; its private staging copy is sealed with the selected
@@ -65,3 +65,33 @@ dependency, wrong signer and separate prepare-only signing. Bash syntax,
 documentation and diff checks pass. Only synthetic executables and tool stubs
 run during these checks. The actual signed relocated smoke remains coordinator
 work on the resulting clean commit; native Cocoa qualification remains pending.
+
+## Distribution boundary observation and assessment clone
+
+The actual df7e540e producer r3 also aborts134 before Apple submission. Source
+inspection confirms that distribution startup deliberately removes external
+plugin paths and fixes libraryPaths to its own canonical PlugIns. That is the
+required shipped boundary, so the environment-path candidate cannot supply
+this smoke. Its failed raw log/receipt remain retained; it is not accepted.
+
+The revised helper copies the sealed staged bundle into a fresh private
+assessment root and compares complete file/link fingerprints before resealing.
+Only that clone receives the exact cached offscreen plugin inside its own
+PlugIns. It preserves the dependency/universal/signing checks above, then
+reseals and verifies the clone. Signature bytes necessarily change there;
+post-sign clone/executable equality is not claimed. The child runs offscreen
+with all external plugin paths cleared and the original HOME/arguments/status
+and private-profile/bundle-identity predicates. Afterward the original complete
+bundle fingerprint and executable SHA-256 must equal their before values and
+its original signature must still verify. Those identities are logged. No
+delivered bytes, installed-runtime guard or entitlement changes.
+
+All21 script tests pass, including ten shell-helper tests with original-marker
+refusals, actual clone/env/argv observations, corrupt-copy and escaped-clone
+controls, and mutation of the original during a synthetic child. Bash syntax,
+documentation and diff checks pass. In tests-disabled source, native
+notification scheduling is false; no device probe is selected; the offscreen
+platform supplies no tray surface. The ordinary self-test checks the selected
+vault adapter's status without a credential exercise. No owner desktop or
+native Cocoa process is driven. Actual signed clone smoke remains coordinator
+work, and does not qualify the exact delivered Cocoa runtime or native trust.

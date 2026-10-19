@@ -245,17 +245,24 @@ class RelocatedLaunchCommandTests(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.calls = self.root / "tool-calls.jsonl"
-        for name in ("lipo", "otool", "install_name_tool", "codesign"):
+        for name in ("ditto", "lipo", "otool", "install_name_tool", "codesign"):
             tool = self.bin / name
             tool.write_text("""#!/usr/bin/env python3
-import json, os, sys
+import json, os, shutil, sys
 from pathlib import Path
 name, args = Path(sys.argv[0]).name, sys.argv[1:]
 with Path(os.environ['STUB_CALLS']).open('a') as output:
     output.write(json.dumps([name, *args]) + '\\n')
 if name == 'lipo':
     sys.exit(int(os.environ.get('STUB_ARCH_STATUS', '0')))
-if name == 'otool' and '-L' in args:
+if name == 'ditto':
+    if os.environ.get('STUB_ESCAPE_CLONE'):
+        Path(args[1]).symlink_to(args[0], target_is_directory=True)
+    else:
+        shutil.copytree(args[0], args[1], symlinks=True)
+        if os.environ.get('STUB_CORRUPT_COPY'):
+            (Path(args[1]) / 'Contents/MacOS/BetterPullReview').write_bytes(b'wrong copy')
+elif name == 'otool' and '-L' in args:
     print(args[-1] + ':')
     for dependency in os.environ.get('STUB_DEPENDENCIES', '@rpath/QtCore.framework/Versions/A/QtCore;@rpath/QtGui.framework/Versions/A/QtGui;/usr/lib/libSystem.B.dylib').split(';'):
         print('    ' + dependency + ' (compatibility version 6.0.0, current version 6.11.2)')
@@ -266,8 +273,13 @@ elif name == 'otool':
 elif name == 'install_name_tool' and '-add_rpath' in args:
     Path(args[-1] + '.rpath').write_text(args[1])
 elif name == 'codesign' and '--force' in args:
-    with Path(args[-1]).open('ab') as output:
-        output.write(b'signed fixture copy')
+    target = Path(args[-1])
+    signature = b'signed fixture copy'
+    if target.is_dir():
+        target /= 'Contents/MacOS/BetterPullReview'
+        signature = b'# app sealed fixture\\n'
+    with target.open('ab') as output:
+        output.write(signature)
 elif name == 'codesign' and '-d' in args:
     print('TeamIdentifier=' + os.environ.get('STUB_TEAM', 'YTQKP2V2A8'), file=sys.stderr)
 """)
@@ -278,13 +290,17 @@ elif name == 'codesign' and '-d' in args:
 import json, os, sys
 from pathlib import Path
 Path(os.environ['STUB_CAPTURE']).write_text(json.dumps({
+    'executable': str(Path(__file__)),
     'platform': os.environ.get('QT_QPA_PLATFORM'),
     'platform_path': os.environ.get('QT_QPA_PLATFORM_PLUGIN_PATH'),
     'plugin_path': os.environ.get('QT_PLUGIN_PATH'),
     'style': os.environ.get('QT_STYLE_OVERRIDE'),
     'home': os.environ.get('HOME'), 'argv': sys.argv[1:]}))
 print(os.environ['STUB_MARKERS'])
+if os.environ.get('STUB_CHANGE_ORIGINAL'):
+    Path(os.environ['STUB_ORIGINAL']).write_bytes(b'changed delivery')
 sys.exit(int(os.environ['STUB_STATUS']))
+# signing fixture bytes follow as comments
 """)
         executable.chmod(0o700)
 
@@ -302,6 +318,7 @@ sys.exit(int(os.environ['STUB_STATUS']))
         environment = dict(os.environ, QT_QPA_PLATFORM="cocoa", QT_STYLE_OVERRIDE="ambient-style",
                            QT_QPA_PLATFORM_PLUGIN_PATH="/ambient/platforms", QT_PLUGIN_PATH="/ambient/plugins",
                            PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STUB_CALLS=str(self.calls),
+                           STUB_ORIGINAL=str(self.bundle / "Contents/MacOS/BetterPullReview"),
                            STUB_CAPTURE=str(capture), STUB_MARKERS=markers, STUB_STATUS=str(status))
         environment.update(overrides or {})
         harness = prefix + "\nBUILD_DIR=" + shlex.quote(str(self.build))
@@ -316,12 +333,15 @@ sys.exit(int(os.environ['STUB_STATUS']))
             with self.subTest(status=status):
                 result, observed, profile = self.launch(status=status)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                clone = Path(observed.pop("executable")).parents[2]
+                self.assertTrue(clone.is_relative_to(profile))
                 self.assertEqual(observed, {"platform": "offscreen", "style": None, "home": str(profile),
-                                           "platform_path": str(profile / "assessment-platforms"), "plugin_path": None,
+                                           "platform_path": None, "plugin_path": None,
                                            "argv": ["--self-test", "--automated-run-budget-ms", "8000"]})
                 self.assertTrue(profile.is_dir())
-                self.assertIn("Relocated offscreen launch verified", result.stdout)
-                copied = profile / "assessment-platforms/libqoffscreen.dylib"
+                self.assertIn("Relocated offscreen assessment clone verified", result.stdout)
+                self.assertIn("Delivered bundle unchanged after assessment", result.stdout)
+                copied = clone / "Contents/PlugIns/platforms/libqoffscreen.dylib"
                 self.assertEqual(self.plugin.read_bytes(), b"pinned fixture plugin")
                 self.assertEqual(copied.read_bytes(), b"pinned fixture pluginsigned fixture copy")
                 self.assertFalse((self.bundle / "Contents/PlugIns/platforms/libqoffscreen.dylib").exists())
@@ -331,9 +351,11 @@ sys.exit(int(os.environ['STUB_STATUS']))
                 calls = list(map(json.loads, self.calls.read_text().splitlines()))
                 self.assertIn(["lipo", str(self.plugin.resolve()), "-verify_arch", "arm64", "x86_64"], calls)
                 self.assertIn(["install_name_tool", "-delete_rpath", "/unrelated/producer/lib", str(copied)], calls)
-                self.assertIn(["install_name_tool", "-add_rpath", str(self.bundle / "Contents/Frameworks"), str(copied)], calls)
+                self.assertIn(["install_name_tool", "-add_rpath", str(clone / "Contents/Frameworks"), str(copied)], calls)
                 self.assertIn(["codesign", "--force", "--timestamp", "--options", "runtime", "--sign",
                                "Developer ID Application: Michael Marcin (YTQKP2V2A8)", str(copied)], calls)
+                self.assertIn(["codesign", "--verify", "--deep", "--strict", str(clone)], calls)
+                self.assertIn(["codesign", "--verify", "--deep", "--strict", str(self.bundle)], calls)
 
     def test_missing_or_unbound_producer_qt_refuses_before_child_launch(self):
         for cache in (None, "Qt6_DIR:PATH=relative/Qt6\n", "Qt6_DIR:PATH=/missing/Qt6\n"):
@@ -345,7 +367,7 @@ sys.exit(int(os.environ['STUB_STATUS']))
                 result, observed, _ = self.launch()
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIsNone(observed)
-                self.assertFalse(self.calls.exists())
+                self.assertTrue(all(call[0] == "ditto" for call in map(json.loads, self.calls.read_text().splitlines())))
 
     def test_missing_producer_plugin_refuses_before_child_launch(self):
         self.plugin.unlink()
@@ -358,6 +380,8 @@ sys.exit(int(os.environ['STUB_STATUS']))
         for overrides, diagnostic in (({"STUB_ARCH_STATUS": "1"}, "not universal"),
                                       ({"STUB_DEPENDENCIES": "/external/QtGui"}, "External assessment dependency"),
                                       ({"STUB_FINAL_RPATH": "/external/frameworks"}, "RPATH escapes"),
+                                      ({"STUB_ESCAPE_CLONE": "1"}, "not a real bundle"),
+                                      ({"STUB_CORRUPT_COPY": "1"}, "differs before resealing"),
                                       ({"STUB_TEAM": "OTHER"}, "signer does not match")):
             with self.subTest(overrides=overrides):
                 result, observed, _ = self.launch(overrides=overrides)
@@ -376,10 +400,17 @@ sys.exit(int(os.environ['STUB_STATUS']))
         result, observed, profile = self.launch(prepare_only=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIsNotNone(observed)
+        clone = Path(observed["executable"]).parents[2]
         calls = list(map(json.loads, self.calls.read_text().splitlines()))
         self.assertIn(["codesign", "--force", "--sign", "-", "--timestamp=none",
-                       str(profile / "assessment-platforms/libqoffscreen.dylib")], calls)
+                       str(clone / "Contents/PlugIns/platforms/libqoffscreen.dylib")], calls)
         self.assertNotIn("Developer ID Application", self.calls.read_text())
+
+    def test_original_delivery_mutation_is_refused_after_clone_launch(self):
+        result, observed, _ = self.launch(overrides={"STUB_CHANGE_ORIGINAL": "1"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNotNone(observed)
+        self.assertIn("Delivered bundle changed during assessment", result.stderr)
 
     def test_private_profile_marker_remains_required(self):
         result, _, _ = self.launch(private=False)

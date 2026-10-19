@@ -467,3 +467,18 @@ documentation and diff checks pass with synthetic executable/tool fixtures.
 Coordinator actual signed smoke and separate native Cocoa qualification remain
 pending on the resulting clean source. Recovery adopts the already-running
 Windows r3 normal gate at93897 without dispatching competing heavy work.
+
+The df7e environment-path candidate's actual signed producer r3 also aborts134
+before Apple: distribution startup intentionally removes external plugin paths
+and restricts Qt to its own PlugIns. This refusal is retained and the approach
+is superseded. The revised BPR1645 assessment copies the complete sealed app
+and verifies file/link byte equality before adding the pinned offscreen plugin
+only inside the clone. It reseals that clone, acknowledging changed signature
+bytes, and runs it with external plugin paths cleared. The original delivered
+app/executable fingerprints must remain equal before/after and its signature
+must still verify. All21 script tests pass, including escaped/corrupted clone
+and original-mutation refusals. Tests-disabled source schedules no native
+notification course and no device probe; the offscreen platform has no native
+tray surface. Neither product runtime restrictions nor delivered plugin policy
+changes. Coordinator actual clone smoke remains pending and cannot qualify
+exact shipped Cocoa launch, native desktop or independent trust.
