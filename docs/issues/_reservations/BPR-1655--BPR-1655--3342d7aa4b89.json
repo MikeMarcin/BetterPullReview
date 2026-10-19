@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1655"
+  ],
+  "reserve_for": "release-v030-coordinated-r1-qt-module-evidence",
+  "purpose": "Bind deployed Qt Svg and imageformats to exact producer module SPDX in packaging and native PE audit",
+  "created": "2026-10-19T14:23:27.777997+00:00",
+  "base": "aaadffc76d0a66cbccd201e07e1e9518b1c41427"
+}
