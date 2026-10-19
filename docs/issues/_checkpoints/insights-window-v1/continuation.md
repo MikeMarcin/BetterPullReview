@@ -33,7 +33,7 @@ Offscreen renders alone supply no owner/native acceptance.
 
 - Fresh state: `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-github-v001-20261018`.
 - Registry: `/Users/jaeger/.mask/attended-review-resources`.
-- Session: **`12f141ab8f2268fd7a22c6973bfd0921`**. Consumed preparation cursor **4**.
+- Session: **`12f141ab8f2268fd7a22c6973bfd0921`**. Consumed preparation cursor **6**.
 - Candidate `BPR-1609-insights-github-v001`, revision `43ec9904a-v001`.
 - Fingerprint `3d608c3246f118f3937254653d3603021f4d03e80cead3f5f024ee4d1623c656`.
 - One Accept/Reject criterion: charts and hover meet the specified AllTheThings
@@ -245,3 +245,9 @@ pending first-milestone obligation before handoff. No push is performed.
 Stop at this boundary. Next plan-eligible milestone is
 `github-budget` (BPR-1608 and BPR-1609); the coordinator starts its fresh owner.
 The other milestones retain their authored dependencies.
+
+## Chart handback intake 2026-10-18
+
+Coordinator verified session 12f141ab8f2268fd7a22c6973bfd0921, candidate43ec9904a-v001 and exact fingerprint. Event5 owner Reject: “The insights tabs are supposed to be in the header title bar row. We're just wasting space. Look at ATT. Also the ATT energy graph is better than the mockup's version.”. Event6 handed back; consumed cursor6. One owner screenshot attachment retained in session; decoded reference /tmp/bpr-insights-chart-owner-0.png. No chart acceptance. Fresh engineering round must inspect attachment and ATT, move tabs into actual title-bar row to remove wasted space, improve chart to ATT Energy reference, then verify/freeze/review. Prior writers and commands quiescent except named server.
+
+Fresh correction owner `/root/insights_chart_revision` adopted mandate r1. Both owner screenshots inspected. Scoped release preserved Reject and released candidate at event7, consumed cursor7; exact session host stopped. BPR-1609 returned to Ready for correction. No later milestone claimed.
