@@ -109,6 +109,9 @@ try {
 	invoke(item);
 	expect(firstCalls == 1, "the first profile receives the command");
 	NSEvent* key = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:item.keyEquivalentModifierMask timestamp:0 windowNumber:0 context:nil characters:@"I" charactersIgnoringModifiers:@"i" isARepeat:NO keyCode:34];
+	if (key == nil) {
+		bpr::tests::fail("the native shortcut event was created");
+	}
 	expect([NSApp.mainMenu performKeyEquivalent:key], "the actual native menu handles the approved shortcut");
 	expect(firstCalls == 2, "one shortcut event dispatches exactly once");
 	auto second = make_bar(secondCalls);
