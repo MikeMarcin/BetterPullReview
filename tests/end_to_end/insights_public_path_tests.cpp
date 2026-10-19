@@ -22,6 +22,7 @@
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -485,7 +486,12 @@ try {
 	expect(foundInsights && !shell->findChild<QLabel*>(QStringLiteral("insightsLocalData"))->text().contains(QStringLiteral("unavailable")), "Summary and Storage display real data, including Insights itself");
 	auto* budget = shell->findChild<QWidget*>(QStringLiteral("insightsBudget"));
 	until([&] { return budget->property("ownRequests").toULongLong() == 412; }, "seeded real store reaches the Summary budget");
-	expect(budget->accessibleDescription().contains(QStringLiteral("1,240")) && budget->accessibleDescription().contains(QStringLiteral("3,348")), "two-client split uses persisted BPR count and the lowest remaining response");
+	const auto budgetMatches = budget->accessibleDescription().contains(QStringLiteral("1,240")) && budget->accessibleDescription().contains(QStringLiteral("3,348"));
+	if (!budgetMatches) {
+		std::cerr << "insights-budget locale=" << QLocale{ }.name().toStdString() << " own_requests=" << budget->property("ownRequests").toULongLong()
+				  << " description=" << budget->accessibleDescription().toStdString() << '\n';
+	}
+	expect(budgetMatches, "two-client split uses persisted BPR count and the lowest remaining response");
 	expect(shell->findChild<QLabel*>(QStringLiteral("insightsProblems"))->text() == QStringLiteral("2"), "Problems arrives from the same local snapshot");
 	shared_chart_contract(*window);
 	reviews_contract(*shell, root);
