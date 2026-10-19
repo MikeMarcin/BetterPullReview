@@ -16,7 +16,15 @@
 namespace {
 	using bpr::tests::expect;
 	NSMenuItem* application_item = nil;
-	void        settle()
+	void        invoke(NSMenuItem* aItem)
+	{
+		const auto action = aItem.action;
+		if (action == nullptr) {
+			bpr::tests::fail("the native command has a selector");
+		}
+		[NSApp sendAction:action to:aItem.target from:aItem];
+	}
+	void settle()
 	{
 		for (int turn = 0; turn < 5; ++turn) {
 			QCoreApplication::sendPostedEvents();
