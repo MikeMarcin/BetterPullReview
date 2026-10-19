@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1610"
 title: "Review stats capture and lifetime store"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0086"]
 depends_on: ["BPR-1607"]
 platforms: ["mac", "win", "linux"]
