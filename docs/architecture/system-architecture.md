@@ -438,6 +438,7 @@ better_pull_review_core
     libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
     HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13), and the narrow
     deterministic platform SHA-256 exception (CommonCrypto/CNG, 2026-10-18)
+    and scoped RE2/Abseil source matching (BPR-1618, 2026-10-18)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -463,14 +464,10 @@ better_pull_review_adapter_git
 better_pull_review_adapter_sqlite
 better_pull_review_adapter_logging
 better_pull_review_adapter_ai
-better_pull_review_adapter_regex
     implement application-host ports
 
     the GitHub adapter may depend on Qt Core and Network for its designated
     process, HTTPS, and native-integration effects, but never on Qt Widgets
-
-    the regex adapter implements core's source_regex_engine interface with
-    pinned RE2 and Abseil (BPR-1431) and links only core
 
 better_pull_review_adapter_qt
     Qt presentation adapter
@@ -500,6 +497,15 @@ The live repository may use different target names, but it must enforce these ru
   as the diff engine's whole-file line matcher).
   Windows additionally links the system `bcrypt` only in its SHA-256 branch;
   macOS CommonCrypto comes from libSystem. HACL remains the portable backend.
+  Pinned RE2 2025-11-05 and Abseil 20250814.2 are a second scoped exception
+  (owner, 2026-10-18; BPR-1618). Core privately owns the source matcher; it
+  creates no worker threads. Internal synchronization, contention clocks and
+  hash seeds may vary cache layout and elapsed time, while match spans, order
+  and diagnostics remain deterministic. Ordinary parse and DFA-exhaustion
+  logging is disabled. Upstream fatal invariant diagnostics remain possible;
+  this does not authorize first-party effects or make Abseil a general core
+  utility. The [audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records
+  exact pins, call paths and limitations.
   `cmake/VerifyCoreBoundary.cmake` refuses other unapproved libraries. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.

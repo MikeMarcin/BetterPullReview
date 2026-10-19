@@ -18,7 +18,5 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
 endif()
 
 if(BPR_BUILD_QT)
-    # [[BPR-1431]]. Source search exists only in the Qt application.
-    add_subdirectory(regex)
     add_subdirectory(qt)
 endif()

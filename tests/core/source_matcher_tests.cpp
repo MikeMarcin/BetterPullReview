@@ -2,8 +2,10 @@
 #include "../support/source_search_fixture.hpp"
 #include "bpr/core/source_matcher.hpp"
 #include "product_diff.hpp"
+#include <array>
 #include <cstdlib>
 #include <iostream>
+#include <thread>
 using namespace bpr::core;
 using namespace bpr::tests;
 using namespace std::string_view_literals;
@@ -58,6 +60,30 @@ namespace {
 		expect_spans("a*", "aa", { { 0U, 2U }, { 2U, 2U } }, regex);
 		expect_spans("(a*)*b", "aaab", { { 0U, 4U } }, regex);
 		expect_spans("\\bcat\\b", "猫cat😀", { { 3U, 6U } }, regex);
+	}
+
+	void test_repeated_and_concurrent_matching()
+	{
+		const auto shared = program("a.*", { .WholeWord = true, .RegularExpression = true });
+		const auto paths  = compile_source_paths(search_engine(), "*.{cpp,h}", "**/generated/**");
+		search_expect(paths.Filter.has_value(), "shared production path filter compiled");
+		const auto run = [&] {
+			for (auto iteration = 0U; iteration < 64U; ++iteration) {
+				const auto found = scan_source_match(shared, "ba a");
+				search_expect(found.Status == source_search_status::complete && found.Matches == std::vector<byte_span>{ { 3U, 4U } }, "cold/warm shared caches preserve leftmost whole-word span");
+				search_expect(paths.Filter->includes("deep/name.cpp", { }) && !paths.Filter->includes("src/generated/a.h", { }), "shared path caches preserve decisions");
+				const auto invalid = compile_source_match(search_engine(), "x(?", { .RegularExpression = true });
+				search_expect(invalid.Status == source_search_status::invalid_pattern && invalid.ErrorOffset == 1U && !invalid.Program, "parallel compilation preserves exact diagnostic and no program");
+				search_expect(compile_source_match(search_engine(), "(?=x)", { .RegularExpression = true }).Status == source_search_status::unsupported_pattern, "parallel unsupported syntax remains refused");
+				test_public_matching();
+			}
+		};
+		run();
+		// These callers belong to the test. The engine creates no workers itself.
+		auto callers = std::array<std::jthread, 4>{ };
+		for (auto& caller : callers) {
+			caller = std::jthread{ run };
+		}
 	}
 
 	class counted_stop final : public diff_compute_stop
@@ -279,6 +305,7 @@ int main(int aCount, char** aArguments)
 		return 0;
 	}
 	test_public_matching();
+	test_repeated_and_concurrent_matching();
 	test_limits_and_invalid_input();
 	test_globs();
 	test_unified_and_identity();

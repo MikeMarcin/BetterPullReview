@@ -543,6 +543,8 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         targets = {record.split("|", 2)[2] for record in records}
         self.assertIn("Threads::Threads", targets)
+        # [[BPR-1618]]. Source matching is also a core dependency.
+        self.assertIn("RE2|PINNED_ARCHIVE|BetterPullReview::RE2", records)
         # [[BPR-1450]]. Every graph, Qt or not, builds the core's SHA-1.
         self.assertIn(
             "sha1collisiondetection|PINNED_ARCHIVE|BetterPullReview::Sha1dc",
@@ -581,6 +583,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 / "build/_bpr/product-dependency-audit.cmake"
             ).read_text(encoding="utf-8")
             self.assertIn("Threads|TOOLCHAIN|Threads::Threads", audit)
+            self.assertIn("RE2|PINNED_ARCHIVE|BetterPullReview::RE2", audit)
             for dependency in ("Python3", "Git", "Qt6", "LibSecret"):
                 self.assertNotIn(dependency, audit)
 

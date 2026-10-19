@@ -135,7 +135,6 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterXdiff
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
-            BetterPullReview::AdapterRegex
             BetterPullReview::AdapterQt
             BetterPullReview::AdapterUpdate
             Threads::Threads

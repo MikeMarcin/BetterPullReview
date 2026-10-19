@@ -97,7 +97,6 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
-#include "bpr/adapters/regex/re2_source_regex_engine.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -19761,7 +19760,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<composition_diff_projection>        DiffProjections;
 		std::unique_ptr<application::diff_application_host> DiffHost;
 		/// [[BPR-1431]]. Source search's RE2 engine, declared before both finders so it outlives them.
-		adapters::regex::re2_source_regex_engine                                              SourceRegex;
+		const core::source_regex_engine&                                                      SourceRegex = core::default_source_regex_engine();
 		std::unique_ptr<pane_find_controller>                                                 PaneFind;
 		std::unique_ptr<pr_search_controller>                                                 PrFind;
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;

@@ -11,6 +11,11 @@ diagnostics.
   2026-10-13), plus the owner-approved deterministic platform SHA-256
   implementation (CommonCrypto/CNG with HACL fallback; RFC-BPR-0080 r4,
   2026-10-18). Native APIs and handles stay in its exact private sources.
+  Pinned RE2/Abseil are additionally approved for source matching (BPR-1618,
+  owner 2026-10-18): RE2 stays private to `source_regex_engine.cpp`; internal
+  locks, hash state and contention clocks may affect timing/cache layout but
+  must not affect match spans, ordering or diagnostics. No worker creation.
+  This grants no general core thread, clock, entropy or logging capability.
 - Before hand-writing a major general-purpose system here (parser, codec,
   compressor, hash, regex or diff engine, Unicode tables, protocol), ask the
   owner whether a suitable library should be allowed instead (root `AGENTS.md`).

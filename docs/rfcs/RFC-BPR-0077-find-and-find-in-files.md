@@ -26,6 +26,18 @@ receipts and narrow corrective passes remain explicit. Required frontend-design
 was applied; no required human criterion is pending and no acceptance is waived.
 No main landing or publication is claimed by this lane.
 
+## Adopted matcher ownership amendment — 2026-10-18
+
+The owner approved moving pinned RE2/Abseil into core if the implementation
+creates no worker threads and matching remains externally deterministic.
+[[BPR-1618]] retains BPR-1431's engine, pins, options and search semantics,
+removes the regex adapter and supplies the same injectable interface from a
+core-private implementation. Internal cache synchronization, hash seeds and
+contention clocks are a scoped implementation exception, not permission for
+first-party core effects. The [audit](../issues/_checkpoints/BPR-1618/re2-audit.md)
+records the evidence and limits; original acceptance and native obligations
+remain unchanged.
+
 ## Problem and grounded current behavior
 
 This section records the original pre-implementation baseline of 2026-10-12.

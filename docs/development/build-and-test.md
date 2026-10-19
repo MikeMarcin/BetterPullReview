@@ -3520,7 +3520,7 @@ stream parser, which lifts payloads out of a frame by their exact byte range.
 [[BPR-1435]] builds pinned zlib 1.3.2 for the functional core's review-bundle
 reader: `cmake/BprZlibProvider.cmake` checks archive SHA-256, size and license,
 honors the offline cache, and compiles only the raw-inflate and checksum
-sources with `Z_PREFIX` (so its symbols are `z_*`). Unlike Glaze and RE2 it is
+sources with `Z_PREFIX` (so its symbols are `z_*`). Like Glaze and RE2 it is
 part of the Qt-free core graph, which now needs SQLite and zlib. zlib is on the
 owner's core allow-list, which `cmake/VerifyCoreBoundary.cmake` enforces.
 License and provenance are under `third_party/zlib/`.
@@ -3695,8 +3695,12 @@ static libraries through `cmake/BprRe2Provider.cmake`, which checks each
 archive's SHA-256, size and license digest, honors the offline dependency cache,
 and turns off upstream tests, benchmarks, install rules, ICU and PCRE. Abseil
 requires one language standard for every library that uses it, so the provider
-builds both as C++23. Only the `regex` adapter links them; core reaches RE2
-through its `source_regex_engine` interface. Licenses and provenance are under
+builds both as C++23. Since [[BPR-1618]], core links the same pinned libraries
+privately in every graph, including Qt-free/tests-disabled builds; its private
+implementation is exposed only as `default_source_regex_engine()` behind the
+`source_regex_engine` interface. There is no regex adapter. The
+[scoped audit](../issues/_checkpoints/BPR-1618/re2-audit.md) records the owner's
+external-determinism exception and upstream implementation effects. Licenses and provenance are under
 `third_party/re2/` and `third_party/abseil/`. `core_source_matcher`,
 `application_source_pr_search` and the `application_source_find*` and
 `application_source_pr_*` courses exercise the engine.

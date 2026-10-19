@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/source_search.cpp
         src/source_match_compile.cpp
+        src/source_regex_engine.cpp
         src/source_match_scan.cpp
         src/source_match_entry.cpp
         src/source_path_filter.cpp
@@ -143,7 +144,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 # Reproducible portable builds may explicitly keep the approved HACL backend.
 option(BPR_CORE_SHA256_PORTABLE "Use portable HACL SHA-256 instead of platform crypto" OFF)
