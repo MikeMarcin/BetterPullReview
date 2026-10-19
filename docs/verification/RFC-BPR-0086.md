@@ -6,15 +6,17 @@ Mandate `insights-window-v1-r1`. Immutable RFC_BASE_SHA:
 The authored plan’s first milestone is `window-and-storage` (BPR-1606 and
 BPR-1607). Its corrected shell has explicit owner acceptance, and its storage
 and public-path obligations have passing evidence.
-The GitHub budget milestone now has passing automated evidence; its required
-owner chart judgment remains pending. No full-RFC acceptance is claimed.
+The GitHub budget milestone has passing automated evidence and explicit owner
+Accept verdicts for the corrected charts and native title row. BPR-1608 and
+BPR-1609 are Done; review-stats is next plan-eligible on the Insights branch.
+Main delivery awaits its active unrelated writer. No full-RFC acceptance is claimed.
 
 | Criterion | Evidence and current result |
 |---|---|
 | AC01 window | Public menu and central shortcut open the profile singleton. Real composition supplies Local data and Background work. All six tabs, their ranges and three refreshes preserve content and frame; smaller-screen bounds, Escape, hidden timers, existing cache controls and shutdown are checked by `application_insights_public_path`. The owner accepted the exact corrected shell candidate in session `e51e8b870c12f3d41b3f243b2891758a`, event 8. |
 | AC05 storage | `sqlite_insights_storage` compares exact measured bytes with an independent filesystem walk, includes WAL and SHM, checks the three fixed store budgets and privacy canaries. `git_insights_storage` uses the shared cache inventory without any Git executable, and rejects linked entries. Native maintenance tests verify actual frozen export and purge. |
 | AC11 first-milestone portion | The real maintenance preview includes only last measured numeric byte totals for anonymized export; identifying export gains no Insights section. Private store classification and narrow reset survival are checked. Full export privacy with later statistics remains a closeout obligation. |
-| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. Required comparison with AllTheThings remains pending. |
+| AC02 shared charts | Stacked quantity and separate event lanes, maxima, gaps/reset rules, midpoint hover and edge-flipped cards pass the rendered public course. The owner accepted the corrected ATT comparison at session `1b7f1eff8b9c5b203d35ae30890884f8`, event 7, and the native title row separately at event 8. Calendar remains assigned to the later Reviews/Energy milestone. |
 | AC03 budget/Problems and AC04 GitHub | Passive Core split, GraphQL/Search tiles, local 1h/1d charts, category/process facts and Problems tallies pass the seeded real-store public course. Later Summary tiles remain with their authored milestones. |
 | AC06–10, AC12 | Pending their authored milestones. |
 
@@ -394,3 +396,51 @@ Final tracker reconciliation adopts only main BPR-1619 allocation/receipt/plan/c
 and claim `a69668185`/`30515b8b7`. Main is an active unrelated source writer;
 its uncommitted work is preserved. No frozen product input or review fingerprint
 changed, so the passing candidate evidence is reused.
+
+
+## Accepted GitHub budget milestone, round 3
+
+Assignment `github-budget`, mandate `insights-window-v1-r1`, segment
+`github-budget-r3`, fresh owner `/root/insights_github_acceptance`.
+The exact frozen source `173e69f7afaaaa21b233ee56347bd3621d63b2f4` receives
+both explicit human Accepts in session `1b7f1eff8b9c5b203d35ae30890884f8`:
+chart event 7, decision `3b03a520-366a-4543-85d2-d04c8842bee3`, fingerprint
+`9e8f16d1ead05319b19107c71c124b608493628ba838608a1fac09fa06a1a069`;
+native title-row event 8, decision `a8156396-0d49-4da5-8515-57b84932f1d8`,
+fingerprint `9ac52a892f6f30e32310b5482a24d9ec316de1a2cb92bfcd205871f9d0f027a5`.
+Both name revision `173e69f7a-v002` and have empty notes. Event 9 handed back;
+intake was independently checked before engineering acceptance. These verdicts
+satisfy their two recorded criteria; they grant no later-milestone acceptance.
+
+BPR-1608's request, persistence/retention, process, Problems and passive
+obligations retain their direct passing evidence. BPR-1609's shared chart,
+GitHub/Summary, theme/shell and engineering obligations retain their direct
+passing evidence; its two human records now pass. Thus both whole-card
+obligations and both authored `github-budget` exits pass. Calendar is explicitly
+assigned to later Reviews/Energy work. BPR-1609 is Done; RFC0086 stays In Progress.
+
+Six previously bound source/test paths compare byte-identical to the corrected
+frozen candidate. No product code changed. The prior 4/4 integration, exact
+frozen launcher/public course, painter negative/restored regression, fractional
+DPI and accounting/retention/transport evidence is reused. No new visual design
+occurred; prior correction loaded `frontend-design` as recorded above. This
+round uses `attended-review` for intake, stop and scoped releases. The exact
+host PID23452 is stopped; events10/11 release only the two accepted candidates.
+Consumed cursor11; both verdicts and the read-only frozen build remain intact.
+There is no pending decision, protected candidate or running command for this
+milestone. The documentation gate verifies the new records.
+
+Main BPR-1619 is complete (Done `2c7dd37ae`, quiescent checkpoint `00a671afa`);
+main then claimed BPR-1378 and continues writing. This branch retains the accepted
+milestone without mutating main. The continuation records exact main/source
+frontiers and next integration guard. `review-stats` is dependency-eligible on
+this branch and proceeds with a fresh engineering owner; main delivery does not
+block it. Native Windows/Linux, later statistics/calendar, complete export
+privacy and idle-hour evidence remain open. No whole-RFC closure is inferred.
+
+
+The finish guard caught main's newly allocated BPR-1620 and refused the old
+NEXT_ID. Only its committed allocation/receipt/plan/card and claim were adopted
+as `e69eb9bf0`/`660fb623f`, preserving the authoritative global counter. Main's
+BPR-1378 and BPR-1620 writers remain active; no product source or main checkout
+was mutated. The repeated finish dry-run passes, with no protected link repair.

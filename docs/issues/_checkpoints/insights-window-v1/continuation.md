@@ -1,4 +1,111 @@
-# Current chart correction handoff
+# Accepted GitHub budget milestone, round 3
+
+Mandate **insights-window-v1-r1**, assignment **github-budget**, owner
+`/root/insights_github_acceptance`, coordinator-implementer recipe r2, segment
+`github-budget-r3`. Source/tracker root is this checkout, branch
+`codex/insights-window-v1`. RFC_BASE_SHA remains
+`0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66`.
+This section is the authoritative current checkpoint; prior handoffs and
+rejection/acceptance history below retain their original meaning.
+
+**BPR-1608 and BPR-1609 are Done; github-budget is accepted.** Both whole-card
+obligations and both authored exits are satisfied for the available macOS
+candidate. No required decision remains for this milestone. RFC-BPR-0086 stays
+In Progress. **review-stats is next plan-eligible on this branch**; energy and
+work also have their prerequisite met, with the authored order retained.
+BPR-1610/BPR-1611 remain Backlog for the next fresh owner to promote/claim.
+This owner stops at the github-budget boundary and releases writer ownership.
+
+## Exact owner acceptance and resources
+
+Session `1b7f1eff8b9c5b203d35ae30890884f8`, revision `173e69f7a-v002`:
+
+- Event **7**: **Accept** `BPR-1609-insights-charts-v002`, fingerprint
+  `9e8f16d1ead05319b19107c71c124b608493628ba838608a1fac09fa06a1a069`,
+  decision `3b03a520-366a-4543-85d2-d04c8842bee3`, empty note.
+- Event **8**: **Accept** `BPR-1609-insights-titlebar-v002`, fingerprint
+  `9ac52a892f6f30e32310b5482a24d9ec316de1a2cb92bfcd205871f9d0f027a5`,
+  decision `a8156396-0d49-4da5-8515-57b84932f1d8`, empty note.
+- Event **9** handed back. Coordinator consumed 9 before this fresh round;
+  this owner independently verified session, candidates, fingerprints and events.
+- Exact state's `stop` stopped host PID **23452**. It is absent from the process
+  table; inherited tool session **91594** is no longer addressable. Scoped
+  `resume-development` releases are events **10** (titlebar) and **11** (charts).
+  **Consumed cursor 11.** Both recorded Accept verdicts survive; both candidates
+  are unprotected. No server, waiter or pending owner question is handed off.
+
+State `/Users/jaeger/.mask/attended-review-sessions/bpr-insights-github-v002-20261018`,
+registry `/Users/jaeger/.mask/attended-review-resources`. The rejected v001 and
+accepted v002 histories remain intact. Frozen source
+`173e69f7afaaaa21b233ee56347bd3621d63b2f4`, root
+`/Users/jaeger/bpr-insights-github-v002.x48bp45b`, retained read-only.
+Executable SHA-256
+`946124875e4fe1c4cae6a051ef0f072488968c6355b62f158969fc5c5ddb7ba7`.
+No frozen input changed and no new review was prepared.
+
+## Acceptance, verification and changed paths
+
+This round changes BPR-1609 acceptance/lane, this checkpoint and the RFC
+verification ledger. It also adopts only the committed BPR-1620 allocation,
+receipt, plan and claim to preserve the issue counter; no source is adopted.
+It introduces no product/UI behavior. Prior design work loaded `frontend-design`
+as recorded below; no new visual design occurred here. The installed
+`attended-review` skill governed status intake, host stop and scoped release.
+
+The current chart/window/chrome/app/public-course bytes equal the exact frozen
+source on all six previously bound paths. The two-client fixture proves
+412 own + 1240 other + 3348 remaining; core/host/SQLite courses cover restart,
+reset, no-reading, headerless counting, retention and passive refresh. Required
+owner chart comparison and actual native title-row judgment are now supplied.
+Calendar remains explicitly later scope under BPR-1609 and AC02.
+
+Reuse unchanged passing evidence: focused integration **4/4 in 22.21 s**,
+exact corrected frozen launcher and public course, isolated-to-continuous
+painter negative/restored controls, 1.25× public course, LLVM22 format/tidy,
+67 documentation regressions, and accounting/privacy/transport/supervision
+courses. Documentation gate runs after acceptance bookkeeping. No redundant
+application build or unchanged test matrix is needed for these records.
+
+Round runtime `/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-github-accept-r3-l187iby2` retains intake and final session status, stop/release
+receipts, source equivalence, acceptance, main/process snapshot and renewed
+milestone binding/observation/check. The final binding must report
+`fresh-context` for `review-stats`, with no pending github-budget obligation.
+Final commit identities and command results are recorded below before handoff.
+
+## Main integration frontier and next action
+
+Last fully merged main source is **4bae9df701fdd70e16c0481a1c595e404b4298ce**
+(merge **318c3f5aa**); only BPR-1619's committed plan/allocation/receipt/claim
+was subsequently adopted as **a69668185/30515b8b7**. Its completed production
+**381ec842b** and Done **2c7dd37ae** remain on main, with quiescent handoff
+**00a671afa**. Its interleaved BPR-1377 source/acceptance also remains on main.
+
+Main has advanced to **e16756831d214f0dba970d468c3bdf19b01a4545** and has active
+**BPR-1378** source and **BPR-1620** documentation writers. The runtime records status/log, BPR-1619's completed handoff, BPR-1378's
+claim/plan and a scoped process snapshot. Main's dirty source and active claim
+are preserved. Absence of a build process would not release that writer.
+No main checkout, branch, source or index was mutated; no push occurred.
+The accepted Insights milestone stays on this branch. Delivery to main is
+pending guarded reconciliation after the current writer releases; at that point
+merge the then-completed main snapshot into this branch, retain authoritative
+Done cards, review changed composition pins, run only affected integration,
+then fast-forward clean main under the shared board lock and exact revision guard.
+Main delivery is independent of `review-stats` eligibility on this branch.
+
+The first finish dry-run correctly refused the stale NEXT_ID after main allocated
+BPR-1620. Only authoritative allocation/receipt/plan/card and claim commits
+**6def4191c/e16756831** were adopted as **e69eb9bf0/660fb623f**, without
+product source or main-checkout mutation. The repeated finish dry-run passes.
+The reviewed frozen inputs and milestone binding are unchanged.
+
+The coordinator starts a fresh owner for **review-stats (BPR-1610/BPR-1611)**
+using this checkpoint and live RFC/plan. No successor work was claimed here.
+All owned engineering commands finish before handoff. No delegation, live GitHub
+call/mutation, push, stash, owner desktop/browser access or recurring automation.
+Windows/Linux native qualification, later Reviews/Energy/Work/calendar, full
+export privacy and the macOS idle hour remain on their existing obligations.
+
+# Prior chart correction handoff (superseded)
 
 Mandate **insights-window-v1-r1**, assignment **github-budget**, owner
 `/root/insights_chart_revision`, coordinator-implementer recipe r2, segment
@@ -359,3 +466,7 @@ The other milestones retain their authored dependencies.
 Coordinator verified session 12f141ab8f2268fd7a22c6973bfd0921, candidate43ec9904a-v001 and exact fingerprint. Event5 owner Reject: “The insights tabs are supposed to be in the header title bar row. We're just wasting space. Look at ATT. Also the ATT energy graph is better than the mockup's version.”. Event6 handed back; consumed cursor6. One owner screenshot attachment retained in session; decoded reference /tmp/bpr-insights-chart-owner-0.png. No chart acceptance. Fresh engineering round must inspect attachment and ATT, move tabs into actual title-bar row to remove wasted space, improve chart to ATT Energy reference, then verify/freeze/review. Prior writers and commands quiescent except named server.
 
 Fresh correction owner `/root/insights_chart_revision` adopted mandate r1. Both owner screenshots inspected. Scoped release preserved Reject and released candidate at event7, consumed cursor7; exact session host stopped. BPR-1609 returned to Ready for correction. No later milestone claimed.
+
+## Owner acceptance intake 2026-10-18
+
+Coordinator verified session1b7f1eff8b9c5b203d35ae30890884f8 and exact two 173e69f7a-v002 fingerprints. Events7–8 explicitly Accept chart and native titlebar, empty notes; event9 handed back. Consumed cursor9. Both judgments satisfy only their recorded criteria; fresh engineering owner must finalize full github-budget obligations/bookkeeping and safe local integration before successor selection. Prior owner f882b77d8 reports clean released writers, all commands finished except review hostPID23452. Intake JSON external /tmp/bpr-insights-chart-v2-intake.json.
