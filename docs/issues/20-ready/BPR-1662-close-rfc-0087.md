@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1662"
 title: "Verify and close RFC-BPR-0087"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0087"]
 depends_on: ["BPR-1659", "BPR-1660", "BPR-1661"]
 metadata: {"source": "Owner request 2026-10-19; isolated worktree, no merge/push/release", "milestone_plan": {"id": "shared-action-buttons-v1", "path": "docs/rfcs/plans/shared-action-buttons-v1/milestone-plan.json"}}
