@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1654"
 title: "Bind discarded SDK import metadata in PE release audit"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"b914b56f6aab8c51f632eafa863f890c80539865","reservation":"docs/issues/_reservations/BPR-1654--BPR-1654--8dea387504db.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["scripts/verify_pe_release.py","scripts/verify_release_package.py","scripts/verify_release_security.py","tests/scripts/verify_release_security_tests.py","tests/scripts/verify_release_package_tests.py","docs/development/release-packages.md",".codex/skills/publish-release/references/windows.md"],"boundary":"Coordinator explicitly invalidates source freeze for bounded verifier-only correction; no C++/CMake/runtime/linkage/numeric-gate change or production rerun before common-source coordination"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Original b914 MCP map/image failure and actual bcrypt import/name absence remain retained in the existing card/native R3 evidence; no historical library-selection premise is restored.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC2","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. The reviewed full-file SDK specimen and exact static-map/PE absence predicates are retained in committed dd6. Missing/wrong specimen and all named hostile metadata controls pass; every normal image/symbol/fixture assertion remains.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC3","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Existing native R3 MCP positive plus23 hostile controls retained. Final dd6 native Windows public package/security audits complete successfully on fresh MSI/runtime,29 file hashes and21 PE images, with5 native publisher/timestamp checks. Actual downloaded MSI plus4 first-party images independently pass native trust and equal final hashes.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC4","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Independent changed-surface review at1a71 and exact final technical acceptance retained. No C++/CMake/runtime/linkage or numeric-predicate changes. Earlier17security/7package/8dependency controls and final documentation gate retained; final common-source/download reconciliation now complete. Broad qualification and BPR1653 remain open.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}}]
 ---
 
 # BPR-1654: Bind discarded SDK import metadata in PE release audit
@@ -89,3 +90,22 @@ Independent changed-surface review is complete at 1a71 after the separate Qt
 correction; no remaining blocker is found in this bounded source change.
 Native R3 evidence and all hostile controls remain binding. This is source
 review completion, not final common-source package/security acceptance.
+
+
+## Final dd6 artifact acceptance, 2026-10-19
+
+The fresh final Windows MSI/runtime at
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe` passes the complete native package
+and security entry points, all 29 runtime-file hashes and 21 PE image checks.
+Five native publisher/chain/timestamp checks pass. The downloaded MSI and four
+first-party images independently pass native trust and equal the final hashes.
+The private stable v0.3.0 release contains these exact bytes; root's
+`resumed-after-rss-exception/postdownload-complete-dd6.json` binds the completed
+28-file download verification.
+
+This completes the previously deferred AC3 public-audit and AC4 final binding.
+AC1's original failure and falsified positive-import premise remain retained;
+AC2's reviewed specimen is metadata-class evidence, with no claim that LINK
+selected that historical library. Existing positive/23-hostile controls and
+independent review remain valid. No new native desktop, vault, memory, privacy
+or vulnerability qualification is claimed; BPR-1653 and RFC0038 remain open.
