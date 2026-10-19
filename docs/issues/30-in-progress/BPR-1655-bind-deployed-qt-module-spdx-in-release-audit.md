@@ -32,7 +32,7 @@ therefore omits Svg. Preserve the failed attempt and old signed asset bytes.
 The shared selector reads only qtbase and the exact module documents required
 by canonical deployed Svg/WebP names; the PE route retains full upstream
 file/checksum/signature checks and every unknown/duplicate/escape refusal.
-The four-platform-name fixture now exercises actual joined closure generation,
+The cross-platform fixture now exercises actual joined closure generation,
 installed notices/source offers/provenance/final SPDX, and refuses an omitted
 Svg installed provenance record. The separate source-asset archive and exact
 pinned source/legal checks remain mandatory. No old asset is repaired in place.
@@ -46,17 +46,38 @@ AC3's final complete native public audit remains pending fresh coordinator
 production. A packaging-source change must retain package-build-source-drift
 on old b914 artifacts. No guard is relaxed to obtain an old-candidate pass.
 
-Independent review supplies a real Windows case-only counterexample at9579:
+Independent review supplies a real Windows case-only counterexample at 9579:
 QT6SVG.DLL could pass PE ownership while provenance repeated the Svg omission.
 Windows file identity is now consistently case-insensitive; Darwin/Linux file
 identity remains exact. The public generation course covers uppercase Windows
 Svg/WebP/core files, actual platform-specific legal layout and final SPDX, then
 proves omitted installed Svg provenance refuses. No filename authorizes bytes.
 
-Native R4 at9579 passes all21 exact PE producer/map/export/payload/dependency/
+Native R4 at 9579 passes all 21 exact PE producer/map/export/payload/dependency/
 hardening inspections and verifies the complete old corresponding-source asset
-and installed source references. Its corrected Qt closure contains11 files.
+and installed source references. Its corrected Qt closure contains 11 files.
 Both maintained public auditors actually refuse old b914 with
 package-build-source-drift; the old installed provenance separately refuses
 qt-runtime-provenance-drift. Original assets and extracted runtime hashes remain
 unchanged. These partial observations do not close the final public-audit AC.
+
+Native R5 at 1a71 passes the exact29-file runtime private-copy uppercase course:
+the same 11-file producer closure, exact QtSvg/WebP upstream PE binding, and
+changed-copy byte refusal. The temporary copy is removed; all original runtime
+and asset hashes remain equal. Native package-runtime 23 pass/2 configured
+platform skips (Linux baseline and POSIX ldd fixture), and security 18 pass. All four owned verifier tasks retire at
+2026-10-19T14:33:58Z with no producer/build/test processes. The coordinator
+receives the PC lease; no production or install/launch was performed.
+
+The explicit preproduction stopping boundary leaves final common-source public
+audit AC pending. No postfreeze card or ledger commit may move publishing HEAD;
+actual production/audit/publication observations remain in ignored evidence
+until postrelease administrative closeout. A new artifact failure requires an
+explicit new source invalidation and reproduction.
+
+Independent changed-surface review completes at 1a71 with no remaining blocker.
+The reviewer independently confirms identical canonical/uppercase 11-file,
+65-package closure against the actual inventory and all three producer SPDXs,
+and reconciles native R4/R5, source/notices/relink and fixture evidence.
+This completes bounded source review only; fresh-artifact public audits,
+new SPDX/Grype applicability and every other release gate remain pending.

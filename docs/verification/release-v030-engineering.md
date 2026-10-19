@@ -738,11 +738,11 @@ or wrong specimen bytes refuse. Independent final code/evidence review and the
 complete native audit remain pending at this implementation checkpoint.
 
 
-The BPR-1654 verifier at aaad passes 17 security,7 package and8 dependency
+The BPR-1654 verifier at aaad passes 17 security, 7 package and 8 dependency
 unit cases; independent source review finds no blocking changed-surface issue.
 Actual native R2 retains the no-specimen refusal, then advances beyond MCP
 metadata and fails undeclared-pe-producer. Separate R3 passes the actual MCP
-positive plus23 hostile controls, retains all symbol/anchor scans and original
+positive plus 23 hostile controls, retains all symbol/anchor scans and original
 image/map bytes, and separately reproduces upstream coverage refusal for
 Qt6Svg.dll and qwebp.dll. Both exact module SPDX documents exist in the native
 producer; the interactive configured cache resolves to its existing canonical
@@ -751,7 +751,7 @@ C:/code/git/BetterPullReview provider. No library-selection claim is inferred.
 BPR-1655 corrects shared deployed-module SPDX selection and the Windows Svg
 basename. Its generated provenance, notices and final inventory now use the
 same required module closure; source offers and the separate corresponding
-source asset continue to bind QtBase,QtSvg and QtImageFormats. Portable controls
+source asset continue to bind QtBase, QtSvg and QtImageFormats. Portable controls
 cover all three native naming families, required missing documents, unknown/
 ambiguous/changed/escaped producers and old omitted installed provenance.
 An existing release-prefix lexical fixture selected the assessment helper's
@@ -767,9 +767,9 @@ freeze until postrelease administrative upkeep. All earlier strict memory,
 history, native/vault/crash, security-coverage and source-access gaps remain.
 
 
-Native R4 at9579 passes exact producer/map/export/payload/dependency/hardening
-checks for all21 PEs and complete separate source-asset/installed-reference
-verification. The corrected Qt closure has11 files. Both full public audit
+Native R4 at 9579 passes exact producer/map/export/payload/dependency/hardening
+checks for all 21 PEs and complete separate source-asset/installed-reference
+verification. The corrected Qt closure has 11 files. Both full public audit
 commands preserve the expected old-source drift refusal; old installed
 provenance preserves its omitted-Svg refusal. No old artifact changes.
 Independent review then proves a case-only Windows Svg rename could still
@@ -778,3 +778,26 @@ with uppercase Svg/WebP/core names exercised through actual platform-specific
 notices/provenance/SPDX generation. Darwin/Linux identity remains exact.
 The evidence for9579 is retained with that counterexample; final acceptance
 binds the corrected common-source candidate and fresh producer artifacts.
+
+
+Native R5 at 1a71 passes the uppercase actual 29-file private-copy course: its
+11-file Qt closure equals the canonical closure, QtSvg/WebP exact producer
+checks pass and changed-copy bytes refuse. The temporary copy is removed and
+all original runtime/asset hashes remain unchanged. Native package-runtime 23
+pass/2 platform skips (Linux baseline and POSIX ldd fixture), and security 18
+pass. All four verifier tasks are retired
+at 2026-10-19T14:33:58Z; no owned producer/build/test process remains. Producer
+and source leases return to the coordinator after final preproduction upkeep.
+Full native package/security acceptance still requires reproduced common-source
+artifacts. Keep those receipts outside source after freeze; terminal card
+administration follows publication and postdownload verification, preserving
+the publishing commit and immutable tag. No earlier gap is converted to a pass.
+
+
+Independent changed-surface review completes at 1a71 with no remaining blocker:
+canonical and uppercase actual inventories yield the same 11-file/65-package
+closure; native controls, source/notices/relink and the unchanged-assertion
+release-prefix fixture correction reconcile. Local Mac package-runtime has
+24 pass/1 Linux-native skip and covers the POSIX fixture separately from
+Windows's 23 pass/2 platform skips. Source review completion supplies no final
+artifact audit, new SPDX vulnerability disposition or publication acceptance.

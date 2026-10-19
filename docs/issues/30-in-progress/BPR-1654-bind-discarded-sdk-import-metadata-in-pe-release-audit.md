@@ -70,9 +70,9 @@ scope; actual implementation, controls and native audit remain required.
 Implementation aaadffc76d0a66cbccd201e07e1e9518b1c41427 passes 17 security,
 7 package and 8 dependency tests. Independent review finds no blocking
 changed-surface issue. Native R2 on the unchanged b914 MSI retains the expected
-no-specimen map refusal, passes all32 focused unit cases, then advances past
+no-specimen map refusal, passes all 32 focused unit cases, then advances past
 MCP metadata and fails undeclared-pe-producer at the separate Qt module
-coverage defect BPR-1655. Native R3 passes the actual MCP positive plus23
+coverage defect BPR-1655. Native R3 passes the actual MCP positive plus 23
 hostile controls, preserving all original image/map bytes and complete symbol
 scans. These observations do not constitute a complete package audit pass.
 
@@ -84,3 +84,8 @@ actual final artifact/download verification, without moving the publishing
 source after freeze. The old seven b914 assets and both failed audit attempts
 remain immutable. The Windows operator reference now exposes the specimen
 option and its refusal/provenance boundary under explicit coordinator ownership.
+
+Independent changed-surface review is complete at 1a71 after the separate Qt
+correction; no remaining blocker is found in this bounded source change.
+Native R3 evidence and all hostile controls remain binding. This is source
+review completion, not final common-source package/security acceptance.
