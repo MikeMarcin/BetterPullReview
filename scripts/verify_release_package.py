@@ -202,11 +202,14 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
 
 
 def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None,
-          source_archive: Path | None = None) -> dict:
+          source_archive: Path | None = None, windows_import_library: Path | None = None) -> dict:
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build)
     app, helpers = package_paths(root, info)
     evidence = check_file_inventory(root, sbom, revision, info)
+    if windows_import_library is not None:
+        require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
+        evidence["windows_import_metadata_specimen"] = pe_release.import_metadata_specimen(windows_import_library)
     source = runtime.installed_source_provenance(root, info, revision)
     runtime.verify_source_asset(source_archive or sbom.parent / source["asset"]["name"], source)
     evidence["source_asset"] = source["asset"]
@@ -222,7 +225,8 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
             magic = stream.read(4)
         if not magic.startswith(BINARY_MAGICS):
             continue
-        table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers) if info["platform"] == "Windows"
+        table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers,
+                                    windows_import_library=windows_import_library) if info["platform"] == "Windows"
                  else composition.inspect_symbols(path))
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])
@@ -252,11 +256,14 @@ def main() -> int:
     parser.add_argument("--sbom", required=True, type=Path)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--windows-redist-root", type=Path)
+    parser.add_argument("--windows-import-library", type=Path,
+                        help="explicit reviewed SDK bcrypt.lib metadata specimen; not linker-selection proof")
     parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
         evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
-                         windows_redist_root=args.windows_redist_root, source_archive=args.source_archive)
+                         windows_redist_root=args.windows_redist_root, source_archive=args.source_archive,
+                         windows_import_library=args.windows_import_library)
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError, composition.verification_error) as error:
         print(f"RELEASE_PACKAGE_FAILED:{error}", file=sys.stderr)
         return 1

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Negative controls for producer binding and emitted hardening evidence."""
 from pathlib import Path
+from contextlib import contextmanager
 import hashlib
+import io
 import json
 import struct
 import sys
@@ -39,7 +41,154 @@ def map_text(symbol="main"):
             " entry point at 0001:00000000\n\n Static symbols\n")
 
 
+def metadata_image(payload=b"", data_flags=0x40000040):
+    data = bytearray(image())
+    struct.pack_into("<H", data, 70, 2)
+    data[368:376] = b".rdata\0\0"
+    struct.pack_into("<IIII", data, 376, 100, 0x2000, 128, 640)
+    struct.pack_into("<I", data, 404, data_flags)
+    return bytes(data) + payload
+
+
+def metadata_map(symbol="main"):
+    text = map_text(symbol).replace(" entry point at", " 0002:00000010 __NULL_IMPORT_DESCRIPTOR 0000000140002010 bcrypt:bcrypt.dll\n\n entry point at")
+    return text + " 0002:ffffe000 .idata$6 0000000140000000 bcrypt:bcrypt.dll\n"
+
+
+@contextmanager
+def metadata_tools(library, imports="    KERNEL32.dll\n"):
+    # Synthetic specimen only for portable controls. The native course uses the
+    # unmodified production hash and the independently inspected actual SDK file.
+    with patch.object(pe, "BCRYPT_IMPORT_LIBRARY_SHA256", hashlib.sha256(library.read_bytes()).hexdigest()), \
+            patch.object(pe.shutil, "which", return_value="undname"), \
+            patch.object(pe.dependencies, "windows_dependency_command", return_value=["dumpbin", "/dependents", "app.exe"]), \
+            patch.object(pe.subprocess, "check_output", return_value=imports):
+        yield
+
+
 class ReleaseSecurityTests(unittest.TestCase):
+    def test_package_and_security_cli_forward_explicit_specimen_only_to_audits(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            build, runtime = root / "build", root / "runtime"
+            build.mkdir()
+            runtime.mkdir()
+            sbom, library = root / "sbom.json", root / "bcrypt.lib"
+            sbom.write_text("{}")
+            library.write_bytes(b"synthetic specimen")
+            arguments = ["audit", "--build", str(build), "--root", str(runtime), "--sbom", str(sbom),
+                         "--source-revision", "a" * 40, "--windows-import-library", str(library)]
+            with patch.object(sys, "argv", arguments), patch.object(sys, "stdout", io.StringIO()), \
+                    patch.object(package, "audit", return_value={"binaries": []}) as audited:
+                self.assertEqual(package.main(), 0)
+                self.assertEqual(audited.call_args.kwargs["windows_import_library"], library)
+            with patch.object(sys, "argv", arguments), patch.object(sys, "stdout", io.StringIO()), \
+                    patch.object(package, "audit", return_value={"binaries": []}) as audited, \
+                    patch.object(package.runtime, "inputs", return_value={"platform": "Windows"}), \
+                    patch.object(security, "source_and_notices", return_value={}), \
+                    patch.object(security, "compile_hardening", return_value={}):
+                self.assertEqual(security.main(), 0)
+                self.assertEqual(audited.call_args.kwargs["windows_import_library"], library)
+
+    def test_specimen_argument_does_not_apply_to_another_platform(self):
+        with patch.object(package.runtime, "inputs", return_value={"platform": "Darwin"}), \
+                patch.object(package, "package_paths", return_value=(Path("app"), [])), \
+                patch.object(package, "check_file_inventory", return_value={}):
+            with self.assertRaisesRegex(ValueError, "requires-windows"):
+                package.audit(Path("build"), Path("runtime"), Path("sbom"), "a" * 40,
+                              windows_import_library=Path("/explicit/bcrypt.lib"))
+
+    def test_reviewed_sdk_file_is_only_a_metadata_specimen(self):
+        with ContainedTemporaryDirectory() as directory:
+            library = Path(directory).resolve() / "bcrypt.lib"
+            library.write_bytes(b"synthetic metadata specimen")
+            with self.assertRaisesRegex(ValueError, "specimen-unreviewed"):
+                pe.import_metadata_specimen(library)
+            with metadata_tools(library):
+                proof = pe.import_metadata_specimen(library)
+                self.assertIn("selection is not established", proof["role"])
+                self.assertEqual(proof["sha256"], hashlib.sha256(library.read_bytes()).hexdigest())
+                library.write_bytes(b"changed specimen")
+                with self.assertRaisesRegex(ValueError, "specimen-unreviewed"):
+                    pe.import_metadata_specimen(library)
+            for missing in (library.with_name("missing.lib"), Path("bcrypt.lib")):
+                with self.assertRaisesRegex(ValueError, "specimen-required"):
+                    pe.import_metadata_specimen(missing)
+
+    def test_discarded_import_metadata_needs_explicit_proof_and_stays_scanned(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "bcrypt.lib"
+            producer.write_bytes(metadata_image())
+            library.write_bytes(b"synthetic metadata specimen")
+            producer.with_suffix(".map").write_text(metadata_map())
+            with metadata_tools(library):
+                with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                    pe.map_symbols(producer, producer)
+                symbols = pe.map_symbols(producer, producer, windows_import_library=library)
+                self.assertIn(".idata$6", symbols)
+                self.assertIn("__NULL_IMPORT_DESCRIPTOR", symbols)
+                producer.with_suffix(".map").write_text(metadata_map("github_public_path_fixture"))
+                symbols = pe.map_symbols(producer, producer, windows_import_library=library)
+                with self.assertRaisesRegex(ValueError, "fixture-symbol"):
+                    package.check_payload(producer.read_bytes(), symbols)
+
+    def test_discarded_import_shape_mutants_and_ordinary_bad_addresses_refuse(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "bcrypt.lib"
+            producer.write_bytes(metadata_image())
+            library.write_bytes(b"synthetic metadata specimen")
+            text = metadata_map()
+            row = "0002:ffffe000 .idata$6 0000000140000000 bcrypt:bcrypt.dll"
+            mutants = [text.replace(row, value) for value in (
+                row.replace(".idata$6", ".idata$5"),
+                row.replace(".idata$6", ".idata$6_untrusted"),
+                row.replace("bcrypt:bcrypt.dll", "other:bcrypt.dll"),
+                row.replace("bcrypt:bcrypt.dll", "bcrypt:KERNEL32.dll"),
+                row.replace("0000000140000000 bcrypt", "0000000140000000 f bcrypt"),
+                row.replace("0000000140000000 bcrypt", "0000000140000000 i bcrypt"),
+                row.replace("ffffe000", "ffffe001"),
+                row.replace("0000000140000000", "0000000140000001"),
+                row.replace("0002:", "0001:"),
+                row.replace(".idata$6", "ordinary_function"),
+            )]
+            mutants += [text.replace(" Static symbols\n", ""),
+                        text.replace("__NULL_IMPORT_DESCRIPTOR", "unrelated_descriptor"),
+                        text.replace("0000000140001000 f", "0000000140001001 f")]
+            with metadata_tools(library):
+                for index, invalid in enumerate(mutants):
+                    with self.subTest(index=index):
+                        producer.with_suffix(".map").write_text(invalid)
+                        with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                            pe.map_symbols(producer, producer, windows_import_library=library)
+                producer.with_suffix(".map").write_text(text)
+                for flags in (0x60000040, 0x40000080):
+                    producer.write_bytes(metadata_image(data_flags=flags))
+                    with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                        pe.map_symbols(producer, producer, windows_import_library=library)
+
+    def test_discarded_import_actual_import_payload_and_failed_observation_refuse(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "bcrypt.lib"
+            library.write_bytes(b"synthetic metadata specimen")
+            producer.write_bytes(metadata_image())
+            producer.with_suffix(".map").write_text(metadata_map())
+            for imports, reason in (("KERNEL32.dll\nBCRYPT.dll\n", "still-referenced"), ("", "evidence-incomplete")):
+                with metadata_tools(library, imports):
+                    with self.assertRaisesRegex(ValueError, reason):
+                        pe.map_symbols(producer, producer, windows_import_library=library)
+            with metadata_tools(library):
+                for payload in (b"BCRYPT.DLL\0", "Bcrypt.dll".encode("utf-16le")):
+                    producer.write_bytes(metadata_image(payload))
+                    with self.assertRaisesRegex(ValueError, "still-referenced"):
+                        pe.map_symbols(producer, producer, windows_import_library=library)
+                producer.write_bytes(metadata_image())
+                with patch.object(pe.subprocess, "check_output", side_effect=OSError("native import reader failed")):
+                    with self.assertRaises(OSError):
+                        pe.map_symbols(producer, producer, windows_import_library=library)
+
     def test_source_archive_inventory_and_digest_fail_closed(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)

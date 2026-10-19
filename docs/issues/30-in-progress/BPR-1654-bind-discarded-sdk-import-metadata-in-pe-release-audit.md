@@ -21,7 +21,7 @@ assets; extraction is not product installation or native runtime qualification.
 ## Acceptance
 
 - AC1: Preserve the original audit failure and exact MCP producer image/map, matching timestamp/base/entry, SDK import-library and actual PE import evidence. Record that bcrypt is absent from the helper's import table and DLL-name payload; a positive import-corroboration premise is falsified.
-- AC2: Admit only the proven discarded SDK import-name metadata with explicit proof bound to the selected producer library: exact static-table .idata$6, no f/i flags, named owner, image-base address, exact 32-bit wrap from a declared non-executable section, and absent import/name payload. Missing/malformed/mismatched proof refuses. Preserve full symbol/fixture scans and every normal identity/address assertion; no generic modulo or .idata wildcard.
+- AC2: Admit only the proven discarded SDK import-name metadata with an explicit full-file pin for the independently reviewed SDK metadata specimen, without claiming actual linked-library selection: exact static-table .idata$6, no f/i flags, named owner, image-base address, exact 32-bit wrap from a declared non-executable section, and absent import/name payload. Missing/malformed/mismatched proof refuses. Preserve full symbol/fixture scans and every normal identity/address assertion; no generic modulo or .idata wildcard.
 - AC3: Prove the named positive and missing/wrong proof, owner/name/flags/offset/RVA/section/executable-section/ordinary-function negative controls, retain timestamp/base/entry/image/fixture refusals, and run the actual complete native MSI package/security audit with the bounded verifier. Old artifacts retain b914 source identity; final common-source production remains coordinator-owned.
 - AC4: Complete appropriate focused script/documentation checks, independent changed-surface review, exact source-input impact and intentional upkeep. Change no C++/CMake/runtime/linkage, memory budget or qualification predicate. Retain all existing memory/history/native/vault/security/source-access gaps and require fresh final frozen/artifact reconciliation.
 
@@ -37,7 +37,7 @@ Timestamp 6ad61e4c, base 0x140000000 and entry 0001:00017ca0 match.
 Section VA 0x1b000 plus offset 0xfffe5000 equals exactly 2**32; its flags are
 0x40000040, non-executable initialized data. All other first-party records pass.
 
-The selected SDK bcrypt.lib SHA-256 is
+The independently inspected SDK bcrypt.lib specimen SHA-256 is
 `9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785`.
 Independent byte parsing identifies member 6974's static/type-zero/value-zero
 .idata$6 symbol in section 3, whose 12 bytes are bcrypt.dll followed by two NULs.
@@ -51,3 +51,16 @@ The coordinator authorizes a revised absence-proof verifier correction after
 independent review of this exact counterexample. Source freeze is explicitly
 invalidated; no artifact is relabelled. General PE infrastructure, product
 linkage changes and a new runtime dependency are outside this slice.
+
+## Explicit proof-boundary amendment
+
+The initial selected-library premise is withdrawn after independent review:
+CMAKE_RC_COMPILER selects the resource compiler, while LINK response paths,
+/LIBPATH, LINK options and LIB ordering can select another import library.
+The preserved historical producer did not record that resolution. The
+coordinator explicitly authorizes the narrower honest specimen role: the
+reviewed full-file hash establishes the reserved static DLL-name metadata
+class; this artifact's strict map/PE predicates establish the absence of a
+mapped implementation address. No selected-library provenance is inferred.
+The independent reviewer finds this classification sufficient in the named
+scope; actual implementation, controls and native audit remain required.

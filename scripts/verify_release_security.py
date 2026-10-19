@@ -101,12 +101,14 @@ def main() -> int:
     parser.add_argument("--sbom", required=True, type=Path)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--windows-redist-root", type=Path)
+    parser.add_argument("--windows-import-library", type=Path,
+                        help="explicit reviewed SDK bcrypt.lib metadata specimen; not linker-selection proof")
     parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
         build, root, sbom = (path.resolve(strict=True) for path in (args.build, args.root, args.sbom))
         evidence = package.audit(build, root, sbom, args.source_revision, windows_redist_root=args.windows_redist_root,
-                                 source_archive=args.source_archive)
+                                 source_archive=args.source_archive, windows_import_library=args.windows_import_library)
         info = package.runtime.inputs(build)
         evidence["sources_notices"] = source_and_notices(root, sbom, info)
         evidence["compile_hardening"] = compile_hardening(build, info["platform"])

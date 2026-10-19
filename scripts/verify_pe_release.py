@@ -19,7 +19,16 @@ import struct
 import subprocess
 from typing import BinaryIO
 
+import verify_binary_dependencies as dependencies
 import verify_composed_hosts as composition
+
+
+# BPR-1654: an independently inspected Windows SDK import-library specimen.
+# Its .idata$6 static/value-zero symbol names a bcrypt.dll string,
+# not implementation. This pin does not establish the linked library. Changed
+# specimen bytes need new evidence, never a wider skip.
+BCRYPT_IMPORT_LIBRARY_SHA256 = "9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785"
+BCRYPT_IMPORT_OWNER = "bcrypt:bcrypt.dll"
 
 
 def require(condition: bool, reason: str) -> None:
@@ -61,9 +70,19 @@ def pe_headers(payload: bytes) -> dict:
             "characteristics": characteristics, "sections": sections}
 
 
-def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
+def import_metadata_specimen(library: Path) -> dict:
+    require(library.is_absolute() and library.name.lower() == "bcrypt.lib"
+            and not library.is_symlink() and library.is_file(), "pe-import-metadata-specimen-required")
+    require(digest(library) == BCRYPT_IMPORT_LIBRARY_SHA256, "pe-import-metadata-specimen-unreviewed")
+    return {"library": str(library.resolve()), "sha256": BCRYPT_IMPORT_LIBRARY_SHA256,
+            "role": "Independently reviewed metadata specimen; actual producer library selection is not established",
+            "reviewed_metadata": "bcrypt.dll import-name .idata$6: static, value 0, type 0, section 3; 12 bytes bcrypt.dll NUL NUL"}
+
+
+def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | None = None) -> tuple[str, ...]:
     require(digest(binary) == digest(producer), "pe-producer-byte-mismatch")
     header = pe_headers(binary.read_bytes())
+    proof = import_metadata_specimen(windows_import_library) if windows_import_library is not None else None
     path = producer.with_suffix(".map")
     require(path.is_file() and not path.is_symlink(), "pe-producer-map-missing")
     text = path.read_text(encoding="utf-8", errors="strict")
@@ -76,7 +95,13 @@ def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
     require(entry is not None and 1 <= int(entry[1], 16) <= len(header["sections"]), "pe-map-entry-missing")
     section = header["sections"][int(entry[1], 16) - 1]
     require(section["address"] + int(entry[2], 16) == header["entry"], "pe-map-entry-mismatch")
+    in_statics, owner_descriptor = False, False
+    imports = None
     for line in text.splitlines():
+        if composition.MAP_STATICS_HEADER.fullmatch(line):
+            in_statics = True
+        elif composition.MAP_PUBLICS_HEADER.fullmatch(line) or composition.MAP_ENTRY_POINT.fullmatch(line):
+            in_statics = False
         record = composition.MAP_SYMBOL_RECORD.fullmatch(line)
         if record is None or int(record["section"], 16) == 0:
             continue
@@ -94,9 +119,30 @@ def map_symbols(binary: Path, producer: Path) -> tuple[str, ...]:
                           and (section["address"] + displacement) & 0xffffffff == address - header["image_base"])
         if guard_metadata:
             continue
+        # MSVC retains this SDK static symbol after its DLL-name contribution
+        # is discarded. Accept only the reviewed zero-RVA metadata shape, not
+        # arbitrary wrapped addresses, import sections or function symbols.
+        discarded_import_name = (proof is not None and in_statics and owner_descriptor
+                                 and record["name"] == ".idata$6" and not record["flags"].strip()
+                                 and record["object"] == BCRYPT_IMPORT_OWNER
+                                 and address == header["image_base"] and 0 <= displacement < 2**32
+                                 and section["address"] + displacement == 2**32
+                                 and section["flags"] & 0x40 and not section["flags"] & 0x20000000)
+        if discarded_import_name:
+            if imports is None:
+                output = subprocess.check_output(dependencies.windows_dependency_command(binary), text=True, timeout=30)
+                imports = {name.lower() for name in dependencies.dependency_references(output, "Windows")}
+                require("kernel32.dll" in imports, "pe-sdk-import-evidence-incomplete")
+            payload = binary.read_bytes().lower()
+            require("bcrypt.dll" not in imports and b"bcrypt.dll" not in payload
+                    and "bcrypt.dll".encode("utf-16le") not in payload, "pe-sdk-import-still-referenced")
+            continue
         require(displacement < section["size"]
                 and address == header["image_base"] + section["address"] + displacement,
                 "pe-map-symbol-address-mismatch")
+        if (record["name"] == "__NULL_IMPORT_DESCRIPTOR" and not record["flags"].strip()
+                and record["object"] == BCRYPT_IMPORT_OWNER):
+            owner_descriptor = True
     decorated = composition.parse_map_defined_symbols(text)
     undname = shutil.which("undname")
     require(undname is not None, "pe-map-needs-native-undname")
@@ -162,14 +208,16 @@ def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
 
 
 def inspect(binary: Path, info: dict, redist_root: Path | None = None, *,
-            private_producers: tuple[Path, ...] = ()) -> composition.symbol_table:
+            private_producers: tuple[Path, ...] = (),
+            windows_import_library: Path | None = None) -> composition.symbol_table:
     producers = [Path(info["app"]), *(Path(path) for path in info["helpers"]), *private_producers]
     selected = [path for path in producers if path.name == binary.name]
     if selected:
         require(len(selected) == 1, "ambiguous-first-party-producer")
         if selected[0] in private_producers:
             require(pe_headers(binary.read_bytes())["characteristics"] & 0x2000, "declared-private-producer-not-dll")
-        return composition.symbol_table(map_symbols(binary, selected[0]), "byte-identical PE + bound full link /MAP + undname anchors")
+        return composition.symbol_table(map_symbols(binary, selected[0], windows_import_library=windows_import_library),
+                                        "byte-identical PE + bound full link /MAP + undname anchors")
     upstream_dll(binary, info, redist_root)
     reader = shutil.which("llvm-readobj")
     require(reader is not None, "pe-exports-needs-llvm-readobj")

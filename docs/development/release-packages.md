@@ -126,6 +126,23 @@ helper; private keys stay encrypted and no secret is transferred to the Mac.
 See the platform guides in
 `.codex/skills/publish-release/references/` for commands and human prerequisites.
 
+The native Windows package/security auditors accept an optional explicit
+`--windows-import-library C:/absolute/reviewed-sdk/bcrypt.lib`. This is a
+reviewed metadata specimen, not proof of which library LINK selected. The
+complete file must match SHA-256
+`9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785`;
+missing, malformed or different bytes supply no exception. BPR-1654 binds this
+specimen's static `.idata$6` DLL-name marker to only the exact same-owner,
+static-table, flag-free, non-executable, image-base address and exact 32-bit
+wrap observed after its name contribution was discarded. A normally validated
+same-owner null descriptor, actual native import absence and ASCII/wide
+DLL-name absence are also required. Every symbol remains in the fixture and
+composition scans, and normal address/identity checks remain mandatory.
+An `rc.exe` SDK path does not establish LINK's response-file or library-search
+selection. Changed specimens require new review. Packaging/signing and offline
+manifest preflight need no new argument; this input belongs only to the native
+PE audit and grants no installation, security or distribution qualification.
+
 Signed production emits `*.release.json` binding installer, runtime archive,
 SPDX, separate source ZIP, final checksums/provenance and signature receipts.
 Selected Linux names and installed source URLs include `linux-ubuntu-26.04-x64`;

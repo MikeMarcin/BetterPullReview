@@ -701,3 +701,38 @@ readiness or close the milestone. Mac history, four native courses, missing
 Linux signing credential, M8/M9/security coverage and corresponding-source
 access obligations remain as recorded above; later changes require explicit
 candidate and security/frozen-input reconciliation.
+
+
+## Windows final package audit continuation
+
+The signed Windows b914 producer completes in the approved interactive context
+at 2026-10-19T13:47:22Z. Its seven final files transfer unchanged to the Mac;
+MSI SHA-256 is
+`f5c36f76b1bb7109339a73b2fc30baa16f92fd20bf60ebc603216b67bb64c932`,
+SPDX `0b257c0ae72ebae5165d96888955cafe91cd2d8f1bdac4a925e7ece690c3cde9`.
+Native/offline manifest preflight, fresh administrative extraction, exact
+29-file MSI/runtime-ZIP equivalence and all five first-party/MSI publisher,
+chain and timestamp checks pass. Administrative extraction is not product
+installation. Complete compiler/configuration, raw imports/exports for 21 PEs,
+four exact producer images/full maps, corresponding source and native receipts
+remain in ignored evidence. No source, signing configuration or installed app
+is changed by these checks.
+
+The actual native package/security audit fails with
+pe-map-symbol-address-mismatch. Only the MCP helper has one rejected static
+SDK import-name marker at RVA zero; all producer bytes and map timestamp/base/
+entry identities match. The full failed attempt is retained. BPR-1654 owns
+only a subsequently authorized verifier correction and its negative controls.
+The source freeze is explicitly invalidated; no b914 artifact is relabelled.
+
+The initial positive-import premise is falsified: this helper has no bcrypt
+import or ASCII/wide DLL-name bytes. Independent byte parsing finds a static,
+value-zero/type-zero .idata$6 symbol in the SDK specimen, naming 12 DLL-name
+bytes. RC SDK path correlation also does not establish LINK library selection.
+The coordinator openly amends the scope to a pinned independently reviewed
+metadata specimen, with no historical selected-library claim. Admission still
+requires the exact static/no-flags/same-owner/null-descriptor/image-base/
+non-executable/exact-wrap shape and actual import/name absence; every name and
+all ordinary identity/address/fixture/composition assertions remain. Missing
+or wrong specimen bytes refuse. Independent final code/evidence review and the
+complete native audit remain pending at this implementation checkpoint.
