@@ -14,7 +14,8 @@ RFC_BASE_SHA: `74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`. [Plan](plans/shared-ac
 [import](assets/shared-action-buttons-v1.LIVE_IMPORT.md).
 
 [Verification and continuation](../verification/RFC-BPR-0087.md) records the
-source checkpoint and pending runtime work; [migration inventory](../ux/shared-action-buttons.md).
+source checkpoints, completed technical verification and the pending separate
+integration authorization; [migration inventory](../ux/shared-action-buttons.md).
 
 ## Problem and grounded current behavior
 
@@ -65,8 +66,9 @@ do not replace a push button with a tool button merely to share its appearance.
 Keep all changes in the Qt adapter and its tests/documentation; no core policy,
 settings schema, publication, authentication, release or package changes.
 
-The work stays on an isolated branch. The user's request authorizes drafting
-and beginning implementation, not merge, push or release. Objective offscreen
+The work stays on an isolated branch. The user's initial request authorized drafting and beginning implementation;
+the later disk-cleanup mandate authorized the whole planned rollout. Merge,
+push and release remain prohibited. Objective offscreen
 renders establish drawing and layout only; they do not establish native desktop
 appearance or human acceptance. Native Windows/Linux results stay explicitly
 unobserved until measured. There are no unresolved product choices for the

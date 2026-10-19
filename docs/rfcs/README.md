@@ -631,8 +631,12 @@ Mandate `insights-window-v1-r3` closes the available implementation: r2 retains 
 |---|---|---|---|
 | [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | In Progress | None |
 
-Owner mandate `shared-action-buttons-r1` authorizes RFC authoring and initial
-implementation in an isolated worktree; no merge, push or release.
+Owner mandate `shared-action-buttons-r1` and the later disk-cleanup steering
+authorize the complete planned implementation/verification rollout in the
+isolated worktree; no merge, push or release. Technical AC01–AC05 evidence is
+complete. BPR-1661 is Done; BPR-1662 is Blocked solely on the separate
+integration authorization required by its acceptance. RFC status stays
+In Progress. [Closeout proposal and limits](../verification/RFC-BPR-0087.md#final-verification-and-closeout-proposal).
 [Import](assets/shared-action-buttons-v1.LIVE_IMPORT.md);
 [plan](plans/shared-action-buttons-v1/milestone-plan.json).
 
