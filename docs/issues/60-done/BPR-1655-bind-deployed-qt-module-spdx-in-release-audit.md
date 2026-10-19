@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1655"
 title: "Bind deployed Qt module SPDX in release audit"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0084"]
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"aaadffc76d0a66cbccd201e07e1e9518b1c41427","reservation":"docs/issues/_reservations/BPR-1655--BPR-1655--3342d7aa4b89.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["packaging/package_runtime.py","scripts/verify_pe_release.py","tests/scripts/package_runtime_tests.py","tests/scripts/verify_release_security_tests.py","docs/development/release-packages.md"],"boundary":"Coordinator explicitly authorizes bounded deployed-module metadata correction; no C++/CMake/runtime/module pin change, signing or production before final common-source coordination"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Actual R2 undeclared-pe-producer failure, R3 module evidence, exact configured Qt producer/module hashes and original b914 assets are preserved; first-party xdiff remains separately declared.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC2","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Committed bounded shared QtBase/Svg/WebP selection retains cross-platform native filename rules and full upstream bytes/signing-normalization/duplicate/path/checksum refusals. Exact producer ownership was independently reviewed; filenames grant no authority.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC3","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Cross-platform and uppercase Windows closure/refusal courses, old-candidate package-build-source-drift and old-provenance refusal remain retained. Newly produced dd6 Windows MSI/runtime complete native public package/security audits with29 file hashes/21PE images. Final Mac public audits and both Ubuntu roots complete package/security calls PASS; all28 uploaded/downloaded files equal producer hashes.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}},{"criterion":"AC4","outcome":"pass","revision":"dd6d3cec6026f32dd50428238bbfe9aaa80926fe","evidence":{"kind":"observation","detail":"Final release source dd6d3cec6026f32dd50428238bbfe9aaa80926fe; private stableLatest release417726205; root postdownload-complete-dd6 receipt hashes independently rechecked. Focused package/security controls and independent1a71 changed-surface review retained; exact final SPDX/application/caller technical dispositions adopted separately. New common-source production, source/SPDX/notices and downloaded trust are reconciled without runtime/module pins, numerical gates or broader qualification changes.","receipt":".mask/sessions/release-v0.3.0/resumed-after-rss-exception/postdownload-complete-dd6.json","producerHandoffSHA256":"70a23079a0dedf68e79077a6c9dd951e93d2c3f4d88e1852c0df6b80ad2ef8ea"}}]
 ---
 
 # BPR-1655: Bind deployed Qt module SPDX in release audit
@@ -81,3 +82,29 @@ The reviewer independently confirms identical canonical/uppercase 11-file,
 and reconciles native R4/R5, source/notices/relink and fixture evidence.
 This completes bounded source review only; fresh-artifact public audits,
 new SPDX/Grype applicability and every other release gate remain pending.
+
+
+## Final dd6 artifact acceptance, 2026-10-19
+
+The newly produced Windows MSI/runtime at
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe` passes both complete native public
+auditors, with all 29 runtime-file hashes, 21 PE images and exact QtBase/Svg/
+WebP producer binding. The final Mac public package/security audits and all
+four package/security calls on the two actual Ubuntu expanded roots pass.
+For stripped upstream Linux Qt images, the independently accepted separate
+BPR-1658 read-only verifier is implementation commit
+`7301ff8eb4ce63d1a64488e4d848c7153bb627f9`; producer and asset source stays dd6.
+
+All 28 actual uploaded/downloaded files equal the final producer hashes.
+Downloaded Mac checks (13), Windows native trust checks (five) and Ubuntu
+public-only signature checks (six) pass. Final SPDX and exact source/caller
+applicability decisions are separately reconciled, with raw findings and
+coverage flags retained. Root's `postdownload-complete-dd6.json` under the
+ignored resumed release session binds these results.
+
+This completes AC3's deferred common-source public-audit acceptance and AC4's
+final binding. Earlier cross-platform/uppercase positive and hostile controls,
+independent review, old-source drift refusals and original R2 failure remain.
+No old signed inventory is repaired in place. No full suite is rerun, and no
+native desktop, vault, privacy, complete vulnerability coverage or other broad
+RFC0038 qualification follows from this metadata/audit completion.
