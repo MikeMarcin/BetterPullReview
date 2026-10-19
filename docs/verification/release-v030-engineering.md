@@ -288,7 +288,7 @@ a worker in fork; they do not identify the original 142.3115 ms gap. No source,
 threshold, attribution or retry policy changes. All diagnostic processes end;
 the original failure's disposition remains pending with the coordinator.
 
-[BPR-1637](../issues/30-in-progress/BPR-1637-preserve-git-oracle-directory-questions.md)
+[BPR-1637](../issues/60-done/BPR-1637-preserve-git-oracle-directory-questions.md)
 retains the Ubuntu C5 failure, the missing-directory negative and the rejected
 blanket-slash counterexamples. Git infers path type from its filesystem, while
 K receives an explicit directory flag. The faithful fixture now prepares those
@@ -353,3 +353,20 @@ the failed pixel assertion. Failure-only context now names its token, variant,
 font, geometry and closest actual raster color without changing the original
 RGB predicate or contrast requirements. Native observation and a source-backed
 cause remain pending; no raster tolerance or product color changes.
+
+
+At native Linux sourcef8b8f3383, the complete metadata harness passes in3.23
+seconds. This supplies BPR1637's remaining native evidence for faithful explicit
+directory preparation. The generated diagnostic-controls environment contains
+both existing offscreen and Linux Windows-style entries, and that complete
+public course passes in6.60 seconds; the mandatory manifest passes in0.42
+seconds. BPR1642's original display abort is retained. Neither result supplies
+real-desktop, signing or complete release qualification.
+
+The same twelve-row observation pass retains all eight visual/locale failures
+and their exact diagnostics. The complete public composition course passes its
+nested tests-disabled GCC15 -O3 build and public checks; its source-bound compile
+database and Ninja completion record retain all original warnings/hardening.
+BPR1641's remaining scoped tidy verification stays explicit. An initial repair
+wrapper used the wrong cache path without the final release component and
+stopped after a successful focused build; its failed receipt is retained.

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1637"
 title: "Preserve Git oracle directory questions"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f8b8f3383713713c2c580038f27534dbd170a824","evidence":{"kind":"observation","detail":"Actual Linux8eef bare BUILD query disagrees with explicit directory input; independent missing-directory regression reproduces it, while blanket slash trial creates8 retained logs/** and neg/* counterexamples and is rejected.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-ctest.xml"}},{"criterion":"AC2","outcome":"pass","revision":"f8b8f3383713713c2c580038f27534dbd170a824","evidence":{"kind":"observation","detail":"Candidatee736 restores original Git oracle bytes and prepares only declared directory extras before queries/snapshots; missing-directory precondition starts absent. Product policy, exact dispositions and read-only query contract remain unchanged.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-ctest.xml"}},{"criterion":"AC3","outcome":"pass","revision":"f8b8f3383713713c2c580038f27534dbd170a824","evidence":{"kind":"observation","detail":"Actual complete native Linux git_metadata_harness passes3.23s atf8b8 with raw source-bound JUnit/log retained; complete Mac harness15.16s and scoped tidy22 pass on unchanged relevant source. Documentation/diff pass; deliberate commits and quiescent command accounting retained. Remaining native release rows are separate pending obligations.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-r2-ctest.xml"}}]
 ---
 
 # BPR-1637: Preserve Git oracle directory questions
