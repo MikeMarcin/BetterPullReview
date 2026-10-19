@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1621"
 title: "Align architecture enforcement with external determinism"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0001"]
 depends_on: []
 priority: "P1"
