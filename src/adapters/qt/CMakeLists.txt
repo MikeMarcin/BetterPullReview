@@ -19,6 +19,8 @@ add_library(
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
+        src/button_surface.cpp
+        src/quiet_tool_button.cpp
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp

@@ -49,6 +49,7 @@
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -11708,7 +11709,7 @@ namespace bpr::qt {
 			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
 			heading->setObjectName(aResetName + QStringLiteral("Heading"));
 			headingRow->addWidget(heading, 1);
-			auto* const reset = new QToolButton{ BehaviourEditor };
+			auto* const reset = new quiet_tool_button{ BehaviourEditor };
 			reset->setObjectName(aResetName);
 			reset->setText(QStringLiteral("Reset"));
 			reset->setAccessibleName(QStringLiteral("Reset %1").arg(aHeading.toLower()));
@@ -11760,7 +11761,7 @@ namespace bpr::qt {
 				auto* const group = new QButtonGroup{ BehaviourEditor };
 				group->setExclusive(true);
 				for (const auto& choice : one.Options) {
-					auto* const button = new QToolButton{ BehaviourEditor };
+					auto* const button = new quiet_tool_button{ BehaviourEditor };
 					button->setObjectName(choice.Name);
 					button->setText(choice.Label);
 					button->setAccessibleName(one.Label + QStringLiteral(": ") + choice.Label);

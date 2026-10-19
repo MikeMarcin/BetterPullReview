@@ -16,6 +16,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/steady_columns.hpp"
+#include "button_surface.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
 #include <QLatin1StringView>
@@ -2259,12 +2260,7 @@ namespace bpr::qt {
 				// A click leaves no ring that reads as a choice; Tab, an arrow
 				// within the switch or a shortcut does. A window coming back
 				// keeps what was shown.
-				const auto reason = aEvent->reason();
-				if (reason == Qt::MouseFocusReason) {
-					KeyboardFocus = false;
-				} else if (reason != Qt::ActiveWindowFocusReason && reason != Qt::PopupFocusReason) {
-					KeyboardFocus = true;
-				}
+				update_button_keyboard_focus(KeyboardFocus, *aEvent);
 				QToolButton::focusInEvent(aEvent);
 			}
 
@@ -2273,27 +2269,8 @@ namespace bpr::qt {
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing, true);
 				const auto& colours = palette();
-				const auto  ground  = colours.color(QPalette::Active, QPalette::Window);
 				const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
-				const auto  box     = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				const auto  pressed = isEnabled() && isDown();
-				if (isChecked()) {
-					// Fusion's chip: a soft fill and a thin border.
-					painter.setPen(QPen{ chip_border(ground, ink), 1.0 });
-					painter.setBrush(blend(ground, ink, pressed ? 0.12 : 0.07));
-					painter.drawRoundedRect(box, counts_mode_radius, counts_mode_radius);
-				} else if (isEnabled() && (pressed || underMouse())) {
-					// Hover and press as quietly as the row's auto-raise buttons.
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(blend(ground, ink, pressed ? 0.12 : 0.05));
-					painter.drawRoundedRect(box, counts_mode_radius, counts_mode_radius);
-				}
-				if (hasFocus() && KeyboardFocus) {
-					const auto inset = focus_ring_width / 2.0;
-					painter.setPen(QPen{ focus_ring_colour(colours, QPalette::Window), focus_ring_width });
-					painter.setBrush(Qt::NoBrush);
-					painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), counts_mode_radius, counts_mode_radius);
-				}
+				paint_button_surface(painter, *this, isChecked(), KeyboardFocus);
 				const auto metrics = fontMetrics();
 				const auto content = mark_advance() + metrics.horizontalAdvance(text());
 				auto       x       = static_cast<qreal>(width() - content) / 2.0;
@@ -2313,32 +2290,8 @@ namespace bpr::qt {
 			}
 
 		private:
-			static constexpr int   counts_mode_padding = 6;
-			static constexpr int   counts_mode_gap     = 4;
-			static constexpr qreal counts_mode_radius  = 3.0;
-
-			[[nodiscard]] static auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
-			{
-				const auto channel = [aAmount](const float aA, const float aB) {
-					return static_cast<float>(aA + ((aB - aA) * aAmount));
-				};
-				return QColor::fromRgbF(channel(aFrom.redF(), aTo.redF()), channel(aFrom.greenF(), aTo.greenF()), channel(aFrom.blueF(), aTo.blueF()));
-			}
-
-			/// The chip's border: the page moved towards the text in small steps
-			/// until it reads at 3:1 against the page.
-			[[nodiscard]] static auto chip_border(const QColor& aGround, const QColor& aInk) -> QColor
-			{
-				const auto ground = to_appearance_color(aGround);
-				for (auto step = 10; step < 50; ++step) {
-					const auto border = blend(aGround, aInk, step / 50.0);
-					if (contrast_ratio(to_appearance_color(border), ground) >= 3.0) {
-						return border;
-					}
-				}
-				return aInk;
-			}
-
+			static constexpr int counts_mode_padding = 6;
+			static constexpr int counts_mode_gap     = 4;
 			/// The width the mark and its gap take before the word.
 			[[nodiscard]] auto mark_advance() const -> int
 			{

@@ -45,7 +45,8 @@
         "Complete the RFC app-wide inventory with migrated or intentionally retained classifications.",
         "Migrate remaining comparable text choices and secondary actions using the shared component and preserve primary/destructive/menu/icon variants.",
         "Focused affected composition checks and representative actual renders pass."
-      ]
+      ],
+      "boundary": "Qt presentation, migration inventory, focused tests and documentation; preserve intentional variants and all command authority."
     },
     {
       "id": "verification-closeout",
@@ -69,7 +70,8 @@
         "Record which native macOS/Windows/Linux behaviors were observed versus offscreen layout evidence; fix regressions rather than claim missing results.",
         "Judge every RFC criterion against direct evidence, with the full migration inventory accounted for.",
         "Documentation gate, focused integration and relevant formatting checks pass; retain native-platform limitations and obtain separate integration authorization."
-      ]
+      ],
+      "boundary": "Visual/interaction evidence, documentation and closeout proposal only; native evidence is never inferred and integration requires separate authorization."
     }
   ],
   "unplanned_work": []

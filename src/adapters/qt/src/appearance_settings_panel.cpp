@@ -2,6 +2,7 @@
 
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/type_preview.hpp"
 
 #include <QAbstractButton>
@@ -650,7 +651,7 @@ namespace bpr::qt {
 			if (width < bounds.Minimum || width > bounds.Maximum) {
 				continue;
 			}
-			auto* const option = new QToolButton{ segment };
+			auto* const option = new quiet_tool_button{ segment };
 			option->setObjectName(
 				QStringLiteral("appearanceTabWidth%1").arg(width));
 			option->setText(QString::number(width));
