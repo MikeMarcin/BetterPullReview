@@ -182,7 +182,8 @@ free. The original native RSS/live-heap sample has its own steady-clock
 begin/end bracket; event draining, native-TID checks and intersecting-VMA RSS
 have separate later timestamps. Scheduling, matching, fixture, allocator,
 baseline, numeric predicates and the original 900-second serial registration
-remain unchanged. The diagnostic completion path cannot supply acceptance.
+remain unchanged. This run fails the original RSS predicate before completion
+and emits no `LARGE_REVIEW_CACHE_BYTES_OK` marker.
 
 The actual Release course fails in 49.3444s at selection 18: RSS 257687552 minus
 before-application 29872128 gives 227815424 growth bytes against 226492416,
