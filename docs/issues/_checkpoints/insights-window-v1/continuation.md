@@ -105,6 +105,29 @@ call/mutation, push, stash, owner desktop/browser access or recurring automation
 Windows/Linux native qualification, later Reviews/Energy/Work/calendar, full
 export privacy and the macOS idle hour remain on their existing obligations.
 
+## Final accepted checkpoint
+
+Acceptance/board commit **b2c355b62ca4a6ac8e44be3b496ec1b0b1d95ecd** finishes
+BPR-1609 intentionally with only its moved card, this checkpoint and the ledger.
+Allocation adoption commits are **e69eb9bf0/660fb623f**. No product source,
+protected packet or unrelated work is included. `git diff --check` passes.
+
+Post-finish `python3 scripts/verify_documentation.py --root .` reports
+**DOCUMENTATION_OK**. Scoped board validation is valid; four RFC0086 cards are
+Done. BPR-1610 has no unmet card dependency, and BPR-1611 waits only for BPR-1610.
+The whole-card and two-exit binding equals the initial binding. Renewed
+`milestone_checkpoint.py check --execution quiescent` reports **fresh-context**
+for **review-stats**, with `required_pending: []`. The final runtime observation
+is renewed once more against the checkpoint commit before return.
+
+Main remains **e16756831d214f0dba970d468c3bdf19b01a4545**, with dirty BPR-1378
+source and BPR-1620 documentation work. Both active claims are preserved.
+No merge/fast-forward to main was attempted. All owned status, stop, scoped
+release, cherry-pick, board finish, documentation and binding/check commands
+completed; no review server/build/test/waiter remains. Only retained read-only
+frozen evidence and the external acceptance runtime are handed onward.
+No required github-budget decision or engineering obligation remains.
+
 # Prior chart correction handoff (superseded)
 
 Mandate **insights-window-v1-r1**, assignment **github-budget**, owner
