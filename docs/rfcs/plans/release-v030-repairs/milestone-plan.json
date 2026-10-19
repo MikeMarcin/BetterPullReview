@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v030-repairs",
+  "scope": {
+    "issues": [
+      "BPR-1624"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "fixture-security",
+      "outcome": "The committed Insights budget fixture traverses the complete existing GitHub fixture-security validator, with exact inventory, read-only identity, byte and JSON field/artifact checks intact.",
+      "work": [
+        {
+          "issue": "BPR-1624",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The Insights fixture is bound to its exact synthetic nested-folders identity and all eleven committed files pass the existing security checks.",
+        "A focused negative control proves that a forbidden field in the Insights fixture is rejected; no validator policy, fixture bytes or test skip is relaxed.",
+        "Focused fixture-security and documentation checks pass; the bounded diff is self-reviewed and committed, with native reruns and unrelated release qualification retained as coordinator obligations."
+      ],
+      "boundary": "Main checkout repair of tests/scripts/github_contract_fixture_security_tests.py and explicit card/plan/ledger upkeep only. Existing frozen native producers stay on f6ba until the coordinator reconciles gates. No signing, packaging, publication or credential changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
