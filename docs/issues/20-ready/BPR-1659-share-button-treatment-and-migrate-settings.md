@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1659"
 title: "Share the Overview button treatment and migrate Settings"
-status: "Blocked"
+status: "Ready"
 rfcs: ["RFC-BPR-0087"]
 depends_on: []
 metadata: {"source": "Owner request 2026-10-19; isolated worktree, no merge/push/release", "milestone_plan": {"id": "shared-action-buttons-v1", "path": "docs/rfcs/plans/shared-action-buttons-v1/milestone-plan.json"}}
-blocked_by: "disk-space"
 ---
 
 # BPR-1659: Share the Overview button treatment and migrate Settings
