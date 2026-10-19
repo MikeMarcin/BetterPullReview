@@ -29,6 +29,13 @@ namespace {
 		[NSApp setMainMenu:aBar.toNSMenu()];
 		settle();
 		NSMenu* application = [NSApp.mainMenu itemAtIndex:0].submenu;
+		std::cout << "selected menus: ";
+		for (NSMenuItem* top in NSApp.mainMenu.itemArray) {
+			std::cout << top.title.UTF8String << "[";
+			for (NSMenuItem* child in top.submenu.itemArray) { std::cout << child.title.UTF8String << ";"; }
+			std::cout << "]";
+		}
+		std::cout << std::endl;
 		[application update];
 		NSMenuItem* found = nil;
 		for (NSMenuItem* item in application.itemArray) {
@@ -43,7 +50,9 @@ namespace {
 	auto make_bar(int& aCalls, bool aEnabled = true) -> std::unique_ptr<QMenuBar>
 	{
 		auto  bar    = std::make_unique<QMenuBar>();
-		auto* action = bar->addMenu(QStringLiteral("Help"))->addAction(QStringLiteral("Insights…"));
+		auto* menu = bar->addMenu(QStringLiteral("Help"));
+		menu->addAction(QStringLiteral("Diagnostics…"));
+		auto* action = menu->addAction(QStringLiteral("Insights…"));
 		action->setEnabled(aEnabled);
 		action->setShortcut(QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+I") });
 		QObject::connect(action, &QAction::triggered, action, [&aCalls] { ++aCalls; });
