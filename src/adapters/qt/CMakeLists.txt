@@ -21,6 +21,7 @@ add_library(
         src/keyboard_focus_ring.cpp
         src/button_surface.cpp
         src/quiet_tool_button.cpp
+        src/quiet_push_button.cpp
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp

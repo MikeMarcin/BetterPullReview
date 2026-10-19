@@ -1,5 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -2860,7 +2862,7 @@ namespace bpr::qt {
 		OlderPairText->setAccessibleName(QStringLiteral("Threads on later updates"));
 		OlderPairText->setTextFormat(Qt::PlainText);
 		OlderPairText->setWordWrap(true);
-		ShowLaterThreads = new QPushButton{ tr("Show them"), OlderPairNotice };
+		ShowLaterThreads = new quiet_push_button{ tr("Show them"), OlderPairNotice };
 		ShowLaterThreads->setObjectName(QStringLiteral("showLaterThreads"));
 		ShowLaterThreads->setAccessibleDescription(QStringLiteral(
 			"Shows this file's threads on later updates"));
@@ -2957,7 +2959,7 @@ namespace bpr::qt {
 			column->setContentsMargins(24, 12, 24, 24);
 			column->setSpacing(10);
 			auto* const bar  = new QHBoxLayout{ };
-			auto*       back = new QPushButton{ aBack, page };
+			auto*       back = new quiet_push_button{ aBack, page };
 			back->setObjectName(aName + QStringLiteral("Back"));
 			back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
 			// [[BPR-1345]] v002. ⌘⇧M, as Maximize took the draft here; ⌘⇧↩
@@ -3179,7 +3181,7 @@ namespace bpr::qt {
 									SideChat->add_context_action(),
 									SideChat->new_session_action(),
 									SideChat->continue_old_revision_action() }) {
-			auto* const button = new QToolButton{ conversationContents };
+			QToolButton* const button = action == SideChat->send_action() ? new QToolButton{ conversationContents } : static_cast<QToolButton*>(new quiet_tool_button{ conversationContents });
 			button->setDefaultAction(action);
 			chatActions->addWidget(button);
 		}
@@ -3206,7 +3208,10 @@ namespace bpr::qt {
 			if (action == nullptr) {
 				continue;
 			}
-			auto* const button = new QToolButton{ conversationContents };
+			const auto         kind   = static_cast<finding_queue_action>(index);
+			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::add_to_private_notes
+				? static_cast<QToolButton*>(new quiet_tool_button{ conversationContents })
+				: new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
 			findingActions->addWidget(button);
 		}
@@ -3485,7 +3490,7 @@ namespace bpr::qt {
 			// [[BPR-0771]]. A pull request that could not be loaded is said
 			// here, once, in one sentence, with its details a press away. The
 			// banner on Accounts & hosts that used to say it is gone.
-			HomeOpenDetails = new QPushButton{ tr("Copy details"), HomePage };
+			HomeOpenDetails = new quiet_push_button{ tr("Copy details"), HomePage };
 			HomeOpenDetails->setObjectName(QStringLiteral("homeOpenCopyDetails"));
 			HomeOpenDetails->setAccessibleName(QStringLiteral("Copy the details of the refusal"));
 			HomeOpenDetails->setFlat(true);
@@ -3507,12 +3512,12 @@ namespace bpr::qt {
 			HomeStatusText->setTextFormat(Qt::PlainText);
 			HomeStatusText->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			HomeStatusText->hide();
-			HomeOpenCancel = new QPushButton{ tr("Cancel"), HomeStatus };
+			HomeOpenCancel = new quiet_push_button{ tr("Cancel"), HomeStatus };
 			HomeOpenCancel->setObjectName(QStringLiteral("homeOpenCancel"));
 			HomeOpenCancel->setAutoDefault(false);
 			HomeOpenCancel->setFocusPolicy(Qt::StrongFocus);
 			HomeOpenCancel->hide();
-			HomeOpenRetry = new QPushButton{ tr("Retry"), HomeStatus };
+			HomeOpenRetry = new quiet_push_button{ tr("Retry"), HomeStatus };
 			HomeOpenRetry->setObjectName(QStringLiteral("homeOpenRetry"));
 			HomeOpenRetry->setAutoDefault(false);
 			HomeOpenRetry->setFocusPolicy(Qt::StrongFocus);
@@ -3550,7 +3555,7 @@ namespace bpr::qt {
 			setupRow->setContentsMargins(24, 2, 24, 4);
 			SetupContinueButton = new QPushButton{ HomePage };
 			SetupContinueButton->setObjectName(QStringLiteral("homeSetupContinue"));
-			SetupCancelButton = new QPushButton{ tr("Cancel setup"), HomePage };
+			SetupCancelButton = new quiet_push_button{ tr("Cancel setup"), HomePage };
 			SetupCancelButton->setObjectName(QStringLiteral("homeSetupCancel"));
 			setupRow->addWidget(SetupContinueButton);
 			setupRow->addWidget(SetupCancelButton);
@@ -3695,7 +3700,7 @@ namespace bpr::qt {
 			cyclesTitle->setFont(cyclesFont);
 			cyclesHeader->addWidget(cyclesTitle);
 			cyclesHeader->addStretch(1);
-			auto* const openProject = new QToolButton{ HomeCycles };
+			auto* const openProject = new quiet_tool_button{ HomeCycles };
 			openProject->setObjectName(QStringLiteral("homeOpenProjectButton"));
 			openProject->setText(QStringLiteral("Open Project…"));
 			openProject->setToolTip(QStringLiteral("Review a local folder or file: no account, remote or agent needed"));
@@ -4025,7 +4030,7 @@ namespace bpr::qt {
 		savedPointerText->setWordWrap(true);
 		savedPointerText->setTextFormat(Qt::PlainText);
 		savedPointerRow->addWidget(savedPointerText, 1);
-		auto* const openRepositories = new QPushButton{ tr("Open Repositories"), savedPointer };
+		auto* const openRepositories = new quiet_push_button{ tr("Open Repositories"), savedPointer };
 		openRepositories->setObjectName(QStringLiteral("reviewsOpenRepositories"));
 		openRepositories->setAccessibleDescription(tr("Shows Settings › Repositories, where saved repositories are added and removed"));
 		openRepositories->setAutoDefault(false);
@@ -4208,7 +4213,7 @@ namespace bpr::qt {
 		emptyLayout->addStretch(1);
 		emptyLayout->addWidget(EmptyStateTitleLabel);
 		emptyLayout->addWidget(EmptyStateBodyLabel);
-		auto* const copyMessage = new QToolButton{ emptyState };
+		auto* const copyMessage = new quiet_tool_button{ emptyState };
 		copyMessage->setObjectName(QStringLiteral("copyGithubMessageButton"));
 		copyMessage->setText(QStringLiteral("Copy message"));
 		copyMessage->setAccessibleName(QStringLiteral("Copy GitHub message"));
@@ -4777,7 +4782,7 @@ namespace bpr::qt {
 		draft->setAccessibleName(QStringLiteral("Include current private draft"));
 		form->addRow(QStringLiteral("Private draft"), draft);
 		column->addLayout(form);
-		auto* const checkout = new QToolButton{ agents };
+		auto* const checkout = new quiet_tool_button{ agents };
 		checkout->setDefaultAction(AgentPanel->existing_checkout_action());
 		checkout->setAccessibleName(QStringLiteral("Use existing working copy for this request"));
 		column->addWidget(checkout);
@@ -4828,7 +4833,7 @@ namespace bpr::qt {
 		facts->setWordWrap(true);
 		storageColumn->addWidget(facts);
 		for (auto* action : { EpochSelectors->prune_action(), EpochSelectors->delete_cache_action(), EpochSelectors->cancel_maintenance_action() }) {
-			auto* const button = new QToolButton{ storage };
+			QToolButton* const button = action == EpochSelectors->cancel_maintenance_action() ? static_cast<QToolButton*>(new quiet_tool_button{ storage }) : new QToolButton{ storage };
 			button->setDefaultAction(action);
 			button->setAccessibleName(action->text());
 			storageColumn->addWidget(button);
@@ -4887,7 +4892,7 @@ namespace bpr::qt {
 			sources[i]->setParent(group);
 			form->addRow(labels[i], sources[i]);
 		}
-		QueueDefaultsReset = new QPushButton{ QStringLiteral("Reset queue defaults"), group };
+		QueueDefaultsReset = new quiet_push_button{ QStringLiteral("Reset queue defaults"), group };
 		form->addRow(QueueDefaultsReset);
 		connect(QueueDefaultsReset, &QPushButton::clicked, this, [this] {
 			if (!QueueReady || !QueuePreferencesDispatch) {
@@ -4915,10 +4920,10 @@ namespace bpr::qt {
 		auto* const explanation = new QLabel{ QStringLiteral("Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting."), notifications };
 		explanation->setWordWrap(true);
 		column->addWidget(explanation);
-		NotificationPreview = new QPushButton{ QStringLiteral("Preview for selected Home review"), notifications };
+		NotificationPreview = new quiet_push_button{ QStringLiteral("Preview for selected Home review"), notifications };
 		NotificationPreview->setObjectName(QStringLiteral("notificationPreview"));
 		column->addWidget(NotificationPreview);
-		NotificationReset = new QPushButton{ QStringLiteral("Reset notification preferences"), notifications };
+		NotificationReset = new quiet_push_button{ QStringLiteral("Reset notification preferences"), notifications };
 		column->addWidget(NotificationReset);
 		NotificationStatus = new QLabel{ notifications };
 		NotificationStatus->setWordWrap(true);
@@ -6030,7 +6035,7 @@ namespace bpr::qt {
 		RepositoryAdditionStatus->setTextFormat(Qt::PlainText);
 		RepositoryAdditionStatus->setWordWrap(true);
 		RepositoryAdditionStatus->hide();
-		RepositoryPrepareButton = new QPushButton{ tr("Choose account or set up server…"), draft };
+		RepositoryPrepareButton = new quiet_push_button{ tr("Choose account or set up server…"), draft };
 		RepositoryPrepareButton->setObjectName(QStringLiteral("repositoryAdditionPrepare"));
 		RepositoryPrepareButton->setAccessibleDescription(tr("Keep this draft while signing in or explicitly adding its server; return here before saving"));
 		RepositoryPrepareButton->setAutoDefault(false);
@@ -6041,7 +6046,7 @@ namespace bpr::qt {
 		RepositoryAddButton->setAccessibleDescription(tr("Save this repository locally for the displayed account; nothing changes on GitHub"));
 		RepositoryAddButton->setAutoDefault(false);
 		RepositoryAddButton->setDefault(true);
-		RepositoryCancelButton = new QPushButton{ tr("Cancel"), draft };
+		RepositoryCancelButton = new quiet_push_button{ tr("Cancel"), draft };
 		RepositoryCancelButton->setObjectName(QStringLiteral("repositoryAdditionCancel"));
 		RepositoryCancelButton->setAccessibleName(tr("Cancel new repository"));
 		RepositoryCancelButton->setAccessibleDescription(tr("Discard this repository draft without saving"));
@@ -6226,7 +6231,7 @@ namespace bpr::qt {
 		EnterpriseServerAdd->setAutoDefault(false);
 		EnterpriseServerAdd->setAccessibleName(QStringLiteral("Add enterprise server"));
 		EnterpriseServerAdd->setAccessibleDescription(QStringLiteral("Keeps this server so it is offered as a host. No sign-in is stored."));
-		EnterpriseServerCancel = new QPushButton{ QStringLiteral("Cancel"), draft };
+		EnterpriseServerCancel = new quiet_push_button{ QStringLiteral("Cancel"), draft };
 		EnterpriseServerCancel->setObjectName(QStringLiteral("enterpriseServerCancel"));
 		EnterpriseServerCancel->setAutoDefault(false);
 		EnterpriseServerCancel->setFlat(true);
@@ -9047,7 +9052,7 @@ namespace bpr::qt {
 		auto* const bar = new QHBoxLayout{ };
 		bar->setContentsMargins(12, 6, 12, 0);
 		bar->addStretch(1);
-		auto* const back = new QPushButton{ tr("Back to the code"), TourPage };
+		auto* const back = new quiet_push_button{ tr("Back to the code"), TourPage };
 		back->setObjectName(QStringLiteral("workbenchTourPageBack"));
 		back->setFlat(true);
 		back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));

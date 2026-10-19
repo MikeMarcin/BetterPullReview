@@ -1,5 +1,7 @@
 #include "bpr/qt/workbench_landing.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "this_machine_text.hpp"
 
 #include <QFont>
@@ -53,11 +55,11 @@ namespace bpr::qt {
 		// The page's one filled control: Sign in on the card, the way back on the row.
 		Primary->setDefault(true);
 		Primary->setFocusPolicy(Qt::StrongFocus);
-		Secondary = new QPushButton{ this };
+		Secondary = new quiet_push_button{ this };
 		Secondary->setObjectName(QStringLiteral("workbenchHomeSecondaryButton"));
 		Secondary->setAutoDefault(false);
 		Secondary->setFocusPolicy(Qt::StrongFocus);
-		Tertiary = new QPushButton{ this };
+		Tertiary = new quiet_push_button{ this };
 		Tertiary->setObjectName(QStringLiteral("workbenchHomeTertiaryButton"));
 		Tertiary->setAutoDefault(false);
 		Tertiary->setFocusPolicy(Qt::StrongFocus);

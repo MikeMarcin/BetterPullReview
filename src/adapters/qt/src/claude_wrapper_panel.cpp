@@ -1,5 +1,7 @@
 #include "bpr/qt/claude_wrapper_panel.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -90,7 +92,7 @@ namespace bpr::qt {
 #endif
 		Path->setClearButtonEnabled(true);
 		line->addWidget(Path, 1);
-		Choose = new QPushButton{ tr("Choose…"), wrapper };
+		Choose = new quiet_push_button{ tr("Choose…"), wrapper };
 		Choose->setObjectName(QStringLiteral("claudeWrapperChoose"));
 		Choose->setAccessibleName(tr("Choose Claude process wrapper"));
 		line->addWidget(Choose);

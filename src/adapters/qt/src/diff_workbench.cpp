@@ -1,5 +1,7 @@
 #include "bpr/qt/diff_workbench.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include "bpr/application/workbench_runtime_ports.hpp"
 
@@ -3475,10 +3477,10 @@ namespace bpr::qt {
 		auto* const idleActions = new QHBoxLayout{ };
 		idleActions->setSpacing(8);
 		idleActions->addStretch(1);
-		IdleOpenFirst = new QPushButton{ QStringLiteral("Open first file"), IdlePage };
+		IdleOpenFirst = new quiet_push_button{ QStringLiteral("Open first file"), IdlePage };
 		IdleOpenFirst->setObjectName(QStringLiteral("diffWorkbenchIdleOpenFirst"));
 		IdleOpenFirst->setDefault(true);
-		IdleShowFiles = new QPushButton{ QStringLiteral("Show files"), IdlePage };
+		IdleShowFiles = new quiet_push_button{ QStringLiteral("Show files"), IdlePage };
 		IdleShowFiles->setObjectName(QStringLiteral("diffWorkbenchIdleShowFiles"));
 		idleActions->addWidget(IdleOpenFirst);
 		idleActions->addWidget(IdleShowFiles);

@@ -1,5 +1,7 @@
 #include "bpr/qt/refresh_note.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/home_row_delegate.hpp"
 
 #include <QEvent>
@@ -23,7 +25,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("refreshNote"));
 		setFocusPolicy(Qt::NoFocus);
 		setAccessibleName(QStringLiteral("Refresh"));
-		RetryButton = new QPushButton{ QStringLiteral("Retry"), this };
+		RetryButton = new quiet_push_button{ QStringLiteral("Retry"), this };
 		RetryButton->setObjectName(QStringLiteral("refreshNoteRetry"));
 		RetryButton->setAccessibleName(QStringLiteral("Retry refresh"));
 		RetryButton->hide();

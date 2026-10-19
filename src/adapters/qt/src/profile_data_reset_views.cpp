@@ -1,5 +1,7 @@
 #include "bpr/qt/profile_data_reset_views.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/destructive_question.hpp"
 
 #include <QApplication>
@@ -484,7 +486,7 @@ namespace bpr::qt {
 		Clear->setDefault(true);
 		Everything = new QPushButton{ QStringLiteral("Reset everything…"), this };
 		Everything->setObjectName(QStringLiteral("profileRecoveryEverything"));
-		Quit = new QPushButton{ QStringLiteral("Quit"), this };
+		Quit = new quiet_push_button{ QStringLiteral("Quit"), this };
 		Quit->setObjectName(QStringLiteral("profileRecoveryQuit"));
 		for (auto* const button : { Clear, Everything, Quit }) {
 			button->setMinimumHeight(28);

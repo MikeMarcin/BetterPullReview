@@ -1,5 +1,7 @@
 #include "bpr/qt/suggestion_composer.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QCheckBox>
@@ -114,7 +116,7 @@ namespace bpr::qt {
 
 		auto* const buttons = new QHBoxLayout{ };
 		buttons->addStretch(1);
-		Cancel = new QPushButton{ QStringLiteral("Cancel"), this };
+		Cancel = new quiet_push_button{ QStringLiteral("Cancel"), this };
 		Cancel->setObjectName(QStringLiteral("suggestionCancel"));
 		Save = new QPushButton{ QStringLiteral("Save suggestion"), this };
 		Save->setObjectName(QStringLiteral("suggestionSave"));

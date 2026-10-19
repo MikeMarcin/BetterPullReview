@@ -1,5 +1,7 @@
 #include "bpr/qt/diagnostic_settings_panel.hpp"
+
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QGroupBox>
@@ -42,7 +44,7 @@ namespace bpr::qt {
 			aButtons = new QButtonGroup{ this };
 			aButtons->setObjectName(aName);
 			for (int item = 0; item < aChoices.size(); ++item) {
-				auto* button = new QPushButton{ aChoices[item], control };
+				auto* button = new quiet_push_button{ aChoices[item], control };
 				button->setCheckable(true);
 				button->setAutoDefault(false);
 				button->setAccessibleName(aName == QStringLiteral("diagnosticDetail") ? QStringLiteral("Diagnostic detail: %1").arg(aChoices[item]) : QStringLiteral("Identifying details: %1").arg(aChoices[item]));
@@ -66,7 +68,7 @@ namespace bpr::qt {
 		context->hide();
 		layout->addWidget(context);
 		connect(more, &QToolButton::toggled, context, [context](bool aExpanded) { context->setVisible(aExpanded); });
-		Open = new QPushButton{ QStringLiteral("Open logs folder"), this };
+		Open = new quiet_push_button{ QStringLiteral("Open logs folder"), this };
 		Open->setObjectName(QStringLiteral("diagnosticOpen"));
 		Clear = new QPushButton{ QStringLiteral("Clear local diagnostics…"), this };
 		Clear->setObjectName(QStringLiteral("diagnosticClear"));

@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
@@ -114,14 +116,14 @@ namespace bpr::qt {
 		// object names, and the single intent each emits are untouched - this
 		// is where they are drawn, not what they are.
 		auto* const actions    = new QVBoxLayout{ };
-		ExistingCheckoutButton = new QToolButton{ this };
+		ExistingCheckoutButton = new quiet_tool_button{ this };
 		ExistingCheckoutButton->setDefaultAction(ExistingCheckoutAction);
 		ExistingCheckoutButton->setAccessibleName(
 			QStringLiteral("Use existing working copy for this run"));
 		StartButton = new QToolButton{ this };
 		StartButton->setDefaultAction(StartAction);
 		StartButton->setAccessibleName(QStringLiteral("Ask selected AI agent"));
-		CancelButton = new QToolButton{ this };
+		CancelButton = new quiet_tool_button{ this };
 		CancelButton->setDefaultAction(CancelAction);
 		CancelButton->setAccessibleName(QStringLiteral("Stop running AI agent"));
 		actions->addWidget(ExistingCheckoutButton);

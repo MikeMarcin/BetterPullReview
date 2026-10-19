@@ -1,4 +1,6 @@
 #include "bpr/qt/private_composition_editor.hpp"
+
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QComboBox>
 #include <QEvent>
 #include <QFormLayout>
@@ -91,7 +93,9 @@ namespace bpr::qt {
 		Body->setAccessibleName(tr("Candidate prose, no automatic public metadata"));
 		layout->addWidget(Body);
 		auto button = [&](const QString& aLabel, const QString& aName, application::private_composition_action aAction) {
-			auto* result = new QPushButton(aLabel, page);
+			QPushButton* result = aAction == application::private_composition_action::target || aAction == application::private_composition_action::cancel
+				? static_cast<QPushButton*>(new quiet_push_button{ aLabel, page })
+				: new QPushButton{ aLabel, page };
 			result->setObjectName(aName);
 			result->setAccessibleName(aLabel);
 			layout->addWidget(result);

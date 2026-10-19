@@ -1,5 +1,7 @@
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/core/review_cycle_suggestion.hpp"
 #include "bpr/core/suggestion_text_editing.hpp"
 #include "bpr/qt/info_glyph.hpp"
@@ -1073,7 +1075,7 @@ namespace bpr::qt {
 		ActionGroup->setExclusive(true);
 		for (std::size_t index = 0; index < all_actions.size(); ++index) {
 			const auto  action = all_actions.at(index);
-			auto* const button = new QPushButton{ action_label(action), this };
+			auto* const button = new quiet_push_button{ action_label(action), this };
 			button->setObjectName(QStringLiteral("cycleShareAction_%1").arg(action_label(action)));
 			button->setCheckable(true);
 			button->setAutoDefault(false);
@@ -1233,7 +1235,7 @@ namespace bpr::qt {
 		// [[BPR-1282]]. One line says what Send does; the rest waits behind Details.
 		// A flat text button, so the line stays quiet: it reads as Details
 		// until opened, then as Hide details.
-		SendMore = new QPushButton{ QStringLiteral("Details"), SendBox };
+		SendMore = new quiet_push_button{ QStringLiteral("Details"), SendBox };
 		SendMore->setObjectName(QStringLiteral("cycleSendMore"));
 		SendMore->setAccessibleName(QStringLiteral("Send details"));
 		SendMore->setFlat(true);
@@ -1258,7 +1260,7 @@ namespace bpr::qt {
 		SendIt = new QPushButton{ QStringLiteral("Send"), SendBox };
 		SendIt->setObjectName(QStringLiteral("cycleSendIt"));
 		SendIt->setAutoDefault(false);
-		StopSend = new QPushButton{ QStringLiteral("Stop"), SendBox };
+		StopSend = new quiet_push_button{ QStringLiteral("Stop"), SendBox };
 		StopSend->setObjectName(QStringLiteral("cycleSendStop"));
 		StopSend->setAutoDefault(false);
 		StopSend->setToolTip(QStringLiteral("End the send under way; whether the agent read the round stays unknown"));
@@ -1367,7 +1369,9 @@ namespace bpr::qt {
 		auto* const foot = new QHBoxLayout{ };
 		foot->setSpacing(2);
 		for (const auto route : all_routes) {
-			auto* const button = new QPushButton{ route_label(route, core::cycle_round_id{ 1 }), this };
+			QPushButton* const button = route == core::cycle_share_route::copy_document || route == core::cycle_share_route::save_document
+				? new QPushButton{ route_label(route, core::cycle_round_id{ 1 }), this }
+				: static_cast<QPushButton*>(new quiet_push_button{ route_label(route, core::cycle_round_id{ 1 }), this });
 			button->setObjectName(QStringLiteral("cycleShare_%1").arg(QString::fromLatin1(core::stable_name(route).data(), static_cast<qsizetype>(core::stable_name(route).size()))));
 			button->setAutoDefault(false);
 			button->setToolTip(route_use(route));
@@ -1384,7 +1388,7 @@ namespace bpr::qt {
 			} else {
 				button->setFlat(true);
 				if (route == core::cycle_share_route::save_bundle) {
-					ExactText = new QPushButton{ QStringLiteral("Exact Text"), this };
+					ExactText = new quiet_push_button{ QStringLiteral("Exact Text"), this };
 					ExactText->setObjectName(QStringLiteral("cycleShareExactText"));
 					ExactText->setFlat(true);
 					ExactText->setAutoDefault(false);
@@ -1412,7 +1416,7 @@ namespace bpr::qt {
 		primary->addStretch(1);
 		column->addLayout(primary);
 		foot->addStretch(1);
-		Cancel = new QPushButton{ QStringLiteral("Cancel"), this };
+		Cancel = new quiet_push_button{ QStringLiteral("Cancel"), this };
 		Cancel->setObjectName(QStringLiteral("cycleShareCancel"));
 		Cancel->setAutoDefault(false);
 		Cancel->setToolTip(QStringLiteral("Close; the round stays as it is for next time (Esc)"));
@@ -1885,7 +1889,7 @@ namespace bpr::qt {
 		row.Facts->setWordWrap(true);
 		row.Facts->setForegroundRole(QPalette::PlaceholderText);
 		footRow->addWidget(row.Facts, 1);
-		row.Whole = new QPushButton{ QStringLiteral("Show the Whole File…"), row.Detail };
+		row.Whole = new quiet_push_button{ QStringLiteral("Show the Whole File…"), row.Detail };
 		row.Whole->setObjectName(QStringLiteral("cycleShareWholeFile"));
 		row.Whole->setAutoDefault(false);
 		row.Whole->setToolTip(QStringLiteral("Open the note's whole file over this sheet, each suggested change in place"));

@@ -1,7 +1,9 @@
 #include "bpr/qt/insights_window.hpp"
+
 #include "bpr/qt/insights_calendar.hpp"
 #include "bpr/qt/insights_chart.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
 #include <QDateTime>
@@ -571,9 +573,9 @@ namespace bpr::qt {
 				Stores->setItemDelegate(new storage_delegate{ *Stores });
 				column->addWidget(Stores, 1);
 				auto* actions = new QHBoxLayout;
-				auto* manage  = new QPushButton{ tr("Manage cached repositories…"), page };
+				auto* manage  = new quiet_push_button{ tr("Manage cached repositories…"), page };
 				manage->setObjectName(QStringLiteral("insightsManageCaches"));
-				auto* reveal = new QPushButton{ tr("Reveal data folder"), page };
+				auto* reveal = new quiet_push_button{ tr("Reveal data folder"), page };
 				actions->addWidget(manage);
 				actions->addWidget(reveal);
 				actions->addStretch();

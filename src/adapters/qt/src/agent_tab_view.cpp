@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -280,7 +282,7 @@ namespace bpr::qt {
 		bannerRow->setSpacing(6);
 		BannerFirst = new QPushButton{ Banner };
 		BannerFirst->setObjectName(QStringLiteral("agentStateFirst"));
-		BannerSecond = new QPushButton{ Banner };
+		BannerSecond = new quiet_push_button{ Banner };
 		BannerSecond->setObjectName(QStringLiteral("agentStateSecond"));
 		BannerSecond->setFlat(true);
 		bannerRow->addWidget(BannerFirst);
@@ -347,7 +349,7 @@ namespace bpr::qt {
 		Chips = chip_label(field, QStringLiteral("agentContextChips"));
 		Chips->setForegroundRole(QPalette::PlaceholderText);
 		askRow->addWidget(Chips, 1);
-		Context = new QPushButton{ tr("Context"), field };
+		Context = new quiet_push_button{ tr("Context"), field };
 		Context->setObjectName(QStringLiteral("agentAddContext"));
 		Context->setFlat(true);
 		Context->setToolTip(Chat.add_context_action()->toolTip().isEmpty() ? tr("Attach the lines selected in the code") : Chat.add_context_action()->toolTip());
@@ -368,7 +370,7 @@ namespace bpr::qt {
 		HistoryPage         = new QWidget{ Pages };
 		auto* const histCol = new QVBoxLayout{ HistoryPage };
 		histCol->setContentsMargins(0, 0, 0, 0);
-		auto* const back = new QPushButton{ tr("Back to the conversation"), HistoryPage };
+		auto* const back = new quiet_push_button{ tr("Back to the conversation"), HistoryPage };
 		back->setObjectName(QStringLiteral("agentHistoryBack"));
 		back->setFlat(true);
 		connect(back, &QPushButton::clicked, this, [this] { show_history(false); });
@@ -606,20 +608,20 @@ namespace bpr::qt {
 					action->trigger();
 				}
 			};
-			auto* const draft = new QPushButton{ tr("Draft a comment"), card };
+			auto* const draft = new quiet_push_button{ tr("Draft a comment"), card };
 			draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
 			draft->setDefault(true);
 			draft->setToolTip(tr("Copy this finding to a local draft at its line. Nothing is published."));
 			connect(draft, &QPushButton::clicked, this, [act] { act(finding_queue_action::convert_to_draft_comment); });
 			actions->addWidget(draft);
-			auto* const follow = new QPushButton{ tr("Ask follow-up"), card };
+			auto* const follow = new quiet_push_button{ tr("Ask follow-up"), card };
 			follow->setObjectName(QStringLiteral("agentFindingFollowUp"));
 			connect(follow, &QPushButton::clicked, this, [act] { act(finding_queue_action::ask_follow_up); });
 			actions->addWidget(follow);
 			actions->addStretch(1);
 			// Add to notes, then Ask follow-up, fold into More when the
 			// drawer is too narrow for them; fit_card_actions decides.
-			auto* const notes = new QPushButton{ tr("Add to notes"), card };
+			auto* const notes = new quiet_push_button{ tr("Add to notes"), card };
 			notes->setObjectName(QStringLiteral("agentFindingAddToNotes"));
 			notes->setFlat(true);
 			connect(notes, &QPushButton::clicked, this, [act] { act(finding_queue_action::add_to_private_notes); });

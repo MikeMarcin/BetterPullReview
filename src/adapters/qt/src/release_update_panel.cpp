@@ -1,6 +1,7 @@
 #include "bpr/qt/release_update_panel.hpp"
 
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -259,7 +260,7 @@ namespace bpr::qt {
 		// the row on the right.
 		Row = new QHBoxLayout;
 		Row->setSpacing(8);
-		View = new QPushButton{ QStringLiteral("Open Release Page"), this };
+		View = new quiet_push_button{ QStringLiteral("Open Release Page"), this };
 		View->setObjectName(QStringLiteral("releaseUpdateViewRelease"));
 		View->setAutoDefault(false);
 		connect(View, &QPushButton::clicked, this, [this] { if (Dispatch.ViewRelease) { Dispatch.ViewRelease(); } });
@@ -273,7 +274,9 @@ namespace bpr::qt {
 			auto* action = new QAction{ QString::fromUtf8(label), this };
 			action->setEnabled(false);
 			Actions.emplace(value, action);
-			auto* button = new QPushButton{ action->text(), this };
+			QPushButton* button = value == command::check || value == command::later || value == command::skip || value == command::cancel
+				? static_cast<QPushButton*>(new quiet_push_button{ action->text(), this })
+				: new QPushButton{ action->text(), this };
 			button->setObjectName(QStringLiteral("releaseUpdateCommand%1").arg(static_cast<int>(value)));
 			button->setAutoDefault(false);
 			button->hide();
@@ -361,6 +364,9 @@ namespace bpr::qt {
 			button->setVisible(shown);
 			button->setEnabled(shown);
 			button->setDefault(shown && key == lead);
+			// A default command is drawn natively and a secondary one as the
+			// shared chip, so a changed lead changes the button's size.
+			button->updateGeometry();
 		}
 		// With nothing else to do here, the release page is the lead.
 		const bool fallback = !lead && offers_release_page(aProjection);
@@ -369,6 +375,7 @@ namespace bpr::qt {
 			Row->insertWidget(fallback ? Row->count() : 0, View);
 		}
 		View->setDefault(fallback);
+		View->updateGeometry();
 		View->setVisible(offers_release_page(aProjection));
 	}
 	release_update_menu::release_update_menu(std::function<void()> aCheck)

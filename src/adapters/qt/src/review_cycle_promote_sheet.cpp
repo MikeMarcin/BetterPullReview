@@ -1,5 +1,7 @@
 #include "bpr/qt/review_cycle_promote_sheet.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
@@ -205,13 +207,13 @@ namespace bpr::qt {
 		Add->setObjectName(QStringLiteral("cyclePromoteAdd"));
 		Add->setDefault(true);
 		actions->addWidget(Add);
-		OpenPull = new QPushButton{ QStringLiteral("Open Pull Request"), this };
+		OpenPull = new quiet_push_button{ QStringLiteral("Open Pull Request"), this };
 		OpenPull->setObjectName(QStringLiteral("cyclePromoteOpenPullRequest"));
 		OpenPull->setAutoDefault(false);
 		OpenPull->setToolTip(QStringLiteral("Open the pull request, where its Review Tour is completed and published"));
 		actions->addWidget(OpenPull);
 		actions->addStretch(1);
-		Close = new QPushButton{ QStringLiteral("Done"), this };
+		Close = new quiet_push_button{ QStringLiteral("Done"), this };
 		Close->setObjectName(QStringLiteral("cyclePromoteClose"));
 		Close->setAutoDefault(false);
 		Close->setToolTip(QStringLiteral("Close; what was added stays in the tour (Esc)"));

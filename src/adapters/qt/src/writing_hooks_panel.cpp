@@ -1,4 +1,6 @@
 #include "bpr/qt/writing_hooks_panel.hpp"
+
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QComboBox>
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -39,7 +41,13 @@ namespace bpr::qt {
 		Instructions->setObjectName(QStringLiteral("writingHookInstructions"));
 		Instructions->setAccessibleName(tr("Writing instructions"));
 		column->addWidget(Instructions);
-		const auto button = [&](const QString& aText, const QString& aName, auto aCall) { auto* value = new QPushButton{aText,this}; value->setObjectName(aName); column->addWidget(value); connect(value,&QPushButton::clicked,this,aCall); return value; };
+		const auto button = [&](const QString& aText, const QString& aName, auto aCall) {
+			QPushButton* value = aName == QStringLiteral("writingHookSave") ? new QPushButton{ aText, this } : static_cast<QPushButton*>(new quiet_push_button{ aText, this });
+			value->setObjectName(aName);
+			column->addWidget(value);
+			connect(value, &QPushButton::clicked, this, aCall);
+			return value;
+		};
 		button(tr("Save instructions"), QStringLiteral("writingHookSave"), [this] {
 			if (!Save || !Save(selected_hook(), Instructions->toPlainText().toUtf8().toStdString())) {
 				show_notice("Instructions could not be saved. Use valid text up to 8192 UTF-8 bytes.");

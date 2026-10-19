@@ -1,4 +1,6 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
+
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QAction>
 #include <QActionGroup>
 
@@ -2762,7 +2764,7 @@ namespace bpr::qt {
 		CachedDiscussion->setReadOnly(true);
 		CachedDiscussion->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 		mainColumn->addWidget(CachedDiscussion, 1);
-		CachedSourceBack = new QPushButton{ QStringLiteral("Back to cached overview"), main };
+		CachedSourceBack = new quiet_push_button{ QStringLiteral("Back to cached overview"), main };
 		CachedSourceBack->setObjectName(QStringLiteral("overviewCachedSourceBack"));
 		connect(CachedSourceBack, &QPushButton::clicked, this, [this] { show_cached_source(false); Files->setFocus(Qt::OtherFocusReason); });
 		mainColumn->addWidget(CachedSourceBack);
@@ -3008,7 +3010,7 @@ namespace bpr::qt {
 		CheckDescription->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 		CheckDescription->setFixedHeight(140);
 		checks.Details->addWidget(CheckDescription);
-		CheckOpen = new QPushButton{ QStringLiteral("Open check details"), CheckDetails };
+		CheckOpen = new quiet_push_button{ QStringLiteral("Open check details"), CheckDetails };
 		CheckOpen->setObjectName(QStringLiteral("overviewOpenCheck"));
 		CheckOpen->setAccessibleName(QStringLiteral("Open check details"));
 		checks.Details->addWidget(CheckOpen, 0, Qt::AlignLeft);

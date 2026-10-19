@@ -1,5 +1,7 @@
 #include "conversation_open_card.hpp"
+
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
@@ -1717,7 +1719,7 @@ namespace bpr::qt {
 			Suggestion->setObjectName(QStringLiteral("threadReplySuggestionMark"));
 			controls->addWidget(Suggestion);
 			controls->addStretch(1);
-			auto* const cancel = new QToolButton{ Editor };
+			auto* const cancel = new quiet_tool_button{ Editor };
 			cancel->setObjectName(QStringLiteral("threadReplyCancel"));
 			cancel->setAutoRaise(true);
 			cancel->setText(QStringLiteral("Cancel"));

@@ -1,5 +1,7 @@
 #include "bpr/qt/home_refusal.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QApplication>
 #include <QEvent>
 #include <QFont>
@@ -82,7 +84,7 @@ namespace bpr::qt {
 		Buttons->setSpacing(row_gap);
 		for (std::size_t index = 0U; index < action_count; ++index) {
 			const auto action = every_action[index];
-			auto*      button = new QPushButton{ from_core(core::label(action)), this };
+			auto*      button = new quiet_push_button{ from_core(core::label(action)), this };
 			button->setObjectName(object_name(action));
 			// Home's one filled control stays the page's own; a refusal's steps
 			// are bordered beside it.
@@ -100,7 +102,7 @@ namespace bpr::qt {
 			});
 			Actions[index] = button;
 		}
-		CopyDetails = new QPushButton{ QStringLiteral("Copy details"), this };
+		CopyDetails = new quiet_push_button{ QStringLiteral("Copy details"), this };
 		CopyDetails->setObjectName(QStringLiteral("homeRefusalCopyDetails"));
 		CopyDetails->setAccessibleName(QStringLiteral("Copy the details of the refusal"));
 		CopyDetails->setFlat(true);

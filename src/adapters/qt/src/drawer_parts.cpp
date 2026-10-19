@@ -1,5 +1,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include "painted_glyph_icon.hpp"
@@ -443,7 +445,7 @@ namespace bpr::qt {
 		Sentence->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(Sentence);
 		if (aAction != nullptr) {
-			Action = new QToolButton{ this };
+			Action = new quiet_tool_button{ this };
 			Action->setObjectName(QStringLiteral("drawerEmptyAction"));
 			Action->setDefaultAction(aAction);
 			Action->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);

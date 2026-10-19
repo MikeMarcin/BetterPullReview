@@ -1,5 +1,7 @@
 #include "bpr/qt/pending_veil.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/home_row_delegate.hpp"
 
 #include <QAbstractScrollArea>
@@ -134,7 +136,7 @@ namespace bpr::qt {
 		setAccessibleName(Name);
 		setFocusPolicy(Qt::NoFocus);
 		setAttribute(Qt::WA_TransparentForMouseEvents, true);
-		RetryButton = new QPushButton{ QStringLiteral("Retry"), this };
+		RetryButton = new quiet_push_button{ QStringLiteral("Retry"), this };
 		RetryButton->setObjectName(QStringLiteral("pendingVeilRetry"));
 		RetryButton->setAccessibleName(QStringLiteral("Retry"));
 		RetryButton->setAccessibleDescription(QStringLiteral("Read %1 again.").arg(Name.toLower()));

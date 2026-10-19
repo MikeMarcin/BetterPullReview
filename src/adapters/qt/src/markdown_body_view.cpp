@@ -1,5 +1,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "markdown_code.hpp"
 #include "markdown_document.hpp"
 #include "markdown_github.hpp"
@@ -628,10 +630,10 @@ namespace bpr::qt {
 		Controls       = new QWidget{ this };
 		auto* controls = new QHBoxLayout{ Controls };
 		controls->setContentsMargins(0, 0, 0, 0);
-		Toggle = new QPushButton{ QStringLiteral("View source"), this };
+		Toggle = new quiet_push_button{ QStringLiteral("View source"), this };
 		Toggle->setObjectName(QStringLiteral("markdownSourceToggle"));
 		Toggle->setAccessibleName(QStringLiteral("View original Markdown source"));
-		auto* copy = new QPushButton{ QStringLiteral("Copy source"), this };
+		auto* copy = new quiet_push_button{ QStringLiteral("Copy source"), this };
 		Copy       = copy;
 		copy->setAccessibleName(QStringLiteral("Copy original Markdown source"));
 		copy->setObjectName(QStringLiteral("markdownCopySource"));

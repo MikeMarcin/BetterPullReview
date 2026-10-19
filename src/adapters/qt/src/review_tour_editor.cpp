@@ -1,7 +1,9 @@
 #include "bpr/qt/review_tour_editor.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
@@ -574,7 +576,7 @@ namespace bpr::qt {
 		Imports->setObjectName(QStringLiteral("tourImportChoices"));
 		Imports->setAccessibleName(tr("GitHub tour index and list"));
 		Imports->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		Import = new QPushButton{ tr("Load selected GitHub tour"), Notices };
+		Import = new quiet_push_button{ tr("Load selected GitHub tour"), Notices };
 		Import->setObjectName(QStringLiteral("tourImport"));
 		connect(Import, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::import_selected); });
 		notes->addWidget(Imports);
@@ -594,7 +596,7 @@ namespace bpr::qt {
 		Conflict->hide();
 		notes->addWidget(Conflict);
 		auto* const conflictRow = new QHBoxLayout{ };
-		Retry                   = new QPushButton{ tr("Retry local save"), Notices };
+		Retry                   = new quiet_push_button{ tr("Retry local save"), Notices };
 		connect(Retry, &QPushButton::clicked, this, [this] {if(Action){Action(tour_editor_action::retry_save);} });
 		conflictRow->addWidget(Retry);
 		UseSaved = new QPushButton{ tr("Discard my edits and use saved copy"), Notices };
@@ -664,7 +666,7 @@ namespace bpr::qt {
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, column);
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
-			auto* map = new QPushButton{ tr("Use selected description text"), panel };
+			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
 			map->setFlat(true);
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
@@ -732,7 +734,9 @@ namespace bpr::qt {
 		auto* const sendRow = new QHBoxLayout{ };
 		sendRow->setSpacing(6);
 		const auto button = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
-			auto* value = new QPushButton{ aLabel, PublicationPanel };
+			QPushButton* value = aAction == tour_editor_action::preview_publication
+				? static_cast<QPushButton*>(new quiet_push_button{ aLabel, PublicationPanel })
+				: new QPushButton{ aLabel, PublicationPanel };
 			value->setObjectName(aName);
 			connect(value, &QPushButton::clicked, this, [this, aAction] { trigger(aAction); });
 			sendRow->addWidget(value);
@@ -746,7 +750,7 @@ namespace bpr::qt {
 		auto* const recoverRow = new QHBoxLayout{ };
 		recoverRow->setSpacing(6);
 		const auto recover = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
-			auto* value = new QPushButton{ aLabel, PublicationPanel };
+			QPushButton* value = aAction == tour_editor_action::resume_publication ? new QPushButton{ aLabel, PublicationPanel } : static_cast<QPushButton*>(new quiet_push_button{ aLabel, PublicationPanel });
 			value->setObjectName(aName);
 			value->setFlat(true);
 			connect(value, &QPushButton::clicked, this, [this, aAction] { trigger(aAction); });
@@ -1044,7 +1048,7 @@ namespace bpr::qt {
 
 	void review_tour_editor::add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout)
 	{
-		auto* button = new QPushButton{ aEditor->parentWidget() };
+		auto* button = new quiet_push_button{ aEditor->parentWidget() };
 		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
 																																				: QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
@@ -1260,12 +1264,12 @@ namespace bpr::qt {
 		toolsColumn->setSpacing(6);
 		auto* const toolsRow = new QHBoxLayout{ };
 		toolsRow->setSpacing(6);
-		auto* add = new QPushButton{ tr("Add stop"), OutlineTools };
+		auto* add = new quiet_push_button{ tr("Add stop"), OutlineTools };
 		add->setObjectName(QStringLiteral("tourAddStop"));
 		add->setToolTip(tr("Add a stop on the lines selected in the code"));
 		toolsRow->addWidget(add);
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
-		auto* suggest = new QPushButton{ tr("Suggest an outline"), OutlineTools };
+		auto* suggest = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
 		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
 		suggest->setFlat(true);
 		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
@@ -1280,7 +1284,7 @@ namespace bpr::qt {
 		SuggestedOutline->setTextElideMode(Qt::ElideNone);
 		SuggestedOutline->setMaximumHeight(140);
 		toolsColumn->addWidget(SuggestedOutline);
-		InsertOutline = new QPushButton{ tr("Insert selected skeleton stops"), OutlineTools };
+		InsertOutline = new quiet_push_button{ tr("Insert selected skeleton stops"), OutlineTools };
 		InsertOutline->setObjectName(QStringLiteral("tourInsertOutline"));
 		toolsColumn->addWidget(InsertOutline, 0, Qt::AlignLeft);
 		connect(InsertOutline, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::insert_outline); });
@@ -1334,7 +1338,13 @@ namespace bpr::qt {
 		Body->setTabChangesFocus(true);
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
-		const auto  button  = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {auto* value=new QPushButton{aText,StopFields}; value->setObjectName(aName); aRow->addWidget(value); connect(value,&QPushButton::clicked,this,aCallback); return value; };
+		const auto button = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {
+			QPushButton* value = aName == QStringLiteral("tourRemoveRelated") ? new QPushButton{ aText, StopFields } : static_cast<QPushButton*>(new quiet_push_button{ aText, StopFields });
+			value->setObjectName(aName);
+			aRow->addWidget(value);
+			connect(value, &QPushButton::clicked, this, aCallback);
+			return value;
+		};
 		auto* const sources = new QHBoxLayout{ };
 		sources->setSpacing(2);
 		add_writing_button(Body, core::writing_hook::comment, sources);
@@ -1380,7 +1390,7 @@ namespace bpr::qt {
 		removeRelated->hide();
 		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
-		Reaffirm = new QPushButton{ tr("Reaffirm explanation for current head"), StopFields };
+		Reaffirm = new quiet_push_button{ tr("Reaffirm explanation for current head"), StopFields };
 		Reaffirm->setObjectName(QStringLiteral("tourReaffirm"));
 		fields->addWidget(Reaffirm, 0, Qt::AlignLeft);
 		connect(Reaffirm, &QPushButton::clicked, this, [this] { structural(core::tour_command_kind::reaffirm); });

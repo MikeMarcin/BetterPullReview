@@ -1,5 +1,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include "bpr/core/feedback_workshop_candidate.hpp"
 #include "bpr/core/line_endings.hpp"
 
@@ -95,7 +97,7 @@ namespace bpr::qt {
 		Members.Revisioned.Reapply = make_action(this, tr("Reapply my text"), QStringLiteral("reviewDraftReapply"));
 		auto* conflictActions      = new QHBoxLayout;
 		for (auto* action : { Members.Revisioned.Reload, Members.Revisioned.Reapply }) {
-			auto* button = new QToolButton{ this };
+			QToolButton* button = action == Members.Revisioned.Reapply ? static_cast<QToolButton*>(new quiet_tool_button{ this }) : new QToolButton{ this };
 			button->setDefaultAction(action);
 			button->setObjectName(action->objectName() + QStringLiteral("Button"));
 			connect(action, &QAction::changed, button, [button, action] { button->setVisible(action->isVisible()); });
