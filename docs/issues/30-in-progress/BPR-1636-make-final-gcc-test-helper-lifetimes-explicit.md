@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1636"
 title: "Make final GCC test helper lifetimes explicit"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
