@@ -1195,6 +1195,10 @@ target_link_libraries(
 )
 bpr_enable_hardening(test_better_pull_review_qt_workbench_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_workbench_window_tests)
+if(MSVC)
+    # The complete workbench course exceeds the ordinary COFF section bound.
+    target_compile_options(test_better_pull_review_qt_workbench_window_tests PRIVATE /bigobj)
+endif()
 bpr_add_network_isolated_test(
     NAME qt_dif_workshop_placement
     COMMAND test_better_pull_review_qt_workbench_window_tests --dif-workshop-placement

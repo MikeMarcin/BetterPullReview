@@ -633,14 +633,23 @@ bpr_enable_warnings(test_better_pull_review_core_sha256_tests)
 
 # Compile the exact CNG wrapper with a narrow API stub on every host. Native
 # Windows correctness is a separate station observation, never inferred here.
-bpr_add_executable(test_better_pull_review_sha256_cng_contract
+add_library(bpr_test_sha256_cng_stub OBJECT
     sha256_cng_contract_tests.cpp
     "${PROJECT_SOURCE_DIR}/src/core/src/sha256_hacl.cpp"
     "${PROJECT_SOURCE_DIR}/src/core/src/sha256_cng.cpp"
 )
-target_include_directories(test_better_pull_review_sha256_cng_contract PRIVATE
+target_include_directories(bpr_test_sha256_cng_stub PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/cng_stub"
     "${PROJECT_SOURCE_DIR}/src/core/include"
+)
+target_link_libraries(bpr_test_sha256_cng_stub PRIVATE BetterPullReview::HaclSha2)
+target_compile_features(bpr_test_sha256_cng_stub PRIVATE cxx_std_23)
+bpr_enable_hardening(bpr_test_sha256_cng_stub)
+bpr_enable_warnings(bpr_test_sha256_cng_stub)
+# The injected quiet-CRT unit uses the real Windows SDK. Keep the narrow
+# windows.h/bcrypt.h stubs private to the contract and wrapper compilation.
+bpr_add_executable(test_better_pull_review_sha256_cng_contract
+    $<TARGET_OBJECTS:bpr_test_sha256_cng_stub>
 )
 target_link_libraries(test_better_pull_review_sha256_cng_contract PRIVATE BetterPullReview::HaclSha2)
 target_compile_features(test_better_pull_review_sha256_cng_contract PRIVATE cxx_std_23)

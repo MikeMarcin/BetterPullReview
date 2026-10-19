@@ -138,3 +138,16 @@ fails the unchanged exact comparison. The disposable binary/tree is removed.
 This verifies the fixture's actual dependency requirement; the matching real
 CMake target rebuild and `qt_agent_launch_canary` integration rerun remain
 coordinator-owned after the frozen baseline gate finishes.
+
+[BPR-1628](../issues/30-in-progress/BPR-1628-repair-windows-normal-test-target-dependencies.md)
+owns four failures from the captured Windows incremental build at frozen
+`f6ba8f43`: CNG stub `windows.h` shadows the SDK for the injected quiet-CRT
+unit; SQLite/Git Insights tests lack the platform include and `advapi32`
+dependency their private scratch helper uses; the workbench test exceeds the
+ordinary MSVC COFF section bound. The diagnostic build exits 1 with complete
+native output retained outside its transcript. No test ran in that baseline.
+The repair confines CNG stub includes to an object library, retains the real
+SDK for the executable's CRT unit, adds the two tests' Windows dependencies
+and enables `/bigobj` only on the oversized MSVC target. Quiet-CRT behavior,
+scratch security, CNG stub logic and workbench assertions are unchanged.
+Matching native compilation and focused contracts are pending.
