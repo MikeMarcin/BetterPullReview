@@ -2505,7 +2505,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_core_and_qt_reject_raw_provider_data(self) -> None:
         for region in ("core", "adapters/qt"):
             for provider_data in (
-                'const char* endpoint = "https://api.example.test";\n',
                 'const char* header = "Authorization: Bearer canary";\n',
             ):
                 with self.subTest(
@@ -2526,6 +2525,25 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "Provider data crossed the core/Qt boundary",
             {"src/adapters/qt/hostile.cpp": "QUrl provider_url;\n"},
         )
+        self.assert_failure(
+            "Provider data crossed the core/Qt boundary",
+            {"src/adapters/qt/hostile.cpp":
+                'const char* endpoint = "https://api.example.test";\n'},
+        )
+
+    def test_core_accepts_deterministic_data_without_provider_capabilities(self) -> None:
+        result = self.run_check({"src/core/policy.cpp":
+            '#include <chrono>\n#include <ctime>\n#include <thread>\n'
+            '#include <future>\n#include <condition_variable>\n#include <fstream>\n'
+            '#include <atomic>\n#include <mutex>\n#include <filesystem>\n'
+            'constexpr auto link = "https://example.test/help";\n'
+            'constexpr auto plain = "http://example.test/reference";\n'
+            'auto stamp = observed_clock::now();\n'
+            'auto relative = std::filesystem::path{"src"}.lexically_normal();\n'
+            'auto elapsed = std::chrono::milliseconds{5};\n'
+            'std::thread::id identity;\n'
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_application_rejects_provider_json_libraries(self) -> None:
         self.assert_failure(

@@ -928,6 +928,8 @@ set(
     "QJson[A-Za-z0-9_]*"
     "#[ \t]*include[ \t]*[<\"](curl|nlohmann|rapidjson|boost/json)"
 )
+# These checks also preserve approved serialization/dependency ownership;
+# QJson and unapproved JSON libraries are not inherently nondeterministic.
 foreach(effect_free_file IN LISTS effect_free_region_files)
     file(READ "${effect_free_file}" contents)
     foreach(pattern IN LISTS effect_free_region_patterns)
@@ -1094,7 +1096,6 @@ endfunction()
 set(
     provider_free_projection_patterns
     "QUrl"
-    "https?://"
     "Authorization[ \t]*:"
     "Bearer[ \t]+"
     "bpr/application/github_(read_model|provider_port)"
@@ -1104,7 +1105,14 @@ set(
 foreach(provider_free_file IN LISTS provider_free_projection_files)
     file(READ "${provider_free_file}" contents)
     strip_markdown_resource_denial("${provider_free_file}")
-    foreach(pattern IN LISTS provider_free_projection_patterns)
+    set(projection_patterns ${provider_free_projection_patterns})
+    # A URL string is data, not network access. Core may compute on it under
+    # external determinism; provider endpoints/auth/wire contracts retain
+    # their separate owners. Qt's URL-free projection contract is narrower.
+    if(provider_free_file IN_LIST qt_github_projection_files)
+        list(APPEND projection_patterns "https?://")
+    endif()
+    foreach(pattern IN LISTS projection_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${provider_free_file}")
             message(

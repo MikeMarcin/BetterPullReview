@@ -5,6 +5,7 @@ endif()
 file(
     GLOB_RECURSE core_files
     LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/core/*.c"
     "${BPR_ROOT}/src/core/*.cc"
     "${BPR_ROOT}/src/core/*.cpp"
     "${BPR_ROOT}/src/core/*.cxx"
@@ -12,6 +13,8 @@ file(
     "${BPR_ROOT}/src/core/*.hh"
     "${BPR_ROOT}/src/core/*.hpp"
     "${BPR_ROOT}/src/core/*.hxx"
+    "${BPR_ROOT}/src/core/*.m"
+    "${BPR_ROOT}/src/core/*.mm"
 )
 
 if(NOT core_files)
@@ -19,6 +22,9 @@ if(NOT core_files)
 endif()
 
 set(filesystem_effects "absolute|canonical|weakly_canonical|relative|proximate|current_path|temp_directory_path|exists|status|symlink_status|is_regular_file|is_directory|is_symlink|is_block_file|is_character_file|is_fifo|is_socket|is_other|is_empty|equivalent|file_size|hard_link_count|last_write_time|space|copy|copy_file|copy_symlink|create_directory|create_directories|create_hard_link|create_symlink|create_directory_symlink|read_symlink|remove|remove_all|rename|resize_file|permissions|directory_iterator|recursive_directory_iterator|directory_entry")
+set(standard_clocks "(system|steady|high_resolution|utc|tai|gps|file)_clock")
+set(file_stream_types "(w?([io]?fstream|filebuf)|basic_([io]?fstream|filebuf)<[^;{}]+>)")
+set(acquisition_types "std::(j?thread|${file_stream_types})")
 
 set(
     forbidden_patterns
@@ -26,30 +32,30 @@ set(
     "#[ \t]*include[ \t]*[<\"]Qt"
     "#[ \t]*include[ \t]*[<\"]sqlite3"
     "#[ \t]*include[ \t]*[<\"]curl"
-    "#[ \t]*include[ \t]*[<\"]thread[>\"]"
-    "#[ \t]*include[ \t]*[<\"]future[>\"]"
-    "#[ \t]*include[ \t]*[<\"]ctime[>\"]"
-    "#[ \t]*include[ \t]*[<\"]fstream[>\"]"
     "#[ \t]*include[ \t]*[<\"](asio|boost/asio)"
     "#[ \t]*include[ \t]*[<\"](nlohmann|rapidjson|boost/json)"
     "#[ \t]*include[ \t]*[<\"](sys/socket|winsock)"
     "#[ \t]*include[ \t]*[<\"](windows\\.h|bcrypt\\.h|CommonCrypto/)"
     "(^|[^A-Za-z0-9_])(BCrypt[A-Za-z0-9_]*|BCRYPT_[A-Za-z0-9_]*|CC_SHA[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
-    "#[ \t]*include[ \t]*[<\"]condition_variable[>\"]"
     "std::filesystem::[ \t\r\n]*(${filesystem_effects})([^A-Za-z0-9_]|$)"
-    "::[ \t\r\n]*now[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_:])((std::chrono::)?${standard_clocks}|std::filesystem::file_time_type::clock)::now[ \t\r\n]*\\("
+    # Headers and value/reference declarations are not effects. These known
+    # forms acquire a file/worker or invoke host scheduling. A nonempty
+    # constructor is conservative: it can also move an existing handle.
+    "${acquisition_types}[ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*[ \t\r\n]*(=[ \t\r\n]*)?)?[({][ \t\r\n]*[^ \t\r\n)}]"
+    "std::async[ \t\r\n]*(<[^;{}]+>)?[ \t\r\n]*\\("
+    "std::this_thread::(sleep_for|sleep_until|yield|get_id)[ \t\r\n]*\\("
+    "std::(j?thread)::hardware_concurrency[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])(std::)?random_device([^A-Za-z0-9_]|$)"
-    "std::time[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(time|clock|clock_gettime|gettimeofday|timespec_get|GetSystemTime|QueryPerformanceCounter|GetTickCount(64)?)[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(rand|srand|random|srandom)[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(std::|::)?getenv[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(std::|::)?system[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(fopen|freopen)[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(popen|fork|execve|CreateProcess)[ \t]*\\("
-    "(^|[^A-Za-z0-9_])(socket|connect|listen)[ \t]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?(time|clock|clock_gettime|gettimeofday|timespec_get|GetSystemTime|QueryPerformanceCounter|GetTickCount(64)?)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?(rand|srand|random|srandom)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?getenv[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?system[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(std::|::)?(fopen|freopen)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(::)?(popen|fork|execve|CreateProcess)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_.>:])(::)?(socket|connect|listen)[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])(SecItem|CredRead|CredWrite|CredDelete)"
     "(^|[^A-Za-z0-9_])(SecretService|libsecret|secret_password_)"
-    "https?://"
     # Anchored like every other identifier pattern here. Without the
     # boundary it matched inside ordinary uppercase words: the include
     # guard `BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_HPP` contains
@@ -61,12 +67,48 @@ set(
 
 foreach(core_file IN LISTS core_files)
     file(READ "${core_file}" contents)
-    # Normalize namespace aliases before checking effect symbols. This is a
-    # source guard, not a C++ semantic parser; review still owns state/effects.
-    string(REGEX MATCHALL "namespace[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t\r\n]*std::filesystem[ \t]*;" filesystem_aliases "${contents}")
-    foreach(filesystem_alias IN LISTS filesystem_aliases)
-        string(REGEX REPLACE "namespace[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=.*" "\\1" filesystem_alias_name "${filesystem_alias}")
-        string(REGEX REPLACE "(^|[^A-Za-z0-9_])${filesystem_alias_name}::" "\\1std::filesystem::" contents "${contents}")
+    string(REGEX REPLACE "[ \t\r\n]*::[ \t\r\n]*" "::" contents "${contents}")
+    string(REPLACE "::std::" "std::" contents "${contents}")
+    # Normalize simple namespace/type aliases for the capabilities checked
+    # here, not arbitrary user types. This textual guard does not resolve C++
+    # scopes, templates, macros, indirect calls or upstream implementation.
+    string(REGEX MATCHALL "namespace[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t\r\n]*(::)?std(::(filesystem|chrono|this_thread))?[ \t]*;" namespace_aliases "${contents}")
+    foreach(namespace_alias IN LISTS namespace_aliases)
+        string(REGEX REPLACE "namespace[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=.*" "\\1" alias_name "${namespace_alias}")
+        string(REGEX REPLACE ".*=[ \t\r\n]*(::)?(std(::[A-Za-z_]+)?)[ \t]*$" "\\2" alias_target "${namespace_alias}")
+        string(REGEX REPLACE "(^|[^A-Za-z0-9_])${alias_name}::" "\\1${alias_target}::" contents "${contents}")
+    endforeach()
+    string(REGEX MATCHALL "using[ \t\r\n]+std::(async|j?thread|${file_stream_types}|this_thread::(sleep_for|sleep_until|yield|get_id))[ \t]*;" capability_imports "${contents}")
+    foreach(capability_import IN LISTS capability_imports)
+        string(REGEX REPLACE "using[ \t\r\n]+(std::.*)[ \t]*$" "\\1" imported_name "${capability_import}")
+        string(STRIP "${imported_name}" imported_name)
+        string(REGEX REPLACE ".*::" "" local_name "${imported_name}")
+        string(REGEX REPLACE "(^|[^A-Za-z0-9_:])${local_name}([^A-Za-z0-9_]|$)" "\\1${imported_name}\\2" contents "${contents}")
+    endforeach()
+    # Explicit deferred async creates lazy caller-owned state, not a worker.
+    # Remove only this launch-policy prefix; the callable still scans for effects.
+    string(REGEX REPLACE "std::async[ \t\r\n]*\\([ \t\r\n]*std::launch::deferred[ \t\r\n]*," "deferred_computation(" contents "${contents}")
+    set(alias_types "std::(chrono::${standard_clocks}|filesystem::file_time_type::clock|random_device|j?thread|${file_stream_types})")
+    string(REGEX MATCHALL "using[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*[ \t]*=[ \t\r\n]*${alias_types}[ \t]*;|typedef[ \t\r\n]+${alias_types}[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*[ \t]*;" type_aliases "${contents}")
+    foreach(type_alias IN LISTS type_aliases)
+        if(type_alias MATCHES "^using[ \t\r\n]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t\r\n]*(.*)[ \t]*$")
+            set(alias_name "${CMAKE_MATCH_1}")
+            set(alias_target "${CMAKE_MATCH_2}")
+        elseif(type_alias MATCHES "^typedef[ \t\r\n]+(.*)[ \t\r\n]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*$")
+            set(alias_name "${CMAKE_MATCH_2}")
+            set(alias_target "${CMAKE_MATCH_1}")
+        endif()
+        string(STRIP "${alias_target}" alias_target)
+        string(REGEX REPLACE "(^|[^A-Za-z0-9_])${alias_name}([^A-Za-z0-9_]|$)" "\\1${alias_target}\\2" contents "${contents}")
+    endforeach()
+    # A default-constructed stream does not open a file. Check open only on
+    # named standard file streams/buffers, never arbitrary domain .open().
+    string(REGEX MATCHALL "std::${file_stream_types}[&* \t\r\n]+[A-Za-z_][A-Za-z0-9_]*" file_stream_declarations "${contents}")
+    foreach(declaration IN LISTS file_stream_declarations)
+        string(REGEX REPLACE ".*[^A-Za-z0-9_]([A-Za-z_][A-Za-z0-9_]*)$" "\\1" stream_name "${declaration}")
+        if(contents MATCHES "(^|[^A-Za-z0-9_])${stream_name}[ \t\r\n]*(\\.|->)[ \t\r\n]*open[ \t\r\n]*\\(")
+            message(FATAL_ERROR "Functional-core boundary violation: file stream acquisition in ${core_file}")
+        endif()
     endforeach()
     if(contents MATCHES "using[ \t\r\n]+namespace[ \t\r\n]+std::filesystem[ \t]*;")
         if(contents MATCHES "(^|[^A-Za-z0-9_])(${filesystem_effects})[ \t\r\n]*[(\{]")

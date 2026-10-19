@@ -51,6 +51,28 @@ approved graph and first-party effect ownership; they do not audit every upstrea
 internal operation or prove semantic equivalence. Use focused public-contract
 checks for those claims. Qt-free builds preserve the dependency/reuse boundary.
 
+The source guards allow standard headers, chrono values, lexical paths,
+explicitly seeded PRNG state, caller-owned synchronization, and generic URL
+strings as core data. A domain method named `now`, `time` or `random` is not
+itself a clock or entropy read. Known standard clocks, entropy APIs, worker
+launches, default/async `std::async` policies and file-opening forms remain
+guarded. Explicit `std::launch::deferred` creates lazy state without a worker;
+its callable must obey the same effect and explicit-state contract. An empty
+thread or stream object does not by itself acquire a resource.
+
+These are textual checks, with canonical spellings and simple same-file aliases,
+not C++ type or effect analysis. They can miss macros, indirect calls, aliases
+from another file, complex declarations and hidden global decision state. They
+can conservatively reject nonempty handle moves, declarations that resemble
+constructors, or pure filesystem overloads such as `is_directory(file_status)`
+whose safety needs type resolution. Other ownership checks still inspect raw
+text. A passing gate cannot certify semantic determinism or the absence of
+effects; use code review and direct behavior contracts. Provider wire/auth
+ownership, Qt's URL-free projections, approved JSON libraries, exact private
+wrappers, pins and xdiff's separate shared library remain independent policies.
+The [enforcement audit](../issues/_checkpoints/BPR-1621/audit.md) records the
+changed and retained checks.
+
 ## Core SHA-256 selection
 
 Core uses CommonCrypto on macOS, CNG (`bcrypt`) on Windows 10+ and pinned
