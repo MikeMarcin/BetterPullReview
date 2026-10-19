@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1644"
 title: "Diagnose Ubuntu Insights budget description"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux", "mac"]
 metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"8eef1ff495f291a125c15b1a824431a8f8a9fe3c","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Native f8b8 QLocaleC description has exactown412/other1240/remaining3348 withoutcomma; recordedoriginalpredicate fails. Later1700files literal similarlyfails, en_US control passes.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-focused-r4-evidence.tar.gz"}},{"criterion":"AC2","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Only expectations format exact1240/3348/1700 through existingQLocale; ownpersistedwait412, exacttextanchors/allrecordconditions and everybudget/privacy/stall/storage/renderassertion retained. No producttext/calculation change.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-focused-r4-evidence.tar.gz"}},{"criterion":"AC3","outcome":"pass","revision":"4e0aace96da2dbfa0397c098e279f33b3093a6dc","evidence":{"kind":"observation","detail":"Complete nativeLinuxc3bc course passes defaultC1.19s and en_US1.16s; Mac4e0a completecourse passes1.57s. Scopedtidy22Werror/format22/architecture/docs/diff pass; intentionalcommits retained.","artifact":".mask/sessions/release-v0.3.0/native-linux/v030-linux-focused-r4-evidence.tar.gz"}}]
 ---
 
 # BPR-1644: Diagnose Ubuntu Insights budget description
@@ -60,3 +61,14 @@ lifetime record. The complete en_US course passes1.17 seconds with unchanged
 values. Production records use the same QLocale formatter. That expectation now
 formats exactly1700 files through QLocale while retaining all five record
 conditions; the next native C course must still finish every assertion.
+
+## Verified repair result
+
+Native f8b8 QLocaleC description has exactown412/other1240/remaining3348 withoutcomma; recordedoriginalpredicate fails. Later1700files literal similarlyfails, en_US control passes.
+
+Only expectations format exact1240/3348/1700 through existingQLocale; ownpersistedwait412, exacttextanchors/allrecordconditions and everybudget/privacy/stall/storage/renderassertion retained. No producttext/calculation change.
+
+Complete nativeLinuxc3bc course passes defaultC1.19s and en_US1.16s; Mac4e0a completecourse passes1.57s. Scopedtidy22Werror/format22/architecture/docs/diff pass; intentionalcommits retained.
+
+Exact receipts, raw failures, JUnit and source bindings remain under the ignored
+release-v0.3.0 session; other release qualifications are separate obligations.
