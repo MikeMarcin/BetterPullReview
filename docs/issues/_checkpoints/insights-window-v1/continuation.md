@@ -1,32 +1,91 @@
-# Work engineering in progress
+# Work milestone accepted; Energy remains unfinished
 
 Mandate **insights-window-v1-r1**, assignment **work** (BPR-1614), segment
 **work-r1**, owner `/root/insights_work`; coordinator-implementer r2.
 Source/tracker root is this checkout, branch `codex/insights-window-v1`.
-Start863f4808b; RFC_BASE_SHA0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66.
+RFC_BASE_SHA **0378ab977a7ffc74e0ac5ac2f70ee37a9cf00a66**.
 Runtime **`/Users/jaeger/.mask/implement-rfc-runtime/bpr-insights-work-r1-de2hcgoq`**.
-Promotion409c25f86, claimd42914997. Work's bound prerequisite github-budget is
-accepted; Energy remains blocked/unaccepted exactly as recorded below.
 
-Current edits implement typed Work history/ranges, weighted latency/search
-quantiles, per-file diff timings/limits/paths, syntax cache observations across
-panes/Markdown/cycles, schema5 retention and Work presentation. Qt observes
-busy dispatcher turns without a polling timer; it batches normal1ms latency bins
-and retains stall microseconds, flushes before snapshots/shutdown. Actual250ms
-public event-loop course and idle negative control are pending execution. Host
-fixtures exercise actual limits and cache-hit absence; persistence/privacy and
-aggregate tests are added. No acceptance is claimed until direct checks pass.
-`frontend-design` and `code-simplifier` were loaded; accepted native title row
-and ATT chart source remain unchanged.
+**BPR-1614 is Done; Work is accepted.** Both its whole-card obligations and the
+authored exit pass. Source **6ec2d3faf**, reserve refinement **02d6210b8**, final
+search timing **9334f0b12**; acceptance finish **490e0ad9f**. No Work obligation,
+owner judgment or native acceptance remains required by this assignment. The
+prior native title-row/ATT chart accepts retain their exact candidates.
 
-Current owned build command6566 is active; prior commands81168/96253/15354/73179
-were collected (early public passes, build diagnostics retained). Main moved to
-d2c557f16; treat its writer active/unknown. No main mutation, remote call, desktop
-access, server or delegation. Next collect build/tests, diagnose event-loop
-semantics, inspect rendered Work Light/Dark/scales, finish focused verification
-and guarded board upkeep. Closeout1615 still depends on unfinished Energy.
+## Implemented and verified
 
-# Prior Energy checkpoint
+Qt observes actual GUI-event busy turns, without a polling timer, excluding
+sleep and modal waits. The public250ms block produces one persisted stall
+251177us; the exact final monitor probe produces one253741us stall while800ms
+idle is excluded. Removing its event filter produces zero stalls and exit1.
+Normal latency bins have1ms resolution, stalls retain microseconds; batches flush
+before snapshots/shutdown. A failed awake-only course and its ordering probe
+are retained: this dispatcher emits awake after the callback.
+
+Host computation timing carries bounded local path labels alongside diff
+identity. Actual fixtures reach move work, segment and approximate limits under
+separate counters; cache hits add no work. Syntax hits/misses/evictions include
+panes, Markdown and cycles. Every executed source search includes acquisition
+and matching, even when it fails, without retaining a query. Core owns weighted
+p95, conventional median,1h/1d selection and five slowest path ordering. SQLite
+schema5 retains five-minute48h/daily93d distributions. Restart and Work-path
+export canary pass; existing maintenance/reset/purge and byte-only admission are
+unchanged. Telemetry failures cannot veto completed diff work.
+
+`frontend-design` and `code-simplifier` were loaded/applied. Light/Dark Work
+renders at1x,1.25x and2x were inspected without clipping, with accepted profile
+roles, typography and title row. The public seed shows7files,5paths,75%cache
+hits,2evictions and20ms median, and proves fixed/clamped geometry, all ranges,
+accessibility, local-only refresh, hidden timers and shutdown.
+
+Combined integration **10/10 in32.65s**; affected allocation-only core/public
+**2/2 in6.84s**; final search/public **2/2 in3.99s**. Public DPI **1.25x4.63s**,
+**2x8.48s**. Core-only core/architecture **2/2 in18.28s**, negative architecture
+contract **218.19s**, final core **0.36s**. LLVM22 format, focused tidy and
+tests-disabled composition syntax pass. Full/manifest composition seals were
+reviewed/renewed; mutation admission seal is unchanged. Documentation and scoped
+board checks are rerun on final upkeep; unchanged prior evidence is reused.
+Runtime acceptance, logs, renders, exact source paths, failures and final
+binding/observation/check retain the detailed proof.
+
+## Ownership, commands and main delivery
+
+Main **02f8b4cf1** was clean; BPR-1622's handoff explicitly released its writer
+and all commands. Merge **23b74e1ef** preserves all completed evaluation work
+without conflicts; **b509e5157** removes only its obsolete adopted claim beside
+the authoritative Done card. No unrelated product source was changed.
+
+All owned build, test, syntax, tidy and probe commands finish before handoff.
+The exact temporary dispatcher-probe root is removed after its final receipts;
+logs and renders remain external. No server, waiter, protected candidate, live
+GitHub call, desktop/browser-profile access, delegation or push. This owner
+releases its source/tracker writer on final return.
+
+Local delivery uses the shared primary board lock, expected main02f8b4cf1,
+clean source/main trees and ancestry check, then `merge --ff-only`. Exact final
+source/main revisions and result live in runtime `main-delivery.json`; if any
+frontier or writer changes the guard refuses rather than overwriting it. The
+final bookkeeping revision is bound in the external observation/check.
+
+## Continuation and remaining obligations
+
+**Energy is not accepted.** BPR-1612 remains Blocked on `qt-unix-child-rusage`:
+exact per-child Unix gh/git CPU at reap. BPR-1613 retains passing independent
+presentation evidence but remains Backlog for that prerequisite. The next fresh
+engineering owner resumes Energy's bounded seam with its exact candidate and
+checkpoint below; no manual owner action is requested. **BPR-1615 closeout is
+ineligible** until Energy is accepted. RFC0086 stays In Progress.
+
+Closeout preparation can remain unattended: seed unique identifying strings and
+exercise both actual frozen export previews; Work's path canary and the byte-only
+section already pass. AC12 can launch one signed-in profile offscreen, hide all
+windows, record actual background wall/CPU/wakeups for an hour and flush on quit,
+then compare normalized cost with2s/idleh and6wakeups/min. That whole-hour evidence
+and any required miss-cause card belong to closeout, not this Work acceptance.
+Native Windows/Linux runtime qualification remains unmeasured. No fixture result
+is represented as native acceptance, and no whole-pack completion is inferred.
+
+# Preserved Energy checkpoint
 
 # Energy candidate complete independently; exact child CPU blocked
 
