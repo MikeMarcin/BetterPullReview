@@ -1,3 +1,13 @@
+# [[BPR-1652]] scoped reseal2026-10-19 over last matching76974f7d0..1cdaf43b3.
+# Sole pinned-scope commit1cdaf43b3 corrects the Windows BUILD_TESTING
+# UIforETW capture's stale caption index from lead+18 to its already asserted
+# lead+16. The18-action exact row remains whole; no product/provider/credential,
+# grant, publication or mutation admission changes. Source guard review and
+# own-image RVA/linker-map diagnosis are recorded on BPR-1652 and the release
+# repair ledger. The raw source-input mismatch is retained for explicit Mac
+# reconciliation. Full/manifest pins bind these exact bytes; production mutation
+# branch16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1
+# remains unchanged. The original stale seal refusal is preserved.
 # RFC-BPR-0086 Energy engineering: profile-owned30/60s metrics sampling and
 # final-interval drain reuse the existing Insights effect lane. Git configuration
 # carries only a passive observer; native support reads self counters and retains
@@ -1668,7 +1678,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"f26e94273fa5d2e0ca20dcb57b83032eac8fbe1b494dbfdcb1620f9ce3b4c59b"
+		"e6f152e5458fb2e80477828ef7e139bb7cf239bd4335bba97cbb1742e6a7ccc5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1888,7 +1898,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a7d8c778e9da83be64514845f8aa461c59b2d0bd421e8e4d9975cf922d0a8830"
+        "8eabdc7c01467cced18d0a9019c07d5d3f346444157ed77fd94bdac97c67ce4f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
