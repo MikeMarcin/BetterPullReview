@@ -15,7 +15,7 @@ The [audit](audit.md) records changed checks, retained policy classes and limits
 | `python3 tests/scripts/architecture_boundary_tests.py` | Full changed-surface integration: 159/159 pass in 189.384s. |
 | `python3 tests/scripts/platform_configuration_tests.py` | 5/5 pass. |
 | `python3 tests/scripts/git_protocol_boundary_tests.py` | 18/18 pass. |
-| `python3 scripts/verify_documentation.py --root .` | DOCUMENTATION_OK; final post-finish gate also required before handoff. |
+| `python3 scripts/verify_documentation.py --root .` | DOCUMENTATION_OK, including the final post-finish gate. |
 | `python3 tests/scripts/verify_documentation_tests.py` | 67/67 pass; printed ERROR lines are expected negative fixtures. |
 | `git diff --check` | Pass. |
 
@@ -51,3 +51,7 @@ exact native SHA owners, licensing/shared-xdiff requirements and truthful textua
 limits. No in-scope critical defect or pending human/native/independent criterion
 remains. Existing wider qualification obligations remain untouched. No live
 GitHub, remote, desktop, browser/private-data or release operation occurred.
+
+Final milestone consistency returned `action: stop` (engineering acceptance is
+not evaluated by that helper); scoped board validation returned `valid: true`,
+with no errors. All verification/bookkeeping processes completed before handoff.
