@@ -52,7 +52,7 @@ namespace {
 			}
 			std::cout << "]";
 		}
-		std::cout << std::endl;
+		std::cout << '\n';
 		[application update];
 		NSMenuItem* found = nil;
 		for (NSMenuItem* item in application.itemArray) {
@@ -98,28 +98,31 @@ try {
 	expect([item.keyEquivalent isEqualToString:@"i"]
 			   && item.keyEquivalentModifierMask == (NSEventModifierFlagCommand | NSEventModifierFlagOption | NSEventModifierFlagShift),
 		   "the one native item owns the approved shortcut");
-	[NSApp sendAction:item.action to:item.target from:item];
+	invoke(item);
 	expect(firstCalls == 1, "the first profile receives the command");
+	NSEvent* key = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:item.keyEquivalentModifierMask timestamp:0 windowNumber:0 context:nil characters:@"I" charactersIgnoringModifiers:@"i" isARepeat:NO keyCode:34];
+	expect([NSApp.mainMenu performKeyEquivalent:key], "the actual native menu handles the approved shortcut");
+	expect(firstCalls == 2, "one shortcut event dispatches exactly once");
 	auto second = make_bar(secondCalls);
 	expect(select_bar(*second) == item, "a sibling reuses the same native item");
-	[NSApp sendAction:item.action to:item.target from:item];
-	expect(firstCalls == 1 && secondCalls == 1, "dispatch follows the actual current menu bar");
+	invoke(item);
+	expect(firstCalls == 2 && secondCalls == 1, "dispatch follows the actual current menu bar");
 	first.reset();
 	settle();
 	expect(select_bar(*second) == item, "retiring the other donor preserves the current one");
 	auto resident = make_bar(residentCalls, false);
 	second.reset();
 	expect(select_bar(*resident) == item && !item.enabled, "last-window close retains one disabled item");
-	[NSApp sendAction:item.action to:item.target from:item];
-	expect(residentCalls == 0 && firstCalls == 1 && secondCalls == 1, "a disabled or retired donor cannot receive a command");
+	invoke(item);
+	expect(residentCalls == 0 && firstCalls == 2 && secondCalls == 1, "a disabled or retired donor cannot receive a command");
 	auto reopened = make_bar(reopenedCalls);
 	resident.reset();
 	expect(select_bar(*reopened) == item && item.enabled, "reopening restores one enabled command");
-	[NSApp sendAction:item.action to:item.target from:item];
+	invoke(item);
 	expect(reopenedCalls == 1 && secondCalls == 1, "only the reopened profile receives it");
 	reopened.reset();
 	settle();
-	[NSApp sendAction:item.action to:item.target from:item];
+	invoke(item);
 	expect(reopenedCalls == 1 && !NSApp.active, "destruction leaves no callable donor and never activates");
 	std::cout << "insights-native-menu-tests:pass\n";
 	return 0;
