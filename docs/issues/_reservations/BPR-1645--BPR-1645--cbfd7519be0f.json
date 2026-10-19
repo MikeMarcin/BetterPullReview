@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1645"
+  ],
+  "reserve_for": "release-v030-repairs",
+  "purpose": "Offscreen relocated macOS release smoke safety",
+  "created": "2026-10-19T07:06:23.925848+00:00",
+  "base": "6e610e44dc02ab4e25b75d061b0755549a318d96"
+}
