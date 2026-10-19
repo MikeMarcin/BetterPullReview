@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1653"
 title: "Diagnose Ubuntu optimized cache footprint growth"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
