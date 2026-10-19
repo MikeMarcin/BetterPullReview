@@ -15,8 +15,8 @@ does, and answers the recovery dialog with `--profile-recovery-answer`:
 5. `--reset-profile-data-copy` without a scope is refused.
 
 Usage: profile_recovery_course.py APPLICATION SOURCE_ROOT
-Prints PROFILE_RECOVERY_COURSE_OK on success. Stops only the processes it
-started, by process group.
+Prints PROFILE_RECOVERY_COURSE_OK on success. Stops only the process tree it
+started, by its owned child PID on Windows and process group on POSIX.
 """
 
 import os
@@ -47,6 +47,29 @@ def private(path):
     return path
 
 
+def stop_owned_process(process):
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        # The Popen handle retains this child's identity while taskkill stops
+        # its tree. No executable name or unrelated process is selected.
+        result = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=20, check=False)
+        if result.returncode != 0 and process.poll() is None:
+            raise RuntimeError("could not stop the owned application process tree")
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=20)
+
+
 def run(application, source, root, log_path, *extra, wait=90):
     """Starts the application and returns its output once the pull request
     opened or it exited, stopping it if it is still running."""
@@ -57,19 +80,15 @@ def run(application, source, root, log_path, *extra, wait=90):
     with open(log_path, "w", encoding="utf-8") as log:
         process = subprocess.Popen(command, cwd=source, env=environment, stdout=log, stderr=subprocess.STDOUT,
                                    start_new_session=True)
-    deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-        if OPENED in text or process.poll() is not None:
-            break
-        time.sleep(0.25)
-    if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
-        try:
-            process.wait(timeout=20)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
+    try:
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+            if OPENED in text or process.poll() is not None:
+                break
+            time.sleep(0.25)
+    finally:
+        stop_owned_process(process)
     return Path(log_path).read_text(encoding="utf-8", errors="replace")
 
 
