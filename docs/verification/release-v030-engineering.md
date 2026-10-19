@@ -205,8 +205,8 @@ owns the frozen Mac history failure. The sole violating refresh is
 100 ms limit; refresh completion 440.256 ms is below 12,000 ms. Its wall gap is
 145.307833 ms, GUI processor time 1.433292 ms and measured runnable wait
 2.996333 ms. The attribution therefore retains about 140.878208 ms spent away
-from processor execution that was not observed as runnable wait. This is an
-observed blocked interval, not evidence of a particular lock, I/O operation or
-transient load. The report lacks a call stack for that interval. Read-only
+from processor execution that was not observed as runnable wait. This is a
+retained non-CPU interval, not proof of a particular lock, I/O operation,
+unobserved scheduler wait or transient load. The report lacks a call stack for that interval. Read-only
 source/report diagnosis continues; no timing formula, threshold or application
 code changes, and native reproduction awaits baseline completion.
