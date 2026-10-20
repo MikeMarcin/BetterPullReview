@@ -91,6 +91,7 @@ DEV_GRAPH = [
     (DIFF, ("anonymous_diff_tests",)),
     *((anchor, ("composed_tests",)) for anchor in QT_SCALE_ANCHORS),
     *((selector, ("preview_tests",)) for selector in QT_SCALES),
+    ("qt_public_preview_conversation", ("preview_tests", "--conversation-only")),
     *((anchor, ("app", "--self-test")) for _, anchor, _ in PREVIEW_ROWS),
     *((selector, ("app", "--self-test", *arguments)) for selector, _, arguments in PREVIEW_ROWS),
     (GIT_ANCHOR, ("git_cache_tests",)),
@@ -152,6 +153,13 @@ class InventoryTable(unittest.TestCase):
             if wire_block:
                 self.assertIn(selector, WIRE_SUITES)
                 self.assertEqual(anchor, ANCHOR)
+
+    def test_conversation_row_cannot_be_omitted_or_run_as_the_scale_suite(self) -> None:
+        selector = "qt_public_preview_conversation"
+        self.assertTrue(self.check([row for row in DEV_GRAPH if row[0] != selector]))
+        graph = [(name, ("preview_tests",) if name == selector else arguments)
+                 for name, arguments in DEV_GRAPH]
+        self.assertTrue(self.check(graph))
 
     def test_a_qt_graph_without_the_wire_block_owes_the_contract_suites(
             self) -> None:

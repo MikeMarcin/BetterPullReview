@@ -41,6 +41,7 @@ SELECTORS: dict[str, int] = {
     "qt_anonymous_public_preview_scale_100": 1,
     "qt_anonymous_public_preview_scale_125": 1,
     "qt_anonymous_public_preview_scale_200": 1,
+    "qt_public_preview_conversation": 1,
     "application_anonymous_public_preview_unavailable": 1,
     "application_anonymous_public_preview_release_contract": 1,
     "application_anonymous_public_preview_ghes_refusal": 1,
@@ -55,6 +56,7 @@ SELECTORS: dict[str, int] = {
 # demonstration silently stops running.
 REQUIRED_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "rfc0017_credential_free_native_https": ("--suite", "rfc0017"),
+    "qt_public_preview_conversation": ("--conversation-only",),
     "native_https_anonymous_read_contract": ("--contract",),
     "native_https_anonymous_read_fixture": ("--suite", "anonymous_read"),
     "application_anonymous_public_preview_unavailable": ("--public-preview-probe",),
@@ -93,6 +95,7 @@ SELECTOR_ANCHORS: dict[str, tuple[str | None, bool]] = {
     "qt_anonymous_public_preview_scale_100": ("qt_composed_github_scale_100", False),
     "qt_anonymous_public_preview_scale_125": ("qt_composed_github_scale_125", False),
     "qt_anonymous_public_preview_scale_200": ("qt_composed_github_scale_200", False),
+    "qt_public_preview_conversation": ("qt_composed_github_scale_100", False),
     "application_anonymous_public_preview_unavailable": ("application_device_authorization_unavailable", False),
     "application_anonymous_public_preview_release_contract": ("application_device_authorization_release_contract", False),
     "application_anonymous_public_preview_ghes_refusal": ("application_github_public_path_ghes_3_18", False),
