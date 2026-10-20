@@ -1686,6 +1686,12 @@ if(EXISTS "${BPR_ROOT}/src/platform/CMakeLists.txt")
     file(READ "${BPR_ROOT}/src/platform/CMakeLists.txt" platform_cmake_contents)
 endif()
 
+# Read every source afresh per invocation. The effect rules share those bytes
+# instead of reopening each source for every rule.
+foreach(source_file IN LISTS source_files)
+    file(READ "${source_file}" "bpr_effect_owner_contents_${source_file}")
+endforeach()
+
 function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
     set(allowed_relative_files "${allowed_relative_file}" ${ARGN})
     set(allowed_files "")
@@ -1699,7 +1705,7 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
     endforeach()
 
     foreach(source_file IN LISTS source_files)
-        file(READ "${source_file}" contents)
+        set(contents "${bpr_effect_owner_contents_${source_file}}")
         if(NOT contents MATCHES "${effect_pattern}")
             continue()
         endif()
