@@ -15506,7 +15506,8 @@ namespace {
 		};
 		pause(400);
 		save_render(window, QStringLiteral("thread-scroll-open"));
-		for (auto step = 0; step < 18; ++step) {
+		auto reachedEnd = false;
+		for (auto step = 0; step < 80; ++step) {
 			auto* const reader = cards->open_card()->findChild<QTextEdit*>();
 			const auto  centre = QPointF{ reader->viewport()->rect().center() };
 			auto        wheel  = QWheelEvent{ centre, reader->viewport()->mapToGlobal(centre), QPoint{ 0, -100 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
@@ -15521,7 +15522,16 @@ namespace {
 			const auto after = std::tuple{ surface->shared_scrollbar()->value(), cards->overflow(), cards->open_card()->geometry() };
 			std::cout << "THREAD_SCROLL step=" << step << " shared=" << std::get<0>(before) << '/' << std::get<0>(after) << " overflow=" << std::get<1>(before) << '/' << std::get<1>(after) << " rebuilds=" << surface->statistics().GeometryRebuilds << '\n';
 			expect(before == after, "a user scroll stays where it was placed after delayed layout and reveal callbacks");
+			auto* const shownReader = cards->open_card()->findChild<QTextEdit*>();
+			auto        end         = QTextCursor{ shownReader->document() };
+			end.movePosition(QTextCursor::End);
+			const auto foot = shownReader->viewport()->mapTo(cards->viewport(), shownReader->cursorRect(end).bottomRight()).y();
+			if (foot >= 0 && foot < cards->viewport()->height()) {
+				reachedEnd = true;
+				break;
+			}
 		}
+		expect(reachedEnd, "wheel input reaches the final line of the entire long comment, including notes overflow past the source end");
 		const auto resting = std::tuple{ surface->left_pane()->viewport()->geometry(), surface->right_pane()->viewport()->geometry(), surface->left_pane()->horizontalScrollBar()->isVisible(), surface->right_pane()->horizontalScrollBar()->isVisible(), surface->statistics().GeometryRebuilds, cards->open_card()->geometry() };
 		pause(1500);
 		expect(resting == std::tuple{ surface->left_pane()->viewport()->geometry(), surface->right_pane()->viewport()->geometry(), surface->left_pane()->horizontalScrollBar()->isVisible(), surface->right_pane()->horizontalScrollBar()->isVisible(), surface->statistics().GeometryRebuilds, cards->open_card()->geometry() }, "idle panes, native bars and card geometry settle without a layout cycle");
