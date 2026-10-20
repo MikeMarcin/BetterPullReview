@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1667"
 title: "Show the accepted comment bodies in Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P0"
