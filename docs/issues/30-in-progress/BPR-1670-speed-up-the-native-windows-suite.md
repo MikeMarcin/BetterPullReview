@@ -36,3 +36,20 @@ Native evidence uses an isolated root in the approved interactive Windows contex
 Coordinate exclusive physical-PC use with BPR-1653; do not touch unrelated
 waiter PID 37820, global auth/signing state, or other agents' work.
 RFC-BPR-0038 qualification remains open independently.
+
+## Current engineering checkpoint
+
+The [runtime investigation](../../verification/BPR-1670-windows-suite-runtime.md)
+records the retained full pass, causal controls and rejected attempts. The
+Settings-parent experiment passed its public course and 53 identical PNGs,
+but did not improve runtime and was reverted in `28887de99`. The checker-only
+candidate shares fresh source bytes inside one invocation; its direct native
+gate improved from 41.0335 to 31.7367 seconds. Native adversarial and full-suite
+acceptance remain open; the isolated adversarial row is being measured before
+spending another full gate. No test, workload, limit or scheduling change is
+accepted or proposed.
+
+External command/evidence ownership lives at
+`/tmp/bpr-windows-suite-speedup/handoff.md`. The native isolated root is
+`C:/Users/mikem/bpr1670-suite`; the exclusive shared-PC lease is reconciled with
+BPR-1653 at every handback. No human criterion is parked.

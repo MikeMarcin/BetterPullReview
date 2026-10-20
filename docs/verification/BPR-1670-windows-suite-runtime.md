@@ -58,24 +58,30 @@ Debug Qt library or diagnostic configuration has been weakened.
 
 ## Bounded experiments and pending acceptance
 
-The first candidate constructs the same nine Settings page roots beneath their
-existing final page parents, avoiding later reparenting of populated subtrees.
-It retains every widget, layout insertion, dispatch, property and explicit
-show operation. Frontend-design and its desktop guidance were read before the
-Qt change. Native timing, rendered output, ownership, focus and interaction
-acceptance remain pending.
+The Settings parent experiment was rejected and reverted in `28887de99`.
+It constructed the same nine Settings roots under their final page parents.
+The matched native workbench course passed but took 188.093 seconds versus
+186.054 seconds for the baseline; geometry passed in 1.8851 versus 1.87132
+seconds. All 53 baseline/candidate PNGs have identical decoded pixels.
+Frontend-design and its desktop guidance were read before the experiment.
+No Qt change remains in the engineering candidate.
 
 A separate checker experiment reads each source afresh once per invocation and
 shares those bytes among the existing effect-owner rules. It caches no verdict
 between invocations and preserves every rule, allowed owner and diagnostic.
 All 159 architecture adversarial methods pass on the Mac (236.325 seconds).
-This is supporting correctness evidence; its actual native impact and native
-adversarial acceptance remain pending.
+The matched native real checker passes in 31.7367 seconds versus 41.0335
+seconds, a 9.2968-second (22.7%) saving. The native 159-method adversarial
+course remains pending; the direct-checker saving alone is insufficient to
+claim a material reduction of the full suite.
 
 The native baseline and candidate build trees are isolated from the frozen
 published producer. The cold isolated build must first produce its own
 prerequisites; incremental candidate builds then change only the selected
-source. Matched focused controls precede one full four-job candidate suite.
+source. Initial cold configure/Qt build took 255.6854/294.9737 seconds;
+candidate reconfigure/incremental Qt build took 35.5504/28.0294 seconds
+(two compilation lines). These setup costs are additional to the measured
+suite. Matched focused controls precede one full four-job candidate suite.
 The graph, GUI/performance serialization, locks, fixtures, workloads, assertions,
 limits, timeouts, containment and network isolation remain acceptance obligations.
 
