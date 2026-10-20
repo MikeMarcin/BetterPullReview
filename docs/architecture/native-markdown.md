@@ -345,6 +345,7 @@ platform context are in [the verification ledger](../verification/RFC-BPR-0036.m
 | Public conversation, open thread | `conversation_open_card.cpp` (`thread_post_view`), `conversation_cards_view.cpp` | Since [[BPR-1290]] the drawer has no post list or body pane: each post of the open thread reads in place through the shared reader, as tall as its content, with View source and Copy source in its name row and its links through the window's admission with the post's identity. Review summaries, GraphQL roots/replies, REST roots/replies and issue comments are included. |
 | Closed notes in the drawer and Discuss | `conversation_cards_view.cpp` | One- or two-line navigation summaries of the first post; the open thread owns the complete public body. My draft's open note renders its body the same way; editing keeps its plain-text contract. |
 | AI side chat | `side_chat_panel.cpp` | Inventoried, outside initial delivery. |
+| Release notes in the updater panel | `release_update_panel.cpp` | Not the shared reader: a bounded read-only `QTextEdit` over `markdown_document`, GitHub dialect with HTML off. Links read as their text and images as their alternative text; nothing loads or is followed ([[BPR-1671]]). |
 | Local review/reply editors and draft cards | `review_draft_editor.cpp`, `review_submission_editor.cpp`, draft `conversation_cards_view` entries | Preserve Markdown editing and payloads; do not silently adopt rendering in this slice. |
 
 In place, the reader has no vertical scrolling of its own and reports its

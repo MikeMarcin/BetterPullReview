@@ -28,10 +28,12 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QMenuBar>
-#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScreen>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextEdit>
 #include <QTextStream>
 #include <QThread>
 #include <QVBoxLayout>
@@ -53,7 +55,7 @@ namespace {
 	constexpr auto offered_tag       = "v0.4.0";
 	constexpr auto offered_asset     = "BetterPullReview-0.4.0-macos-universal.zip";
 	constexpr auto offered_size      = std::uint64_t{ 48'300'000U };
-	// Literal Markdown: the panel shows release notes as plain text.
+	// Markdown, as GitHub release notes are written: the panel formats it.
 	constexpr auto offered_notes = "## What's new in 0.4.0\n"
 								   "\n"
 								   "- **Faster first open** of large pull requests.\n"
@@ -288,8 +290,8 @@ namespace {
 		composed.check();
 		until([&] { return composed.Desktop->projection().Phase == phase::available; }, "a check finds the offer");
 		expect(composed.headline() == QStringLiteral("Version 0.4.0 is available"), "offer headline");
-		const auto* notes = composed.Desktop->panel()->findChild<QPlainTextEdit*>(QStringLiteral("releaseUpdateNotes"));
-		expect(notes && notes->toPlainText() == QString::fromUtf8(offered_notes), "release notes are literal Markdown");
+		const auto* notes = composed.Desktop->panel()->findChild<QTextEdit*>(QStringLiteral("releaseUpdateNotes"));
+		expect(notes && notes->document()->begin().blockFormat().headingLevel() == 2 && notes->document()->begin().text() == QStringLiteral("What's new in 0.4.0"), "release notes are formatted Markdown");
 		render(composed, QStringLiteral("available"));
 
 		composed.Desktop->panel()->action(core::release_update_command::download)->trigger();

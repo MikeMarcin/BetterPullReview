@@ -1,20 +1,31 @@
 #include "bpr/qt/release_update_panel.hpp"
 
+#include "markdown_document.hpp"
+
 #include <QAccessible>
 #include <QAction>
 #include <QCheckBox>
 #include <QDateTime>
 #include <QEvent>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
-#include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextEdit>
+#include <QTextFormat>
+#include <QTextList>
 #include <QVBoxLayout>
+
+#include <cmath>
+#include <vector>
 
 #if defined(Q_OS_MACOS)
 	#include "release_update_menu_mac.hpp"
@@ -131,7 +142,7 @@ namespace bpr::qt {
 				return QStringLiteral("Not checked yet.");
 			}
 			const auto when   = QDateTime::fromSecsSinceEpoch(*aProjection.Preferences.LastSuccess).toLocalTime();
-			const auto locale = QLocale::system();
+			const auto locale = QLocale{ };
 			const auto time   = locale.toString(when.time(), QLocale::ShortFormat);
 			const auto today  = QDate::currentDate();
 			const auto date   = when.date();
@@ -150,14 +161,14 @@ namespace bpr::qt {
 		}
 		auto size(std::uint64_t aBytes) -> QString
 		{
-			return QLocale::system().formattedDataSize(static_cast<qint64>(aBytes), 1, QLocale::DataSizeSIFormat);
+			return QLocale{ }.formattedDataSize(static_cast<qint64>(aBytes), 1, QLocale::DataSizeSIFormat);
 		}
 		auto joined(const QString& aFirst, const QString& aSecond) -> QString
 		{
 			return aFirst.isEmpty() ? aSecond : aSecond.isEmpty() ? aFirst
 																  : aFirst + QLatin1Char(' ') + aSecond;
 		}
-		auto detail(const application::release_update_projection& aProjection) -> QString
+		auto detail_line(const application::release_update_projection& aProjection) -> QString
 		{
 			switch (aProjection.Phase) {
 			case phase::checking: return installed(aProjection);
@@ -210,6 +221,97 @@ namespace bpr::qt {
 			return (aProjection.OfferVisible && aProjection.Phase == phase::available) || !aProjection.AutomaticAvailable || aProjection.Reason == reason::installer_unavailable || aProjection.Reason == reason::inaccessible
 				|| aProjection.Reason == reason::no_compatible_asset || (aProjection.Phase == phase::ready && !enabled(aProjection, command::install));
 		}
+		/// Release notes are untrusted remote text: GitHub's Markdown dialect
+		/// without HTML, so a tag reads as written, through a document that
+		/// loads no resource ([[BPR-1671]] v002).
+		constexpr auto notes_features = QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML;
+		/// Headings stay below the panel's headline: a little larger than the
+		/// text, in semibold.
+		auto notes_heading(const QFont& aBase, int aLevel) -> QTextCharFormat
+		{
+			const auto factor = aLevel == 1 ? 1.15 : aLevel == 2 ? 1.07
+																 : 1.0;
+			auto       chars  = QTextCharFormat{ };
+			chars.setProperty(QTextFormat::FontSizeAdjustment, 0);
+			if (aBase.pointSizeF() > 0.0) {
+				chars.setFontPointSize(aBase.pointSizeF() * factor);
+			} else if (aBase.pixelSize() > 0) {
+				chars.setProperty(QTextFormat::FontPixelSize, static_cast<int>(std::lround(aBase.pixelSize() * factor)));
+			}
+			chars.setFontWeight(QFont::DemiBold);
+			return chars;
+		}
+		/// The panel follows no link and shows no image: a link reads as its
+		/// text, and an image as its alternative text. The release page stays
+		/// one button away.
+		void settle_notes(QTextDocument& aDocument, const QFont& aBase)
+		{
+			struct span
+			{
+				int             Position = 0;
+				int             Length   = 0;
+				QTextCharFormat Format;
+				bool            Image = false;
+				QString         Text;
+			};
+			// Spans are read first and changed after, last first, so a
+			// replacement moves no position still to be visited.
+			std::vector<span> spans;
+			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
+				auto format = block.blockFormat();
+				if (block.textList() != nullptr) {
+					format.setTopMargin(0.0);
+					format.setBottomMargin(2.0);
+				}
+				// A later heading opens a section, so it keeps space above.
+				if (format.headingLevel() > 0) {
+					format.setTopMargin(10.0);
+					format.setBottomMargin(3.0);
+				}
+				if (block == aDocument.begin()) {
+					format.setTopMargin(0.0);
+				}
+				QTextCursor{ block }.setBlockFormat(format);
+				const auto level = format.headingLevel();
+				for (auto it = block.begin(); !it.atEnd(); ++it) {
+					const auto fragment = it.fragment();
+					auto       chars    = fragment.charFormat();
+					if (chars.isImageFormat()) {
+						auto plain = QTextCharFormat{ chars };
+						plain.setObjectType(QTextFormat::NoObject);
+						plain.clearProperty(QTextFormat::ImageName);
+						plain.clearProperty(QTextFormat::ImageTitle);
+						plain.clearProperty(QTextFormat::ImageAltText);
+						plain.clearProperty(QTextFormat::ImageWidth);
+						plain.clearProperty(QTextFormat::ImageHeight);
+						plain.clearProperty(QTextFormat::ImageQuality);
+						spans.push_back({ .Position = fragment.position(), .Length = fragment.length(), .Format = plain, .Image = true, .Text = chars.stringProperty(QTextFormat::ImageAltText).repeated(fragment.length()) });
+						continue;
+					}
+					if (chars.isAnchor() || chars.hasProperty(QTextFormat::AnchorHref)) {
+						chars.setAnchor(false);
+						chars.clearProperty(QTextFormat::AnchorHref);
+						chars.clearProperty(QTextFormat::AnchorName);
+						chars.clearForeground();
+						chars.setFontUnderline(false);
+					}
+					if (level > 0) {
+						chars.merge(notes_heading(aBase, level));
+					}
+					spans.push_back({ .Position = fragment.position(), .Length = fragment.length(), .Format = chars });
+				}
+			}
+			auto cursor = QTextCursor{ &aDocument };
+			for (auto it = spans.rbegin(); it != spans.rend(); ++it) {
+				cursor.setPosition(it->Position);
+				cursor.setPosition(it->Position + it->Length, QTextCursor::KeepAnchor);
+				if (it->Image) {
+					cursor.insertText(it->Text, it->Format);
+				} else {
+					cursor.setCharFormat(it->Format);
+				}
+			}
+		}
 	}
 	release_update_panel::release_update_panel(QWidget* aParent)
 		: QWidget{ aParent }
@@ -234,11 +336,17 @@ namespace bpr::qt {
 		Progress->setAccessibleName(QStringLiteral("Download progress"));
 		Progress->setRange(0, 1000);
 		Progress->setTextVisible(false);
-		Notes = new QPlainTextEdit{ this };
+		Notes = new QTextEdit{ this };
 		Notes->setObjectName(QStringLiteral("releaseUpdateNotes"));
 		Notes->setAccessibleName(QStringLiteral("Release notes"));
+		Notes->setDocument(new detail::markdown_document{ Notes });
 		Notes->setReadOnly(true);
-		Notes->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+		Notes->setAcceptRichText(false);
+		Notes->setUndoRedoEnabled(false);
+		Notes->setTabChangesFocus(true);
+		// Selectable only: no link is reachable by mouse or keyboard.
+		Notes->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		Notes->setLineWrapMode(QTextEdit::WidgetWidth);
 		Notes->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		Notes->setMinimumHeight(120);
 		Notes->setMaximumHeight(180);
@@ -303,7 +411,17 @@ namespace bpr::qt {
 		QWidget::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::FontChange) {
 			emphasize();
+			present_notes();
 		}
+	}
+	void release_update_panel::present_notes()
+	{
+		auto* document = Notes->document();
+		document->setDefaultFont(font());
+		document->setIndentWidth(24.0);
+		document->setDocumentMargin(8.0);
+		document->setMarkdown(NotesSource, notes_features);
+		settle_notes(*document, font());
 	}
 	void release_update_panel::set_dispatch(application::release_update_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
 	auto release_update_panel::action(command aCommand) const -> QAction* { return Actions.at(aCommand); }
@@ -316,7 +434,7 @@ namespace bpr::qt {
 		}
 		Automatic->setVisible(aProjection.AutomaticAvailable);
 		const auto text = headline(aProjection);
-		const auto line = detail(aProjection);
+		const auto line = detail_line(aProjection);
 		Detail->setText(line);
 		Detail->setVisible(!line.isEmpty());
 		// One polite announcement per new headline, carrying its detail;
@@ -327,8 +445,9 @@ namespace bpr::qt {
 			QAccessible::updateAccessibility(&event);
 		}
 		const auto notes = aProjection.OfferVisible ? QString::fromStdString(aProjection.Notes) : QString{ };
-		if (Notes->toPlainText() != notes) {
-			Notes->setPlainText(notes);
+		if (NotesSource != notes) {
+			NotesSource = notes;
+			present_notes();
 		}
 		Notes->setVisible(!notes.isEmpty());
 		Progress->setVisible(aProjection.Phase == phase::downloading);

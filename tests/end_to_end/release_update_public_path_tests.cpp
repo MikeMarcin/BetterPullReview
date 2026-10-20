@@ -23,16 +23,23 @@
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFont>
 #include <QLabel>
 #include <QMenuBar>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextEdit>
+#include <QTextList>
 #include <QThread>
+#include <QUrl>
 
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 
 namespace {
 	using namespace bpr;
@@ -40,7 +47,13 @@ namespace {
 	using command = core::release_update_command;
 	using reason  = core::release_update_reason;
 	using bpr::tests::expect;
-	void until(const std::function<bool()>& aCondition, const char* aMessage, int aMilliseconds = 12000)
+	// Untrusted remote text: Markdown with an HTML tag, a link and images
+	// whose sources, remote and local, must never load.
+	constexpr auto fixture_notes = "# Fixture release\n"
+								   "\n"
+								   "- <b>Fixture private release notes</b>\n"
+								   "- See [the changelog](https://example.invalid/changes) ![tracker](https://example.invalid/pixel.png) ![local](pixel.png)\n";
+	void           until(const std::function<bool()>& aCondition, const char* aMessage, int aMilliseconds = 12000)
 	{
 		QElapsedTimer timer;
 		timer.start();
@@ -65,7 +78,7 @@ namespace {
 		auto                  latest(std::stop_token) -> application::release_update_check_result override
 		{
 			++Checks;
-			return { Failure, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 10U }, "v2.3.4", false, false, { { core::release_update_asset_id{ 20U }, "BetterPullReview-2.3.4-macos-universal.zip", 100U, { }, true } } }, 0U, "<b>Fixture private release notes</b>" };
+			return { Failure, { core::release_update_source::better_pull_review_github_com, core::release_update_release_id{ 10U }, "v2.3.4", false, false, { { core::release_update_asset_id{ 20U }, "BetterPullReview-2.3.4-macos-universal.zip", 100U, { }, true } } }, 0U, std::string{ fixture_notes } };
 		}
 		auto download(const core::release_update_candidate&     aCandidate, std::stop_token,
 					  const std::function<void(std::uint64_t)>& aProgress) -> application::release_update_download_result override
@@ -213,8 +226,33 @@ namespace {
 			expect(desktop->panel()->grab().save(screenshot), "fixture-only offer capture");
 		}
 		expect(desktop->projection().Preferences.LastSuccess == time->Time.WallSeconds, "successful timestamp projected");
-		const auto* notes = panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseUpdateNotes"));
-		expect(notes && notes->isReadOnly() && notes->toPlainText() == QStringLiteral("<b>Fixture private release notes</b>"), "release notes remain literal plain text");
+		const auto* notes = panel->findChild<QTextEdit*>(QStringLiteral("releaseUpdateNotes"));
+		expect(notes && notes->isReadOnly() && !notes->isHidden(), "release notes show read-only beside the offer");
+		expect(!(notes->textInteractionFlags() & (Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard)), "release notes follow no link");
+		auto* document = notes->document();
+		expect(document->begin().blockFormat().headingLevel() == 1 && document->begin().text() == QStringLiteral("Fixture release"), "a Markdown heading renders as a heading");
+		expect(document->begin().begin().fragment().charFormat().fontWeight() >= QFont::DemiBold, "the heading is set in semibold");
+		auto items = 0;
+		auto tag   = false;
+		for (auto block = document->begin(); block.isValid(); block = block.next()) {
+			items += block.textList() != nullptr ? 1 : 0;
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				expect(!fragment.charFormat().isImageFormat(), "no image object is laid out");
+				expect(!fragment.charFormat().isAnchor() && !fragment.charFormat().hasProperty(QTextFormat::AnchorHref), "no link destination remains");
+				if (fragment.text().contains(QStringLiteral("<b>Fixture private release notes</b>"))) {
+					tag = block.textList() != nullptr;
+					expect(fragment.charFormat().fontWeight() < QFont::DemiBold, "an HTML tag is not interpreted as bold");
+				}
+			}
+		}
+		expect(items == 2, "a Markdown list renders as two list items");
+		expect(tag, "an HTML tag reads as its literal text inside the list item");
+		const auto text = notes->toPlainText();
+		expect(text.contains(QStringLiteral("See the changelog tracker local")) && !text.contains(QStringLiteral("example.invalid")), "a link reads as its text and an image as its alternative text");
+		expect(document->resource(QTextDocument::ImageResource, QUrl{ QStringLiteral("https://example.invalid/pixel.png") }).toByteArray().isEmpty()
+				   && document->resource(QTextDocument::ImageResource, QUrl{ QStringLiteral("pixel.png") }).toByteArray().isEmpty(),
+			   "release notes load no remote or local resource");
 		panel->action(command::later)->trigger();
 		expect(!desktop->projection().OfferVisible, "Later hides current offer");
 		panel->action(command::check)->trigger();

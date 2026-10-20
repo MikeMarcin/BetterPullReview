@@ -4,6 +4,7 @@
 #include "bpr/application/release_update_projection.hpp"
 
 #include <QPointer>
+#include <QString>
 #include <QWidget>
 #include <functional>
 #include <map>
@@ -16,15 +17,16 @@ class QHBoxLayout;
 class QLabel;
 class QMenuBar;
 class QProgressBar;
-class QPlainTextEdit;
 class QPushButton;
+class QTextEdit;
 
 namespace bpr::qt {
 	/// \brief Shared updater presentation for Settings and the standalone release offer.
 	///
 	/// One headline states where the update stands and one quiet line explains
 	/// it. Only commands the core currently allows are shown; the most
-	/// consequential of them is the default button ([[BPR-1671]]).
+	/// consequential of them is the default button ([[BPR-1671]]). Release
+	/// notes read as formatted Markdown, without HTML, resources or links.
 	class release_update_panel final : public QWidget
 	{
 	public:
@@ -38,6 +40,7 @@ namespace bpr::qt {
 
 	private:
 		void                                                 emphasize();
+		void                                                 present_notes();
 		application::release_update_dispatch                 Dispatch;
 		application::release_update_projection               Projection;
 		std::map<core::release_update_command, QAction*>     Actions;
@@ -45,11 +48,12 @@ namespace bpr::qt {
 		QCheckBox*                                           Automatic = nullptr;
 		QLabel*                                              Status    = nullptr;
 		QLabel*                                              Detail    = nullptr;
-		QPlainTextEdit*                                      Notes     = nullptr;
-		QLabel*                                              Notice    = nullptr;
-		QProgressBar*                                        Progress  = nullptr;
-		QPushButton*                                         View      = nullptr;
-		QHBoxLayout*                                         Row       = nullptr;
+		QTextEdit*                                           Notes     = nullptr;
+		QString                                              NotesSource;
+		QLabel*                                              Notice   = nullptr;
+		QProgressBar*                                        Progress = nullptr;
+		QPushButton*                                         View     = nullptr;
+		QHBoxLayout*                                         Row      = nullptr;
 	};
 	/// \brief Keeps one visible macOS application-menu gesture across window and desktop bars.
 	class release_update_menu final : public QObject

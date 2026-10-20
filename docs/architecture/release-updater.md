@@ -97,9 +97,16 @@ refuses; an absent digest does not weaken the later native trust requirement.
 
 | Bound | Initial limit |
 |---|---|
-| Metadata / assets / plain-text notes | 1 MiB / 128 / 32 KiB |
+| Metadata / assets / release notes | 1 MiB / 128 / 32 KiB |
 | Archive / expanded data / archive entries | 512 MiB / 2 GiB / 50,000 |
 | Metadata / download / verification time | 30 seconds / 15 minutes / 5 minutes |
+
+Release notes stay untrusted text up to the panel, which reads them as
+GitHub-dialect Markdown with HTML off (`MarkdownNoHTML`), so a tag shows as
+written. Its document is the Qt adapter's resource-denying `markdown_document`,
+so no image or other resource loads, remote or local. The panel follows no
+link: a link reads as its text and an image as its alternative text, and the
+release page stays one button away ([[BPR-1671]]).
 
 Core enforces asset count and selected advertised archive size. The native
 transport enforces headers, content types, actual streaming bounds, cancellation

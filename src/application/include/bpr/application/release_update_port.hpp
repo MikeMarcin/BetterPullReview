@@ -97,7 +97,7 @@ namespace bpr::application {
 	/// No progress callback may outlive download(). Credentials go only to API origin;
 	/// redirects use the packaged HTTPS allowlist and strip credentials/cookies. No
 	/// URLs, wire bodies or credentials belong in results or diagnostics. Bounded
-	/// plain-text release notes are transient projection content, never persisted.
+	/// release notes are untrusted transient projection text, never persisted.
 	class release_update_access_port
 	{
 	public:
