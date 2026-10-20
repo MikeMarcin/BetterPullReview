@@ -12,7 +12,9 @@
 #include "github_release_update.hpp"
 #include "system_browser_opener.hpp"
 
+#include <QByteArray>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QGroupBox>
 #include <QLayout>
 #include <QPointer>
@@ -115,9 +117,7 @@ namespace bpr::app {
 				static_cast<void>(root);
 #endif
 				self->Decisions.post([self, version, staging, store, boundary, capability, installer] {
-					self->Public = release_update_account{ "public:github.com", "Public releases (no sign-in)", [](core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore, std::function<void(std::shared_ptr<application::release_update_access_port>)> aDone) {
-															  aDone(adapters::github::detail::make_public_release_update_access(aIdentity, std::move(aStore)));
-														  } };
+					self->Public = release_update_public_account();
 					self->Accounts.insert(self->Accounts.begin(), *self->Public);
 					self->start({ version, capability, std::make_shared<update_clock>(), store, staging, staging,
 								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } }, installer });
@@ -259,6 +259,16 @@ namespace bpr::app {
 			Access.reset();
 		}
 	};
+	auto release_update_public_account() -> release_update_account
+	{
+		// The store keeps only an empty binding or 64 lowercase hex digits,
+		// which an account's SHA-256 binding is; a readable label was refused,
+		// so no update setting saved ([[BPR-1672]]).
+		auto binding = QCryptographicHash::hash(QByteArrayLiteral("BetterPullReview release access:public:github.com"), QCryptographicHash::Sha256).toHex().toStdString();
+		return { std::move(binding), "Public releases (no sign-in)", [](core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore, std::function<void(std::shared_ptr<application::release_update_access_port>)> aDone) {
+					aDone(adapters::github::detail::make_public_release_update_access(aIdentity, std::move(aStore)));
+				} };
+	}
 	release_update_desktop::release_update_desktop(std::shared_ptr<implementation> aImpl)
 		: Impl{ std::move(aImpl) }
 	{ }

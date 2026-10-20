@@ -21,6 +21,12 @@ namespace bpr::app {
 						   std::function<void(std::shared_ptr<application::release_update_access_port>)>)>
 			Acquire;
 	};
+	/// \brief [[BPR-1669]]. The credential-free public release access the
+	/// native composition offers first.
+	/// \details [[BPR-1672]]. Its binding is the lowercase hex SHA-256 of a
+	/// fixed label, the form the update store keeps for any account, so update
+	/// settings save with it as they do with a signed-in account.
+	[[nodiscard]] auto release_update_public_account() -> release_update_account;
 	/// \brief Public composition dependencies, supplied by native startup or isolated fixtures.
 	struct release_update_components
 	{

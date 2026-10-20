@@ -9,9 +9,11 @@ binds actual evidence and gaps. Installation and recovery instructions are in
 ## Authority and network
 
 The updater is one desktop-wide application service, independent of the selected
-review profile. The user explicitly chooses an accepted native GitHub.com account
-with access to the private fixed distribution repository. The native adapter
-retrieves its credential through the existing vault and exports only a revocable
+review profile. The fixed distribution repository's releases are public, so the
+native composition offers a credential-free release lease first and selects it
+unless a stored accepted native GitHub.com account is still offered
+([[BPR-1669]], [[BPR-1671]]). For such an account the native adapter retrieves
+its credential through the existing vault and exports only a revocable
 release-read capability. No token reaches core, Qt presentation, SQLite, helper arguments or
 logs. GHES and GitHub CLI credentials cannot be borrowed. Sign-out/replacement
 revokes the lease, cancels work and invalidates pending generations; installation

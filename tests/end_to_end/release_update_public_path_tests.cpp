@@ -36,6 +36,7 @@
 #include <QThread>
 #include <QUrl>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -306,6 +307,41 @@ namespace {
 		desktop->shutdown();
 		until([&] { return desktop->quiescent(); }, "install public course drains");
 	}
+	/// [[BPR-1672]]. A self-updating build offers the public releases first,
+	/// and its update settings must save with that access selected. The
+	/// readable "public:github.com" binding was refused by the store, so
+	/// every save failed and the panel said settings reset on quit.
+	void public_release_access_persists()
+	{
+		QTemporaryDir                        temporary;
+		const auto                           store = adapters::sqlite::make_release_update_store(root(temporary));
+		auto                                 time  = std::make_shared<clock>();
+		auto                                 wire  = std::make_shared<access>();
+		application::release_update_settings initial;
+		initial.Preferences.AutomaticChecks = false;
+		expect(store->save(initial), "initial preferences saved without access");
+		const auto publicAccess = app::release_update_public_account();
+		expect(publicAccess.Binding.size() == 64U && std::ranges::all_of(publicAccess.Binding, [](char aValue) { return (aValue >= '0' && aValue <= '9') || (aValue >= 'a' && aValue <= 'f'); }),
+			   "the public binding has an account binding's form");
+		// The native binding and label; only the lease is the fixture's, so no
+		// check reaches GitHub.
+		auto                desktop = app::release_update_desktop::start({ "2.3.3", core::release_update_capability::eligible, time, store, { }, { }, [](std::string) { } });
+		qt::settings_window settings;
+		desktop->attach(settings);
+		desktop->set_accounts({ { publicAccess.Binding, publicAccess.Label, [wire](auto, auto, auto aDone) { aDone(wire); } } });
+		until([&] { return desktop->projection().Installed && desktop->projection().Commands.front().enabled() && desktop->quiescent(); }, "the public releases are selected");
+		expect(desktop->durable(), "update settings save with the public releases selected");
+		auto* automatic = settings.findChild<QCheckBox*>(QStringLiteral("releaseUpdateAutomatic"));
+		expect(automatic && !automatic->isChecked(), "automatic checks start off");
+		automatic->click();
+		until([&] { return desktop->quiescent(); }, "the preference flushes");
+		expect(desktop->durable() && settings.findChild<QLabel*>(QStringLiteral("releaseUpdateNotice"))->isHidden(), "no unsaved-settings notice");
+		desktop->shutdown();
+		until([&] { return desktop->quiescent(); }, "public course drains");
+		desktop.reset();
+		const auto persisted = store->load();
+		expect(persisted && persisted->AccountBinding == publicAccess.Binding && persisted->Preferences.AutomaticChecks, "the public binding and the preference persist");
+	}
 	void unavailable_installations()
 	{
 		const auto binding = std::string(64U, 'a');
@@ -504,6 +540,7 @@ try {
 #endif
 	root_wiring();
 	gestures_restart_and_staging();
+	public_release_access_persists();
 	unavailable_installations();
 	std::cout << "release-update-public-path:pass\n";
 	return EXIT_SUCCESS;
