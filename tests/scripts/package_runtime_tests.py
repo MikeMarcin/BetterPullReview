@@ -123,7 +123,7 @@ class PackageRuntimeTests(unittest.TestCase):
         inputs = {entry["path"]: entry["sha256"] for entry in item["buildInputs"]}
         self.assertEqual(set(inputs), {"third_party/git-xdiff/git-compat-util.h", "third_party/git-xdiff/bpr-xdiff-regex.h",
                                        "cmake/BprXdiffProvider.cmake", "cmake/Hardening.cmake",
-                                       "third_party/git-xdiff/rebuild/CMakeLists.txt", "third_party/git-xdiff/rebuild/README.md"})
+                                       "third_party/git-xdiff/rebuild/CMakeLists.txt", "third_party/git-xdiff/rebuild/README.md", "LICENSE"})
         for path, value in inputs.items():
             self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), value,
                              f"{path} changed: update its buildInputs digest in packaging/dependencies.json")
@@ -145,14 +145,16 @@ class PackageRuntimeTests(unittest.TestCase):
             upstream.write_bytes(b"upstream")
             relative = "packaging/DISTRIBUTION.txt"
             declared = [{"name": "Example", "version": "1", "url": "https://example.invalid/source.tar.gz", "sha256": runtime.digest(upstream),
-                         "buildInputs": [{"path": relative, "sha256": runtime.digest(ROOT / relative)}]}]
+                         "buildInputs": [{"path": relative, "sha256": runtime.digest(ROOT / relative)},
+                                         {"path": "LICENSE", "sha256": runtime.digest(ROOT / "LICENSE")}]}]
             info = {"platform": "Linux", "version": "1.2.3"}
             with patch.object(runtime, "components", return_value=declared), patch.object(runtime, "run", return_value="a" * 40):
                 provenance = runtime.prepare_source_asset(build, info, stage, {"Example": upstream}, None)
                 asset = runtime.source_asset_path(build, info, "a" * 40)
                 with zipfile.ZipFile(asset) as archive:
-                    self.assertEqual(sorted(archive.namelist()), ["Example-1-build/" + relative, "Example-1.tar.gz"])
+                    self.assertEqual(sorted(archive.namelist()), ["Example-1-build/LICENSE", "Example-1-build/" + relative, "Example-1.tar.gz"])
                     self.assertEqual(archive.read("Example-1-build/" + relative), (ROOT / relative).read_bytes())
+                    self.assertEqual(archive.read("Example-1-build/LICENSE"), (ROOT / "LICENSE").read_bytes())
                 runtime.verify_source_asset(asset, provenance)
                 self.assertEqual(provenance["components"], declared)
                 # A changed build input is refused, never shipped silently.
@@ -219,10 +221,10 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertEqual(item["qtRuntime"]["qtVersion"], "6.11.2")
         self.assertEqual(set(item["qtRuntime"]["files"]), {"libicudata.so.73", "libicuuc.so.73", "libicui18n.so.73"})
         self.assertEqual({entry["path"] for entry in item["buildInputs"]},
-                         {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md"})
+                         {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md", "LICENSE"})
         for entry in item["buildInputs"]:
             self.assertEqual(runtime.digest(ROOT / entry["path"]), entry["sha256"])
-        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 29)
+        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 31)
         notice = ROOT / "third_party/icu/LICENSE"
         self.assertIn(hashlib.sha256(notice.read_bytes()).hexdigest(), (notice.parent / "PROVENANCE.md").read_text())
         self.assertIn("ICU License - ICU 1.8.1 to ICU 57.1", notice.read_text())
@@ -581,6 +583,10 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                         patch.object(runtime, "run", side_effect=["a" * 40, "", "2026-10-19T00:00:00+00:00"]):
                     runtime.audit(root, info, stage, output)
                 final = json.loads(output.read_text())
+                product = next(item for item in final["packages"] if item["SPDXID"] == "SPDXRef-BetterPullReview")
+                self.assertEqual(product["licenseDeclared"], "MIT")
+                self.assertEqual(product["licenseConcluded"], "NOASSERTION")
+                self.assertEqual(product["copyrightText"], "Copyright (c) 2026 BetterPullReview contributors")
                 self.assertTrue({"Svg", "WebPPlugin", "BundledWebP"}.issubset({item["name"] for item in final["packages"]}))
                 self.assertTrue({"QtSvg", "QtImageFormats"}.issubset({item["name"] for item in provenance["components"]}))
                 notices = (legal / "THIRD-PARTY-NOTICES.txt").read_text()
@@ -654,6 +660,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                       patch.object(runtime.urllib.request, "urlopen") as network):
                     runtime.notices(build, info, stage)
                     notices = (runtime.legal_root(stage, info) / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
+                    self.assertIn((ROOT / "LICENSE").read_text(encoding="utf-8"), notices)
                     self.assertIn("libwebp-copying-ok", notices, "libwebp's licence travels with qwebp")
                     provenance = runtime.installed_source_provenance(stage, info, "a" * 40)
                     asset = runtime.source_asset_path(build, info, "a" * 40)

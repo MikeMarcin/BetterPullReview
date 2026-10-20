@@ -105,7 +105,11 @@ in the [documentation index](docs/README.md), [RFCs](docs/rfcs/README.md) and
 [issue board](docs/issues/README.md). Builds, tests and releases run locally or
 on the target platform; GitHub Actions is not used.
 
-## Third-party notices
+## License and third-party notices
+
+Original BetterPullReview code and documentation are licensed under the
+[MIT License](LICENSE). Third-party and adapted material retains its existing
+copyright and licence notices; this grant does not replace those terms.
 
 Packages include `THIRD-PARTY-NOTICES.txt` and `SOURCE-OFFERS.txt` in their
 `ThirdParty` directory (`Contents/Resources/ThirdParty` on macOS). Each release

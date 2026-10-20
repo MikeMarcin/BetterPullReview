@@ -378,7 +378,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
     provenance = prepare_source_asset(build, info, root, archives, source_archive)
     destination = legal_root(root, info)
     destination.mkdir(parents=True, exist_ok=True)
-    texts = [("Distribution notice", (ROOT / "packaging/DISTRIBUTION.txt").read_text())]
+    texts = [("Distribution notice", (ROOT / "packaging/DISTRIBUTION.txt").read_text()),
+             ("BetterPullReview original code and documentation (MIT)", (ROOT / "LICENSE").read_text(encoding="utf-8"))]
     source_reference = (f"Corresponding third-party source for BetterPullReview {info['version']} ({info['platform']}), "
                         f"producer {provenance['release']['sourceRevision']}.\n"
                         f"Separate release asset: {provenance['asset']['name']}\n"
@@ -701,8 +702,8 @@ def audit(build: Path, info: dict, root: Path, output: Path, source_archive: Pat
     source_clean = not run("git", "-C", ROOT, "status", "--porcelain").strip()
     records = qt_records(info, root)
     package = {"SPDXID": "SPDXRef-BetterPullReview", "name": "BetterPullReview", "versionInfo": info["version"],
-               "downloadLocation": "NOASSERTION", "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION",
-               "copyrightText": "NOASSERTION", "sourceInfo": product_source_info(info, revision, source_clean)}
+               "downloadLocation": "NOASSERTION", "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "licenseDeclared": "MIT",
+               "copyrightText": "Copyright (c) 2026 BetterPullReview contributors", "sourceInfo": product_source_info(info, revision, source_clean)}
     packages = [package]
     for item in records["packages"]:
         # Producer verification codes cover upstream files, not our relocated

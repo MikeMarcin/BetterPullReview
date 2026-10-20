@@ -463,13 +463,51 @@
     },
     "workflow_files_at_all_29_remote_tips": 0,
     "retained_bundle_verifies_in_empty_repository": true,
-    "bundle_verification_network_denied": true
+    "bundle_verification_network_denied": true,
+    "licence_checks": {
+      "network_denied": true,
+      "package_runtime_tests": {
+        "command": "python3 tests/scripts/package_runtime_tests.py",
+        "cases": 29,
+        "passed": 28,
+        "skipped": 1,
+        "skip_reason": "Linux CPack default requires a native Linux producer"
+      },
+      "release_source_assets_tests": {
+        "command": "python3 tests/scripts/release_source_assets_tests.py",
+        "cases": 21,
+        "passed": 21
+      },
+      "new_native_release_produced": false
+    },
+    "history_scan": {
+      "command": "python3 scripts/betterleaks.py history",
+      "exit_code": 1,
+      "findings": 18,
+      "all_known_retired_review_session_token": true,
+      "network_denied": true
+    }
   },
   "first_party_terms": {
-    "root_license_file": false,
-    "github_license": null,
-    "product_spdx_license": "NOASSERTION",
-    "owner_choice": "pending"
+    "owner_choice": "MIT",
+    "initial_observation": {
+      "root_license_file": false,
+      "github_license": null,
+      "product_spdx_license": "NOASSERTION"
+    },
+    "owner_reply": "MIT I guess? Isn't that what we put for MASK/ ATT and AgentSkills?",
+    "recorded_at": "2026-10-20T00:34:35.895209+00:00",
+    "copyright_convention": "Copyright (c) 2026 BetterPullReview contributors",
+    "convention_sources": [
+      "MikeMarcin/ManageAgentSkills/LICENSE",
+      "MikeMarcin/AgentSkills/LICENSE"
+    ],
+    "att_license_verified": false,
+    "license_file": "LICENSE",
+    "license_sha256": "598123e427835be2e530fa36e12ec7c39ff4405bfacbc7a2e1ffc17e9d00ff08",
+    "future_product_spdx_license_declared": "MIT",
+    "future_product_spdx_license_concluded": "NOASSERTION",
+    "existing_release_assets_changed": false
   },
   "history_decision": {
     "rewrite_recommended": false,

@@ -83,21 +83,41 @@ source archive or republish the old binaries as a repaired release. No source
 asset was deleted; these four releases had none. Later source assets remain
 unchanged and available with their matching binaries.
 
+## First-party licence
+
+The owner selected MIT after asking about MASK, ATT and AgentSkills. The local
+MASK and AgentSkills `LICENSE` files both use MIT and the convention
+`Copyright (c) 2026 <project> contributors`. A separate ATT licence could not
+be located in the connected projects or inspected repository inventory;
+its licence is not claimed verified.
+
+BPR now follows the verified convention in its root [LICENSE](../../LICENSE):
+`Copyright (c) 2026 BetterPullReview contributors`. The README limits this
+grant to original BPR material and preserves third-party and adapted-material
+notices. Future packages include the complete MIT notice and declare MIT for
+the BPR package in SPDX. Aggregate `licenseConcluded` remains `NOASSERTION`;
+dependency declarations are unchanged. The two source-helper bundles (xdiff
+and ICU) pin and carry the same licence text with their BPR build material.
+No existing release asset, SPDX or corresponding-source archive was rewritten.
+
+Focused licence checks ran with network access denied: package runtime tests
+passed 28 cases with one explicitly skipped Linux-native CPack check; all 21
+source-asset tests passed. These exercise emitted notices/SPDX, exact licence
+bytes in source helpers, digest refusal and publication preflight fixtures.
+They do not build or qualify new native distribution artifacts.
+
 ## Remaining publication steps
 
 | Step | Current evidence and required result |
 |---|---|
-| Choose first-party terms | There is no root licence file, GitHub returns `license: null`, and BPR's package SPDX uses `NOASSERTION`. The owner must choose the licence and copyright holder, or explicitly choose public source without an additional licence grant. A separate one-question wizard is prepared for this choice. Apply the result only to material BPR has authority to license; retain dependency and imported-material terms. |
 | Prepare the public operating policy | Add a concise `SECURITY.md` with the intended private reporting route and supported-version scope. Update private-only README/release instructions and deliberately adapt the publisher's private-repository guard before relying on it for public releases. Preserve source binding, signing and exact-artifact checks. |
 | Reconcile retained distribution material | Use the existing v0.3.0 and earlier exact-release records for the remaining binaries. Keep corresponding-source access and retention intact. The retired early releases do not need to be rebuilt merely to expose their Git tags, but past recipient obligations remain. Do not treat private package acceptance as blanket approval of new public distribution terms. |
 | Freeze and refresh the audit | Just before publication, record the exact proposed `main`, remote branch/tag set, releases/assets and hosted inventories. Scan changed content with the pinned offline scanner; reuse unchanged asset evidence only after matching IDs and digests. Confirm that the known retired token is still the only unresolved historical match. Stop on any new unexplained finding. |
 | Perform an explicitly authorized cutover | Push the reviewed local commits only when requested, confirm private visibility and Actions disabled, then change visibility only on the owner's explicit instruction. Verify anonymous repository, installer and exact corresponding-source access afterward. Inspect available security settings/alerts and the reporting route without sending a test vulnerability report. |
 
-Publishing source and selecting an open-source licence are separate decisions.
-GitHub explains that a repository without a licence retains default copyright
-restrictions, while a public GitHub repository permits viewing and forking
-under GitHub's terms. Choose the intended grant explicitly; making the
-repository public does not supply one. See
+The initial GitHub inventory still reports no recognised licence because the
+MIT adoption has not been pushed. Publication and licensing are separate;
+making a repository public does not itself supply an open-source grant. See
 [GitHub's licensing guide](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
 
 The current main-branch API reports `protected: false`; ruleset inventory

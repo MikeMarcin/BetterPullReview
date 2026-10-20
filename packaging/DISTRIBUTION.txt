@@ -1,8 +1,10 @@
 BetterPullReview
+Original BetterPullReview code and documentation are licensed under the MIT
+License. The complete first-party notice appears in THIRD-PARTY-NOTICES.txt.
 Third-party components retain their own licenses. THIRD-PARTY-NOTICES.txt,
 SOURCE-OFFERS.txt and the accompanying source and SBOM material describe them.
-This informational packaging notice does not set or change the first-party
-application's license. Owner approval of distribution terms remains a separate
-release gate. Nothing here restricts rights granted by third-party licenses, including
-modification of LGPL components or reverse engineering to debug modifications.
+The first-party grant does not replace third-party terms or source obligations.
+Release qualification remains separate. Nothing here restricts rights granted
+by third-party licenses, including modification of LGPL components or reverse
+engineering to debug modifications.
 No release artifact is authorized for publication merely by building it.
