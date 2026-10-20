@@ -33,7 +33,7 @@ credential fallback, new provider, network permission or UI design is added.
 - PLATFORM-2: each target passes the existing applicable anonymous composition,
   authority, provider/transport, Git/cache, SQLite and Qt course selectors;
   a bounded production-factory read of MikeMarcin/BPR-Test#1 observes a public
-  snapshot, no credential effects and at most twelve forwarded REST requests.
+  snapshot, no credential effects and at most fifteen forwarded REST requests.
 - PLATFORM-3: macOS selection stays enabled; public documentation states the
   actual verified platforms, documentation and focused composition gates pass,
   and the exact candidate/evidence and remaining qualification limits are recorded.
@@ -64,3 +64,16 @@ self-check of twelve forwards/thirteenth refusal across shared wrappers.
 The owner mandate permits this bounded verification repair. It adds no
 production operation or authority; PR 1 remains the designated public target.
 Preflight requires at least thirty anonymous requests remaining before a run.
+
+
+The twelve-request repair also stopped before the provider's final audit.
+The complete single-page control flow is ten content/status reads, one timeline,
+one exact merge base, one branch-tip merge base for an open PR, at most one
+conditional ancestry read, and one fresh PR confirmation: fifteen sends maximum
+(`github_provider.cpp`, BPR-1560/BPR-1572). Closed PRs omit branch-tip/ancestry;
+PR 1's unchanged base uses fourteen. The diagnostic ceiling is therefore fifteen,
+with independent synthetic coverage of that complete worst-case operation
+sequence plus a fifteen-page stream, shared replacement transports and refusal
+of a sixteenth send. This is the final derived bound, not a catalog count.
+Pagination may exceed it and is deliberately refused. The thirty-request
+preflight floor remains; wait for the real server reset when it is not met.

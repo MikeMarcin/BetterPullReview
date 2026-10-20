@@ -1669,7 +1669,8 @@ function(bpr_compute_full_application_digest source_variable out_variable)
 endfunction()
 
 # BPR-1664 diagnostic repair over 64b15f6fc: test-only bounded live
-# counting/self-check ceiling follows the existing twelve-kind REST catalog.
+# counting/self-check ceiling follows the complete fifteen-send single-page
+# content/timeline/merge-base audit, with independent sequence/page controls.
 # No product provider/mutation/authority change; native failure and recheck
 # are retained on BPR-1664.
 #
@@ -1687,7 +1688,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ff27be8d542c5ad240e67f5c54ed3728e88496097f892ab277ec7e9e9c9d6eab"
+		"c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1907,7 +1908,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "38a8de869e3fb9bfed53050dee2f19c55dfbd723e8ab86caf3c5c369fdc8e8b4"
+        "4b0e7b0739fef3e689f29c6034dc31c7e37090efa7f7df0c39dd3d3ab0af7ad5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

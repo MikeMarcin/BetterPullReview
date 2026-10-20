@@ -1938,9 +1938,9 @@ namespace bpr::app {
 				// rather than forwarded, so the retry costs nothing outside
 				// the process. A refused request is neither counted nor
 				// recorded, because the count is what reached the wire.
-				// Pagination shares this fixed diagnostic budget. Twelve slots
-				// cover the current REST catalog, including statuses, timeline
-				// and merge-base reads, without allowing an unbounded page stream.
+				// Pagination shares this fixed diagnostic budget. Fifteen slots
+				// cover the single-page read, timeline and worst-case merge-base
+				// audit/confirmation, without allowing an unbounded page stream.
 				if (Log->failed() || !reserve_request()) {
 					return adapters::github::detail::github_wire_cancelled{
 						.Correlation = aRequest.Correlation,
@@ -1982,7 +1982,7 @@ namespace bpr::app {
 			[[nodiscard]] auto reserve_request() noexcept -> bool
 			{
 				auto count = Requests->load(std::memory_order_relaxed);
-				while (count < 12U) {
+				while (count < 15U) {
 					if (Requests->compare_exchange_weak(
 							count, count + 1U, std::memory_order_relaxed)) {
 						return true;
@@ -21383,7 +21383,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& requests->load(std::memory_order_relaxed) == 1U
 				&& log->records().size() == 1U;
 
-			// An all-successful page stream must stop after twelve forwards,
+			// An all-successful page stream must stop after fifteen forwards,
 			// even if the factory creates another wrapper over the same budget.
 			auto successful   = std::make_shared<stub_wire_transport>(false);
 			auto pageRequests = std::make_shared<std::atomic<std::size_t>>(0U);
@@ -21391,7 +21391,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto pages        = counting_anonymous_wire_transport{
 				successful, pageRequests, probes, pageLog
 			};
-			for (auto page = std::uint32_t{ 1 }; page <= 12U; ++page) {
+			for (auto page = std::uint32_t{ 1 }; page <= 15U; ++page) {
 				request.Correlation.Page = page;
 				if (!std::holds_alternative<adapters::github::detail::github_wire_success>(
 						pages.perform(request, std::stop_token{ }))) {
@@ -21401,15 +21401,56 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto replacement = counting_anonymous_wire_transport{
 				successful, pageRequests, probes, pageLog
 			};
-			request.Correlation.Page = 13U;
+			request.Correlation.Page = 16U;
 			const auto refusedPage   = replacement.perform(request, std::stop_token{ });
 			const auto refusedRetry  = pages.perform(request, std::stop_token{ });
-			return forwardedFirst && refusedSecond
+			const auto pagesBounded  = forwardedFirst && refusedSecond
 				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedPage)
 				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedRetry)
-				&& successful->forwarded() == 12U
-				&& pageRequests->load(std::memory_order_relaxed) == 12U
-				&& pageLog->records().size() == 12U;
+				&& successful->forwarded() == 15U
+				&& pageRequests->load(std::memory_order_relaxed) == 15U
+				&& pageLog->records().size() == 15U;
+			if (!pagesBounded) {
+				return false;
+			}
+
+			// Current one-page production sequence: ten content/status reads,
+			// timeline, the recorded and branch-tip merge bases, the conditional
+			// ancestry check, then fresh PR confirmation (BPR-1560/BPR-1572).
+			// Keep these expectations separate from reserve_request's ceiling.
+			using adapters::github::detail::read_operation;
+			constexpr auto sequence = std::array{
+				read_operation::get_repository,
+				read_operation::get_pull_request,
+				read_operation::list_pull_request_files,
+				read_operation::list_pull_request_commits,
+				read_operation::list_reviews,
+				read_operation::list_review_comments,
+				read_operation::list_issue_comments,
+				read_operation::search_pull_requests,
+				read_operation::list_checks,
+				read_operation::list_commit_statuses,
+				read_operation::list_pull_request_timeline,
+				read_operation::get_merge_base,
+				read_operation::get_merge_base,
+				read_operation::get_merge_base,
+				read_operation::get_pull_request,
+			};
+			auto sequenceRequests    = std::make_shared<std::atomic<std::size_t>>(0U);
+			auto sequenceLog         = std::make_shared<anonymous_wire_operation_log>();
+			auto sequenceInner       = std::make_shared<stub_wire_transport>(false);
+			auto sequenceTransport   = counting_anonymous_wire_transport{ sequenceInner, sequenceRequests, probes, sequenceLog };
+			request.Correlation.Page = 1U;
+			for (const auto& operation : sequence) {
+				request.Correlation.Operation = operation;
+				if (!std::holds_alternative<adapters::github::detail::github_wire_success>(sequenceTransport.perform(request, std::stop_token{ }))) {
+					return false;
+				}
+			}
+			auto sequenceReplacement = counting_anonymous_wire_transport{ sequenceInner, sequenceRequests, probes, sequenceLog };
+			return sequenceInner->forwarded() == 15U && sequenceRequests->load(std::memory_order_relaxed) == 15U
+				&& sequenceLog->records().size() == 15U
+				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(sequenceReplacement.perform(request, std::stop_token{ }));
 		} catch (...) {
 			return false;
 		}
