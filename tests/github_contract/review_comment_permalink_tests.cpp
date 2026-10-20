@@ -1162,9 +1162,18 @@ namespace {
 			   "reply inherits root and never parses its own foreign link");
 		snapshot.ReviewThreads.front().Comments.front().Body = "Rendered display without the source URL.";
 		projected                                            = host.project(snapshot, source);
-		expect(node(projected, "review-comment:C_root").Body == "Rendered display without the source URL."
+		expect(node(projected, "review-comment:C_root").Body == body
 				   && node(projected, "review-comment:C_root").ReviewerProse == "Root prose.\nSecond line.",
-			   "raw Markdown drives placement while bodyText remains display text");
+			   "the original Markdown is the reading body while placement supplies its reviewer prose");
+		// [[BPR-1667]]. Overview opens Discuss before any source is selected.
+		// Review can recover prose from the raw permalink after selecting it;
+		// the ordinary projection must not call the same nonempty body missing.
+		snapshot.ReviewThreads.front().Comments.front().Body.clear();
+		const auto unplaced = host.project(snapshot, std::nullopt);
+		projected           = host.project(snapshot, source);
+		expect(node(unplaced, "review-comment:C_root").Body == body
+				   && node(projected, "review-comment:C_root").ReviewerProse == "Root prose.\nSecond line.",
+			   "Discuss before source selection and Review after placement both retain the same comment's real raw body");
 		const auto decoded = placementDecodes;
 		projected          = host.project(snapshot, source);
 		expect(placementDecodes == decoded, "unchanged root is not decoded again");

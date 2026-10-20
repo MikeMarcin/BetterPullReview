@@ -794,6 +794,15 @@ namespace bpr::qt {
 		height_changed();
 	}
 
+	void markdown_body_view::set_empty_body_text(QString aText)
+	{
+		EmptyBodyText = aText.isEmpty() ? QStringLiteral("No body provided.") : std::move(aText);
+		if (Body.empty() && Fallback.isEmpty()) {
+			Notice->setText(EmptyBodyText);
+			height_changed();
+		}
+	}
+
 	void markdown_body_view::refresh_mark()
 	{
 		if (BodyMark.Label.has_value() && MarkTheme.has_value()) {
@@ -1071,7 +1080,7 @@ namespace bpr::qt {
 		Rendered->verticalScrollBar()->setValue(0);
 		Rendered->horizontalScrollBar()->setValue(0);
 		Rendered->reset_links();
-		Notice->setText(!Fallback.isEmpty() ? Fallback : Body.empty() ? QStringLiteral("No body provided.")
+		Notice->setText(!Fallback.isEmpty() ? Fallback : Body.empty() ? EmptyBodyText
 																	  : QString{ });
 		Notice->setVisible(!Notice->text().isEmpty());
 		Toggle->setEnabled(RenderedAvailable);

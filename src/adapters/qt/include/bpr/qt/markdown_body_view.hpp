@@ -75,6 +75,8 @@ namespace bpr::qt {
 
 		/// \brief Replaces one admitted body; identical identity and bytes are a no-op.
 		void set_body(std::string aBody, std::string aIdentity);
+		/// \brief Names the owning surface's empty-body state; empty text restores the default.
+		void set_empty_body_text(QString aText);
 		/// \brief Discards both documents and all local reading/link state.
 		void clear();
 		/// \brief Binds untrusted link gestures to the application admission lane.
@@ -195,6 +197,7 @@ namespace bpr::qt {
 
 		std::string                                                                 Body;
 		std::string                                                                 Identity;
+		QString                                                                     EmptyBodyText = QStringLiteral("No body provided.");
 		std::function<void(const std::string&)>                                     LinkDispatch;
 		std::function<void(QMenu&)>                                                 ContextMenuBuilder;
 		std::function<void(std::vector<core::markdown_image_reference>)>            ImageDispatch;

@@ -14,12 +14,14 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QContextMenuEvent>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -221,6 +223,86 @@ Final content: Ω 日本語 🦊
 		settle();
 		expect(aWindow.grab().save(root + '/' + aName + ".png"), "composed native capture saved");
 	}
+
+	/// \brief [[BPR-1667]]. The owner's Overview -> new comments route,
+	/// with separately identified review summaries and inline comment bodies.
+	void check_discuss_bodies(qt::workbench_window& aWindow, const std::string& aRootBody)
+	{
+		aWindow.present_new_conversation_comments(3U);
+		aWindow.choose_modality(qt::review_modality::overview);
+		settle();
+		auto* const go = aWindow.overview_page()->new_conversation_button();
+		expect(go != nullptr && go->isEnabled(), "Overview offers the new-comments route");
+		go->click();
+		settle();
+		expect(aWindow.current_modality() == qt::review_modality::discuss, "Overview new comments opens Discuss");
+		auto* const cards     = aWindow.conversation_panel()->cards();
+		const auto  readerFor = [cards](const std::string& aPost) -> qt::markdown_body_view* {
+			const auto found = std::ranges::find_if(cards->cards(), [&aPost](const auto& aCard) {
+				return std::ranges::any_of(aCard.Posts, [&aPost](const auto& aEntry) { return aEntry.Id == aPost; });
+			});
+			expect(found != cards->cards().end(), "the exact comment identity has a card");
+			const auto thread = found->Id;
+			cards->open_thread_at(thread, aPost);
+			settle();
+			for (auto* const post : cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString() == QString::fromStdString(aPost)) {
+					return dynamic_cast<qt::markdown_body_view*>(post->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+				}
+			}
+			return nullptr;
+		};
+		const auto emptyNotice = [](const qt::markdown_body_view& aReader) {
+			return std::ranges::any_of(aReader.findChildren<QLabel*>(), [](const auto* aLabel) {
+				return !aLabel->isHidden() && aLabel->text() == QStringLiteral("No body provided.");
+			});
+		};
+		const auto summaryNotice = [](const qt::markdown_body_view& aReader, const QString& aExpected) {
+			return std::ranges::any_of(aReader.findChildren<QLabel*>(), [&aExpected](const auto* aLabel) {
+				return !aLabel->isHidden() && aLabel->text() == aExpected;
+			});
+		};
+		for (const auto& id : { "review-comment:root", "review-comment:reply", "public-preview-comment:rest-root", "issue-comment:issue" }) {
+			auto* const reader   = readerFor(id);
+			const auto  expected = std::string_view{ id } == "review-comment:root" ? aRootBody : std::string{ corpus };
+			expect(reader != nullptr && reader->original_body() == expected && emptyNotice(*reader) == expected.empty(), "Discuss shows the exact original comment body and reports only actual empty bodies");
+			reader->copy_source();
+			expect(QApplication::clipboard()->mimeData()->data("text/plain").toStdString() == expected, "Discuss copies the exact original Markdown for this comment identity");
+		}
+		auto* const empty = readerFor("issue-comment:empty");
+		expect(empty != nullptr && empty->original_body().empty() && emptyNotice(*empty), "an actual empty comment retains the explicit empty-body state");
+		auto* const approved = readerFor("review:approved");
+		expect(approved != nullptr && approved->original_body().empty() && !emptyNotice(*approved)
+				   && summaryNotice(*approved, QStringLiteral("No overall review comment.")),
+			   "an approval without a summary says so without borrowing any comment's body");
+		auto* const summary = readerFor("review:summary");
+		expect(summary != nullptr && summary->original_body().empty() && !emptyNotice(*summary)
+				   && summaryNotice(*summary, QStringLiteral("No overall review comment. 1 file comment is linked below.")),
+			   "an empty commented review distinguishes its missing summary from its linked file comment");
+		capture(aWindow, QStringLiteral("discuss-empty-summary"));
+		auto* const fileComment = cards->open_card()->findChild<QToolButton*>(QStringLiteral("conversationReviewFileComment"));
+		expect(fileComment != nullptr && fileComment->text() == QStringLiteral("src/file.cpp:7")
+				   && fileComment->accessibleName() == QStringLiteral("Open file comment at src/file.cpp:7 in Review"),
+			   "the summary offers its exact file comment with an explicit Review destination");
+		auto* const root   = readerFor("review-comment:root");
+		const auto  suffix = aRootBody == corpus ? QStringLiteral("original") : aRootBody.empty() ? QStringLiteral("empty")
+			: aRootBody.starts_with(corpus)                                                       ? QStringLiteral("changed")
+																								  : QStringLiteral("legacy");
+		capture(aWindow, QStringLiteral("discuss-comment-body-") + suffix);
+		auto context = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ 5, 5 }, root->rendered_view()->viewport()->mapToGlobal(QPoint{ 5, 5 }) };
+		QApplication::sendEvent(root->rendered_view()->viewport(), &context);
+		settle();
+		auto* const menu = root->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+		auto* const open = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("postOpenInReview")) : nullptr;
+		expect(open != nullptr && open->isEnabled(), "the comment offers Open in Review");
+		menu->hide();
+		open->trigger();
+		settle();
+		expect(aWindow.current_modality() == qt::review_modality::review, "the same comment opens Review");
+		auto* const inReview = readerFor("review-comment:root");
+		expect(inReview != nullptr && inReview->original_body() == aRootBody && emptyNotice(*inReview) == aRootBody.empty(), "Review retains the exact same comment body and empty state");
+		capture(aWindow, QStringLiteral("review-comment-body-") + suffix);
+	}
 }
 int main(int argc, char** argv)
 {
@@ -263,7 +345,19 @@ int main(int argc, char** argv)
 	window.home_open_bar()->setFocus();
 	key(window.home_open_bar(), Qt::Key_Return);
 	expect(static_cast<bool>(reads.Complete), "Open gesture reaches provider through the accepted read host");
-	auto       accepted   = snapshot(reads.Request);
+	auto       accepted      = snapshot(reads.Request);
+	const auto discussBodies = QCoreApplication::arguments().contains(QStringLiteral("--discuss-bodies"));
+	if (discussBodies) {
+		accepted.Reviews.front().Body.clear();
+		accepted.Reviews.push_back({ .DatabaseId = 2U, .Review = application::github_review_id{ "approved" }, .State = application::github_review_state::approved, .Body = { } });
+		auto& root = accepted.ReviewThreads.front().Comments.front();
+		root.Body.clear();
+		root.Observation.RawBody                                           = corpus;
+		root.Observation.ReviewNode                                        = "summary";
+		accepted.ReviewThreads.front().Comments.back().Body                = "Plain display text differs from the original Markdown.";
+		accepted.ReviewThreads.front().Comments.back().Observation.RawBody = corpus;
+		accepted.IssueComments.push_back({ .Comment = application::github_comment_id{ "empty" }, .Body = { } });
+	}
 	const auto validation = application::validate(accepted, reads.Request.Context);
 	if (!validation.valid()) {
 		std::cerr << "validation=" << static_cast<int>(validation.Error) << '\n';
@@ -273,6 +367,34 @@ int main(int argc, char** argv)
 	lane.drain();
 	settle();
 	expect(host.accepted_snapshot().has_value(), "provider completion is accepted through exact capability authority");
+	if (discussBodies) {
+		check_discuss_bodies(window, corpus);
+		host.dispatch(core::refresh_pull_request_intent{ });
+		auto       refreshed                                                 = accepted;
+		const auto changed                                                   = std::string{ corpus } + "\nA changed body under the same root comment identity.\n";
+		refreshed.ReviewThreads.front().Comments.front().Observation.RawBody = changed;
+		reads.Complete(application::github_pull_request_success{ reads.Request, refreshed });
+		lane.drain();
+		settle();
+		check_discuss_bodies(window, changed);
+		// Presence, rather than nonemptiness, chooses the original body.
+		host.dispatch(core::refresh_pull_request_intent{ });
+		refreshed.ReviewThreads.front().Comments.front().Body                = "A stale nonempty plain-text rendering.";
+		refreshed.ReviewThreads.front().Comments.front().Observation.RawBody = "";
+		reads.Complete(application::github_pull_request_success{ reads.Request, refreshed });
+		lane.drain();
+		settle();
+		check_discuss_bodies(window, "");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		refreshed.ReviewThreads.front().Comments.front().Body = "Legacy display body when raw Markdown was not observed.";
+		refreshed.ReviewThreads.front().Comments.front().Observation.RawBody.reset();
+		reads.Complete(application::github_pull_request_success{ reads.Request, refreshed });
+		lane.drain();
+		settle();
+		check_discuss_bodies(window, refreshed.ReviewThreads.front().Comments.front().Body);
+		std::cout << "discuss-bodies:pass\n";
+		return EXIT_SUCCESS;
+	}
 	auto* overview = window.overview_page();
 	auto* reader   = overview->body_view();
 	structures(*reader);
