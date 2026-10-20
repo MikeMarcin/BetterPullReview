@@ -57,17 +57,17 @@ round of mandate `release-v031-qt612-scroll-r1`, with the authored
 [publication record](../../verification/release-v031-publication.json) binds
 all final names, sizes, SHA-256 values, acceptance identities and receipt hashes.
 
-- AC1: Clean source `2ed7e5f98641d75678f861dad0edbe658b5f5d22` binds all
+- Source and notes: Clean source `2ed7e5f98641d75678f861dad0edbe658b5f5d22` binds all
   producers. The tracked v0.3.1 notes now match the actual published notes;
   README links the verified installers and macOS 14.4 minimum.
-- AC2: Full exact-source native gates complete all 2,392 rows: 2,389 pass and
+- Native gates and assets: Full exact-source native gates complete all 2,392 rows: 2,389 pass and
   three configured Debug cache-course skips. macOS/Windows optimized courses
   pass. Ubuntu's strict optimized course remains FAIL 8 and its supplemental
   observation FAIL 1 under only the owner's existing sampled/lifetime 216 MiB
   RSS exception. All 28 signed assets, actual runtime/source/SPDX audits,
   independent bounded factual reviews and exact current material accepts are
   supplied. Broader RFC0038 qualification remains open.
-- AC3: [Public stable v0.3.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1)
+- Public verification: [Public stable v0.3.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1)
   is Latest, not draft/prerelease. Annotated tag
   `728e6e75ad4df34a45b7801551272106bde456d5` peels to the frozen source.
   All 28 anonymous downloads match producer hashes; fresh macOS, Windows and
@@ -75,7 +75,7 @@ all final names, sizes, SHA-256 values, acceptance identities and receipt hashes
   five-file trust, downloaded MSI/runtime equality and Ubuntu tamper rejection.
   All three source assets have equivalent public access at no extra charge;
   source, snapshot, digests and tag are retained read-only indefinitely.
-- AC4: [Measured procedure findings](../../verification/release-v031-procedure-findings.md)
+- Procedure record: [Measured procedure findings](../../verification/release-v031-procedure-findings.md)
   preserve test/producer/publication timings, retries, collector/dispatch
   failures, human wait and bounded evidence reuse. Safe improvements are
   recorded for the requested later retrospective; no workflow/gate change or
