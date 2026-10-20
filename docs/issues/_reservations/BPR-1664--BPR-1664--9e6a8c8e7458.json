@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1664"
+  ],
+  "reserve_for": "public-preview-expansion-r1",
+  "purpose": "",
+  "created": "2026-10-20T02:36:40.721355+00:00",
+  "base": "12ef1db532f78f25ceaa821a5a7bb2fcda001aa2"
+}

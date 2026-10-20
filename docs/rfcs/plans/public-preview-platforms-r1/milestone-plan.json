@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "public-preview-platforms-r1",
+  "scope": {
+    "issues": [
+      "BPR-1664"
+    ]
+  },
+  "coverage": "complete",
+  "unplanned_work": [],
+  "milestones": [
+    {
+      "id": "native-platform-expansion",
+      "outcome": "Enable and verify the existing read-only public GitHub.com preview on Windows and Linux while preserving its authority protections and macOS support.",
+      "work": [
+        {
+          "issue": "BPR-1664"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "PLATFORM-1: native Windows and Linux tests-disabled activation and GHES refusal pass with zero effects.",
+        "PLATFORM-2: both native anonymous courses and bounded production-factory public reads pass.",
+        "PLATFORM-3: macOS regression, documentation, focused gates, exact evidence, intentional commits and quiescent handoff are complete."
+      ],
+      "boundary": "No release, publication, push or unrelated native qualification; preserve all existing preview authority boundaries."
+    }
+  ]
+}
