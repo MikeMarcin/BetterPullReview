@@ -77,3 +77,17 @@ sequence plus a fifteen-page stream, shared replacement transports and refusal
 of a sixteenth send. This is the final derived bound, not a catalog count.
 Pagination may exceed it and is deliberately refused. The thirty-request
 preflight floor remains; wait for the real server reset when it is not met.
+
+
+## Implementation acceptance
+
+Accepted 2026-10-20 by the assigned engineering owner after direct scoped
+verification: [BPR-1664](../../issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md)
+closed in `7b620cd9d`. Native Windows18 and Linux20 applicable selectors pass;
+both tests-disabled artifacts pass enabled/GHES zero-effect probes. Final native
+production reads each accept the same public snapshot through14 HTTP200s,
+without credential effects. Mac regression, integration, format/tidy and
+documentation gates pass. Exact candidates, failures/repairs and qualification
+limits are in the [ledger](../../verification/RFC-BPR-0017.md#platform-expansion-r1).
+The original RFC and its historical terminal cards/plan retain their acceptance.
+No release, publication, push or independent/human review is inferred.

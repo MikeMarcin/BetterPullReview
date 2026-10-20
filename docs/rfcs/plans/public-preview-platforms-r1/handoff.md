@@ -18,6 +18,8 @@ Baseline `12ef1db532f78f25ceaa821a5a7bb2fcda001aa2`; intentional slices:
 - `2e409ba54`: test-only diagnostic budget repair, initially12.
 - `7c51e0a4c`: focused multi-config inventory keeps strict selector commands.
 - `c5a906abe`: final audited cap15 and complete independent sequence/self-check.
+- `1a7d74f00`: native qualification, public documentation and explicit live wait.
+- `7b620cd9d`: BPR-1664 Done with accepted AC1/2/3 and final native evidence.
 
 Final application SHA-256
 `c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6`;
@@ -85,10 +87,11 @@ is preserved. Shared WSL source `/home/mmarcin/BetterPullReview` is clean at
 `d16ae68fd`, with held station lease `stn-5c7459ed`; it is untouched. Isolated
 owned roots:
 
-- Windows `C:/bpr1664-f3479cfd/{src,build}`.
-- WSL `/tmp/bpr1664-SyLf0On6/{src,build}`.
-- Local runtime `/tmp/bpr-public-preview-expansion/`: scripts, nonsecret logs,
-  archive and copied native evidence; preserved beside tracked continuation.
+- Windows `C:/bpr1664-f3479cfd/{src,build}`: removed after commands completed.
+- WSL `/tmp/bpr1664-SyLf0On6/{src,build}`: removed after commands completed.
+- Local runtime `/tmp/bpr-public-preview-expansion/`: scripts, nonsecret logs
+  and copied native evidence. Full source archive/copy removed; compact receipts
+  remain for coordinator consumption.
 
 All build/test/tidy commands are finished. The unique scheduled task is removed.
 Initial build-all commands were stopped by exact task-owned PID tree and resumed
@@ -102,30 +105,43 @@ only builds with11 focused Debug targets and1 Release app target. Windows final
 windows-checks.py runs canonical selectors and scoped Release assertions, with
 its generic idle runtime omission explicit.
 
-## Required pending work and next action
+## Completion and continuation
 
-Final live reads are the only behavior obligation pending. Both Debug artifacts
-are stable and source-hash guarded in external live-native.py. Actual WSL header
-2026-10-20 03:26:30UTC: limit60, remaining29, reset1792468516
-(03:55:16UTC). Do not lower the authored>=30 floor or repeat quota polls. Wait
-actual reset, then each native launcher performs its own response-header preflight
-and one bounded anonymous production-factory read of MikeMarcin/BPR-Test#1.
-Require accepted public snapshot, zero credential/header/vault/sign-in/probe
-counter effects, single-attempt=true and1..15 forwards. Keep actual failures.
+All PLATFORM-1/2/3 and AC1/2/3 criteria pass. BPR-1664 is terminal Done in
+`7b620cd9d5621b4e2d733ae9868b8486426191d2`. Product candidate remains
+`c5a906abe`; later commits are documentation/evidence/bookkeeping only.
+Both native source/build roots are removed, their source-cache link/junction
+removed first. Shared caches/leases/checkouts remain intact; unrelated Windows
+ctest110648 remains active. No task-owned build, test, app, server, scheduled task
+or background command remains. Local source archive/copied translation unit
+were removed; compact nonsecret evidence remains externally for the coordinator.
 
-Launchers are `/tmp/bpr-public-preview-expansion/live-linux.sh` and
-`/tmp/bpr-public-preview-expansion/live-win.ps1`, invoked by remote.py against
-SSH endpoint; actual native helper is under the owned source parent. No token
-or auth-account switch. The fixture courses already cover selected-file/epoch
-comparison; live acceptance is the real production-factory public snapshot.
+Final live reads ran after actual03:55:16UTC reset, each preserving the>=30
+header preflight floor and fifteen-send ceiling:
 
-Then update live ledger/acceptance, run final documentation gate, finish BPR-1664
-with explicit paths, check bound observation at exact final candidate, commit
-upkeep and remove owned source/archive/build outputs. Remove Windows cache
-junction via `cmd /c rmdir C:/bpr1664-f3479cfd/src/build/.cpm-cache` before any
-recursive root removal; never follow it into shared cache. Preserve compact
-nonsecret evidence/command receipts until coordinator consumes handoff.
-No owner/human action, attended session or protected candidate is pending.
+| Target | Preflight | Actual read | Accepted public head | Final observed budget |
+|---|---|---|---|---|
+| Linux WSL2 |59/60|14 HTTP200s,5107ms|`17990ba0c2fb50338141f35c0717f0f99639c7ba`|60/46/reset1792472127|
+| Windows11 x64 |45/60|14 HTTP200s,2724ms|same|60/32/reset1792472127|
+
+Both explicitly report production-factories=true, accepted public_preview
+snapshot, single-attempt=true, and zero credential/header/vault/sign-in/probe
+counters. No remote mutation. Nonsecret raw receipts:
+`/tmp/bpr-public-preview-expansion/linux-live-final15.log` and
+`/tmp/bpr-public-preview-expansion/windows-live-final15.log`.
+
+No required pending obligation, human review, attended session, protected
+candidate or owner action. No release/push/publication. Preserve the generic
+Windows idle-runtime and native desktop/vault/crash/uninstall/vulnerability
+qualification limits above; they are outside this scoped platform enablement.
+
+Tracked observation/check are a snapshot of the accepted finish revision before
+the final bookkeeping commit. The current-HEAD final observation/check receipts
+are retained externally as `/tmp/bpr-public-preview-expansion/final-observation.json`
+and `/tmp/bpr-public-preview-expansion/final-check.json`; this avoids a commit
+trying to contain its own hash. The final return names that exact commit.
+Next action: coordinator consumes this completed scoped result; no more native
+reads are needed.
 
 ## Workflow helper reconciliation
 
@@ -137,3 +153,20 @@ remain. Valid checkpoint.json supersedes an initial invalid receipt retained in
 external runtime. Final milestone_checkpoint.check uses explicit binding normally.
 Selection.json is preserved beside this checkpoint. Acceptance scope/criteria are
 unchanged; no unmet dependency or human/native requirement is marked passed.
+
+For closeout the card's mutable `Evidence` heading was corrected to the shared
+`Verification and execution record` convention. Its acceptance text AC1/2/3 and
+plan/exit criteria are unchanged. Because the old binder included that mutable
+note, checkpoint binding was explicitly renewed in segment
+`native-expansion-closeout-2`, same run and mandate; the original binding remains
+in Git history. This is evidence bookkeeping, not a waiver of an obligation.
+
+
+## Concurrent repository writer at closeout
+
+Unrelated commit `c2aece8aaee2692483eae4017a174966d5c8771c` reserved BPR-1665
+for a Qt6.12 upgrade between this issue's finish and upkeep commits. It changes
+only `docs/issues/NEXT_ID` and its BPR-1665 allocation receipt; it is preserved
+and is not part of this milestone. No tested product input changes, so native
+and focused evidence remain valid. Explicit-path upkeep commit `78dc5c54b`
+preserves that writer; current-HEAD final check/observation is external as above.

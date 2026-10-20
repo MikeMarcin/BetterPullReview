@@ -203,8 +203,9 @@ mutation branch remains `16d135419d39078bc3993b4e1cb80226e190edce50cd24d94568430
 | Linux tests-disabled Release | `8b125e198d434f58b73f93077446d7df2b0672eea11c236ea383a92373c82e68` |
 
 Release builds use the cap-12 source at `2e409ba54`; the later cap-15 sequence
-and self-check repair is entirely under `BPR_BUILD_TESTING`, so these exact
-Release artifacts' production branch is unchanged. Final Debug applications
+and self-check repair affect only the diagnostic factory instantiated under
+`BPR_BUILD_TESTING` and its guarded self-check, so these exact Release artifacts'
+production path is unchanged. Final Debug applications
 are rebuilt from the cap-15 source and their affected six compositions pass.
 
 ### Verification and command dispositions
@@ -221,7 +222,7 @@ are rebuilt from the cap-15 source and their affected six compositions pass.
 | Native Windows | Windows 11 Home 10.0.26200 x64, MSVC 14.51, Qt 6.11.2; exact applicable native inventory/registration/selector functions from the canonical course | All 18 pass on final Debug; Windows deliberately omits two wire-fixture selectors |
 | Windows tests-disabled artifact | Canonical surface, seam-absence, composed-host, dependency, enabled-activation and GHES-refusal assertions | Pass; both probes zero request/header/vault/sign-in effects |
 | Native Linux | Ubuntu 26.04 / WSL2 6.18.33.2 x64, GCC 15.2.0, Qt 6.11.2; isolated Debug/Release canonical course | 20 selectors and Release assertions pass (`RFC0017_PLATFORM_COURSE_OK`, 183 s); final cap-15 six app checks pass 3.99 s |
-| Native production reads | Final cap-15 anonymous production-factory reads of MikeMarcin/BPR-Test#1; >=30 remaining core requests required before each | Pending actual quota reset; header 2026-10-20 03:26:30 UTC: limit60, remaining29, reset1792468516 (03:55:16 UTC) |
+| Native production reads | Final cap-15 production-factory public reads of MikeMarcin/BPR-Test#1 after actual quota reset | Both pass:14 HTTP200s each, same accepted public snapshot/head, zero credential effects; details below |
 
 The base native command is `python3 scripts/verify_rfc0017_platform_course.py
 --platform PLATFORM --dev-preset DEV --release-preset RELEASE --build-root ROOT
@@ -263,6 +264,38 @@ conditional ancestry and final confirmation (at most15). The final diagnostic
 bounds that sequence and refuses pagination beyond its budget. A prematurely
 started old Linux binary was stopped by its exact owned PID and is not evidence.
 No retry, credential fallback or remote mutation was added or performed.
+A focused self-review kept the linear platform selection and literal diagnostic
+sequence: no new abstraction or production authority is needed. The counting
+transport declaration is shared source, but only its test-guarded diagnostic
+factory instantiation can reach the changed ceiling; shipped reads use the
+existing production factory.
+
+### Final production-service acceptance — 2026-10-20
+
+After waiting for actual reset1792468516 (03:55:16UTC), both exact final Debug
+artifacts completed their native production-factory course without retry.
+The target was MikeMarcin/BPR-Test#1 at
+`17990ba0c2fb50338141f35c0717f0f99639c7ba` on both platforms.
+
+| Native target | Preflight core remaining/limit | Actual wire result | Accepted snapshot | Observed final core budget |
+|---|---|---|---|---|
+| Linux WSL2 |59/60|14 HTTP200s,5107ms|`public_preview`, production factories=true|60/46/reset1792472127|
+| Windows11 x64 |45/60|14 HTTP200s,2724ms|`public_preview`, production factories=true|60/32/reset1792472127|
+
+Each sequence performs ten initial content/status reads, timeline, two merge-base
+reads and final PR confirmation. Neither target needed conditional ancestry or
+pagination. Both record `PUBLIC_PREVIEW_LIVE_CANDIDATE_OK` and
+`NATIVE_LIVE_PREVIEW_OK`; header/vault/sign-in, capability-probe and credentialed
+refusal effects are all0, and independent single-attempt self-check=true. The
+fifteen-send diagnostic ceiling and >=30 preflight floor were preserved. There
+were no authenticated reads or remote mutations in these live courses.
+
+All scoped PLATFORM-1/2/3 and card AC1/2/3 obligations now have direct evidence.
+Source/authority predicates and all macOS protections remain unchanged. Exact
+native roots were removed after commands completed, removing their source-cache
+links first and preserving shared caches/leases/checkouts. Compact nonsecret
+logs and launcher receipts remain outside the repository at
+`/tmp/bpr-public-preview-expansion/` for coordinator consumption.
 
 ### Documentation and remaining qualification
 
