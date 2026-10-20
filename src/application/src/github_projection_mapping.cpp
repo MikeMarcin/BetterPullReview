@@ -110,6 +110,13 @@ namespace bpr::application {
 			return aAuthor.has_value() ? aAuthor->Login : std::string{ };
 		}
 
+		/// \brief Reads the original Markdown when supplied, including an empty body.
+		/// Legacy observations without raw Markdown retain their display-text fallback.
+		[[nodiscard]] auto reading_body(const std::string& aDisplayBody, const github_comment_observation& aObservation) -> std::string
+		{
+			return aObservation.RawBody.has_value() ? *aObservation.RawBody : aDisplayBody;
+		}
+
 		[[nodiscard]] auto project(const github_diff_side aSide) noexcept
 			-> std::optional<github_conversation_diff_side>
 		{
@@ -313,7 +320,7 @@ namespace bpr::application {
 				.ParentId    = std::nullopt,
 				.Kind        = github_conversation_kind::review,
 				.AuthorLogin = author_login(review.Author),
-				.Body        = review.Body,
+				.Body        = reading_body(review.Body, review.Observation),
 				.Path        = { },
 				.Line        = std::nullopt,
 				.ReviewState = project(review.State),
@@ -357,7 +364,7 @@ namespace bpr::application {
 					= review_comment_parent(comment, commentsById, threadId),
 					.Kind               = github_conversation_kind::review_comment,
 					.AuthorLogin        = author_login(comment.Author),
-					.Body               = comment.Body,
+					.Body               = reading_body(comment.Body, comment.Observation),
 					.Path               = thread.Path,
 					.Line               = thread.Line,
 					.OriginalLine       = thread.OriginalLine,
@@ -383,7 +390,7 @@ namespace bpr::application {
 					.ParentId           = std::move(aParent),
 					.Kind               = github_conversation_kind::review_comment,
 					.AuthorLogin        = author_login(aComment.Author),
-					.Body               = aComment.Body,
+					.Body               = reading_body(aComment.Body, aComment.Observation),
 					.Path               = aComment.Path,
 					.Line               = aComment.Line,
 					.OriginalLine       = aComment.OriginalLine,
@@ -404,7 +411,7 @@ namespace bpr::application {
 				.ParentId    = std::nullopt,
 				.Kind        = github_conversation_kind::issue_comment,
 				.AuthorLogin = author_login(comment.Author),
-				.Body        = comment.Body,
+				.Body        = reading_body(comment.Body, comment.Observation),
 				.Path        = { },
 				.Line        = std::nullopt,
 				.ReviewState = github_review_state_projection::none,

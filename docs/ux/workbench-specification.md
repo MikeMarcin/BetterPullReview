@@ -195,6 +195,19 @@ and disappears when the count reaches zero. Next new comment (⌥N on macOS)
 visits file threads first, then pathless posts in Discuss order, widening
 Discuss's file scope when needed. Open in Review is unavailable for a pathless post.
 
+[[BPR-1667]] distinguishes an empty overall review comment from that review's
+file comments. Approved and Commented summaries without prose say “No overall
+review comment.” When file comments exist, the notice states how many are linked
+below; each link names its file and opens that exact comment in Review. Inline
+comments and PR comments with actual empty bodies retain their explicit empty
+state.
+
+[[BPR-1668]] opens a New-badged Discuss card and requests Mark read for that
+conversation. Pointer activation, Return, Space and next-new navigation use the
+same path. The badge clears when the existing ledger reports a durable read;
+selection alone, passive refresh and unrelated cards do not advance a read
+cursor. The private result survives restart.
+
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s

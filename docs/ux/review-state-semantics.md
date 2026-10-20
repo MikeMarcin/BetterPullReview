@@ -23,6 +23,11 @@ Opening a file does not automatically mark it read.
 
 Read and accepted receipts apply through a specific latest comment identity and edit version. New replies or edits reopen unread state. GitHub resolution remains a separate shared fact.
 
+Opening a New-badged card in Discuss requests the existing local Mark read
+command for that conversation ([[BPR-1668]]). Its marker changes only after
+durable persistence succeeds. Selecting a card without opening it, publishing a
+refresh, and showing unrelated cards do not advance their read receipts.
+
 ## Defects
 
 A defect is a local classification of an ordinary GitHub review thread. Severity and category are local unless the user expresses them in ordinary comment prose.

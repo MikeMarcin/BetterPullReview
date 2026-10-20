@@ -13,11 +13,14 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
@@ -106,6 +109,69 @@ int main(int aArgc, char** aArgv)
 		return found == rows.end() ? std::size_t{ 0U } : found->Unread;
 	};
 	wait_for([&] { return count() == QStringLiteral("2 new comments in the conversation") && unread(comment) == 1U && unread(summary) == 1U; }, "host count reaches Status and both pathless Threads rows");
+	{
+		// [[BPR-1668]]. Real pointer/keyboard activation, the existing ledger
+		// effect lane, an ordinary refresh, and a fresh process composition.
+		auto* const firstCards = application->window().conversation_panel()->cards();
+		application->window().overview_page()->new_conversation_button()->click();
+		wait_for([&] { return firstCards->feed(); }, "Overview opens Discuss");
+		const auto threads = firstCards->unread_threads_in_file_order();
+		expect(threads.size() > 1U, "independent unread inline threads are available");
+		const auto& untouched      = threads.back();
+		const auto  untouchedCount = unread(untouched);
+		const auto  click          = [&](const std::string& aId) {
+			auto* const notes = application->window().conversation_panel()->cards();
+			auto        note  = notes->note_rect(aId);
+			notes->verticalScrollBar()->setValue(notes->verticalScrollBar()->value() + note.top() - 30);
+			QApplication::processEvents();
+			note = notes->note_rect(aId).intersected(notes->viewport()->rect());
+			expect(!note.isEmpty(), "the New-badged card is in the viewport");
+			auto event = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ note.center() }, notes->viewport()->mapToGlobal(QPointF{ note.center() }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(notes->viewport(), &event);
+		};
+		firstCards->set_current_thread(summary);
+		QApplication::processEvents();
+		expect(unread(summary) == 1U && unread(comment) == 1U, "selection alone marks no card read");
+		auto release = access::hold_review_ledger_effects(*application);
+		expect(static_cast<bool>(release), "the real ledger effect lane can be held for the durability check");
+		click(comment);
+		QApplication::processEvents();
+		expect(unread(comment) == 1U, "the badge stays new while its durable read write is held");
+		release();
+		wait_for([&] { return unread(comment) == 0U && count() == QStringLiteral("1 new comment in the conversation"); }, "clicking the card clears its badge after the durable read result");
+		expect(unread(summary) == 1U && unread(untouched) == untouchedCount, "clicking one card leaves the other summary and inline thread new");
+		render(QStringLiteral("discuss-card-click-read"));
+		const auto before = access::window_read_progress(*application).Snapshot;
+		application->window().github_refresh_action()->trigger();
+		wait_for([&] { const auto progress=access::window_read_progress(*application);return progress.Snapshot != before && !progress.Reading; }, "ordinary refresh completes");
+		expect(unread(summary) == 1U && unread(comment) == 0U && unread(untouched) == untouchedCount, "projection refresh does not read unrelated cards");
+		stop();
+		start();
+		wait_for([&] { return unread(comment) == 0U && unread(summary) == 1U && unread(untouched) == untouchedCount; }, "restart retains only the clicked card's durable read result");
+		auto* const restarted = application->window().conversation_panel()->cards();
+		application->window().overview_page()->new_conversation_button()->click();
+		restarted->set_current_thread(summary);
+		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(restarted, &enter);
+		wait_for([&] { return unread(summary) == 0U; }, "keyboard opening marks the same summary read");
+		click(threads.front());
+		wait_for([&] { return unread(threads.front()) == 0U; }, "clicking a New-badged inline thread uses the same read path");
+		expect(unread(untouched) == untouchedCount, "an offscreen unrelated inline thread remains new");
+		std::cout << "DISCUSS_CARD_READ_PUBLIC_PATH_OK\n";
+		if (QCoreApplication::arguments().contains(QStringLiteral("--activate-new-card"))) {
+			stop();
+			return EXIT_SUCCESS;
+		}
+		for (const auto& id : { comment, summary, threads.front() }) {
+			auto* const menu   = restarted->thread_menu(id);
+			auto* const action = menu->findChild<QAction*>(QStringLiteral("threadReadAction"));
+			expect(action && action->text() == QStringLiteral("Mark unread"), "the same public menu restores a new card for the remaining course");
+			action->trigger();
+			delete menu;
+			wait_for([&] { return unread(id) > 0U; }, "the remaining course starts with the card unread");
+		}
+		application->window().choose_modality(qt::review_modality::overview);
+	}
 	auto& window = application->window();
 	auto* cards  = window.conversation_panel()->cards();
 	window.overview_page()->status_section_header(qt::overview_status_section::my_review)->setChecked(true);
@@ -148,6 +214,9 @@ int main(int aArgc, char** aArgv)
 		delete menu;
 		wait_for([&] { return unread(aId) == (aRead ? 0U : 1U); }, "durable read change reaches Threads");
 	};
+	wait_for([&] { return unread(summary) == 0U && unread(comment) == 0U; }, "next-new activation marks the visited cards durably read");
+	mark(summary, false);
+	mark(comment, false);
 	mark(summary, true);
 	mark(comment, true);
 	wait_for([&] { return count() == QStringLiteral("0 new comments in the conversation"); }, "reading clears the Status count");

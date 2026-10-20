@@ -1299,6 +1299,12 @@ namespace bpr::qt {
 				}
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			if (!aCard.Verdict.isEmpty()) {
+				const auto count = aCard.ReviewComments.size();
+				view->reader()->set_empty_body_text(count == 0U       ? QStringLiteral("No overall review comment.")
+														: count == 1U ? QStringLiteral("No overall review comment. 1 file comment is linked below.")
+																	  : QStringLiteral("No overall review comment. %1 file comments are linked below.").arg(count));
+			}
 			if (Style.Feed && !aCard.Draft) {
 				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
 					aMenu.addSeparator();
@@ -1476,6 +1482,8 @@ namespace bpr::qt {
 					auto* const source = new QToolButton{ Foot };
 					source->setObjectName(QStringLiteral("conversationReviewFileComment"));
 					source->setText(caption);
+					source->setToolTip(QStringLiteral("Open this file comment in Review"));
+					source->setAccessibleName(QStringLiteral("Open file comment at %1 in Review").arg(caption));
 					source->setAutoRaise(true);
 					source->setFocusPolicy(Qt::StrongFocus);
 					connect(source, &QToolButton::clicked, this, [this, id] {const auto dispatch=OpenInReviewRequested;if(dispatch){dispatch(id);} });

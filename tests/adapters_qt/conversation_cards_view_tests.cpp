@@ -435,6 +435,8 @@ namespace {
 			actions.emplace_back(aAction, aId);
 		});
 		press_at(view, view.note_rect("t-open").center());
+		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, "t-open" } },
+			   "opening a New-badged Discuss card asks the host to mark that exact thread read");
 		expect(view.open_thread_id() == "t-open" && view.open_card()->findChild<QLabel*>(QStringLiteral("threadExcerpt")) != nullptr,
 			   "a press opens the thread in place with its code excerpt above its posts");
 		expect(button(view, "threadResolve") == nullptr, "Resolve is not offered before the provider and server both resolve threads");
@@ -442,7 +444,7 @@ namespace {
 				   && button(view, "threadShowLine")->accessibleName() == QStringLiteral("Open in Review at src/z.cpp:9"),
 			   "Discuss's line button names Review and the exact file and line");
 		button(view, "threadShowLine")->click();
-		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::open_in_code, "t-open" } },
+		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, "t-open" }, { qt::card_action::open_in_code, "t-open" } },
 			   "in Discuss the line button opens the thread in the code");
 		view.set_resolution_offered(true);
 		QApplication::processEvents();

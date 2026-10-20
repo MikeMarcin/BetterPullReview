@@ -2886,8 +2886,9 @@ namespace bpr::qt {
 			}
 			return;
 		}
-		const auto chosen = Cards[aCard].Id;
-		Current           = chosen;
+		const auto chosen   = Cards[aCard].Id;
+		const auto markRead = aOpen && (PullRequestComments || (Feed && Cards[aCard].UnreadCount > 0U));
+		Current             = chosen;
 		// [[BPR-1293]]. A pick names its post; any other opening drops it.
 		auto picked = std::exchange(PickedNext, std::string{ });
 		if (aOpen && (Open != chosen || picked != Picked)) {
@@ -2904,7 +2905,9 @@ namespace bpr::qt {
 			}
 		}
 		viewport()->update();
-		if (PullRequestComments && aOpen && ActionDispatch) {
+		// [[BPR-1668]]. Opening a new Discuss card uses the same durable read
+		// command as its explicit action. Selection and refresh do not open it.
+		if (markRead && ActionDispatch) {
 			ActionDispatch(card_action::mark_read, chosen);
 		}
 		if (ThreadDispatch) {

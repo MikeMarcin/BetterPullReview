@@ -4,6 +4,11 @@ RFC-BPR-0036 provides `qt::markdown_body_view`, shared by the expanded PR
 overview and every post of the open thread in the conversations drawer and
 Discuss, where it reads in place (`set_in_place`, [[BPR-1290]] v005).
 The original provider body remains the authority for source, copy and publishing.
+The application projects a comment's observed raw Markdown when it is present;
+an explicitly empty raw body stays empty. Older observations without that field
+retain their display-body fallback. Selecting a file for Review can recover a
+file comment's placement and reviewer prose, but is never required to make its
+original body readable in Discuss ([[BPR-1667]]).
 
 ## Reading policy
 
