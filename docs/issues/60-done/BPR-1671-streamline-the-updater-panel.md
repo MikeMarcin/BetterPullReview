@@ -8,7 +8,7 @@ depends_on: ["BPR-1669"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner request, 2026-10-20: the updater UX looked way over complicated; streamline it","reservation":"docs/issues/_reservations/BPR-1671--BPR-1671--36997646e103.json"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"Candidate is the working tree committed on e5a25a3b6. Offscreen Fusion renders of the panel (up to date, offer, downloading, ready, offline, never checked with storage warning, self-update unavailable, Settings General) and of the composed offer from release_update_public_path show one headline, one quiet detail line, notes only with an offer, progress only while downloading, only the commands that apply (default command on the right, Later/Skip to its left, Open Release Page only with an offer or as the fallback), and the automatic-check box last. Renders are kept outside the repository."}},{"criterion":"AC2","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"ctest --preset dev -R \"release_update|settings_window|application_profile_multi_window_public_path\" --output-on-failure: 14/14 pass (all 9 release_update tests). release_update_public_path now finds no combo box and waits for the check command to become enabled without any selection gesture; it still persists the offered account binding, skip and automatic preference across restart."}},{"criterion":"AC3","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"reason_text no longer mentions accounts or sign-in: access_required, unauthenticated, forbidden and inaccessible now speak of GitHub and the release page."}},{"criterion":"AC4","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"cmake --build --preset dev, coding-format-check, coding-tidy on the touched sources, and python3 scripts/verify_documentation.py --root . pass."}},{"criterion":"AC5","outcome":"pending","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"Look-and-judge: the owner has not yet seen the streamlined panel."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"Candidate is the working tree committed on e5a25a3b6. Offscreen Fusion renders of the panel (up to date, offer, downloading, ready, offline, never checked with storage warning, self-update unavailable, Settings General) and of the composed offer from release_update_public_path show one headline, one quiet detail line, notes only with an offer, progress only while downloading, only the commands that apply (default command on the right, Later/Skip to its left, Open Release Page only with an offer or as the fallback), and the automatic-check box last. Renders are kept outside the repository."}},{"criterion":"AC2","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"ctest --preset dev -R \"release_update|settings_window|application_profile_multi_window_public_path\" --output-on-failure: 14/14 pass (all 9 release_update tests). release_update_public_path now finds no combo box and waits for the check command to become enabled without any selection gesture; it still persists the offered account binding, skip and automatic preference across restart."}},{"criterion":"AC3","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"reason_text no longer mentions accounts or sign-in: access_required, unauthenticated, forbidden and inaccessible now speak of GitHub and the release page."}},{"criterion":"AC4","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"cmake --build --preset dev, coding-format-check, coding-tidy on the touched sources, and python3 scripts/verify_documentation.py --root . pass."}},{"criterion":"AC5","outcome":"pending","revision":"0d800ce47","evidence":{"kind":"observation","detail":"Look-and-judge, waiting on the owner: attended session a48e387c384559d1313a630515edc8cc (fresh state /Users/jaeger/.mask/bpr-1671-updater-look-v001-20261020/attended-review, event cursor 12) holds four ready candidates on frozen 0d800ce47, one per question: layout, the Settings group, wording, release notes as plain text. No verdict yet.","path":"docs/issues/60-done/BPR-1671-streamline-the-updater-panel.md#attended-review-v001"}}]
 ---
 
 # Streamline the updater panel
@@ -50,3 +50,44 @@ window fits its content. `release_update_desktop` drops the combo plumbing
 `SelectAccount`/`ClearAccount`), restores access from `publish()`, and records
 the requested binding before the service publishes so that restore does not
 reselect.
+
+## Attended review v001
+
+Opened 2026-10-20 for AC5. The application cannot reach the updater's states
+from a frozen build, so `test_release_update_look` (0d800ce47) composes the
+update window, the Settings "Software Update" group and the menu item through
+`release_update_desktop::start` with fixture release access, verification,
+installation and in-memory settings. With `--attended` it opens them beside
+a look-controls window that chooses what the next check and download meet.
+Nothing reaches GitHub or the disk. Without arguments it is the
+`application_release_update_look` row, which walks never checked, up to
+date, an offer with Markdown notes, downloading, ready, offline, a copy that
+cannot update itself and unsaved settings.
+
+- Session `a48e387c384559d1313a630515edc8cc`, fresh state
+  `/Users/jaeger/.mask/bpr-1671-updater-look-v001-20261020/attended-review`,
+  host running (detached, its log beside the state), event cursor 12. The
+  authenticated URL stays in the external state.
+- Candidates, revision `frozen-0d800ce47-v001`, all ready and protected:
+  `BPR-1671-layout-v001` (`a2cf7daa4ee7…`), `BPR-1671-settings-group-v001`
+  (`b82182ce0094…`), `BPR-1671-copy-v001` (`e04e500fe217…`) and
+  `BPR-1671-release-notes-v001` (`007579519be6…`). Each one asks one Accept
+  or Reject question and carries offscreen renders from the frozen helper.
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr-1671-updater-look-v001.9w0fjvwa`
+  from `0d800ce47` (fixture `overview-labels-v1`, `--open-pull-request`,
+  `--target test_release_update_look`). The application executable's SHA-256
+  is `c739c21e78af…625502` and the helper's is `6aad8216ec12…31a66e`. The
+  launcher's own check printed `CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED`.
+  The frozen helper's course passed offscreen, and `--attended` printed
+  `RELEASE_UPDATE_LOOK_SHOWN`.
+- The look: `/Users/jaeger/.mask/attended-review/bpr-1671-updater-look-v001.9w0fjvwa/src/build/app-release-tests/tests/end_to_end/release_update_look --attended`.
+- Found while preparing: the native composition binds public releases as
+  `public:github.com`, but the SQLite update store keeps only an empty binding
+  or 64 lowercase hex digits. So every save in a self-updating build fails,
+  and the panel then shows "Update settings can't be saved right now…" and
+  forgets its preferences. `release_update_public_path` binds 64 hex digits
+  and does not meet this. The look keeps settings in memory, so it does not
+  show it. This needs its own card.
+
+Next: read the decisions (`status --after 12`). An Accept on all four
+passes AC5. A Reject's note shapes v002.
