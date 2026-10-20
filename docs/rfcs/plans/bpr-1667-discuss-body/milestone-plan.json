@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1667-discuss-body",
+  "scope": {
+    "issues": [
+      "BPR-1667"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "repair-discuss-body",
+      "outcome": "Overview new comments opens Discuss with the accepted comment bodies, matching Review while preserving actual empty bodies.",
+      "work": [
+        {
+          "issue": "BPR-1667",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The old candidate fails the production-route regression and the repaired candidate passes.",
+        "Focused verification and upkeep are complete, and all task-owned commands are quiescent."
+      ],
+      "boundary": "Only isolated codex/discuss-comment-body-fix worktree and BPR-1667; no source integration into main or release publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
