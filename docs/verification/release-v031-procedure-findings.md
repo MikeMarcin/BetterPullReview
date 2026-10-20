@@ -72,3 +72,47 @@ The next procedure review can evaluate these concrete improvements:
 
 These are recorded follow-up proposals, not newly implemented automation or a
 claimed speedup. BPR-1653's memory repair is a separate next engineering scope.
+
+## Retrospective and adopted workflow, 2026-10-20
+
+After publication, the owner requested this retrospective and an improvement to
+`publish-release` while the separate implementer works on BPR-1653. The original
+release record above remains historical. The skill now routes coordinated and
+resumed runs through its [execution and recovery reference](../../.codex/skills/publish-release/references/execution.md).
+This is a procedure change; it does not change the published source, assets,
+test selection, security policy or acceptance limits.
+
+### What consumed the time
+
+| Cost | What the evidence supports | Adopted response |
+|---|---|---|
+| Final Windows full suite: 159.39 min; Mac: 52.51 min; Ubuntu: 54.60 min | Windows is the longest measured normal gate. Windows and WSL share one host, so their suites cannot safely overlap with performance-sensitive work. | Start the independent Mac lane alongside the PC lane; retain existing native scheduling and caches. |
+| Earlier failed Mac and Windows suites: 60.08 and 168.82 min | About 228.91 min of aggregate suite work preceded the final freeze. The runs overlap; this is not an elapsed delay estimate. They exposed a real read/menu race and a navigation fixture ordering error. | Exercise small changed public-composition courses on relevant hosts before final gates. Reject obsolete candidates before unstarted downstream work. |
+| Native dispatch and collection repairs | Canonical CPM paths, SSH GUI context, WSL PATH, PowerShell stderr handling, an outer wait stall and collector mistakes required recovery. A native pass survived the wrapper repair. | Validate the actual invocation route early; distinguish native completion from wrapper/collection state and recover only the failed layer. |
+| PC material handoff to final handback: about 155 min | This is a handoff interval, not measured human effort or wholly idle time. Technical work continued during part of it. Mac review already overlapped PC work. | Prepare packets during eligible work, hand over each exact ready criterion promptly, and preserve accepted partial decisions and authorization across handoffs. |
+| Publisher: 34.129 s; anonymous download/source checks: 33.778 s | Publication/upload was a small measured phase compared with suites and the review interval. | Keep the guarded single publisher; optimize readiness and recovery before considering upload changes. |
+
+The retained original suite timings are authoritative. Windows' four largest
+rows were architecture boundary (621.838 s), large-review history (428.245 s),
+profile/window restoration (412.091 s) and application composition (226.244 s).
+These name future profiling targets; OS, hardware, filesystem and workload
+causes have not been separated. They do not establish permission to omit rows,
+reduce fixtures or relax timing bounds. The recorded phase data also does not
+provide a complete, non-overlapping end-to-end critical path from the initial
+Qt upgrade request; no total time or projected speedup is inferred.
+
+### What changed for the next release
+
+The skill now requires a shared continuation record, reconciliation before
+redispatch, early changed-interaction checks, common committed source before
+final gates, physical-host scheduling, and repair of collection without
+repeating valid native work. It explicitly identifies the Mac producer's own
+normal gate so operators do not add a redundant full prepass. It routes review
+preparation alongside eligible work and keeps exact native trust, source/SPDX,
+security dispositions and required human decisions intact.
+
+The signing-context wording now recognizes v0.3.1's observed approved Windows/
+WSL production without granting readiness to another logon or station. No new
+orchestration executable, background job, test optimization, release or version
+change is introduced. Improvement in elapsed time must be measured on a future
+run. BPR-1653 and any engineering of slow test rows remain separate work.

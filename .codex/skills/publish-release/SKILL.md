@@ -14,6 +14,11 @@ tools; GitHub Actions stays disabled and has no role in the release workflow.
 
 ## Select and prepare
 
+For a coordinated release or a resumed run, read
+[execution and recovery](references/execution.md) before dispatching native work.
+Use one durable phase record to reconcile existing jobs, schedule the shared
+Windows/WSL host and reuse evidence with unchanged inputs.
+
 1. Inspect the working tree, branch, recent tags, `CMakeLists.txt`, release notes
    and available native hosts. Preserve unrelated changes. Choose the SemVer,
    platform set and variants with the user when they are not explicit. An
@@ -29,8 +34,10 @@ tools; GitHub Actions stays disabled and has no role in the release workflow.
    `docs/security/release-policy.md`. Check the current
    `docs/verification/RFC-BPR-0038.md` ledger and applicable native cards;
    historical approvals do not qualify changed artifacts or another platform.
-4. Update the CMake version and user-facing notes, then commit the exact release
-   source. Record its full commit and use that commit on every producer. Run the
+4. Complete blocker fixes and run the small changed public-interaction courses
+   on relevant native hosts before the expensive release gates. Update the CMake
+   version and user-facing notes, then commit the common release source. Record
+   its full commit and use that commit on every producer. Run the
    relevant normal native test gate before the tests-disabled distribution build;
    the macOS script runs its own normal gate. Record failures and configured
    skips. Do not publish dirty-source or skipped-test candidates without the
@@ -149,8 +156,9 @@ bound GPG home with pinentry disabled. Do not ask for the passphrase again after
 one successful enrollment. A missing credential/logon session or failed key
 check stops production; the [Linux guide](references/linux.md) describes recovery.
 Remote invocation must run as the same local Windows signing account with its
-credential set and working WSL interop; this route has not yet been qualified
-through remote station dispatch. No secret/configuration is transferred to the Mac.
+credential set and working WSL interop. v0.3.1 exercised that approved producer
+context; another logon or station still needs its own readiness check. No
+secret/configuration is transferred to the Mac.
 
 Create/push the tag and release only when the user requests publication of the
 prepared version and platform set. Run the same
