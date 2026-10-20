@@ -25,6 +25,7 @@
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QScrollBar>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -386,8 +387,30 @@ namespace {
 		markRead->click();
 		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, root } },
 			   "Mark read reports the action for its thread");
+		// Read marks can move the New divider above the visible post, without
+		// replacing its reader or moving the text being read.
+		const auto unreadReply = rootCard->Posts[1].Id;
+		view.set_feed(true);
+		QApplication::processEvents();
+		const auto heldCard = QPointer<QWidget>{ view.open_card() };
+		const auto posts    = heldCard->findChildren<QWidget*>(QStringLiteral("threadPost"));
+		expect(posts.size() > 3, "the read-state course has a post below the New divider");
+		const auto heldBody = QPointer<QTextEdit>{ posts[3]->findChild<QTextEdit*>(QStringLiteral("threadPostBody")) };
+		expect(static_cast<bool>(heldBody), "the visible post has its real Markdown body");
+		view.verticalScrollBar()->setValue(view.verticalScrollBar()->value() + heldBody->mapTo(view.viewport(), QPoint{ }).y() - 80);
+		QApplication::processEvents();
+		const auto before = heldBody->mapTo(view.viewport(), QPoint{ });
+		static_cast<void>(view.set_thread_read_state(root, { unreadReply }));
+		QApplication::processEvents();
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		expect(heldCard && heldCard == view.open_card() && heldBody && heldBody->mapTo(view.viewport(), QPoint{ }) == before
+				   && heldCard->findChild<QWidget*>(QStringLiteral("threadNewRule")) != nullptr,
+			   "moving the New divider preserves the current reader and its viewport position");
 		view.set_read_state({ });
 		QApplication::processEvents();
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		expect(heldCard && heldCard == view.open_card() && heldBody && heldBody->mapTo(view.viewport(), QPoint{ }) == before,
+			   "removing the New divider preserves the same reader and viewport position");
 		expect(view.unread_post_count() == 0U && !button(view, "threadMarkRead")->isEnabled()
 				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewRule")) == nullptr
 				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadNewPill")) == nullptr,

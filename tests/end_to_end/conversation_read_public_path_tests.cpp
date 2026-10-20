@@ -20,6 +20,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
@@ -137,8 +138,23 @@ int main(int aArgc, char** aArgv)
 		click(comment);
 		QApplication::processEvents();
 		expect(unread(comment) == 1U, "the badge stays new while its durable read write is held");
+		auto* const reply = firstCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+		expect(reply != nullptr && reply->isEnabled(), "the clicked card immediately offers Reply while its read write is pending");
+		reply->click();
+		wait_for([&] { return firstCards->reply_editor() != nullptr && firstCards->reply_editor()->isVisible(); }, "Reply opens before the read completes");
+		const auto pendingReply = QPointer<QPlainTextEdit>{ firstCards->reply_editor() };
+		pendingReply->setPlainText(QStringLiteral("Local reply while the read result is pending."));
+		auto pendingCursor = pendingReply->textCursor();
+		pendingCursor.setPosition(6);
+		pendingReply->setTextCursor(pendingCursor);
+		QApplication::processEvents();
 		release();
 		wait_for([&] { return unread(comment) == 0U && count() == QStringLiteral("1 new comment in the conversation"); }, "clicking the card clears its badge after the durable read result");
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		expect(pendingReply && pendingReply == firstCards->reply_editor() && pendingReply->isVisible()
+				   && pendingReply->toPlainText() == QStringLiteral("Local reply while the read result is pending.") && pendingReply->textCursor().position() == 6,
+			   "durable read completion keeps the immediate reply editor, local text and caret");
+		pendingReply->clear();
 		expect(unread(summary) == 1U && unread(untouched) == untouchedCount, "clicking one card leaves the other summary and inline thread new");
 		render(QStringLiteral("discuss-card-click-read"));
 		const auto before = access::window_read_progress(*application).Snapshot;

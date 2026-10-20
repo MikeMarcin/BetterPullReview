@@ -668,6 +668,7 @@ namespace bpr::qt {
 		void               sync_edges();
 		void               sync_pull_request_edge();
 		void               rebuild_open_card();
+		void               relayout_read_state();
 		void               measure_cards();
 		bool               GeometryPending = false;
 		void               choose(std::size_t aCard, bool aOpen);

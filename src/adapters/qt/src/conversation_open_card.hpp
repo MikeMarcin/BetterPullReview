@@ -12,6 +12,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -118,6 +119,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto source_button() const noexcept -> post_tool*;
 		[[nodiscard]] auto copy_button() const noexcept -> post_tool*;
 		[[nodiscard]] auto post() const noexcept -> const card_post&;
+		void               present_read_state(bool aUnread, bool aRuleAbove);
 		[[nodiscard]] auto mark_rect() const -> QRect;
 		[[nodiscard]] auto rail_rect() const -> QRectF;
 		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
@@ -220,6 +222,8 @@ namespace bpr::qt {
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
+		/// \brief Updates durable read marks without replacing readers or their menus.
+		void present_read_state(const thread_card& aCard);
 		/// \brief Whether \p aWatched is a post's rendered or source text,
 		/// where the arrow keys move the reading caret.
 		[[nodiscard]] auto is_reading(const QObject* aWatched) const -> bool;
@@ -282,21 +286,27 @@ namespace bpr::qt {
 
 		std::string              Id;
 		open_card_style          Style;
-		bool                     Draft       = false;
-		bool                     Writing     = false;
-		bool                     Replying    = false;
-		bool                     Applying    = false;
-		bool                     Publishable = false;
-		bool                     ImagesShown = true;
-		int                      Notch       = 14;
-		QWidget*                 Header      = nullptr;
-		QWidget*                 Foot        = nullptr;
-		note_button*             ReplyField  = nullptr;
-		QWidget*                 Editor      = nullptr;
-		QPlainTextEdit*          ReplyBox    = nullptr;
-		feedback_label_controls* Labels      = nullptr;
-		QLabel*                  ReplyStatus = nullptr;
-		note_button*             Publish     = nullptr;
+		bool                     Draft           = false;
+		bool                     Writing         = false;
+		bool                     Replying        = false;
+		bool                     Applying        = false;
+		bool                     Publishable     = false;
+		bool                     ImagesShown     = true;
+		int                      Notch           = 14;
+		QWidget*                 Header          = nullptr;
+		QBoxLayout*              HeaderRow       = nullptr;
+		QWidget*                 NewPill         = nullptr;
+		QWidget*                 NewRule         = nullptr;
+		QToolButton*             MarkRead        = nullptr;
+		int                      NewPillPosition = 0;
+		std::size_t              UnreadCount     = 0U;
+		QWidget*                 Foot            = nullptr;
+		note_button*             ReplyField      = nullptr;
+		QWidget*                 Editor          = nullptr;
+		QPlainTextEdit*          ReplyBox        = nullptr;
+		feedback_label_controls* Labels          = nullptr;
+		QLabel*                  ReplyStatus     = nullptr;
+		note_button*             Publish         = nullptr;
 		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
 		/// draft Update review comment; and where the draft stands.
 		note_button*       ReviewAction = nullptr;

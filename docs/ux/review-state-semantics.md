@@ -27,6 +27,8 @@ Opening a New-badged card in Discuss requests the existing local Mark read
 command for that conversation ([[BPR-1668]]). Its marker changes only after
 durable persistence succeeds. Selecting a card without opening it, publishing a
 refresh, and showing unrelated cards do not advance their read receipts.
+The durable result updates the New marks while keeping the active reader,
+context menu, reply text and caret, and the current reading position in place.
 
 ## Defects
 

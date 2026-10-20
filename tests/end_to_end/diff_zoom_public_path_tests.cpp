@@ -30,6 +30,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTemporaryDir>
@@ -149,6 +150,9 @@ int main(int aArgc, char** aArgv)
 	expect(target != notes->cards().end() && target->Posts.size() > 1U, "Discuss offers a current inline thread with a reply");
 	// Opening the thread and pumping events may replace the cards below.
 	const auto thread = *target; // NOLINT(performance-unnecessary-copy-initialization)
+	expect(thread.UnreadCount > 0U, "the inline thread begins with a New badge");
+	auto releaseRead = access::hold_review_ledger_effects(*application);
+	expect(static_cast<bool>(releaseRead), "the durable read completion can be held while opening the reply menu");
 	notes->open_thread(thread.Id);
 	QApplication::processEvents();
 	auto* const lineButton = notes->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
@@ -173,6 +177,24 @@ int main(int aArgc, char** aArgv)
 	QApplication::processEvents();
 	auto* const replyMenu = (*reply)->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
 	expect(replyMenu != nullptr, "right-clicking the reply opens the reader's context menu");
+	expect(replyMenu->isVisible(), "the immediate reply menu is visible before the read completes");
+	const auto heldCard     = QPointer<QWidget>{ notes->open_card() };
+	const auto heldMenu     = QPointer<QMenu>{ replyMenu };
+	const auto heldBody     = QPointer<QTextEdit>{ replyBody };
+	const auto heldCursor   = replyBody->textCursor();
+	const auto heldPosition = replyBody->mapTo(notes->viewport(), QPoint{ });
+	releaseRead();
+	wait_for([&] {
+		const auto card = std::ranges::find(notes->cards(), thread.Id, &qt::thread_card::Id);
+		return card != notes->cards().end() && card->UnreadCount == 0U;
+	},
+			 "the opened thread becomes durably read while its immediate menu is active");
+	QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	expect(heldCard && heldCard == notes->open_card() && heldBody && heldMenu && heldMenu->isVisible(),
+		   "durable read completion preserves the current reader and its active reply menu");
+	expect(heldBody->textCursor().position() == heldCursor.position() && heldBody->textCursor().anchor() == heldCursor.anchor()
+			   && heldBody->mapTo(notes->viewport(), QPoint{ }) == heldPosition,
+		   "the immediate read result keeps the reader's caret and viewport position");
 	const auto menuActions = replyMenu->actions();
 	const auto inReview    = std::ranges::find_if(menuActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
 	if (!artifactRoot.isEmpty()) {

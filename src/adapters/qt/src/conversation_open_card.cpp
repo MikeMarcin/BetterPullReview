@@ -829,6 +829,14 @@ namespace bpr::qt {
 		return Post;
 	}
 
+	void thread_post_view::present_read_state(const bool aUnread, const bool aRuleAbove)
+	{
+		Post.Unread = aUnread;
+		RuleAbove   = aRuleAbove;
+		setAccessibleDescription(aUnread ? QStringLiteral("New") : QString{ });
+		update();
+	}
+
 	auto thread_post_view::mark_rect() const -> QRect
 	{
 		if (!Post.Label) {
@@ -1093,6 +1101,7 @@ namespace bpr::qt {
 		, Style{ aStyle }
 		, Draft{ aCard.Draft }
 		, Writing{ aCard.Writing }
+		, UnreadCount{ aCard.UnreadCount }
 	{
 		setObjectName(QStringLiteral("openThreadCard"));
 		// [[BPR-1212]]. A draft on the base side says so.
@@ -1121,6 +1130,7 @@ namespace bpr::qt {
 			}
 		};
 		auto* const row = new QHBoxLayout{ header };
+		HeaderRow       = row;
 		row->setContentsMargins(8, 0, 4, 0);
 		row->setSpacing(2);
 		const auto& palette = this->palette();
@@ -1179,9 +1189,11 @@ namespace bpr::qt {
 				where->setText(aCard.Side == core::diff_side::left ? QStringLiteral("Base %1").arg(words.toLower()) : words);
 			}
 		}
+		NewPillPosition = row->count();
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
 			row->addSpacing(4);
-			row->addWidget(new new_pill{ aCard.UnreadCount, Style.Colours.New, Style.Colours.OnNew, header }, 0, Qt::AlignVCenter);
+			NewPill = new new_pill{ aCard.UnreadCount, Style.Colours.New, Style.Colours.OnNew, header };
+			row->addWidget(NewPill, 0, Qt::AlignVCenter);
 			row->addSpacing(4);
 		}
 		if (aCard.Writing) {
@@ -1222,6 +1234,7 @@ namespace bpr::qt {
 																								  : QStringLiteral("Mark %1 new as read").arg(unread),
 									  conversation_glyph::read, palette);
 			read->setEnabled(unread > 0U);
+			MarkRead = read;
 			connect(read, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::mark_read); } });
 			row->addWidget(read);
 			auto* const more = tool(header, QStringLiteral("threadMore"), QStringLiteral("More: reply, mark read, resolve, classify"), conversation_glyph::more, palette);
@@ -1294,7 +1307,8 @@ namespace bpr::qt {
 			if (post.Unread && !seenNew && !aCard.Draft) {
 				seenNew = true;
 				if (!first) {
-					column->addWidget(new new_rule{ Style.Colours.New, this });
+					NewRule = new new_rule{ Style.Colours.New, this };
+					column->addWidget(NewRule);
 					ruleAbove = false;
 				}
 			}
@@ -2004,6 +2018,54 @@ namespace bpr::qt {
 	auto open_thread_card::posts() const -> std::vector<thread_post_view*>
 	{
 		return Posts;
+	}
+
+	void open_thread_card::present_read_state(const thread_card& aCard)
+	{
+		if (Draft || (UnreadCount == aCard.UnreadCount && std::ranges::equal(Posts, aCard.Posts, [](const thread_post_view* aView, const card_post& aPost) { return aView->post().Unread == aPost.Unread; }))) {
+			return;
+		}
+		// [[BPR-1668]]. A durable read result changes marks, not the reader
+		// holding the current selection, context menu or unsent reply.
+		UnreadCount = aCard.UnreadCount;
+		if (NewPill != nullptr) {
+			HeaderRow->removeWidget(NewPill);
+			delete NewPill;
+			NewPill = nullptr;
+			delete HeaderRow->takeAt(NewPillPosition);
+			delete HeaderRow->takeAt(NewPillPosition);
+		}
+		if (UnreadCount > 0U) {
+			NewPill = new new_pill{ UnreadCount, Style.Colours.New, Style.Colours.OnNew, Header };
+			HeaderRow->insertSpacing(NewPillPosition, 4);
+			HeaderRow->insertWidget(NewPillPosition + 1, NewPill, 0, Qt::AlignVCenter);
+			HeaderRow->insertSpacing(NewPillPosition + 2, 4);
+			NewPill->show();
+		}
+		if (MarkRead != nullptr) {
+			const auto tip = UnreadCount == 0U ? QStringLiteral("Nothing new") : UnreadCount == 1U ? QStringLiteral("Mark 1 new as read")
+																								   : QStringLiteral("Mark %1 new as read").arg(UnreadCount);
+			MarkRead->setToolTip(tip);
+			MarkRead->setAccessibleName(tip);
+			MarkRead->setEnabled(UnreadCount > 0U);
+		}
+		delete NewRule;
+		NewRule              = nullptr;
+		auto* const column   = static_cast<QVBoxLayout*>(layout());
+		const auto  firstNew = std::ranges::find_if(aCard.Posts, &card_post::Unread);
+		const auto  boundary = firstNew == aCard.Posts.end() ? aCard.Posts.size() : static_cast<std::size_t>(firstNew - aCard.Posts.begin());
+		for (std::size_t index = 0U; index < Posts.size(); ++index) {
+			const auto rule = index > 0U && index == boundary;
+			if (rule) {
+				NewRule = new new_rule{ Style.Colours.New, this };
+				column->insertWidget(column->indexOf(Posts[index]), NewRule);
+				NewRule->show();
+			}
+			Posts[index]->present_read_state(aCard.Posts[index].Unread, index > 0U && !rule);
+		}
+		column->invalidate();
+		column->activate();
+		updateGeometry();
 	}
 
 	auto open_thread_card::is_reading(const QObject* const aWatched) const -> bool

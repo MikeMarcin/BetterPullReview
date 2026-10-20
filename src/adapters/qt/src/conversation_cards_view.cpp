@@ -23,6 +23,7 @@
 #include <QFontMetrics>
 #include <QHelpEvent>
 #include <QKeyEvent>
+#include <QLayout>
 #include <QLinearGradient>
 #include <QListWidget>
 #include <QMenu>
@@ -1138,7 +1139,7 @@ namespace bpr::qt {
 		}
 		UnreadThreads.reset();
 		UnreadConversations.reset();
-		relayout();
+		relayout_read_state();
 	}
 
 	auto conversation_cards_view::set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
@@ -1176,9 +1177,31 @@ namespace bpr::qt {
 			UnreadConversations.reset();
 		}
 		if (std::ranges::any_of(Cards, [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
-			relayout();
+			relayout_read_state();
 		}
 		return previous;
+	}
+
+	void conversation_cards_view::relayout_read_state()
+	{
+		auto anchor = QPointer<QWidget>{ };
+		auto before = 0;
+		if (OpenCard != nullptr) {
+			for (auto* const post : OpenCard->posts()) {
+				const auto box = QRect{ post->mapTo(viewport(), QPoint{ }), post->size() };
+				if (post->isVisible() && box.intersects(viewport()->rect())) {
+					anchor = post;
+					before = box.top();
+					break;
+				}
+			}
+		}
+		relayout();
+		if (anchor && OpenCard != nullptr && OpenCard->isAncestorOf(anchor) && anchor->isVisible()) {
+			OpenCard->layout()->activate();
+			const auto shift = anchor->mapTo(viewport(), QPoint{ }).y() - before;
+			verticalScrollBar()->setValue(verticalScrollBar()->value() + shift);
+		}
 	}
 
 	auto conversation_cards_view::unread_threads_in_file_order() const -> const std::vector<std::string>&
@@ -1955,16 +1978,17 @@ namespace bpr::qt {
 		// keeps its widgets, its focus and the reply being typed.
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
-			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed)) + QString::number(card.UnreadCount)
+			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
 		for (const auto& [id, caption] : card.ReviewComments) {
 			key += QString::fromStdString(id) + caption;
 		}
 		for (const auto& post : card.Posts) {
-			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QString::number(static_cast<int>(post.Unread));
+			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body;
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
+			OpenCard->present_read_state(card);
 			return;
 		}
 		auto* const previous    = OpenCard;
