@@ -14,10 +14,10 @@ metadata: {"mandate":"Owner requested publication of v0.3.1 and a faster procedu
 
 ## Acceptance
 
-- Prepare one clean committed 0.3.1 source with accurate public release notes.
-- Run native normal gates, package and sign the three selected platforms, audit actual runtime/source/SPDX and final native trust, retaining failures and skips.
-- Publish through the existing guarded public publisher only after selected artifacts and required dispositions are ready; verify downloaded bytes, source binding, native trust and release/tag state.
-- Record measured time and safe procedure improvements, reusing unchanged evidence and producer caches without weakening gates.
+- AC1: Prepare one clean committed 0.3.1 source with accurate public release notes.
+- AC2: Run native normal gates, package and sign the three selected platforms, audit actual runtime/source/SPDX and final native trust, retaining failures and skips.
+- AC3: Publish through the existing guarded public publisher only after selected artifacts and required dispositions are ready; verify downloaded bytes, source binding, native trust and release/tag state.
+- AC4: Record measured time and safe procedure improvements, reusing unchanged evidence and producer caches without weakening gates.
 
 The owner explicitly extended the existing Ubuntu RSS-growth exception to
 v0.3.1 on 2026-10-19, requesting an implementer pursue its repair after publication.
