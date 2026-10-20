@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1666"
 title: "Keep Review scrolling stable after opening a new thread"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P0"
