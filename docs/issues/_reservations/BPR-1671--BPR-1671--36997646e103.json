@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1671"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Streamline the updater panel",
+  "created": "2026-10-20T19:31:00.662264+00:00",
+  "base": "3547e8ef632324094d9f9f604d84129519646b1b"
+}
