@@ -262,7 +262,7 @@ namespace bpr::qt {
 			if (item == 0U) {
 				exports->addWidget(button);
 			} else if (item == 1U) {
-				dialogButtons->addButton(button, QDialogButtonBox::ActionRole);
+				dialogButtons->addButton(button, QDialogButtonBox::AcceptRole);
 			} else {
 				buttons->addWidget(button, static_cast<int>((item - 2U) / 2U) + 1, static_cast<int>(item % 2U));
 			}
