@@ -19,7 +19,8 @@ Read diffs, keep private notes, and follow changes across review rounds.
 ## Install
 
 The [latest release](https://github.com/MikeMarcin/BetterPullReview/releases/latest)
-is **v0.3.0**. Downloads currently require access to this private repository.
+is **v0.3.0**. If GitHub prompts you to sign in, use an account with repository
+access.
 
 | Platform | Installer |
 |---|---|
@@ -86,6 +87,7 @@ agent and publishing a finished result as a new pull request.
 | [Storage and removal](docs/development/storage-and-diagnostics.md) | Local data, diagnostics, profile purge and uninstall |
 | [Application updates](docs/development/application-updates.md) | Updates and recovery on eligible macOS installations |
 | [Security overview](docs/security/corporate-security-overview.md) | Network access, credentials, subprocesses and AI boundaries |
+| [Security policy](SECURITY.md) | Private vulnerability reporting and supported versions |
 
 Uninstalling the app leaves private data behind. Profile purge is a separate
 operation and excludes shared updater and registry state.

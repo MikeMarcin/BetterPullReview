@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_REPOSITORY="MikeMarcin/BetterPullReview"
+EXPECTED_VISIBILITY="PRIVATE"
 DRY_RUN=0
 PRERELEASE=0
 NOTES_FILE=""
@@ -13,14 +14,17 @@ INCLUDE_MACOS=0
 
 usage() {
     cat <<EOF
-Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--manifest PATH ...] [--macos] [--prerelease] [--dry-run]
+Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--manifest PATH ...] [--macos] [--public] [--prerelease] [--dry-run]
 
-Publish already verified native artifacts to the private GitHub repository.
+Publish already verified native artifacts to the expected GitHub repository.
 Without --manifest, use the standard macOS eight-asset set. --macos adds that
 set to explicitly selected Windows/Linux manifests. Offline checks bind bytes
 and producer receipts; native trust and release approval remain separate gates.
 The command refuses to push a tag or create a release unless GitHub reports
-${EXPECTED_REPOSITORY} as PRIVATE immediately before each remote mutation.
+${EXPECTED_REPOSITORY} with the selected visibility immediately before each
+remote mutation. The default requires PRIVATE; --public requires PUBLIC.
+--public never changes repository visibility. origin must have one canonical
+GitHub HTTPS or SSH push URL for ${EXPECTED_REPOSITORY}.
 --prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
 EOF
 }
@@ -40,13 +44,20 @@ verify_checksums() {
     fi
 }
 
-private_repository_guard() {
-    local observed
+repository_guard() {
+    local observed push_url
+    push_url="$(git -C "${ROOT_DIR}" remote get-url --push --all origin)"
+    case "${push_url}" in
+        "https://github.com/${EXPECTED_REPOSITORY}"|"https://github.com/${EXPECTED_REPOSITORY}.git"|\
+        "git@github.com:${EXPECTED_REPOSITORY}"|"git@github.com:${EXPECTED_REPOSITORY}.git"|\
+        "ssh://git@github.com/${EXPECTED_REPOSITORY}"|"ssh://git@github.com/${EXPECTED_REPOSITORY}.git") ;;
+        *) fail "origin must have one canonical GitHub push URL for ${EXPECTED_REPOSITORY}" ;;
+    esac
     observed="$(gh repo view "${EXPECTED_REPOSITORY}" \
         --json nameWithOwner,visibility \
         --jq '.nameWithOwner + "\t" + .visibility')"
-    [[ "${observed}" == "${EXPECTED_REPOSITORY}"$'\tPRIVATE' ]] || \
-        fail "GitHub repository is not the expected private repository: ${observed}"
+    [[ "${observed}" == "${EXPECTED_REPOSITORY}"$'\t'"${EXPECTED_VISIBILITY}" ]] || \
+        fail "GitHub repository identity/visibility does not match ${EXPECTED_REPOSITORY} (${EXPECTED_VISIBILITY})"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -67,6 +78,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --prerelease)
             PRERELEASE=1
+            shift
+            ;;
+        --public)
+            EXPECTED_VISIBILITY="PUBLIC"
             shift
             ;;
         --manifest)
@@ -152,7 +167,7 @@ if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then
     [[ ${#ASSETS[@]} -gt 0 ]] || fail "No verified release assets"
 fi
 
-private_repository_guard
+repository_guard
 git -C "${ROOT_DIR}" rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null && \
     fail "Local tag already exists: ${TAG}"
 [[ -z "$(git -C "${ROOT_DIR}" ls-remote --tags origin "refs/tags/${TAG}")" ]] || \
@@ -161,15 +176,15 @@ gh release view "${TAG}" --repo "${EXPECTED_REPOSITORY}" >/dev/null 2>&1 && \
     fail "GitHub release already exists: ${TAG}"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
-    printf 'Private release preflight passed for %s at %s\n' "${TAG}" "$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+    printf 'Release preflight passed for %s at %s (repository visibility: %s)\n' "${TAG}" "$(git -C "${ROOT_DIR}" rev-parse HEAD)" "${EXPECTED_VISIBILITY}"
     exit 0
 fi
 
-private_repository_guard
+repository_guard
 git -C "${ROOT_DIR}" tag -a "${TAG}" -m "${TAG}"
 git -C "${ROOT_DIR}" push --atomic origin main "${TAG}"
 
-private_repository_guard
+repository_guard
 set --
 if [[ "${PRERELEASE}" == "1" ]]; then
     set -- --prerelease --latest=false

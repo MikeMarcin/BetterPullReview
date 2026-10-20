@@ -156,8 +156,7 @@ class SourceAssetTests(unittest.TestCase):
                 self.assertEqual(json.loads((output / ("fixture" + extension + ".provenance.json")).read_text())["products"][source.name], runtime.digest(source))
                 self.assertFalse(list((output / "_CPack_Packages").rglob("*.zip")))
 
-    @unittest.skipIf(sys.platform == "win32", "the existing macOS publication command requires Bash")
-    def test_publication_checks_and_upload_set_use_same_source_asset(self):
+    def publisher_fixture(self):
         # Only fixture git/gh executables can run here. This exercises the real
         # shell command, its checksum gates and Python verifier without a remote.
         repo = self.root / "fixture-repo"
@@ -181,7 +180,7 @@ class SourceAssetTests(unittest.TestCase):
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         stub = f'''#!{sys.executable}
-import json, pathlib, sys
+import json, os, pathlib, sys
 tool = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 with pathlib.Path({str(commands)!r}).open("a") as stream:
@@ -191,8 +190,15 @@ if tool == "git":
     if args[:2] == ["rev-parse", "--verify"]: sys.exit(1)
     if args[:1] == ["branch"]: print("main")
     if args == ["rev-parse", "HEAD"]: print({self.revision!r})
+    if args == ["remote", "get-url", "--push", "--all", "origin"]:
+        print(os.environ.get("FIXTURE_PUSH_URL", "https://github.com/MikeMarcin/BetterPullReview.git"))
 else:
-    if args[:2] == ["repo", "view"]: print("MikeMarcin/BetterPullReview\\tPRIVATE")
+    if args[:2] == ["repo", "view"]:
+        if os.environ.get("FIXTURE_REPO_QUERY_FAIL"): sys.exit(1)
+        calls = [json.loads(line) for line in pathlib.Path({str(commands)!r}).read_text().splitlines()]
+        count = sum(call[:3] == ["gh", "repo", "view"] for call in calls)
+        states = os.environ.get("FIXTURE_VISIBILITY", "PRIVATE").split(",")
+        print(os.environ.get("FIXTURE_REPOSITORY", "MikeMarcin/BetterPullReview") + "\\t" + states[min(count - 1, len(states) - 1)])
     if args[:2] == ["release", "view"] and not pathlib.Path({str(self.root / "created")!r}).exists(): sys.exit(1)
     if args[:2] == ["release", "create"]: pathlib.Path({str(self.root / "created")!r}).touch()
 '''
@@ -202,13 +208,29 @@ else:
             path.chmod(0o755)
         environment = {**runtime.os.environ, "PATH": str(fake_bin) + runtime.os.pathsep + runtime.os.environ["PATH"]}
         command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes)]
+        return command, environment, commands, dist, files
+
+    @staticmethod
+    def publication_mutations(commands):
+        result = []
+        for call in map(json.loads, commands.read_text().splitlines()):
+            if call[0] == "git" and len(call) > 3 and call[3] in ("tag", "push"):
+                result.append(call[3])
+            elif call[:3] == ["gh", "release", "create"]:
+                result.append("release-create")
+        return result
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_publication_checks_and_upload_set_use_same_source_asset(self):
+        command, environment, commands, dist, files = self.publisher_fixture()
         source = dist / self.asset.name
         payload = source.read_bytes()
         source.unlink()
-        result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Release artifact is absent", result.stderr)
-        self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
+        for flags in ([], ["--public"]):
+            result = subprocess.run(command + flags + ["--dry-run"], env=environment, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Release artifact is absent", result.stderr)
+            self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
         source.write_bytes(payload)
         result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -218,6 +240,47 @@ else:
         uploaded = [item for item in map(json.loads, commands.read_text().splitlines()) if item[:3] == ["gh", "release", "create"]]
         self.assertEqual(len(uploaded), 1)
         self.assertEqual(set(uploaded[0][4:12]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_publication_requires_explicit_matching_visibility_and_origin(self):
+        command, environment, commands, _, _ = self.publisher_fixture()
+        for flags, settings, succeeds in [
+            ([], {}, True),
+            (["--public"], {"FIXTURE_VISIBILITY": "PUBLIC"}, True),
+            ([], {"FIXTURE_VISIBILITY": "PUBLIC"}, False),
+            (["--public"], {}, False),
+            (["--public"], {"FIXTURE_VISIBILITY": "UNKNOWN"}, False),
+            (["--public"], {"FIXTURE_REPO_QUERY_FAIL": "1"}, False),
+            (["--public"], {"FIXTURE_VISIBILITY": "PUBLIC", "FIXTURE_REPOSITORY": "fixture/other"}, False),
+            (["--public"], {"FIXTURE_VISIBILITY": "PUBLIC", "FIXTURE_PUSH_URL": "https://github.com/fixture/other.git"}, False),
+            (["--public"], {"FIXTURE_VISIBILITY": "PUBLIC", "FIXTURE_PUSH_URL": "https://github.com/MikeMarcin/BetterPullReview.git\nhttps://github.com/fixture/other.git"}, False),
+            (["--public"], {"FIXTURE_VISIBILITY": "PUBLIC", "FIXTURE_PUSH_URL": "git@github.com:MikeMarcin/BetterPullReview.git"}, True),
+        ]:
+            with self.subTest(flags=flags, settings=settings):
+                commands.write_text("")
+                result = subprocess.run(command + flags + ["--dry-run"], env={**environment, **settings}, text=True, capture_output=True)
+                self.assertEqual(result.returncode == 0, succeeds, result.stdout + result.stderr)
+                self.assertEqual(self.publication_mutations(commands), [])
+                self.assertFalse((self.root / "created").exists())
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_publication_rechecks_visibility_before_each_mutation(self):
+        command, environment, commands, dist, files = self.publisher_fixture()
+        for visibility, mutations in [("PUBLIC,PRIVATE", []), ("PUBLIC,PUBLIC,PRIVATE", ["tag", "push"]),
+                                      ("PUBLIC", ["tag", "push", "release-create"])]:
+            with self.subTest(visibility=visibility):
+                commands.write_text("")
+                result = subprocess.run(command + ["--public", "--prerelease"],
+                                        env={**environment, "FIXTURE_VISIBILITY": visibility}, text=True, capture_output=True)
+                self.assertEqual(result.returncode == 0, visibility == "PUBLIC", result.stdout + result.stderr)
+                self.assertEqual(self.publication_mutations(commands), mutations)
+        calls = list(map(json.loads, commands.read_text().splitlines()))
+        upload = next(call for call in calls if call[:3] == ["gh", "release", "create"])
+        self.assertEqual(set(upload[4:12]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+        for flag in ("--verify-tag", "--prerelease", "--latest=false"):
+            self.assertIn(flag, upload)
+        self.assertTrue(any(call[0] == "git" and "--atomic" in call for call in calls))
+        self.assertFalse(any(call[:3] == ["gh", "repo", "edit"] for call in calls))
 
 
 @unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")

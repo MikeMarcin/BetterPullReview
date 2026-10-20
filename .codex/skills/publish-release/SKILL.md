@@ -1,14 +1,16 @@
 ---
 name: publish-release
-description: Prepare, package, sign, verify, and publish BetterPullReview releases for macOS, Windows, and Linux through the repository's native release tools and private GitHub repository. Use for release preparation or publication, not ordinary development builds.
+description: Prepare, package, sign, verify, and publish BetterPullReview releases for macOS, Windows, and Linux through the repository's native release tools and approved GitHub repository. Use for release preparation or publication, not ordinary development builds.
 ---
 
 # Publish a BetterPullReview release
 
 Build the requested platform set from one committed source revision and SemVer.
 Prepare and verify every selected artifact before creating a tag or GitHub
-release. The repository and releases remain private. Use local or target-native
-tools; GitHub Actions has no role in this repository's release workflow.
+release. Publication defaults to requiring a private repository. Use `--public`
+only for an authorized release after the repository has separately become
+public; the publisher never changes visibility. Use local or target-native
+tools; GitHub Actions stays disabled and has no role in the release workflow.
 
 ## Select and prepare
 
@@ -34,7 +36,9 @@ tools; GitHub Actions has no role in this repository's release workflow.
    skips. Do not publish dirty-source or skipped-test candidates without the
    user's explicit acceptance of the limitation.
 5. Confirm `gh repo view MikeMarcin/BetterPullReview --json visibility` reports
-   `PRIVATE`. A missing native host, identity, signing key, credential or required
+   `PRIVATE` by default, or `PUBLIC` for an explicitly selected `--public`
+   release. Do not change visibility as part of release publication. A missing
+   native host, identity, signing key, credential or required
    decision is a prerequisite, not permission to substitute an unsigned build or
    different OS baseline. Complete agent-owned work before handing human-only
    setup to the available `wizard` skill.
@@ -81,7 +85,8 @@ Assets contain intended binary/source archives, notices, SPDX, checksums and
 approved public verification material. Exclude credentials, unrelated private
 data, private keys, build logs and transient test evidence. Corresponding source
 is the deliberate exception to excluding private repository content; distribute
-it only through the approved private channel.
+it only through the approved release channel. Public source and binary access
+must be equivalent after an authorized public visibility change.
 
 ## Publish once
 
@@ -103,10 +108,16 @@ tools/publish-release.sh --version X.Y.Z --notes-file /absolute/notes.md \
   --manifest /absolute/ubuntu/INSTALLER.deb.release.json --dry-run
 ```
 
-Omit unrequested platforms. The publisher preserves private-repository guards,
+Omit unrequested platforms. For an already-public repository, add `--public`
+to both preflight and publication. The default continues to require private
+visibility; neither mode admits the other state. The publisher preserves
+exact repository identity and selected visibility guards,
 exact version/commit checks, checksum/source binding and atomic
 `main`/annotated-tag push. macOS variants still require a separate publisher
 extension; do not treat native manifests as arbitrary asset upload lists.
+`origin` must have one canonical GitHub HTTPS or SSH push URL for
+`MikeMarcin/BetterPullReview`. A wrong, aliased or multiple push destination is
+refused. Visibility and destination are rechecked before each remote mutation.
 
 For a coordinated release from the Mac host, use its existing macOS producer
 and publisher plus the signing PC's native Windows station and Ubuntu 26.04
@@ -150,7 +161,7 @@ overwrite immutable source or retry an uncertain mutation. On partial failure,
 report which tag, push, release and assets actually exist.
 
 Verify URL, peeled tag commit, draft/prerelease/Latest state, exact selected
-assets and private visibility. Download uploaded products and compare SHA-256
+assets and the selected repository visibility. Download uploaded products and compare SHA-256
 with final producer bytes; verify source binding and native trust again on the
 downloads. The standard macOS route needs all eight assets. Other routes need
 their declared package/archive/source/SPDX/checksum/provenance/signature set,

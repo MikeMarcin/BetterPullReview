@@ -199,6 +199,28 @@ payloads with the archive. Extract and audit final installers and verify native
 signatures separately. Clean desktop qualification, owner/legal approval,
 recipient access/retention and the recorded security gaps remain release gates.
 
+Publication defaults to requiring `MikeMarcin/BetterPullReview` to be private.
+After a separately authorized visibility change, add `--public` to both the
+dry run and the actual publication command to require that repository to be
+public. The flag never changes visibility or permits both states. The publisher
+checks the selected visibility and exact repository identity at preflight and
+again before the atomic push and release creation. It also requires one
+canonical GitHub HTTPS or SSH push URL for `origin`; custom aliases, embedded
+credentials and multiple push destinations are refused without printing them.
+Use the same approved selection throughout one release. A state change after
+the push can leave the tag pushed without a release: inspect existing state
+before continuing, and do not retag, force-push or blindly retry.
+
+```sh
+# Only after BPR is already public and this release is authorized:
+tools/publish-release.sh --public --version X.Y.Z --notes-file /absolute/notes.md \
+  --macos --manifest /absolute/windows/INSTALLER.msi.release.json --dry-run
+```
+
+Remove `--dry-run` only for the authorized publication. It still checks GitHub
+and the remote during preflight; the standalone artifact verifiers are offline.
+GitHub Actions stays disabled and supplies no release or secret-scan gate.
+
 For future coordinated releases, the Mac host can publish the combined set after
 its own macOS producer and the signing PC's native Windows / Ubuntu 26.04 WSL2
 producers finish. Every producer uses the same committed source and selected
@@ -423,8 +445,8 @@ no updater trust. All embedded syntax/theme attribution and complete licensed
 data are retained, not mislabeled as MIT just because the engine is MIT.
 
 Every binary recipient must have equivalent source access at no additional
-charge. The private GitHub release holds binaries and source under the same
-access policy. Corporate/offline redistribution must deliver the exact source
+charge. The GitHub release holds binaries and source under the same access
+policy, whether the repository is private or public. Corporate/offline redistribution must deliver the exact source
 asset alongside its binaries; if repository access changes or the URL is
 unavailable, the distributor must supply the asset through the original
 distribution channel. Keep the asset, digest and version tag immutable while
@@ -434,8 +456,9 @@ owner documents that all source-offer/license obligations have ended. Package
 checks cannot prove future retention or recipient access; release readiness
 requires the owner to establish and maintain those arrangements.
 
-First-party distribution terms and aggregate mixed MIT/LGPL/GPL syntax-data
-obligations need owner/legal release approval. The exact revised macOS inventory
+Original BPR code and documentation use the root MIT licence. Aggregate mixed
+MIT/LGPL/GPL syntax-data and other dependency obligations remain separate and
+need exact-release review. The exact revised macOS inventory
 from `1c429749` received that scoped source/distribution decision at M9 event 469,
 hand-back 470. It does not approve revised Windows/Linux artifacts, different
 bytes, vulnerabilities, trust or publication. Actual source access and retention
@@ -445,7 +468,7 @@ requires the native operator's applicable Microsoft runtime notice. Exact
 artifact license/source completeness remains an independent M9 release gate.
 
 The full existing macOS path emits DMG, app ZIP, SPDX and source ZIP plus four
-checksum files. The existing private publication script requires all eight
+checksum files. The publication script requires all eight
 assets and verifies the source reference inside the actual app ZIP against
 the SPDX and separate source ZIP before any remote operation. Its nonmutating
 offline sub-check is `packaging/verify_release_sources.py`; `--help` lists the
