@@ -557,8 +557,19 @@ int main(int aArgc, char** aArgv)
 		tests::window_system_key(window, key, Qt::AltModifier);
 		expect(window.current_modality() == composedFrom && editor->toPlainText() == body, "editable multiline keys preserve native input and modality");
 	}
+	const auto composerTab = access::epoch_refresh_identity(*application).ActiveTab;
 	window.next_file_action()->trigger();
-	wait_for([&] { return window.current_modality() == qt::review_modality::review; }, "menu navigation can leave composer");
+	// Modality changes immediately. Finish this menu command's actual view
+	// before reopening Compose and testing Home's unrelated shortcut below.
+	wait_for([&] {
+		const auto current = access::epoch_refresh_identity(*application);
+		return window.current_modality() == qt::review_modality::review && shown(window, order[5])
+			&& !current.TabPending && !current.ComparisonPending && composerTab && current.ActiveTab
+			&& current.ActiveTab->Id == composerTab->Id && current.SelectedFile == order[5]
+			&& current.ActiveTab->View.File == order[5]
+			&& current.ActiveTab->View.Comparison == composerTab->View.Comparison;
+	},
+			 "menu navigation leaves composer and finishes the exact next-file view");
 	window.compose_review_action()->trigger();
 	wait_for([&] { return editor->isVisible(); }, "composer returns");
 	expect(editor->toPlainText() == body, "unsent review summary survives navigation round trip");

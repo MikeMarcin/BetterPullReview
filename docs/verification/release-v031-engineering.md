@@ -13,11 +13,14 @@ failed `application_diff_zoom_public_path`. The ordinary release producer
 returned 8 before distribution production. These failures are retained;
 the candidate is not release-qualified.
 
-The Windows normal gate also found `application_review_navigation_entry`
-failing its Home-shortcut assertion. That original full course continues
-without source changes. A rejected-candidate guard prevents its unstarted
-Ubuntu course, recording `NOT_RUN_REJECTED_CANDIDATE` when reached; that is
-not a pass or an accepted test skip.
+The Windows normal gate completed all 784 rows in 10129.385 seconds: 781
+passed, one configured Debug cache-byte course was skipped, and two failed.
+`application_review_navigation_entry` failed its Home assertion in 102.959
+seconds. `application_diff_zoom_public_path` failed in 9.143 seconds with the
+same explicit Open in Review label symptom as macOS. The three thread-scroll
+scales and Discuss comment-body course passed. Raw CTest exit 8 remains failed.
+A rejected-candidate guard prevented its unstarted Ubuntu course and recorded
+`NOT_RUN_REJECTED_CANDIDATE`, exit 125; that is not a pass or an accepted skip.
 The repaired common candidate still requires the selected final native gates
 and all three tests-enabled optimized Release cache-byte courses. The existing
 owner exception covers only Ubuntu's unchanged 216 MiB process-RSS predicate;
@@ -57,3 +60,38 @@ existing palette, typography and layout are retained.
 Raw commands, failed/positive JUnit, source hashes and renders remain in the
 external release session. Final signed artifacts, native trust, current
 security/material decisions and publication evidence are still pending.
+
+## Navigation fixture completion boundary
+
+The Home assertion compared an entire tab while an earlier Next file menu
+command was still finishing. The course had waited only for Review modality,
+which changes immediately, then reopened Compose and entered Home.
+
+An unchanged Windows observational rerun passed in 102.66 seconds with the
+same load still pending before and after the key. That did not erase the
+original failure. A key-free Windows control then retained the original oracle
+and waited for the pending load: Home, tab ID, exact view and selected file
+remained equal, but the tab changed from loading to ready. The original whole-tab
+assertion failed in 103.52 seconds without any key being sent.
+
+Waiting only for that load was insufficient. A second key-free macOS control
+observed the already-requested file reaching the tab on a later event turn.
+A public sequence trace confirms that editor arrow keys dispatch no navigation
+action and preserve file 4; the Next file menu chooses file 5 before the tab
+and published source catch up. This is asynchronous completion of the preceding
+command, not evidence of a Home shortcut product defect.
+
+The fixture now waits for the actual displayed next file, matching selected
+file and active-tab file, retained tab ID and comparison, and finished tab and
+comparison loads before reopening Compose. The original draft round trip,
+Home settle, key delivery and full-tab equality assertion remain unchanged.
+No product code, timeout, assertion, skip or navigation policy is weakened.
+
+Exact final fixture SHA-256
+`5ffe85d69e606a0c79978b4700ae995da391a6a76e8a657340aa12ba6c5c9b92`
+passes the full Windows 4×3×3 navigation course in 102.65 seconds. Its temporary
+native source and original binary were restored, with both builds passing.
+The four macOS card/read/diff-zoom/navigation courses and strict clang-format 22
+and touched-unit clang-tidy 22 pass on the same fixture bytes. Earlier failed
+fixtures, counterexamples and traces remain separate raw evidence. The common
+final candidate still requires its normal native gates and optimized courses.

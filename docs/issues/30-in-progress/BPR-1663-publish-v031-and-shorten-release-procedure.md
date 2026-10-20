@@ -39,6 +39,15 @@ and pass after byte-checked restoration. Immediate menu navigation, Reply text
 and caret, and mixed-divider viewport continuity pass at 100%, 125% and 200%;
 the focused composed integration and strict touched-unit clang-tidy 22 pass.
 See [release engineering evidence](../../verification/release-v031-engineering.md).
-Native Windows Home-shortcut diagnosis, final common-source gates, optimized
-cache courses, artifacts, current security/source dispositions and publication
-remain pending. No acceptance criterion is closed by this repair alone.
+The original Windows gate completed 784 rows: 781 passed, two failed and one
+configured Debug cache-byte course was skipped. Its diff-zoom failure matches
+the reader/menu race. Key-free controls prove the Home oracle also sampled an
+earlier menu command before its tab finished updating. The fixture now waits
+for that command's actual displayed/core next-file result before reopening
+Compose, retaining the original Home/full-tab assertion and draft round trip.
+The exact fixture passes the Windows 4×3×3 course and four macOS public courses,
+with strict format/tidy checks. No product navigation change is made.
+
+Final common-source gates, optimized cache courses, artifacts, current
+security/source dispositions and publication remain pending. No acceptance
+criterion is closed by these bounded repairs alone.
