@@ -24,7 +24,7 @@ namespace bpr::adapters::github::detail {
 		class release_access final : public native_release_update_access
 		{
 		public:
-			release_access(application::github_credential_material aCredential, core::release_update_access_id aIdentity,
+			release_access(std::optional<application::github_credential_material> aCredential, core::release_update_access_id aIdentity,
 						   std::shared_ptr<application::release_update_archive_store> aStore)
 				: Credential{ std::move(aCredential) }
 				, Identity{ aIdentity }
@@ -39,7 +39,7 @@ namespace bpr::adapters::github::detail {
 				std::stop_callback caller{ aStop, [&stop] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&stop] { stop.request_stop(); } };
 				std::string        body;
-				auto               result = perform_release_update_https(Credential.bytes(), 0, application::release_update_maximum_metadata_bytes,
+				auto               result = perform_release_update_https(credential(), 0, application::release_update_maximum_metadata_bytes,
 																		 stop.get_token(), [&body](std::span<const std::byte> aBytes) {
 															   body.append(reinterpret_cast<const char*>(aBytes.data()), aBytes.size());
 															   return true;
@@ -63,7 +63,7 @@ namespace bpr::adapters::github::detail {
 					return { reason::unavailable };
 				}
 				std::uint64_t bytes  = 0;
-				const auto    result = perform_release_update_https(Credential.bytes(), aCandidate.Asset.value(), aCandidate.Size,
+				const auto    result = perform_release_update_https(credential(), aCandidate.Asset.value(), aCandidate.Size,
 																	stop.get_token(), [&](std::span<const std::byte> aBytes) {
 																	 if (!writer->append(aBytes)) {
 																		 return false;
@@ -86,7 +86,8 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
-			application::github_credential_material                    Credential;
+			auto                                                       credential() const noexcept -> std::span<const std::byte> { return Credential ? Credential->bytes() : std::span<const std::byte>{ }; }
+			std::optional<application::github_credential_material>     Credential;
 			core::release_update_access_id                             Identity;
 			std::shared_ptr<application::release_update_archive_store> Store;
 			std::stop_source                                           Revocation;
@@ -102,6 +103,16 @@ namespace bpr::adapters::github::detail {
 			return { };
 		}
 		return std::make_shared<release_access>(std::move(aCredential.Credential), aIdentity, std::move(aStore));
+	}
+	auto make_public_release_update_access(core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore)
+		-> std::shared_ptr<native_release_update_access>
+	{
+		if (aIdentity.value() == 0U) {
+			return { };
+		}
+		// Releases are public: the pinned routes need no sign-in, so a
+		// GHE-only profile still updates ([[BPR-1669]]).
+		return std::make_shared<release_access>(std::nullopt, aIdentity, std::move(aStore));
 	}
 	auto parse_release_update_metadata(std::string_view aBody) -> application::release_update_check_result
 	{

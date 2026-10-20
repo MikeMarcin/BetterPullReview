@@ -20,6 +20,7 @@
 
 #include <chrono>
 #include <limits>
+#include <optional>
 
 namespace bpr::app {
 	namespace {
@@ -44,6 +45,7 @@ namespace bpr::app {
 		QPointer<qt::release_update_panel>                       MainPanel;
 		std::vector<QPointer<qt::release_update_panel>>          Panels;
 		std::vector<release_update_account>                      Accounts;
+		std::optional<release_update_account>                    Public;
 		std::shared_ptr<application::release_update_access_port> Access;
 		QTimer                                                   Timer;
 		bool                                                     Initializing = false;
@@ -113,6 +115,10 @@ namespace bpr::app {
 				static_cast<void>(root);
 #endif
 				self->Decisions.post([self, version, staging, store, boundary, capability, installer] {
+					self->Public = release_update_account{ "public:github.com", "Public releases (no sign-in)", [](core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore, std::function<void(std::shared_ptr<application::release_update_access_port>)> aDone) {
+															  aDone(adapters::github::detail::make_public_release_update_access(aIdentity, std::move(aStore)));
+														  } };
+					self->Accounts.insert(self->Accounts.begin(), *self->Public);
 					self->start({ version, capability, std::make_shared<update_clock>(), store, staging, staging,
 								  [boundary](std::string aAddress) { if (!boundary) { system_browser_opener opener; static_cast<void>(opener.open(aAddress)); } }, installer });
 				});
@@ -198,7 +204,12 @@ namespace bpr::app {
 			if (!Service || !Service->ready() || !Service->projection().AutomaticAvailable || Acquiring || Access || Closing) {
 				return;
 			}
-			const auto binding = Service->account_binding();
+			auto binding = Service->account_binding();
+			// Without a chosen account still on offer, the public releases
+			// need no sign-in, so a GHE-only setup still updates ([[BPR-1669]]).
+			if (Public && (binding.empty() || std::ranges::find(Accounts, binding, &release_update_account::Binding) == Accounts.end())) {
+				binding = Public->Binding;
+			}
 			if (binding.empty() || RequestedBinding == binding) {
 				return;
 			}
@@ -312,6 +323,9 @@ namespace bpr::app {
 	void release_update_desktop::set_accounts(std::vector<release_update_account> aAccounts)
 	{
 		Impl->Accounts = std::move(aAccounts);
+		if (Impl->Public) {
+			Impl->Accounts.insert(Impl->Accounts.begin(), *Impl->Public);
+		}
 		Impl->refresh_accounts();
 		Impl->restore_access();
 	}

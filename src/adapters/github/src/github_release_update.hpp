@@ -14,6 +14,9 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto make_native_release_update_access(application::github_credential_retrieve_success aCredential,
 														 core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore)
 		-> std::shared_ptr<native_release_update_access>;
+	/// \brief Credential-free lease on the same pinned public release routes.
+	[[nodiscard]] auto make_public_release_update_access(core::release_update_access_id aIdentity, std::shared_ptr<application::release_update_archive_store> aStore)
+		-> std::shared_ptr<native_release_update_access>;
 	[[nodiscard]] auto parse_release_update_metadata(std::string_view aBody) -> application::release_update_check_result;
 	/// \brief Builds a browser address only from the fixed repository and validated tag.
 	[[nodiscard]] auto release_update_browser_address(std::string_view aTag) -> std::string;

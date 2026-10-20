@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1669"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Updater checks public releases without a github.com sign-in",
+  "created": "2026-10-20T19:10:26.897964+00:00",
+  "base": "bc856835c6fcef2594645ac3cb02b1a86fd4a8d0"
+}

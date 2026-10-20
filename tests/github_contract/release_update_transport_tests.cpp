@@ -38,6 +38,11 @@ namespace {
 		context.Authority.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
 		context.Authority.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
 		expect(!make_native_release_update_access({ context, std::move(*material()) }, core::release_update_access_id{ 8U }, { }), "enterprise authority cannot access release service");
+		auto anonymous = make_public_release_update_access(core::release_update_access_id{ 9U }, { });
+		expect(anonymous && anonymous->binding().value() == 9U && anonymous->kind() == core::release_update_access_kind::native_github_com, "public releases need no sign-in");
+		anonymous->revoke();
+		expect(anonymous->latest({ }).Failure == reason::cancelled, "public lease revocation refuses before network");
+		expect(!make_public_release_update_access(core::release_update_access_id{ }, { }), "public lease needs an identity");
 		std::cout << "release-update-transport-contract:pass\n";
 	}
 }

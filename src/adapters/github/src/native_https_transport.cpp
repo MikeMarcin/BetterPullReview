@@ -5440,7 +5440,7 @@ namespace bpr::adapters::github::detail {
 		auto release_https(std::span<const std::byte> aCredential, std::uint64_t aAsset, std::uint64_t aLimit,
 						   std::stop_token aStop, const release_update_consumer& aConsume, const transport_policy& aPolicy) -> release_update_wire_result
 		{
-			if (aCredential.empty() || aCredential.size() > application::maximum_github_credential_bytes || !aConsume
+			if (aCredential.size() > application::maximum_github_credential_bytes || !aConsume
 				|| aLimit == 0U || aLimit > (aAsset == 0U ? application::release_update_maximum_metadata_bytes : core::release_update_maximum_archive_bytes)
 				|| !std::ranges::all_of(aCredential, [](std::byte aByte) { const auto byte = std::to_integer<unsigned char>(aByte); return ascii_alpha_numeric(byte) || byte == '-' || byte == '_' || byte == '.' || byte == '~' || byte == '+' || byte == '/' || byte == '='; })) {
 				return { update_reason::unavailable };
