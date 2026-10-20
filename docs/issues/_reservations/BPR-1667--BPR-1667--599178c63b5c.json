@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1667"
+  ],
+  "reserve_for": "discuss-body-fix",
+  "purpose": "",
+  "created": "2026-10-20T06:14:57.266175+00:00",
+  "base": "818de796b1f06b02cc5dda24e0ed86363c413154"
+}
