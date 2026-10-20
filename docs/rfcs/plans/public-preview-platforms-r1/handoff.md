@@ -160,3 +160,13 @@ plan/exit criteria are unchanged. Because the old binder included that mutable
 note, checkpoint binding was explicitly renewed in segment
 `native-expansion-closeout-2`, same run and mandate; the original binding remains
 in Git history. This is evidence bookkeeping, not a waiver of an obligation.
+
+
+## Concurrent repository writer at closeout
+
+Unrelated commit `c2aece8aaee2692483eae4017a174966d5c8771c` reserved BPR-1665
+for a Qt6.12 upgrade between this issue's finish and upkeep commits. It changes
+only `docs/issues/NEXT_ID` and its BPR-1665 allocation receipt; it is preserved
+and is not part of this milestone. No tested product input changes, so native
+and focused evidence remain valid. Explicit-path upkeep commit `78dc5c54b`
+preserves that writer; current-HEAD final check/observation is external as above.
