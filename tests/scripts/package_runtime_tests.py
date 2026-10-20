@@ -208,7 +208,7 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertEqual(runtime.runtime_data(root, "Windows"), {root / "better_pull_review.rcc"})
 
     def test_runtime_module_allowlist(self):
-        for name in ("Qt6Core.dll", "libQt6Network.so.6", "libQt6XcbQpa.so.6.11.2"):
+        for name in ("Qt6Core.dll", "libQt6Network.so.6", "libQt6XcbQpa.so.6.12.0"):
             self.assertTrue(runtime.qt_library(name))
         for name in ("Qt6Cored.dll", "Qt6WebEngineCore.dll", "libQt6Sql.so.6", "libQt6Qml.so.6", "Qt6Gui.dll.bak"):
             self.assertFalse(runtime.qt_library(name))
@@ -218,7 +218,7 @@ class PackageRuntimeTests(unittest.TestCase):
         item = next(v for v in runtime.components({"platform": "Linux"}) if v["name"] == "ICU")
         self.assertEqual(item["version"], "73.2")
         self.assertEqual(item["sha256"], "818a80712ed3caacd9b652305e01afc7fa167e6f2e94996da44b90c2ab604ce1")
-        self.assertEqual(item["qtRuntime"]["qtVersion"], "6.11.2")
+        self.assertEqual(item["qtRuntime"]["qtVersion"], "6.12.0")
         self.assertEqual(set(item["qtRuntime"]["files"]), {"libicudata.so.73", "libicuuc.so.73", "libicui18n.so.73"})
         self.assertEqual({entry["path"] for entry in item["buildInputs"]},
                          {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md", "LICENSE"})
@@ -247,7 +247,7 @@ class PackageRuntimeTests(unittest.TestCase):
             item["qtRuntime"]["files"][name]["sha256"] = runtime.digest(producer)
             observed = qt / "lib" / name
             observed.symlink_to(producer.name)
-            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}
             with patch.object(runtime, "components", return_value=[item]):
                 self.assertEqual(runtime.linux_qt_companion(info, name, observed)[0], producer.resolve())
                 outside = Path(directory) / name
@@ -258,7 +258,7 @@ class PackageRuntimeTests(unittest.TestCase):
                     with self.subTest(name=bad), self.assertRaisesRegex(ValueError, "undeclared"):
                         runtime.linux_qt_companion(info, bad, observed)
                 with self.assertRaisesRegex(ValueError, "undeclared"):
-                    runtime.linux_qt_companion({**info, "qt_version": "6.11.3"}, name, observed)
+                    runtime.linux_qt_companion({**info, "qt_version": "6.12.1"}, name, observed)
                 with self.assertRaisesRegex(ValueError, "require Linux"):
                     runtime.linux_qt_companion({**info, "platform": "Windows"}, name, observed)
                 producer.write_bytes(producer.read_bytes() + b"corrupt")
@@ -282,7 +282,7 @@ class PackageRuntimeTests(unittest.TestCase):
                 entry["sha256"] = runtime.digest(producer)
                 (qt / "lib" / name).symlink_to(producer.name)
                 (stage / name).write_bytes(producer.read_bytes() + b" relocated ORIGIN")
-            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}
+            info = {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}
             def relocate(*args):
                 self.assertEqual(args[:3], ("patchelf", "--set-rpath", "$ORIGIN"))
                 path = args[-1]
@@ -418,7 +418,7 @@ set(BPR_BUILD_AGENT_INTEGRATIONS OFF)
 set(BPR_BUILD_LOCAL_AUTOMATION OFF)
 set(CMAKE_INSTALL_PREFIX /usr)
 set(Qt6_DIR "{ROOT.as_posix()}/fixture-qt/lib/cmake/Qt6")
-set(BPR_PRODUCT_QT_VERSION 6.11.2)
+set(BPR_PRODUCT_QT_VERSION 6.12.0)
 add_executable(app_better_pull_review fixture.cpp)
 add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
 add_library(better_pull_review_xdiff SHARED fixture.cpp)
@@ -510,12 +510,12 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "bin/Qt6" + name + ".dll"} for name in ("Core", "Gui", "Widgets", "Network", "rcc")]
             relations = [{"spdxElementId": "p-" + name, "relatedSpdxElement": "f-" + name, "relationshipType": "CONTAINS"} for name in ("Core", "Gui", "Widgets", "Network", "rcc")]
             relations.append({"spdxElementId": "p-Core", "relatedSpdxElement": "p-pcre2", "relationshipType": "DEPENDS_ON"})
-            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
+            (root / "sbom/qtbase-6.12.0.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
             stage = root / "stage"
             stage.mkdir()
             for name in ("Core", "Gui", "Widgets", "Network"):
                 (stage / ("Qt6" + name + ".dll")).touch()
-            selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)
+            selected = runtime.qt_records({"qt_root": str(root), "qt_version": "6.12.0"}, stage)
             self.assertEqual({item["name"] for item in selected["packages"]}, {"Core", "Gui", "Widgets", "Network", "pcre2"})
 
     def test_deployed_svg_and_webp_join_exact_module_closures_on_each_platform(self):
@@ -524,7 +524,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             ("Windows", "Qt6Svg.dll", "qwebp.dll", "Qt6{}.dll", True),
             ("Darwin", "QtSvg", "libqwebp.dylib", "Qt{}", False),
             ("Linux", "libQt6Svg.so.6", "libqwebp.so", "libQt6{}.so.6", False),
-            ("Linux", "libQt6Svg.so.6.11.2", "libqwebp.so", "libQt6{}.so.6.11.2", False),
+            ("Linux", "libQt6Svg.so.6.12.0", "libqwebp.so", "libQt6{}.so.6.12.0", False),
         ]
         for system, svg, webp, template, uppercase in courses:
             with self.subTest(system=system, svg=svg, uppercase=uppercase), ContainedTemporaryDirectory() as directory:
@@ -549,10 +549,10 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 documents["qtimageformats"]["packages"].append({"SPDXID": "p-webp", "name": "BundledWebP"})
                 documents["qtimageformats"]["relationships"].append({"spdxElementId": "p-WebPPlugin", "relatedSpdxElement": "p-webp", "relationshipType": "STATIC_LINK"})
                 for name, record in documents.items():
-                    (root / f"sbom/{name}-6.11.2.spdx.json").write_text(json.dumps(record))
+                    (root / f"sbom/{name}-6.12.0.spdx.json").write_text(json.dumps(record))
                 for name in [*(template.format(name) for name in base_names), svg, webp]:
                     (stage / (name.upper() if uppercase else name)).touch()
-                module_info = {"qt_root": str(root), "qt_version": "6.11.2", "platform": system}
+                module_info = {"qt_root": str(root), "qt_version": "6.12.0", "platform": system}
                 selected = runtime.qt_records(module_info, stage)
                 self.assertEqual({item["name"] for item in selected["packages"]}, {*base_names, "Svg", "WebPPlugin", "BundledWebP"})
                 expected_names = {p.name.lower() if system == "Windows" else p.name for p in stage.iterdir()}
@@ -602,7 +602,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     security.source_and_notices(stage, output, info)
                 # Required module evidence cannot silently fall back to qtbase.
                 for module in ("qtsvg", "qtimageformats"):
-                    path = root / f"sbom/{module}-6.11.2.spdx.json"
+                    path = root / f"sbom/{module}-6.12.0.spdx.json"
                     saved = path.read_bytes()
                     path.unlink()
                     with self.assertRaises(FileNotFoundError):
@@ -614,8 +614,8 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             root = Path(directory)
             (root / "sbom").mkdir()
             record = {"files": []}
-            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps(record))
-            info = {"qt_root": str(root), "qt_version": "6.11.2"}
+            (root / "sbom/qtbase-6.12.0.spdx.json").write_text(json.dumps(record))
+            info = {"qt_root": str(root), "qt_version": "6.12.0"}
             self.assertEqual(runtime.qt_upstream_records(info, {"QtSvg-backup", "qwebp.dll.bak", "unrelated.dll"}), record)
             for name in ("Qt6Svg.dll", "QT6SVG.DLL", "qwebp.dll", "QWEBP.DLL"):
                 with self.subTest(name=name), self.assertRaises(FileNotFoundError):
@@ -728,7 +728,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             versions = "GLIBC_2.43 GLIBCXX_3.4.35"
             xdiff_source = xdiff
             with patch.object(runtime, "prepare_linux_icu", return_value=receipt), patch.object(runtime, "linux_icu_producers", return_value=(producers, receipt)), patch.object(runtime, "components", return_value=[icu]), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
-                runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
+                runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
             closure = json.loads((stage / "runtime-closure.json").read_text())
             self.assertIn("libQt6Core.so.6", closure["files"])
             self.assertIn("libbpr_xdiff.so", closure["files"])
@@ -738,12 +738,12 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 # An xdiff resolved from outside the package is untrusted...
                 xdiff_source = build / "elsewhere/libbpr_xdiff.so"
                 with self.assertRaisesRegex(ValueError, "untrusted ELF dependency"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
                 xdiff_source = xdiff
                 # ...and a package without it is refused before inspection.
                 xdiff.unlink()
                 with self.assertRaisesRegex(ValueError, "private shared library missing: libbpr_xdiff.so"):
-                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
                 xdiff.write_bytes(b"\x7fELF")
             self.assertEqual(closure["baseline"], {"glibcFloor": "2.43", "requiredGLIBCXX": ["3.4.35"]})
             for ceiling, versions in (("2.43", "GLIBC_2.44"), ("2.39", "GLIBC_2.43")):
@@ -752,7 +752,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     for name in ("qt.conf", "runtime-closure.json", "ThirdParty/icu-runtime-provenance.json"):
                         (stage / name).unlink(missing_ok=True)
                     with self.assertRaisesRegex(ValueError, f"glibc {ceiling} ceiling"):
-                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.11.2"}, stage)
+                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt), "qt_version": "6.12.0"}, stage)
 
     def test_linux_sonames_bind_versioned_qt_producer_records(self):
         with ContainedTemporaryDirectory() as directory:
@@ -760,14 +760,14 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             (root / "sbom").mkdir()
             names = ("Core", "Gui", "Widgets", "Network")
             packages = [{"SPDXID": "p-" + name, "name": name} for name in names]
-            files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "lib/libQt6" + name + ".so.6.11.2"} for name in names]
+            files = [{"SPDXID": "f-" + name, "fileTypes": ["BINARY"], "fileName": "lib/libQt6" + name + ".so.6.12.0"} for name in names]
             relations = [{"spdxElementId": "p-" + name, "relatedSpdxElement": "f-" + name, "relationshipType": "CONTAINS"} for name in names]
-            (root / "sbom/qtbase-6.11.2.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
+            (root / "sbom/qtbase-6.12.0.spdx.json").write_text(json.dumps({"documentNamespace": "example", "packages": packages, "files": files, "relationships": relations}))
             stage = root / "stage"
             stage.mkdir()
             for name in names:
                 (stage / ("libQt6" + name + ".so.6")).touch()
-            self.assertEqual(len(runtime.qt_records({"qt_root": str(root), "qt_version": "6.11.2"}, stage)["packages"]), 4)
+            self.assertEqual(len(runtime.qt_records({"qt_root": str(root), "qt_version": "6.12.0"}, stage)["packages"]), 4)
 
     def test_release_prefix_is_nonpublishing(self):
         script = (ROOT / "tools/release.sh").read_text()

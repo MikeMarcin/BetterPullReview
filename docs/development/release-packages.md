@@ -13,14 +13,19 @@ open native/security gates.
 ## Native inputs and outputs
 
 All distribution graphs use Release, `BUILD_TESTING=OFF`,
-`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.11.2 and the audited dependencies.
+`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.12.0 and the audited dependencies.
 Build from committed, clean source. `app-release` is a development build;
 `core-only` remains independently buildable/testable without Qt/providers.
 There is no new core SDK or embedding API.
 
+The owner accepted macOS 14.4+ for future Qt6.12 builds on 2026-10-19
+([upgrade evidence](../verification/RFC-BPR-0088.md)); the published v0.3.0
+packages retain their recorded macOS 13 requirement. New packages need fresh
+native, trust and vulnerability qualification for their exact Qt6.12 bytes.
+
 | Native build host | Definition and route | Required operator inputs |
 |---|---|---|
-| macOS | `macos-release`; universal x86_64/arm64, minimum macOS 13; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
+| macOS | `macos-release`; universal x86_64/arm64, minimum macOS 14.4; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
 | Windows 10/11 x64 | `windows-app-release`; WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 26.04 LTS x86_64 (including WSL2 producer) | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
 
@@ -160,7 +165,7 @@ old signed runtime or its inventory in place.
 
 Signed production emits `*.release.json` binding installer, runtime archive,
 SPDX, separate source ZIP, final checksums/provenance and signature receipts.
-[[BPR-1657]]. Linux Qt6.11.2 requires ICU73.2's data, uc and i18n
+[[BPR-1657]]. Linux Qt6.12.0 requires ICU73.2's data, uc and i18n
 companions. Packaging admits only that exact trio from the selected Qt provider,
 with the official Qt archive and raw file hashes pinned in
 `packaging/dependencies.json`. Those prebuilt inputs lack immediate binding;

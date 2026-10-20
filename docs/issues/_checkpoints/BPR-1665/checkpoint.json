@@ -1,0 +1,87 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "qt612-20261019",
+  "segment_id": "implementation",
+  "mandate_revision": "qt-6-12-r2",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0088",
+  "binding": {
+    "plan_id": "qt-6-12-v1",
+    "plan_path": "docs/rfcs/plans/qt-6-12-v1/milestone-plan.json",
+    "milestone_id": "qt612-upgrade",
+    "definition_fingerprint": "sha256:110f985f315bbfa458ccdf0ef05be2438276d57b5abe01661b396382a5afa5e9",
+    "obligations": [
+      {
+        "id": "BPR-1665:*",
+        "source": "BPR-1665",
+        "selector": null,
+        "source_fingerprint": "sha256:91dfd33bfdc6d6f126af569021acf0a407e9dd9445c756ed719cfcb30c7b1a58"
+      },
+      {
+        "id": "RFC-BPR-0088:*",
+        "source": "RFC-BPR-0088",
+        "selector": null,
+        "source_fingerprint": "sha256:5e64db0e0964c20889d9d4ca8470454ea18009b4be354c43a48f6c8d52da43c9"
+      }
+    ],
+    "obligation_fingerprint": "sha256:f7b7018ffdff40ca8dd8f3f34544f2782ed61ddd7ce6e510f227f0b6f98d54e9",
+    "exit_criteria": [
+      {
+        "id": "qt612-upgrade:exit:1",
+        "text": "Default provider and distribution pins consistently select Qt6.12.0, preserving refusal gates and module closure."
+      },
+      {
+        "id": "qt612-upgrade:exit:2",
+        "text": "Downloaded source and Linux ICU identities match the inventory; focused package/source/security contracts pass."
+      },
+      {
+        "id": "qt612-upgrade:exit:3",
+        "text": "Available-host app build and composed offscreen checks use Qt6.12.0; document unavailable native/package evidence and retain existing release obligations."
+      },
+      {
+        "id": "qt612-upgrade:exit:4",
+        "text": "Documentation gate passes; explicit-path commits and a durable checkpoint bind all results to the upgrade mandate."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "qt612-upgrade"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/qt-6-12",
+    "source_revision": "5a40477f9f954337faeccab20b9c11acef833590",
+    "workflow_branch": "codex/qt-6-12",
+    "workflow_revision": "5a40477f9f954337faeccab20b9c11acef833590"
+  }
+}

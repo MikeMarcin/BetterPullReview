@@ -134,7 +134,7 @@ heap cleanup budget answer different questions.
 
 ## Dependency boundary
 
-The root resolves dependencies before product subdirectories. Qt 6.11.2 is
+The root resolves dependencies before product subdirectories. Qt 6.12.0 is
 acquired by a pinned provider into the shared dependency cache and then
 resolved through its ordinary CMake config package, so discovery does not
 depend on how Qt arrived. `BPR_QT_ROOT` names an existing prefix to use
@@ -167,14 +167,19 @@ source-ID checks, and copies only the verified `sqlite3.c` and `sqlite3.h` into
 a controlled build-tree staging directory. The static
 `BetterPullReview::SQLite3` target never includes the broader CPM extraction
 directory. CPM is not used to fetch Qt or to replace caller-installed platform
-packages. Qt 6.11.2 uses aqtinstall 3.3.0 on macOS/Linux. On Windows, that
+packages. Qt 6.12.0 uses aqtinstall 3.3.0 on macOS/Linux. On Windows, that
 released installer cannot locate Qt 6.11's changed repository layout, so the
 provider pins upstream merge `8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b`
 ([aqtinstall PR 1000](https://github.com/miurahr/aqtinstall/pull/1000)). This is
 an explicitly unreleased, build-only installer revision, not a modified Qt
 runtime. Its acquisition requires Git on `PATH`; the installed Qt version is
-still checked exactly. A preinstalled official 6.11.2 prefix can instead be
-supplied through `BPR_QT_ROOT`, including offline builds.
+still checked exactly. A preinstalled official 6.12.0 prefix can instead be
+supplied through `BPR_QT_ROOT`, including offline builds. The official macOS
+6.12.0 frameworks require macOS 14.4 or later for both architectures; the
+`macos-release` preset records 14.4. This future-build requirement does not
+change the published v0.3.0 package's macOS 13 minimum. See
+[Qt platform support](https://doc.qt.io/qt-6.12/supported-platforms.html) and
+[upgrade evidence](../verification/RFC-BPR-0088.md).
 
 KSyntaxHighlighting 6.28.1 is acquired the same way, with
 extra-cmake-modules 6.28.0 as a pinned transitive build input. Caller-installed

@@ -328,7 +328,7 @@ if name == 'ditto':
 elif name == 'otool' and '-L' in args:
     print(args[-1] + ':')
     for dependency in os.environ.get('STUB_DEPENDENCIES', '@rpath/QtCore.framework/Versions/A/QtCore;@rpath/QtGui.framework/Versions/A/QtGui;/usr/lib/libSystem.B.dylib').split(';'):
-        print('    ' + dependency + ' (compatibility version 6.0.0, current version 6.11.2)')
+        print('    ' + dependency + ' (compatibility version 6.0.0, current version 6.12.0)')
 elif name == 'otool':
     added = Path(args[-1] + '.rpath')
     rpath = os.environ.get('STUB_FINAL_RPATH', added.read_text()) if added.exists() else '/unrelated/producer/lib'

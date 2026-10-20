@@ -298,13 +298,13 @@ class ReleaseSecurityTests(unittest.TestCase):
             root = Path(directory)
             qt = root / "qt"
             (qt / "sbom").mkdir(parents=True)
-            (qt / "sbom/qtbase-6.11.2.spdx.json").write_text('{"files":[]}')
+            (qt / "sbom/qtbase-6.12.0.spdx.json").write_text('{"files":[]}')
             binary = root / "unknown.dll"
             binary.write_bytes(image())
             producer = root / "bpr_xdiff.dll"
             producer.write_bytes(image())
             info = {"platform": "Windows", "app": str(root / "app.exe"), "helpers": [],
-                    "qt_root": str(qt), "qt_version": "6.11.2",
+                    "qt_root": str(qt), "qt_version": "6.12.0",
                     "private_libraries": {producer.name: str(producer)}}
             with self.assertRaisesRegex(ValueError, "undeclared-pe-producer"):
                 pe.inspect(binary, info, root, private_producers=tuple(package.runtime.private_library_producers(info)))
@@ -316,18 +316,18 @@ class ReleaseSecurityTests(unittest.TestCase):
                 root = Path(directory).resolve()
                 qt = root / "qt"
                 (qt / "sbom").mkdir(parents=True)
-                (qt / "sbom/qtbase-6.11.2.spdx.json").write_text('{"files":[]}')
+                (qt / "sbom/qtbase-6.12.0.spdx.json").write_text('{"files":[]}')
                 binary, producer = root / name, qt / relative
                 producer.parent.mkdir(parents=True)
                 binary.write_bytes(image())
                 producer.write_bytes(image())
                 item = {"SPDXID": "file", "fileName": relative, "fileTypes": ["BINARY"],
                         "checksums": [{"algorithm": "SHA256", "checksumValue": hashlib.sha256(image()).hexdigest()}]}
-                path = qt / f"sbom/{module}-6.11.2.spdx.json"
+                path = qt / f"sbom/{module}-6.12.0.spdx.json"
                 def document(files):
                     path.write_text(json.dumps({"files": files}))
                 document([item])
-                info = {"qt_root": str(qt), "qt_version": "6.11.2"}
+                info = {"qt_root": str(qt), "qt_version": "6.12.0"}
                 self.assertEqual(pe.upstream_dll(binary, info, root), producer)
                 with patch.object(pe, "qt_signed_spdx_match", return_value=False):
                     document([{**item, "checksums": [{"algorithm": "SHA256", "checksumValue": "0" * 64}]}])

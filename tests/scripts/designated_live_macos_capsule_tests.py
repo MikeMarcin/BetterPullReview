@@ -1704,7 +1704,7 @@ class MachFramingTests(unittest.TestCase):
 
     def test_fat_dependencies_exclude_headers_and_require_agreement(self) -> None:
         body = (
-            "\t@rpath/QtCore (compatibility version 6.0.0, current version 6.11.2)\n"
+            "\t@rpath/QtCore (compatibility version 6.0.0, current version 6.12.0)\n"
             "\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1800.0.0)\n"
         )
         agreeing = self.fat(body, body)

@@ -642,6 +642,6 @@ implementation in an isolated worktree; no merge, push or release.
 |---|---|---|---|
 | [RFC-BPR-0088](RFC-BPR-0088-qt-6-12.md) | Upgrade the pinned Qt runtime to 6.12.0 | In Progress | None |
 
-Owner mandate `qt-6-12-r1`. [Plan](plans/qt-6-12-v1/milestone-plan.json);
+Owner mandate `qt-6-12-r2`. [Plan](plans/qt-6-12-v1/milestone-plan.json);
 [verification](../verification/RFC-BPR-0088.md). Native/package release
 qualification remains a separate obligation.

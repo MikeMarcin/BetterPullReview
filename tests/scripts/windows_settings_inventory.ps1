@@ -135,7 +135,7 @@ $executablePath = [IO.Path]::GetFullPath($Executable)
 $bundlePath = Join-Path (Split-Path $executablePath) 'better_pull_review.rcc'
 $record = [ordered]@{
     schema = 'bpr.settings-inventory.uia.v1'; course = $Mode; status = 'not-run'; failure = $null
-    build = 'windows-tests-disabled-qt6112-release'; revision = $Revision
+    build = 'windows-tests-disabled-qt6120-release'; revision = $Revision
     executable = $executablePath; executable_sha256 = $null; bundle_sha256 = $null
     platform = "Windows $([Environment]::OSVersion.Version) x64"; source = 'native UI Automation raw tree, user32 posted clicks and keys, no pointer'
     host = [ordered]@{ computer = $env:COMPUTERNAME; session = [Diagnostics.Process]::GetCurrentProcess().SessionId

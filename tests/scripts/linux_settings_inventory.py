@@ -398,7 +398,7 @@ def course(pid, executable, revision, output, inventory_only=False, focus_surfac
     checks, pages = [], []
 
     def record(status, failure=None):
-        data = dict(schema="bpr.settings-inventory.atspi.v1", build="linux-current-qt6112-release", revision=revision,
+        data = dict(schema="bpr.settings-inventory.atspi.v1", build="linux-current-qt6120-release", revision=revision,
                     executable_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
                     platform=native_platform(), source="AT-SPI accessibility and X11/XTest native gestures",
                     course=kind, status=status, failure=failure,

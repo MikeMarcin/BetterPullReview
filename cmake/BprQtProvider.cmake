@@ -13,7 +13,7 @@ include_guard(GLOBAL)
 # an ordinary find_package(Qt6 CONFIG) in BprDependencies.cmake, so nothing
 # downstream depends on how Qt arrived.
 
-set(BPR_QT_VERSION "6.11.2")
+set(BPR_QT_VERSION "6.12.0")
 set(BPR_AQTINSTALL_VERSION "3.3.0")
 set(BPR_AQTINSTALL_WINDOWS_REVISION "8c3695d4a4e1ceabf6a74dc6c79681656dc6b74b")
 # RFC-BPR-0084 Q2 (owner, 2026-10-16). Add-on modules beyond Qt's essentials:

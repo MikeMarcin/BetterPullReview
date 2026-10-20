@@ -57,7 +57,7 @@ evidence may be reused only with its original scope and identity.
   binaries remain distributed. Keep the asset and version tag immutable.
   Offline validation cannot certify those ongoing access/retention arrangements.
   Text presence alone does
-  not discharge these obligations. See [Qt licensing](https://doc.qt.io/qt-6.11/licensing.html)
+  not discharge these obligations. See [Qt licensing](https://doc.qt.io/qt-6.12/licensing.html)
   and [LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations).
 - First-party and selected SQLite Release compile commands require strong stack
   protection, frame pointers and `_FORTIFY_SOURCE=3` on Clang/GCC, or `/sdl`,

@@ -6,7 +6,7 @@ status: "In Progress"
 rfcs: ["RFC-BPR-0088"]
 depends_on: []
 priority: "P1"
-metadata: {"milestone_plan":{"id":"qt-6-12-v1","path":"docs/rfcs/plans/qt-6-12-v1/milestone-plan.json"},"mandate_revision":"qt-6-12-r1","assigned_implementer":"/root/qt612","reservation":"docs/issues/_reservations/BPR-1665--BPR-1665--78dea174f1c7.json"}
+metadata: {"milestone_plan":{"id":"qt-6-12-v1","path":"docs/rfcs/plans/qt-6-12-v1/milestone-plan.json"},"mandate_revision":"qt-6-12-r2","assigned_implementer":"/root/qt612","reservation":"docs/issues/_reservations/BPR-1665--BPR-1665--78dea174f1c7.json"}
 ---
 
 # BPR-1665: Upgrade the pinned Qt runtime to 6.12.0

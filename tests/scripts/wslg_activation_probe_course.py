@@ -415,7 +415,7 @@ def run(qt_root, work_root, output, focus_surface, skip_wayland=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--qt-root", type=Path, required=True, help="Qt SDK root, for example .../6.11.2/gcc_64")
+    parser.add_argument("--qt-root", type=Path, required=True, help="Qt SDK root, for example .../6.12.0/gcc_64")
     parser.add_argument("--work-root", type=Path, required=True, help="Existing owned directory for the fresh root")
     parser.add_argument("--output", type=Path, required=True, help="New JSON capture")
     parser.add_argument("--focus-surface", choices=("x11", "wslg-rail"),
