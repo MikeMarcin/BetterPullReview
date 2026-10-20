@@ -8,9 +8,10 @@ hosted content. The repository remained **private**, confirmed again at
 other hosted content was changed. No push or GitHub Support ticket was needed
 for the findings described below.
 
-This is a bounded secret audit, not clearance to make BPR public. Packages and
-Projects could not be inventoried with the current credential. GitHub also
-returned 404 for secret-scanning alerts and repository security advisories;
+This is a bounded secret audit, not clearance to make BPR public. The owner
+confirmed that neither Packages nor Projects is used for BPR, closing those
+two inventory questions by owner confirmation. GitHub returned 404 for
+secret-scanning alerts and repository security advisories;
 those responses are not evidence of empty inventories. The earlier
 [retired review-session credential investigation](../development/betterleaks-history-remediation.md)
 still applies to Git history.
@@ -120,12 +121,12 @@ downloaded assets and accessible hosted metadata.
 
 ## Remaining limits and publication follow-up
 
-- **Packages and Projects:** authenticated inventory requires `read:packages`
-  and `read:project`, absent from the available credential. The available
-  in-app GitHub session was not signed in. A short local wizard is prepared
-  for the owner to establish whether either surface is used. An owner report
-  of an existing package/project requires a subsequent content audit; it is
-  not an approval to publish. Global credentials and scopes were not changed.
+- **Packages and Projects — resolved by owner confirmation:** the owner's
+  follow-up, recorded at 2026-10-20 00:09 UTC, states: "Neither is used for
+  BPR." Both wizard steps are complete from that explicit answer. Independent
+  API inventory remains unavailable because the credential lacks
+  `read:packages` and `read:project`; this is not an API-verified empty
+  inventory. Global credentials and scopes were not changed.
 - **Unavailable or historical hosted data:** 404 alert/advisory responses,
   empty retained logs, deleted assets/comments, unlinked uploads, GitHub
   caches, unreachable server objects and external clones are outside the

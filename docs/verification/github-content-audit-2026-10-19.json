@@ -225,11 +225,15 @@
   "unavailable_surfaces": [
     {
       "surface": "GitHub Packages",
-      "reason": "Authenticated GraphQL inventory refused: missing read:packages scope"
+      "reason": "Authenticated GraphQL inventory refused: missing read:packages scope",
+      "disposition": "Resolved by owner confirmation: unused for BPR",
+      "api_inventory_verified": false
     },
     {
       "surface": "GitHub Projects",
-      "reason": "Authenticated GraphQL inventory refused: missing read:project scope"
+      "reason": "Authenticated GraphQL inventory refused: missing read:project scope",
+      "disposition": "Resolved by owner confirmation: unused for BPR",
+      "api_inventory_verified": false
     },
     {
       "surface": "secret-scanning alerts",
@@ -14045,5 +14049,18 @@
     "history_disposition": "One retired review-session token, two known historical handoff files",
     "hook": "active",
     "ci_entrypoints_changed": false
+  },
+  "owner_inventory_confirmation": {
+    "recorded_at": "2026-10-20T00:09:24Z",
+    "source": "Explicit owner reply in this audit chat",
+    "statement": "Neither is used for BPR",
+    "surfaces": [
+      "GitHub Packages",
+      "GitHub Projects"
+    ],
+    "disposition": "Both inventory questions resolved as owner-confirmed unused",
+    "wizard_session_id": "9bd3046b-1c27-4145-ac25-287cdd2074a2",
+    "wizard_status": "complete",
+    "api_inventory_verified": false
   }
 }

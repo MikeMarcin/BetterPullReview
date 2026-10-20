@@ -148,8 +148,9 @@ and when GitHub Support would be appropriate. No live validation was used.
 
 The separate [GitHub hosted-content audit](../security/github-content-audit-2026-10-19.md)
 covers all 115 release assets and accessible hosted metadata. It records
-upstream-fixture and public-metadata dispositions, plus the remaining Packages,
-Projects and historical-hosting coverage limits. It does not clear publication.
+upstream-fixture and public-metadata dispositions, the owner's confirmation
+that Packages and Projects are unused, and historical-hosting coverage limits.
+It does not clear publication.
 
 ## Hooks and removal
 
