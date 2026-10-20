@@ -317,7 +317,9 @@ class PackageRuntimeTests(unittest.TestCase):
     def test_icu_source_build_cache_refuses_input_source_and_output_drift(self):
         import copy, shutil
         builder = runtime.linux_icu_builder()
-        with ContainedTemporaryDirectory() as directory:
+        with (ContainedTemporaryDirectory() as directory,
+              patch.object(builder.shutil, "which") as find_tool,
+              patch.object(builder.subprocess, "check_output", return_value="fixture tool 1.0\n")):
             root = Path(directory)
             source = root / "icu"
             source.mkdir()
@@ -333,7 +335,13 @@ class PackageRuntimeTests(unittest.TestCase):
             with tarfile.open(archive, "w:gz") as packed:
                 packed.add(source, arcname="icu")
             component = {"version": "73.2", "sha256": runtime.digest(archive)}
-            compilers = {"CC": Path(shutil.which("cc")), "CXX": Path(shutil.which("c++"))}
+            # This verifies stored tool identities; it never compiles ICU.
+            # Bind real fixture bytes without requiring POSIX tools on Windows.
+            compilers = {"CC": root / "fixture-cc", "CXX": root / "fixture-cxx"}
+            make = root / "fixture-make"
+            for name, tool in {**compilers, "make": make}.items():
+                tool.write_bytes((name + " fixture tool").encode())
+            find_tool.return_value = str(make)
             receipt = {"schema": "bpr.linux-icu-source-build.v1", "binding": builder.binding(component, compilers),
                        "sourceTreeSHA256": builder.tree_digest(source),
                        "outputs": {name: builder.digest(prefix / filename) for name, filename in builder.FILES.items()}}
@@ -353,6 +361,11 @@ class PackageRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "binding mismatch"):
                 builder.verify(root, component, compilers)
             restore()
+            original_compiler = compilers["CC"].read_bytes()
+            compilers["CC"].write_bytes(original_compiler + b"changed")
+            with self.assertRaisesRegex(ValueError, "binding mismatch"):
+                builder.verify(root, component, compilers)
+            compilers["CC"].write_bytes(original_compiler)
             (source / "fixture.c").write_text("int changed;\n")
             with self.assertRaisesRegex(ValueError, "source drift"):
                 builder.verify(root, component, compilers)

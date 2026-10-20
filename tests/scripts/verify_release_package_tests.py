@@ -30,7 +30,11 @@ class ReleasePackageTests(unittest.TestCase):
             info = {"platform": "Linux", "qt_root": str(qt)}
             record = {"SPDXID": "SPDXRef-controlled-producer", "fileName": "./lib/" + producer.name,
                       "fileTypes": ["BINARY"], "checksums": [{"algorithm": "SHA1", "checksumValue": audit.runtime.digest(producer, "sha1")}]}
-            with (patch.object(audit.runtime, "qt_upstream_records", return_value={"files": [record]}),
+            # The production audit runs outside an AppContainer. Give this
+            # contained fixture's internal relocation root the same access as
+            # its surrounding fixture; all producer/relocation checks still run.
+            with (patch.object(audit.tempfile, "TemporaryDirectory", ContainedTemporaryDirectory),
+                  patch.object(audit.runtime, "qt_upstream_records", return_value={"files": [record]}),
                   patch.object(audit.runtime, "run"),
                   patch.object(audit.subprocess, "check_output", return_value="0000000000001234 T actual_function\n0000000000002000 R actual_data\n") as command):
                 table, binding = audit.linux_qt_symbol_evidence(binary, root, info)
