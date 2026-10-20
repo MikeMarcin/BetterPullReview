@@ -5,7 +5,9 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import unittest
@@ -18,6 +20,21 @@ import run_test_suite as suite
 from skip_report import SkipReportingTestRunner
 
 class SuiteRunnerTests(unittest.TestCase):
+    def test_composition_build_uses_bounded_producer_parallelism(self):
+        script = ROOT / "tests/end_to_end/composition_contract_tests.py"
+        with patch.object(sys, "argv", [str(script)]):
+            composition = runpy.run_path(str(script), run_name="composition_build_control")
+        for configured, expected in ((None, 2), ("", 2), ("1", 1), ("4", 4), ("8", 8), ("32", 8)):
+            with self.subTest(configured=configured), patch.dict(os.environ):
+                os.environ.pop("CMAKE_BUILD_PARALLEL_LEVEL", None)
+                if configured is not None:
+                    os.environ["CMAKE_BUILD_PARALLEL_LEVEL"] = configured
+                self.assertEqual(composition["composition_build_jobs"](), expected)
+        for configured in ("0", "-1", "invalid", " ", "1.5"):
+            with self.subTest(configured=configured), patch.dict(os.environ, {"CMAKE_BUILD_PARALLEL_LEVEL": configured}):
+                with self.assertRaisesRegex(ValueError, "positive integer"):
+                    composition["composition_build_jobs"]()
+
     def test_historical_log_keeps_failure_skip_and_wall_time_distinct(self):
         with ContainedTemporaryDirectory() as temporary:
             path = Path(temporary) / "ctest.log"

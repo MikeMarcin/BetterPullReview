@@ -79,7 +79,7 @@ which Windows treats as the same name: a retained negative control shows the
 previous guard admitted `QT_QPA_PLATFORM=offscreen` plus
 `qt_qpa_platform=windows`, while the corrected guard refuses it. No maintained
 row uses such an alias; its metadata and native course are unchanged.
-Eight runner/configuration contract methods pass locally, including
+Nine runner/configuration contract methods pass locally, including
 positive graph checks for preserved locks, fixtures, labels and deadlines.
 The four-row native causal control and expanded 34-row course pass; full native
 acceptance remains pending. The uncommitted path experiment was discarded without
@@ -184,8 +184,8 @@ shared canary and all unclassified rows stay exclusive.
 ## Build and release critical path
 
 The retained source explains a separate cold cost: `application_composition_contract`
-reconfigures a persistent tests-disabled Ninja Release tree, builds the real
-application with two jobs, and reruns all eight methods plus binary/runtime
+reconfigured a persistent tests-disabled Ninja Release tree, built the real
+application with two jobs, and reran all eight methods plus binary/runtime
 checks. It reuses compiler outputs, never a verdict. The earlier Windows row
 was 754.068 seconds with a cold tree; the final baseline was 226.244 seconds
 warm. The isolated candidate needs its own cold tree. Record that bootstrap
@@ -228,6 +228,47 @@ The resealed actual positive/adversarial method passes locally in 1.607 seconds.
 The documented selected-method invocation gives early feedback before a full
 gate that might schedule composition late; it reuses this owning check and
 never claims to replace the other seven methods or the native build.
+
+The cold Ninja log spans 1132.09 seconds (86.9% of the failed row), with
+2258.501 seconds of summed command intervals: the hardcoded two build workers
+were occupied. The literal dates to original commit `d9cec406af`; its owning
+card/history records no memory, isolation or acceptance rationale. The station
+has 20 logical CPUs and 137.23 GB RAM, and its existing producer bridge selects
+eight build jobs. The driver now respects `CMAKE_BUILD_PARALLEL_LEVEL` with an
+eight-job ceiling, defaults to two when unset/empty, and rejects invalid or
+nonpositive values. The row remains exclusive; the compiler subprocess exits
+before every original binary/runtime check. No build input/target/configuration,
+assertion or timeout changes, and no tree is discarded for another cold build.
+The final gate will record the actual selected setting; cold speedup remains
+unmeasured and is not inferred from the worker-count ratio.
+Nine maintained runner-contract methods pass locally, including the new
+unset/empty/valid/clamped/invalid job-setting cases. An external control also
+executes the actual build-launch statements: valid settings produce the
+original Release target/flags with only the bounded job value changed; invalid
+settings fail before launching CMake. Script/output SHA-256:
+`48ce4145874b01f4d79787aec78101581bf519187988327120e617592585ae30` /
+`155769c5d96906c179110b8316b0f7f5d95c3a12b95e6c6041916edea48bc02f`.
+
+Two strict guard attempts are retained separately from product results.
+The first refused 212 command differences because CTest had omitted commands
+for then-unbuilt executables in the earlier manifest. Every difference was
+absent-to-resolved; all previously resolved commands matched. A configure-only
+original-policy control against the now-built files restores comparable command
+inventory, then restores the exact candidate. The second graph audit passes all
+784 rows and the full incremental build passes in 18.417 seconds with zero
+object changes. All 472 maintained executable/DLL hashes match. Only
+`CMakeFiles/bpr-appcontainer-setup.exe` changes: unchanged
+`cmake/WindowsTestIsolationSetup.cmake` deliberately recompiles it with
+`try_run(COPY_FILE)` from unchanged
+`tests/network_isolation/windows_network_sandbox.cpp` on each configure.
+Those source SHA-256 identities are respectively
+`3466fbaf1269ea08b933e7c525b4eacebb8b54f56e9778d22daa0576eb5bed07` and
+`3db73e1693eee0425dbd0f10ccbf032fbed97107db3783ffc7092ce74018613a`.
+The final identity guard binds this exact configure helper exception and its
+unchanged origin; application, test and dependency binaries remain guarded.
+Raw guard-attempt tar SHA-256 values are
+`c1d16753cc808af1318879e0f611a9e64d0736a04adbe0cc2cf3f9344029f2c9` and
+`709d201ec92193e21372b27b9b7954f06ca13662ead0b7ea0ab5e8a7980e88a6`.
 
 The normal Debug, tests-enabled optimized course, tests-disabled composition
 contract and platform distribution graphs have different configuration/artifact

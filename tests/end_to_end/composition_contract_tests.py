@@ -104,6 +104,13 @@ def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
 ARGUMENTS, UNITTEST_ARGUMENTS = parse_arguments()
 
 
+def composition_build_jobs() -> int:
+    configured = os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL") or "2"
+    if not re.fullmatch(r"[1-9][0-9]*", configured):
+        raise ValueError("CMAKE_BUILD_PARALLEL_LEVEL must be a positive integer")
+    return min(int(configured), 8)
+
+
 # What a diagnostic must say for a hostile snippet to have been stopped by the
 # seal it targets rather than by an unrelated mistake. `review_mutation_-
 # execution_authority` is only forward-declared in the public header, so both
@@ -1390,6 +1397,8 @@ class CompositionContractTests(unittest.TestCase):
                 ]
             )
 
+            build_jobs = composition_build_jobs()
+            print(f"COMPOSITION_BUILD_JOBS: {build_jobs}", flush=True)
             built = subprocess.run(
                 [
                     ARGUMENTS.cmake,
@@ -1400,7 +1409,7 @@ class CompositionContractTests(unittest.TestCase):
                     "--target",
                     "app_better_pull_review",
                     "--parallel",
-                    "2",
+                    str(build_jobs),
                 ],
                 check=False,
                 capture_output=True,

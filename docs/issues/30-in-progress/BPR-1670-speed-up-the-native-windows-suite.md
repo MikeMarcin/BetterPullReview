@@ -62,6 +62,11 @@ Existing unittest fail-fast now prevents expensive downstream methods after a
 failed tripwire, reporting failure and explicit not-run count. Its actual cheap
 method is documented as early feedback before long gates. All eight original
 method bodies remain; one comparable complete native gate remains pending.
+The nested build now respects the existing producer compiler-job setting,
+capped at eight with default two and invalid settings refused. It remains
+exclusive and finishes compilation before runtime checks; no extra cold build
+or measured cold-build saving is claimed. Nine maintained runner controls and
+actual build-argument controls cover that setting.
 Root workflow commit `89fde0df1` is preserved and its guidance reconciled.
 No full-suite or end-to-end release saving is claimed yet.
 

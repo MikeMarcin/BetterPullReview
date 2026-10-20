@@ -272,6 +272,10 @@ under `build/dev/tests/end_to_end/composition-contract-build/release`, so
 unchanged compiler outputs survive between runs. A cold checkout still pays
 for that first build; no prior verdict or unverified executable is reused.
 Standalone execution without `--release-build-dir` remains disposable.
+The nested build honors the producer's `CMAKE_BUILD_PARALLEL_LEVEL`, capped at
+eight compiler jobs; unset/empty retains two, and invalid/nonpositive settings
+fail. Its row remains exclusive, and compilation finishes before binary/runtime
+checks begin. This changes build scheduling, not graph inputs or acceptance.
 
 Before an expensive build/full gate, select its actual cheap source tripwire:
 
