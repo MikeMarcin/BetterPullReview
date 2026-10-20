@@ -11,7 +11,7 @@ findings. The [history investigation](../development/betterleaks-history-remedia
 and [hosted-content audit](github-content-audit-2026-10-19.md) retain the
 evidence and detection limits.
 
-The integration is on local `main` at
+The original integration was landed on local `main` at
 `c634a9338e4400aee212dc24a760dcc19bdf757c`, including the existing README work.
 The pinned scanner is installed and its managed pre-commit hook is active in
 the main checkout. No push or visibility change was made. Hosted cleanup below
@@ -106,14 +106,75 @@ source-asset tests passed. These exercise emitted notices/SPDX, exact licence
 bytes in source helpers, digest refusal and publication preflight fixtures.
 They do not build or qualify new native distribution artifacts.
 
+## Completed publication preparation
+
+The root [security policy](../../SECURITY.md) defines the private reporting
+route, the current-main/latest-stable support scope, and what a useful report
+should contain. While BPR is private, existing recipients use their established
+private owner contact. If no channel is available, an issue may request one
+without disclosing vulnerability details. The policy requires maintainers to
+enable and verify GitHub's private reporting form at the public cutover; it
+does not claim that feature is enabled now.
+
+The [publisher](../../tools/publish-release.sh) still defaults to a private
+repository. Its explicit `--public` option permits publication only after the
+repository has separately become public; it never changes visibility. Both
+modes check the exact BPR identity, selected visibility and single canonical
+`origin` push destination at preflight, before pushing and before creating a
+release. Existing source, SPDX, signing, receipt, exact-artifact and native
+manifest checks remain in force. The [release instructions](../development/release-packages.md)
+cover mode selection and recovery if visibility changes during publication.
+The policy and publisher are committed as
+`2b29737038176222a8bf332d87a124bf2077af57`.
+
+Focused publisher checks ran with network denied on macOS arm64 using Bash
+3.2.57 and Python 3.14.7: 23 source/publication tests passed, and 29 native
+release tests passed with one Windows-only PowerShell check skipped. The
+fixtures exercised matching private/public modes, mismatched or unknown
+visibility, failed lookup, wrong repository, wrong or multiple push
+destinations, visibility changes between guards, dry runs and the unchanged
+native asset set. No real release or push was made.
+
+## Refreshed audit
+
+The [preparation receipt](../verification/publication-preparation-2026-10-19.json)
+records the read-only refresh at **2026-10-20 00:50 UTC**. All **29 remote refs**
+are unchanged from the original audit, with no new or missing local Git
+objects. All **99 retained assets** across **10 releases** match the original
+IDs, names, sizes, digests and update times. Their cached bytes were freshly
+hashed against the current GitHub SHA-256 values: **2,254,693,496 bytes**.
+This reuses the original extraction, binary-string scans and upstream finding
+dispositions for identical assets; it does not claim a second full extraction
+or download of every asset.
+
+All **24 retained binary payloads** were checked against their installed
+source provenance and notices, including MSI cabinet file identities. Every
+payload names an available source asset under its own release tag, with the
+matching SHA-256, version and URL in both `SOURCE-OFFERS.txt` and
+`THIRD-PARTY-NOTICES.txt`. These reference checks cover all 10 retained releases.
+They preserve the existing qualification bounds and do not establish a new
+native installation test or blanket legal clearance.
+
+The refreshed 20 metadata files (380,649 bytes) passed the pinned scanner
+with network denied and no repository fixture exceptions. A separate exact
+search for the retired token in ASCII and both UTF-16 byte orders found no
+occurrence in that metadata. Release notes are unchanged. The old run's logs
+were downloaded again: the archive is still an empty 22-byte ZIP. No new
+hosted secret was found, no new run was started, and no hosted content was
+changed during this refresh. Actions remains disabled and BPR remains private.
+Current tracked files pass; history retains only the 18 known retired-token
+findings. Neither a history rewrite nor a Support ticket is indicated.
+
 ## Remaining publication steps
+
+The requested preparation is complete. Keep BPR private until a separately
+authorized publication; no push or visibility change is part of this work.
 
 | Step | Current evidence and required result |
 |---|---|
-| Prepare the public operating policy | Add a concise `SECURITY.md` with the intended private reporting route and supported-version scope. Update private-only README/release instructions and deliberately adapt the publisher's private-repository guard before relying on it for public releases. Preserve source binding, signing and exact-artifact checks. |
-| Reconcile retained distribution material | Use the existing v0.3.0 and earlier exact-release records for the remaining binaries. Keep corresponding-source access and retention intact. The retired early releases do not need to be rebuilt merely to expose their Git tags, but past recipient obligations remain. Do not treat private package acceptance as blanket approval of new public distribution terms. |
-| Freeze and refresh the audit | Just before publication, record the exact proposed `main`, remote branch/tag set, releases/assets and hosted inventories. Scan changed content with the pinned offline scanner; reuse unchanged asset evidence only after matching IDs and digests. Confirm that the known retired token is still the only unresolved historical match. Stop on any new unexplained finding. |
-| Perform an explicitly authorized cutover | Push the reviewed local commits only when requested, confirm private visibility and Actions disabled, then change visibility only on the owner's explicit instruction. Verify anonymous repository, installer and exact corresponding-source access afterward. Inspect available security settings/alerts and the reporting route without sending a test vulnerability report. |
+| Recheck changes at cutover | Freeze the exact proposed `main` and compare hosted refs, releases/assets and settings with this refresh. Scan any changed content with the pinned offline scanner and investigate every new finding. Retain matching source assets and the private archive of retired releases; past recipient obligations remain. |
+| Perform an explicitly authorized cutover | Push the reviewed local commits only when requested, confirm private visibility and Actions disabled, then change visibility only on the owner's explicit instruction. |
+| Verify public operation | Enable and verify private vulnerability reporting without sending a test report. Verify anonymous repository, installer and exact corresponding-source access. Inspect then-available security alerts and branch/tag protection settings; keep hosted CI disabled. |
 
 The initial GitHub inventory still reports no recognised licence because the
 MIT adoption has not been pushed. Publication and licensing are separate;
@@ -127,7 +188,7 @@ required hosted CI checks to a repository whose Actions execution is disabled.
 
 GitHub private vulnerability reporting is a public-repository feature, so the
 current private-repository 404 does not establish an empty advisory inventory.
-Prepare the policy now; enable and verify the private reporting route when the
+The policy is prepared; enable and verify the private reporting route when the
 repository becomes public. See
 [GitHub's reporting setup](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).
 

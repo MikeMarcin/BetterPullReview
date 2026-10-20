@@ -1,0 +1,1685 @@
+{
+  "schema": "bpr.publication-preparation.v1",
+  "checked_at": "2026-10-20T00:50:29.148083+00:00",
+  "repository": "MikeMarcin/BetterPullReview",
+  "implementation_commit": "2b29737038176222a8bf332d87a124bf2077af57",
+  "previous_local_main": "11c262049bd011cde27dbf071564336bef56d5a8",
+  "repository_private": true,
+  "remote_main": "7819c22e48bfeb1fcfbd095728946d22dd4c1199",
+  "remote_mutations": false,
+  "pushed": false,
+  "visibility_changed": false,
+  "new_release_produced": false,
+  "preparation": {
+    "policy": "SECURITY.md",
+    "publisher": "tools/publish-release.sh",
+    "default_expected_visibility": "PRIVATE",
+    "explicit_public_mode": "--public",
+    "publisher_changes_visibility": false,
+    "guards": [
+      "exact BPR repository identity",
+      "selected visibility",
+      "one canonical BPR origin push URL"
+    ],
+    "guard_points": [
+      "preflight",
+      "before atomic push",
+      "before release creation"
+    ],
+    "existing_source_signature_receipt_and_asset_checks_preserved": true,
+    "private_reporting_enable_and_verify_at_public_cutover": true,
+    "private_reporting_enabled_by_this_work": false,
+    "private_reporting_api_status": 404
+  },
+  "original_asset_scan": {
+    "receipt": "docs/verification/github-content-audit-2026-10-19.json",
+    "receipt_sha256": "a4bc3ba993cffa9e997ff4891d54c401b9317639b5b93afe86b5d48b1085606f",
+    "scope": "Original 115 assets, recursive extraction, ASCII and UTF-16 views; unchanged retained bytes reuse those results and upstream finding dispositions.",
+    "full_extraction_repeated": false
+  },
+  "retained_releases": {
+    "count": 10,
+    "latest": "v0.3.0",
+    "asset_count": 99,
+    "asset_bytes": 2254693496,
+    "current_api_identity_name_size_digest_updated_at_match_original": true,
+    "cached_bytes_freshly_hashed_against_current_github_sha256": true,
+    "release_notes_unchanged": true,
+    "assets": [
+      {
+        "tag": "v0.3.0",
+        "id": 657396738,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz",
+        "size": 49887293,
+        "sha256": "a3546a3c3eeefee3e7df52f6593634eed2a3cd4f1f47a9af97dc40c36144d838"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657422803,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz.asc",
+        "size": 228,
+        "sha256": "d0afe2a52efc238170dec9f066e6da5ff17c598edb868e96217e2336f962f7cd"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657422901,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb",
+        "size": 50130090,
+        "sha256": "1be8a2d30d74b0d7cb35afc4a9f6986a909fb8a207954b215c5bb1beab4f6ad3"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657433771,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.asc",
+        "size": 228,
+        "sha256": "e03482933886f4e08e0a8210c8d19047a880658c63d7eefc5794dd54a7966c03"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657433904,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json",
+        "size": 2870,
+        "sha256": "cb9903f00e57836a2af72b8a9ab258354a5484a3b2dd4724b14fc5dd6bd4717b"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657433984,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json.asc",
+        "size": 228,
+        "sha256": "c7997ac746b8343d8d3f3a8754e7769eb3ec22a023c7a58bc5f618c1e492aab3"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657442340,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.release.json",
+        "size": 4398,
+        "sha256": "8fb25d77fe1ba17539a0074778742b4b606318a282e1d23f7270d30861bb4f22"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657434042,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256",
+        "size": 1036,
+        "sha256": "e7280dba78db0e89709263930d19103c1e9702db8d3c8bb02c8e344eb572f343"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657434095,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256.asc",
+        "size": 228,
+        "sha256": "215dd6182feb0f7c0a772986f98ed946efc95875c765db136d937d847d4957da"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657434168,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json",
+        "size": 195210,
+        "sha256": "e725e767b65b515dbabbdf9d07506890b3a600881ea4e37e472dfcb5fd897301"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657434363,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json.asc",
+        "size": 228,
+        "sha256": "de604ef1798470a1ce3a7e921740da0484443dd4541cd9640a7ee10985944a8f"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377948,
+        "name": "BetterPullReview-0.3.0-macos-universal.dmg",
+        "size": 62837875,
+        "sha256": "d78ab029303feb1c17a7f1d24eee49ae7fb5cd28de2c3c1f5d9dd073b82fed50"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377955,
+        "name": "BetterPullReview-0.3.0-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "1be3d7278913b0f88c9269daab94cd475135ca9c8ba9a55510c74c3b07ec1b69"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377954,
+        "name": "BetterPullReview-0.3.0-macos-universal.spdx.json",
+        "size": 213246,
+        "sha256": "c32963151806c15c85e629bb4edf9c047ecd397c140ffbc19e24c9c3d68770e0"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377993,
+        "name": "BetterPullReview-0.3.0-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "ef4881afe373d9edff6400200618c1c348e4f51248be0e4121c5e94191067e20"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377952,
+        "name": "BetterPullReview-0.3.0-macos-universal.zip",
+        "size": 56289541,
+        "sha256": "764369e65e6aa216ff802dee6c97e555f9fac852497b5c0e169d78e973a948db"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377949,
+        "name": "BetterPullReview-0.3.0-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "ef0ca41ae40eb9ab68a6ec93d9cd0661405217df9245d45d898950b127305eea"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657378080,
+        "name": "BetterPullReview-0.3.0-windows-x64-runtime.zip",
+        "size": 28925242,
+        "sha256": "5bd0e4a5a40485c02b0d5543e9e2e1287f705e8f920e2ed2b3d163b775aed1f8"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657378153,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi",
+        "size": 24952832,
+        "sha256": "2e3ddd16384481b1990a35586542c5c783280a31795277b9846c3d2d0a2287d5"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657394658,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.provenance.json",
+        "size": 2595,
+        "sha256": "3b1cd9d5c350c3c925e2a306110229970a9fde60f6ce34968cdb744baf00feed"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657396511,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.release.json",
+        "size": 3130,
+        "sha256": "de718ae1a254db32a7a780a7cee94455e155cd903a6c32036dd8d4ecab5e7239"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657394748,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.sha256",
+        "size": 470,
+        "sha256": "645bd1b72a9137862f3567d0080a27f8b97f2c93da06da92e45669b96e67d0e0"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657394901,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.spdx.json",
+        "size": 197308,
+        "sha256": "37f410dbe206a97d7382216347d3c8da0fe9c837bb2c39f9b84a28121ba04b41"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657434483,
+        "name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip",
+        "size": 124341823,
+        "sha256": "4f2f01310271ae8ec25a282935e81f83cc13ab04fc99f91b2479c9b199b63b24"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657442223,
+        "name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+        "size": 228,
+        "sha256": "cfff958d9f46debf092f469003c787d73e56ead192bc0ad8af26f832ec9560c7"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657377998,
+        "name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip",
+        "size": 104428744,
+        "sha256": "c25f50e9ad273974ec966166a4edacf3571695d3723ed8c576a4ff19749cd407"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657378061,
+        "name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "b85b407742bf4ffd3bf7a62f83629e5ca5128a1c7edb0c755a35ccacc36bd643"
+      },
+      {
+        "tag": "v0.3.0",
+        "id": 657395278,
+        "name": "Source-BetterPullReview-0.3.0-windows-x64-corresponding-source.zip",
+        "size": 97810926,
+        "sha256": "f5629e19b71c15184da469cb7f550482914c7ac6721972cbbf80b61411491255"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464657,
+        "name": "BetterPullReview-0.2.2-windows-x64-runtime.zip",
+        "size": 27323831,
+        "sha256": "e7321a46b9ee0aafea2bf75a6ae7413f65de029202032460e750b53050631b82"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464652,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi",
+        "size": 23646208,
+        "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464660,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.provenance.json",
+        "size": 2595,
+        "sha256": "fadd9250b6be2c5a7a9fe810f282aa14654224f58b8c00417f7589912fede416"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464743,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.release.json",
+        "size": 3130,
+        "sha256": "a45837d418ebb762d53224a43476a173233bc83d89351858c9c303cb79bf3102"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464659,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "size": 470,
+        "sha256": "01263787a5dd80b8bcf0cbca15177035af5e258ff6430cf8b59b93de73c6aca7"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464655,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+        "size": 175134,
+        "sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039"
+      },
+      {
+        "tag": "v0.2.2",
+        "id": 646464709,
+        "name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "size": 93304239,
+        "sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170213,
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg",
+        "size": 59251696,
+        "sha256": "5ec36d7ba6007c2611845166357c69de290370b5c3cf707e321710465e9a4a78"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170214,
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "822256f240e89bb72a1f110de0f9132ba276c86d41ce0f267912429a6211ca84"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170217,
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json",
+        "size": 188055,
+        "sha256": "db51b084a3641c0e674b0ab5b9e689ba2d68ba0d79c89370157d9ffd47b21f38"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170291,
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "d4bf87d93afbb23ddfad8eca855a275e0435693385f5c5032e03b75791a0548b"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170220,
+        "name": "BetterPullReview-0.2.1-macos-universal.zip",
+        "size": 52990187,
+        "sha256": "8a635a4b8a99caaf5cb7db3aa2344772749e8bd8080272d63004a9f80c4ac4f8"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170208,
+        "name": "BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "4f54f88b9904900fca598f69f3e426798d9591643f4ecba6af3397ebf90a605b"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170295,
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "size": 99922057,
+        "sha256": "45dd4b46978c92e1382b835ab32f3b89fb86e0ec4a01e5f2ebae4efbbdd44cd9"
+      },
+      {
+        "tag": "v0.2.1",
+        "id": 645170297,
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "1e21a125fa2677752abe1c0b7865984a3f069855c23f5696d14f7a1718afec08"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241017,
+        "name": "BetterPullReview-0.2.0-macos-universal.dmg",
+        "size": 58846607,
+        "sha256": "cab1066872f0368c99a6c1704fb12ecd0fb14ca6904cdf9ba6a60930f9339495"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241026,
+        "name": "BetterPullReview-0.2.0-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "5e85a63ff8856dd269d06ac0814ffd0b3fe375e13b0fe927c118e94f0a3b46cb"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241023,
+        "name": "BetterPullReview-0.2.0-macos-universal.spdx.json",
+        "size": 188055,
+        "sha256": "7eda1faa9829a4ad63d836b6abc36e914cd4bde7d629cd18cd1fcbca7374bcbe"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241048,
+        "name": "BetterPullReview-0.2.0-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "f41893bfefc65e3f025f473c2e87c84d0a9ce2f63f57735ea4d080e15282335e"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241020,
+        "name": "BetterPullReview-0.2.0-macos-universal.zip",
+        "size": 52877195,
+        "sha256": "311e0706988fb33144c088343417f297d4cff210ac8aede9d4a6e72da859b5d7"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241022,
+        "name": "BetterPullReview-0.2.0-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "b09365382cf9da285dcda06fa4394b16bfd73db86a1a3aecba71482bcdfa6809"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241060,
+        "name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip",
+        "size": 99922057,
+        "sha256": "45dd4b46978c92e1382b835ab32f3b89fb86e0ec4a01e5f2ebae4efbbdd44cd9"
+      },
+      {
+        "tag": "v0.2.0",
+        "id": 641241066,
+        "name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "55d5ebc6543c73a1f6ebc4e802fd64c3240456e3a46e960eda08f4047e6d3bf8"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399366,
+        "name": "BetterPullReview-0.1.9-macos-universal.dmg",
+        "size": 56701107,
+        "sha256": "7390aa062c3b6b0e5bb158c8a64e9b11a47adec0b8fd6ffbf0e67b50740f8cde"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399364,
+        "name": "BetterPullReview-0.1.9-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "3919d73d9175a9a5a2510519746b07023cc983f9be3b6f1f97354a9bed53f157"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399374,
+        "name": "BetterPullReview-0.1.9-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "c7df978a9e1198a01f96946dfaf7e1a68db844c1a6a6bc134c396a820d5a89f3"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399395,
+        "name": "BetterPullReview-0.1.9-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "867a796b9d2e92227ca6c6884b7590d6eeb2850355d405acedacce1f237c4788"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399362,
+        "name": "BetterPullReview-0.1.9-macos-universal.zip",
+        "size": 50876677,
+        "sha256": "8ae14a16c77bc9d6dd78c6a51055769eb455595ad2625250c858bfe91f273c38"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399367,
+        "name": "BetterPullReview-0.1.9-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "5c3e7b046871c9fea1cef219c782d791bd296d19b8276055da3055ac92e3e88d"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399405,
+        "name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.9",
+        "id": 634399406,
+        "name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "3c94dd61a9a79dd115e0170d5c35d07c6cc2687bfb5d81791322d5c33b707413"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001193,
+        "name": "BetterPullReview-0.1.8-macos-universal.dmg",
+        "size": 56589964,
+        "sha256": "da2c39c5f13e12c134e471a5193b0982fb97eb5be3ef7f93cc56c9232d715ce7"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001192,
+        "name": "BetterPullReview-0.1.8-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "e12d8b49e94c9241a83493ded7404b7f17f7a126b8d3f5db62a3aa8f4b66d408"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001187,
+        "name": "BetterPullReview-0.1.8-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "811042ca016c22a0546741a3eac5f63ffb92e100d0819a875e2c9020a77708d7"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001213,
+        "name": "BetterPullReview-0.1.8-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "4ee5ec085b084e0c24afa6975c9d9e6f623088db16956fa00bb371711d25307a"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001196,
+        "name": "BetterPullReview-0.1.8-macos-universal.zip",
+        "size": 50639827,
+        "sha256": "6830b8afaa6346f9dff22b758aa75ae4acee5e0525885f721623236d2e00fd08"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001195,
+        "name": "BetterPullReview-0.1.8-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "5b55f3305d6eb62f4d492bcf2f03ddd82d77a82471aa6eace5c17ded64874bbb"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001215,
+        "name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.8",
+        "id": 630001220,
+        "name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "ada4e747626959e8e4ec33448865455578df39d18a89cfc495173a0b1bb031ba"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021039,
+        "name": "BetterPullReview-0.1.7-macos-universal.dmg",
+        "size": 56580059,
+        "sha256": "13290891e016fa4945847bbc8a6aec40f6a04079552dd05bf4122dccefda80e1"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021036,
+        "name": "BetterPullReview-0.1.7-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "97e0d018511455976e903202ecb3495eba51515d9a078b309d87129586252ad6"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021033,
+        "name": "BetterPullReview-0.1.7-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "679dbfc565179d1721e4e165a1daf528615f6c31cd62ccee28091819c4b77c54"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021067,
+        "name": "BetterPullReview-0.1.7-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "c8cc0b383f8de71e01a686d86e0edabcfa84052620cad5b75226d14f06ef5d54"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021038,
+        "name": "BetterPullReview-0.1.7-macos-universal.zip",
+        "size": 50628857,
+        "sha256": "45433f1b64d43c2772741e678e9c1990d427d5043b0cec10ee68562b16e34a6a"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021035,
+        "name": "BetterPullReview-0.1.7-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "5167de933b589220fea7176522d495dac3984315cb1bc315cb6755e972922719"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021065,
+        "name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.7",
+        "id": 629021066,
+        "name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip.sha256",
+        "size": 137,
+        "sha256": "eca7347086cff0720af921bd277130a5a07dab21cc962e6033110b6fdc87de3f"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305667,
+        "name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305668,
+        "name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip.sha256",
+        "size": 130,
+        "sha256": "d3efa58176b8977bc774a79260f5f22a5e8c2269e8c5dfc80dfedb492abb8982"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305649,
+        "name": "BetterPullReview-0.1.6-macos-universal.dmg",
+        "size": 56615740,
+        "sha256": "00440c2ad6ba119b3caeb536b6b7d7e0a47e9f98dbea099d31b13343750eeab5"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305648,
+        "name": "BetterPullReview-0.1.6-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "701f68599fcfeb4e4228fb964ac645578ce99f0d1e5923921b2e577113585c32"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305644,
+        "name": "BetterPullReview-0.1.6-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "6a4fcd6a623266aad04b87577e399928455880724380053af015aac227cf6a91"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305666,
+        "name": "BetterPullReview-0.1.6-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "19b79a2b23e2826b8b404f02223689d95329db6b70b64fc617409a6069d8e62d"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305650,
+        "name": "BetterPullReview-0.1.6-macos-universal.zip",
+        "size": 50591292,
+        "sha256": "008ffea720e7181ccad6e27af86e06e2cc946b1371da6522a08526bd303c2084"
+      },
+      {
+        "tag": "v0.1.6",
+        "id": 628305647,
+        "name": "BetterPullReview-0.1.6-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "8114928588cf8950b12f4cadec5f079f66f79fa7d450d87cc21f2b6e199be3b9"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467435,
+        "name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467440,
+        "name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip.sha256",
+        "size": 130,
+        "sha256": "b52bb31481c26c1d64af80cf7b384d439c649716751aa4b1b58e8025850314b4"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467442,
+        "name": "BetterPullReview-0.1.5-macos-universal.dmg",
+        "size": 55637308,
+        "sha256": "b7c9378cc93c93c6435b1970456596281d346f09d45202fb558a92ae32e2e727"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467445,
+        "name": "BetterPullReview-0.1.5-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "b5956f0fd09060bee1fc48bfb3cbb9ca3072f5e20ba691600780783ff2ca071c"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467433,
+        "name": "BetterPullReview-0.1.5-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "54cabc0949e2730d4fa6d2cb3fab13b53d5c9ac9445ba4c63125026b6bc319b6"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467478,
+        "name": "BetterPullReview-0.1.5-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "6b45d13fdb6b3446b63159ef34954eee05290c1e771b65fa4621aaf659eff8a9"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467487,
+        "name": "BetterPullReview-0.1.5-macos-universal.zip",
+        "size": 49656744,
+        "sha256": "169996cefedcd692c149199d1ab01e7aaedc62a93e6d79c9662161fc1ad3f074"
+      },
+      {
+        "tag": "v0.1.5",
+        "id": 622467488,
+        "name": "BetterPullReview-0.1.5-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "912d2bdb9230cec4cc7dbcd3752123e2148f03b025601e396d1f4acb10a726c1"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790525,
+        "name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip",
+        "size": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790529,
+        "name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip.sha256",
+        "size": 130,
+        "sha256": "6dd7af0ed82db737ce0220adf24fc628e4cb80fa4e835f5a48391e6954b0bfe9"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790509,
+        "name": "BetterPullReview-0.1.4-macos-universal.dmg",
+        "size": 55248823,
+        "sha256": "36f62aebc681c041f8c36224e4c6d8263f6146f4d46525e2655fa4518dc1be63"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790498,
+        "name": "BetterPullReview-0.1.4-macos-universal.dmg.sha256",
+        "size": 109,
+        "sha256": "08ad229be664a89d86b2f6e8429270db0766f080e1968301b50297ade1fb0e65"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790504,
+        "name": "BetterPullReview-0.1.4-macos-universal.spdx.json",
+        "size": 178819,
+        "sha256": "28a0ff45c974ff497e998b42e1f467728589a82ed5d244fa5cbec3b4b765cbd7"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790520,
+        "name": "BetterPullReview-0.1.4-macos-universal.spdx.json.sha256",
+        "size": 115,
+        "sha256": "54e8e964b3a1720e0a98d8423b7e8e5428c5cc4fe4e3a6c1494f14fdd7bfd638"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790502,
+        "name": "BetterPullReview-0.1.4-macos-universal.zip",
+        "size": 49561626,
+        "sha256": "e71edfc72990828ffe3378d1bd57edf400051235229c4e2b35c8ce41fe206ef5"
+      },
+      {
+        "tag": "v0.1.4",
+        "id": 619790511,
+        "name": "BetterPullReview-0.1.4-macos-universal.zip.sha256",
+        "size": 109,
+        "sha256": "d3aad2d6b32fc1f41b44043c3c5f5580b03e0718c7d668f817c16b813e7c66b3"
+      }
+    ]
+  },
+  "source_bindings": {
+    "binding_count": 24,
+    "release_tags": [
+      "v0.1.4",
+      "v0.1.5",
+      "v0.1.6",
+      "v0.1.7",
+      "v0.1.8",
+      "v0.1.9",
+      "v0.2.0",
+      "v0.2.1",
+      "v0.2.2",
+      "v0.3.0"
+    ],
+    "bindings": [
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657396738,
+        "binary_name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz",
+        "member": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip",
+        "source_asset_id": 657434483,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657422901,
+        "binary_name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb",
+        "member": "data.tar.gz/./usr/lib/betterpullreview/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip",
+        "source_asset_id": 657434483,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657377948,
+        "binary_name": "BetterPullReview-0.3.0-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip",
+        "source_asset_id": 657377998,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657377952,
+        "binary_name": "BetterPullReview-0.3.0-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip",
+        "source_asset_id": 657377998,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657378080,
+        "binary_name": "BetterPullReview-0.3.0-windows-x64-runtime.zip",
+        "member": "ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-windows-x64-corresponding-source.zip",
+        "source_asset_id": 657395278,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.3.0",
+        "binary_asset_id": 657378153,
+        "binary_name": "BetterPullReview-0.3.0-windows-x64.msi",
+        "member": "\u4230\u4327\u3864\u41be\u4164/CM_FP_ThirdParty.source_provenance.json",
+        "source_name": "Source-BetterPullReview-0.3.0-windows-x64-corresponding-source.zip",
+        "source_asset_id": 657395278,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.2",
+        "binary_asset_id": 646464657,
+        "binary_name": "BetterPullReview-0.2.2-windows-x64-runtime.zip",
+        "member": "ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "source_asset_id": 646464709,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.2",
+        "binary_asset_id": 646464652,
+        "binary_name": "BetterPullReview-0.2.2-windows-x64.msi",
+        "member": "\u4230\u4327\u3864\u41be\u4164/CM_FP_ThirdParty.source_provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "source_asset_id": 646464709,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.1",
+        "binary_asset_id": 645170213,
+        "binary_name": "BetterPullReview-0.2.1-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "source_asset_id": 645170295,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.1",
+        "binary_asset_id": 645170220,
+        "binary_name": "BetterPullReview-0.2.1-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "source_asset_id": 645170295,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.0",
+        "binary_asset_id": 641241017,
+        "binary_name": "BetterPullReview-0.2.0-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip",
+        "source_asset_id": 641241060,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.2.0",
+        "binary_asset_id": 641241020,
+        "binary_name": "BetterPullReview-0.2.0-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip",
+        "source_asset_id": 641241060,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.9",
+        "binary_asset_id": 634399366,
+        "binary_name": "BetterPullReview-0.1.9-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip",
+        "source_asset_id": 634399405,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.9",
+        "binary_asset_id": 634399362,
+        "binary_name": "BetterPullReview-0.1.9-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip",
+        "source_asset_id": 634399405,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.8",
+        "binary_asset_id": 630001193,
+        "binary_name": "BetterPullReview-0.1.8-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip",
+        "source_asset_id": 630001215,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.8",
+        "binary_asset_id": 630001196,
+        "binary_name": "BetterPullReview-0.1.8-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip",
+        "source_asset_id": 630001215,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.7",
+        "binary_asset_id": 629021039,
+        "binary_name": "BetterPullReview-0.1.7-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "source_asset_id": 629021065,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.7",
+        "binary_asset_id": 629021038,
+        "binary_name": "BetterPullReview-0.1.7-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "source_asset_id": 629021065,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.6",
+        "binary_asset_id": 628305649,
+        "binary_name": "BetterPullReview-0.1.6-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip",
+        "source_asset_id": 628305667,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.6",
+        "binary_asset_id": 628305650,
+        "binary_name": "BetterPullReview-0.1.6-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip",
+        "source_asset_id": 628305667,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.5",
+        "binary_asset_id": 622467442,
+        "binary_name": "BetterPullReview-0.1.5-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip",
+        "source_asset_id": 622467435,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.5",
+        "binary_asset_id": 622467487,
+        "binary_name": "BetterPullReview-0.1.5-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip",
+        "source_asset_id": 622467435,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.4",
+        "binary_asset_id": 619790509,
+        "binary_name": "BetterPullReview-0.1.4-macos-universal.dmg",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip",
+        "source_asset_id": 619790525,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      },
+      {
+        "tag": "v0.1.4",
+        "binary_asset_id": 619790502,
+        "binary_name": "BetterPullReview-0.1.4-macos-universal.zip",
+        "member": "BetterPullReview.app/Contents/Resources/ThirdParty/source-provenance.json",
+        "source_name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip",
+        "source_asset_id": 619790525,
+        "checks": {
+          "source_asset_available": true,
+          "source_digest_matches": true,
+          "version_matches": true,
+          "url_matches": true,
+          "SOURCE-OFFERS.txt_references_match": true,
+          "THIRD-PARTY-NOTICES.txt_references_match": true
+        }
+      }
+    ],
+    "failures": [],
+    "network_denied": true,
+    "scope": "Installed provenance and notice references in extracted digest-reverified DMG/ZIP/DEB/tar payloads and MSI cabinet file IDs. No native installer execution or new legal qualification."
+  },
+  "remote_refs": [
+    {
+      "ref": "refs/heads/bpr-1212-v002",
+      "sha": "3933d92618d40933e7b66319430124214fb5c2ed",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1335-base-side-wip",
+      "sha": "cf85998b9309cb8bd27e9bf90a19a02651ece39a",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1335-markers",
+      "sha": "db1b346a3b05fc39cf7a6a4eb0e8578d7ea05c14",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1338-open-on-github",
+      "sha": "45185d1540f0a00935ea73c3a8eb2678a6673e94",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1376-reselect-stress-wip",
+      "sha": "ce8b74d073a0dd3a001d546cbac9e75f78ba1016",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1594-agent-tab",
+      "sha": "3bda132f87aa5bdc11f5710a57f3584d452eb21b",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-1603-conversation-chips",
+      "sha": "3875a9445906eea57187b27c3e2f2a01172bc9e2",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/bpr-polish-contrast-blocking",
+      "sha": "614c6bbb78d56ead97210a2e79e02a97d4fd3bfb",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/claude/bpr-1374-reply-draft-survives",
+      "sha": "6f2d36c4c0b68697d673ddea143b3290fc90a18d",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/claude/line-details-strip",
+      "sha": "5ad22d37e3a7e0e4f5b2792b28636c0b9f8ae610",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/codex/full-design-rfc-pack-v2",
+      "sha": "80f5f6fb9fa6d4de5e51edb8c721f355bbb259dd",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/codex/rfc-bpr-0036-native-markdown",
+      "sha": "0a0ee87319a85764e827c6cab0d2260d206e2a46",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/linux-lane",
+      "sha": "46d61d048e755694cb88048e43bcd245aebffbca",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/main",
+      "sha": "7819c22e48bfeb1fcfbd095728946d22dd4c1199",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/heads/windows-lane",
+      "sha": "b274f47541807f527d32bd7092b6688d0fa09297",
+      "type": "commit"
+    },
+    {
+      "ref": "refs/tags/v0.1.0",
+      "sha": "6cdc7c9a84b459c9f20478964f69d5a9c1643890",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.1",
+      "sha": "4fdc015441761bdf46758265ac3dfea1bf7213c5",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.2",
+      "sha": "6a41f7dadbef561a200e5deaad4f4865b1851829",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.3",
+      "sha": "c0ee93e78d7a6a2cfce5e4ef0cd504dd84389121",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.4",
+      "sha": "ce677964da68fd9d25659cd98ab43d5d67e89ee6",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.5",
+      "sha": "c47fd8e55c22ca8a88625b5b894569d87d8c0fea",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.6",
+      "sha": "56e7032ac011e2e4bb0e1ca8d6da80d961075c9e",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.7",
+      "sha": "91571f75af32d2f22a78b4e8104c4fd3a3fc6ab2",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.8",
+      "sha": "806c0af908f5ab2bb36344d81aa7612cda90dbc0",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.1.9",
+      "sha": "14135c2a9b6417a8292ee51d98276bd8a1e5cc61",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.2.0",
+      "sha": "98e02efd4d3f2fd602a29bfaebe234bdb5d5b3a6",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.2.1",
+      "sha": "93818c1f2d178b89dfbf55f4b18b3af7401717ad",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.2.2",
+      "sha": "12bf257cfaabc487ec7b83c9ad4bfe068e4aec3c",
+      "type": "tag"
+    },
+    {
+      "ref": "refs/tags/v0.3.0",
+      "sha": "6d54661402436247650504329134f4d895c84235",
+      "type": "tag"
+    }
+  ],
+  "remote_refs_unchanged": true,
+  "new_remote_git_objects": 0,
+  "missing_local_git_objects": 0,
+  "hosted_inventory": [
+    {
+      "surface": "repository",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4973,
+      "sha256": "1881ea918656beed8cf2bba938e10e558f05fa0019b5105808b0254e104e773d"
+    },
+    {
+      "surface": "releases",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 10,
+      "rate_remaining": 4972,
+      "sha256": "783f14c9edc1c0f5870e6c86b31b1067f0cbdac12d797208aabf29b921164754"
+    },
+    {
+      "surface": "refs",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 29,
+      "rate_remaining": 4971,
+      "sha256": "a68a81625223264442b4b91ec0777bbe2ea742f2c2d03f0cfc837f4e316ae1e4"
+    },
+    {
+      "surface": "issues",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4970,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "issue_comments",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4969,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "pull_requests",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4968,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "review_comments",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4967,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "commit_comments",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4966,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "actions_runs",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4965,
+      "sha256": "8d828218495e2ee7ea4a83bc387c0d979ab359d948a960a46753441e30330010"
+    },
+    {
+      "surface": "actions_artifacts",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4964,
+      "sha256": "e37ba7ec8d5c087245f4b4c44bb380cfdec5a188e050a8c9d6ce003450b5443e"
+    },
+    {
+      "surface": "actions_caches",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4963,
+      "sha256": "65d2a98ed7041cc5c7d889cc15d12581bf7ec3a4a49d5a2e5c65df51474745f0"
+    },
+    {
+      "surface": "actions_variables",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4962,
+      "sha256": "65c2c88e39fee8e34a248845bc8bc3575a6b0147a0c9e87a58ad014d4f98cfbf"
+    },
+    {
+      "surface": "deployments",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4964,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "environments",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 4963,
+      "sha256": "22808ca69dac1b0e619c699a0de1d17a95d2010dc9603062ebe8fe6c62ce27c3"
+    },
+    {
+      "surface": "webhooks",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 0,
+      "rate_remaining": 499,
+      "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+    },
+    {
+      "surface": "workflows",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4961,
+      "sha256": "46e63bbd3b4e5839f6d13cfa8307dddd21094169baa49b1b5057aa78547a2a86"
+    },
+    {
+      "surface": "actions_jobs_30498222845",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 4,
+      "rate_remaining": 4962,
+      "sha256": "2b40280f8378e2a3f954249978ef9a1453f11021ef35c2bf996cba37b1359f02"
+    },
+    {
+      "surface": "actions_permissions",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4960,
+      "sha256": "e080ca772d5d934c35b444c291cec356a65f7dee2eddc40cbc963cb8e7af435e"
+    },
+    {
+      "surface": "main_branch",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4961,
+      "sha256": "8393a280fc78b39ea8ad95ec834d79d2e8f51b9ac99d5871fe6bd8b36391e527"
+    },
+    {
+      "surface": "private_reporting",
+      "http_status": 404,
+      "complete": false,
+      "rate_remaining": 4959
+    },
+    {
+      "surface": "secret_alerts",
+      "http_status": 404,
+      "complete": false,
+      "rate_remaining": 4960
+    },
+    {
+      "surface": "advisories",
+      "http_status": 404,
+      "complete": false,
+      "rate_remaining": 4959
+    },
+    {
+      "surface": "rulesets",
+      "http_status": 403,
+      "complete": false,
+      "rate_remaining": 4958
+    },
+    {
+      "surface": "latest_release",
+      "http_status": 200,
+      "complete": true,
+      "pages": 1,
+      "count": 1,
+      "rate_remaining": 4958,
+      "sha256": "48021d28daa0b6f9a9ed6eaa71e8cf9a869bd52920e28e965268f0390f4654ad"
+    }
+  ],
+  "actions": {
+    "enabled": false,
+    "historical_workflow_id": 323328391,
+    "historical_workflow_state": "disabled_manually",
+    "workflow_files_at_all_29_remote_tips": 0,
+    "runs": 1,
+    "new_runs": 0,
+    "fresh_logs": {
+      "run_id": 30498222845,
+      "archive_size": 22,
+      "archive_sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+      "files": 0,
+      "fresh_download": true
+    },
+    "scanner_added_to_hosted_ci_or_normal_test_discovery": false
+  },
+  "hosted_configuration": {
+    "wiki_enabled": false,
+    "pages_enabled": false,
+    "discussions_enabled": false,
+    "forks": 0,
+    "packages_and_projects": "Owner confirmed neither is used; unchanged authorization/scopes",
+    "unavailable_inventories_are_not_empty": [
+      "private_reporting HTTP 404",
+      "secret_alerts HTTP 404",
+      "advisories HTTP 404",
+      "rulesets HTTP 403"
+    ]
+  },
+  "metadata_scan": {
+    "metadata_files": 20,
+    "metadata_bytes": 380649,
+    "metadata_findings": 0,
+    "retired_token_occurrences": 0,
+    "retained_release_notes_unchanged": true,
+    "network_denied": true,
+    "scanner": "BetterLeaks 1.9.0",
+    "report_contains_values_or_snippets": false,
+    "configuration": "Isolated upstream defaults plus BPR review-session rule; no repository fixture exceptions; path prefilter and credential validation disabled.",
+    "exact_retired_token_search_encodings": [
+      "ASCII",
+      "UTF-16LE",
+      "UTF-16BE"
+    ],
+    "api_generated_temp_clone_token_redacted_before_disk": true,
+    "acquisition_used_network_separately": true
+  },
+  "verification": {
+    "platform": "macOS 26.6.2 arm64",
+    "python": "3.14.7",
+    "bash": "3.2.57",
+    "network_denial": "macOS sandbox-exec Seatbelt (version 1)(allow default)(deny network*)",
+    "release_source_assets_tests": {
+      "command": "python3 tests/scripts/release_source_assets_tests.py",
+      "cases": 23,
+      "passed": 23,
+      "skipped": 0,
+      "network_denied": true
+    },
+    "native_release_tests": {
+      "command": "python3 tests/scripts/native_release_tests.py",
+      "cases": 30,
+      "passed": 29,
+      "skipped": 1,
+      "skip_reason": "Windows-only PowerShell pollution regression requires Windows",
+      "network_denied": true
+    },
+    "publisher_checks": [
+      "private default and explicit public matching modes",
+      "both visibility mismatch directions",
+      "unknown visibility",
+      "failed repository lookup",
+      "wrong repository identity",
+      "wrong or multiple origin push destinations",
+      "canonical SSH origin",
+      "dry run without writes",
+      "visibility drift before push",
+      "visibility drift before release creation",
+      "stable public mode preserves upload set and atomic push",
+      "missing source refused before GitHub lookup in both modes"
+    ],
+    "bash_syntax_check": {
+      "command": "bash -n tools/publish-release.sh",
+      "exit_code": 0
+    },
+    "real_remote_publishing_exercised": false,
+    "final_local_checks": {
+      "history": {
+        "command": "python3 scripts/betterleaks.py history",
+        "exit_code": 1,
+        "findings": 18,
+        "rules": [
+          "bpr-review-session-url"
+        ],
+        "files": [
+          "docs/issues/_checkpoints/BPR-1575/handoff.json",
+          "docs/issues/_checkpoints/BPR-1576/handoff.json"
+        ],
+        "all_known_retired_review_session_token": true,
+        "network_denied": true
+      },
+      "tracked": {
+        "command": "python3 scripts/betterleaks.py tracked",
+        "exit_code": 0,
+        "selected_tracked_files": 9976,
+        "findings": 0,
+        "network_denied": true
+      },
+      "documentation": {
+        "command": "python3 scripts/verify_documentation.py --root .",
+        "PYTHONPATH": "/Users/jaeger/.agents/skills/implement-rfc/scripts",
+        "exit_code": 0,
+        "result": "DOCUMENTATION_OK",
+        "network_denied": true
+      },
+      "diff_check": {
+        "command": "git diff --cached --check",
+        "exit_code": 0
+      },
+      "hook_status": {
+        "command": "python3 scripts/betterleaks.py hook-status",
+        "implementation_checkout": "active",
+        "main_checkout": "active"
+      }
+    }
+  },
+  "history_decision": {
+    "rewrite_recommended": false,
+    "support_ticket_needed": false,
+    "reason": "Only established BPR credential remains one retired loopback review-session token. No exception was added to suppress its 18 historical findings."
+  },
+  "limitations": [
+    "No new native distribution build, installation, signature or full dependency-licensing qualification; existing v0.3.0 ledger remains authoritative.",
+    "Publisher guard tests use disposable Git/GitHub fixtures under real Bash; public GitHub publishing is intentionally not performed while BPR remains private.",
+    "Local BetterLeaks tooling and this refresh were exercised on macOS arm64; Linux and Windows binaries were inspected on macOS.",
+    "Encrypted or arbitrary binary encodings, unlinked uploads, deleted content, server caches and external clones are not exhaustively established.",
+    "GitHub Packages and Projects are owner-confirmed unused; unavailable security/ruleset API inventories are explicitly unresolved.",
+    "Open M8/M9 product qualification and bounded vulnerability dispositions remain unchanged."
+  ],
+  "future_cutover": [
+    "Recompare local and hosted state and scan any changes at an explicitly authorized cutover.",
+    "Push and change visibility only when explicitly requested.",
+    "Enable and verify private vulnerability reporting, anonymous binary/source access and available security/protection settings after becoming public; keep Actions disabled."
+  ],
+  "final_hosted_status": {
+    "checked_at": "2026-10-20T01:04:11.254209+00:00",
+    "repository_private": true,
+    "actions_enabled": false,
+    "releases": 10,
+    "assets": 99,
+    "refs": 29,
+    "latest": "v0.3.0",
+    "ref_and_asset_identity_and_release_notes_unchanged": true,
+    "requests": [
+      {
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4949
+      },
+      {
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4956
+      },
+      {
+        "route": "repos/MikeMarcin/BetterPullReview/releases?per_page=100",
+        "status": 200,
+        "rate_remaining": 4948
+      },
+      {
+        "route": "repos/MikeMarcin/BetterPullReview/git/matching-refs/?per_page=100",
+        "status": 200,
+        "rate_remaining": 4947
+      },
+      {
+        "route": "repos/MikeMarcin/BetterPullReview/releases/latest",
+        "status": 200,
+        "rate_remaining": 4955
+      }
+    ]
+  }
+}

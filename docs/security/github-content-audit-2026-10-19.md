@@ -13,6 +13,9 @@ Subsequent owner-authorized cleanup is recorded separately in the
 was disabled, and four early releases lacking expected distribution material
 were archived privately and deleted from GitHub. The 14-release/115-asset
 inventory below remains the original audit scope, before that cleanup.
+The [publication preparation refresh](publication-readiness-2026-10-19.md#refreshed-audit)
+revalidated all 99 retained asset digests, refreshed hosted metadata, and
+checked the source references in all 24 retained binary payloads.
 
 This is a bounded secret audit, not clearance to make BPR public. The owner
 confirmed that neither Packages nor Projects is used for BPR, closing those
