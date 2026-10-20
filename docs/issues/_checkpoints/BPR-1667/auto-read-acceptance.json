@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Old Cards.choose fails the real application pointer course after24.10s: clicking New card never clears badge after released durable lane. New command captures exact identity/unread state before relayout and sends existing mark_read only on open for New feed cards. Production pointer and keyboard summary/inline cases pass; selection-only and passive refresh do not read unrelated cards."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "application_conversation_read_public_path passes5.62s in final integration and again after negative-control restoration. Real SQLite ledger effect lane is held: badge stays New before durable completion, clears after release, and survives fresh composition restart. Another summary and offscreen inline thread remain New. Keyboard Return and inline pointer use the same path; existing explicit read/unread, changed-summary, draft persistence and quoted-reply Send controls still pass."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Final integration7/7, adjacent cards action sequence explicitly includes mark_read before Open in Review, strict touched-file format/tidy22 and both docs gates pass. No new test containment exception, skip, provider effect or production test hook. Both issue slices intentionally committed; all own commands quiescent."
+      }
+    }
+  ]
+}
