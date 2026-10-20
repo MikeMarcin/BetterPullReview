@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0088"
 title: "Upgrade the pinned Qt runtime to 6.12.0"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
 metadata: {"rfc_base_sha":"1a7d74f003b656469f5c6822c655a314fb58f663","mandate_revision":"qt-6-12-r2","milestone_plan":{"id":"qt-6-12-v1","path":"docs/rfcs/plans/qt-6-12-v1/milestone-plan.json"}}
@@ -70,3 +70,15 @@ retain macOS13 support is outside this mandate.
 - **AC02:** Qt source archives and the official Linux ICU archive match their recorded SHA-256 values, the three ICU files match their raw hashes, and focused package/source/security checks preserve the existing closure and source/hardening gates.
 - **AC03:** An available-host application build and the full macOS developer suite, including representative composed offscreen runtime checks, use Qt 6.12.0 successfully; unavailable native/package evidence and actual failures remain explicit.
 - **AC04:** Active dependency documentation and tests agree with the selected version; historical evidence remains truthful, and documentation checks pass with exact commands and candidate identities recorded.
+
+## Verification and execution record
+
+Completed on the task branch under mandate `qt-6-12-r2`. The
+[verification ledger](../verification/RFC-BPR-0088.md) records actual source/ICU
+hashes, positive/refusal provider courses, the full developer build, composed
+runtime paths and the complete macOS suite: 810 passed, one configured Debug
+skip, no failures across all 811 rows. The optimized memory course, native
+Windows/Linux/Intel, trust, vulnerability and release obligations remain
+explicit for the subsequent release milestone. The separate Threads scrolling
+repair is a release blocker. Main integration and v0.3.1 publication belong to
+the coordinator; this status accepts only the bounded dependency upgrade.
