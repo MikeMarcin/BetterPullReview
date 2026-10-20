@@ -1,6 +1,6 @@
 {
   "run_id": "public-preview-platforms-r1",
-  "segment_id": "native-expansion-1",
+  "segment_id": "native-expansion-closeout-2",
   "mandate_revision": "public-preview-platforms-r1",
   "selection": {
     "schema": "implement-rfc.strategy-selection.v1",
@@ -34,10 +34,10 @@
         "id": "BPR-1664:*",
         "source": "BPR-1664",
         "selector": null,
-        "source_fingerprint": "sha256:6dacbe7db6673f9b12c61c510ca52c23a10654f3d8f2b2c6f027b7681672d860"
+        "source_fingerprint": "sha256:3a2ecc7fd9aa470ecf055c8617a1718adbd305d33a61a5096fc6c791bc7fea3e"
       }
     ],
-    "obligation_fingerprint": "sha256:4820cb80dedd448b270df039728c5a73d1474d4f756086ab97baea0813272913",
+    "obligation_fingerprint": "sha256:69c03e79b0b9fe4b64fd84445a752964f963e74f97a2b2ce7d704dffed1e5b62",
     "exit_criteria": [
       {
         "id": "native-platform-expansion:exit:1",
@@ -60,24 +60,22 @@
     "diagnostics_truncated": false
   },
   "milestone": "native-platform-expansion",
-  "disposition": "continue-milestone",
-  "candidate_revision": "c5a906abe4288c8a37257d7b0c93561bfecd56ce",
+  "disposition": "milestone-complete",
+  "candidate_revision": "7b620cd9d5621b4e2d733ae9868b8486426191d2",
   "handoff_ref": "docs/rfcs/plans/public-preview-platforms-r1/handoff.md",
-  "required_pending": [
-    "Native Windows final bounded production read",
-    "Native Linux final bounded production read",
-    "Final acceptance commit and cleanup"
-  ],
+  "required_pending": [],
   "evidence_refs": [
     "docs/verification/RFC-BPR-0017.md#platform-expansion-r1",
+    "docs/issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md",
     "docs/rfcs/plans/public-preview-platforms-r1/handoff.md"
   ],
   "acceptance_records": [
     {
       "id": "BPR-1664:*",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0017.md#platform-expansion-r1",
+        "docs/issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md",
         "docs/rfcs/plans/public-preview-platforms-r1/handoff.md"
       ]
     },
@@ -86,31 +84,34 @@
       "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0017.md#platform-expansion-r1",
+        "docs/issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md",
         "docs/rfcs/plans/public-preview-platforms-r1/handoff.md"
       ]
     },
     {
       "id": "native-platform-expansion:exit:2",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0017.md#platform-expansion-r1",
+        "docs/issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md",
         "docs/rfcs/plans/public-preview-platforms-r1/handoff.md"
       ]
     },
     {
       "id": "native-platform-expansion:exit:3",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/verification/RFC-BPR-0017.md#platform-expansion-r1",
+        "docs/issues/60-done/BPR-1664-enable-public-preview-on-windows-and-linux.md",
         "docs/rfcs/plans/public-preview-platforms-r1/handoff.md"
       ]
     }
   ],
   "continuation": {
-    "intent": "wait",
+    "intent": "stop",
     "next_milestone": null,
-    "reason": "pending-obligation",
-    "detail": "Independent native, hygiene and documentation work is complete; wait actual anonymous server reset before bounded native reads."
+    "reason": "target-complete",
+    "detail": "BPR-1664 and all scoped platform expansion criteria accepted; commands quiescent, native roots removed, no remaining required work."
   },
   "ownership": "quiescent"
 }

@@ -1,5 +1,5 @@
 {
-  "action": "pending",
-  "detail": "Independent native, hygiene and documentation work is complete; wait actual anonymous server reset before bounded native reads.",
+  "action": "stop",
+  "detail": "BPR-1664 and all scoped platform expansion criteria accepted; commands quiescent, native roots removed, no remaining required work.",
   "engineering_acceptance": "not-evaluated"
 }
