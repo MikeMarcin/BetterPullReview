@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1672"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Save update settings with public release access",
+  "created": "2026-10-20T20:51:42.775615+00:00",
+  "base": "bc2f4bcf91697b71a4a5f4139549109f117776fe"
+}
