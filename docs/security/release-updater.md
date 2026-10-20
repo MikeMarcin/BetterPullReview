@@ -38,9 +38,10 @@ and fixture-tested, not inferred from successful access to a live release.
 ## Package and process boundary
 
 Only a strictly newer stable version with one exact universal ZIP is selected.
-Remote release notes are bounded text, shown as Markdown with HTML off and no
-resource loading or link following; they cannot supply executable code, helper
-arguments, update-source configuration, HTML or a fetch. The expected production
+Remote release notes are bounded text, shown in the shared Markdown reader with
+its sanitized HTML subset and no link or image dispatch bound; they cannot
+supply executable code, helper arguments, update-source configuration, active
+HTML or a fetch. The expected production
 identity is `com.gamecoretech.betterpullreview`, team `YTQKP2V2A8`. Both arm64 and
 x86_64 slices, deployment commands and nested code must validate. The installed
 trusted designated requirement is the trust anchor; unsigned/ad-hoc installations

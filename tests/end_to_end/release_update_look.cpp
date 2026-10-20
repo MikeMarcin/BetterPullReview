@@ -16,6 +16,7 @@
 /// `RELEASE_UPDATE_LOOK_SHOWN` once they show.
 #include "../support/test_expectation.hpp"
 #include "bpr/app/release_update_desktop.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/release_update_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 
@@ -55,7 +56,8 @@ namespace {
 	constexpr auto offered_tag       = "v0.4.0";
 	constexpr auto offered_asset     = "BetterPullReview-0.4.0-macos-universal.zip";
 	constexpr auto offered_size      = std::uint64_t{ 48'300'000U };
-	// Markdown, as GitHub release notes are written: the panel formats it.
+	// Markdown, as GitHub release notes are written: the panel renders it in
+	// the pull request overview's reader.
 	constexpr auto offered_notes = "## What's new in 0.4.0\n"
 								   "\n"
 								   "- **Faster first open** of large pull requests.\n"
@@ -290,8 +292,8 @@ namespace {
 		composed.check();
 		until([&] { return composed.Desktop->projection().Phase == phase::available; }, "a check finds the offer");
 		expect(composed.headline() == QStringLiteral("Version 0.4.0 is available"), "offer headline");
-		const auto* notes = composed.Desktop->panel()->findChild<QTextEdit*>(QStringLiteral("releaseUpdateNotes"));
-		expect(notes && notes->document()->begin().blockFormat().headingLevel() == 2 && notes->document()->begin().text() == QStringLiteral("What's new in 0.4.0"), "release notes are formatted Markdown");
+		const auto* notes = dynamic_cast<const qt::markdown_body_view*>(composed.Desktop->panel()->findChild<QWidget*>(QStringLiteral("releaseUpdateNotes")));
+		expect(notes && notes->rendered_available() && notes->rendered_view()->document()->begin().blockFormat().headingLevel() == 2, "release notes read as rendered Markdown");
 		render(composed, QStringLiteral("available"));
 
 		composed.Desktop->panel()->action(core::release_update_command::download)->trigger();

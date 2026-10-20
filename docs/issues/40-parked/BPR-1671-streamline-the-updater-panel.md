@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "win", "linux"]
 parked_on: "human-review"
 metadata: {"origin":"Owner request, 2026-10-20: the updater UX looked way over complicated; streamline it","reservation":"docs/issues/_reservations/BPR-1671--BPR-1671--36997646e103.json"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"Candidate is the working tree committed on e5a25a3b6. Offscreen Fusion renders of the panel (up to date, offer, downloading, ready, offline, never checked with storage warning, self-update unavailable, Settings General) and of the composed offer from release_update_public_path show one headline, one quiet detail line, notes only with an offer, progress only while downloading, only the commands that apply (default command on the right, Later/Skip to its left, Open Release Page only with an offer or as the fallback), and the automatic-check box last. Renders are kept outside the repository."}},{"criterion":"AC2","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"ctest --preset dev -R \"release_update|settings_window|application_profile_multi_window_public_path\" --output-on-failure: 14/14 pass (all 9 release_update tests). release_update_public_path now finds no combo box and waits for the check command to become enabled without any selection gesture; it still persists the offered account binding, skip and automatic preference across restart."}},{"criterion":"AC3","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"reason_text no longer mentions accounts or sign-in: access_required, unauthenticated, forbidden and inaccessible now speak of GitHub and the release page."}},{"criterion":"AC4","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"cmake --build --preset dev, coding-format-check, coding-tidy on the touched sources, and python3 scripts/verify_documentation.py --root . pass."}},{"criterion":"AC5","outcome":"pending","revision":"0d800ce47","evidence":{"kind":"observation","detail":"Owner verdicts in attended session a48e387c384559d1313a630515edc8cc (handed back at event 17) on frozen 0d800ce47: layout accepted (note: render the Markdown with formatting), Settings group accepted, wording accepted, release notes as plain text rejected (note: render as Markdown formatting). The release notes look returns as v002.","path":"docs/issues/40-parked/BPR-1671-streamline-the-updater-panel.md#attended-review-v001"}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"Candidate is the working tree committed on e5a25a3b6. Offscreen Fusion renders of the panel (up to date, offer, downloading, ready, offline, never checked with storage warning, self-update unavailable, Settings General) and of the composed offer from release_update_public_path show one headline, one quiet detail line, notes only with an offer, progress only while downloading, only the commands that apply (default command on the right, Later/Skip to its left, Open Release Page only with an offer or as the fallback), and the automatic-check box last. Renders are kept outside the repository."}},{"criterion":"AC2","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"ctest --preset dev -R \"release_update|settings_window|application_profile_multi_window_public_path\" --output-on-failure: 14/14 pass (all 9 release_update tests). release_update_public_path now finds no combo box and waits for the check command to become enabled without any selection gesture; it still persists the offered account binding, skip and automatic preference across restart."}},{"criterion":"AC3","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"observation","detail":"reason_text no longer mentions accounts or sign-in: access_required, unauthenticated, forbidden and inaccessible now speak of GitHub and the release page."}},{"criterion":"AC4","outcome":"pass","revision":"e5a25a3b6","evidence":{"kind":"command","detail":"cmake --build --preset dev, coding-format-check, coding-tidy on the touched sources, and python3 scripts/verify_documentation.py --root . pass."}},{"criterion":"AC5","outcome":"pending","revision":"3ae1183f7","evidence":{"kind":"observation","detail":"v001 (session a48e387c384559d1313a630515edc8cc, frozen 0d800ce47): layout, Settings group and wording accepted; release notes as plain text rejected (\"Render as markdown formatting.\"). v002 renders the notes as formatted Markdown (bc2f4bcf9) and waits on the owner in session 248c5e1c838ae84854eef545cd1872dd, candidate BPR-1671-release-notes-v002 on frozen 3ae1183f7.","path":"docs/issues/40-parked/BPR-1671-streamline-the-updater-panel.md#attended-review-v002"}}]
 ---
 
 # Streamline the updater panel
@@ -51,6 +51,16 @@ window fits its content. `release_update_desktop` drops the combo plumbing
 `SelectAccount`/`ClearAccount`), restores access from `publish()`, and records
 the requested binding before the service publishes so that restore does not
 reselect.
+
+After v001 the notes are shown in the pull request overview's Markdown
+reader, `markdown_body_view`, composed as the overview composes it
+(`set_context_controls`), at 120 to 180 px. Its own rules stand: GitHub's
+dialect with its sanitized HTML subset, the source behind the context menu.
+The panel binds no link or image dispatch, so a link opens nothing and an
+image stays its text placeholder; nothing loads. The reader needed no
+extraction: it holds no review state. bc2f4bcf9 had first used a separate
+`QTextEdit` renderer; the owner asked on 2026-10-20 for the overview's reader
+instead, which replaced it before any review.
 
 ## Attended review v001
 
@@ -96,7 +106,16 @@ cannot update itself and unsaved settings.
   and the panel then shows "Update settings can't be saved right now…" and
   forgets its preferences. `release_update_public_path` binds 64 hex digits
   and does not meet this. The look keeps settings in memory, so it does not
-  show it. This needs its own card.
+  show it. Fixed by [[BPR-1672]].
 
 Layout, the Settings group and the wording are accepted. AC5 waits on the
-release notes, which v002 renders as formatted Markdown.
+release notes, now in the overview's Markdown reader (v003).
+
+## Attended review v002 (withdrawn)
+
+Session `248c5e1c838ae84854eef545cd1872dd` (state
+`/Users/jaeger/.mask/bpr-1671-updater-look-v002-20261020/attended-review`)
+held `BPR-1671-release-notes-v002` on frozen `3ae1183f7`, the separate
+renderer. The owner's amendment arrived before any review, so the host was
+stopped at event 3, the candidate released undecided and the frozen root
+removed. It records no verdict.

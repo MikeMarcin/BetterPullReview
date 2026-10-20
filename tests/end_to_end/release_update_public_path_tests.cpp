@@ -11,6 +11,7 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/app/release_update_desktop.hpp"
 #include "bpr/app/worker_executor.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/release_update_panel.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -49,7 +50,7 @@ namespace {
 	using reason  = core::release_update_reason;
 	using bpr::tests::expect;
 	// Untrusted remote text: Markdown with an HTML tag, a link and images
-	// whose sources, remote and local, must never load.
+	// whose sources, remote and local, never load.
 	constexpr auto fixture_notes = "# Fixture release\n"
 								   "\n"
 								   "- <b>Fixture private release notes</b>\n"
@@ -227,30 +228,30 @@ namespace {
 			expect(desktop->panel()->grab().save(screenshot), "fixture-only offer capture");
 		}
 		expect(desktop->projection().Preferences.LastSuccess == time->Time.WallSeconds, "successful timestamp projected");
-		const auto* notes = panel->findChild<QTextEdit*>(QStringLiteral("releaseUpdateNotes"));
-		expect(notes && notes->isReadOnly() && !notes->isHidden(), "release notes show read-only beside the offer");
-		expect(!(notes->textInteractionFlags() & (Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard)), "release notes follow no link");
-		auto* document = notes->document();
+		// The overview description's reader, with its own safety: HTML only
+		// through its sanitized allow-list, and with no link or image dispatch
+		// bound, no link opens and nothing loads.
+		auto* notes = dynamic_cast<qt::markdown_body_view*>(panel->findChild<QWidget*>(QStringLiteral("releaseUpdateNotes")));
+		expect(notes && !notes->isHidden() && notes->rendered_available() && !notes->source_visible(), "release notes show rendered beside the offer");
+		expect(notes->original_body() == fixture_notes, "the reader keeps the notes' own bytes as their source");
+		auto* document = notes->rendered_view()->document();
+		expect(notes->rendered_view()->isReadOnly(), "the notes are read-only");
 		expect(document->begin().blockFormat().headingLevel() == 1 && document->begin().text() == QStringLiteral("Fixture release"), "a Markdown heading renders as a heading");
-		expect(document->begin().begin().fragment().charFormat().fontWeight() >= QFont::DemiBold, "the heading is set in semibold");
-		auto items = 0;
-		auto tag   = false;
+		auto items        = 0;
+		auto bold         = false;
+		auto placeholders = 0;
 		for (auto block = document->begin(); block.isValid(); block = block.next()) {
 			items += block.textList() != nullptr ? 1 : 0;
 			for (auto it = block.begin(); !it.atEnd(); ++it) {
 				const auto fragment = it.fragment();
-				expect(!fragment.charFormat().isImageFormat(), "no image object is laid out");
-				expect(!fragment.charFormat().isAnchor() && !fragment.charFormat().hasProperty(QTextFormat::AnchorHref), "no link destination remains");
-				if (fragment.text().contains(QStringLiteral("<b>Fixture private release notes</b>"))) {
-					tag = block.textList() != nullptr;
-					expect(fragment.charFormat().fontWeight() < QFont::DemiBold, "an HTML tag is not interpreted as bold");
-				}
+				expect(!fragment.text().contains(QStringLiteral("<b>")), "an allow-listed tag is not shown as text");
+				bold = bold || (block.textList() != nullptr && fragment.text() == QStringLiteral("Fixture private release notes") && fragment.charFormat().fontWeight() >= QFont::DemiBold);
+				placeholders += fragment.text().startsWith(QStringLiteral("[Image: ")) ? 1 : 0;
 			}
 		}
 		expect(items == 2, "a Markdown list renders as two list items");
-		expect(tag, "an HTML tag reads as its literal text inside the list item");
-		const auto text = notes->toPlainText();
-		expect(text.contains(QStringLiteral("See the changelog tracker local")) && !text.contains(QStringLiteral("example.invalid")), "a link reads as its text and an image as its alternative text");
+		expect(bold, "the overview's sanitized HTML subset sets <b> in bold, as GitHub does");
+		expect(placeholders == 2, "without an image dispatch both images stay their text placeholders");
 		expect(document->resource(QTextDocument::ImageResource, QUrl{ QStringLiteral("https://example.invalid/pixel.png") }).toByteArray().isEmpty()
 				   && document->resource(QTextDocument::ImageResource, QUrl{ QStringLiteral("pixel.png") }).toByteArray().isEmpty(),
 			   "release notes load no remote or local resource");

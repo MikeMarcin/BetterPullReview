@@ -104,12 +104,12 @@ refuses; an absent digest does not weaken the later native trust requirement.
 | Archive / expanded data / archive entries | 512 MiB / 2 GiB / 50,000 |
 | Metadata / download / verification time | 30 seconds / 15 minutes / 5 minutes |
 
-Release notes stay untrusted text up to the panel, which reads them as
-GitHub-dialect Markdown with HTML off (`MarkdownNoHTML`), so a tag shows as
-written. Its document is the Qt adapter's resource-denying `markdown_document`,
-so no image or other resource loads, remote or local. The panel follows no
-link: a link reads as its text and an image as its alternative text, and the
-release page stays one button away ([[BPR-1671]]).
+Release notes stay untrusted text up to the panel, which shows them in the
+pull request overview's reader (`markdown_body_view`, as the overview composes
+it) with that reader's own rules ([native Markdown](native-markdown.md)). The
+panel binds no link or image dispatch, so a link opens nothing, an image stays
+its text placeholder and nothing loads; the release page is one button away
+([[BPR-1671]]).
 
 Core enforces asset count and selected advertised archive size. The native
 transport enforces headers, content types, actual streaming bounds, cancellation
