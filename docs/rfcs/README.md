@@ -635,3 +635,13 @@ Owner mandate `shared-action-buttons-r1` authorizes RFC authoring and initial
 implementation in an isolated worktree; no merge, push or release.
 [Import](assets/shared-action-buttons-v1.LIVE_IMPORT.md);
 [plan](plans/shared-action-buttons-v1/milestone-plan.json).
+
+## Qt 6.12 dependency upgrade
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0088](RFC-BPR-0088-qt-6-12.md) | Upgrade the pinned Qt runtime to 6.12.0 | In Progress | None |
+
+Owner mandate `qt-6-12-r1`. [Plan](plans/qt-6-12-v1/milestone-plan.json);
+[verification](../verification/RFC-BPR-0088.md). Native/package release
+qualification remains a separate obligation.

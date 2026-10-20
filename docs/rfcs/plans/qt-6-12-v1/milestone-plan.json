@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "qt-6-12-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0088"
+    ],
+    "issues": [
+      "BPR-1665"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "qt612-upgrade",
+      "outcome": "The existing Qt module and package closure uses official Qt6.12.0 with verified source/ICU pins and available-host runtime evidence.",
+      "work": [
+        {
+          "issue": "BPR-1665"
+        },
+        {
+          "rfc": "RFC-BPR-0088"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Default provider and distribution pins consistently select Qt6.12.0, preserving refusal gates and module closure.",
+        "Downloaded source and Linux ICU identities match the inventory; focused package/source/security contracts pass.",
+        "Available-host app build and composed offscreen checks use Qt6.12.0; document unavailable native/package evidence and retain existing release obligations.",
+        "Documentation gate passes; explicit-path commits and a durable checkpoint bind all results to the upgrade mandate."
+      ],
+      "boundary": "Dependency upgrade, associated tests and documentation only; no release, push, owner desktop or new UI design."
+    }
+  ],
+  "unplanned_work": []
+}
