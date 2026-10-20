@@ -1301,6 +1301,18 @@ foreach(bpr_moves_scale IN ITEMS 100 125 200)
         PASS_REGULAR_EXPRESSION "thread-moves:pass" TIMEOUT 180)
 endforeach()
 
+# [[BPR-1666]]. Overview's unread-thread route keeps long-comment reading
+# stable after wheel input and settles native source viewport geometry.
+foreach(bpr_thread_scroll_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_thread_scroll_whole "${bpr_thread_scroll_scale} / 100")
+    math(EXPR bpr_thread_scroll_fraction "${bpr_thread_scroll_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_thread_scroll_stability_scale_${bpr_thread_scroll_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --thread-scroll-stability)
+    set_tests_properties(qt_thread_scroll_stability_scale_${bpr_thread_scroll_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_thread_scroll_whole}.${bpr_thread_scroll_fraction};BPR_EXPECTED_QT_SCALE=${bpr_thread_scroll_whole}.${bpr_thread_scroll_fraction};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/thread-scroll-${bpr_thread_scroll_scale}.png"
+        PASS_REGULAR_EXPRESSION "thread-scroll-stability:pass" RUN_SERIAL TRUE TIMEOUT 60)
+endforeach()
+
 # [[BPR-1331]]. The review bar's progress button shows the selected file's
 # decided mark: glyph, name and tooltip, through a change, a file switch and a
 # palette refresh.

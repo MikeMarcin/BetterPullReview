@@ -1758,6 +1758,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   shared vertical scrollbar. Wheel/trackpad input over either pane or the
   center divider, Page/Home/End, scrollbar drag, and programmatic reveal all
   route through that controller; horizontal scrolling remains pane-local.
+  Source horizontal bars retain the native style's overlap policy: an overlay
+  draws over the full source viewport, so showing or hiding it does not reserve
+  a band or move the diff's rows. A non-overlapping bar keeps its native band
+  ([[BPR-1666]]).
 - The center `DiffLinkMap` paints filled monotonic interval ribbons and
   insertion/deletion wedges attached to actual pane boundaries. Moved-code
   metadata uses markers or a temporary overlay, never permanent crossing
