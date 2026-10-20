@@ -19,5 +19,7 @@ metadata: {"mandate":"Owner requested publication of v0.3.1 and a faster procedu
 - Publish through the existing guarded public publisher only after selected artifacts and required dispositions are ready; verify downloaded bytes, source binding, native trust and release/tag state.
 - Record measured time and safe procedure improvements, reusing unchanged evidence and producer caches without weakening gates.
 
-The v0.3.0 Ubuntu RSS exception does not apply to this version. RFC-BPR-0038's
+The owner explicitly extended the existing Ubuntu RSS-growth exception to
+v0.3.1 on 2026-10-19, requesting an implementer pursue its repair after publication.
+Only the unchanged 216 MiB process RSS predicate is excepted; its result stays failed. RFC-BPR-0038's
 remaining native/security/source obligations remain explicit.

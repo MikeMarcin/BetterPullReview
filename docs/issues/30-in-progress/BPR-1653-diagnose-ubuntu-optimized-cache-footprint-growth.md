@@ -254,3 +254,13 @@ privacy, security, source/licence or publication waiver and does not close
 RFC-BPR-0038. The intake and final unchanged-input adoption remain under
 `.mask/sessions/release-v0.3.0/ubuntu-rss-owner-exception-591.json` and
 `resumed-after-rss-exception/icu-execution-input-root-adoption.json`.
+
+## Owner amendment 2026-10-19 — v0.3.1 continuation
+
+During v0.3.1 release preparation the owner directed: “You can carry that
+exception forward to this release too, then try to fix it after published in
+an implementer”. This extends only the existing unchanged 216 MiB optimized
+Ubuntu process RSS-growth exception to v0.3.1. The observation remains failed,
+the separate 64 MiB cache bound remains required, and AC1–AC4 are unchanged.
+After publication a dedicated implementer owns causal diagnosis and a justified
+repair with the unchanged original course. No other qualification is waived.
