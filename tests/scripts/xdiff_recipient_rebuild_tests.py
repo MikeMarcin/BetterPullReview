@@ -18,13 +18,14 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "packaging"))
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 import package_runtime as runtime
 
 SOURCES = {"xdiffi.c", "xemit.c", "xhistogram.c", "xmerge.c", "xpatience.c", "xprepare.c", "xutils.c"}
@@ -137,7 +138,7 @@ endif()
         original_hash = runtime.digest(delivered)
         self.receipt["deliveredLibrary"] = {"path": str(delivered), "sha256": original_hash}
         try:
-            with tempfile.TemporaryDirectory(prefix="xdiff-recipient-") as directory:
+            with ContainedTemporaryDirectory(prefix="xdiff-recipient-") as directory:
                 scratch = Path(directory)
                 item = next(item for item in runtime.components({"platform": platform.system()}) if item["name"] == "git-xdiff")
                 archive = scratch / runtime.upstream_source_name(item)
