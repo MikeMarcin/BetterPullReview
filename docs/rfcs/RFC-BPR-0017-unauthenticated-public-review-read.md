@@ -13,13 +13,17 @@ pack_version: "post-v2"
 ## Status and scope
 
 The anonymous-service measurements and the owner's positive build decision
-are recorded, and the implementation now enables Public preview on macOS.
-Linux and Windows retain verified unavailable selections. BPR-0309 closed the
+are recorded, and the implementation enables Public preview on macOS.
+The [platform amendment r1](amendments/RFC-BPR-0017-public-preview-platforms-r1.md)
+adds Windows and Linux under BPR-1664; its native acceptance is recorded separately
+in the [verification ledger](../verification/RFC-BPR-0017.md#platform-expansion-r1).
+BPR-0309 closed the
 RFC on 2026-09-04 with focused macOS acceptance evidence and clean independent
 review of `d9006237`; its ledger records omitted matrices and platform limits.
 
 The current read catalog adds REST inline review comments to the existing
-provider/pager/normalizer. Public preview admits nine REST operation kinds,
+provider/pager/normalizer. Public preview admits twelve REST operation kinds (including the later
+commit-status, timeline and merge-base reads),
 refuses GraphQL and viewer identity, and uses explicit anonymous native HTTPS
 and public Git/cache/epoch/diff authority. Thread resolution, viewed state,
 account-relative associations, triage, and publishing remain unavailable.

@@ -2255,9 +2255,10 @@ and final RFC-BPR-0002 Auto-Verified closeout.
 ## Public-preview host lifecycle
 
 `activate_public_preview` enters the core's explicit public-preview mode only
-when composition supplies anonymous read authority. The shipped macOS selection
-is enabled (BPR-0316); Linux and Windows answer `public_preview_unavailable`.
-GHES selection on macOS answers policy refusal. From a fresh signed-out launch, activation/refusal sends zero requests and
+when composition supplies anonymous read authority. The shipped macOS, Windows
+and Linux selections are enabled (BPR-0316, BPR-1664). GHES selection answers
+policy refusal. From a fresh signed-out launch, activation/refusal sends zero
+requests and
 touches neither vault nor Authorization material. Replacing an authenticated
 session still owes that prior identity its existing credential cleanup.
 

@@ -1393,8 +1393,9 @@ and cannot select an authenticated private cache namespace.
 
 Native transport canaries, provider refusal counters, SQLite migration/restart,
 and selected-file diff tests cover separate boundaries. The successful bounded
-Mac live read proves its recorded target and source only; it authorizes no
-credential operation or mutation. Linux/Windows public preview remains unavailable.
+native live reads prove their recorded target and source only; they authorize no
+credential operation or mutation. The [platform expansion ledger](../verification/RFC-BPR-0017.md#platform-expansion-r1)
+records Windows/Linux qualification and its limits.
 
 ## Private review-tour text
 

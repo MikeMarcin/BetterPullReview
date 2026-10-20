@@ -61,9 +61,9 @@ requested pull requests on Home. For GitHub Enterprise Server, add your server
 explicitly in **Accounts & hosts**; available sign-in methods depend on the host.
 
 > [!TIP]
-> On macOS, paste a public GitHub.com pull-request link on Home to read it
-> without signing in. This mode is read-only and has no account-specific review
-> state or thread resolution. It is unavailable on Windows, Linux and GHES.
+> On macOS, Windows or Linux, paste a public GitHub.com pull-request link on
+> Home to read it without signing in. This mode is read-only and has no
+> account-specific review state or thread resolution. It is unavailable on GHES.
 
 ### Review local code
 

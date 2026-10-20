@@ -1202,8 +1202,8 @@ a budget was observed, and after a read it shows the reported limit, remaining
 units, and reset. Exhaustion and private-or-missing failures offer Sign in, as
 the ring does, and both reach the one sign-in already mounted — the device
 sign-in in that card's account row — so a flow can never begin against a host
-the reviewer is not looking at. GHES refuses preview and Linux/Windows report
-unavailable rather than silently trying a credentialed read. Switching mode
+the reviewer is not looking at. Public preview is available on macOS, Windows
+and Linux; GHES refuses it before traffic. Switching mode
 clears stale identity-sensitive UI.
 
 ## Signing in with a device code

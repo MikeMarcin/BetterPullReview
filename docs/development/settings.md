@@ -79,9 +79,9 @@ vault token slots. Manual-token sessions are session-only; device grants can
 survive orderly Quit and are revalidated on startup. Changing servers never
 reuses another host's credentials.
 
-Public preview is available on macOS for GitHub.com only. It has no authenticated
-viewer or publishing authority. Linux and Windows report it unavailable; GHES
-refuses it. CLI and native-device capabilities also depend on the selected
+Public preview is available on macOS, Windows and Linux for GitHub.com only. It
+has no authenticated viewer or publishing authority. GHES refuses it. CLI and
+native-device capabilities also depend on the selected
 platform and configured host. The page reports these limitations rather than
 silently selecting another transport.
 

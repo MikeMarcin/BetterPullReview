@@ -3268,12 +3268,12 @@ evidence from each supported native environment.
 
 ## Public-preview operation and evidence
 
-The shipped macOS selection enables Public preview beside Connect for the
-selected native GitHub.com profile. From fresh start, activation is network-free
+The shipped macOS, Windows and Linux selections enable Public preview beside
+Connect for the selected native GitHub.com profile. From fresh start, activation is network-free
 and credential-free; entering a public target then uses the normal bounded REST
 pager and credential-free smart HTTP. Sign in switches to the existing device
-flow. Linux/Windows keep typed preview unavailability; GHES is refused. The mode
-provides metadata, diffs, and REST comment groups, with no viewer, GraphQL
+flow. GHES is refused before traffic. The mode provides metadata, diffs, and
+REST comment groups, with no viewer, GraphQL
 threads/resolution, viewed state, triage, private access, or publishing.
 
 `--self-test --public-preview-probe --automated-run-budget-ms 8000` reports the
@@ -3286,9 +3286,9 @@ composed hosts, runtime, and dependencies. See the
 commands and platform-specific evidence.
 
 The testing-only live-candidate flag forces production anonymous factories for
-an explicitly named public target. Its shared nine-request cap includes pages
+an explicitly named public target. Its shared fifteen-request diagnostic cap includes pages
 and replacement transports, and the first wire failure suppresses later sends.
-Nine operation kinds do not imply nine production HTTP requests. A dry run
+Operation kinds do not imply a fixed production HTTP request count. A dry run
 proves wiring only; a completed candidate requires an accepted public snapshot,
 head, and observed budget. Do not repeat an attended service read from a stale
 packet or treat a fixture or official service description as executed evidence.

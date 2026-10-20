@@ -62,19 +62,20 @@ profile beside it.
 | Platform/profile | Current production selection | Evidence |
 |---|---|---|
 | GitHub.com on macOS | Enabled; activation sends zero requests | BPR-0316 native live candidate and 19-selector before/after Release course, 2026-09-04 |
-| GitHub.com on Linux | Typed public-preview unavailable, zero requests | BPR-0314 target-native unavailable-path proof |
-| GitHub.com on Windows x64 | Typed public-preview unavailable, zero requests | BPR-0036 plus BPR-0315 target-native unavailable-path proof |
-| Every GHES profile | Refused by policy on enabled macOS; unavailable elsewhere; zero requests | BPR-0316 tests-disabled GHES probe; never enabled by RFC-BPR-0017 |
+| GitHub.com on Linux | Enabled; activation sends zero requests | BPR-1664 native WSL2 course and tests-disabled artifact; see platform expansion r1 |
+| GitHub.com on Windows x64 | Enabled; activation sends zero requests | BPR-1664 native Windows course and tests-disabled artifact; see platform expansion r1 |
+| Every GHES profile | Refused by policy; zero requests | BPR-0316 and BPR-1664 tests-disabled probes; never enabled by RFC-BPR-0017 |
 
-## Final command ledger
+## Original closeout command ledger
 
 BPR-0309 follows the current board and implement-rfc verification policy:
 focused acceptance checks and direct product execution, with unchanged passing
 results reused. The earlier blanket clean-build/matrix replay plan is superseded.
 No full clean dev/core/sanitizer matrix or whole-repository tidy rerun is claimed.
-The platform selection table above is the release boundary: only macOS is
-enabled. Earlier native Linux/Windows unavailable-path evidence keeps its owning
-commit; this Mac run does not claim a final native replay on either platform.
+At that original closeout, only macOS was enabled. Earlier native Linux/Windows
+unavailable-path evidence keeps its owning commit; that Mac run claims no native
+replay on either platform. The later platform-expansion ledger below owns the
+current Windows/Linux selection.
 
 | Claim set | Exact command or interaction | Result | Evidence/source |
 |---|---|---|---|
@@ -173,3 +174,108 @@ One native capability-critical reviewer accepted candidate `d9006237` with no
 blocker. The integrator records the explicit exclusions and closes this RFC.
 The exact path ledger is reconciled through this status slice, including later
 BPR-0541 policy work and BPR-0256's separate claim as out-of-scope ownership.
+
+
+## Platform expansion r1
+
+BPR-1664 implements the [owner's additive platform mandate](../rfcs/amendments/RFC-BPR-0017-public-preview-platforms-r1.md),
+`public-preview-platforms-r1`, from baseline `12ef1db532f78f25ceaa821a5a7bb2fcda001aa2`.
+Candidate `c5a906abe` enables the existing anonymous composition on Windows and
+Linux, repairs its stale test-only live diagnostic and includes the existing
+conversation Qt selector in the strict inventory. No production provider,
+host policy, mutation branch, credential capability, dependency or UI design
+changes. Original closeout/plan and unavailable-platform evidence retain their history.
+
+### Candidate identity
+
+Native roots export `a771522d1` with exact final overlays from `c5a906abe`.
+Application, CMake expectations, reviewed source pins and inventory source hashes
+match the local committed files on both native targets. The final application
+SHA-256 is `c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6`;
+production app manifest `4b0e7b0739fef3e689f29c6034dc31c7e37090efa7f7df0c39dd3d3ab0af7ad5`;
+mutation branch remains `16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1`.
+
+| Native artifact | SHA-256 |
+|---|---|
+| Windows final Debug | `a1c36f27ffdec07e506ae093a0dd19eb7718aced8329a89b9966bb5b1ff12169` |
+| Windows tests-disabled Release | `88f84d4d7da6c96848b756c7ce3f5ee2f632f9f8df4843e21ba634bc98fa7114` |
+| Linux final Debug | `cc9e4f4eebe4ecba759450778f28d4a97a0fcbb76be35b4d946830a2d8ac0a2e` |
+| Linux tests-disabled Release | `8b125e198d434f58b73f93077446d7df2b0672eea11c236ea383a92373c82e68` |
+
+Release builds use the cap-12 source at `2e409ba54`; the later cap-15 sequence
+and self-check repair is entirely under `BPR_BUILD_TESTING`, so these exact
+Release artifacts' production branch is unchanged. Final Debug applications
+are rebuilt from the cap-15 source and their affected six compositions pass.
+
+### Verification and command dispositions
+
+| Surface | Candidate-bound evidence | Result |
+|---|---|---|
+| macOS regression | Actual public application rebuilt; canonical inventory plus all 20 applicable anonymous selectors; final cap-15 affected app checks | Pass; final six 8.50 s |
+| Composition integration | Final four `application_composition_contract`, `application_review_round_trip_composition_contract`, `rfc0017_test_inventory`, `rfc0017_platform_course_launch_contract` | Pass 4/4, 76.48 s |
+| Diagnostic negative control | Independent literal 15-operation worst-case sequence, 15-page stream, shared wrappers, 16th-send refusal; temporary cap-16 mutant | Mutant fails as required; restored committed cap-15 checks pass |
+| Network isolation manifest | Ordinary shared-checkout CTest scans unrelated ignored `.mask/sessions` release source copies. Unchanged checker with source enumeration limited to `git ls-files`, actual configured manifest otherwise unchanged | Pass 811 configured / 738 source registrations; ordinary checkout remains environment-contaminated |
+| Inventory regression | 20 inventory tests, absent/wrong-mode conversation and absent-selector-command controls; 47 platform-course contracts | Pass |
+| Source hygiene | clang-format 22.1.8; strict clang-tidy 22 on changed C++ translation unit; `git diff --check` | Pass |
+| Documentation | Documentation gate and 67 documentation validator tests | Pass before final evidence; rerun at finish |
+| Native Windows | Windows 11 Home 10.0.26200 x64, MSVC 14.51, Qt 6.11.2; exact applicable native inventory/registration/selector functions from the canonical course | All 18 pass on final Debug; Windows deliberately omits two wire-fixture selectors |
+| Windows tests-disabled artifact | Canonical surface, seam-absence, composed-host, dependency, enabled-activation and GHES-refusal assertions | Pass; both probes zero request/header/vault/sign-in effects |
+| Native Linux | Ubuntu 26.04 / WSL2 6.18.33.2 x64, GCC 15.2.0, Qt 6.11.2; isolated Debug/Release canonical course | 20 selectors and Release assertions pass (`RFC0017_PLATFORM_COURSE_OK`, 183 s); final cap-15 six app checks pass 3.99 s |
+| Native production reads | Final cap-15 anonymous production-factory reads of MikeMarcin/BPR-Test#1; >=30 remaining core requests required before each | Pending actual quota reset; header 2026-10-20 03:26:30 UTC: limit60, remaining29, reset1792468516 (03:55:16 UTC) |
+
+The base native command is `python3 scripts/verify_rfc0017_platform_course.py
+--platform PLATFORM --dev-preset DEV --release-preset RELEASE --build-root ROOT
+--expected-preview-selection enabled`. Windows uses `py -3`, `windows-dev` and
+`windows-app-release`; Linux uses `python3`, `dev` and `app-release`.
+An external bounded builder replaces only configure/build: same configure,
+eleven Debug application/anonymous/sandbox targets, one Release app target;
+canonical selector inventory, registrations, assertions and artifact checks are
+retained. Initial build-all commands compiled unrelated targets and were stopped
+by exact task-owned PID; no product verdict is inferred from those interruptions.
+The [durable checkpoint](../rfcs/plans/public-preview-platforms-r1/handoff.md)
+records exact source/build roots, candidate identities and command state.
+
+Windows' six contained Qt/provider tests initially exited before main with
+`0xC0000142`. A minimal USER32 loader probe isolates the cause: SSH's
+`Service-0x0-55790f2f$` window station permits ordinary USER32 loading but its
+zero-capability AppContainer fails DLL initialization (error1114). The unchanged
+six rows pass 57.34 s from a unique InteractiveToken scheduled task in `WinSta0`,
+with `QT_QPA_PLATFORM=offscreen`. The final unified 18-selector run uses that
+same native offscreen context. No foreground interaction/capture, containment
+relaxation, shared-root ACL or unrelated process/lease change. The one-off task
+was removed after completion.
+
+`windows-app-release` is now a restricted distribution graph; the legacy course
+tries its raw build image before preparing adjacent plugins, which refuses with
+`INSTALLED_RUNTIME_REFUSED`. The task-owned artifact was supplied locked Qt
+plugins and an additional offscreen verification plugin, leaving executable
+bytes unchanged; its actual activation and GHES probes then pass. Generic idle
+runtime inspection is not claimed: that legacy invocation would open the
+owner's default app profile and has no production private-root argument. The
+scoped amendment requires the native selector set and tests-disabled probes,
+not installation or general idle-runtime qualification. No release was made.
+
+The first cap-9 and subsequent cap-12 Linux production reads failed after nine
+and twelve HTTP200 first pages, respectively. They did not produce an accepted
+snapshot. Production source audit identifies the complete one-page sequence:
+ten content/status reads, timeline, recorded merge base, branch-tip merge base,
+conditional ancestry and final confirmation (at most15). The final diagnostic
+bounds that sequence and refuses pagination beyond its budget. A prematurely
+started old Linux binary was stopped by its exact owned PID and is not evidence.
+No retry, credential fallback or remote mutation was added or performed.
+
+### Documentation and remaining qualification
+
+Updated README, product contract, GitHub host, security threat model/corporate
+overview, settings/build guide, workbench specification, RFC/index and master
+verification matrix to state supported preview platforms and retain authority
+limits. System architecture/core/provider/host/cache/Git/SQLite ownership,
+fixture catalog and release policy have no semantic impact: their implementations,
+authority/refusals, dependencies and qualification contracts are unchanged.
+
+Platform enablement is separate from release qualification: no clean-account
+installation, credential-vault, native desktop accessibility, crash privacy,
+uninstall or vulnerability-matrix acceptance is claimed. WSL2 is Linux
+functional evidence, not clean Ubuntu desktop evidence. Existing macOS evidence
+and original RFC terminal cards are preserved. No human judgement is required
+by this unchanged presentation.

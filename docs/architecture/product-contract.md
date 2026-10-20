@@ -70,8 +70,8 @@ a comparison handle.
 ## Public preview
 
 Public preview is a credential-free reading mode for public GitHub.com pull
-requests. macOS enables it; Linux and Windows select typed unavailability. GHES
-is refused before an anonymous request is constructed. Activation sends nothing;
+requests on macOS, Windows and Linux. GHES is refused before an anonymous
+request is constructed. Activation sends nothing;
 opening or refreshing a target performs bounded REST reads and public Git smart
 HTTP for exact selected-file comparisons.
 
@@ -84,8 +84,8 @@ mode through identity invalidation before authenticated state can be published.
 
 The server-reported rate budget is visible, exhaustion is terminal for the
 current read, and a 404 says private or missing without guessing which. A
-read's pagination can cost more than the nine eligible operation kinds; the
-live-candidate diagnostic's nine-request cap is not a production page limit.
+read's pagination can cost more than the twelve eligible REST operation kinds; the
+live-candidate diagnostic's fifteen-request cap is not a production page limit.
 
 ## Credential acquisition
 
