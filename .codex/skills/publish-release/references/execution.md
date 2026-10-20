@@ -39,6 +39,23 @@ composed navigation/persistence path and immediate subsequent interaction;
 feature-only checks missed v0.3.1's active-reader/menu race. Wait on the actual
 public completion in fixtures; elapsed sleeps cannot establish that completion.
 
+Before expensive native builds/gates, run the composition driver's existing
+cheap source-manifest/inventory method from the selected source checkout:
+
+```sh
+python3 tests/end_to_end/composition_contract_tests.py --cmake cmake \
+  CompositionContractTests.test_async_mutation_host_inventory_rejects_every_direct_bypass
+```
+
+Resolve Python/CMake to the approved native tools (use their absolute paths in
+a dispatched command). This selects the actual owning digest and adversarial
+source-tree checks without configuring/building the nested Release application.
+A failure rejects this candidate; follow the recorded source-review/reseal
+procedure rather than merely replacing a digest. This is early feedback only:
+the final full suite must still run all eight composition methods, including
+the real tests-disabled build and binary/runtime checks. The driver stops on a
+failed method and explicitly reports remaining methods as not run.
+
 Commit one common release candidate before the final native gates. If a failure
 requires a source correction, mark the old candidate rejected and prevent its
 unstarted downstream stages. Retain any running job's ownership and raw result;

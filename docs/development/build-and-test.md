@@ -273,6 +273,19 @@ unchanged compiler outputs survive between runs. A cold checkout still pays
 for that first build; no prior verdict or unverified executable is reused.
 Standalone execution without `--release-build-dir` remains disposable.
 
+Before an expensive build/full gate, select its actual cheap source tripwire:
+
+```sh
+python3 tests/end_to_end/composition_contract_tests.py --cmake cmake \
+  CompositionContractTests.test_async_mutation_host_inventory_rejects_every_direct_bypass
+```
+
+It runs the owning positive digest/inventory check and its hostile controls,
+without the nested build. It is early feedback, not composition qualification;
+the complete gate retains all eight original methods. The driver stops after
+a failed method, returns failure and reports the remaining methods as not run.
+Review changed pinned source under the contract's documented reseal procedure.
+
 For ordinary issue work, build the affected targets and use
 `ctest --preset dev --output-on-failure -R '^(affected_test_name)$'` with the
 relevant contract and public-path checks. Run the complete suite at the

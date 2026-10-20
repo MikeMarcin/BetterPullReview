@@ -1544,4 +1544,12 @@ def find_better_pull_review_executable(build_directory: Path) -> Path:
 
 
 if __name__ == "__main__":
-    unittest.main(argv=[sys.argv[0], *UNITTEST_ARGUMENTS])
+    # A failed source tripwire must not start the later cold production build.
+    # Successful candidates still execute every selected method ([[BPR-1670]]).
+    program = unittest.main(
+        argv=[sys.argv[0], *UNITTEST_ARGUMENTS], failfast=True, exit=False
+    )
+    not_run = program.test.countTestCases() - program.result.testsRun
+    if not_run:
+        print(f"COMPOSITION_FAILED_CANDIDATE_NOT_RUN: {not_run}", file=sys.stderr)
+    sys.exit(not program.result.wasSuccessful())

@@ -339,6 +339,15 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1669 reseal, found by BPR-1670: c5a906abe..aac127fa4 contains only
+# c0d404c2c inside the pinned app scope (release_update_desktop.cpp). Reviewed
+# the public release-only account, missing-account fallback and preservation
+# of the existing generation, closing and capability guards. No review
+# mutation or publication path changed. The full-application and production
+# mutation-branch pins are unchanged. Review/evidence are recorded on BPR-1669
+# and docs/verification/BPR-1670-windows-suite-runtime.md; retain the original
+# failed cold run as evidence, rather than treating a printed digest as proof.
+#
 # BPR-1006 reseal: 6cff4914..22fd2150 (b56cad7e, 9a7ba459, 22fd2150).
 # Reviewed Tour update preview/journal handoff, same-owner observed conflicts,
 # immutable original versus proposed source and deliberate retarget/reaffirmation.
@@ -1908,7 +1917,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4b0e7b0739fef3e689f29c6034dc31c7e37090efa7f7df0c39dd3d3ab0af7ad5"
+        "7f11c30fa3bdb4301749e9611e3db7576f17e109db8d2c4264a8fd0116e1349d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

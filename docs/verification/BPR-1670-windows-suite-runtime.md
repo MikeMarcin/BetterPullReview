@@ -81,8 +81,8 @@ previous guard admitted `QT_QPA_PLATFORM=offscreen` plus
 row uses such an alias; its metadata and native course are unchanged.
 Eight runner/configuration contract methods pass locally, including
 positive graph checks for preserved locks, fixtures, labels and deadlines.
-The four-row native causal control passes; expanded-cohort and full native
-acceptance remain pending. The uncommitted path experiment was discarded without
+The four-row native causal control and expanded 34-row course pass; full native
+acceptance remains pending. The uncommitted path experiment was discarded without
 native compilation. The unchanged history course already in flight is retained.
 No full gate is justified by the checker gain alone.
 The unchanged history control passed in 425.723 seconds (170.949 seconds of
@@ -128,6 +128,16 @@ A later unrelated CTest started at 21:34:48 UTC, after the pilot completed at
 collection attempt is retained. Collection then succeeded after observation
 confirmed quiescence; neither native course was rerun and the unrelated process
 was untouched.
+
+Candidate `33b828bb3557463eff6a3ba03fa81467bed97e36` passes all 34 audited
+rows in 648.88 seconds of native CTest wall time (1952.73 seconds summed),
+versus 1885.674 seconds of retained exclusive work for those names. This is a
+larger passing discriminator, not a matched 34-row A/B or full-suite result.
+Its 784-row property audit permits exactly 34 scheduling changes and 40
+provenance labels on previously serial rows; all other properties are identical.
+The preceding remaining Debug build took 515.489 seconds and created/updated
+879 objects (744 already existed, 1623 afterward). This is incremental bootstrap
+evidence, not a clean-zero build measurement.
 
 ## Bounded ownership audit
 
@@ -182,6 +192,42 @@ warm. The isolated candidate needs its own cold tree. Record that bootstrap
 separately and rerun the unchanged row in the matched warm complete gate;
 include clean bootstrap plus qualification in end-to-end accounting. Moving
 compilation outside a suite timer is not a runtime improvement.
+
+The isolated cold row at `33b828bb3` actually failed after 1302.97 seconds
+(21:59:48–22:21:31 UTC). Its first method rejected a stale production-app
+source-manifest pin, yet unittest continued through seven later methods,
+including the cold nested Release build. Native CTest exited 8; the task
+correctly propagated failure. This is retained failure evidence, not a passing
+bootstrap or a bridge stall. Native/local preparation tar SHA-256 is
+`d84ad4d6c90d04fcf72ab347ad9a0eb716c62cb3414bdb57424270bcf1df9fad`.
+
+The source cause predates this milestone: from last pin edit `c5a906abe` through
+`aac127fa4`, only `c0d404c2c` changes the pinned app scope, in
+`release_update_desktop.cpp`. BPR-1669 adds the public release-only account and
+fallback when the chosen binding is absent. Source review confirms the existing
+capability, closing and acquisition-generation guards remain; review mutation
+and publication composition are unchanged. Its owning card records that review.
+The manifest pin changes from `4b0e7b07…` to the independently reproduced native
+and local value `7f11c30f…`; the full-application and production mutation-branch
+pins stay unchanged. Printing a digest alone is not acceptance.
+
+The bounded feedback correction uses unittest's existing fail-fast runner.
+Passing candidates retain all eight original method bodies and assertions.
+A failed source tripwire now exits nonzero before the later expensive build and
+prints `COMPOSITION_FAILED_CANDIDATE_NOT_RUN` with the remaining method count.
+An external control uses the actual first method against an isolated altered
+app tree: fail-fast exits 1 after one method, explicitly leaves seven unrun,
+and never reaches the expensive-build sentinel. Disabling fail-fast in the
+control reaches that sentinel and runs eight methods, still exiting 1. These
+controls prove failure orchestration only; the complete accepted native row
+remains required. Control script SHA-256 is
+`d8be74359286b64d479324d02058dc87ff7df3db940d5e11a277445e0757a83a`;
+retained output SHA-256 is
+`433abbacdcaffe6a826217ae95dd494f50646ba32c535a7ad50d77cbf536257a`.
+The resealed actual positive/adversarial method passes locally in 1.607 seconds.
+The documented selected-method invocation gives early feedback before a full
+gate that might schedule composition late; it reuses this owning check and
+never claims to replace the other seven methods or the native build.
 
 The normal Debug, tests-enabled optimized course, tests-disabled composition
 contract and platform distribution graphs have different configuration/artifact

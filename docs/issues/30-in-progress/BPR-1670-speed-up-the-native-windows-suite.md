@@ -52,7 +52,16 @@ The 784-row property audit preserves commands, fixtures, assertions, budgets,
 timeouts, containment and existing locks. Source audit narrows the proposed
 cohort to 34 rows / 31.43 minutes of retained exclusive work; timed Markdown,
 shared canaries, native/global-resource and unclassified courses stay exclusive.
-Expanded native and one comparable complete native gate remain pending.
+All 34 expanded native rows pass in 648.88 seconds wall (1952.73 summed).
+The remaining Debug build took 515.489 seconds, with 744 objects already present
+and 879 created/updated; it is separate from suite timing. The isolated cold
+composition row failed in 1302.97 seconds on a stale BPR-1669 source-manifest
+review pin, then continued through its later cold build. The owning-source review
+and reseal are recorded on BPR-1669; the failed run remains retained evidence.
+Existing unittest fail-fast now prevents expensive downstream methods after a
+failed tripwire, reporting failure and explicit not-run count. Its actual cheap
+method is documented as early feedback before long gates. All eight original
+method bodies remain; one comparable complete native gate remains pending.
 Root workflow commit `89fde0df1` is preserved and its guidance reconciled.
 No full-suite or end-to-end release saving is claimed yet.
 
