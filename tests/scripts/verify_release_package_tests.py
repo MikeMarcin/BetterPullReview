@@ -67,11 +67,25 @@ class ReleasePackageTests(unittest.TestCase):
                     (outside / producer.name).write_bytes(binary.read_bytes())
                     producer.parent.rmdir()
                     _winapi.CreateJunction(str(outside), str(producer.parent))
+                    target = outside / producer.name
+                    try:
+                        self.assertEqual(producer.resolve(strict=True), target)
+                    except OSError as error:
+                        # The restricted token can reject traversal itself.
+                        self.assertEqual(error.winerror, 448)  # untrusted mount point
+                    original_resolve = Path.resolve
+                    def resolved_observation(path, *args, **kwargs):
+                        return target if path == producer else original_resolve(path, *args, **kwargs)
+                    # Exercise the verifier's exact origin predicate as well
+                    # when the OS refuses to supply that resolved observation.
+                    with patch.object(Path, "resolve", autospec=True, side_effect=resolved_observation):
+                        with self.assertRaisesRegex(ValueError, "producer-origin"):
+                            audit.linux_qt_symbol_evidence(binary, root, info)
                 else:
                     outside.write_bytes(binary.read_bytes())
                     producer.symlink_to(outside)
-                with self.assertRaisesRegex(ValueError, "producer-origin"):
-                    audit.linux_qt_symbol_evidence(binary, root, info)
+                    with self.assertRaisesRegex(ValueError, "producer-origin"):
+                        audit.linux_qt_symbol_evidence(binary, root, info)
 
     def test_first_party_source_built_and_unowned_images_never_get_dynamic_shortcut(self):
         root = Path("/runtime")
