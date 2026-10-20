@@ -28,8 +28,6 @@ namespace bpr::application {
 		std::function<void(core::release_update_intent)> Intent;
 		std::function<void(bool)>                        Automatic;
 		std::function<void()>                            ViewRelease;
-		std::function<void(std::string)>                 SelectAccount;
-		std::function<void()>                            ClearAccount;
 	};
 
 	/// \brief Observational publication; exceptions cannot veto core acceptance.

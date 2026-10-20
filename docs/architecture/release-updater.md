@@ -18,10 +18,12 @@ Restart gesture. No release was published or developer application replaced.
 
 The release source is always private `MikeMarcin/BetterPullReview` on GitHub.com.
 It is independent of the repository and GitHub/GHES profile being reviewed. The
-native adapter acquires an explicitly selected release-access account
-through the existing native authentication/vault boundary. It supplies only a
-`release_update_access_port` capability; the host/core see no token, general
-provider handle, CLI token extraction or remote URL. Persist an opaque account
+native composition offers a credential-free public lease first ([[BPR-1669]])
+and any accepted native account through the existing authentication/vault
+boundary. Nothing is picked by hand: the stored binding is kept while it is
+still offered, and otherwise the first offer is selected ([[BPR-1671]]). Each
+offer supplies only a `release_update_access_port` capability; the host/core
+see no token, general provider handle, CLI token extraction or remote URL. Persist an opaque account
 binding only. The live lease identity is separate, nonzero, never reused during
 its application session, and revoked atomically when the account loses authority.
 

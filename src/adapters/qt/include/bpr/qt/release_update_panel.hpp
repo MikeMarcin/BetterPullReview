@@ -12,37 +12,44 @@
 
 class QAction;
 class QCheckBox;
-class QComboBox;
+class QHBoxLayout;
 class QLabel;
 class QMenuBar;
 class QProgressBar;
 class QPlainTextEdit;
+class QPushButton;
 
 namespace bpr::qt {
 	/// \brief Shared updater presentation for Settings and the standalone release offer.
+	///
+	/// One headline states where the update stands and one quiet line explains
+	/// it. Only commands the core currently allows are shown; the most
+	/// consequential of them is the default button ([[BPR-1671]]).
 	class release_update_panel final : public QWidget
 	{
 	public:
 		explicit release_update_panel(QWidget* aParent = nullptr);
 		void               set_dispatch(application::release_update_dispatch aDispatch);
 		void               adopt(const application::release_update_projection& aProjection, bool aDurable);
-		void               set_accounts(const std::vector<std::pair<std::string, std::string>>& aAccounts,
-										const std::string&                                      aSelected);
 		[[nodiscard]] auto action(core::release_update_command aCommand) const -> QAction*;
 
+	protected:
+		void changeEvent(QEvent* aEvent) override;
+
 	private:
-		application::release_update_dispatch             Dispatch;
-		application::release_update_projection           Projection;
-		std::map<core::release_update_command, QAction*> Actions;
-		QCheckBox*                                       Automatic    = nullptr;
-		QComboBox*                                       Accounts     = nullptr;
-		QLabel*                                          Status       = nullptr;
-		QLabel*                                          Versions     = nullptr;
-		QLabel*                                          Checked      = nullptr;
-		QPlainTextEdit*                                  Notes        = nullptr;
-		QLabel*                                          Persistence  = nullptr;
-		QLabel*                                          Installation = nullptr;
-		QProgressBar*                                    Progress     = nullptr;
+		void                                                 emphasize();
+		application::release_update_dispatch                 Dispatch;
+		application::release_update_projection               Projection;
+		std::map<core::release_update_command, QAction*>     Actions;
+		std::map<core::release_update_command, QPushButton*> Buttons;
+		QCheckBox*                                           Automatic = nullptr;
+		QLabel*                                              Status    = nullptr;
+		QLabel*                                              Detail    = nullptr;
+		QPlainTextEdit*                                      Notes     = nullptr;
+		QLabel*                                              Notice    = nullptr;
+		QProgressBar*                                        Progress  = nullptr;
+		QPushButton*                                         View      = nullptr;
+		QHBoxLayout*                                         Row       = nullptr;
 	};
 	/// \brief Keeps one visible macOS application-menu gesture across window and desktop bars.
 	class release_update_menu final : public QObject

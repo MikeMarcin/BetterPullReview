@@ -11,7 +11,8 @@ namespace bpr::qt {
 }
 class QMenuBar;
 namespace bpr::app {
-	/// \brief Explicitly selectable accepted native account; acquisition stays at the vault boundary.
+	/// \brief One offered release access; acquisition stays at the vault boundary. Nothing is
+	/// picked by hand: the stored binding is kept while offered, otherwise the first offer is used.
 	struct release_update_account
 	{
 		std::string Binding;

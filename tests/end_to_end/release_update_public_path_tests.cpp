@@ -201,10 +201,8 @@ namespace {
 		until([&] { return desktop->projection().Installed.has_value(); }, "settings loaded before gestures");
 		auto* panel = dynamic_cast<qt::release_update_panel*>(settings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel")));
 		expect(panel, "Settings owns live update panel");
-		auto* accounts = panel->findChild<QComboBox*>(QStringLiteral("releaseUpdateAccount"));
-		expect(accounts && accounts->count() == 2, "explicit release-account choice");
-		accounts->setCurrentIndex(1);
-		accounts->activated(1);
+		expect(!panel->findChild<QComboBox*>(), "no release-account picker");
+		until([&] { return desktop->projection().Commands.front().enabled(); }, "the offered release access is selected without a picker");
 		auto* menu = window.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"));
 		expect(menu, "public menu entry exists");
 		menu->trigger();
@@ -415,9 +413,7 @@ namespace {
 		until([&] { return desktop->projection().Installed.has_value(); }, "native settings loaded");
 		auto* panel = dynamic_cast<qt::release_update_panel*>(settings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel")));
 		expect(panel, "public Settings update panel");
-		auto* accounts = panel->findChild<QComboBox*>(QStringLiteral("releaseUpdateAccount"));
-		accounts->setCurrentIndex(1);
-		accounts->activated(1);
+		until([&] { return desktop->projection().Commands.front().enabled(); }, "native release access selected without a picker");
 		window.findChild<QAction*>(QStringLiteral("checkForUpdatesAction"))->trigger();
 		until([&] { return desktop->projection().Phase == phase::available; }, "native menu offer");
 		panel->action(command::download)->trigger();

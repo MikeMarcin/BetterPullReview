@@ -10,19 +10,18 @@ private-service evidence; implementation does not mean final release acceptance.
 
 ## Updating
 
-1. Sign in through native GitHub.com authentication in **Accounts & hosts**, then
-   choose that account explicitly under **Release access account** in General
-   Settings or the Updates window. It must have access to the private
-   `MikeMarcin/BetterPullReview` distribution repository. GHES, public preview and
-   GitHub CLI accounts cannot supply update access. The current review account
-   is never chosen automatically.
-2. Use **Check for Updates…**. An unavailable or inaccessible release is an error,
-   not an up-to-date result. **View Release** opens the fixed repository in the
-   system browser, where the browser has its own sign-in state.
-3. For a newer stable version, **Download Update** streams and verifies the exact
-   universal ZIP. **Cancel Download** leaves the installed application unchanged.
+1. No sign-in is needed. Releases are public, so the updater reads them without
+   a credential and there is no account to choose ([[BPR-1669]], [[BPR-1671]]).
+2. Use **Check for Updates…**, or **Check Now** under **Software Update** in
+   General Settings. An unavailable or inaccessible release is an error, not an
+   up-to-date result. **Open Release Page** opens the fixed repository in the
+   system browser; it is offered beside an offer and wherever this copy cannot
+   update itself.
+3. For a newer stable version, **Download** streams and verifies the exact
+   universal ZIP. **Cancel** leaves the installed application unchanged.
    **Later** dismisses this offer; **Skip This Version** suppresses just this
-   version from automatic offers. A manual check can offer it again.
+   version from automatic offers. A manual check can offer it again. The panel
+   shows only the commands that apply now.
 4. Choose **Install and Restart** for the verified version. Release identity and
    native trust are rechecked. Every participating window/process must save its
    state and quit cooperatively. A failed save or timeout stops installation;
@@ -35,11 +34,11 @@ private-service evidence; implementation does not mean final release acceptance.
    retries that write.
 
 Automatic checks default on for eligible installations and run at most daily.
-They require the explicitly selected account to be available. Failures wait for
-the next daily opportunity or a manual retry; manual checks still obey server
-rate limits. General Settings shows the last successful check separately from
-the last installation result. Turning automatic checks off does not remove the
-manual action. Preferences are marked session-only when their store is unavailable.
+They use the same public release access. Failures wait for the next daily
+opportunity or a manual retry; manual checks still obey server rate limits. The
+panel shows the last successful check; a previous installation result appears
+only when that installation did not finish. Turning automatic checks off does not
+remove the manual action. The panel warns when preferences cannot be saved.
 
 Unsigned/ad-hoc builds, App Translocation, mounted images, read-only volumes,
 unwritable installations and unsupported platforms explain their limitation and

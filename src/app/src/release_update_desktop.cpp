@@ -13,8 +13,9 @@
 #include "system_browser_opener.hpp"
 
 #include <QCoreApplication>
+#include <QGroupBox>
+#include <QLayout>
 #include <QPointer>
-#include <QScrollArea>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -53,7 +54,6 @@ namespace bpr::app {
 		bool                                                     Acquiring    = false;
 		bool                                                     Offered      = false;
 		std::string                                              RequestedBinding;
-		std::string                                              SelectedLabel;
 		std::optional<std::string>                               QueuedBinding;
 		std::uint64_t                                            AccessGeneration = 0;
 
@@ -134,8 +134,6 @@ namespace bpr::app {
                     const auto current = self->Service ? self->Service->projection().Candidate : std::nullopt;
                     self->Components.Browser(adapters::github::detail::release_update_browser_address(current ? current->Tag : std::string_view{}));
                 } },
-				[weak](std::string aBinding) { if (auto self = weak.lock(); self && self->Service && !self->Closing) { self->select(std::move(aBinding)); } },
-				{ }
 			};
 		}
 		auto add_panel(QWidget* aParent) -> qt::release_update_panel*
@@ -146,7 +144,6 @@ namespace bpr::app {
 			if (Service) {
 				panel->adopt(Service->projection(), Service->durable());
 			}
-			refresh_accounts();
 			return panel;
 		}
 		void present()
@@ -157,13 +154,14 @@ namespace bpr::app {
 			if (!Dialog) {
 				Dialog = std::make_unique<QWidget>(nullptr, Qt::Window);
 				Dialog->setWindowTitle(QStringLiteral("BetterPullReview Updates"));
-				Dialog->resize(580, 750);
 				auto* column = new QVBoxLayout{ Dialog.get() };
-				auto* scroll = new QScrollArea{ Dialog.get() };
-				MainPanel    = add_panel(nullptr);
-				scroll->setWidget(MainPanel);
-				scroll->setWidgetResizable(true);
-				column->addWidget(scroll);
+				column->setContentsMargins(20, 18, 20, 18);
+				// The window follows the panel, so release notes and progress
+				// get room when they appear and give it back when they go.
+				column->setSizeConstraint(QLayout::SetFixedSize);
+				MainPanel = add_panel(Dialog.get());
+				MainPanel->setFixedWidth(480);
+				column->addWidget(MainPanel);
 			}
 			Dialog->show();
 			Dialog->raise();
@@ -175,28 +173,13 @@ namespace bpr::app {
 			for (const auto& panel : Panels) {
 				panel->adopt(aProjection, Service && Service->durable());
 			}
-			refresh_accounts();
+			// Release access is chosen as soon as the service can take it, so
+			// the first gesture already has it ([[BPR-1671]]).
+			restore_access();
 			const auto newOffer = aProjection.OfferVisible && !Offered;
 			Offered             = aProjection.OfferVisible;
 			if (newOffer) {
 				present();
-			}
-		}
-		void refresh_accounts()
-		{
-			std::vector<std::pair<std::string, std::string>> choices;
-			choices.reserve(Accounts.size() + 1U);
-			for (const auto& account : Accounts) {
-				choices.emplace_back(account.Binding, account.Label);
-			}
-			const auto selected = Service ? Service->account_binding() : std::string{ };
-			if (!selected.empty() && std::ranges::none_of(choices, [&](const auto& aChoice) { return aChoice.first == selected; })) {
-				choices.emplace_back(selected, Access ? SelectedLabel : "Selected account unavailable — sign in again");
-			}
-			for (const auto& panel : Panels) {
-				if (panel) {
-					panel->set_accounts(choices, selected);
-				}
 			}
 		}
 		void restore_access()
@@ -204,17 +187,18 @@ namespace bpr::app {
 			if (!Service || !Service->ready() || !Service->projection().AutomaticAvailable || Acquiring || Access || Closing) {
 				return;
 			}
+			// No one picks an account: the stored binding is kept while it is
+			// still offered, and otherwise the first offer is taken. Natively
+			// that is the public releases, which need no sign-in, so a
+			// GHE-only setup still updates ([[BPR-1669]], [[BPR-1671]]).
 			auto binding = Service->account_binding();
-			// Without a chosen account still on offer, the public releases
-			// need no sign-in, so a GHE-only setup still updates ([[BPR-1669]]).
-			if (Public && (binding.empty() || std::ranges::find(Accounts, binding, &release_update_account::Binding) == Accounts.end())) {
-				binding = Public->Binding;
+			if (binding.empty() || std::ranges::find(Accounts, binding, &release_update_account::Binding) == Accounts.end()) {
+				if (Accounts.empty()) {
+					return;
+				}
+				binding = Accounts.front().Binding;
 			}
-			if (binding.empty() || RequestedBinding == binding) {
-				return;
-			}
-			const auto found = std::ranges::find(Accounts, binding, &release_update_account::Binding);
-			if (found != Accounts.end()) {
+			if (RequestedBinding != binding) {
 				select(binding);
 			}
 		}
@@ -229,15 +213,16 @@ namespace bpr::app {
 			}
 			const auto generation = ++AccessGeneration;
 			Access.reset();
+			// Recorded before the service publishes, so the restore that
+			// publication runs does not select the same binding again.
+			RequestedBinding = aBinding;
+			Acquiring        = false;
 			Service->select_access(aBinding, { });
-			RequestedBinding    = aBinding;
-			Acquiring           = false;
 			const auto selected = std::ranges::find(Accounts, aBinding, &release_update_account::Binding);
 			if (selected == Accounts.end() || !selected->Acquire) {
 				return;
 			}
-			SelectedLabel = selected->Label;
-			Acquiring     = true;
+			Acquiring = true;
 			try {
 				selected->Acquire(core::release_update_access_id{ generation }, Components.Archives,
 								  [weak = weak_from_this(), generation, binding = std::move(aBinding)](std::shared_ptr<application::release_update_access_port> aAccess) {
@@ -254,7 +239,6 @@ namespace bpr::app {
 										  }
 										  self->Access = std::move(aAccess);
 										  self->Service->select_access(binding, self->Access);
-										  self->refresh_accounts();
 									  }
 								  });
 			} catch (...) {
@@ -303,7 +287,13 @@ namespace bpr::app {
 	void release_update_desktop::attach(qt::settings_window& aSettings)
 	{
 		if (!aSettings.findChild<QWidget*>(QStringLiteral("releaseUpdatePanel"))) {
-			aSettings.adopt_panel(qt::settings_page::general, Impl->add_panel(nullptr));
+			// Among other General settings the headline needs its subject,
+			// named the way the Diagnostics section names its own.
+			auto* group = new QGroupBox{ QStringLiteral("Software Update") };
+			group->setObjectName(QStringLiteral("releaseUpdateGroup"));
+			auto* column = new QVBoxLayout{ group };
+			column->addWidget(Impl->add_panel(group));
+			aSettings.adopt_panel(qt::settings_page::general, group);
 		}
 	}
 	void release_update_desktop::attach(QMenuBar& aMenu)
@@ -326,7 +316,6 @@ namespace bpr::app {
 		if (Impl->Public) {
 			Impl->Accounts.insert(Impl->Accounts.begin(), *Impl->Public);
 		}
-		Impl->refresh_accounts();
 		Impl->restore_access();
 	}
 	void release_update_desktop::shutdown() { Impl->shutdown(); }
