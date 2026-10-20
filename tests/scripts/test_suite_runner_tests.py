@@ -76,6 +76,115 @@ class SuiteRunnerTests(unittest.TestCase):
             suite.validate_schedule({"tests": [row]})
         suite.validate_schedule({"tests": [{"name": "core"}]})
 
+    def isolated_row(self, mode="offscreen"):
+        properties = {
+            "WORKING_DIRECTORY": "/build/tests/end_to_end",
+            "LABELS": ["bpr_isolated_correctness", f"bpr_correctness_{mode}"],
+            "RESOURCE_LOCK": ["bpr_isolated_correctness_fixture"],
+        }
+        if mode == "offscreen":
+            properties["ENVIRONMENT"] = ["QT_QPA_PLATFORM=offscreen"]
+        return {"name": "isolated", "properties": [
+            {"name": name, "value": value} for name, value in properties.items()]}
+
+    def test_only_complete_isolated_correctness_declarations_admit_concurrency(self):
+        for mode in ("headless", "offscreen"):
+            suite.validate_schedule({"tests": [self.isolated_row(mode)]})
+        corruptions = [
+            ("RESOURCE_LOCK", []),
+            ("RESOURCE_LOCK", ["some_unrelated_lock"]),
+            ("ENVIRONMENT", ["QT_QPA_PLATFORM=cocoa"]),
+            ("ENVIRONMENT", ["QT_QPA_PLATFORM=offscreen", "QT_QPA_PLATFORM=windows"]),
+            ("ENVIRONMENT_MODIFICATION", ["QT_QPA_PLATFORM=set:windows"]),
+            ("RUN_SERIAL", True),
+            ("LABELS", ["bpr_correctness_offscreen"]),
+            ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_native"]),
+            ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_offscreen", "bpr_correctness_headless"]),
+            ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_offscreen", "bpr_explicit_serial"]),
+            ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_offscreen", "bpr_serial_gui"]),
+        ]
+        for name, value in corruptions:
+            with self.subTest(property=name, value=value):
+                row = self.isolated_row()
+                row["properties"] = [prop for prop in row["properties"] if prop["name"] != name]
+                row["properties"].append({"name": name, "value": value})
+                with self.assertRaisesRegex(ValueError, "Invalid isolated correctness"):
+                    suite.validate_schedule({"tests": [row]})
+        for argument in ("-platform", "-platform=windows", "--platform", "--platform=cocoa"):
+            row = self.isolated_row()
+            row["command"] = ["application", argument]
+            with self.assertRaisesRegex(ValueError, "Invalid isolated correctness"):
+                suite.validate_schedule({"tests": [row]})
+        row = self.isolated_row("headless")
+        row["properties"].append({"name": "ENVIRONMENT", "value": ["QT_QPA_PLATFORM=offscreen"]})
+        with self.assertRaisesRegex(ValueError, "Invalid isolated correctness"):
+            suite.validate_schedule({"tests": [row]})
+
+    def configure_schedule(self, declaration, *, environment="QT_QPA_PLATFORM=offscreen", before_default=""):
+        with ContainedTemporaryDirectory() as temporary:
+            source = Path(temporary) / "tests/end_to_end"
+            source.mkdir(parents=True)
+            build = Path(temporary) / "build"
+            module = (ROOT / "cmake/BprTestScheduling.cmake").as_posix()
+            (source / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.24)
+project(Scheduling NONE)
+enable_testing()
+include("{module}")
+add_test(NAME one COMMAND "${{CMAKE_COMMAND}}" -E true)
+add_test(NAME untouched COMMAND "${{CMAKE_COMMAND}}" -E true)
+add_test(NAME explicit COMMAND "${{CMAKE_COMMAND}}" -E true)
+add_test(NAME seed COMMAND "${{CMAKE_COMMAND}}" -E true)
+set_tests_properties(seed PROPERTIES FIXTURES_SETUP seed_fixture)
+set_tests_properties(one PROPERTIES ENVIRONMENT "{environment}"
+    LABELS maintained_label RESOURCE_LOCK retained_lock FIXTURES_REQUIRED seed_fixture TIMEOUT 17)
+set_tests_properties(explicit PROPERTIES RUN_SERIAL TRUE)
+{before_default}
+bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
+{declaration}
+''')
+            result = subprocess.run(["cmake", "-G", "Ninja", "-S", str(source), "-B", str(build)],
+                                    capture_output=True, text=True, check=False)
+            if result.returncode:
+                return result, None
+            manifest = subprocess.run(["ctest", "--test-dir", str(build), "--show-only=json-v1"],
+                                      capture_output=True, text=True, check=True)
+            return result, json.loads(manifest.stdout)
+
+    def test_cmake_opt_in_preserves_locks_fixtures_timeout_and_unclassified_exclusivity(self):
+        for mode, environment in (("offscreen", "QT_QPA_PLATFORM=offscreen"), ("headless", "")):
+            result, manifest = self.configure_schedule(
+                f'bpr_allow_isolated_correctness(DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}" MODE {mode} RESOURCE fixture TESTS one)',
+                environment=environment)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            rows = {row["name"]: {prop["name"]: prop["value"] for prop in row["properties"]}
+                    for row in manifest["tests"]}
+            self.assertFalse(rows["one"].get("RUN_SERIAL", False))
+            self.assertEqual(set(rows["one"]["RESOURCE_LOCK"]), {"retained_lock", "bpr_isolated_correctness_fixture"})
+            self.assertEqual(rows["one"]["FIXTURES_REQUIRED"], ["seed_fixture"])
+            self.assertEqual(rows["one"]["TIMEOUT"], 17)
+            self.assertIn("maintained_label", rows["one"]["LABELS"])
+            self.assertTrue(rows["untouched"]["RUN_SERIAL"])
+            self.assertTrue(rows["explicit"]["RUN_SERIAL"])
+            self.assertIn("bpr_explicit_serial", rows["explicit"]["LABELS"])
+            suite.validate_schedule(manifest)
+
+    def test_cmake_refuses_unsafe_or_incomplete_opt_ins(self):
+        declaration = 'bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" MODE offscreen RESOURCE fixture TESTS one)'
+        cases = [
+            (declaration.replace("RESOURCE fixture", ""), "QT_QPA_PLATFORM=offscreen", ""),
+            (declaration.replace("MODE offscreen", "MODE native"), "QT_QPA_PLATFORM=offscreen", ""),
+            (declaration.replace("TESTS one", "TESTS missing"), "QT_QPA_PLATFORM=offscreen", ""),
+            (declaration.replace("TESTS one", "TESTS explicit"), "QT_QPA_PLATFORM=offscreen", ""),
+            (declaration, "QT_QPA_PLATFORM=cocoa", ""),
+            (declaration, "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM=windows", ""),
+            (declaration, "QT_QPA_PLATFORM=offscreen", 'set_tests_properties(one PROPERTIES ENVIRONMENT_MODIFICATION "QT_QPA_PLATFORM=set:windows")'),
+            (declaration.replace("MODE offscreen", "MODE headless"), "QT_QPA_PLATFORM=offscreen", ""),
+        ]
+        for expression, environment, before in cases:
+            with self.subTest(declaration=expression, environment=environment, before=before):
+                result, _ = self.configure_schedule(expression, environment=environment, before_default=before)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_full_suite_lock_refuses_overlap_and_releases_on_failure(self):
         with ContainedTemporaryDirectory() as temporary:
             path = Path(temporary) / "suite.lock"

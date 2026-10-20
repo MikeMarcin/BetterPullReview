@@ -66,13 +66,33 @@ def print_report(report: dict) -> None:
 
 
 def validate_schedule(manifest: dict) -> None:
-    """Refuse concurrent interactive/performance courses in the full gate."""
+    """Keep exclusive courses alone; admit only declared isolated correctness."""
     for row in manifest["tests"]:
         props = {prop["name"]: prop["value"] for prop in row.get("properties", [])}
         directory = props.get("WORKING_DIRECTORY", "").replace("\\", "/")
-        gui = any("QT_QPA_PLATFORM=" in item for item in props.get("ENVIRONMENT", []))
+        platforms = [item for item in props.get("ENVIRONMENT", []) if item.startswith("QT_QPA_PLATFORM=")]
+        labels = props.get("LABELS", [])
         course = "/tests/end_to_end" in directory or "/tests/adapters_qt" in directory
-        if (gui or course or "bpr_serial_gui" in props.get("LABELS", [])) and not props.get("RUN_SERIAL"):
+        declared = "bpr_isolated_correctness" in labels
+        mode_labels = [label for label in labels if label.startswith("bpr_correctness_")]
+        if mode_labels and not declared:
+            raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
+        if declared:
+            locks = props.get("RESOURCE_LOCK", [])
+            valid_platform = (
+                mode_labels == ["bpr_correctness_headless"] and not platforms
+                or mode_labels == ["bpr_correctness_offscreen"] and platforms == ["QT_QPA_PLATFORM=offscreen"]
+            )
+            valid_lock = any(re.fullmatch(r"bpr_isolated_correctness_[a-z0-9_]+", lock) for lock in locks)
+            platform_override = any(item.startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
+            platform_argument = any(
+                item in {"-platform", "--platform"} or item.startswith(("-platform=", "--platform="))
+                for item in row.get("command", [])
+            )
+            exclusive = props.get("RUN_SERIAL") or "bpr_explicit_serial" in labels or "bpr_serial_gui" in labels
+            if not valid_platform or not valid_lock or platform_override or platform_argument or exclusive:
+                raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
+        if (platforms or course or "bpr_serial_gui" in labels) and not props.get("RUN_SERIAL") and not declared:
             raise ValueError(f"Interactive/performance test is not serial: {row['name']}")
 
 

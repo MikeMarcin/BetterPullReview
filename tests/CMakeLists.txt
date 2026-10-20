@@ -1460,23 +1460,26 @@ add_subdirectory(logging)
 bpr_add_network_isolated_test(NAME test_suite_runner_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_suite_runner_tests.py")
 
-# [[BPR-1386]]. CTest can overlap independent contracts, but interactive Qt
-# courses and complete application courses need an uncontended event loop.
-# Apply this after registration so explicit environments and existing locks are
-# visible. Existing RUN_SERIAL rows and resource/fixture dependencies survive.
-function(bpr_schedule_test_directory directory)
-    get_property(rows DIRECTORY "${directory}" PROPERTY TESTS)
-    foreach(row IN LISTS rows)
-        get_property(environment TEST "${row}" DIRECTORY "${directory}" PROPERTY ENVIRONMENT)
-        if(directory MATCHES "/tests/(adapters_qt|end_to_end)(/|$)"
-           OR environment MATCHES "QT_QPA_PLATFORM=")
-            set_tests_properties("${row}" DIRECTORY "${directory}" PROPERTIES RUN_SERIAL TRUE)
-            set_property(TEST "${row}" DIRECTORY "${directory}" APPEND PROPERTY LABELS bpr_serial_gui)
-        endif()
-    endforeach()
-    get_property(children DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
-    foreach(child IN LISTS children)
-        bpr_schedule_test_directory("${child}")
-    endforeach()
-endfunction()
+# [[BPR-1386]] keeps unclassified GUI/application courses exclusive. BPR-1670
+# permits only the audited correctness declarations below to share four slots.
+include("${PROJECT_SOURCE_DIR}/cmake/BprTestScheduling.cmake")
 bpr_schedule_test_directory("${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Native Windows pilot; other platforms retain the existing runtime schedule.
+if(WIN32)
+    # First matched native discriminator: no timing claims or real profile/vault;
+    # process-private models, owner-private fixture roots and in-memory providers.
+    # Output/executable locks also exclude duplicate scale/selector invocations.
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/adapters_qt"
+        MODE headless RESOURCE conversation_model
+        TESTS qt_github_conversation_model_property)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE pending_states
+        TESTS application_pending_states_public_path)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE device_launch_renewal
+        TESTS application_device_binding_launch_renewal)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE overview_summary
+        TESTS application_overview_summary_2)
+endif()
