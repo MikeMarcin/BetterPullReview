@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1670"
+  ],
+  "reserve_for": "windows-suite-speedup",
+  "purpose": "Profile and speed native Windows full test suite without weakening coverage workloads assertions or thresholds",
+  "created": "2026-10-20T19:27:14.997456+00:00",
+  "base": "c0d404c2cb59a4dd33cb7808ba20e7913859c2e0"
+}
