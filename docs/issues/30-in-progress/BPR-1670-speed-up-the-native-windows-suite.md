@@ -40,13 +40,21 @@ RFC-BPR-0038 qualification remains open independently.
 ## Current engineering checkpoint
 
 The [runtime investigation](../../verification/BPR-1670-windows-suite-runtime.md)
-records the retained full pass, causal controls and rejected attempts. The
-Settings-parent experiment passed its public course and 53 identical PNGs,
-but did not improve runtime and was reverted in `28887de99`. The checker-only
-candidate shares fresh source bytes inside one invocation; its direct native
-gate improved from 41.0335 to 31.7367 seconds. Native adversarial and full-suite
-acceptance remain open; the isolated adversarial row is being measured before
-spending another full gate. No test, workload or limit change is accepted or proposed.
+separates 159.39 minutes of suite wall from 9.47 minutes of combined final
+configure/build/bridge overhead; blanket serial rows consumed 147.78 minutes.
+The Settings-parent experiment was rejected/reverted. Fresh-byte checker sharing
+passes 159 native adversarial methods and saves 9.30 seconds in its matched
+direct gate; that small change is not the systemic outcome.
+
+A four-row same-binary native scheduling control passed at 443.07 seconds serial
+versus 169.36 seconds concurrent (61.8% less wall, 7.1% more summed row time).
+The 784-row property audit preserves commands, fixtures, assertions, budgets,
+timeouts, containment and existing locks. Source audit narrows the proposed
+cohort to 34 rows / 31.43 minutes of retained exclusive work; timed Markdown,
+shared canaries, native/global-resource and unclassified courses stay exclusive.
+Expanded native and one comparable complete native gate remain pending.
+Root workflow commit `89fde0df1` is preserved and its guidance reconciled.
+No full-suite or end-to-end release saving is claimed yet.
 
 External command/evidence ownership lives at
 `/tmp/bpr-windows-suite-speedup/handoff.md`. The native isolated root is
@@ -65,6 +73,7 @@ security and isolation. The owner permits correcting overbroad scheduling with
 causal proof; performance-sensitive rows still need an exclusive host.
 
 The uncommitted path experiment was discarded without a native candidate build.
-The already-running unchanged history control is retained and may finish; no
-full gate is justified by the checker saving alone. A bounded design with
-aggregate affected work and isolation controls must precede implementation.
+The unchanged history control passed in 425.723 seconds, separate from its
+170.949-second target build. The coordinator authorized the bounded scheduling
+design after aggregate diagnosis; the causal pilot above justifies its locked
+correctness cohort. Full acceptance remains open until the native gate passes.

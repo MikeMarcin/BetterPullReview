@@ -3,7 +3,8 @@
 [[BPR-1670]] implements owner mandate `windows-suite-speedup-r1`:
 “Have an implementer look into why the Windows suite takes almost 3 hours and
 speed it up without weakening the tests.” This investigation remains in
-progress. No speedup or complete candidate acceptance is claimed yet.
+progress. A focused scheduling speedup is measured; complete candidate and
+full-suite acceptance remain pending.
 
 ## Owner amendment: systemic diagnosis
 
@@ -48,12 +49,16 @@ profile/store/vault ownership, native desktop use, metrics and deadlines,
 and preserve existing resource locks and fixture dependencies.
 
 The coordinator authorized a bounded explicit correctness allowlist after this
-decomposition. The proposed 45-row cohort accounts for 2246.997 seconds
-(37.45 minutes) of retained exclusive work. Its ideal four-slot work bound is
-9.36 minutes; that is a lower bound, not a speedup prediction. Resource locks
-and contention can reduce the benefit. All other courses remain exclusive by
-default. The pilot applies to Windows; other platforms retain their runtime
-schedule.
+decomposition. Source audit narrowed the original 45-row proposal to 34 rows
+accounting for 1885.674 seconds (31.43 minutes) of retained exclusive work.
+Nine Markdown scale rows retain active 1000/1500 ms ceilings; the diagnostic
+wrapper retains its child 10 ms cancellation course and shared Qt syntax-canary
+location. The read-only symbol inspector stays serial because its retained
+23.46 seconds leaves little margin beneath its unchanged 30-second backstop.
+The ideal four-slot work bound is 7.86 minutes, and the largest resource group
+is 7.89 minutes; these are lower bounds, not a speedup prediction. All other
+courses remain exclusive by default. Other platforms retain their runtime
+schedule. No full-suite saving is inferred from those bounds.
 
 The first same-binary discriminator uses four independent executable families:
 conversation model properties (`QCoreApplication`, no GUI or effect port),
@@ -71,14 +76,134 @@ The configuration/runner policy fails closed for missing declarations, wrong
 platforms, platform overrides, missing locks, unknown modes and explicit
 exclusivity. Eight runner/configuration contract methods pass locally, including
 positive graph checks for preserved locks, fixtures, labels and deadlines.
-Native serial-versus-concurrent timing, remaining-cohort audit and full native
-acceptance are still pending. The uncommitted path experiment was discarded without native
-compilation. The unchanged history course already in flight is retained.
+The four-row native causal control passes; expanded-cohort and full native
+acceptance remain pending. The uncommitted path experiment was discarded without
+native compilation. The unchanged history course already in flight is retained.
 No full gate is justified by the checker gain alone.
 The unchanged history control passed in 425.723 seconds (170.949 seconds of
 benchmark-target build separately), with 68 preparation tails totaling 267.557
 seconds and 961 account requests. It confirms the retained course is reproducible;
 no path or preparation optimization was adopted.
+
+## Same-binary scheduling discriminator
+
+The isolated native baseline at `28887de9912476b17f00269787b1b8ab299255a1`
+built only the four target families in 80.368 seconds, separately from test time.
+Candidate `757a8795cf8661e3a4dcc996ba62685437b9288d` reconfigured in 28.105
+seconds and rebuilt no executable. SHA-256 guards match all four executables,
+three Qt Debug DLLs and `bpr_xdiff.dll` before/after both courses. Both use the
+same isolated paths, interactive Windows context, Debug Qt/toolchain and four
+CTest jobs. No competing PC work ran during the controls.
+
+| Course | Original serial seconds | Declared concurrent seconds |
+|---|---:|---:|
+| Conversation model properties | 84.96 | 99.71 |
+| Device launch renewal | 119.72 | 122.52 |
+| Overview summary 2.0 | 155.24 | 169.29 |
+| Pending states | 83.07 | 83.13 |
+| Summed row time | 442.99 | 474.65 |
+| CTest wall time | 443.07 | 169.36 |
+| Result | 4 pass | 4 pass |
+
+The measured focused wall reduction is 273.71 seconds (61.8%), while summed work
+rose 7.1% under contention. Every original limit and assertion passes. This
+establishes the scheduling cause for these four rows, not a full-suite outcome.
+A 784-row graph/property comparison permits only the four scheduling changes
+and provenance labels on already-explicit serial rows; commands, configuration,
+environment, timeouts, fixtures, verdict expressions, existing locks and
+containment remain identical. Both manifests pass the production runner policy.
+
+Native/local tar SHA-256 receipts:
+
+- Original serial: `1eb0bd60d754373cf52e6c4ca3d619b03f52dc73b46538d4b47bd72faa6edf78`.
+- Concurrent pilot: `bb40e1a40227053c1edec99c6acf10cbee85781246404218eb0a9019d9e9a412`.
+
+A later unrelated CTest started at 21:34:48 UTC, after the pilot completed at
+21:34:00.603 UTC. The collector refused its quiescence guard, so the failed
+collection attempt is retained. Collection then succeeded after observation
+confirmed quiescence; neither native course was rerun and the unrelated process
+was untouched.
+
+## Bounded ownership audit
+
+The explicit declarations enumerate every admitted row in `tests/CMakeLists.txt`.
+The table groups identical ownership evidence; resource locks extend over the
+entire CTest command, including every ordered child-process phase.
+
+| Audited family/resource | Rows | Retained serial seconds | Independent ownership and preserved acceptance |
+|---|---:|---:|---|
+| Conversation model | 1 | 84.050 | `QCoreApplication`, in-memory model/property permutations and persistent indexes; no GUI/effect/file port or performance bound. |
+| Qt render directory | 20 | 470.961 | Overview selectors, Settings, Home list, surface capture, Discuss-only and cycle view use process-private widgets/fake ports, offscreen screens/focus/clipboard, and no timed acceptance. One conservative common render-directory lock serializes these families with each other and protects optional/shared PNG names. |
+| Portable epoch catalogs | 1 | 81.202 | Driver creates/narrows independent temporary catalogs. Fixture root is passed into composition; Git observes only its cache with global/system config disabled. All twelve ordered launches and catalog/security assertions remain. |
+| Binary dependency inspection | 1 | 0.250 | Read-only dependency tool against immutable built executable; no application launch/profile/provider. |
+| Device launch renewal | 1 | 119.398 | Per-case private roots and fresh in-memory fixture vault; original launch/renewal/refusal assertions and readiness bounds. Pilot passes concurrently. |
+| Profile layout | 1 | 42.953 | Private root, fixture vault/transport, process-local offscreen geometry; ordered seed/restore/verify/broken-store phases and exact SQLite rows remain. |
+| Overview summary | 3 | 422.712 | Private per-invocation root and fixture server state; all scales retain assertions, readiness bounds and scale-specific renders. One executable/output lock; 2.0 pilot passes. |
+| Review restoration/tabs | 2 | 473.393 | Independent private roots, pipe-only synthetic vault, exact private catalog/cache state. Shared executable lock; every real restart and phase dependency remains. |
+| Offline inventory/account | 2 | 107.646 | Private roots and fixture credential slots travel only through bounded pipes; shared executable/output lock; original identity, corrupt/missing-cache and offline assertions remain. |
+| Diagnostic contract controls | 1 | 0.184 | Python unit controls mock subprocess calls; they launch no diagnostic child or shared canary course. |
+| Pending states | 1 | 82.925 | Private root, in-memory fixture providers/vault and process-local accessibility handler; unchanged readiness/settle bounds. Pilot passes concurrently. |
+
+The source files are the corresponding `tests/adapters_qt/*_tests.cpp`,
+`tests/end_to_end/*_public_path_tests.cpp` and their named Python drivers.
+Shared pointer input (`tests/support/window_system_mouse.hpp`) dispatches into
+that process's Qt window; it sends no OS desktop input. The cursor check reads
+its offscreen window's cursor. Clipboard isolation is source-backed:
+[Qt 6.12 offscreen integration](https://raw.githubusercontent.com/qt/qtbase/v6.12.0/src/plugins/platforms/offscreen/qoffscreenintegration.h)
+inherits the [default platform clipboard](https://raw.githubusercontent.com/qt/qtbase/v6.12.0/src/gui/kernel/qplatformintegration.cpp),
+whose [storage is process-static memory](https://raw.githubusercontent.com/qt/qtbase/v6.12.0/src/gui/kernel/qplatformclipboard.cpp).
+None of these admitted courses selects an owner's profile, OS vault, registry,
+real account, live endpoint or global desktop. The existing AppContainer profile
+mutex remains unchanged; no cross-request authorization cache is introduced.
+
+Only offline/account had an explicit per-row `RUN_SERIAL TRUE` before the
+blanket fallback. Owning commits `b3197149a` and `da3eea5c56` added that flag
+alongside adjacent GUI registrations without a recorded timing/global-resource reason;
+the actual courses above own their data/vault and have no elapsed acceptance.
+Their Windows registration now defers classification to the audited locked
+policy. Other platforms retain their explicit flag. The helper still refuses
+to override every remaining explicit exclusion. Nine timed Markdown scale rows,
+full workbench/gesture/performance courses, native credential/desktop courses,
+shared canary and all unclassified rows stay exclusive.
+
+## Build and release critical path
+
+The retained source explains a separate cold cost: `application_composition_contract`
+reconfigures a persistent tests-disabled Ninja Release tree, builds the real
+application with two jobs, and reruns all eight methods plus binary/runtime
+checks. It reuses compiler outputs, never a verdict. The earlier Windows row
+was 754.068 seconds with a cold tree; the final baseline was 226.244 seconds
+warm. The isolated candidate needs its own cold tree. Record that bootstrap
+separately and rerun the unchanged row in the matched warm complete gate;
+include clean bootstrap plus qualification in end-to-end accounting. Moving
+compilation outside a suite timer is not a runtime improvement.
+
+The normal Debug, tests-enabled optimized course, tests-disabled composition
+contract and platform distribution graphs have different configuration/artifact
+acceptance. Their canonical immutable dependency inputs may be reused after
+identity checks. The composition contract does not currently bind the packaged
+producer's platform policy/options to its generic Release graph, so treating
+one as a valid substitute for the other would require a separate equivalence
+contract. This milestone diagnoses that duplication and introduces no unchecked
+binary or verdict reuse.
+
+| Retained release phase | Elapsed evidence | Critical-path implication |
+|---|---:|---|
+| Final Windows normal wrapper | 168.86 min, of which suite 159.39 min | PC lane dominated by suite; combined configure/build/bridge 9.47 min cannot be split further from these receipts. |
+| Final Mac gate/producer | 63.92 min, of which suite 52.51 min | Independent lane overlapped PC; do not add durations as total delay. |
+| Final Ubuntu normal suite | 54.60 min | Same physical PC as Windows; performance-sensitive lanes require exclusive ownership. |
+| Windows optimized wrapper | 9.00 min; build 252.669 s/course 282.294 s | Separate tests-enabled optimized graph; retains its original course. |
+| Earlier failed Mac/Windows suites | 228.91 min aggregate, overlapping | Obsolete-source work had real failures; early changed public courses can expose them before expensive gates. |
+| PC material handoff/handback | about 155 min | Technical work overlapped; this is neither measured human effort nor wholly idle time. |
+| Publisher / anonymous downloads | 34.129 / 33.778 s | Small measured stages; not the dominant cost. |
+
+The complete non-overlapping DAG from the original Qt upgrade request is not
+retained, so no invented total release duration or saving is reported. Workflow
+commit `89fde0df1` is preserved on this branch and its execution reference is
+reconciled with the audited policy. It already covers early public feedback,
+common freeze, independent Mac/PC lanes, continuation records, review overlap
+and failed-layer collection recovery; this milestone does not take credit for
+those procedural changes or claim a measured release improvement.
 
 ## Retained baseline
 
@@ -147,8 +272,10 @@ between invocations and preserves every rule, allowed owner and diagnostic.
 All 159 architecture adversarial methods pass on the Mac (236.325 seconds).
 The matched native real checker passes in 31.7367 seconds versus 41.0335
 seconds, a 9.2968-second (22.7%) saving. The native 159-method adversarial
-course remains pending; the direct-checker saving alone is insufficient to
-claim a material reduction of the full suite.
+course passes in 472.564 seconds in isolation. Its historical 621.838 seconds
+in the complete graph overlapped other work and is not a matched causal
+comparison; the direct-checker saving alone is insufficient to claim a material
+reduction of the full suite.
 
 The native baseline and candidate build trees are isolated from the frozen
 published producer. The cold isolated build must first produce its own

@@ -1465,21 +1465,78 @@ bpr_add_network_isolated_test(NAME test_suite_runner_contract
 include("${PROJECT_SOURCE_DIR}/cmake/BprTestScheduling.cmake")
 bpr_schedule_test_directory("${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Native Windows pilot; other platforms retain the existing runtime schedule.
+# [[BPR-1670]]. Native Windows source/ownership audit and same-binary causal
+# control are recorded in docs/verification/BPR-1670-windows-suite-runtime.md.
+# Unknown, timing, native desktop and shared-global-state courses stay exclusive.
 if(WIN32)
-    # First matched native discriminator: no timing claims or real profile/vault;
-    # process-private models, owner-private fixture roots and in-memory providers.
-    # Output/executable locks also exclude duplicate scale/selector invocations.
+    # Model properties need QCoreApplication only. The remaining Qt correctness
+    # families share a conservative lock for their build/render directory;
+    # offscreen clipboard, focus and application state are process-private.
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/adapters_qt"
         MODE headless RESOURCE conversation_model
-        TESTS qt_github_conversation_model_property)
+        TESTS
+            qt_github_conversation_model_property)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/adapters_qt"
+        MODE offscreen RESOURCE qt_render_directory
+        TESTS
+            qt_pull_request_overview_page
+            qt_pull_request_overview_chips_scale_125
+            qt_pull_request_overview_chips_scale_200
+            qt_pull_request_overview_folder_rows_125
+            qt_pull_request_overview_folder_rows_200
+            qt_overview_read_marks
+            qt_settings_window
+            qt_settings_window_scale_125
+            qt_settings_window_scale_150
+            qt_settings_window_scale_200
+            qt_home_list_scale_100
+            qt_home_list_scale_125
+            qt_home_list_scale_200
+            qt_surface_capture_course_scale_100
+            qt_surface_capture_course_scale_125
+            qt_surface_capture_course_scale_150
+            qt_surface_capture_course_scale_200
+            qt_discuss_comment_bodies
+            qt_review_cycle_view_1_0
+            qt_review_cycle_view_2_0)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE pending_states
-        TESTS application_pending_states_public_path)
+        MODE offscreen RESOURCE epoch_catalogues
+        TESTS
+            application_epoch_portable_occurrence_two_catalogues)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE headless RESOURCE binary_graph_inspection
+        TESTS
+            binary_dependency_surface)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         MODE offscreen RESOURCE device_launch_renewal
-        TESTS application_device_binding_launch_renewal)
+        TESTS
+            application_device_binding_launch_renewal)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE profile_layout
+        TESTS
+            application_profile_window_layout_public_path)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         MODE offscreen RESOURCE overview_summary
-        TESTS application_overview_summary_2)
+        TESTS
+            application_overview_summary_1
+            application_overview_summary_1_25
+            application_overview_summary_2)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE review_restoration
+        TESTS
+            application_profile_window_review_restoration_public_path
+            application_document_tabs_restoration_public_path)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE offline_inventory
+        TESTS
+            application_offline_inventory
+            application_recent_account_isolation)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE headless RESOURCE diagnostic_contract
+        TESTS
+            diagnostic_subsystem_contract)
+    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
+        MODE offscreen RESOURCE pending_states
+        TESTS
+            application_pending_states_public_path)
 endif()

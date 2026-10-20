@@ -50,7 +50,11 @@ the release policy. Do not silently reuse old-source acceptance.
 - Run Mac production independently from the signing PC. Windows and its Ubuntu
   WSL instance share a physical host: serialize builds, normal suites, optimized
   performance courses and production there. Preserve the maintained suite's
-  four-job scheduling, locks and serial GUI/performance rows.
+  four-job scheduling, locks and exclusive timing/native/global-resource rows.
+  Windows may overlap only the maintained explicit isolated-correctness
+  allowlist; preserve its audited output/executable locks and default serial
+  classification. Follow the [suite policy](../../../../docs/development/build-and-test.md#complete-suite-timing-and-focused-work),
+  not a new release-specific concurrency override.
 - On Mac, `tools/release.sh` already runs the normal gate. Do not run a duplicate
   full suite first. Preserve separate tests-enabled optimized and tests-disabled
   package graphs, and reuse canonical build/dependency caches after current

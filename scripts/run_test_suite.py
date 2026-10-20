@@ -157,7 +157,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", default="dev")
-    parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; GUI/performance rows remain serial")
+    parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")

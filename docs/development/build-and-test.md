@@ -241,8 +241,16 @@ Both also have schema-12 workflow presets, for example
 
 The macOS release procedure uses `scripts/run_test_suite.py --preset dev`.
 It runs every row selected by that preset with four CTest jobs, preserving
-network isolation, resource locks and fixture dependencies. Interactive Qt and
-end-to-end courses run alone, including the responsiveness benchmarks. Use
+network isolation, resource locks and fixture dependencies. Unclassified Qt and
+end-to-end courses run alone, including every timing/performance or native
+desktop course. On Windows, the explicit audited correctness allowlist in
+`tests/CMakeLists.txt` may overlap independent process-private offscreen or
+headless courses. Its resource locks cover shared executables/render outputs;
+all test commands, fixtures, assertions, budgets and timeouts remain unchanged.
+Other platforms retain their existing runtime schedule. See the
+[BPR-1670 native controls and ownership audit](../verification/BPR-1670-windows-suite-runtime.md).
+Additions require their own source/ownership audit and native causal evidence;
+using Qt or an offscreen plugin alone does not establish safe concurrency. Use
 `--jobs 1` for a sequential diagnostic run. Avoid other builds or test runs on
 the machine when measuring responsiveness; CTest cannot serialize unrelated
 processes. The runner refuses a second complete-suite runner in this checkout

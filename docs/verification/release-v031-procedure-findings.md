@@ -116,3 +116,16 @@ WSL production without granting readiness to another logon or station. No new
 orchestration executable, background job, test optimization, release or version
 change is introduced. Improvement in elapsed time must be measured on a future
 run. BPR-1653 and any engineering of slow test rows remain separate work.
+
+### BPR-1670 scheduling follow-up
+
+The [Windows runtime investigation](BPR-1670-windows-suite-runtime.md) separates
+159.39 minutes of suite wall time from 9.47 minutes of combined final Windows
+configure/build/bridge overhead. Blanket serialization accounted for 147.78
+minutes of exclusive work. A matched four-row native correctness pilot with
+identical executable/dependency hashes passed in 169.36 seconds versus 443.07
+seconds serially; full-suite acceptance of its bounded allowlist remains pending.
+The maintained policy permits only explicitly audited process-private correctness
+courses to overlap, preserving locks and exclusive timing/native/global-resource
+courses. This refines the scheduling guidance above; it changes no v0.3.1 asset
+or historical acceptance and establishes no measured end-to-end release saving.

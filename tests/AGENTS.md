@@ -52,7 +52,9 @@ Tests are direct evidence, not naming evidence.
 - Scale evidence must record factual platform, architecture, Qt, scale, input,
   fixture-size, bounded-work, and elapsed-time context without converting one
   machine's timing into a universal frame-rate guarantee. Run interactive Qt
-  fixtures headlessly and serially during local verification.
+  fixtures headlessly. Keep timing, native desktop, global-resource and
+  unclassified courses serial; only the explicit Windows correctness allowlist
+  may overlap under its audited resource locks (BPR-1670).
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Do not name a test identifier `near`, `far`, `small`, `min` or `max`: the

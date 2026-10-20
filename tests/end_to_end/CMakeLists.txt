@@ -4195,15 +4195,23 @@ bpr_add_network_isolated_test(NAME application_offline_inventory WINDOWS_UNCONTA
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/offline_inventory_contract.py"
     --application $<TARGET_FILE:test_offline_inventory_public_path>)
 set_tests_properties(application_offline_inventory PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 320
     PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")
 
 bpr_add_network_isolated_test(NAME application_recent_account_isolation WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/offline_inventory_contract.py"
     --application $<TARGET_FILE:test_offline_inventory_public_path> --identity)
 set_tests_properties(application_recent_account_isolation PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 320
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 320
     PASS_REGULAR_EXPRESSION "OFFLINE_INVENTORY_OK")
+# [[BPR-1670]]. These two courses own random private roots and a pipe-only
+# synthetic vault; their shared executable is locked by the audited Windows
+# policy. b3197149a/da3eea5c56 introduced serial GUI registration without a
+# recorded timing/global-resource requirement. Other platforms retain it.
+if(NOT WIN32)
+    set_tests_properties(application_offline_inventory application_recent_account_isolation
+        PROPERTIES RUN_SERIAL TRUE)
+endif()
 
 if(UNIX)
     bpr_add_executable(test_terminal_diagnostics terminal_diagnostic_tests.cpp)
