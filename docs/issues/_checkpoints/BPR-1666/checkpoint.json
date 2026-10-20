@@ -1,0 +1,102 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "thread-scroll-blocker",
+  "segment_id": "repair",
+  "mandate_revision": "thread-scroll-blocker-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1666",
+  "binding": {
+    "plan_id": "bpr-1666-thread-scroll",
+    "plan_path": "docs/rfcs/plans/bpr-1666-thread-scroll/milestone-plan.json",
+    "milestone_id": "repair-thread-scroll",
+    "definition_fingerprint": "sha256:3844cfc83419e0955a0b2df86fcd9bcb79f90704d0e66e7acfc51b3dbae1bf9d",
+    "obligations": [
+      {
+        "id": "BPR-1666:AC1",
+        "source": "BPR-1666",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:2c7546ed80182ddc99e5207cb93180d57da589af5aaaf22beacba52c6b8b9108"
+      },
+      {
+        "id": "BPR-1666:AC2",
+        "source": "BPR-1666",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:2c7546ed80182ddc99e5207cb93180d57da589af5aaaf22beacba52c6b8b9108"
+      },
+      {
+        "id": "BPR-1666:AC3",
+        "source": "BPR-1666",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:2c7546ed80182ddc99e5207cb93180d57da589af5aaaf22beacba52c6b8b9108"
+      },
+      {
+        "id": "BPR-1666:AC4",
+        "source": "BPR-1666",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:2c7546ed80182ddc99e5207cb93180d57da589af5aaaf22beacba52c6b8b9108"
+      }
+    ],
+    "obligation_fingerprint": "sha256:2cad9be9463c126671f961bc9271c06b4e91eb059bfb532f7625edbd3c856185",
+    "exit_criteria": [
+      {
+        "id": "repair-thread-scroll:exit:1",
+        "text": "The old candidate fails the new production-window regression and the repaired candidate passes."
+      },
+      {
+        "id": "repair-thread-scroll:exit:2",
+        "text": "Focused composition evidence and upkeep are complete, and all task-owned commands are quiescent."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false,
+    "work": [
+      {
+        "issue": "BPR-1666",
+        "criteria": [
+          "AC1",
+          "AC2",
+          "AC3",
+          "AC4"
+        ]
+      }
+    ]
+  },
+  "target_milestones": [
+    "repair-thread-scroll"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/thread-scroll-fix/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/thread-scroll-fix/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/thread-scroll-fix",
+    "source_revision": "edec63c78dc60f2ab8850818b0045b8724b75ce0",
+    "workflow_branch": "codex/thread-scroll-fix",
+    "workflow_revision": "edec63c78dc60f2ab8850818b0045b8724b75ce0"
+  }
+}
