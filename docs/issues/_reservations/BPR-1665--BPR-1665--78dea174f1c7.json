@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1665"
+  ],
+  "reserve_for": "qt612-milestone",
+  "purpose": "Upgrade pinned Qt to 6.12.0",
+  "created": "2026-10-20T03:59:32.725836+00:00",
+  "base": "7b620cd9d5621b4e2d733ae9868b8486426191d2"
+}
