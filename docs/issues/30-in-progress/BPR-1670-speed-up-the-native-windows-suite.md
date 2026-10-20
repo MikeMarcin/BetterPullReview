@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1670"
 title: "Speed up the native Windows suite without weakening coverage"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
