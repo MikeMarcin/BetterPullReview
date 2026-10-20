@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1668"
+  ],
+  "reserve_for": "discuss-new-card-read",
+  "purpose": "",
+  "created": "2026-10-20T06:29:34.361808+00:00",
+  "base": "a0f688b3f790a94e4bba173ee21598c441f65a9d"
+}
