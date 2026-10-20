@@ -12,11 +12,36 @@ RFC-BPR-0014 M10, mandate r3. It is a security-review input, not release approva
 The [M8/M9 evidence ledger](../verification/RFC-BPR-0014.md) retains exact
 artifacts, failures and native gaps. R4 closes only the implemented foundation;
 [RFC-BPR-0038](../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md)
-retains complete release qualification. Current Qt 6.11.2 macOS producer
-`92c4e159` and Windows producer `67f5e514` both use separate version-bound
-source assets. Earlier records remain candidate-specific history.
+retains complete release qualification. The Qt 6.11.2 macOS producer
+`92c4e159` and Windows producer `67f5e514` below are historical candidates.
+Their evidence remains bound to those candidates.
 
 ## Release qualification
+
+The current private stable release is **v0.3.0**, published on 2026-10-19 from
+`dd6d3cec6026f32dd50428238bbfe9aaa80926fe`. The
+[current qualification ledger](../verification/RFC-BPR-0038.md) and
+[release engineering record](../verification/release-v030-engineering.md)
+bind all 28 downloaded assets to producer hashes, macOS package/trust checks,
+Windows publisher/chain/timestamp checks, six Ubuntu detached signatures and
+three separately retained corresponding-source archives. The unsigned and
+unpublished candidates described below do not describe these release bytes.
+
+The current ledger retains 97 raw vulnerability matches with independent,
+exact-input factual applicability decisions, expiring on 2026-11-18 or a
+named input/advisory/feed change. It does not waive applicable risk or unknown
+coverage. The owner accepted the original failed Ubuntu 216 MiB RSS predicate
+only for v0.3.0; BPR-1653 remains open for its correction. Broader M8/M9 native,
+clean-account, authentication/vault, accessibility, upgrade/removal,
+resident-material crash/privacy, hardening and vulnerability/fuzz qualification
+remain incomplete. Existing source access and retention obligations continue.
+
+The [hosted-content secret audit](github-content-audit-2026-10-19.md) found no
+new BPR credential in the inspected assets. The
+[publication-readiness record](publication-readiness-2026-10-19.md) separately
+tracks repository visibility, first-party terms and older release material.
+Neither the secret audit nor private release acceptance authorizes public
+distribution or closes the broader qualification work.
 
 The declared matrix is Windows 10/11 x64, macOS 13+ on native Intel and Apple
 Silicon, and selected Linux x86_64 on Ubuntu 26.04 with a glibc 2.43 ceiling,
@@ -27,7 +52,9 @@ retained optional RPM mechanics do not add a release requirement. These are qual
 completed support certifications. The [package guide](../development/release-packages.md)
 names toolchains, runtime prerequisites and installation routes.
 
-At the Qt 6.11.2 hand-back 478 (2026-09-22 UTC), retained by owner amendment r4:
+### Historical Qt 6.11.2 hand-back
+
+At hand-back 478 (2026-09-22 UTC), retained by owner amendment r4:
 
 - macOS has an offline ad-hoc candidate, not final Developer ID/notarization/
   Gatekeeper acceptance. The Windows MSI is unsigned; there is no final Linux

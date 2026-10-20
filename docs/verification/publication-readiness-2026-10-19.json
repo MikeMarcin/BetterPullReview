@@ -1,0 +1,516 @@
+{
+  "schema": "bpr.publication-readiness.v1",
+  "checked_at": "2026-10-20T00:27:22.883665+00:00",
+  "repository": "MikeMarcin/BetterPullReview",
+  "local_main_integration_commit": "c634a9338e4400aee212dc24a760dcc19bdf757c",
+  "repository_private": true,
+  "remote_main": "7819c22e48bfeb1fcfbd095728946d22dd4c1199",
+  "initial_settings": {
+    "repository": {
+      "http_status": 200,
+      "rate_remaining": 4963,
+      "private": true,
+      "visibility": "private",
+      "default_branch": "main",
+      "license": null,
+      "security_and_analysis": null,
+      "has_wiki": false,
+      "has_pages": false,
+      "has_discussions": false,
+      "forks_count": 0
+    },
+    "actions_permissions": {
+      "http_status": 200,
+      "rate_remaining": 4877,
+      "result": {
+        "enabled": true,
+        "allowed_actions": "all",
+        "sha_pinning_required": false
+      }
+    },
+    "workflows": {
+      "http_status": 200,
+      "rate_remaining": 4876,
+      "total_count": 1,
+      "states": [
+        "active"
+      ]
+    },
+    "main_branch": {
+      "http_status": 200,
+      "rate_remaining": 4962,
+      "sha": "7819c22e48bfeb1fcfbd095728946d22dd4c1199",
+      "protected": false
+    },
+    "rulesets": {
+      "http_status": 403,
+      "rate_remaining": 4961
+    },
+    "private_reporting": {
+      "http_status": 404,
+      "rate_remaining": 4875
+    },
+    "checked_at": "2026-10-20T00:15:06.362049+00:00"
+  },
+  "actions_removal": {
+    "checked_at": "2026-10-20T00:23:59.143048+00:00",
+    "repository_private": true,
+    "workflow": {
+      "id": 323328391,
+      "name": "CI",
+      "path": ".github/workflows/ci.yml",
+      "state": "disabled_manually"
+    },
+    "actions_permissions": {
+      "enabled": false,
+      "sha_pinning_required": false
+    },
+    "requests": [
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4995
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/workflows/323328391",
+        "status": 200,
+        "rate_remaining": 4999
+      },
+      {
+        "method": "PUT",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/workflows/323328391/disable",
+        "status": 204,
+        "rate_remaining": 4998
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/workflows/323328391",
+        "status": 200,
+        "rate_remaining": 4997
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4996
+      },
+      {
+        "method": "PUT",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 204,
+        "rate_remaining": 4995
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4994
+      }
+    ],
+    "workflow_file_present_at_inspected_remote_tips": false,
+    "historical_runs_deleted": false
+  },
+  "old_release_material_inspection": [
+    {
+      "tag": "v0.1.0",
+      "asset_names": [
+        "BetterPullReview-0.1.0-macos-universal.dmg",
+        "BetterPullReview-0.1.0-macos-universal.dmg.sha256",
+        "BetterPullReview-0.1.0-macos-universal.zip",
+        "BetterPullReview-0.1.0-macos-universal.zip.sha256"
+      ],
+      "payloads": [
+        {
+          "asset_id": 571978269,
+          "member_count": 80,
+          "sha256": "9c9418e4bd61950adde5be6da308fa2968d653ae6e377e28b37a8a3dd699a6f7",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        },
+        {
+          "asset_id": 571978270,
+          "member_count": 160,
+          "sha256": "6314a891938326b5036a4d67039358aa2da30293c1ac6d022908895bfeb550ac",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.1",
+      "asset_names": [
+        "BetterPullReview-0.1.1-macos-universal.dmg",
+        "BetterPullReview-0.1.1-macos-universal.dmg.sha256",
+        "BetterPullReview-0.1.1-macos-universal.zip",
+        "BetterPullReview-0.1.1-macos-universal.zip.sha256"
+      ],
+      "payloads": [
+        {
+          "asset_id": 572069342,
+          "member_count": 80,
+          "sha256": "14fe0015e120c7ab20ee5641bac9a285a13ffcd4e0f6e1325a5269c305cacd7d",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        },
+        {
+          "asset_id": 572069346,
+          "member_count": 160,
+          "sha256": "b5da05d1aa44df6cd556f0eabc2d5040cb17524758c469047dc0c9bc14a5e32f",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.2",
+      "asset_names": [
+        "BetterPullReview-0.1.2-macos-universal.dmg",
+        "BetterPullReview-0.1.2-macos-universal.dmg.sha256",
+        "BetterPullReview-0.1.2-macos-universal.zip",
+        "BetterPullReview-0.1.2-macos-universal.zip.sha256"
+      ],
+      "payloads": [
+        {
+          "asset_id": 572181277,
+          "member_count": 80,
+          "sha256": "07b60cb5cff1587142089d2beb0fd25c1547e0e7686c4c565469b9e2336f5315",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        },
+        {
+          "asset_id": 572181275,
+          "member_count": 160,
+          "sha256": "9a4a8bdcd57b00494e6f6bd342c3c4a69588a6b8517b6910aa3e0d19e4180cc2",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.3",
+      "asset_names": [
+        "BetterPullReview-0.1.3-macos-universal.dmg",
+        "BetterPullReview-0.1.3-macos-universal.dmg.sha256",
+        "BetterPullReview-0.1.3-macos-universal.zip",
+        "BetterPullReview-0.1.3-macos-universal.zip.sha256"
+      ],
+      "payloads": [
+        {
+          "asset_id": 572318925,
+          "member_count": 80,
+          "sha256": "fb3145ecc901e5e9fdf5bbbaedefe897cb183954abce6686f69728f4e9475075",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        },
+        {
+          "asset_id": 572318926,
+          "member_count": 160,
+          "sha256": "72b71ebd642f83f86ff7ec889bd4e201a0586af40d32d9be9a15201e8d91a4a9",
+          "expected_notice_source_license_spdx_members": [],
+          "qt_frameworks": [
+            "QtCore.framework",
+            "QtDBus.framework",
+            "QtGui.framework",
+            "QtNetwork.framework",
+            "QtWidgets.framework"
+          ]
+        }
+      ]
+    }
+  ],
+  "release_retirement": {
+    "checked_at": "2026-10-20T00:25:59.345976+00:00",
+    "releases": [
+      {
+        "tag": "v0.1.0",
+        "release_id": 391257331,
+        "deleted": true,
+        "tag_preserved": true,
+        "tag_object": "6cdc7c9a84b459c9f20478964f69d5a9c1643890"
+      },
+      {
+        "tag": "v0.1.1",
+        "release_id": 391284405,
+        "deleted": true,
+        "tag_preserved": true,
+        "tag_object": "4fdc015441761bdf46758265ac3dfea1bf7213c5"
+      },
+      {
+        "tag": "v0.1.2",
+        "release_id": 391319363,
+        "deleted": true,
+        "tag_preserved": true,
+        "tag_object": "6a41f7dadbef561a200e5deaad4f4865b1851829"
+      },
+      {
+        "tag": "v0.1.3",
+        "release_id": 391363901,
+        "deleted": true,
+        "tag_preserved": true,
+        "tag_object": "c0ee93e78d7a6a2cfce5e4ef0cd504dd84389121"
+      }
+    ],
+    "archive": {
+      "archive": "/Users/jaeger/Documents/Codex/releases/retired-v010-v013-20261019",
+      "manifest_sha256": "8b84433cb6ef99874dd94c5dc53e02a0d340e9261a8fdb1504c90e6d2a5244d2",
+      "release_count": 4,
+      "asset_count": 16,
+      "asset_bytes": 317259065,
+      "bundle_sha256": "bbb77675db4f0aa6a4aa5bb50ca57773fe687e08035c0b803f4bb2b2bcf15218",
+      "bundle_verify_exit": 0
+    },
+    "remaining_releases": 10,
+    "remaining_assets": 99,
+    "latest": "v0.3.0",
+    "repository_private": true,
+    "requests": [
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4989
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4989
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/latest",
+        "status": 200,
+        "rate_remaining": 4988
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391257331",
+        "status": 200,
+        "rate_remaining": 4987
+      },
+      {
+        "method": "DELETE",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391257331",
+        "status": 204,
+        "rate_remaining": 4986
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/tags/v0.1.0",
+        "status": 404,
+        "rate_remaining": 4985
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/tags/v0.1.0",
+        "status": 200,
+        "rate_remaining": 4984
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391284405",
+        "status": 200,
+        "rate_remaining": 4983
+      },
+      {
+        "method": "DELETE",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391284405",
+        "status": 204,
+        "rate_remaining": 4982
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/tags/v0.1.1",
+        "status": 404,
+        "rate_remaining": 4981
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/tags/v0.1.1",
+        "status": 200,
+        "rate_remaining": 4980
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391319363",
+        "status": 200,
+        "rate_remaining": 4979
+      },
+      {
+        "method": "DELETE",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391319363",
+        "status": 204,
+        "rate_remaining": 4978
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/tags/v0.1.2",
+        "status": 404,
+        "rate_remaining": 4977
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/tags/v0.1.2",
+        "status": 200,
+        "rate_remaining": 4976
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391363901",
+        "status": 200,
+        "rate_remaining": 4975
+      },
+      {
+        "method": "DELETE",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/391363901",
+        "status": 204,
+        "rate_remaining": 4974
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/tags/v0.1.3",
+        "status": 404,
+        "rate_remaining": 4973
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/tags/v0.1.3",
+        "status": 200,
+        "rate_remaining": 4972
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases?per_page=100",
+        "status": 200,
+        "rate_remaining": 4971
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/releases/latest",
+        "status": 200,
+        "rate_remaining": 4970
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4969
+      }
+    ]
+  },
+  "final_verification": {
+    "remaining_releases": 10,
+    "remaining_assets": 99,
+    "retained_asset_ids_names_sizes_digests_unchanged": true,
+    "retained_release_notes_unchanged": true,
+    "latest": "v0.3.0",
+    "remote_refs": 29,
+    "remote_branches": 15,
+    "remote_tags": 14,
+    "actions_enabled": false,
+    "workflow_state": "disabled_manually",
+    "actions_runs": 1,
+    "historical_run_id": 30498222845,
+    "new_actions_runs": 0,
+    "retirement_metadata_scan": {
+      "files": 10,
+      "findings": 0,
+      "network_denied": true
+    },
+    "workflow_files_at_all_29_remote_tips": 0,
+    "retained_bundle_verifies_in_empty_repository": true,
+    "bundle_verification_network_denied": true
+  },
+  "first_party_terms": {
+    "root_license_file": false,
+    "github_license": null,
+    "product_spdx_license": "NOASSERTION",
+    "owner_choice": "pending"
+  },
+  "history_decision": {
+    "rewrite_recommended": false,
+    "support_ticket_needed": false,
+    "reason": "Only established BPR credential is one retired loopback review-session token. Existing history keeps its 18 redacted findings."
+  },
+  "requests": [
+    {
+      "route": "repos/MikeMarcin/BetterPullReview",
+      "status": 200,
+      "rate_remaining": 4986
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/releases?per_page=100",
+      "status": 200,
+      "rate_remaining": 4985
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/git/matching-refs/?per_page=100",
+      "status": 200,
+      "rate_remaining": 4984
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+      "status": 200,
+      "rate_remaining": 4968
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/actions/workflows/323328391",
+      "status": 200,
+      "rate_remaining": 4967
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/actions/runs?per_page=100",
+      "status": 200,
+      "rate_remaining": 4983
+    },
+    {
+      "route": "repos/MikeMarcin/BetterPullReview/releases/latest",
+      "status": 200,
+      "rate_remaining": 4966
+    }
+  ]
+}

@@ -8,6 +8,12 @@ hosted content. The repository remained **private**, confirmed again at
 other hosted content was changed. No push or GitHub Support ticket was needed
 for the findings described below.
 
+Subsequent owner-authorized cleanup is recorded separately in the
+[publication-readiness report](publication-readiness-2026-10-19.md): Actions
+was disabled, and four early releases lacking expected distribution material
+were archived privately and deleted from GitHub. The 14-release/115-asset
+inventory below remains the original audit scope, before that cleanup.
+
 This is a bounded secret audit, not clearance to make BPR public. The owner
 confirmed that neither Packages nor Projects is used for BPR, closing those
 two inventory questions by owner confirmation. GitHub returned 404 for
