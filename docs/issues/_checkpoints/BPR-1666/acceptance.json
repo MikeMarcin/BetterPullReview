@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "8964ac489a8ed6ad5021a80f69f86d92fcdf3abd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Old product edec63c78 (diff source identical to v0.3.0/b433d515f) fails both regressions: overlay viewport1..583 vs bar584..601, and reported navigation route with overlay visibility transition snaps q7842 to3682 with9 total rebuilds. Baseline CTest exits8; both child exits1. Plain wheel/idle without visibility transitions did not reproduce. Logs /tmp/bpr-qt612-run/scroll-baseline-{ctest.log,result.json}."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "8964ac489a8ed6ad5021a80f69f86d92fcdf3abd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "qt_thread_scroll_stability_scale_{100,125,200} passes through Overview unread status -> Only new Threads -> actual double-click -> Review, wheel to the final line of one100-paragraph comment, including notes overflow after source end; every delayed position is unchanged and the idle state settles. Existing qt_composed_long_thread_scale_{100,125,200} also passes its thread-foot, pick, Tab, width/zoom/one-pane/growth controls. Logs /tmp/bpr-qt612-run/scroll-integration-{ctest,lasttest}.log."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "8964ac489a8ed6ad5021a80f69f86d92fcdf3abd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "qt_diff_workbench_scale_{100,125,200} passes native-overlay full extent and show/hide row/origin invariants plus legacy bar/divider/fractional/correspondence controls. Overlay extent is now1..601 for bar584..601; reported-route rebuild count stays4 for all wheel/visibility/overflow turns and idle. All3 window and thread-move scales pass. Renders inspected, retained at /tmp/bpr-qt612-run/scroll-renders; offscreen forced-style mechanics only."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "8964ac489a8ed6ad5021a80f69f86d92fcdf3abd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "20 distinct focused rows pass (23 executions including initial100% checks and pre-strengthening route rows). Exact application_diff_workbench_public_path6.76s passes real installed-Git/cache composition, conversation anchor and full-window render. architecture_boundaries, clang-format22.1.8, strict clang-tidy22 on all3 changed TUs, DOCUMENTATION_OK, all67 documentation-verifier tests and git diff --check pass. Native Windows/Linux, physical trackpad/native skin and release-package qualification stay with release owner; no such claims made."
+      }
+    }
+  ]
+}

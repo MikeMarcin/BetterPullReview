@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1666-thread-scroll",
+  "scope": {
+    "issues": [
+      "BPR-1666"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "repair-thread-scroll",
+      "outcome": "Opening a new thread into Review permits stable long-comment reading and settles idle source geometry.",
+      "work": [
+        {
+          "issue": "BPR-1666",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The old candidate fails the new production-window regression and the repaired candidate passes.",
+        "Focused composition evidence and upkeep are complete, and all task-owned commands are quiescent."
+      ],
+      "boundary": "Only the isolated codex/thread-scroll-fix worktree and BPR-1666; no release version, publication, live GitHub or owner desktop actions."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

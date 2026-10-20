@@ -5474,6 +5474,55 @@ namespace {
 		}
 	};
 
+	/// \brief [[BPR-1666]]. A transient source scrollbar overlays the text.
+	void test_source_overlay_scrollbar_keeps_viewport_extent()
+	{
+		auto overlay               = overlay_scroll_bar_style{ };
+		auto [leftText, rightText] = large_comparison_text(200U, 8U);
+		leftText += std::string(250U, 'x') + '\n';
+		rightText += std::string(250U, 'x') + '\n';
+		const auto diff      = computed(leftText, rightText, { }, 76U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1200, 760);
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			source->setStyle(&overlay);
+			source->horizontalScrollBar()->setStyle(&overlay);
+		}
+		workbench.show();
+		const auto selected = context(diff, 176U, 176U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		settle_geometry(workbench);
+		expect(workbench.select_conversation_line(core::diff_side::right, 62U), "the overlay course opens a conversation line");
+		expect(workbench.scroll_controller()->reveal_pane_origin(core::diff_side::right, 1205.0), "the overlay course starts at a fractional source origin");
+		settle_geometry(workbench);
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			auto* const horizontal = source->horizontalScrollBar();
+			expect(horizontal->isVisible() && horizontal->maximum() > 0 && horizontal->style()->styleHint(QStyle::SH_ScrollBar_Transient, nullptr, horizontal) != 0, "a wide source has a transient overlay bar");
+			const auto visible   = source->viewport()->mask().boundingRect();
+			const auto displayed = QRect{ source->viewport()->mapTo(source, visible.topLeft()), visible.size() };
+			const auto bar       = QRect{ horizontal->mapTo(source, QPoint{ }), horizontal->size() };
+			std::cout << "SOURCE_OVERLAY viewport=" << displayed.top() << ".." << displayed.bottom() << " bar=" << bar.top() << ".." << bar.bottom() << '\n';
+			expect(displayed.bottom() >= bar.bottom(), "source text extends behind the native overlay scrollbar without reserving an opaque band");
+		}
+		const auto origin = workbench.scroll_controller()->position();
+		const auto before = std::array{ workbench.line_rect(core::diff_side::left, 60U), workbench.line_rect(core::diff_side::right, 62U) };
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			source->horizontalScrollBar()->hide();
+		}
+		settle_geometry(workbench);
+		expect(close(workbench.scroll_controller()->position(), origin) && before == std::array{ workbench.line_rect(core::diff_side::left, 60U), workbench.line_rect(core::diff_side::right, 62U) }, "hiding overlay bars retains the source origin and row geometry");
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			source->horizontalScrollBar()->show();
+		}
+		settle_geometry(workbench);
+		expect(close(workbench.scroll_controller()->position(), origin) && before == std::array{ workbench.line_rect(core::diff_side::left, 60U), workbench.line_rect(core::diff_side::right, 62U) }, "showing overlay bars retains the source origin and row geometry");
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			source->horizontalScrollBar()->setStyle(nullptr);
+			source->setStyle(nullptr);
+		}
+	}
+
 	/// \brief [[BPR-1334]]. Line details' rows, gutter and horizontal bar, in
 	/// whichever bar style the strip has: the gutter beside the rows only and
 	/// not scrolling, and both rows above the bar rather than under it.
@@ -6112,6 +6161,12 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
+	if (argc > 1 && std::string_view{ argv[1] } == "--source-overlay-only") {
+		test_source_overlay_scrollbar_keeps_viewport_extent();
+		return EXIT_SUCCESS;
+	}
+	test_source_overlay_scrollbar_keeps_viewport_extent();
+
 	test_divider_drag_keeps_fractional_viewport();
 	if (argc > 1 && std::string_view{ argv[1] } == "--divider-resize-only") {
 		return EXIT_SUCCESS;

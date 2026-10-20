@@ -82,6 +82,7 @@
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPointer>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRectF>
 #include <QScreen>
@@ -15427,6 +15428,117 @@ namespace {
 		}
 	};
 
+	class thread_scroll_overlay_style final : public QProxyStyle
+	{
+	public:
+		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* aOption, const QWidget* aWidget, QStyleHintReturn* aReturn) const -> int override
+		{
+			return aHint == QStyle::SH_ScrollBar_Transient ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+		[[nodiscard]] auto pixelMetric(const PixelMetric aMetric, const QStyleOption* aOption, const QWidget* aWidget) const -> int override
+		{
+			return aMetric == QStyle::PM_ScrollView_ScrollBarOverlap ? QProxyStyle::pixelMetric(QStyle::PM_ScrollBarExtent, aOption, aWidget) : QProxyStyle::pixelMetric(aMetric, aOption, aWidget);
+		}
+	};
+
+	/// [[BPR-1666]]. The reported Overview -> new Threads -> Review path,
+	/// with a long post and a source line wider than either native viewport.
+	void test_thread_scroll_settles_after_opening_from_new_threads()
+	{
+		auto  overlay = thread_scroll_overlay_style{ };
+		auto  fixture = thread_moves_fixture{ };
+		auto& window  = *fixture.Window;
+		for (auto* const source : { window.comparison_surface()->left_pane(), window.comparison_surface()->right_pane() }) {
+			source->setStyle(&overlay);
+			source->horizontalScrollBar()->setStyle(&overlay);
+		}
+
+		auto pull               = application::github_pull_request_projection{ };
+		auto root               = application::github_conversation_projection{ };
+		root.Id                 = "review-thread:late";
+		root.Kind               = application::github_conversation_kind::review_thread;
+		root.Path               = "src/file.cpp";
+		root.Line               = 22U;
+		root.DiffSide           = application::github_conversation_diff_side::right;
+		root.AnchorAvailability = application::github_conversation_anchor_availability::current;
+		auto post               = root;
+		post.Id                 = "review-comment:late-1";
+		post.ParentId           = root.Id;
+		post.Kind               = application::github_conversation_kind::review_comment;
+		post.AuthorLogin        = "reviewer";
+		for (auto line = 0; line < 100; ++line) {
+			post.Body += "Paragraph " + std::to_string(line) + ": the complete long comment stays readable while its thread follows the code.\n\n";
+		}
+		pull.ReviewThreadsAvailable = true;
+		pull.ReviewThreadCount      = 1U;
+		pull.Conversations          = { root, post };
+		window.publish(application::github_presentation_update{ .PullRequest = pull });
+		window.present_read_state({ qt::thread_read_state{ .Thread = root.Id, .UnreadPosts = { post.Id } } });
+		auto text = std::string{ };
+		for (auto line = 0; line < 160; ++line) {
+			text += line == 5 ? std::string(220, 'W') + '\n' : "line " + std::to_string(line) + '\n';
+		}
+		auto later = text;
+		later.replace(later.find("line 22"), 7U, "changed line 22");
+		static_cast<void>(publish_fixture(window, computed_comparison(text, later, 0U, core::file_identity_of("src/file.cpp"))));
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		window.overview_page()->new_threads_button()->click();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::threads && window.finder()->filters().OnlyNew, "the status action opens only new threads");
+		auto* const finder = window.finder();
+		const auto  row    = finder->row_rect("row:review-thread:late/review-comment:late-1");
+		expect(!row.isEmpty(), "the unread long thread has a visible row");
+		auto* const target = finder->list()->viewport();
+		auto        press  = QMouseEvent{ QEvent::MouseButtonDblClick, QPointF{ row.center() }, target->mapToGlobal(QPointF{ row.center() }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(target, &press);
+		process_events();
+		auto* const cards   = window.conversation_panel()->cards();
+		auto* const surface = window.comparison_surface();
+		expect(window.current_modality() == qt::review_modality::review && cards->open_thread_id() == root.Id && cards->picked_post() == post.Id, "double-click opens the exact post in Review");
+		const auto pause = [](const int aMilliseconds) {
+			auto elapsed = QElapsedTimer{ };
+			elapsed.start();
+			while (elapsed.elapsed() < aMilliseconds) {
+				QApplication::processEvents();
+				QThread::msleep(1);
+			}
+		};
+		pause(400);
+		save_render(window, QStringLiteral("thread-scroll-open"));
+		auto reachedEnd = false;
+		for (auto step = 0; step < 80; ++step) {
+			auto* const reader = cards->open_card()->findChild<QTextEdit*>();
+			const auto  centre = QPointF{ reader->viewport()->rect().center() };
+			auto        wheel  = QWheelEvent{ centre, reader->viewport()->mapToGlobal(centre), QPoint{ 0, -100 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
+			QApplication::sendEvent(reader->viewport(), &wheel);
+			const auto before = std::tuple{ surface->shared_scrollbar()->value(), cards->overflow(), cards->open_card()->geometry() };
+			// Exercise the platform overlay's visibility transition between
+			// input turns. Its own band must not become a new source extent.
+			for (auto* const source : { surface->left_pane(), surface->right_pane() }) {
+				source->horizontalScrollBar()->setVisible(step % 2 != 0);
+			}
+			pause(240);
+			const auto after = std::tuple{ surface->shared_scrollbar()->value(), cards->overflow(), cards->open_card()->geometry() };
+			std::cout << "THREAD_SCROLL step=" << step << " shared=" << std::get<0>(before) << '/' << std::get<0>(after) << " overflow=" << std::get<1>(before) << '/' << std::get<1>(after) << " rebuilds=" << surface->statistics().GeometryRebuilds << '\n';
+			expect(before == after, "a user scroll stays where it was placed after delayed layout and reveal callbacks");
+			auto* const shownReader = cards->open_card()->findChild<QTextEdit*>();
+			auto        end         = QTextCursor{ shownReader->document() };
+			end.movePosition(QTextCursor::End);
+			const auto foot = shownReader->viewport()->mapTo(cards->viewport(), shownReader->cursorRect(end).bottomRight()).y();
+			if (foot >= 0 && foot < cards->viewport()->height()) {
+				reachedEnd = true;
+				break;
+			}
+		}
+		expect(reachedEnd, "wheel input reaches the final line of the entire long comment, including notes overflow past the source end");
+		const auto resting = std::tuple{ surface->left_pane()->viewport()->geometry(), surface->right_pane()->viewport()->geometry(), surface->left_pane()->horizontalScrollBar()->isVisible(), surface->right_pane()->horizontalScrollBar()->isVisible(), surface->statistics().GeometryRebuilds, cards->open_card()->geometry() };
+		pause(1500);
+		expect(resting == std::tuple{ surface->left_pane()->viewport()->geometry(), surface->right_pane()->viewport()->geometry(), surface->left_pane()->horizontalScrollBar()->isVisible(), surface->right_pane()->horizontalScrollBar()->isVisible(), surface->statistics().GeometryRebuilds, cards->open_card()->geometry() }, "idle panes, native bars and card geometry settle without a layout cycle");
+		save_render(window, QStringLiteral("thread-scroll-rest"));
+		window.hide();
+	}
+
 	/// [[BPR-1581]]. A thread moves from Review to Discuss and back through
 	/// one core route: the open card's menu, a closed note's menu, a post's
 	/// own menu, the code's line menu and ⌥⌘3 land in Discuss on that
@@ -18944,6 +19056,12 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--thread-scroll-stability"))) {
+		test_thread_scroll_settles_after_opening_from_new_threads();
+		std::cout << "thread-scroll-stability:pass\n";
+		return EXIT_SUCCESS;
+	}
+
 	if (QCoreApplication::arguments().contains(QStringLiteral("--current-file-unread-badge"))) {
 		test_unread_badge_follows_only_the_current_file();
 		test_read_state_reaches_the_gutter_and_the_strip();
