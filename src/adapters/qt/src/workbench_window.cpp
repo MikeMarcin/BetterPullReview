@@ -3699,10 +3699,8 @@ namespace bpr::qt {
 		// pull request summary stay in the files drawer's bounded top region
 		// until the repositories drawer (BPR-0651) and the overview
 		// (BPR-0647) take them.
-		// Build each settings subtree under its final parent so adoption does
-		// not propagate font and style changes through an already populated page.
 		SettingsWindow       = new settings_window{ this };
-		auto* const accounts = new QWidget{ SettingsWindow->page_widget(settings_page::accounts_and_hosts) };
+		auto* const accounts = new QWidget;
 		AccountsPanel        = accounts;
 		accounts->setObjectName(QStringLiteral("workbenchAccountsPage"));
 		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
@@ -3745,7 +3743,7 @@ namespace bpr::qt {
 		// [[BPR-1597]]. The review and comment rows have pages of their own,
 		// Review and Comments (owner's pick A, 2026-10-17: "Reviews & queue is
 		// too much of a big grab bag of settings").
-		auto* const reviews = new QWidget{ SettingsWindow->page_widget(settings_page::home_and_queue) };
+		auto* const reviews = new QWidget;
 		reviews->setObjectName(QStringLiteral("workbenchReviewsPage"));
 		reviews->setAccessibleName(QStringLiteral("Home and queue"));
 		auto* const reviewsColumn = new QVBoxLayout{ reviews };
@@ -3757,8 +3755,8 @@ namespace bpr::qt {
 		reviewsSubtitle->setObjectName(QStringLiteral("reviewsSubtitle"));
 		reviewsSubtitle->setWordWrap(true);
 		reviewsColumn->addWidget(reviewsSubtitle);
-		const auto settingsPage = [this](const settings_page aPage, const QString& aName, const QString& aAccessible, const QString& aSubtitle) {
-			auto* const page = new QWidget{ SettingsWindow->page_widget(aPage) };
+		const auto settingsPage = [](const QString& aName, const QString& aAccessible, const QString& aSubtitle) {
+			auto* const page = new QWidget;
 			page->setObjectName(aName);
 			page->setAccessibleName(aAccessible);
 			auto* const pageColumn = new QVBoxLayout{ page };
@@ -3769,8 +3767,8 @@ namespace bpr::qt {
 			pageColumn->addWidget(subtitle);
 			return std::pair{ page, pageColumn };
 		};
-		const auto [reviewPage, reviewColumn]     = settingsPage(settings_page::review, QStringLiteral("workbenchReviewPage"), QStringLiteral("Review"), QStringLiteral("How a pull request opens and reads. Local behaviour only."));
-		const auto [commentsPage, commentsColumn] = settingsPage(settings_page::comments, QStringLiteral("workbenchCommentsPage"), QStringLiteral("Comments"), QStringLiteral("Labels, the comment workshop, and how comments read. Local behaviour only."));
+		const auto [reviewPage, reviewColumn]     = settingsPage(QStringLiteral("workbenchReviewPage"), QStringLiteral("Review"), QStringLiteral("How a pull request opens and reads. Local behaviour only."));
+		const auto [commentsPage, commentsColumn] = settingsPage(QStringLiteral("workbenchCommentsPage"), QStringLiteral("Comments"), QStringLiteral("Labels, the comment workshop, and how comments read. Local behaviour only."));
 		build_behaviour_editor(reviewPage, reviewColumn, commentsPage, commentsColumn);
 		reviewColumn->addStretch(1);
 		commentsColumn->addStretch(1);
@@ -4002,7 +4000,7 @@ namespace bpr::qt {
 		// into the Settings window, a modeless child of this window reached by
 		// the preferences shortcut. The composition still finds the same panel
 		// through appearance_settings(), so its wiring is unchanged.
-		AppearanceSettings = new appearance_settings_panel{ { }, SettingsWindow->page_widget(settings_page::appearance) };
+		AppearanceSettings = new appearance_settings_panel{ { } };
 		AppearanceSettings->setObjectName(
 			QStringLiteral("appearanceSettingsPanel"));
 		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
@@ -4485,7 +4483,7 @@ namespace bpr::qt {
 
 	void workbench_window::build_capability_settings()
 	{
-		auto* const agents      = new QWidget{ SettingsWindow->page_widget(settings_page::agents_and_context) };
+		auto* const agents      = new QWidget;
 		auto* const column      = new QVBoxLayout{ agents };
 		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. The request choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
 		explanation->setWordWrap(true);
@@ -4544,7 +4542,7 @@ namespace bpr::qt {
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 
-		auto* const storage       = new QWidget{ SettingsWindow->page_widget(settings_page::storage_and_privacy) };
+		auto* const storage       = new QWidget;
 		auto* const storageColumn = new QVBoxLayout{ storage };
 		auto* const heading       = new QLabel{ QStringLiteral("Local data location"), storage };
 		storageColumn->addWidget(heading);
@@ -4634,7 +4632,7 @@ namespace bpr::qt {
 		SettingsQueueStatus->setWordWrap(true);
 		aColumn->addWidget(SettingsQueueStatus);
 
-		auto* const notifications = new QWidget{ SettingsWindow->page_widget(settings_page::notifications) };
+		auto* const notifications = new QWidget;
 		auto* const column        = new QVBoxLayout{ notifications };
 		NotificationsEnabled      = new QCheckBox{ QStringLiteral("Enable review notifications"), notifications };
 		NotificationsEnabled->setObjectName(QStringLiteral("notificationsEnabled"));
@@ -5645,7 +5643,7 @@ namespace bpr::qt {
 		// rows are the queue host's accepted records, Remove sends the typed
 		// intent for the exact record a row stands for, and Add sends the same
 		// repository-addition gesture the dialog did.
-		SavedRepositoriesEditor = new QWidget{ SettingsWindow->page_widget(settings_page::repositories) };
+		SavedRepositoriesEditor = new QWidget;
 		SavedRepositoriesEditor->setObjectName(QStringLiteral("savedRepositoriesEditor"));
 		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Repositories"));
 		SavedRepositoriesEditor->setAccessibleDescription(QStringLiteral(
