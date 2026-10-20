@@ -10,7 +10,7 @@
   "milestones": [
     {
       "id": "faster-native-windows-suite",
-      "outcome": "Explain and reduce the full native Windows suite runtime while preserving all maintained coverage and isolation.",
+      "outcome": "Diagnose and remove systemic avoidable native Windows build/suite wall time while preserving the full maintained graph and substantive acceptance.",
       "work": [
         {
           "issue": "BPR-1670"
@@ -20,7 +20,7 @@
       "exit_criteria": [
         "BPR-1670 AC1 through AC4 pass with focused causal evidence and one exact-candidate full native Windows suite; no weakened coverage, schedule, limits or isolation."
       ],
-      "boundary": "Mandate windows-suite-speedup-r1; no release/sign/publication or broad RFC0038 closeout."
+      "boundary": "Mandate windows-suite-speedup-r2: systemic decomposition before implementation; prove any scheduling correction preserves isolation and exclusive performance/global resources. No release/sign/publication or broad RFC0038 closeout."
     }
   ],
   "unplanned_work": []

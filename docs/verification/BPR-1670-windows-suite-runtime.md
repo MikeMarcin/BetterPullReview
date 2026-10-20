@@ -5,6 +5,81 @@
 speed it up without weakening the tests.” This investigation remains in
 progress. No speedup or complete candidate acceptance is claimed yet.
 
+## Owner amendment: systemic diagnosis
+
+The owner redirected the work to `windows-suite-speedup-r2` after the local
+checker/Qt experiments: diagnose the systemic build, suite and release critical
+path before further implementation. Blanket GUI serialization may be corrected
+only with source and native causal proof of equivalent isolation. Performance
+and global-resource courses remain exclusive; the graph, assertions, workloads,
+thresholds, diagnostics and security boundaries remain unchanged.
+
+The final native Windows wrapper ran 10:22:14.814–13:11:06.450 UTC
+(10131.636 seconds). CTest consumed 9563.164 seconds; approximately 568.472
+seconds (9.47 minutes) were configure/build/bridge overhead. These receipts
+do not attribute that overhead among compiler, linker and configuration phases.
+Calling the entire interval compilation hides the principal cost.
+
+`tests/CMakeLists.txt` applies `RUN_SERIAL` to every row under `adapters_qt` or
+`end_to_end`, or whose environment names `QT_QPA_PLATFORM`. The complete-suite
+runner separately enforces the same heuristic. It classifies process-isolated
+widget correctness, resource-scoped lifecycle courses, build/graph contracts
+and genuine performance courses together.
+
+| Native Windows serial category | Rows | Summed/exclusive seconds | Minutes |
+|---|---:|---:|---:|
+| Qt binaries | 187 | 3015.846 | 50.26 |
+| End-to-end binaries | 177 | 3383.492 | 56.39 |
+| End-to-end Python drivers | 41 | 2353.743 | 39.23 |
+| Other serial rows | 3 | 113.819 | 1.90 |
+| Total | 408 | 8866.900 | 147.78 |
+
+For the same Windows-selected names, Qt totals are 619.06 seconds on Mac and
+615.25 seconds on Ubuntu, versus 3064.19 seconds on Windows (including the
+Qt Python driver). Different hardware/OS/Debug libraries and diagnostics prevent
+a causal compiler/configuration claim. No Debug Qt or diagnostic switch is
+proposed. The slow Windows work multiplies the cost of overbroad exclusivity.
+
+Some apparent sharing opportunities are unsafe: workbench scale rows write
+some common PNG names; timed composed interaction cases carry 100 ms limits;
+restoration phases must actually restart and some later phases depend on
+earlier catalog/vault bytes. Candidate scheduling must audit outputs, private
+profile/store/vault ownership, native desktop use, metrics and deadlines,
+and preserve existing resource locks and fixture dependencies.
+
+The coordinator authorized a bounded explicit correctness allowlist after this
+decomposition. The proposed 45-row cohort accounts for 2246.997 seconds
+(37.45 minutes) of retained exclusive work. Its ideal four-slot work bound is
+9.36 minutes; that is a lower bound, not a speedup prediction. Resource locks
+and contention can reduce the benefit. All other courses remain exclusive by
+default. The pilot applies to Windows; other platforms retain their runtime
+schedule.
+
+The first same-binary discriminator uses four independent executable families:
+conversation model properties (`QCoreApplication`, no GUI or effect port),
+pending states, device launch renewal, and overview summary at 2.0 scale. The
+three desktop correctness fixtures each use a distinct owner-private temporary
+root and fixture providers; credential material stays in memory fixture vaults.
+Their elapsed clocks are unchanged readiness deadlines/settles, not performance
+acceptance. Overview renders have a scale-specific output root. Locks name the
+executable/output resource; they append to existing locks and retain fixtures.
+The maintained Windows AppContainer helper already serializes its shared test
+profile creation/check under its existing named mutex; that boundary is
+unchanged. No owner profile, keychain, account or live network is selected.
+
+The configuration/runner policy fails closed for missing declarations, wrong
+platforms, platform overrides, missing locks, unknown modes and explicit
+exclusivity. Eight runner/configuration contract methods pass locally, including
+positive graph checks for preserved locks, fixtures, labels and deadlines.
+Native serial-versus-concurrent timing, remaining-cohort audit and full native
+acceptance are still pending. The uncommitted path experiment was discarded without native
+compilation. The unchanged history course already in flight is retained.
+No full gate is justified by the checker gain alone.
+The unchanged history control passed in 425.723 seconds (170.949 seconds of
+benchmark-target build separately), with 68 preparation tails totaling 267.557
+seconds and 961 account requests. It confirms the retained course is reproducible;
+no path or preparation optimization was adopted.
+
 ## Retained baseline
 
 The exact v0.3.1 source `2ed7e5f98641d75678f861dad0edbe658b5f5d22`
@@ -82,7 +157,7 @@ source. Initial cold configure/Qt build took 255.6854/294.9737 seconds;
 candidate reconfigure/incremental Qt build took 35.5504/28.0294 seconds
 (two compilation lines). These setup costs are additional to the measured
 suite. Matched focused controls precede one full four-job candidate suite.
-The graph, GUI/performance serialization, locks, fixtures, workloads, assertions,
+The graph, justified exclusivity/resource scheduling, locks, fixtures, workloads, assertions,
 limits, timeouts, containment and network isolation remain acceptance obligations.
 
 ## Retained attempts and continuation

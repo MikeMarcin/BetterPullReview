@@ -14,7 +14,7 @@ metadata: {"kind":"corrective","origin":"Owner mandate 2026-10-20: Have an imple
 
 ## Mandate and baseline
 
-Mandate revision `windows-suite-speedup-r1`, source baseline `3547e8ef6`.
+Original mandate revision `windows-suite-speedup-r1`, source baseline `3547e8ef6`.
 The retained exact v0.3.1 native Windows pass at `2ed7e5f98641d75678f861dad0edbe658b5f5d22`
 completed 784 rows (783 pass, one configured Debug skip), four jobs, in
 9563.163747 seconds wall time and 11649.0845232 summed test seconds.
@@ -23,8 +23,8 @@ controls before spending a further full gate; distinguish cold/warm setup.
 
 ## Acceptance
 
-- AC1: Explain the measured native Windows wall and summed runtime, serial costs and causal hotspots using retained receipts and matched focused controls.
-- AC2: Demonstrate a meaningful native runtime improvement through a behavior-preserving engineering correction, retaining every maintained test, fixture/workload, assertion, budget, timeout, containment boundary, network isolation rule, resource lock and four-job policy; keep GUI/performance courses serial.
+- AC1: Explain native Windows build versus suite wall/work time, serial classification and repeated setup, together with the preserved release critical path, using retained receipts and focused causal controls.
+- AC2: Demonstrate a meaningful native runtime improvement through a behavior-preserving engineering correction, retaining every maintained test, fixture/workload, assertion, budget, timeout, containment boundary, network isolation rule, resource lock and four-job policy; keep performance-sensitive and global-resource courses exclusive, and allow concurrency only where source and causal native controls prove equivalent isolation and acceptance.
 - AC3: Run focused positive/adversarial regressions against the exact candidate and one complete comparable native Windows suite, preserving raw failed attempts, exact source/tool identities, full inventory and configured skips.
 - AC4: Update reproducible operator guidance and redacted evidence, self-review, intentionally commit the slice, and reconcile command/host ownership and integration handoff.
 
@@ -46,10 +46,25 @@ but did not improve runtime and was reverted in `28887de99`. The checker-only
 candidate shares fresh source bytes inside one invocation; its direct native
 gate improved from 41.0335 to 31.7367 seconds. Native adversarial and full-suite
 acceptance remain open; the isolated adversarial row is being measured before
-spending another full gate. No test, workload, limit or scheduling change is
-accepted or proposed.
+spending another full gate. No test, workload or limit change is accepted or proposed.
 
 External command/evidence ownership lives at
 `/tmp/bpr-windows-suite-speedup/handoff.md`. The native isolated root is
 `C:/Users/mikem/bpr1670-suite`; the exclusive shared-PC lease is reconciled with
 BPR-1653 at every handback. No human criterion is parked.
+
+## Owner amendment: systemic cause first
+
+Mandate revision `windows-suite-speedup-r2` supersedes the original scheduling
+assumption. The owner said the task felt focused on microoptimizations when
+there was a systemic problem in the three-hour build and long release. Before
+further implementation, diagnose blanket serialization, repeated startup and
+configuration/build work, cold/warm conditions, obsolete candidate reruns and
+release orchestration. Preserve coverage, workload, diagnostics, thresholds,
+security and isolation. The owner permits correcting overbroad scheduling with
+causal proof; performance-sensitive rows still need an exclusive host.
+
+The uncommitted path experiment was discarded without a native candidate build.
+The already-running unchanged history control is retained and may finish; no
+full gate is justified by the checker saving alone. A bounded design with
+aggregate affected work and isolation controls must precede implementation.
